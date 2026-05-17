@@ -45,7 +45,8 @@ export const createBookingRequestSchema = z.object({
     .number()
     .int("Guest count must be an integer.")
     .min(1, "Guest count must be at least 1.")
-    .max(MAX_BOOKING_GUEST_COUNT, `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`),
+    .max(MAX_BOOKING_GUEST_COUNT, `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`)
+    .optional(),
   note: nullableTrimmedStringSchema.pipe(
     z.string().trim().max(MAX_BOOKING_NOTE_LENGTH).nullable().optional(),
   ),
@@ -168,7 +169,7 @@ export interface CreateBookingRequestInput {
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   contactName: string;
   contactEmail: string;
   contactPhoneNumber?: string | null;
@@ -180,7 +181,7 @@ export interface BookingQuoteInput {
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 
@@ -225,7 +226,7 @@ export interface UpdateBookingRequestInput {
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   contactName: string;
   contactEmail: string;
   contactPhoneNumber?: string | null;

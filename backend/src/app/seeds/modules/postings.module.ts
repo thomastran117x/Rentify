@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import type { SeedModule } from "@/seeds/types";
 
@@ -33,6 +33,32 @@ function buildLifecycleTimestamps(index: number, status: "draft" | "published" |
     publishedAt: status === "published" ? base : null,
     pausedAt: status === "paused" ? base : null,
   };
+}
+
+function toPostingDetailsColumns(
+  family: "place" | "equipment" | "vehicle",
+  details: Record<string, unknown>,
+) {
+  switch (family) {
+    case "place":
+      return {
+        placeDetails: details as never,
+        equipmentDetails: Prisma.DbNull,
+        vehicleDetails: Prisma.DbNull,
+      };
+    case "equipment":
+      return {
+        placeDetails: Prisma.DbNull,
+        equipmentDetails: details as never,
+        vehicleDetails: Prisma.DbNull,
+      };
+    case "vehicle":
+      return {
+        placeDetails: Prisma.DbNull,
+        equipmentDetails: Prisma.DbNull,
+        vehicleDetails: details as never,
+      };
+  }
 }
 
 async function syncOwnerProfilePostingCounts(
@@ -114,7 +140,7 @@ export const postingsSeedModule: SeedModule = {
           pricingCurrency: fixturePosting.pricingCurrency,
           pricing: fixturePosting.pricing as never,
           tags: fixturePosting.tags as never,
-          attributes: fixturePosting.attributes as never,
+          ...toPostingDetailsColumns(fixturePosting.family, fixturePosting.details),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,
@@ -139,7 +165,7 @@ export const postingsSeedModule: SeedModule = {
           pricingCurrency: fixturePosting.pricingCurrency,
           pricing: fixturePosting.pricing as never,
           tags: fixturePosting.tags as never,
-          attributes: fixturePosting.attributes as never,
+          ...toPostingDetailsColumns(fixturePosting.family, fixturePosting.details),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,

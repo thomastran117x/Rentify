@@ -1,23 +1,35 @@
 export const POSTING_FAMILY_VALUES = ["place", "equipment", "vehicle"] as const;
 
-export const POSTING_SUBTYPE_VALUES = [
+export const PLACE_POSTING_SUBTYPE_VALUES = [
   "entire_place",
   "private_room",
   "shared_room",
   "workspace",
   "storage_space",
+ ] as const;
+
+export const EQUIPMENT_POSTING_SUBTYPE_VALUES = [
   "tool",
   "camera",
   "audio",
   "event_equipment",
   "sports_outdoor",
   "general_equipment",
+ ] as const;
+
+export const VEHICLE_POSTING_SUBTYPE_VALUES = [
   "car",
   "truck_van",
   "bike",
   "motorcycle",
   "trailer",
   "general_vehicle",
+] as const;
+
+export const POSTING_SUBTYPE_VALUES = [
+  ...PLACE_POSTING_SUBTYPE_VALUES,
+  ...EQUIPMENT_POSTING_SUBTYPE_VALUES,
+  ...VEHICLE_POSTING_SUBTYPE_VALUES,
 ] as const;
 
 export type PostingFamilyValue = (typeof POSTING_FAMILY_VALUES)[number];

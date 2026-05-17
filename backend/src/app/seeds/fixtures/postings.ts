@@ -38,7 +38,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 180 }, weekly: { amount: 1050 } },
     tags: ["toronto", "loft", "photoshoot"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 1,
       bathrooms: 1,
@@ -72,7 +72,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 65 } },
     tags: ["camera", "video", "creator"],
-    attributes: {
+    details: {
       brand: "Sony",
       model: "A7 IV",
       condition: "excellent",
@@ -102,7 +102,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 85 } },
     tags: ["room", "annex", "shortstay"],
-    attributes: {
+    details: {
       guest_capacity: 2,
       bedrooms: 1,
       bathrooms: 1,
@@ -134,7 +134,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 55 }, weekly: { amount: 300 } },
     tags: ["tools", "contractor", "renovation"],
-    attributes: {
+    details: {
       brand: "Milwaukee",
       model: "M18 Combo",
       condition: "good",
@@ -167,7 +167,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 35 }, monthly: { amount: 650 } },
     tags: ["storage", "inventory", "secure"],
-    attributes: {
+    details: {
       guest_capacity: 1,
       bedrooms: 0,
       bathrooms: 0,
@@ -199,7 +199,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 58 }, weekly: { amount: 320 } },
     tags: ["bike", "trail", "weekend"],
-    attributes: {
+    details: {
       make: "Specialized",
       model: "Turbo Tero",
       year: 2025,
@@ -231,7 +231,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 110 }, weekend: { amount: 260 } },
     tags: ["audio", "event", "pa"],
-    attributes: {
+    details: {
       brand: "Yamaha",
       model: "StagePas Bundle",
       condition: "good",
@@ -262,7 +262,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 145 }, hourly: { amount: 28 } },
     tags: ["workspace", "team", "offsite"],
-    attributes: {
+    details: {
       guest_capacity: 12,
       bedrooms: 0,
       bathrooms: 1,
@@ -296,7 +296,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 410 } },
     tags: ["market", "display", "popup"],
-    attributes: {
+    details: {
       brand: "FixtureLab",
       model: "Stall Set",
       condition: "excellent",
@@ -327,7 +327,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 118 }, weekly: { amount: 640 } },
     tags: ["van", "cargo", "moving"],
-    attributes: {
+    details: {
       make: "Ford",
       model: "Transit Connect",
       year: 2021,
@@ -359,7 +359,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 120 }, hourly: { amount: 24 } },
     tags: ["workspace", "studio", "maker"],
-    attributes: {
+    details: {
       guest_capacity: 10,
       bedrooms: 0,
       bathrooms: 1,
@@ -393,7 +393,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 45 } },
     tags: ["bike", "ebike", "commuter"],
-    attributes: {
+    details: {
       make: "Rad Power",
       model: "RadCity 5",
       year: 2024,
@@ -425,7 +425,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 78 }, weekly: { amount: 430 } },
     tags: ["car", "hybrid", "weekend"],
-    attributes: {
+    details: {
       make: "Toyota",
       model: "Prius C",
       year: 2022,
@@ -457,7 +457,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 70 } },
     tags: ["audio", "podcast", "recording"],
-    attributes: {
+    details: {
       brand: "Rode",
       model: "Caster Bundle",
       condition: "excellent",
@@ -488,7 +488,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 95 }, weekly: { amount: 520 } },
     tags: ["event", "popup", "portable"],
-    attributes: {
+    details: {
       brand: "Generic",
       model: "Event Pro",
       condition: "good",
@@ -521,7 +521,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 165 }, weekly: { amount: 960 } },
     tags: ["heritage", "canal", "flat"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,
@@ -553,7 +553,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 28 }, monthly: { amount: 520 } },
     tags: ["storage", "retail", "overflow"],
-    attributes: {
+    details: {
       guest_capacity: 1,
       bedrooms: 0,
       bathrooms: 0,
@@ -585,7 +585,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 72 }, weekly: { amount: 390 } },
     tags: ["camera", "documentary", "field"],
-    attributes: {
+    details: {
       brand: "Canon",
       model: "R6 Mark II",
       condition: "excellent",
@@ -617,7 +617,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 62 } },
     tags: ["tools", "landscaping", "yard"],
-    attributes: {
+    details: {
       brand: "EGO",
       model: "Yard Combo",
       condition: "good",
@@ -648,7 +648,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 52 }, weekly: { amount: 285 } },
     tags: ["bike", "cargo", "family"],
-    attributes: {
+    details: {
       make: "Tern",
       model: "GSD",
       year: 2024,
@@ -680,7 +680,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 210 }, hourly: { amount: 34 } },
     tags: ["vancouver", "loft", "production"],
-    attributes: {
+    details: {
       guest_capacity: 14,
       bedrooms: 0,
       bathrooms: 1,
@@ -712,7 +712,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 145 }, weekend: { amount: 360 } },
     tags: ["cinema", "interview", "video"],
-    attributes: {
+    details: {
       brand: "Blackmagic",
       model: "Pocket 6K Pair",
       condition: "excellent",
@@ -745,7 +745,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 96 }, weekly: { amount: 540 } },
     tags: ["ev", "city", "vancouver"],
-    attributes: {
+    details: {
       make: "Nissan",
       model: "Leaf",
       year: 2024,
@@ -777,7 +777,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 540 } },
     tags: ["suite", "guest", "mountpleasant"],
-    attributes: {
+    details: {
       guest_capacity: 2,
       bedrooms: 1,
       bathrooms: 1,
@@ -809,7 +809,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 88 }, weekly: { amount: 475 } },
     tags: ["woodworking", "tools", "maker"],
-    attributes: {
+    details: {
       brand: "Festool",
       model: "Bench Pack",
       condition: "excellent",
@@ -840,7 +840,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 135 }, weekly: { amount: 690 } },
     tags: ["trade-show", "display", "activation"],
-    attributes: {
+    details: {
       brand: "ExpoForm",
       model: "Mod Wall",
       condition: "good",
@@ -871,7 +871,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 54 }, weekend: { amount: 126 } },
     tags: ["bike", "seawall", "pair"],
-    attributes: {
+    details: {
       make: "Trek",
       model: "FX 3",
       year: 2025,
@@ -903,7 +903,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 46 }, monthly: { amount: 790 } },
     tags: ["storage", "loading-bay", "commercial"],
-    attributes: {
+    details: {
       guest_capacity: 2,
       bedrooms: 0,
       bathrooms: 0,
@@ -937,7 +937,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 172 }, weekly: { amount: 980 } },
     tags: ["montreal", "plateau", "content"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,
@@ -969,7 +969,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 84 }, weekend: { amount: 190 } },
     tags: ["audio", "recording", "session"],
-    attributes: {
+    details: {
       brand: "Universal Audio",
       model: "Session Pack",
       condition: "excellent",
@@ -1000,7 +1000,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 44 }, weekend: { amount: 104 } },
     tags: ["bike", "montreal", "canal"],
-    attributes: {
+    details: {
       make: "Linus",
       model: "Mixte Pair",
       year: 2025,
@@ -1032,7 +1032,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 128 }, weekly: { amount: 710 } },
     tags: ["festival", "vendor", "popup"],
-    attributes: {
+    details: {
       brand: "EventGrid",
       model: "Vendor Buildout",
       condition: "good",
@@ -1063,7 +1063,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 132 }, hourly: { amount: 26 } },
     tags: ["toronto", "editing", "studio"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 0,
       bathrooms: 1,
@@ -1095,7 +1095,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 76 }, weekend: { amount: 180 } },
     tags: ["camera", "product", "tabletop"],
-    attributes: {
+    details: {
       brand: "Fujifilm",
       model: "X-H2 Product Kit",
       condition: "excellent",
@@ -1125,7 +1125,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 49 }, weekly: { amount: 260 } },
     tags: ["bike", "ebike", "urban"],
-    attributes: {
+    details: {
       make: "Gazelle",
       model: "Medeo",
       year: 2025,
@@ -1157,7 +1157,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 38 }, weekly: { amount: 210 } },
     tags: ["storage", "wardrobe", "sample"],
-    attributes: {
+    details: {
       guest_capacity: 2,
       bedrooms: 0,
       bathrooms: 0,
@@ -1189,7 +1189,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 138 }, hourly: { amount: 27 } },
     tags: ["ottawa", "brand", "workshop"],
-    attributes: {
+    details: {
       guest_capacity: 16,
       bedrooms: 0,
       bathrooms: 1,
@@ -1221,7 +1221,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 465 } },
     tags: ["merch", "booth", "retail"],
-    attributes: {
+    details: {
       brand: "DisplayLab",
       model: "Merch Booth",
       condition: "excellent",
@@ -1252,7 +1252,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 112 }, weekly: { amount: 610 } },
     tags: ["crossover", "winter", "trip"],
-    attributes: {
+    details: {
       make: "Subaru",
       model: "Crosstrek",
       year: 2023,
@@ -1284,7 +1284,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 64 }, weekend: { amount: 150 } },
     tags: ["podcast", "audio", "interview"],
-    attributes: {
+    details: {
       brand: "Shure",
       model: "SM7B Duo",
       condition: "excellent",
@@ -1315,7 +1315,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 188 }, weekly: { amount: 1040 } },
     tags: ["vancouver", "daylight", "apartment"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,
@@ -1347,7 +1347,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 63 }, weekend: { amount: 150 } },
     tags: ["bike", "mountain", "northshore"],
-    attributes: {
+    details: {
       make: "Norco",
       model: "Fluid HT",
       year: 2025,
@@ -1379,7 +1379,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 71 }, weekly: { amount: 355 } },
     tags: ["cabinet", "install", "tools"],
-    attributes: {
+    details: {
       brand: "Makita",
       model: "Install Crate",
       condition: "good",
@@ -1410,7 +1410,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 41 }, weekly: { amount: 215 } },
     tags: ["storage", "sample", "props"],
-    attributes: {
+    details: {
       guest_capacity: 2,
       bedrooms: 0,
       bathrooms: 0,
@@ -1442,7 +1442,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 154 }, hourly: { amount: 31 } },
     tags: ["montreal", "oldport", "client"],
-    attributes: {
+    details: {
       guest_capacity: 10,
       bedrooms: 0,
       bathrooms: 1,
@@ -1474,7 +1474,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 89 }, weekend: { amount: 210 } },
     tags: ["editorial", "camera", "portrait"],
-    attributes: {
+    details: {
       brand: "Nikon",
       model: "Zf Editorial Kit",
       condition: "excellent",
@@ -1504,7 +1504,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 435 } },
     tags: ["hatchback", "utility", "city"],
-    attributes: {
+    details: {
       make: "Honda",
       model: "Fit",
       year: 2022,
@@ -1536,7 +1536,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 108 }, weekly: { amount: 560 } },
     tags: ["cafe", "popup", "service"],
-    attributes: {
+    details: {
       brand: "ServiceForm",
       model: "Cafe Set",
       condition: "good",
@@ -1567,7 +1567,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 162 }, weekly: { amount: 920 } },
     tags: ["calgary", "designer", "flat"],
-    attributes: {
+    details: {
       guest_capacity: 3,
       bedrooms: 1,
       bathrooms: 1,
@@ -1599,7 +1599,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 118 }, weekend: { amount: 275 } },
     tags: ["panel", "audio", "event"],
-    attributes: {
+    details: {
       brand: "Allen & Heath",
       model: "Panel Rack",
       condition: "excellent",
@@ -1630,7 +1630,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 57 }, weekly: { amount: 295 } },
     tags: ["bike", "cargo", "calgary"],
-    attributes: {
+    details: {
       make: "Yuba",
       model: "Kombi E5",
       year: 2024,
@@ -1662,7 +1662,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 126 }, hourly: { amount: 24 } },
     tags: ["maker", "workspace", "inglewood"],
-    attributes: {
+    details: {
       guest_capacity: 8,
       bedrooms: 0,
       bathrooms: 1,
@@ -1694,7 +1694,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 176 }, weekly: { amount: 995 } },
     tags: ["halifax", "harbour", "styled"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,
@@ -1726,7 +1726,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 74 }, weekend: { amount: 176 } },
     tags: ["documentary", "travel", "camera"],
-    attributes: {
+    details: {
       brand: "Sony",
       model: "FX30 Travel Set",
       condition: "excellent",
@@ -1756,7 +1756,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 106 }, weekly: { amount: 585 } },
     tags: ["wagon", "roadtrip", "coastal"],
-    attributes: {
+    details: {
       make: "Volkswagen",
       model: "Golf SportWagen",
       year: 2021,
@@ -1788,7 +1788,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 168 }, hourly: { amount: 33 } },
     tags: ["kitchen", "loft", "tasting"],
-    attributes: {
+    details: {
       guest_capacity: 12,
       bedrooms: 0,
       bathrooms: 1,
@@ -1820,7 +1820,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 169 }, weekly: { amount: 950 } },
     tags: ["victoria", "heritage", "suite"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,
@@ -1852,7 +1852,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 86 }, weekly: { amount: 425 } },
     tags: ["market", "display", "crate"],
-    attributes: {
+    details: {
       brand: "MarketForm",
       model: "Display Crate",
       condition: "good",
@@ -1883,7 +1883,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 53 }, weekly: { amount: 278 } },
     tags: ["ebike", "cruiser", "victoria"],
-    attributes: {
+    details: {
       make: "Electra",
       model: "Townie Go",
       year: 2024,
@@ -1915,7 +1915,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 134 }, hourly: { amount: 25 } },
     tags: ["edmonton", "team", "studio"],
-    attributes: {
+    details: {
       guest_capacity: 10,
       bedrooms: 0,
       bathrooms: 1,
@@ -1947,7 +1947,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 68 }, weekly: { amount: 348 } },
     tags: ["carpentry", "finish", "tools"],
-    attributes: {
+    details: {
       brand: "DeWalt",
       model: "Finish Kit",
       condition: "good",
@@ -1978,7 +1978,7 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 158 }, weekly: { amount: 900 } },
     tags: ["quebec-city", "flat", "production"],
-    attributes: {
+    details: {
       guest_capacity: 4,
       bedrooms: 2,
       bathrooms: 1,

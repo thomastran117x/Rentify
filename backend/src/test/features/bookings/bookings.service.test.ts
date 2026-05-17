@@ -30,7 +30,11 @@ function createPostingRecord(overrides: Partial<PostingRecord> = {}): PostingRec
     pricingCurrency: "CAD",
     photos: [],
     tags: [],
-    attributes: {},
+    details: {
+      guest_capacity: 4,
+      property_type: "loft",
+      amenities: [],
+    },
     availabilityStatus: "available",
     effectiveMaxBookingDurationDays: 30,
     availabilityBlocks: [],

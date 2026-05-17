@@ -390,7 +390,7 @@ export class PostingsController {
       pricing: body.pricing,
       photos: body.photos,
       tags: body.tags,
-      attributes: body.attributes,
+      details: body.details,
       availabilityStatus: body.availabilityStatus,
       availabilityNotes: body.availabilityNotes ?? null,
       maxBookingDurationDays: body.maxBookingDurationDays ?? null,

@@ -2,6 +2,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import { ZodError } from "zod";
 import { RequestValidationError } from "@/configuration/validation/request";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -19,6 +20,7 @@ import {
   type PostingAvailabilityBlockRecord,
   type PostingAvailabilityBlockInput,
   type PostingAttributeValue,
+  parsePostingDetailsForVariant,
   type PostingFamily,
   type PostingPricing,
   type PostingRecord,
@@ -26,6 +28,7 @@ import {
   type PostingSubtype,
   type SearchPostingsInput,
   type SearchPostingsResult,
+  toPostingAttributes,
   type UpsertPostingInput,
   isPostingPubliclyVisible,
 } from "@/features/postings/postings.model";
@@ -387,11 +390,7 @@ export class PostingsService {
       pricing: normalizedPricing,
       photos: normalizedPhotos,
       tags: normalizedTags,
-      attributes: this.normalizeAttributes(
-        input.attributes,
-        input.variant.family,
-        input.variant.subtype,
-      ),
+      details: this.normalizePostingDetails(input),
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes?.trim() || null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
@@ -493,41 +492,6 @@ export class PostingsService {
     };
   }
 
-  private normalizeAttributes(
-    attributes: Record<string, PostingAttributeValue>,
-    family: PostingFamily,
-    subtype: PostingSubtype,
-  ): Record<string, PostingAttributeValue> {
-    const searchableAttributes = getPostingSearchableAttributeDefinitions(family, subtype);
-
-    if (!searchableAttributes) {
-      throw new BadRequestError("Posting variant is invalid.");
-    }
-
-    return Object.fromEntries(
-      Object.entries(attributes).map(([key, value]) => {
-        const normalizedKey = key.trim();
-        const definition = searchableAttributes[normalizedKey];
-
-        if (!definition) {
-          return [
-            normalizedKey,
-            Array.isArray(value)
-              ? value.map((entry) => entry.trim())
-              : typeof value === "string"
-                ? value.trim()
-                : value,
-          ];
-        }
-
-        return [
-          normalizedKey,
-          this.normalizeSearchableAttributeValue(normalizedKey, value, definition),
-        ];
-      }),
-    );
-  }
-
   private assertSafeTextContent(input: UpsertPostingInput): void {
     const violations = this.contentSanitizationService
       .inspect(this.collectTextInputs(input))
@@ -538,6 +502,24 @@ export class PostingsService {
 
     if (violations.length > 0) {
       throw new BadRequestError("Request body validation failed.", violations);
+    }
+  }
+
+  private normalizePostingDetails(input: UpsertPostingInput) {
+    try {
+      return parsePostingDetailsForVariant(input.variant, input.details);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new BadRequestError(
+          "Request body validation failed.",
+          error.issues.map((issue) => ({
+            path: issue.path.length > 0 ? `details.${issue.path.join(".")}` : "details",
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
     }
   }
 
@@ -561,7 +543,7 @@ export class PostingsService {
         position: photo.position,
       })),
       tags: [...posting.tags],
-      attributes: posting.attributes,
+      details: posting.details,
       availabilityStatus: posting.availabilityStatus,
       availabilityNotes: posting.availabilityNotes ?? null,
       maxBookingDurationDays: posting.maxBookingDurationDays ?? null,
@@ -705,10 +687,10 @@ export class PostingsService {
       }
     });
 
-    Object.entries(input.attributes).forEach(([key, value]) => {
+    Object.entries(toPostingAttributes(input.details)).forEach(([key, value]) => {
       if (typeof value === "string") {
         textInputs.push({
-          path: `attributes.${key}`,
+          path: `details.${key}`,
           value,
         });
         return;
@@ -717,7 +699,7 @@ export class PostingsService {
       if (Array.isArray(value)) {
         value.forEach((entry, index) => {
           textInputs.push({
-            path: `attributes.${key}.${index}`,
+            path: `details.${key}.${index}`,
             value: entry,
           });
         });
@@ -1184,7 +1166,7 @@ export class PostingsService {
       max?: number;
     },
   ): PostingAttributeValue {
-    const path = `attributes.${key}`;
+    const path = `details.${key}`;
 
     switch (definition.kind) {
       case "string": {
@@ -1192,7 +1174,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: "Attribute must be a string.",
+              message: "Detail must be a string.",
             },
           ]);
         }
@@ -1204,7 +1186,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: "Attribute must be an array of strings.",
+              message: "Detail must be an array of strings.",
             },
           ]);
         }
@@ -1216,7 +1198,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: "Attribute must be a boolean.",
+              message: "Detail must be a boolean.",
             },
           ]);
         }
@@ -1231,8 +1213,8 @@ export class PostingsService {
               path,
               message:
                 definition.kind === "integer"
-                  ? "Attribute must be an integer."
-                  : "Attribute must be a number.",
+                  ? "Detail must be an integer."
+                  : "Detail must be a number.",
             },
           ]);
         }
@@ -1241,7 +1223,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: "Attribute must be an integer.",
+              message: "Detail must be an integer.",
             },
           ]);
         }
@@ -1250,7 +1232,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: `Attribute must be at least ${definition.min}.`,
+              message: `Detail must be at least ${definition.min}.`,
             },
           ]);
         }
@@ -1259,7 +1241,7 @@ export class PostingsService {
           throw new BadRequestError("Request body validation failed.", [
             {
               path,
-              message: `Attribute must be at most ${definition.max}.`,
+              message: `Detail must be at most ${definition.max}.`,
             },
           ]);
         }

@@ -128,7 +128,9 @@ model Posting {
   pricingCurrency   String                     @map("pricing_currency") @db.VarChar(3)
   pricing           Json
   tags              Json
-  attributes        Json
+  placeDetails      Json?                      @map("place_details")
+  equipmentDetails  Json?                      @map("equipment_details")
+  vehicleDetails    Json?                      @map("vehicle_details")
   availabilityStatus PostingAvailabilityStatus @map("availability_status")
   availabilityNotes String?                    @map("availability_notes") @db.VarChar(500)
   maxBookingDurationDays Int?                  @map("max_booking_duration_days")

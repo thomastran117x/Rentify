@@ -464,15 +464,7 @@ export class BookingsService {
       );
     }
 
-    if (!Number.isInteger(input.guestCount) || input.guestCount < 1) {
-      throw new BadRequestError("Guest count must be a positive integer.");
-    }
-
-    if (input.guestCount > MAX_BOOKING_GUEST_COUNT) {
-      throw new BadRequestError(
-        `Guest count cannot exceed ${MAX_BOOKING_GUEST_COUNT}.`,
-      );
-    }
+    const guestCount = this.resolveGuestCountOrThrow(input.guestCount, posting);
 
     const note = input.note?.trim() || null;
     const contactName = input.contactName.trim();
@@ -489,7 +481,7 @@ export class BookingsService {
       ...input,
       startAt,
       endAt,
-      guestCount: input.guestCount,
+      guestCount,
       contactName,
       contactEmail,
       contactPhoneNumber,
@@ -500,6 +492,7 @@ export class BookingsService {
 
   private normalizeCreateInputForQuote(
     input: BookingQuoteInput,
+    posting: PostingRecord,
     maxBookingDurationDays: number,
   ): {
     normalized: NormalizedBookingRequestInput | null;
@@ -543,22 +536,11 @@ export class BookingsService {
       });
     }
 
-    if (!Number.isInteger(input.guestCount) || input.guestCount < 1) {
-      failureReasons.push({
-        code: "invalid_guest_count",
-        field: "guestCount",
-        message: "Guest count must be a positive integer.",
-      });
-    } else if (input.guestCount > MAX_BOOKING_GUEST_COUNT) {
-      failureReasons.push({
-        code: "guest_count_exceeded",
-        field: "guestCount",
-        message: `Guest count cannot exceed ${MAX_BOOKING_GUEST_COUNT}.`,
-        details: {
-          maxGuestCount: MAX_BOOKING_GUEST_COUNT,
-        },
-      });
-    }
+    const guestCount = this.resolveGuestCountOrCollectFailures(
+      input.guestCount,
+      posting,
+      failureReasons,
+    );
 
     const note = input.note?.trim() || null;
 
@@ -577,7 +559,7 @@ export class BookingsService {
       normalized: {
         startAt,
         endAt,
-        guestCount: input.guestCount,
+        guestCount,
         note,
         durationDays,
       },
@@ -607,7 +589,11 @@ export class BookingsService {
       });
     }
 
-    const normalizedResult = this.normalizeCreateInputForQuote(input, maxBookingDurationDays);
+    const normalizedResult = this.normalizeCreateInputForQuote(
+      input,
+      posting,
+      maxBookingDurationDays,
+    );
     failureReasons.push(...normalizedResult.failureReasons);
 
     if (normalizedResult.normalized) {
@@ -662,6 +648,72 @@ export class BookingsService {
       maxBookingDurationDays,
       failureReasons,
     };
+  }
+
+  private resolveGuestCountOrThrow(guestCount: number | undefined, posting: PostingRecord): number {
+    if (posting.variant.family !== "place") {
+      return 1;
+    }
+
+    if (guestCount === undefined || !Number.isInteger(guestCount) || guestCount < 1) {
+      throw new BadRequestError("Guest count must be a positive integer.");
+    }
+
+    const normalizedGuestCount = guestCount as number;
+    const maxGuestCount = this.resolveMaxGuestCountForPosting(posting);
+
+    if (normalizedGuestCount > maxGuestCount) {
+      throw new BadRequestError(`Guest count cannot exceed ${maxGuestCount}.`);
+    }
+
+    return normalizedGuestCount;
+  }
+
+  private resolveGuestCountOrCollectFailures(
+    guestCount: number | undefined,
+    posting: PostingRecord,
+    failureReasons: BookingQuoteFailureReason[],
+  ): number {
+    if (posting.variant.family !== "place") {
+      return 1;
+    }
+
+    if (guestCount === undefined || !Number.isInteger(guestCount) || guestCount < 1) {
+      failureReasons.push({
+        code: "invalid_guest_count",
+        field: "guestCount",
+        message: "Guest count must be a positive integer.",
+      });
+      return 1;
+    }
+
+    const normalizedGuestCount = guestCount as number;
+    const maxGuestCount = this.resolveMaxGuestCountForPosting(posting);
+
+    if (normalizedGuestCount > maxGuestCount) {
+      failureReasons.push({
+        code: "guest_count_exceeded",
+        field: "guestCount",
+        message: `Guest count cannot exceed ${maxGuestCount}.`,
+        details: {
+          maxGuestCount,
+        },
+      });
+    }
+
+    return normalizedGuestCount;
+  }
+
+  private resolveMaxGuestCountForPosting(posting: PostingRecord): number {
+    if (posting.variant.family !== "place") {
+      return MAX_BOOKING_GUEST_COUNT;
+    }
+
+    const details = posting.details as {
+      guest_capacity: number;
+    };
+
+    return Math.min(details.guest_capacity, MAX_BOOKING_GUEST_COUNT);
   }
 
   private assertBookingRequestValidationPassed(

@@ -1,8 +1,11 @@
 import { z } from "zod";
 import {
+  EQUIPMENT_POSTING_SUBTYPE_VALUES,
   POSTING_FAMILY_VALUES,
   POSTING_SUBTYPE_VALUES,
+  PLACE_POSTING_SUBTYPE_VALUES,
   type PostingAttributeValue as VariantPostingAttributeValue,
+  VEHICLE_POSTING_SUBTYPE_VALUES,
 } from "@/features/postings/postings.variants";
 
 export const MAX_POSTING_PHOTOS = 10;
@@ -66,36 +69,77 @@ export const postingPricingSchema = z.object({
   monthly: pricingRateSchema.optional(),
 });
 
-const primitiveAttributeSchema = z.union([
-  z.string().trim().min(1).max(100),
+const detailStringSchema = trimmedStringSchema.max(100);
+const detailStringArraySchema = z
+  .array(detailStringSchema)
+  .max(20)
+  .transform((values) => Array.from(new Set(values)));
+const detailCatchallSchema = z.union([
+  detailStringSchema,
   z.number().finite(),
   z.boolean(),
+  detailStringArraySchema,
 ]);
 
-const attributeValueSchema = z.union([
-  primitiveAttributeSchema,
-  z.array(z.string().trim().min(1).max(100)).max(20),
-]);
+export const placePostingSubtypeSchema = z.enum(PLACE_POSTING_SUBTYPE_VALUES);
+export const equipmentPostingSubtypeSchema = z.enum(EQUIPMENT_POSTING_SUBTYPE_VALUES);
+export const vehiclePostingSubtypeSchema = z.enum(VEHICLE_POSTING_SUBTYPE_VALUES);
 
-export const postingAttributesSchema = z
-  .record(
-    z
-      .string()
-      .trim()
-      .min(1)
-      .max(50)
-      .regex(
-        /^[a-z][a-z0-9_]*$/i,
-        "Attribute keys must start with a letter and contain only letters, numbers, and underscores.",
-      ),
-    attributeValueSchema,
-  )
-  .default({});
-
-export const postingVariantSchema = z.object({
-  family: postingFamilySchema,
-  subtype: postingSubtypeSchema,
+export const placePostingVariantSchema = z.object({
+  family: z.literal("place"),
+  subtype: placePostingSubtypeSchema,
 });
+
+export const equipmentPostingVariantSchema = z.object({
+  family: z.literal("equipment"),
+  subtype: equipmentPostingSubtypeSchema,
+});
+
+export const vehiclePostingVariantSchema = z.object({
+  family: z.literal("vehicle"),
+  subtype: vehiclePostingSubtypeSchema,
+});
+
+export const postingVariantSchema = z.union([
+  placePostingVariantSchema,
+  equipmentPostingVariantSchema,
+  vehiclePostingVariantSchema,
+]);
+
+export const placePostingDetailsSchema = z
+  .object({
+    guest_capacity: z.number().int().min(1).max(1000),
+    bedrooms: z.number().int().min(0).max(1000).optional(),
+    bathrooms: z.number().min(0).max(1000).optional(),
+    property_type: detailStringSchema,
+    amenities: detailStringArraySchema.default([]),
+    pet_friendly: z.boolean().optional(),
+    parking: z.boolean().optional(),
+  })
+  .catchall(detailCatchallSchema);
+
+export const equipmentPostingDetailsSchema = z
+  .object({
+    condition: detailStringSchema,
+    brand: detailStringSchema.optional(),
+    model: detailStringSchema.optional(),
+    power_source: detailStringSchema.optional(),
+    weight_lb: z.number().finite().min(0).optional(),
+    includes_delivery: z.boolean().optional(),
+  })
+  .catchall(detailCatchallSchema);
+
+export const vehiclePostingDetailsSchema = z
+  .object({
+    make: detailStringSchema,
+    model: detailStringSchema,
+    year: z.number().int().min(1886).max(9999),
+    seats: z.number().int().min(1).max(200),
+    license_class: detailStringSchema,
+    transmission: detailStringSchema.optional(),
+    fuel_type: detailStringSchema.optional(),
+  })
+  .catchall(detailCatchallSchema);
 
 export const postingPhotoSchema = z.object({
   blobUrl: z.url("Photo URL must be a valid URL."),
@@ -109,14 +153,12 @@ export const postingAvailabilityBlockSchema = z.object({
   note: nullableTrimmedStringSchema.pipe(z.string().trim().max(255).nullable().optional()),
 });
 
-const upsertPostingRequestShape = {
-  variant: postingVariantSchema,
+const sharedUpsertPostingRequestShape = {
   name: trimmedStringSchema.max(150),
   description: trimmedStringSchema.max(5000),
   pricing: postingPricingSchema,
   photos: z.array(postingPhotoSchema).min(1).max(MAX_POSTING_PHOTOS),
   tags: z.array(postingTagSchema).max(30).default([]),
-  attributes: postingAttributesSchema,
   availabilityStatus: postingAvailabilityStatusSchema,
   availabilityNotes: nullableTrimmedStringSchema.pipe(
     z.string().trim().max(500).nullable().optional(),
@@ -128,7 +170,6 @@ const upsertPostingRequestShape = {
     .max(MAX_BOOKING_DURATION_DAYS_LIMIT)
     .nullable()
     .optional(),
-  availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -141,19 +182,68 @@ const upsertPostingRequestShape = {
   }),
 };
 
-export const upsertPostingRequestSchema = z.object(upsertPostingRequestShape);
-
-export const updatePostingRequestSchema = z
+export const placeUpsertPostingRequestSchema = z
   .object({
-    ...upsertPostingRequestShape,
-    availabilityBlocks: z.any().optional(),
+    ...sharedUpsertPostingRequestShape,
+    variant: placePostingVariantSchema,
+    details: placePostingDetailsSchema,
+    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
   })
-  .refine((body) => !Object.prototype.hasOwnProperty.call(body, "availabilityBlocks"), {
-    path: ["availabilityBlocks"],
-    message:
-      "Availability blocks must be managed with the dedicated availability-blocks endpoints.",
+  .strict();
+
+export const equipmentUpsertPostingRequestSchema = z
+  .object({
+    ...sharedUpsertPostingRequestShape,
+    variant: equipmentPostingVariantSchema,
+    details: equipmentPostingDetailsSchema,
+    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
   })
-  .transform(({ availabilityBlocks: _availabilityBlocks, ...body }) => body);
+  .strict();
+
+export const vehicleUpsertPostingRequestSchema = z
+  .object({
+    ...sharedUpsertPostingRequestShape,
+    variant: vehiclePostingVariantSchema,
+    details: vehiclePostingDetailsSchema,
+    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
+  })
+  .strict();
+
+export const upsertPostingRequestSchema = z.union([
+  placeUpsertPostingRequestSchema,
+  equipmentUpsertPostingRequestSchema,
+  vehicleUpsertPostingRequestSchema,
+]);
+
+export const placeUpdatePostingRequestSchema = z
+  .object({
+    ...sharedUpsertPostingRequestShape,
+    variant: placePostingVariantSchema,
+    details: placePostingDetailsSchema,
+  })
+  .strict();
+
+export const equipmentUpdatePostingRequestSchema = z
+  .object({
+    ...sharedUpsertPostingRequestShape,
+    variant: equipmentPostingVariantSchema,
+    details: equipmentPostingDetailsSchema,
+  })
+  .strict();
+
+export const vehicleUpdatePostingRequestSchema = z
+  .object({
+    ...sharedUpsertPostingRequestShape,
+    variant: vehiclePostingVariantSchema,
+    details: vehiclePostingDetailsSchema,
+  })
+  .strict();
+
+export const updatePostingRequestSchema = z.union([
+  placeUpdatePostingRequestSchema,
+  equipmentUpdatePostingRequestSchema,
+  vehicleUpdatePostingRequestSchema,
+]);
 
 export const ownerAvailabilityBlockRequestSchema = postingAvailabilityBlockSchema;
 
@@ -188,8 +278,18 @@ export type PostingSubtype = z.infer<typeof postingSubtypeSchema>;
 export type PostingSearchSource = z.infer<typeof postingSearchSourceSchema>;
 export type PostingSort = z.infer<typeof postingSortSchema>;
 export type PostingPricing = z.infer<typeof postingPricingSchema>;
-export type PostingVariant = z.infer<typeof postingVariantSchema>;
+export interface PostingVariant {
+  family: PostingFamily;
+  subtype: PostingSubtype;
+}
 export type PostingAttributeValue = VariantPostingAttributeValue;
+export type PlacePostingDetails = z.infer<typeof placePostingDetailsSchema>;
+export type EquipmentPostingDetails = z.infer<typeof equipmentPostingDetailsSchema>;
+export type VehiclePostingDetails = z.infer<typeof vehiclePostingDetailsSchema>;
+export type PostingDetails =
+  | PlacePostingDetails
+  | EquipmentPostingDetails
+  | VehiclePostingDetails;
 export type PostingPhotoInput = z.infer<typeof postingPhotoSchema>;
 export interface ManagedPostingPhotoInput extends PostingPhotoInput {
   thumbnailBlobUrl?: string;
@@ -265,7 +365,7 @@ export interface PostingRecord {
   pricingCurrency: string;
   photos: PostingPhotoRecord[];
   tags: string[];
-  attributes: Record<string, PostingAttributeValue>;
+  details: PostingDetails;
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes?: string;
   maxBookingDurationDays?: number;
@@ -326,7 +426,7 @@ export interface UpsertPostingInput {
   pricing: PostingPricing;
   photos: ManagedPostingPhotoInput[];
   tags: string[];
-  attributes: Record<string, PostingAttributeValue>;
+  details: PostingDetails;
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
@@ -413,6 +513,24 @@ export interface PostingSearchDocument {
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
+}
+
+export function parsePostingDetailsForVariant(
+  variant: PostingVariant,
+  details: unknown,
+): PostingDetails {
+  switch (variant.family) {
+    case "place":
+      return placePostingDetailsSchema.parse(details);
+    case "equipment":
+      return equipmentPostingDetailsSchema.parse(details);
+    case "vehicle":
+      return vehiclePostingDetailsSchema.parse(details);
+  }
+}
+
+export function toPostingAttributes(details: PostingDetails): Record<string, PostingAttributeValue> {
+  return details as Record<string, PostingAttributeValue>;
 }
 
 export function isPostingPubliclyVisible(posting: {

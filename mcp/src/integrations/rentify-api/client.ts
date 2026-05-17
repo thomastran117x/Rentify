@@ -102,7 +102,7 @@ export interface PostingWriteBody extends JsonObject {
     position: number;
   }>;
   tags: string[];
-  attributes: Record<string, string | number | boolean | string[]>;
+  details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
@@ -141,7 +141,7 @@ export interface PostingReviewBody extends JsonObject {
 export interface BookingRequestBody extends JsonObject {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
   contactName: string;
   contactEmail: string;
@@ -151,7 +151,7 @@ export interface BookingRequestBody extends JsonObject {
 export interface BookingQuoteBody extends JsonObject {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 

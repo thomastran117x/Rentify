@@ -89,7 +89,11 @@ function createPublicPosting(overrides: Partial<PublicPostingRecord> = {}): Publ
       },
     ],
     tags: ["loft"],
-    attributes: {},
+    details: {
+      guest_capacity: 4,
+      property_type: "loft",
+      amenities: [],
+    },
     availabilityStatus: "available",
     effectiveMaxBookingDurationDays: 30,
     availabilityBlocks: [],

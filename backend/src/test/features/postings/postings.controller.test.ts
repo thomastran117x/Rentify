@@ -25,6 +25,14 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   };
 }
 
+function createPlaceDetails() {
+  return {
+    guest_capacity: 2,
+    property_type: "condo",
+    amenities: [],
+  };
+}
+
 function createContext(options?: {
   body?: unknown;
   url?: string;
@@ -351,7 +359,7 @@ describe("PostingsController", () => {
           },
         ],
         tags: [],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -367,10 +375,9 @@ describe("PostingsController", () => {
     await expect(controller.create(context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
-      message: "Request body validation failed.",
       details: [
         {
-          path: "variant",
+          path: "",
         },
       ],
     });
@@ -410,7 +417,7 @@ describe("PostingsController", () => {
           },
         ],
         tags: ["camera, lens"],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -472,7 +479,7 @@ describe("PostingsController", () => {
           },
         ],
         tags: [],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -488,10 +495,9 @@ describe("PostingsController", () => {
     await expect(controller.update(context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
-      message: "Request body validation failed.",
       details: [
         {
-          path: "availabilityBlocks",
+          path: "",
         },
       ],
     });

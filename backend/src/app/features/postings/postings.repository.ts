@@ -4,7 +4,9 @@ import { BaseRepository } from "@/features/base/base.repository";
 import {
   DEFAULT_MAX_BOOKING_DURATION_DAYS,
   isPostingSearchIndexable,
+  parsePostingDetailsForVariant,
   toPublicPostingRecord,
+  toPostingAttributes,
 } from "@/features/postings/postings.model";
 import type {
   BatchPublicPostingsInput,
@@ -18,11 +20,13 @@ import type {
   PostingAvailabilityBlockInput,
   PostingAvailabilityBlockRecord,
   PostingAvailabilityStatus,
+  PostingDetails,
   PostingPhotoRecord,
   PostingPricing,
   PostingRecord,
   PostingSearchDocument,
   PostingSearchOutboxRecord,
+  PostingVariant,
   PostingSort,
   PostingStatus,
   PostingSubtype,
@@ -767,18 +771,24 @@ export class PostingsRepository extends BaseRepository {
       );
     }
 
+    const detailsColumn = input.family ? Prisma.raw(this.resolveDetailsColumnName(input.family)) : null;
+
     for (const filter of input.attributeFilters ?? []) {
+      if (!detailsColumn) {
+        continue;
+      }
+
       const attributePath = `$.${filter.key}`;
 
       if (typeof filter.value === "string") {
         whereClauses.push(
-          Prisma.sql`LOWER(JSON_UNQUOTE(JSON_EXTRACT(attributes, ${attributePath}))) = ${filter.value}`,
+          Prisma.sql`LOWER(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath}))) = ${filter.value}`,
         );
       } else if (typeof filter.value === "boolean") {
-        whereClauses.push(Prisma.sql`JSON_EXTRACT(attributes, ${attributePath}) = ${filter.value}`);
+        whereClauses.push(Prisma.sql`JSON_EXTRACT(${detailsColumn}, ${attributePath}) = ${filter.value}`);
       } else if (typeof filter.value === "number") {
         whereClauses.push(
-          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(attributes, ${attributePath})) AS DECIMAL(18, 6)) = ${filter.value}`,
+          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath})) AS DECIMAL(18, 6)) = ${filter.value}`,
         );
       } else if (Array.isArray(filter.value)) {
         for (const value of filter.value) {
@@ -787,8 +797,8 @@ export class PostingsRepository extends BaseRepository {
               SELECT 1
               FROM JSON_TABLE(
                 CASE
-                  WHEN JSON_TYPE(JSON_EXTRACT(attributes, ${attributePath})) = 'ARRAY'
-                    THEN JSON_EXTRACT(attributes, ${attributePath})
+                  WHEN JSON_TYPE(JSON_EXTRACT(${detailsColumn}, ${attributePath})) = 'ARRAY'
+                    THEN JSON_EXTRACT(${detailsColumn}, ${attributePath})
                   ELSE JSON_ARRAY()
                 END,
                 '$[*]' COLUMNS (value VARCHAR(255) PATH '$')
@@ -801,13 +811,13 @@ export class PostingsRepository extends BaseRepository {
 
       if (filter.min !== undefined) {
         whereClauses.push(
-          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(attributes, ${attributePath})) AS DECIMAL(18, 6)) >= ${filter.min}`,
+          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath})) AS DECIMAL(18, 6)) >= ${filter.min}`,
         );
       }
 
       if (filter.max !== undefined) {
         whereClauses.push(
-          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(attributes, ${attributePath})) AS DECIMAL(18, 6)) <= ${filter.max}`,
+          Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath})) AS DECIMAL(18, 6)) <= ${filter.max}`,
         );
       }
     }
@@ -2093,7 +2103,7 @@ export class PostingsRepository extends BaseRepository {
       pricingCurrency: input.pricing.currency,
       pricing: input.pricing as Prisma.InputJsonValue,
       tags: input.tags as Prisma.InputJsonValue,
-      attributes: input.attributes as Prisma.InputJsonValue,
+      ...this.toPostingDetailsColumns(input.variant, input.details),
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes ?? null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
@@ -2137,7 +2147,7 @@ export class PostingsRepository extends BaseRepository {
       pricingCurrency: input.pricing.currency,
       pricing: input.pricing as Prisma.InputJsonValue,
       tags: input.tags as Prisma.InputJsonValue,
-      attributes: input.attributes as Prisma.InputJsonValue,
+      ...this.toPostingDetailsColumns(input.variant, input.details),
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes ?? null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
@@ -2221,7 +2231,7 @@ export class PostingsRepository extends BaseRepository {
   private mapPosting(posting: PostingPersistence): PostingRecord {
     const pricing = posting.pricing as PostingPricing;
     const tags = Array.isArray(posting.tags) ? (posting.tags as string[]) : [];
-    const attributes = (posting.attributes ?? {}) as Record<string, PostingAttributeValue>;
+    const details = this.readPostingDetails(posting);
     const now = Date.now();
     const availabilityBlocks = posting.availabilityBlocks
       .filter((block) => {
@@ -2262,7 +2272,7 @@ export class PostingsRepository extends BaseRepository {
         updatedAt: photo.updatedAt.toISOString(),
       })),
       tags,
-      attributes,
+      details,
       availabilityStatus: posting.availabilityStatus as PostingAvailabilityStatus,
       availabilityNotes: posting.availabilityNotes ?? undefined,
       maxBookingDurationDays: posting.maxBookingDurationDays ?? undefined,
@@ -2290,7 +2300,7 @@ export class PostingsRepository extends BaseRepository {
   }
 
   private mapSearchDocument(posting: PostingPersistence): PostingSearchDocument {
-    const attributes = (posting.attributes ?? {}) as Record<string, PostingAttributeValue>;
+    const details = this.readPostingDetails(posting);
 
     return {
       id: posting.id,
@@ -2307,7 +2317,7 @@ export class PostingsRepository extends BaseRepository {
       searchableAttributes: this.extractSearchableAttributes(
         posting.family,
         posting.subtype as PostingSubtype,
-        attributes,
+        toPostingAttributes(details),
       ),
       pricing: posting.pricing as PostingPricing,
       pricingCurrency: posting.pricingCurrency,
@@ -2401,6 +2411,73 @@ export class PostingsRepository extends BaseRepository {
     return Object.fromEntries(
       Object.entries(attributes).filter(([key]) => definitions[key] !== undefined),
     );
+  }
+
+  private toPostingDetailsColumns(
+    variant: PostingVariant,
+    details: PostingDetails,
+  ): {
+    placeDetails: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+    equipmentDetails: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+    vehicleDetails: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  } {
+    const normalized = details as Prisma.InputJsonValue;
+
+    switch (variant.family) {
+      case "place":
+        return {
+          placeDetails: normalized,
+          equipmentDetails: Prisma.DbNull,
+          vehicleDetails: Prisma.DbNull,
+        };
+      case "equipment":
+        return {
+          placeDetails: Prisma.DbNull,
+          equipmentDetails: normalized,
+          vehicleDetails: Prisma.DbNull,
+        };
+      case "vehicle":
+        return {
+          placeDetails: Prisma.DbNull,
+          equipmentDetails: Prisma.DbNull,
+          vehicleDetails: normalized,
+        };
+    }
+  }
+
+  private readPostingDetails(
+    posting: Pick<PostingPersistence, "family" | "subtype"> & {
+      placeDetails?: unknown;
+      equipmentDetails?: unknown;
+      vehicleDetails?: unknown;
+    },
+  ): PostingDetails {
+    const variant = {
+      family: posting.family,
+      subtype: posting.subtype as PostingSubtype,
+    } as PostingVariant;
+
+    switch (posting.family) {
+      case "place":
+        return parsePostingDetailsForVariant(variant, posting.placeDetails ?? {});
+      case "equipment":
+        return parsePostingDetailsForVariant(variant, posting.equipmentDetails ?? {});
+      case "vehicle":
+        return parsePostingDetailsForVariant(variant, posting.vehicleDetails ?? {});
+    }
+  }
+
+  private resolveDetailsColumnName(family: SearchPostingsInput["family"]): string {
+    switch (family) {
+      case "place":
+        return "place_details";
+      case "equipment":
+        return "equipment_details";
+      case "vehicle":
+        return "vehicle_details";
+      default:
+        return "place_details";
+    }
   }
 
   private mapOutbox(

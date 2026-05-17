@@ -93,7 +93,7 @@ export interface SeedPostingFixture {
   pricingCurrency: string;
   pricing: Record<string, unknown>;
   tags: string[];
-  attributes: Record<string, string | number | boolean | string[]>;
+  details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;

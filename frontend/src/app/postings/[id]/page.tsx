@@ -76,7 +76,7 @@ export default async function PostingDetailPage({ params }: PostingDetailPagePro
 
 function PostingDetailView({ posting }: { posting: PublicPostingDetail }) {
   const publishedDate = formatPublishedDate(posting.publishedAt);
-  const attributeEntries = Object.entries(posting.attributes);
+  const detailEntries = Object.entries(posting.details);
   const locationLine = [posting.location.city, posting.location.region, posting.location.country]
     .filter(Boolean)
     .join(", ");
@@ -173,12 +173,12 @@ function PostingDetailView({ posting }: { posting: PublicPostingDetail }) {
 
             <Panel
               icon={<Package className="h-4 w-4 text-violet-600" aria-hidden="true" />}
-              title="Attributes"
+              title="Details"
               description="Variant-specific details for this listing."
             >
-              {attributeEntries.length > 0 ? (
+              {detailEntries.length > 0 ? (
                 <dl className="grid gap-3 sm:grid-cols-2">
-                  {attributeEntries.map(([key, value]) => (
+                  {detailEntries.map(([key, value]) => (
                     <div
                       key={key}
                       className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3"
@@ -193,7 +193,7 @@ function PostingDetailView({ posting }: { posting: PublicPostingDetail }) {
                   ))}
                 </dl>
               ) : (
-                <p className="text-sm text-slate-500">No additional attributes were provided.</p>
+                <p className="text-sm text-slate-500">No additional details were provided.</p>
               )}
             </Panel>
           </div>

@@ -192,7 +192,7 @@ export class BookingsController {
     body: {
       startAt: string;
       endAt: string;
-      guestCount: number;
+      guestCount?: number;
       note?: string | null;
       contactName: string;
       contactEmail: string;

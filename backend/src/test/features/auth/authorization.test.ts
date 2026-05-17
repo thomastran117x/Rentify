@@ -154,7 +154,11 @@ describe("authorization", () => {
         pricing: { currency: "cad", daily: { amount: 100 } },
         photos: [],
         tags: [],
-        attributes: {},
+        details: {
+          guest_capacity: 2,
+          property_type: "condo",
+          amenities: [],
+        },
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {

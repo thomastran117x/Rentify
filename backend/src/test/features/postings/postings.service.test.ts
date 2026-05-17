@@ -306,9 +306,11 @@ function createValidInput(): UpsertPostingInput {
       },
     ],
     tags: ["Loft", "Transit"],
-    attributes: {
+    details: {
+      guest_capacity: 2,
+      property_type: "loft",
       furnished: true,
-      petPolicy: "Cats allowed",
+      pet_policy: "Cats allowed",
       amenities: ["washer", "dryer"],
     },
     availabilityStatus: "available",
@@ -353,7 +355,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
       updatedAt: "2026-04-18T00:00:00.000Z",
     })),
     tags: input.tags,
-    attributes: input.attributes,
+    details: input.details,
     availabilityStatus: input.availabilityStatus,
     availabilityNotes: input.availabilityNotes ?? undefined,
     maxBookingDurationDays: input.maxBookingDurationDays ?? undefined,
@@ -415,7 +417,8 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
     const input = createValidInput();
-    input.attributes.petPolicy = "No shitty behavior";
+    (input.details as Record<string, string | number | boolean | string[]>).pet_policy =
+      "No shitty behavior";
     input.availabilityBlocks[0]!.note = "javascript:alert('x')";
 
     const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
@@ -423,8 +426,8 @@ describe("PostingsService", () => {
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
     expect(details.map((detail) => detail.path).sort()).toEqual([
-      "attributes.petPolicy",
       "availabilityBlocks.0.note",
+      "details.pet_policy",
     ]);
 
     expect(repository.createCalls).toBe(0);
@@ -507,7 +510,7 @@ describe("PostingsService", () => {
         currency: "CAD",
       },
       tags: ["loft", "transit"],
-      attributes: repository.posting.attributes,
+      details: repository.posting.details,
       availabilityStatus: repository.posting.availabilityStatus,
       availabilityNotes: repository.posting.availabilityNotes,
       maxBookingDurationDays: repository.posting.maxBookingDurationDays,
@@ -781,30 +784,32 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
     const input = createValidInput();
-    input.attributes.guest_capacity = "four";
+    (input.details as Record<string, unknown>).guest_capacity = "four";
 
     const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
-    expect(details[0]?.path).toBe("attributes.guest_capacity");
+    expect(details[0]?.path).toBe("details.guest_capacity");
     expect(repository.createCalls).toBe(0);
   });
 
-  it("keeps unknown attributes while normalizing searchable variant attributes", async () => {
+  it("keeps unknown details while normalizing searchable variant details", async () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
     const input = createValidInput();
-    input.attributes = {
+    input.details = {
       guest_capacity: 4,
+      property_type: "loft",
       amenities: [" WiFi ", "WiFi", " Desk "],
       ownerNote: "  Bring ID  ",
     };
 
     const created = await service.createDraft(input);
 
-    expect(created.attributes).toEqual({
+    expect(created.details).toEqual({
       guest_capacity: 4,
+      property_type: "loft",
       amenities: ["WiFi", "Desk"],
       ownerNote: "Bring ID",
     });

@@ -3,7 +3,7 @@ import { readJson, unwrapApiResponse } from "../api/response.ts";
 import type { ApiErrorResponse } from "../auth/types.ts";
 import { resolveApiBaseUrl } from "../env.ts";
 
-export type PublicPostingAttributeValue = string | number | boolean | string[];
+export type PublicPostingDetailValue = string | number | boolean | string[];
 
 export interface PublicPostingPhoto {
   id: string;
@@ -44,7 +44,7 @@ export interface PublicPostingDetail {
   pricingCurrency: string;
   photos: PublicPostingPhoto[];
   tags: string[];
-  attributes: Record<string, PublicPostingAttributeValue>;
+  details: Record<string, PublicPostingDetailValue>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string;
   maxBookingDurationDays?: number;

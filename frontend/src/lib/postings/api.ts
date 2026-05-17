@@ -6,7 +6,7 @@ import { publicEnv } from "@/lib/env";
 export interface BookingQuoteInput {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 

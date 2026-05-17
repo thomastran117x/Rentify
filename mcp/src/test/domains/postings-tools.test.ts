@@ -34,7 +34,9 @@ function createPostingBody(): CreatePostingBody {
       },
     ],
     tags: ["camera", "photo"],
-    attributes: {},
+    details: {
+      condition: "excellent",
+    },
     availabilityStatus: "available",
     availabilityBlocks: [],
     location: {

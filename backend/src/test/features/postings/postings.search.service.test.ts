@@ -126,7 +126,11 @@ function createPublicPosting(overrides: Record<string, unknown> = {}) {
     pricingCurrency: "CAD",
     photos: [],
     tags: ["loft", "workspace"],
-    attributes: {},
+    details: {
+      guest_capacity: 4,
+      property_type: "loft",
+      amenities: ["wifi", "desk"],
+    },
     availabilityStatus: "available",
     effectiveMaxBookingDurationDays: 30,
     availabilityBlocks: [],
@@ -834,7 +838,7 @@ describe("PostingsRepository.searchPublicFallback", () => {
     expect(idQuery.sql).toContain("family = ?");
     expect(idQuery.sql).toContain("subtype = ?");
     expect(idQuery.sql).toContain("availability_status = ?");
-    expect(idQuery.sql).toContain("JSON_EXTRACT(attributes, ?)");
+    expect(idQuery.sql).toContain("JSON_EXTRACT(place_details, ?)");
     expect(idQuery.sql).toContain("JSON_EXTRACT(pricing, '$.daily.amount')) AS DECIMAL(18, 2)) >= ?");
     expect(idQuery.sql).toContain("JSON_EXTRACT(pricing, '$.daily.amount')) AS DECIMAL(18, 2)) <= ?");
     expect(idQuery.sql).toContain("pab.start_at < ?");
@@ -887,7 +891,7 @@ describe("PostingsRepository.searchPublicFallback", () => {
 
     const idQuery = queries[1]!;
 
-    expect(idQuery.sql).toContain("LOWER(JSON_UNQUOTE(JSON_EXTRACT(attributes, ?))) = ?");
+    expect(idQuery.sql).toContain("LOWER(JSON_UNQUOTE(JSON_EXTRACT(place_details, ?))) = ?");
     expect(idQuery.sql).toContain("FROM JSON_TABLE(");
     expect(idQuery.sql).toContain("LOWER(attribute_values.value) = ?");
     expect(idQuery.values).toEqual(expect.arrayContaining(["$.property_type", "condo", "$.amenities", "wifi", "desk"]));

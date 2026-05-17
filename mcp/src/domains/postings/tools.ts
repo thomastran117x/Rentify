@@ -45,7 +45,7 @@ const photoSchema = z.object({
   position: z.number().int().min(0).max(9),
 });
 
-const attributeValueSchema = z.union([
+const detailValueSchema = z.union([
   z.string().trim().min(1).max(100),
   z.number().finite(),
   z.boolean(),
@@ -80,7 +80,7 @@ const postingWriteSchemaShape = {
   pricing: z.object(pricingSchema),
   photos: z.array(photoSchema).min(1).max(10),
   tags: z.array(z.string().trim().min(1).max(50)).max(30),
-  attributes: z.record(z.string().trim().min(1).max(50), attributeValueSchema),
+  details: z.record(z.string().trim().min(1).max(50), detailValueSchema),
   availabilityStatus: z.enum(["available", "limited", "unavailable"]),
   availabilityNotes: z.string().trim().min(1).max(500).nullable().optional(),
   maxBookingDurationDays: z.number().int().min(1).max(365).nullable().optional(),
@@ -187,7 +187,7 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             pricing: args.pricing,
             photos: args.photos,
             tags: args.tags,
-            attributes: args.attributes,
+            details: args.details,
             availabilityStatus: args.availabilityStatus,
             availabilityNotes: args.availabilityNotes,
             maxBookingDurationDays: args.maxBookingDurationDays,
