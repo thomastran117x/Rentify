@@ -42,7 +42,10 @@ import { PostingsReviewsService } from "@/features/postings/reviews/reviews.serv
 import {
   listOwnerPostingsQuerySchema,
   ownerAvailabilityBlockRequestSchema,
+  postingBatchIdsQuerySchema,
+  postingResourceIdSchema,
   publicSearchPostingsQuerySchema,
+  searchAttributeFiltersSchema,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsQuery,
   type OwnerAvailabilityBlockRequestBody,
@@ -549,43 +552,6 @@ export class PostingsController {
     query: PublicSearchPostingsQuery,
     attributeFilters?: SearchAttributeFilterInput[],
   ): SearchPostingsInput {
-    if ((query.startAt === undefined) !== (query.endAt === undefined)) {
-      throw new RequestValidationError("Request query validation failed.", [
-        {
-          path: "startAt",
-          message: "startAt and endAt must be provided together.",
-        },
-      ]);
-    }
-
-    const geoValidationIssues: Array<{ path: string; message: string }> = [];
-    const hasLatitude = query.latitude !== undefined;
-    const hasLongitude = query.longitude !== undefined;
-
-    if (hasLatitude !== hasLongitude) {
-      geoValidationIssues.push(
-        {
-          path: "latitude",
-          message: "latitude and longitude must be provided together.",
-        },
-        {
-          path: "longitude",
-          message: "latitude and longitude must be provided together.",
-        },
-      );
-    }
-
-    if (query.radiusKm !== undefined && (!hasLatitude || !hasLongitude)) {
-      geoValidationIssues.push({
-        path: "radiusKm",
-        message: "radiusKm requires both latitude and longitude.",
-      });
-    }
-
-    if (geoValidationIssues.length > 0) {
-      throw new RequestValidationError("Request query validation failed.", geoValidationIssues);
-    }
-
     return {
       page: query.page,
       pageSize: query.pageSize,
@@ -620,7 +586,7 @@ export class PostingsController {
     const filters = new Map<
       string,
       {
-        values: string[];
+        values: Array<string>;
         min?: number;
         max?: number;
       }
@@ -641,15 +607,6 @@ export class PostingsController {
       } else if (attributeKey.endsWith(".max")) {
         targetKey = attributeKey.slice(0, -4);
         bound = "max";
-      }
-
-      if (!/^[a-z][a-z0-9_]*$/i.test(targetKey)) {
-        throw new RequestValidationError("Request query validation failed.", [
-          {
-            path: key,
-            message: "Attribute keys must start with a letter and contain only letters, numbers, and underscores.",
-          },
-        ]);
       }
 
       const filter = filters.get(targetKey) ?? { values: [] };
@@ -683,16 +640,18 @@ export class PostingsController {
       return undefined;
     }
 
-    return Array.from(filters.entries()).map(([key, filter]) => ({
-      key,
-      ...(filter.values.length === 0
-        ? {}
-        : {
-            value: filter.values.length === 1 ? filter.values[0] : filter.values,
-          }),
-      ...(filter.min !== undefined ? { min: filter.min } : {}),
-      ...(filter.max !== undefined ? { max: filter.max } : {}),
-    }));
+    return searchAttributeFiltersSchema.parse(
+      Array.from(filters.entries()).map(([key, filter]) => ({
+        key,
+        ...(filter.values.length === 0
+          ? {}
+          : {
+              value: filter.values.length === 1 ? filter.values[0] : filter.values,
+            }),
+        ...(filter.min !== undefined ? { min: filter.min } : {}),
+        ...(filter.max !== undefined ? { max: filter.max } : {}),
+      })),
+    );
   }
 
   private toListPostingAnalyticsInput(
@@ -722,18 +681,11 @@ export class PostingsController {
 
   private parseBatchIds(context: Context<AppBindings>): string[] {
     const url = new URL(context.req.url);
-    const ids = this.readArrayQuery(url.searchParams, "ids");
-
-    if (ids.length === 0) {
-      throw new RequestValidationError("At least one id must be provided.", [
-        {
-          path: "ids",
-          message: "At least one id must be provided.",
-        },
-      ]);
+    try {
+      return postingBatchIdsQuerySchema.parse(this.readArrayQuery(url.searchParams, "ids"));
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
     }
-
-    return ids;
   }
 
   private readArrayQuery(searchParams: URLSearchParams, key: string): string[] {
@@ -761,7 +713,25 @@ export class PostingsController {
   }
 
   private requireRouteParam(context: Context<AppBindings>, name: string): string {
-    return requireSafeRouteParam(context, name);
+    const value = requireSafeRouteParam(context, name);
+
+    try {
+      return postingResourceIdSchema.parse(value);
+    } catch (error) {
+      if ("issues" in (error as object)) {
+        const issues = (error as { issues?: Array<{ message: string }> }).issues ?? [];
+
+        throw new RequestValidationError(
+          "Route parameter validation failed.",
+          issues.map((issue) => ({
+            path: name,
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async requireAuth(context: Context<AppBindings>): Promise<AuthPrincipal> {

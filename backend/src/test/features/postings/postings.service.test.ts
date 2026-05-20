@@ -794,6 +794,22 @@ describe("PostingsService", () => {
     expect(repository.createCalls).toBe(0);
   });
 
+  it("rejects reserved detail keys before persisting", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input = createValidInput();
+    Object.assign(input.details as Record<string, unknown>, {
+      constructor: "boom",
+    });
+
+    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(BadRequestError);
+    const details = getValidationDetails(error);
+    expect(details[0]?.path).toBe("details.constructor");
+    expect(repository.createCalls).toBe(0);
+  });
+
   it("keeps unknown details while normalizing searchable variant details", async () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
