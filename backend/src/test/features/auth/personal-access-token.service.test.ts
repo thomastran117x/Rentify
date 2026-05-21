@@ -35,20 +35,24 @@ function createTokenRecord(
   };
 }
 
-function installCreateMock(repository: ReturnType<typeof createRepositoryMock>) {
+function installCreateMock(
+  repository: ReturnType<typeof createRepositoryMock>,
+) {
   let latestInput: Record<string, unknown> | null = null;
 
-  repository.create.mockImplementation(async (input: Record<string, unknown>) => {
-    latestInput = input;
+  repository.create.mockImplementation(
+    async (input: Record<string, unknown>) => {
+      latestInput = input;
 
-    return createTokenRecord({
-      publicId: input.publicId as string,
-      tokenPrefix: input.tokenPrefix as string,
-      secretHash: input.secretHash as string,
-      scopes: input.scopes as PersonalAccessTokenRecord["scopes"],
-      expiresAt: (input.expiresAt as Date | undefined)?.toISOString(),
-    });
-  });
+      return createTokenRecord({
+        publicId: input.publicId as string,
+        tokenPrefix: input.tokenPrefix as string,
+        secretHash: input.secretHash as string,
+        scopes: input.scopes as PersonalAccessTokenRecord["scopes"],
+        expiresAt: (input.expiresAt as Date | undefined)?.toISOString(),
+      });
+    },
+  );
 
   return {
     getLatestInput: () => latestInput,
@@ -70,9 +74,7 @@ describe("PersonalAccessTokenService", () => {
       expiresInDays: 30,
     });
 
-    expect(result.token).toMatch(
-      /^rpat_[a-f0-9]{24}_[a-f0-9]{48}$/,
-    );
+    expect(result.token).toMatch(/^rpat_[a-f0-9]{24}_[a-f0-9]{48}$/);
     expect(createState.getLatestInput()).toBeTruthy();
     expect(createState.getLatestInput()?.secretHash).not.toEqual(result.token);
     expect(result.tokenPrefix).toMatch(/^rpat_[a-f0-9]{24}_[a-f0-9]{6}$/);
@@ -100,7 +102,9 @@ describe("PersonalAccessTokenService", () => {
       }),
     );
 
-    const principal = await service.authenticateToken(`rpat_${publicId}_${secret}`);
+    const principal = await service.authenticateToken(
+      `rpat_${publicId}_${secret}`,
+    );
 
     expect(principal).toMatchObject({
       sub: "user-1",
@@ -108,6 +112,64 @@ describe("PersonalAccessTokenService", () => {
       scopes: ["mcp:read"],
     });
     expect(repository.touchLastUsedAt).toHaveBeenCalledWith("pat-record-1");
+  });
+
+  it("rejects PATs with invalid formats before repository lookup", async () => {
+    const repository = createRepositoryMock();
+    const service = new PersonalAccessTokenService(repository as never, {
+      personalAccessTokenSecret: "test-pat-secret",
+    });
+
+    await expect(
+      service.authenticateToken("not-a-real-pat"),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repository.findByPublicId).not.toHaveBeenCalled();
+    expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown PAT public ids without updating lastUsedAt", async () => {
+    const repository = createRepositoryMock();
+    const service = new PersonalAccessTokenService(repository as never, {
+      personalAccessTokenSecret: "test-pat-secret",
+    });
+
+    repository.findByPublicId.mockResolvedValue(null);
+
+    await expect(
+      service.authenticateToken(
+        "rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
+  });
+
+  it("rejects PATs when the secret does not match the stored hash", async () => {
+    const repository = createRepositoryMock();
+    const createState = installCreateMock(repository);
+    const service = new PersonalAccessTokenService(repository as never, {
+      personalAccessTokenSecret: "test-pat-secret",
+    });
+    const created = await service.create({
+      userId: "user-1",
+      name: "Rentify MCP",
+      scopes: ["mcp:read"],
+      expiresInDays: 30,
+    });
+    const [, publicId] = created.token.split("_");
+
+    repository.findByPublicId.mockResolvedValue(
+      createTokenRecord({
+        publicId,
+        secretHash: createState.getLatestInput()?.secretHash as string,
+      }),
+    );
+
+    await expect(
+      service.authenticateToken(
+        `rpat_${publicId}_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`,
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
   });
 
   it("rejects revoked PATs", async () => {
@@ -132,9 +194,10 @@ describe("PersonalAccessTokenService", () => {
       }),
     );
 
-    await expect(service.authenticateToken(created.token)).rejects.toBeInstanceOf(
-      UnauthorizedError,
-    );
+    await expect(
+      service.authenticateToken(created.token),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
   });
 
   it("rejects expired PATs", async () => {
@@ -159,9 +222,10 @@ describe("PersonalAccessTokenService", () => {
       }),
     );
 
-    await expect(service.authenticateToken(created.token)).rejects.toBeInstanceOf(
-      UnauthorizedError,
-    );
+    await expect(
+      service.authenticateToken(created.token),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
   });
 
   it("revokes tokens for the owning user", async () => {
