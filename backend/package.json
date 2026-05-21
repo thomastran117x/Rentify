@@ -32,6 +32,8 @@
     "start": "node dist/server.js",
     "check": "tsc --noEmit --project tsconfig.json",
     "test": "jest --config jest.config.cjs --runInBand",
+    "test:unit": "jest --config jest.unit.config.cjs --runInBand",
+    "test:integration": "jest --config jest.integration.config.cjs --runInBand",
     "test:db-seeds": "jest --config jest.db-seeds.config.cjs --runInBand"
   },
   "prisma": {

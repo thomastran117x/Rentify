@@ -16,16 +16,6 @@ const captchaConfig = {
   allowedHosts: ["challenges.cloudflare.com"],
 };
 
-const databaseConfig = {
-  autoSeedEnabled: true,
-  autoSeedRefresh: false,
-  operationLoggingEnabled: false,
-  queryLoggingEnabled: false,
-  slowOperationThresholdMs: 500,
-  slowQueryThresholdMs: 250,
-  url: "mysql://user:password@localhost:3306/rent_test",
-};
-
 const rateLimiterConfig = {
   enabled: true,
   strategy: "sliding-window" as const,
@@ -35,9 +25,47 @@ const rateLimiterConfig = {
   refillTokensPerSecond: 1,
 };
 
+function readBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value == null) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "on"
+  ) {
+    return true;
+  }
+
+  if (
+    normalized === "false" ||
+    normalized === "0" ||
+    normalized === "no" ||
+    normalized === "off"
+  ) {
+    return false;
+  }
+
+  return fallback;
+}
+
+function readNumber(value: string | undefined, fallback: number): number {
+  if (value == null) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function readNodeEnvironment() {
   const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
-  return nodeEnv === "production" || nodeEnv === "test" || nodeEnv === "development"
+  return nodeEnv === "production" ||
+    nodeEnv === "test" ||
+    nodeEnv === "development"
     ? nodeEnv
     : "development";
 }
@@ -46,15 +74,18 @@ function readLoggingConfig() {
   const nodeEnv = readNodeEnvironment();
 
   return {
-    fallbackDirectory: process.env.LOG_FALLBACK_DIRECTORY ?? "C:/tmp/rent-test-logs",
-    level: (process.env.LOG_LEVEL as
-      | "debug"
-      | "info"
-      | "warn"
-      | "error"
-      | "critical"
-      | undefined) ?? "debug",
-    mode: nodeEnv === "production" ? ("rabbitmq" as const) : ("console" as const),
+    fallbackDirectory:
+      process.env.LOG_FALLBACK_DIRECTORY ?? "C:/tmp/rent-test-logs",
+    level:
+      (process.env.LOG_LEVEL as
+        | "debug"
+        | "info"
+        | "warn"
+        | "error"
+        | "critical"
+        | undefined) ?? "debug",
+    mode:
+      nodeEnv === "production" ? ("rabbitmq" as const) : ("console" as const),
     serviceName: process.env.LOG_SERVICE_NAME ?? "backend-test",
   };
 }
@@ -62,6 +93,32 @@ function readLoggingConfig() {
 function readRabbitMqConfig() {
   return {
     url: process.env.RABBITMQ_URL ?? "amqp://localhost:5672",
+  };
+}
+
+function readDatabaseConfig() {
+  return {
+    autoSeedEnabled: readBoolean(process.env.DATABASE_AUTO_SEED_ENABLED, true),
+    autoSeedRefresh: readBoolean(process.env.DATABASE_AUTO_SEED_REFRESH, false),
+    operationLoggingEnabled: readBoolean(
+      process.env.DATABASE_OPERATION_LOGGING_ENABLED,
+      false,
+    ),
+    queryLoggingEnabled: readBoolean(
+      process.env.DATABASE_QUERY_LOGGING_ENABLED,
+      false,
+    ),
+    slowOperationThresholdMs: readNumber(
+      process.env.DATABASE_SLOW_OPERATION_THRESHOLD_MS,
+      500,
+    ),
+    slowQueryThresholdMs: readNumber(
+      process.env.DATABASE_SLOW_QUERY_THRESHOLD_MS,
+      250,
+    ),
+    url:
+      process.env.DATABASE_URL ??
+      "mysql://user:password@localhost:3306/rent_test",
   };
 }
 
@@ -93,7 +150,7 @@ export const environment = {
     return 8040;
   },
   getDatabaseConfig() {
-    return databaseConfig;
+    return readDatabaseConfig();
   },
   getTokenConfig() {
     return tokenConfig;
@@ -117,7 +174,7 @@ export const environment = {
     return {
       auth: tokenConfig,
       captcha: captchaConfig,
-      database: databaseConfig,
+      database: readDatabaseConfig(),
       logging: readLoggingConfig(),
       routeModules: readRouteModulesConfig(),
       rabbitmq: readRabbitMqConfig(),

@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting for changed frontend files
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          base_sha="$BASE_SHA"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^frontend/' | grep -E '\.(css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed frontend files require formatting checks."
+            exit 0
+          fi
+          printf '%s\n' "${files[@]}"
+          npx --yes prettier@3.6.2 --check "${files[@]}"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8040/api/v1
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
+          NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ""
+          NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID: ""
+          NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT: consumers
+        run: npm run build
+
+  backend:
+    name: Backend format, build, and unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      ELASTICSEARCH_ENABLED: "false"
+      RABBITMQ_URL: ""
+      FRONTEND_URL: http://localhost:3040
+      APP_BASE_URL: http://localhost:3040
+      GMAIL_USER: ci@example.com
+      GMAIL_APP_PASSWORD: ci-password
+      ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
+      REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
+      PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      SQUARE_ACCESS_TOKEN: ci-square-token
+      SQUARE_LOCATION_ID: ci-square-location
+      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
+      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting for changed backend files
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          base_sha="$BASE_SHA"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^backend/' | grep -E '\.(cjs|css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed backend files require formatting checks."
+            exit 0
+          fi
+          printf '%s\n' "${files[@]}"
+          npx --yes prettier@3.6.2 --check "${files[@]}"
+
+      - name: Type check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  backend-integration:
+    name: Backend integration and database tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: rent
+          MYSQL_USER: rent
+          MYSQL_PASSWORD: rent
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=20s
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      ELASTICSEARCH_ENABLED: "false"
+      RABBITMQ_URL: ""
+      FRONTEND_URL: http://localhost:3040
+      APP_BASE_URL: http://localhost:3040
+      GMAIL_USER: ci@example.com
+      GMAIL_APP_PASSWORD: ci-password
+      ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
+      REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
+      PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      SQUARE_ACCESS_TOKEN: ci-square-token
+      SQUARE_LOCATION_ID: ci-square-location
+      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
+      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run HTTP integration tests
+        run: npm run test:integration
+
+      - name: Apply database migrations
+        run: npm run prisma:migrate:deploy
+
+      - name: Run database seed tests
+        run: npm run test:db-seeds

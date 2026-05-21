@@ -2,8 +2,8 @@
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
-  roots: ["<rootDir>/src/test/db"],
-  testMatch: ["**/*.test.ts"],
+  roots: ["<rootDir>/src/test"],
+  testMatch: ["**/*.integration.test.ts"],
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
     "^@/configuration/environment$":
@@ -21,5 +21,5 @@ module.exports = {
       },
     ],
   },
-  testPathIgnorePatterns: ["/node_modules/", "/dist/"],
+  testPathIgnorePatterns: ["/node_modules/", "/dist/", "/src/test/db/"],
 };
