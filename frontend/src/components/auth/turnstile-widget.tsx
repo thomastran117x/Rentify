@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { publicEnv } from "@/lib/env";
 
+const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
+
 declare global {
   interface Window {
     turnstile?: {
@@ -37,6 +39,16 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     () => typeof window !== "undefined" && Boolean(window.turnstile),
   );
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    if (publicEnv.turnstileSiteKey) {
+      return;
+    }
+
+    if (!value) {
+      onChange(LOCAL_CAPTCHA_BYPASS_TOKEN);
+    }
+  }, [value, onChange]);
 
   useEffect(() => {
     if (!publicEnv.turnstileSiteKey) return;
@@ -86,7 +98,8 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
   if (!publicEnv.turnstileSiteKey) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Add <code>NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> to load Cloudflare Turnstile.
+        Captcha is disabled for this environment. Local auth requests will use the development
+        verification bypass.
       </div>
     );
   }

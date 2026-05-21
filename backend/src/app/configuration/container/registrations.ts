@@ -388,6 +388,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
       containerTokens.rentingsRepository,
       containerTokens.cacheService,
       containerTokens.postingsPublicCacheService,
+      containerTokens.paymentsRepository,
+      containerTokens.paymentProvider,
     ],
     resolve: ({ resolve }) =>
       new BookingsService(
@@ -397,6 +399,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
         resolve(containerTokens.rentingsRepository),
         resolve(containerTokens.cacheService),
         resolve(containerTokens.postingsPublicCacheService),
+        resolve(containerTokens.paymentsRepository),
+        resolve(containerTokens.paymentProvider),
       ),
   });
   container.register({

@@ -6,6 +6,7 @@ export {
   buildApiUrl,
   type RentifyApiClientOptions,
   type BookingQuoteBody,
+  type CancelBookingRequestBody,
   type BookingRequestBody,
   type BookingRequestDecisionBody,
   type ListBookingRequestsQuery,
@@ -21,6 +22,8 @@ export {
 } from "./client.js";
 export type {
   BatchGetPostingsResponse,
+  BookingCancellationFailureReason,
+  BookingCancellationQuoteResponse,
   BookingQuoteFailureReason,
   BookingQuoteResponse,
   BookingRequestRecord,

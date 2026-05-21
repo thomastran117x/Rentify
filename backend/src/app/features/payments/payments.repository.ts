@@ -419,6 +419,32 @@ export class PaymentsRepository extends BaseRepository {
     return payment;
   }
 
+  async findByBookingRequestId(bookingRequestId: string): Promise<PaymentRecord | null> {
+    const payment = await this.executeAsync(() =>
+      this.prisma.payment.findUnique({
+        where: {
+          bookingRequestId,
+        },
+        include: {
+          bookingRequest: true,
+          attempts: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          refunds: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          payout: true,
+        },
+      }),
+    );
+
+    return payment ? this.mapPayment(payment) : null;
+  }
+
   async createRefundRecord(input: CreateRefundInput): Promise<{
     refundId: string;
     paymentId: string;
@@ -457,8 +483,13 @@ export class PaymentsRepository extends BaseRepository {
           };
         }
 
-        if (input.amount > Number(payment.totalAmount)) {
-          throw new BadRequestError("Refund amount cannot exceed the original payment total.");
+        const succeededTotal = payment.refunds
+          .filter((refund) => refund.status === "succeeded")
+          .reduce((sum, refund) => sum + Number(refund.amount), 0);
+        const remainingRefundableAmount = Math.max(0, Number(payment.totalAmount) - succeededTotal);
+
+        if (input.amount > remainingRefundableAmount) {
+          throw new BadRequestError("Refund amount cannot exceed the remaining refundable total.");
         }
 
         const refund = await transaction.refund.create({
@@ -483,7 +514,13 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async completeRefund(refundId: string, result: ProviderRefundResult): Promise<PaymentRecord> {
+  async completeRefund(
+    refundId: string,
+    result: ProviderRefundResult,
+    options?: {
+      preserveBookingStatus?: boolean;
+    },
+  ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const refund = await transaction.refund.findUniqueOrThrow({
@@ -544,21 +581,38 @@ export class PaymentsRepository extends BaseRepository {
           },
         });
 
+        const shouldPreserveBookingStatus = options?.preserveBookingStatus === true;
         await transaction.bookingRequest.update({
           where: {
             id: paymentRow.bookingRequestId,
           },
-          data:
-            succeededTotal >= paymentTotal
+          data: shouldPreserveBookingStatus
+            ? succeededTotal > 0
               ? {
-                  status: "refunded",
                   refundedAt: new Date(),
-                  holdBlockId: null,
                 }
-              : {},
+              : {}
+            : paymentRow.bookingRequest.status === "cancelled"
+              ? succeededTotal > 0
+                ? {
+                    refundedAt: new Date(),
+                    holdBlockId: null,
+                  }
+                : {}
+              : succeededTotal >= paymentTotal
+                ? {
+                    status: "refunded",
+                    refundedAt: new Date(),
+                    holdBlockId: null,
+                  }
+                : {},
         });
 
-        if (succeededTotal >= paymentTotal && paymentRow.bookingRequest.holdBlockId) {
+        if (
+          !shouldPreserveBookingStatus &&
+          succeededTotal >= paymentTotal &&
+          paymentRow.bookingRequest.holdBlockId
+        ) {
           await transaction.postingAvailabilityBlock.deleteMany({
             where: {
               id: paymentRow.bookingRequest.holdBlockId,

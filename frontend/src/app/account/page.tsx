@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KeyRound, Link2, ShieldCheck, Unlink } from "lucide-react";
+import { AccountBookingsPanel } from "@/components/account/account-bookings-panel";
 import { AuthOAuthButtons, type OAuthProvider } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
@@ -303,6 +304,8 @@ export default function AccountPage() {
             />
           </div>
         </section>
+
+        <AccountBookingsPanel role={session.user.role} />
 
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start gap-4">

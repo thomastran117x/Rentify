@@ -11,16 +11,19 @@ import { requireSafeRouteParam } from "@/configuration/validation/input-sanitiza
 import type {
   BookingQuoteBody,
   BookingQuoteInput,
+  CancelBookingRequestBody,
   CreateBookingRequestBody,
   CreateBookingRequestInput,
   DecideBookingRequestInput,
   ListBookingRequestsQuery,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
   UpdateBookingRequestInput,
 } from "@/features/bookings/bookings.model";
 import {
   bookingQuoteSchema,
+  cancelBookingRequestSchema,
   createBookingRequestSchema,
   decideBookingRequestSchema,
   listBookingRequestsQuerySchema,
@@ -70,6 +73,17 @@ export class BookingsController {
     });
   };
 
+  listOwned = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    requireMinimumRole(auth, "owner");
+    const result = await this.bookingsService.listOwned(
+      this.toListOwnedInput(auth.sub, this.parseListQuery(context)),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
   listForOwnerPosting = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
@@ -84,6 +98,15 @@ export class BookingsController {
   getById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.bookingsService.getById(
+      this.requireBookingRequestId(context),
+      auth.sub,
+    );
+    return ok(context, result);
+  };
+
+  getCancellationQuote = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.bookingsService.getCancellationQuote(
       this.requireBookingRequestId(context),
       auth.sub,
     );
@@ -122,6 +145,17 @@ export class BookingsController {
     );
     return ok(context, result, {
       message: "Booking request declined successfully.",
+    });
+  };
+
+  cancel = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, cancelBookingRequestSchema);
+    const result = await this.bookingsService.cancel(
+      this.toCancelInput(this.requireBookingRequestId(context), auth.sub, body),
+    );
+    return ok(context, result, {
+      message: "Booking request cancelled successfully.",
     });
   };
 
@@ -212,12 +246,36 @@ export class BookingsController {
     };
   }
 
+  private toCancelInput(
+    bookingRequestId: string,
+    actorUserId: string,
+    body: CancelBookingRequestBody,
+  ) {
+    return {
+      bookingRequestId,
+      actorUserId,
+      reason: body.reason ?? null,
+    };
+  }
+
   private toListMineInput(
     renterId: string,
     query: ListBookingRequestsQuery,
   ): ListRenterBookingRequestsInput {
     return {
       renterId,
+      page: query.page,
+      pageSize: query.pageSize,
+      status: query.status,
+    };
+  }
+
+  private toListOwnedInput(
+    ownerId: string,
+    query: ListBookingRequestsQuery,
+  ): ListOwnedBookingRequestsInput {
+    return {
+      ownerId,
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,

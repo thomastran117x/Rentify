@@ -1,4 +1,4 @@
-import { getEnvironment } from "@/configuration/environment/index";
+import { environment, getEnvironment } from "@/configuration/environment/index";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type {
   PaymentFailureCategory,
@@ -175,6 +175,20 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     currency: string;
     reason?: string | null;
   }): Promise<ProviderRefundResult> {
+    if (this.shouldSimulateRefunds()) {
+      return {
+        providerRefundId: `mock-refund-${input.idempotencyKey}`,
+        status: "COMPLETED",
+        raw: {
+          mock: true,
+          providerPaymentId: input.providerPaymentId,
+          amount: input.amount,
+          currency: input.currency,
+          reason: input.reason ?? undefined,
+        },
+      };
+    }
+
     const response = await this.requestJson("/v2/refunds", {
       method: "POST",
       body: JSON.stringify({
@@ -311,5 +325,19 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
   private readMoneyAmount(payment: Record<string, unknown>): number | undefined {
     const amountMinor = readNestedNumber(payment, ["amount_money", "amount"]);
     return amountMinor === undefined ? undefined : amountMinor / 100;
+  }
+
+  private shouldSimulateRefunds(): boolean {
+    return (
+      environment.isDevelopment() &&
+      [this.accessToken, this.locationId, this.webhookSignatureKey].some((value) =>
+        this.isPlaceholderCredential(value),
+      )
+    );
+  }
+
+  private isPlaceholderCredential(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    return normalized.length === 0 || normalized.startsWith("change-me-");
   }
 }

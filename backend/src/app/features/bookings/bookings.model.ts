@@ -8,6 +8,7 @@ import {
 
 export const MAX_BOOKING_NOTE_LENGTH = 1000;
 export const MAX_BOOKING_DECISION_NOTE_LENGTH = 1000;
+export const MAX_BOOKING_CANCELLATION_REASON_LENGTH = 1000;
 export const MAX_BOOKING_GUEST_COUNT = 20;
 export const MAX_BOOKING_CONTACT_NAME_LENGTH = 255;
 export const MAX_BOOKING_CONTACT_EMAIL_LENGTH = 255;
@@ -16,6 +17,9 @@ export const MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING = 2;
 export const PENDING_BOOKING_HOLD_HOURS = 24;
 export const APPROVED_BOOKING_HOLD_HOURS = 72;
 export const CONVERSION_RESERVATION_MINUTES = 5;
+export const BOOKING_CANCELLATION_POLICY_CODE = "platform_default_v1" as const;
+export const FULL_REFUND_CUTOFF_HOURS = 48;
+export const PARTIAL_REFUND_CUTOFF_HOURS = 24;
 
 const trimmedStringSchema = z.string().trim().min(1);
 const nullableTrimmedStringSchema = z
@@ -36,6 +40,14 @@ export const bookingRequestStatusSchema = z.enum([
   "expired",
   "cancelled",
   "refunded",
+]);
+
+export const bookingCancellationActorSchema = z.enum(["renter", "owner"]);
+export const bookingCancellationRefundTypeSchema = z.enum([
+  "full",
+  "partial",
+  "none",
+  "unsupported",
 ]);
 
 export const createBookingRequestSchema = z.object({
@@ -93,6 +105,20 @@ export const decideBookingRequestSchema = z.object({
   ),
 });
 
+export const cancelBookingRequestSchema = z.object({
+  reason: nullableTrimmedStringSchema.pipe(
+    z
+      .string()
+      .trim()
+      .max(
+        MAX_BOOKING_CANCELLATION_REASON_LENGTH,
+        `Cancellation reason must be at most ${MAX_BOOKING_CANCELLATION_REASON_LENGTH} characters.`,
+      )
+      .nullable()
+      .optional(),
+  ),
+});
+
 export const listBookingRequestsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
@@ -100,10 +126,15 @@ export const listBookingRequestsQuerySchema = z.object({
 });
 
 export type BookingRequestStatus = z.infer<typeof bookingRequestStatusSchema>;
+export type BookingCancellationActor = z.infer<typeof bookingCancellationActorSchema>;
+export type BookingCancellationRefundType = z.infer<
+  typeof bookingCancellationRefundTypeSchema
+>;
 export type CreateBookingRequestBody = z.infer<typeof createBookingRequestSchema>;
 export type BookingQuoteBody = z.infer<typeof bookingQuoteSchema>;
 export type UpdateBookingRequestBody = z.infer<typeof updateBookingRequestSchema>;
 export type DecideBookingRequestBody = z.infer<typeof decideBookingRequestSchema>;
+export type CancelBookingRequestBody = z.infer<typeof cancelBookingRequestSchema>;
 export type ListBookingRequestsQuery = z.infer<typeof listBookingRequestsQuerySchema>;
 
 export interface BookingRequestPostingSummary {
@@ -136,6 +167,11 @@ export interface BookingRequestRecord {
   paymentRequiredAt?: string;
   paymentFailedAt?: string;
   cancelledAt?: string;
+  cancelledByUserId?: string;
+  cancellationActor?: BookingCancellationActor;
+  cancellationReason?: string;
+  cancellationPolicyCode?: string;
+  cancellationRefundAmount?: number;
   refundedAt?: string;
   declinedAt?: string;
   expiredAt?: string;
@@ -221,6 +257,12 @@ export interface DecideBookingRequestInput {
   note?: string | null;
 }
 
+export interface CancelBookingRequestInput {
+  bookingRequestId: string;
+  actorUserId: string;
+  reason?: string | null;
+}
+
 export interface UpdateBookingRequestInput {
   bookingRequestId: string;
   renterId: string;
@@ -235,6 +277,13 @@ export interface UpdateBookingRequestInput {
 
 export interface ListRenterBookingRequestsInput {
   renterId: string;
+  page: number;
+  pageSize: number;
+  status?: BookingRequestStatus;
+}
+
+export interface ListOwnedBookingRequestsInput {
+  ownerId: string;
   page: number;
   pageSize: number;
   status?: BookingRequestStatus;
@@ -281,6 +330,32 @@ export interface BookingRequestExpirationRecord {
   ownerId: string;
   status: BookingRequestStatus;
   holdBlockId?: string;
+}
+
+export type BookingCancellationFailureCode =
+  | "already_started"
+  | "booking_already_converted"
+  | "booking_status_ineligible"
+  | "payment_processing_in_progress"
+  | "payment_missing"
+  | "payment_refund_failed";
+
+export interface BookingCancellationFailureReason {
+  code: BookingCancellationFailureCode;
+  message: string;
+}
+
+export interface BookingCancellationQuoteResult {
+  bookingRequestId: string;
+  cancellable: boolean;
+  actor: BookingCancellationActor;
+  bookingStatus: BookingRequestStatus;
+  reasonRequired: boolean;
+  policyCode: string;
+  refundType: BookingCancellationRefundType;
+  refundAmount: number;
+  currency: string;
+  failureReasons: BookingCancellationFailureReason[];
 }
 
 export const BOOKING_DEFAULTS = {

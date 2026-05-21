@@ -81,6 +81,58 @@ describe("createBookingsToolHandlers", () => {
     expect(readFirstText(result)).toContain("Approved booking request booking_1");
   });
 
+  it("maps get_booking_cancellation_quote and cancel_booking_request to the protected cancellation API", async () => {
+    const apiClient = {
+      getBookingCancellationQuote: jest.fn().mockResolvedValue({
+        bookingRequestId: "booking_1",
+        cancellable: true,
+        actor: "renter",
+        bookingStatus: "paid",
+        reasonRequired: false,
+        policyCode: "platform_default_v1",
+        refundType: "partial",
+        refundAmount: 165,
+        currency: "CAD",
+        failureReasons: [],
+      }),
+      cancelBookingRequest: jest.fn().mockResolvedValue({
+        id: "booking_1",
+        status: "cancelled",
+        posting: {
+          id: "post_1",
+          name: "Loft",
+        },
+      }),
+    } as never;
+    const handlers = createBookingsToolHandlers(apiClient);
+
+    const quote = await handlers.getBookingCancellationQuote({
+      id: "booking_1",
+    });
+    const cancellation = await handlers.cancelBookingRequest({
+      id: "booking_1",
+      reason: "Plans changed.",
+    });
+
+    expect(
+      (apiClient as { getBookingCancellationQuote: jest.Mock }).getBookingCancellationQuote,
+    ).toHaveBeenCalledWith("booking_1");
+    expect(
+      (apiClient as { cancelBookingRequest: jest.Mock }).cancelBookingRequest,
+    ).toHaveBeenCalledWith("booking_1", {
+      reason: "Plans changed.",
+    });
+    expect(quote.structuredContent).toMatchObject({
+      bookingRequestId: "booking_1",
+      refundType: "partial",
+      refundAmount: 165,
+    });
+    expect(cancellation.structuredContent).toMatchObject({
+      id: "booking_1",
+      status: "cancelled",
+    });
+  });
+
   it("returns isError results for protected bookings API failures", async () => {
     const apiClient = {
       createBookingRequest: jest

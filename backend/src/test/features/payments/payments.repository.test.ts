@@ -466,4 +466,198 @@ describe("PaymentsRepository", () => {
     });
     expect(deletedBlocks).toEqual(["block-1"]);
   });
+
+  it("preserves an explicitly cancelled booking when refund completion succeeds", async () => {
+    const bookingUpdates: Array<Record<string, unknown>> = [];
+    const refund = {
+      id: "refund-1",
+      paymentId: "payment-1",
+      amount: new Prisma.Decimal(110),
+      status: "pending",
+      reason: null,
+      idempotencyKey: "refund-idem-1",
+      squareRefundId: null,
+      createdAt: new Date("2026-04-20T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-20T00:00:00.000Z"),
+      completedAt: new Date("2026-04-20T00:10:00.000Z"),
+    };
+    const payment = createPaymentPersistence({
+      status: "succeeded",
+      bookingRequest: {
+        ...createPaymentPersistence().bookingRequest,
+        status: "cancelled",
+        holdBlockId: null,
+      },
+      refunds: [
+        {
+          id: "refund-1",
+          status: "succeeded",
+          amount: new Prisma.Decimal(110),
+          reason: null,
+          idempotencyKey: "refund-idem-1",
+          squareRefundId: "square-refund-1",
+          createdAt: new Date("2026-04-20T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-20T00:10:00.000Z"),
+          completedAt: new Date("2026-04-20T00:10:00.000Z"),
+        },
+      ],
+    });
+
+    const transaction = {
+      refund: {
+        findUniqueOrThrow: jest.fn(async () => refund),
+        update: jest.fn(async () => undefined),
+        findMany: jest.fn(async () => [
+          {
+            id: "refund-1",
+            status: "succeeded",
+            amount: new Prisma.Decimal(110),
+            reason: null,
+            idempotencyKey: "refund-idem-1",
+            squareRefundId: "square-refund-1",
+            createdAt: new Date("2026-04-20T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-20T00:10:00.000Z"),
+            completedAt: new Date("2026-04-20T00:10:00.000Z"),
+          },
+        ]),
+      },
+      payment: {
+        findUniqueOrThrow: jest.fn(async () => payment),
+        update: jest.fn(async () => undefined),
+      },
+      bookingRequest: {
+        update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          bookingUpdates.push(data);
+        }),
+      },
+      postingAvailabilityBlock: {
+        deleteMany: jest.fn(async () => undefined),
+      },
+      paymentLedgerEntry: {
+        create: jest.fn(async () => undefined),
+      },
+    };
+
+    const database = {
+      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
+        callback(transaction),
+    };
+
+    const repository = new PaymentsRepository(database as never);
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "square-refund-1",
+      status: "COMPLETED",
+      raw: {
+        ok: true,
+      },
+    });
+
+    expect(bookingUpdates[0]).toMatchObject({
+      refundedAt: expect.any(Date),
+      holdBlockId: null,
+    });
+    expect(bookingUpdates[0]).not.toHaveProperty("status");
+  });
+
+  it("can preserve the current booking status while recording a successful refund", async () => {
+    const bookingUpdates: Array<Record<string, unknown>> = [];
+    const deletedBlocks: string[] = [];
+    const refund = {
+      id: "refund-1",
+      paymentId: "payment-1",
+      amount: new Prisma.Decimal(110),
+      status: "pending",
+      reason: null,
+      idempotencyKey: "refund-idem-1",
+      squareRefundId: null,
+      createdAt: new Date("2026-04-20T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-20T00:00:00.000Z"),
+      completedAt: new Date("2026-04-20T00:10:00.000Z"),
+    };
+    const payment = createPaymentPersistence({
+      status: "succeeded",
+      bookingRequest: {
+        ...createPaymentPersistence().bookingRequest,
+        status: "paid",
+        holdBlockId: "block-1",
+      },
+      refunds: [
+        {
+          id: "refund-1",
+          status: "succeeded",
+          amount: new Prisma.Decimal(110),
+          reason: null,
+          idempotencyKey: "refund-idem-1",
+          squareRefundId: "square-refund-1",
+          createdAt: new Date("2026-04-20T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-20T00:10:00.000Z"),
+          completedAt: new Date("2026-04-20T00:10:00.000Z"),
+        },
+      ],
+    });
+
+    const transaction = {
+      refund: {
+        findUniqueOrThrow: jest.fn(async () => refund),
+        update: jest.fn(async () => undefined),
+        findMany: jest.fn(async () => [
+          {
+            id: "refund-1",
+            status: "succeeded",
+            amount: new Prisma.Decimal(110),
+            reason: null,
+            idempotencyKey: "refund-idem-1",
+            squareRefundId: "square-refund-1",
+            createdAt: new Date("2026-04-20T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-20T00:10:00.000Z"),
+            completedAt: new Date("2026-04-20T00:10:00.000Z"),
+          },
+        ]),
+      },
+      payment: {
+        findUniqueOrThrow: jest.fn(async () => payment),
+        update: jest.fn(async () => undefined),
+      },
+      bookingRequest: {
+        update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          bookingUpdates.push(data);
+        }),
+      },
+      postingAvailabilityBlock: {
+        deleteMany: jest.fn(async ({ where }: { where: { id: string } }) => {
+          deletedBlocks.push(where.id);
+        }),
+      },
+      paymentLedgerEntry: {
+        create: jest.fn(async () => undefined),
+      },
+    };
+
+    const database = {
+      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
+        callback(transaction),
+    };
+
+    const repository = new PaymentsRepository(database as never);
+    await repository.completeRefund(
+      "refund-1",
+      {
+        providerRefundId: "square-refund-1",
+        status: "COMPLETED",
+        raw: {
+          ok: true,
+        },
+      },
+      {
+        preserveBookingStatus: true,
+      },
+    );
+
+    expect(bookingUpdates[0]).toMatchObject({
+      refundedAt: expect.any(Date),
+    });
+    expect(bookingUpdates[0]).not.toHaveProperty("status");
+    expect(bookingUpdates[0]).not.toHaveProperty("holdBlockId");
+    expect(deletedBlocks).toEqual([]);
+  });
 });

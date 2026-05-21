@@ -4,6 +4,8 @@ import type { BookingRequestRecord } from "@/features/bookings/bookings.model";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
 import { BookingsService } from "@/features/bookings/bookings.service";
 import type { CacheService } from "@/features/cache/cache.service";
+import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
+import type { PaymentsRepository } from "@/features/payments/payments.repository";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingRecord } from "@/features/postings/postings.model";
@@ -86,11 +88,39 @@ function createBookingRequestRecord(overrides: Partial<BookingRequestRecord> = {
   };
 }
 
+function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "payment-1",
+    bookingRequestId: "booking-1",
+    postingId: "posting-1",
+    renterId: "renter-1",
+    ownerId: "owner-1",
+    provider: "square",
+    status: "succeeded",
+    pricingCurrency: "CAD",
+    rentalSubtotalAmount: 300,
+    platformFeeAmount: 30,
+    totalAmount: 330,
+    booking: {
+      id: "booking-1",
+      status: "paid",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
+      holdExpiresAt: "2099-04-21T00:00:00.000Z",
+      paymentReconciliationRequired: false,
+    },
+    attempts: [],
+    refunds: [],
+    ...overrides,
+  };
+}
+
 function createService(options?: {
   activeRequestCount?: number;
   availabilityOverlap?: boolean;
   createdBooking?: BookingRequestRecord;
   posting?: PostingRecord;
+  paymentRecord?: ReturnType<typeof createPaymentRecord> | null;
   rentingOverlap?: boolean;
 }) {
   const posting = options?.posting ?? createPostingRecord();
@@ -111,6 +141,22 @@ function createService(options?: {
       ...createdBooking,
       status: "declined",
     })),
+    listByOwner: jest.fn(async () => ({
+      bookingRequests: [createdBooking],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    })),
+    cancel: jest.fn(async () => ({
+      ...createdBooking,
+      status: "cancelled",
+      cancelledAt: new Date().toISOString(),
+    })),
     hasBlockingAvailabilityOverlap: jest.fn(async () => options?.availabilityOverlap ?? false),
   } as unknown as BookingsRepository;
 
@@ -123,6 +169,7 @@ function createService(options?: {
     enqueueBookingRequestedEvent: jest.fn(async () => undefined),
     enqueueBookingApprovedEvent: jest.fn(async () => undefined),
     enqueueBookingDeclinedEvent: jest.fn(async () => undefined),
+    enqueueBookingCancelledEvent: jest.fn(async () => undefined),
   } as unknown as PostingsAnalyticsRepository;
 
   const rentingsRepository = {
@@ -139,6 +186,29 @@ function createService(options?: {
   const postingsPublicCacheService = {
     invalidatePublic: jest.fn(async () => 1),
   } as unknown as PostingsPublicCacheService;
+  const paymentsRepository = {
+    findByBookingRequestId: jest.fn(async () => options?.paymentRecord ?? createPaymentRecord()),
+    createRefundRecord: jest.fn(async () => ({
+      refundId: "refund-1",
+      paymentId: "payment-1",
+      providerPaymentId: "square-pay-1",
+      pricingCurrency: "CAD",
+    })),
+    completeRefund: jest.fn(async () => createPaymentRecord()),
+  } as unknown as PaymentsRepository;
+  const paymentProvider = {
+    createRefund: jest.fn(async () => ({
+      providerRefundId: "square-refund-1",
+      status: "COMPLETED",
+      raw: { ok: true },
+    })),
+    classifyError: jest.fn(() => ({
+      category: "transient",
+      code: "provider-error",
+      message: "Provider temporarily unavailable.",
+      retryable: true,
+    })),
+  } as unknown as PaymentProviderAdapter;
 
   const service = new BookingsService(
     bookingsRepository,
@@ -147,6 +217,8 @@ function createService(options?: {
     rentingsRepository,
     cacheService,
     postingsPublicCacheService,
+    paymentsRepository,
+    paymentProvider,
   );
 
   return {
@@ -158,12 +230,15 @@ function createService(options?: {
       updatePending: jest.Mock;
       approve: jest.Mock;
       decline: jest.Mock;
+      listByOwner: jest.Mock;
+      cancel: jest.Mock;
       hasBlockingAvailabilityOverlap: jest.Mock;
     },
     analyticsRepository: analyticsRepository as unknown as {
       enqueueBookingRequestedEvent: jest.Mock;
       enqueueBookingApprovedEvent: jest.Mock;
       enqueueBookingDeclinedEvent: jest.Mock;
+      enqueueBookingCancelledEvent: jest.Mock;
     },
     postingsRepository: postingsRepository as unknown as {
       findById: jest.Mock;
@@ -177,6 +252,15 @@ function createService(options?: {
     },
     postingsPublicCacheService: postingsPublicCacheService as unknown as {
       invalidatePublic: jest.Mock;
+    },
+    paymentsRepository: paymentsRepository as unknown as {
+      findByBookingRequestId: jest.Mock;
+      createRefundRecord: jest.Mock;
+      completeRefund: jest.Mock;
+    },
+    paymentProvider: paymentProvider as unknown as {
+      createRefund: jest.Mock;
+      classifyError: jest.Mock;
     },
   };
 }
@@ -557,5 +641,223 @@ describe("BookingsService", () => {
     expect(bookingsRepository.approve).toHaveBeenCalledTimes(1);
     expect(analyticsRepository.enqueueBookingApprovedEvent).toHaveBeenCalledTimes(1);
     expect(approved.status).toBe("awaiting_payment");
+  });
+
+  it("lists owned booking requests for account management", async () => {
+    const { service, bookingsRepository } = createService();
+
+    const result = await service.listOwned({
+      ownerId: "owner-1",
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(bookingsRepository.listByOwner).toHaveBeenCalledWith({
+      ownerId: "owner-1",
+      page: 1,
+      pageSize: 20,
+      status: undefined,
+    });
+    expect(result.bookingRequests).toHaveLength(1);
+  });
+
+  it("quotes full paid refunds for renter cancellations more than 48 hours before start", async () => {
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "paid",
+        startAt: "2099-05-10T00:00:00.000Z",
+        endAt: "2099-05-12T00:00:00.000Z",
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+
+    expect(quote).toMatchObject({
+      cancellable: true,
+      actor: "renter",
+      refundType: "full",
+      refundAmount: 330,
+      currency: "CAD",
+    });
+  });
+
+  it("quotes partial paid refunds for renter cancellations between 24 and 48 hours before start", async () => {
+    const startAt = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString();
+    const endAt = new Date(Date.now() + 60 * 60 * 1000 + 36 * 60 * 60 * 1000).toISOString();
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "paid",
+        startAt,
+        endAt,
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+
+    expect(quote).toMatchObject({
+      cancellable: true,
+      refundType: "partial",
+      refundAmount: 165,
+    });
+  });
+
+  it("quotes no refund for renter paid cancellations inside 24 hours of start", async () => {
+    const startAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    const endAt = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString();
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "paid",
+        startAt,
+        endAt,
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+
+    expect(quote).toMatchObject({
+      cancellable: true,
+      refundType: "none",
+      refundAmount: 0,
+    });
+  });
+
+  it("requires owner reasons and forces full refunds on paid owner cancellations", async () => {
+    const booking = createBookingRequestRecord({
+      status: "paid",
+      startAt: "2099-05-10T00:00:00.000Z",
+      endAt: "2099-05-12T00:00:00.000Z",
+    });
+    const { service, bookingsRepository, paymentsRepository, paymentProvider, analyticsRepository } =
+      createService({
+        createdBooking: booking,
+      });
+
+    await expect(
+      service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "owner-1",
+      }),
+    ).rejects.toMatchObject<Partial<BadRequestError>>({
+      message: "Owners must provide a cancellation reason.",
+    });
+
+    const cancelled = await service.cancel({
+      bookingRequestId: "booking-1",
+      actorUserId: "owner-1",
+      reason: "Pipe burst in the unit.",
+    });
+
+    expect(paymentsRepository.createRefundRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: "payment-1",
+        actorUserId: "owner-1",
+        amount: 330,
+        reason: "Pipe burst in the unit.",
+        idempotencyKey: "booking-cancel-booking-1",
+      }),
+    );
+    expect(paymentProvider.createRefund).toHaveBeenCalledTimes(1);
+    expect(bookingsRepository.cancel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: "owner",
+        expectedStatus: "paid",
+        cancellationRefundAmount: 330,
+      }),
+    );
+    expect(analyticsRepository.enqueueBookingCancelledEvent).toHaveBeenCalledTimes(1);
+    expect(cancelled.status).toBe("cancelled");
+  });
+
+  it("allows renters to cancel unpaid bookings without creating refunds", async () => {
+    const booking = createBookingRequestRecord({
+      status: "awaiting_payment",
+      startAt: "2099-05-10T00:00:00.000Z",
+      endAt: "2099-05-12T00:00:00.000Z",
+    });
+    const { service, bookingsRepository, paymentsRepository, paymentProvider } = createService({
+      createdBooking: booking,
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    expect(quote).toMatchObject({
+      cancellable: true,
+      actor: "renter",
+      refundType: "none",
+      refundAmount: 0,
+    });
+
+    await service.cancel({
+      bookingRequestId: "booking-1",
+      actorUserId: "renter-1",
+      reason: "Schedule conflict",
+    });
+
+    expect(bookingsRepository.cancel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: "renter",
+        expectedStatus: "awaiting_payment",
+        cancellationRefundAmount: 0,
+      }),
+    );
+    expect(paymentsRepository.createRefundRecord).not.toHaveBeenCalled();
+    expect(paymentProvider.createRefund).not.toHaveBeenCalled();
+  });
+
+  it("rejects cancellations for converted bookings", async () => {
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "paid",
+        startAt: "2099-05-10T00:00:00.000Z",
+        endAt: "2099-05-12T00:00:00.000Z",
+        convertedAt: "2099-04-21T00:00:00.000Z",
+        rentingId: "renting-1",
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    expect(quote.cancellable).toBe(false);
+    expect(quote.failureReasons[0]?.code).toBe("booking_already_converted");
+
+    await expect(
+      service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "renter-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects cancellations for already-terminal booking statuses", async () => {
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "declined",
+        startAt: "2099-05-10T00:00:00.000Z",
+        endAt: "2099-05-12T00:00:00.000Z",
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    expect(quote.cancellable).toBe(false);
+    expect(quote.failureReasons[0]?.code).toBe("booking_status_ineligible");
+  });
+
+  it("rejects payment-processing self-service cancellations with a conflict", async () => {
+    const { service } = createService({
+      createdBooking: createBookingRequestRecord({
+        status: "payment_processing",
+        startAt: "2099-05-10T00:00:00.000Z",
+        endAt: "2099-05-12T00:00:00.000Z",
+      }),
+    });
+
+    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    expect(quote.cancellable).toBe(false);
+    expect(quote.failureReasons[0]?.code).toBe("payment_processing_in_progress");
+
+    await expect(
+      service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "renter-1",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });

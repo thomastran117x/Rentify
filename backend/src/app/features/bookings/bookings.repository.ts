@@ -9,11 +9,13 @@ import {
 } from "@/features/postings/postings.model";
 import type {
   ActiveBookingOverlapInput,
+  BookingCancellationActor,
   BookingRequestExpirationRecord,
   BookingRequestRecord,
   BookingRequestsListResult,
   BookingRequestStatus,
   CreateBookingRequestPersistenceInput,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
 } from "@/features/bookings/bookings.model";
@@ -40,6 +42,7 @@ type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
 export class BookingsRepository extends BaseRepository {
   private readonly activeBookingStatuses: BookingRequestStatus[] = [
     "pending",
+    "approved",
     "awaiting_payment",
     "payment_processing",
     "payment_failed",
@@ -367,6 +370,48 @@ export class BookingsRepository extends BaseRepository {
     };
   }
 
+  async listByOwner(input: ListOwnedBookingRequestsInput): Promise<BookingRequestsListResult> {
+    const where: Prisma.BookingRequestWhereInput = {
+      ownerId: input.ownerId,
+      ...(input.status ? { status: input.status } : {}),
+    };
+    const skip = (input.page - 1) * input.pageSize;
+
+    const [rows, total] = await this.executeAsync(() =>
+      Promise.all([
+        this.prisma.bookingRequest.findMany({
+          where,
+          skip,
+          take: input.pageSize,
+          orderBy: [{ createdAt: "desc" }],
+          include: {
+            renting: {
+              select: {
+                id: true,
+              },
+            },
+            posting: {
+              include: {
+                photos: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
+            },
+          },
+        }),
+        this.prisma.bookingRequest.count({ where }),
+      ]),
+    );
+
+    return {
+      bookingRequests: rows.map((row) => this.mapBookingRequest(row)),
+      pagination: this.createPagination(input.page, input.pageSize, total),
+      ...(input.status ? { status: input.status } : {}),
+    };
+  }
+
   async hasOfficialReservationOverlap(input: ActiveBookingOverlapInput): Promise<boolean> {
     const match = await this.executeAsync(() =>
       this.prisma.bookingRequest.findFirst({
@@ -629,6 +674,112 @@ export class BookingsRepository extends BaseRepository {
     );
 
     return declined ? this.mapBookingRequest(declined) : null;
+  }
+
+  async cancel(input: {
+    bookingRequestId: string;
+    actorUserId: string;
+    actor: BookingCancellationActor;
+    expectedStatus: BookingRequestStatus;
+    reason?: string | null;
+    cancellationPolicyCode: string;
+    cancellationRefundAmount: number;
+  }): Promise<BookingRequestRecord | null> {
+    const cancelled = await this.executeAsync(async () =>
+      this.prisma.$transaction(async (transaction) => {
+        const existing = await transaction.bookingRequest.findUnique({
+          where: {
+            id: input.bookingRequestId,
+          },
+          select: {
+            id: true,
+            renterId: true,
+            ownerId: true,
+            status: true,
+            holdBlockId: true,
+            convertedAt: true,
+          },
+        });
+
+        if (!existing) {
+          return null;
+        }
+
+        if (
+          (input.actor === "renter" && existing.renterId !== input.actorUserId) ||
+          (input.actor === "owner" && existing.ownerId !== input.actorUserId)
+        ) {
+          return null;
+        }
+
+        if (existing.status !== input.expectedStatus || existing.convertedAt) {
+          return null;
+        }
+
+        const result = await transaction.bookingRequest.updateMany({
+          where: {
+            id: existing.id,
+            status: input.expectedStatus,
+            convertedAt: null,
+            ...(input.actor === "renter"
+              ? {
+                  renterId: input.actorUserId,
+                }
+              : {
+                  ownerId: input.actorUserId,
+                }),
+          },
+          data: {
+            status: "cancelled",
+            cancelledAt: new Date(),
+            cancelledByUserId: input.actorUserId,
+            cancellationActor: input.actor,
+            cancellationReason: input.reason ?? null,
+            cancellationPolicyCode: input.cancellationPolicyCode,
+            cancellationRefundAmount: new Prisma.Decimal(input.cancellationRefundAmount),
+            holdBlockId: null,
+            conversionReservedAt: null,
+            conversionReservationExpiresAt: null,
+          },
+        });
+
+        if (result.count !== 1) {
+          return null;
+        }
+
+        if (existing.holdBlockId) {
+          await transaction.postingAvailabilityBlock.deleteMany({
+            where: {
+              id: existing.holdBlockId,
+            },
+          });
+        }
+
+        return transaction.bookingRequest.findUniqueOrThrow({
+          where: {
+            id: existing.id,
+          },
+          include: {
+            renting: {
+              select: {
+                id: true,
+              },
+            },
+            posting: {
+              include: {
+                photos: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
+            },
+          },
+        });
+      }),
+    );
+
+    return cancelled ? this.mapBookingRequest(cancelled) : null;
   }
 
   async listExpiredCandidates(limit: number): Promise<BookingRequestExpirationRecord[]> {
@@ -900,6 +1051,15 @@ export class BookingsRepository extends BaseRepository {
       paymentRequiredAt: bookingRequest.paymentRequiredAt?.toISOString(),
       paymentFailedAt: bookingRequest.paymentFailedAt?.toISOString(),
       cancelledAt: bookingRequest.cancelledAt?.toISOString(),
+      cancelledByUserId: bookingRequest.cancelledByUserId ?? undefined,
+      cancellationActor: bookingRequest.cancellationActor ?? undefined,
+      cancellationReason: bookingRequest.cancellationReason ?? undefined,
+      cancellationPolicyCode: bookingRequest.cancellationPolicyCode ?? undefined,
+      cancellationRefundAmount:
+        bookingRequest.cancellationRefundAmount !== null &&
+        bookingRequest.cancellationRefundAmount !== undefined
+          ? Number(bookingRequest.cancellationRefundAmount)
+          : undefined,
       refundedAt: bookingRequest.refundedAt?.toISOString(),
       declinedAt: bookingRequest.declinedAt?.toISOString(),
       expiredAt: bookingRequest.expiredAt?.toISOString(),

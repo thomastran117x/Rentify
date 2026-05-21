@@ -3,13 +3,19 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
+  BookingCancellationActor,
+  BookingCancellationFailureReason,
+  BookingCancellationQuoteResult,
+  BookingCancellationRefundType,
   BookingQuoteFailureReason,
   BookingQuoteInput,
   BookingQuoteResult,
   BookingRequestRecord,
   BookingRequestsListResult,
+  CancelBookingRequestInput,
   CreateBookingRequestInput,
   DecideBookingRequestInput,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
   UpdateBookingRequestInput,
@@ -17,9 +23,13 @@ import type {
 import {
   APPROVED_BOOKING_HOLD_HOURS,
   BOOKING_DEFAULTS,
+  BOOKING_CANCELLATION_POLICY_CODE,
+  FULL_REFUND_CUTOFF_HOURS,
   MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING,
+  MAX_BOOKING_CANCELLATION_REASON_LENGTH,
   MAX_BOOKING_GUEST_COUNT,
   MAX_BOOKING_NOTE_LENGTH,
+  PARTIAL_REFUND_CUTOFF_HOURS,
   PENDING_BOOKING_HOLD_HOURS,
 } from "@/features/bookings/bookings.model";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
@@ -30,9 +40,12 @@ import { invalidatePublicPostingProjection } from "@/features/postings/postings.
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
+import type { PaymentsRepository } from "@/features/payments/payments.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
 interface NormalizedBookingRequestInput {
   startAt: Date;
@@ -55,6 +68,15 @@ interface BookingRequestValidationResult {
   failureReasons: BookingQuoteFailureReason[];
 }
 
+interface BookingCancellationAssessment {
+  actor: BookingCancellationActor;
+  reasonRequired: boolean;
+  refundType: BookingCancellationRefundType;
+  refundAmount: number;
+  currency: string;
+  failureReasons: BookingCancellationFailureReason[];
+}
+
 export class BookingsService {
   constructor(
     private readonly bookingsRepository: BookingsRepository,
@@ -63,6 +85,8 @@ export class BookingsService {
     private readonly rentingsRepository: RentingsRepository,
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
+    private readonly paymentsRepository: PaymentsRepository,
+    private readonly paymentProvider: PaymentProviderAdapter,
   ) {}
 
   async create(input: CreateBookingRequestInput): Promise<BookingRequestRecord> {
@@ -148,6 +172,10 @@ export class BookingsService {
 
   async listMine(input: ListRenterBookingRequestsInput): Promise<BookingRequestsListResult> {
     return this.bookingsRepository.listByRenter(input);
+  }
+
+  async listOwned(input: ListOwnedBookingRequestsInput): Promise<BookingRequestsListResult> {
+    return this.bookingsRepository.listByOwner(input);
   }
 
   async getById(id: string, userId: string): Promise<BookingRequestRecord> {
@@ -267,6 +295,93 @@ export class BookingsService {
     return updated;
   }
 
+  async getCancellationQuote(
+    bookingRequestId: string,
+    userId: string,
+  ): Promise<BookingCancellationQuoteResult> {
+    const bookingRequest = await this.getById(bookingRequestId, userId);
+    const assessment = await this.assessCancellation(bookingRequest, userId);
+
+    return {
+      bookingRequestId: bookingRequest.id,
+      cancellable: assessment.failureReasons.length === 0,
+      actor: assessment.actor,
+      bookingStatus: bookingRequest.status,
+      reasonRequired: assessment.reasonRequired,
+      policyCode: BOOKING_CANCELLATION_POLICY_CODE,
+      refundType: assessment.refundType,
+      refundAmount: assessment.refundAmount,
+      currency: assessment.currency,
+      failureReasons: assessment.failureReasons,
+    };
+  }
+
+  async cancel(input: CancelBookingRequestInput): Promise<BookingRequestRecord> {
+    const bookingRequest = await this.getById(input.bookingRequestId, input.actorUserId);
+    const actor = this.resolveCancellationActor(bookingRequest, input.actorUserId);
+    const reason = this.normalizeCancellationReason(input.reason);
+
+    if (actor === "owner" && !reason) {
+      throw new BadRequestError("Owners must provide a cancellation reason.");
+    }
+
+    const cancelled = await withFlowLocks(
+      this.cacheService,
+      [
+        flowLockKeys.bookingRequestDecision(bookingRequest.id),
+        flowLockKeys.bookingRequestState(bookingRequest.id),
+        flowLockKeys.postingBookingWindow(bookingRequest.postingId),
+      ],
+      async () => {
+        const lockedBookingRequest = await this.getById(input.bookingRequestId, input.actorUserId);
+        const assessment = await this.assessCancellation(
+          lockedBookingRequest,
+          input.actorUserId,
+        );
+
+        this.throwIfCancellationNotAllowed(assessment);
+
+        if (lockedBookingRequest.status === "paid" && assessment.refundAmount > 0) {
+          await this.refundCancelledPaidBooking(
+            lockedBookingRequest,
+            input.actorUserId,
+            assessment.refundAmount,
+            reason,
+            assessment.currency,
+          );
+        }
+
+        const nextBookingRequest = await this.bookingsRepository.cancel({
+          bookingRequestId: lockedBookingRequest.id,
+          actorUserId: input.actorUserId,
+          actor: assessment.actor,
+          expectedStatus: lockedBookingRequest.status,
+          reason,
+          cancellationPolicyCode: BOOKING_CANCELLATION_POLICY_CODE,
+          cancellationRefundAmount: assessment.refundAmount,
+        });
+
+        if (!nextBookingRequest) {
+          throw new ConflictError(
+            "This booking request changed before it could be cancelled.",
+          );
+        }
+
+        return nextBookingRequest;
+      },
+      "Another request is already modifying this booking request. Please retry.",
+    );
+
+    await this.postingsAnalyticsRepository.enqueueBookingCancelledEvent({
+      postingId: cancelled.postingId,
+      ownerId: cancelled.ownerId,
+      occurredAt: cancelled.cancelledAt ?? new Date().toISOString(),
+    });
+    await invalidatePublicPostingProjection(this.postingsPublicCacheService, cancelled.postingId);
+    await this.postingsRepository.enqueueSearchSync(cancelled.postingId);
+    return cancelled;
+  }
+
   async listForOwnerPosting(
     input: ListOwnerBookingRequestsInput,
   ): Promise<BookingRequestsListResult> {
@@ -383,6 +498,60 @@ export class BookingsService {
     return declined;
   }
 
+  private async refundCancelledPaidBooking(
+    bookingRequest: BookingRequestRecord,
+    actorUserId: string,
+    refundAmount: number,
+    reason: string | null,
+    currency: string,
+  ): Promise<void> {
+    const payment = await this.paymentsRepository.findByBookingRequestId(bookingRequest.id);
+
+    if (!payment) {
+      throw new ConflictError(
+        "This paid booking cannot be cancelled because its payment record is missing.",
+      );
+    }
+
+    try {
+      const idempotencyKey = `booking-cancel-${bookingRequest.id}`;
+      const { refundId, providerPaymentId } =
+        await this.paymentsRepository.createRefundRecord({
+          paymentId: payment.id,
+          actorUserId,
+          amount: refundAmount,
+          reason,
+          idempotencyKey,
+        });
+      const result = await this.paymentProvider.createRefund({
+        idempotencyKey,
+        providerPaymentId,
+        amount: refundAmount,
+        currency,
+        reason,
+      });
+
+      await this.paymentsRepository.completeRefund(refundId, result, {
+        preserveBookingStatus: true,
+      });
+
+      if (result.status === "FAILED") {
+        throw new ConflictError(
+          "The refund could not be completed, so the booking was not cancelled.",
+        );
+      }
+    } catch (error) {
+      if (error instanceof BadRequestError || error instanceof ConflictError) {
+        throw error;
+      }
+
+      const errorInfo = this.paymentProvider.classifyError(error);
+      throw new ConflictError(
+        `The refund could not be completed, so the booking was not cancelled. ${errorInfo.message}`,
+      );
+    }
+  }
+
   private async requirePostingEditableForRenter(postingId: string): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
@@ -436,6 +605,215 @@ export class BookingsService {
     }
 
     return bookingRequest;
+  }
+
+  private resolveCancellationActor(
+    bookingRequest: BookingRequestRecord,
+    userId: string,
+  ): BookingCancellationActor {
+    if (bookingRequest.renterId === userId) {
+      return "renter";
+    }
+
+    if (bookingRequest.ownerId === userId) {
+      return "owner";
+    }
+
+    throw new ForbiddenError("You do not have access to this booking request.");
+  }
+
+  private normalizeCancellationReason(reason: string | null | undefined): string | null {
+    const normalized = reason?.trim() || null;
+
+    if (
+      normalized &&
+      normalized.length > MAX_BOOKING_CANCELLATION_REASON_LENGTH
+    ) {
+      throw new BadRequestError(
+        `Cancellation reason cannot exceed ${MAX_BOOKING_CANCELLATION_REASON_LENGTH} characters.`,
+      );
+    }
+
+    return normalized;
+  }
+
+  private async assessCancellation(
+    bookingRequest: BookingRequestRecord,
+    userId: string,
+  ): Promise<BookingCancellationAssessment> {
+    const actor = this.resolveCancellationActor(bookingRequest, userId);
+    const reasonRequired = actor === "owner";
+    const currency = bookingRequest.pricingCurrency;
+    const failureReasons: BookingCancellationFailureReason[] = [];
+
+    if (bookingRequest.rentingId || bookingRequest.convertedAt) {
+      failureReasons.push({
+        code: "booking_already_converted",
+        message: "Converted bookings cannot be cancelled through booking requests.",
+      });
+    } else if (new Date(bookingRequest.startAt).getTime() <= Date.now()) {
+      failureReasons.push({
+        code: "already_started",
+        message: "Bookings cannot be cancelled at or after the rental start time.",
+      });
+    } else if (bookingRequest.status === "payment_processing") {
+      failureReasons.push({
+        code: "payment_processing_in_progress",
+        message:
+          "This booking is currently processing payment and cannot be cancelled yet. Please retry once the payment finishes.",
+      });
+    } else if (!this.isCancellationStatusEligible(actor, bookingRequest.status)) {
+      failureReasons.push({
+        code: "booking_status_ineligible",
+        message: `Booking requests in status ${bookingRequest.status} cannot be cancelled.`,
+      });
+    }
+
+    if (failureReasons.length > 0 || bookingRequest.status !== "paid") {
+      return {
+        actor,
+        reasonRequired,
+        refundType: "none",
+        refundAmount: 0,
+        currency,
+        failureReasons,
+      };
+    }
+
+    const payment = await this.paymentsRepository.findByBookingRequestId(bookingRequest.id);
+
+    if (!payment) {
+      return {
+        actor,
+        reasonRequired,
+        refundType: "unsupported",
+        refundAmount: 0,
+        currency,
+        failureReasons: [
+          {
+            code: "payment_missing",
+            message:
+              "This paid booking cannot be cancelled because its payment record is unavailable.",
+          },
+        ],
+      };
+    }
+
+    const refundableAmount = this.resolveRemainingRefundableAmount(payment);
+    const refundAmount = this.resolveCancellationRefundAmount(
+      actor,
+      bookingRequest.startAt,
+      refundableAmount,
+    );
+    const refundType = this.resolveRefundType(refundableAmount, refundAmount);
+
+    return {
+      actor,
+      reasonRequired,
+      refundType,
+      refundAmount,
+      currency: payment.pricingCurrency,
+      failureReasons,
+    };
+  }
+
+  private isCancellationStatusEligible(
+    actor: BookingCancellationActor,
+    status: BookingRequestRecord["status"],
+  ): boolean {
+    const renterStatuses: BookingRequestRecord["status"][] = [
+      "pending",
+      "approved",
+      "awaiting_payment",
+      "payment_failed",
+      "paid",
+    ];
+    const ownerStatuses: BookingRequestRecord["status"][] = [
+      "pending",
+      "approved",
+      "awaiting_payment",
+      "payment_failed",
+      "paid",
+    ];
+
+    return actor === "renter"
+      ? renterStatuses.includes(status)
+      : ownerStatuses.includes(status);
+  }
+
+  private resolveRemainingRefundableAmount(payment: {
+    totalAmount: number;
+    refunds: Array<{ status: string; amount: number }>;
+  }): number {
+    const succeededRefundTotal = payment.refunds
+      .filter((refund) => refund.status === "succeeded")
+      .reduce((sum, refund) => sum + refund.amount, 0);
+
+    return Math.max(0, Math.round((payment.totalAmount - succeededRefundTotal) * 100) / 100);
+  }
+
+  private resolveCancellationRefundAmount(
+    actor: BookingCancellationActor,
+    bookingStartAt: string,
+    refundableAmount: number,
+  ): number {
+    if (refundableAmount <= 0) {
+      return 0;
+    }
+
+    if (actor === "owner") {
+      return refundableAmount;
+    }
+
+    const hoursUntilStart =
+      (new Date(bookingStartAt).getTime() - Date.now()) / MILLISECONDS_PER_HOUR;
+
+    if (hoursUntilStart > FULL_REFUND_CUTOFF_HOURS) {
+      return refundableAmount;
+    }
+
+    if (hoursUntilStart > PARTIAL_REFUND_CUTOFF_HOURS) {
+      return Math.round(refundableAmount * 50) / 100;
+    }
+
+    return 0;
+  }
+
+  private resolveRefundType(
+    refundableAmount: number,
+    refundAmount: number,
+  ): BookingCancellationRefundType {
+    if (refundableAmount <= 0) {
+      return "none";
+    }
+
+    if (refundAmount >= refundableAmount) {
+      return "full";
+    }
+
+    if (refundAmount > 0) {
+      return "partial";
+    }
+
+    return "none";
+  }
+
+  private throwIfCancellationNotAllowed(
+    assessment: BookingCancellationAssessment,
+  ): void {
+    const firstFailure = assessment.failureReasons[0];
+
+    if (!firstFailure) {
+      return;
+    }
+
+    if (firstFailure.code === "payment_processing_in_progress") {
+      throw new ConflictError(firstFailure.message);
+    }
+
+    throw new BadRequestError(firstFailure.message, {
+      code: firstFailure.code,
+    });
   }
 
   private normalizeCreateInput(

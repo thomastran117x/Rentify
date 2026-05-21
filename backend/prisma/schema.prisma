@@ -223,6 +223,11 @@ model BookingRequest {
   paymentRequiredAt DateTime?          @map("payment_required_at") @db.DateTime(6)
   paymentFailedAt DateTime?            @map("payment_failed_at") @db.DateTime(6)
   cancelledAt     DateTime?            @map("cancelled_at") @db.DateTime(6)
+  cancelledByUserId String?            @map("cancelled_by_user_id") @db.VarChar(36)
+  cancellationActor BookingCancellationActor? @map("cancellation_actor")
+  cancellationReason String?           @map("cancellation_reason") @db.VarChar(1000)
+  cancellationPolicyCode String?       @map("cancellation_policy_code") @db.VarChar(100)
+  cancellationRefundAmount Decimal?    @map("cancellation_refund_amount") @db.Decimal(18, 2)
   refundedAt      DateTime?            @map("refunded_at") @db.DateTime(6)
   declinedAt      DateTime?            @map("declined_at") @db.DateTime(6)
   expiredAt       DateTime?            @map("expired_at") @db.DateTime(6)
@@ -785,6 +790,11 @@ enum BookingRequestStatus {
   expired
   cancelled
   refunded
+}
+
+enum BookingCancellationActor {
+  renter
+  owner
 }
 
 enum RentingStatus {

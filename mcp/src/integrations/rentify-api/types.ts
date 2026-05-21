@@ -111,6 +111,13 @@ export interface BookingRequestRecord extends Record<string, unknown> {
   pricingCurrency?: string;
   dailyPriceAmount?: number;
   estimatedTotal?: number;
+  cancelledAt?: string;
+  cancelledByUserId?: string;
+  cancellationActor?: "renter" | "owner";
+  cancellationReason?: string;
+  cancellationPolicyCode?: string;
+  cancellationRefundAmount?: number;
+  refundedAt?: string;
   rentingId?: string;
   posting: RentifyBookingPostingSummary;
 }
@@ -136,6 +143,24 @@ export interface BookingQuoteResponse extends Record<string, unknown> {
   estimatedTotal: number | null;
   maxBookingDurationDays: number;
   failureReasons: BookingQuoteFailureReason[];
+}
+
+export interface BookingCancellationFailureReason extends Record<string, unknown> {
+  code: string;
+  message: string;
+}
+
+export interface BookingCancellationQuoteResponse extends Record<string, unknown> {
+  bookingRequestId: string;
+  cancellable: boolean;
+  actor: "renter" | "owner";
+  bookingStatus: string;
+  reasonRequired: boolean;
+  policyCode: string;
+  refundType: "full" | "partial" | "none" | "unsupported";
+  refundAmount: number;
+  currency: string;
+  failureReasons: BookingCancellationFailureReason[];
 }
 
 export interface RentifyRentingPostingSummary extends Record<string, unknown> {

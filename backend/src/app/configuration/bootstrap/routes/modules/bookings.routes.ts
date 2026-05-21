@@ -22,8 +22,16 @@ export const bookingsRouteModule: RouteModule = {
       resolveHandler<BookingsController>(containerTokens.bookingsController, "listMine"),
     );
     app.get(
+      "/booking-requests/owner",
+      resolveHandler<BookingsController>(containerTokens.bookingsController, "listOwned"),
+    );
+    app.get(
       "/booking-requests/:id",
       resolveHandler<BookingsController>(containerTokens.bookingsController, "getById"),
+    );
+    app.get(
+      "/booking-requests/:id/cancellation-quote",
+      resolveHandler<BookingsController>(containerTokens.bookingsController, "getCancellationQuote"),
     );
     app.put(
       "/booking-requests/:id",
@@ -36,6 +44,10 @@ export const bookingsRouteModule: RouteModule = {
     app.post(
       "/booking-requests/:id/decline",
       resolveHandler<BookingsController>(containerTokens.bookingsController, "decline"),
+    );
+    app.post(
+      "/booking-requests/:id/cancel",
+      resolveHandler<BookingsController>(containerTokens.bookingsController, "cancel"),
     );
   },
 };
