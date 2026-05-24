@@ -122,6 +122,10 @@ export const postingsPublicRouteModule: RouteModule = {
       resolveHandler<PostingsController>(containerTokens.postingsController, "search"),
     );
     app.get(
+      "/postings/autocomplete",
+      resolveHandler<PostingsController>(containerTokens.postingsController, "autocomplete"),
+    );
+    app.get(
       "/postings/recommendations",
       resolveHandler<RecommendationsController>(containerTokens.recommendationsController, "list"),
     );

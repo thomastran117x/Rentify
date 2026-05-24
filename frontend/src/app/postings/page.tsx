@@ -24,6 +24,7 @@ import {
   isRenderablePreviewImageUrl,
 } from "@/lib/postings/public-format";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
+import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 import { theme } from "@/styles/theme";
 
 export const metadata: Metadata = {
@@ -484,24 +485,30 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
               initialEndAt={endAt}
             >
               <input type="hidden" name="page" value="1" />
+              {family ? <input type="hidden" name="family" value={family} /> : null}
 
               <div className={theme.marketplace.primarySearchShell}>
                 <div className={theme.marketplace.primarySearchGrid}>
-                  <label htmlFor="q" className={theme.marketplace.primaryInputWrap}>
-                    <Search
-                      className={`h-5 w-5 ${theme.marketplace.primaryInputIcon}`}
-                      aria-hidden="true"
-                    />
-                    <span className="sr-only">Search postings</span>
-                    <input
-                      id="q"
-                      type="search"
-                      name="q"
-                      defaultValue={q}
-                      placeholder="Search cameras, private rooms, bikes, tools..."
-                      className={theme.marketplace.primaryInput}
-                    />
-                  </label>
+                  <PostingAutocompleteInput
+                    id="q"
+                    label="Search postings"
+                    initialValue={q}
+                    family={family}
+                    subtype={subtype}
+                    placeholder="Search cameras, private rooms, bikes, tools..."
+                    shellClassName={theme.marketplace.primaryInputWrap}
+                    icon={
+                      <Search
+                        className={`h-5 w-5 ${theme.marketplace.primaryInputIcon}`}
+                        aria-hidden="true"
+                      />
+                    }
+                    inputClassName={theme.marketplace.primaryInput}
+                    dropdownClassName={theme.marketplace.autocompleteDropdown}
+                    optionClassName={theme.marketplace.autocompleteOption}
+                    optionActiveClassName={theme.marketplace.autocompleteOptionActive}
+                    loadingClassName={theme.marketplace.autocompleteLoading}
+                  />
 
                   <button type="submit" className={theme.marketplace.primaryButton}>
                     Search

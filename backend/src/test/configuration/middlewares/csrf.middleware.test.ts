@@ -115,6 +115,18 @@ describe("csrfMiddleware", () => {
     expect(response.status).toBe(200);
   });
 
+  it("allows trusted loopback aliases for browser auth requests", async () => {
+    const app = createApp();
+    const response = await app.request("http://rent.test/auth/local/login", {
+      method: "POST",
+      headers: {
+        origin: "http://127.0.0.1:3040",
+      },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
   it("allows non-browser refresh requests to use the explicit body-token strategy", async () => {
     const app = createApp();
     const response = await app.request("http://rent.test/auth/refresh", {

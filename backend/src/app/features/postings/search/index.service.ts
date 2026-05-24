@@ -506,6 +506,11 @@ export class PostingsSearchIndexService {
                 type: "text",
                 analyzer: "search_text",
               },
+              prefix: {
+                type: "text",
+                analyzer: "autocomplete_index",
+                search_analyzer: "autocomplete_search",
+              },
             },
           },
           availabilityStatus: { type: "keyword" },

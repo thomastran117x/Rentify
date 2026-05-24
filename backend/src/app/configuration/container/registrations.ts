@@ -45,6 +45,7 @@ import { PostingsPublicCacheService } from "@/features/postings/postings.public-
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import { PostingsRepository } from "@/features/postings/postings.repository";
+import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
 import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
 import { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
 import { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
@@ -521,6 +522,13 @@ export function registerApplicationServices(container: RootServiceContainer): vo
       ),
   });
   container.register({
+    token: containerTokens.postingsPublicAutocompleteService,
+    lifetime: "scoped",
+    dependencies: [containerTokens.postingsRepository],
+    resolve: ({ resolve }) =>
+      new PostingsPublicAutocompleteService(resolve(containerTokens.postingsRepository)),
+  });
+  container.register({
     token: containerTokens.postingsPublicSearchService,
     lifetime: "scoped",
     dependencies: [containerTokens.postingsRepository, containerTokens.postingsPublicCacheService],
@@ -622,6 +630,7 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     lifetime: "scoped",
     dependencies: [
       containerTokens.postingsService,
+      containerTokens.postingsPublicAutocompleteService,
       containerTokens.postingsAnalyticsService,
       containerTokens.postingsReviewsService,
       containerTokens.recommendationActivityPublisher,
@@ -629,6 +638,7 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     resolve: ({ resolve }) =>
       new PostingsController(
         resolve(containerTokens.postingsService),
+        resolve(containerTokens.postingsPublicAutocompleteService),
         resolve(containerTokens.postingsAnalyticsService),
         resolve(containerTokens.postingsReviewsService),
         resolve(containerTokens.recommendationActivityPublisher),

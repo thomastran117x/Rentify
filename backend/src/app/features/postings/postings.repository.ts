@@ -9,6 +9,7 @@ import {
   toPostingAttributes,
 } from "@/features/postings/postings.model";
 import type {
+  PostingAutocompleteInput,
   BatchPublicPostingsInput,
   BatchPostingsResult,
   BatchOwnerPostingsInput,
@@ -101,6 +102,17 @@ interface SearchCountRow {
 
 interface SearchIdRow {
   id: string;
+}
+
+interface PostingAutocompleteRow {
+  id: string;
+  name: string;
+  tags: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  publishedAt: Date | string | null;
+  createdAt: Date | string;
 }
 
 interface PendingSearchOutboxMetrics {
@@ -920,6 +932,91 @@ export class PostingsRepository extends BaseRepository {
       ids: idRows.map((row) => row.id),
       total: Number(countRows[0]?.total ?? 0),
     };
+  }
+
+  async autocompletePublicFallback(input: PostingAutocompleteInput): Promise<
+    Array<{
+      name: string;
+      tags: string[];
+      location: {
+        city?: string;
+        region?: string;
+        country?: string;
+      };
+      publishedAt?: string;
+      createdAt: string;
+    }>
+  > {
+    const normalizedQuery = input.query.trim().toLowerCase();
+    const containsLikeValue = this.createFallbackLikePattern(normalizedQuery);
+    const prefixLikeValue = this.createFallbackPrefixPattern(normalizedQuery);
+    const whereClauses: Prisma.Sql[] = [
+      Prisma.sql`status = 'published'`,
+      Prisma.sql`archived_at IS NULL`,
+      Prisma.sql`(
+        LOWER(name) LIKE ${containsLikeValue} ESCAPE '\\'
+        OR LOWER(city) LIKE ${containsLikeValue} ESCAPE '\\'
+        OR LOWER(region) LIKE ${containsLikeValue} ESCAPE '\\'
+        OR LOWER(country) LIKE ${containsLikeValue} ESCAPE '\\'
+        OR LOWER(CAST(tags AS CHAR)) LIKE ${containsLikeValue} ESCAPE '\\'
+      )`,
+    ];
+
+    if (input.family) {
+      whereClauses.push(Prisma.sql`family = ${input.family}`);
+    }
+
+    if (input.subtype) {
+      whereClauses.push(Prisma.sql`subtype = ${input.subtype}`);
+    }
+
+    const whereSql = Prisma.join(whereClauses, " AND ");
+    const candidateLimit = Math.min(Math.max(input.limit * 5, 12), 40);
+    const rows = await this.executeAsync(() =>
+      this.prisma.$queryRaw<PostingAutocompleteRow[]>(
+        Prisma.sql`
+          SELECT
+            id,
+            name,
+            CAST(tags AS CHAR) AS tags,
+            city,
+            region,
+            country,
+            published_at AS publishedAt,
+            created_at AS createdAt
+          FROM postings
+          WHERE ${whereSql}
+          ORDER BY (
+            CASE WHEN LOWER(name) LIKE ${prefixLikeValue} ESCAPE '\\' THEN 14 ELSE 0 END
+            + CASE WHEN LOWER(CAST(tags AS CHAR)) LIKE ${prefixLikeValue} ESCAPE '\\' THEN 10 ELSE 0 END
+            + CASE WHEN LOWER(city) LIKE ${prefixLikeValue} ESCAPE '\\' THEN 8 ELSE 0 END
+            + CASE WHEN LOWER(region) LIKE ${prefixLikeValue} ESCAPE '\\' THEN 6 ELSE 0 END
+            + CASE WHEN LOWER(country) LIKE ${prefixLikeValue} ESCAPE '\\' THEN 4 ELSE 0 END
+            + CASE WHEN LOWER(name) LIKE ${containsLikeValue} ESCAPE '\\' THEN 3 ELSE 0 END
+            + CASE WHEN LOWER(CAST(tags AS CHAR)) LIKE ${containsLikeValue} ESCAPE '\\' THEN 2 ELSE 0 END
+            + CASE WHEN LOWER(city) LIKE ${containsLikeValue} ESCAPE '\\' THEN 2 ELSE 0 END
+            + CASE WHEN LOWER(region) LIKE ${containsLikeValue} ESCAPE '\\' THEN 1 ELSE 0 END
+            + CASE WHEN LOWER(country) LIKE ${containsLikeValue} ESCAPE '\\' THEN 1 ELSE 0 END
+          ) DESC,
+          published_at DESC,
+          created_at DESC,
+          id ASC
+          LIMIT ${candidateLimit}
+        `,
+      ),
+    );
+
+    return rows.map((row) => ({
+      name: row.name,
+      tags: this.parseAutocompleteTags(row.tags),
+      location: {
+        city: row.city ?? undefined,
+        region: row.region ?? undefined,
+        country: row.country ?? undefined,
+      },
+      publishedAt: row.publishedAt ? new Date(row.publishedAt).toISOString() : undefined,
+      createdAt: new Date(row.createdAt).toISOString(),
+    }));
   }
 
   async findByIdsForIndexing(ids: string[]): Promise<PostingSearchDocument[]> {
@@ -2001,6 +2098,26 @@ export class PostingsRepository extends BaseRepository {
 
   private createFallbackLikePattern(query: string): string {
     return `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  }
+
+  private createFallbackPrefixPattern(query: string): string {
+    return `${query.replace(/[\\%_]/g, "\\$&")}%`;
+  }
+
+  private parseAutocompleteTags(value: string | null): string[] {
+    if (!value) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(value) as unknown;
+
+      return Array.isArray(parsed)
+        ? parsed.filter((entry): entry is string => typeof entry === "string")
+        : [];
+    } catch {
+      return [];
+    }
   }
 
   private async enqueueOutbox(

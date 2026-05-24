@@ -294,6 +294,16 @@ export const theme = {
     primaryInput:
       "min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400",
 
+    autocompleteDropdown:
+      "absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-950/10",
+
+    autocompleteOption:
+      "w-full px-4 py-3 text-left text-sm text-slate-700 transition duration-150 hover:bg-violet-50 hover:text-violet-700",
+
+    autocompleteOptionActive: "bg-violet-50 text-violet-700",
+
+    autocompleteLoading: "px-4 py-3 text-sm text-slate-500",
+
     primaryButton:
       "inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-md hover:shadow-violet-600/25",
 

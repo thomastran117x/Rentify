@@ -42,6 +42,7 @@ type PatRoutePolicy = {
 const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
   { method: "GET", pattern: /^\/profile\/me$/, requiredScope: "mcp:read" },
   { method: "GET", pattern: /^\/postings$/, requiredScope: "mcp:read" },
+  { method: "GET", pattern: /^\/postings\/autocomplete$/, requiredScope: "mcp:read" },
   { method: "GET", pattern: /^\/postings\/recommendations$/, requiredScope: "mcp:read" },
   { method: "GET", pattern: /^\/postings\/batch$/, requiredScope: "mcp:read" },
   { method: "GET", pattern: /^\/postings\/me$/, requiredScope: "mcp:read" },

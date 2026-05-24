@@ -14,6 +14,7 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
+import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 
 const stats = [
   { label: "Active postings", value: "4.2k+" },
@@ -130,16 +131,17 @@ function SearchIcon() {
 
 export default function Home() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    const formData = new FormData(event.currentTarget);
     const params = new URLSearchParams();
+    const searchQuery = String(formData.get("q") ?? "").trim();
 
-    if (searchQuery.trim()) {
-      params.set("query", searchQuery.trim());
+    if (searchQuery) {
+      params.set("q", searchQuery);
     }
 
     if (locationQuery.trim()) {
@@ -178,18 +180,14 @@ export default function Home() {
               className="mt-8 rounded-3xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-950/5"
             >
               <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr_auto]">
-                <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
-                  <span className="text-slate-400 transition group-focus-within:text-violet-600">
-                    <SearchIcon />
-                  </span>
-                  <span className="sr-only">Search rentals</span>
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="What are you looking for?"
-                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                  />
-                </label>
+                <PostingAutocompleteInput
+                  label="Search rentals"
+                  placeholder="What are you looking for?"
+                  shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
+                  icon={<SearchIcon />}
+                  iconClassName="text-slate-400 transition group-focus-within:text-violet-600"
+                  inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
 
                 <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
                   <MapPin className="h-4 w-4 text-slate-400 transition group-focus-within:text-violet-600" />

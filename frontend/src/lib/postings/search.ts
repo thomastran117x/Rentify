@@ -43,6 +43,24 @@ export interface PublicPostingSearchResult {
   query?: string;
 }
 
+export interface PublicPostingAutocompleteParams {
+  q: string;
+  family?: string;
+  subtype?: string;
+  limit?: number;
+}
+
+export interface PostingAutocompleteSuggestion {
+  value: string;
+  kind: "name" | "tag" | "location";
+}
+
+export interface PublicPostingAutocompleteResult {
+  query: string;
+  suggestions: PostingAutocompleteSuggestion[];
+  source: "elasticsearch" | "database";
+}
+
 export interface PublicPostingSummary {
   id: string;
   name: string;
@@ -86,6 +104,23 @@ export class PublicPostingSearchError extends Error {
   }
 }
 
+export class PublicPostingAutocompleteError extends Error {
+  constructor(
+    message: string,
+    readonly debug: {
+      requestUrl: string;
+      params: PublicPostingAutocompleteParams;
+      status?: number;
+      statusText?: string;
+      responseBody?: unknown;
+      causeMessage?: string;
+    },
+  ) {
+    super(message);
+    this.name = "PublicPostingAutocompleteError";
+  }
+}
+
 function toQueryString(params: PublicPostingSearchParams): string {
   const searchParams = new URLSearchParams();
 
@@ -111,10 +146,53 @@ function toQueryString(params: PublicPostingSearchParams): string {
   return query ? `?${query}` : "";
 }
 
+function toAutocompleteQueryString(params: PublicPostingAutocompleteParams): string {
+  const searchParams = new URLSearchParams();
+
+  if (params.q) searchParams.set("q", params.q);
+  if (params.family) searchParams.set("family", params.family);
+  if (params.subtype) searchParams.set("subtype", params.subtype);
+  if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+function isLoopbackHost(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1";
+}
+
+function resolvePostingApiBaseUrl(): string {
+  const baseUrl = resolveApiBaseUrl();
+
+  if (typeof window === "undefined") {
+    return baseUrl;
+  }
+
+  try {
+    const url = new URL(baseUrl);
+    const browserHostname = window.location.hostname.trim().toLowerCase();
+
+    if (
+      isLoopbackHost(url.hostname) &&
+      isLoopbackHost(browserHostname) &&
+      url.hostname.toLowerCase() !== browserHostname
+    ) {
+      url.hostname = browserHostname;
+      return url.toString().replace(/\/+$/, "");
+    }
+
+    return baseUrl;
+  } catch {
+    return baseUrl;
+  }
+}
+
 export async function searchPublicPostings(
   params: PublicPostingSearchParams,
 ): Promise<PublicPostingSearchResult> {
-  const requestUrl = `${resolveApiBaseUrl()}/postings${toQueryString(params)}`;
+  const requestUrl = `${resolvePostingApiBaseUrl()}/postings${toQueryString(params)}`;
 
   try {
     const response = await fetch(requestUrl, {
@@ -159,5 +237,59 @@ export async function searchPublicPostings(
     console.error("Public postings search fetch threw before a response was received", debug);
 
     throw new PublicPostingSearchError("Unable to load postings.", debug);
+  }
+}
+
+export async function fetchPublicPostingAutocomplete(
+  params: PublicPostingAutocompleteParams,
+  options?: {
+    signal?: AbortSignal;
+  },
+): Promise<PublicPostingAutocompleteResult> {
+  const requestUrl = `${resolvePostingApiBaseUrl()}/postings/autocomplete${toAutocompleteQueryString(params)}`;
+
+  try {
+    const response = await fetch(requestUrl, {
+      headers: {
+        accept: "application/json",
+      },
+      cache: "no-store",
+      signal: options?.signal,
+    });
+
+    const payload = (await readJson(response).catch(() => null)) as
+      | ApiErrorResponse
+      | { data: PublicPostingAutocompleteResult }
+      | null;
+
+    if (!response.ok) {
+      throw new PublicPostingAutocompleteError(
+        (payload && "message" in payload && payload.message) ||
+          "Unable to load posting suggestions.",
+        {
+          requestUrl,
+          params,
+          status: response.status,
+          statusText: response.statusText,
+          responseBody: payload,
+        },
+      );
+    }
+
+    return unwrapApiResponse<PublicPostingAutocompleteResult>(payload);
+  } catch (error) {
+    if (error instanceof PublicPostingAutocompleteError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw error;
+    }
+
+    throw new PublicPostingAutocompleteError("Unable to load posting suggestions.", {
+      requestUrl,
+      params,
+      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
+    });
   }
 }

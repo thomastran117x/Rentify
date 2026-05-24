@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 
 const suggestedSearches = [
   "Apartments",
@@ -31,12 +32,13 @@ function SearchIcon() {
 
 export function MarketingHeroSearch() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextQuery = query.trim();
+    const formData = new FormData(event.currentTarget);
+    const nextQuery = String(formData.get("q") ?? "").trim();
+
     if (!nextQuery) {
       router.push("/postings");
       return;
@@ -46,7 +48,6 @@ export function MarketingHeroSearch() {
   }
 
   function handleSuggestedSearch(value: string) {
-    setQuery(value);
     router.push(`/postings?q=${encodeURIComponent(value)}`);
   }
 
@@ -57,18 +58,14 @@ export function MarketingHeroSearch() {
         className="rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-950/5"
       >
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
-            <span className="text-slate-400 transition group-focus-within:text-violet-600">
-              <SearchIcon />
-            </span>
-            <span className="sr-only">Search the marketplace</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search rentals, equipment, spaces, and more"
-              className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-            />
-          </label>
+          <PostingAutocompleteInput
+            label="Search the marketplace"
+            placeholder="Search rentals, equipment, spaces, and more"
+            shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
+            icon={<SearchIcon />}
+            iconClassName="text-slate-400 transition group-focus-within:text-violet-600"
+            inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+          />
 
           <button
             type="submit"

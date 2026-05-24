@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3040",
     "lint": "eslint .",
+    "test:postings-search": "node --experimental-transform-types --loader ./scripts/test-loader.mjs src/lib/postings/search.test.ts",
     "test:public-postings": "node --experimental-strip-types --loader ./scripts/test-loader.mjs src/lib/postings/public.test.ts",
     "test:search-form": "node --experimental-strip-types src/lib/postings/search-form.test.ts",
     "test:e2e": "playwright test",

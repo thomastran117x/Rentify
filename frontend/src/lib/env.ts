@@ -21,6 +21,35 @@ function normalizeApiBaseUrl(value: string): string {
   }
 }
 
+function isLoopbackHostname(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1";
+}
+
+function alignBrowserLoopbackHost(value: string): string {
+  if (typeof window === "undefined") {
+    return value;
+  }
+
+  try {
+    const configuredUrl = new URL(value);
+    const browserHostname = window.location.hostname.trim().toLowerCase();
+
+    if (
+      isLoopbackHostname(configuredUrl.hostname) &&
+      isLoopbackHostname(browserHostname) &&
+      configuredUrl.hostname.toLowerCase() !== browserHostname
+    ) {
+      configuredUrl.hostname = browserHostname;
+      return trimTrailingSlash(configuredUrl.toString());
+    }
+
+    return value;
+  } catch {
+    return value;
+  }
+}
+
 export const publicEnv = {
   apiBaseUrl: normalizeApiBaseUrl(
     process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || fallbackApiBaseUrl,
@@ -39,5 +68,7 @@ export const serverEnv = {
 } as const;
 
 export function resolveApiBaseUrl(): string {
-  return typeof window === "undefined" ? serverEnv.internalApiBaseUrl : publicEnv.apiBaseUrl;
+  return typeof window === "undefined"
+    ? serverEnv.internalApiBaseUrl
+    : alignBrowserLoopbackHost(publicEnv.apiBaseUrl);
 }

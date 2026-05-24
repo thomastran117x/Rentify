@@ -44,12 +44,15 @@ import {
   ownerAvailabilityBlockRequestSchema,
   postingBatchIdsQuerySchema,
   postingResourceIdSchema,
+  publicAutocompletePostingsQuerySchema,
   publicSearchPostingsQuerySchema,
   searchAttributeFiltersSchema,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsQuery,
   type OwnerAvailabilityBlockRequestBody,
+  type PostingAutocompleteInput,
   type PublicSearchPostingsQuery,
+  type PublicAutocompletePostingsQuery,
   type SearchAttributeFilterInput,
   type SearchPostingsInput,
   type UpdatePostingRequestBody,
@@ -59,6 +62,7 @@ import {
   upsertPostingRequestSchema,
 } from "@/features/postings/postings.model";
 import { PostingsService } from "@/features/postings/postings.service";
+import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
 import {
   searchClickActivityRequestSchema,
   type SearchClickActivityRequestBody,
@@ -71,6 +75,7 @@ export class PostingsController {
 
   constructor(
     private readonly postingsService: PostingsService,
+    private readonly postingsPublicAutocompleteService: PostingsPublicAutocompleteService,
     private readonly postingsAnalyticsService: PostingsAnalyticsService,
     private readonly postingsReviewsService: PostingsReviewsService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
@@ -308,6 +313,13 @@ export class PostingsController {
         pickMeta(result, ["source"]),
       ),
     });
+  };
+
+  autocomplete = async (context: Context<AppBindings>): Promise<Response> => {
+    const result = await this.postingsPublicAutocompleteService.autocompletePublic(
+      this.parseAutocompletePostingsInput(context),
+    );
+    return ok(context, result);
   };
 
   analyticsSummary = async (context: Context<AppBindings>): Promise<Response> => {
@@ -582,6 +594,17 @@ export class PostingsController {
     };
   }
 
+  private toAutocompletePostingsInput(
+    query: PublicAutocompletePostingsQuery,
+  ): PostingAutocompleteInput {
+    return {
+      query: query.q,
+      family: query.family,
+      subtype: query.subtype,
+      limit: query.limit,
+    };
+  }
+
   private readAttributeFilters(searchParams: URLSearchParams): SearchAttributeFilterInput[] | undefined {
     const filters = new Map<
       string,
@@ -683,6 +706,23 @@ export class PostingsController {
     const url = new URL(context.req.url);
     try {
       return postingBatchIdsQuerySchema.parse(this.readArrayQuery(url.searchParams, "ids"));
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseAutocompletePostingsInput(context: Context<AppBindings>): PostingAutocompleteInput {
+    const url = new URL(context.req.url);
+
+    try {
+      const query = publicAutocompletePostingsQuerySchema.parse({
+        q: this.readOptionalQueryParam(url.searchParams, "q"),
+        family: this.readOptionalQueryParam(url.searchParams, "family"),
+        subtype: this.readOptionalQueryParam(url.searchParams, "subtype"),
+        limit: this.readOptionalQueryParam(url.searchParams, "limit"),
+      });
+
+      return this.toAutocompletePostingsInput(query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }

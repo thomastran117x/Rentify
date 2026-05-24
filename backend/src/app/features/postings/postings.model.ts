@@ -25,6 +25,7 @@ export const postingAvailabilityStatusSchema = z.enum([
 export const postingFamilySchema = z.enum(POSTING_FAMILY_VALUES);
 export const postingSubtypeSchema = z.enum(POSTING_SUBTYPE_VALUES);
 export const postingSearchSourceSchema = z.enum(["elasticsearch", "database"]);
+export const postingAutocompleteSuggestionKindSchema = z.enum(["name", "tag", "location"]);
 export const postingSortSchema = z.enum([
   "relevance",
   "newest",
@@ -406,11 +407,23 @@ export const publicSearchPostingsQuerySchema = z
     }
   });
 
+export const publicAutocompletePostingsQuerySchema = z
+  .object({
+    q: z.string().trim().min(2).max(120),
+    family: postingFamilySchema.optional(),
+    subtype: postingSubtypeSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(8).default(6),
+  })
+  .strict();
+
 export type PostingStatus = z.infer<typeof postingStatusSchema>;
 export type PostingAvailabilityStatus = z.infer<typeof postingAvailabilityStatusSchema>;
 export type PostingFamily = z.infer<typeof postingFamilySchema>;
 export type PostingSubtype = z.infer<typeof postingSubtypeSchema>;
 export type PostingSearchSource = z.infer<typeof postingSearchSourceSchema>;
+export type PostingAutocompleteSuggestionKind = z.infer<
+  typeof postingAutocompleteSuggestionKindSchema
+>;
 export type PostingSort = z.infer<typeof postingSortSchema>;
 export type PostingPricing = z.infer<typeof postingPricingSchema>;
 export interface PostingVariant {
@@ -438,6 +451,9 @@ export type OwnerAvailabilityBlockRequestBody = z.infer<
 >;
 export type ListOwnerPostingsQuery = z.infer<typeof listOwnerPostingsQuerySchema>;
 export type PublicSearchPostingsQuery = z.infer<typeof publicSearchPostingsQuerySchema>;
+export type PublicAutocompletePostingsQuery = z.infer<
+  typeof publicAutocompletePostingsQuerySchema
+>;
 
 export interface SearchAttributeFilterInput {
   key: string;
@@ -546,6 +562,24 @@ export interface SearchPostingsResult {
   pagination: PostingPagination;
   source: PostingSearchSource;
   query?: string;
+}
+
+export interface PostingAutocompleteSuggestion {
+  value: string;
+  kind: PostingAutocompleteSuggestionKind;
+}
+
+export interface PostingAutocompleteInput {
+  query: string;
+  family?: PostingFamily;
+  subtype?: PostingSubtype;
+  limit: number;
+}
+
+export interface PostingAutocompleteResult {
+  query: string;
+  suggestions: PostingAutocompleteSuggestion[];
+  source: PostingSearchSource;
 }
 
 export interface PostingGeoInput {
