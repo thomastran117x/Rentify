@@ -38,6 +38,7 @@ interface ElasticsearchSearchResponse {
 
 export class PostingsPublicSearchService {
   private readonly logger: Logger;
+  private static readonly queryTokenPattern = /[\p{L}\p{N}]+/gu;
 
   constructor(
     private readonly postingsRepository: PostingsRepository,
@@ -123,6 +124,7 @@ export class PostingsPublicSearchService {
     const mustNot: Array<Record<string, unknown>> = [];
 
     if (input.query) {
+      const isMultiTermQuery = this.countQueryTerms(input.query) > 1;
       must.push({
         bool: {
           should: [
@@ -137,7 +139,7 @@ export class PostingsPublicSearchService {
             {
               multi_match: {
                 query: input.query,
-                type: "best_fields",
+                type: "cross_fields",
                 operator: "and",
                 fields: [
                   "name^7",
@@ -162,6 +164,7 @@ export class PostingsPublicSearchService {
                 ],
                 fuzziness: "AUTO",
                 prefix_length: 1,
+                ...(isMultiTermQuery ? { operator: "and" } : {}),
                 boost: 0.7,
               },
             },
@@ -175,6 +178,7 @@ export class PostingsPublicSearchService {
                   "location.region.prefix^2",
                   "location.country.prefix^2",
                 ],
+                ...(isMultiTermQuery ? { operator: "and" } : {}),
                 boost: 0.8,
               },
             },
@@ -288,6 +292,10 @@ export class PostingsPublicSearchService {
       sort: this.buildSort(input),
       track_total_hits: true,
     };
+  }
+
+  private countQueryTerms(query: string): number {
+    return query.match(PostingsPublicSearchService.queryTokenPattern)?.length ?? 0;
   }
 
   private buildSort(input: SearchPostingsInput): Array<Record<string, unknown>> {

@@ -847,6 +847,41 @@ describe("PostingsService", () => {
     expect((error as BadRequestError).message).toBe("Nearest sorting requires latitude and longitude.");
   });
 
+  it("trims the public search query and normalizes tags before delegating search", async () => {
+    const repository = new FakePostingsRepository();
+    const searchPublic = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      source: "elasticsearch" as const,
+      query: "Saint-Roch Production Flat",
+    }));
+    const service = createService(repository, undefined, undefined, {
+      searchPublic,
+    } as unknown as PostingsPublicSearchService);
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 10,
+      query: "  Saint-Roch Production Flat  ",
+      tags: [" Flat ", "Production", "  "],
+      sort: "relevance",
+    });
+
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Saint-Roch Production Flat",
+        tags: ["flat", "production"],
+      }),
+    );
+  });
+
   it("normalizes searchable string and string-array filters before search", async () => {
     const repository = new FakePostingsRepository();
     const searchPublic = jest.fn(async () => ({
@@ -896,6 +931,75 @@ describe("PostingsService", () => {
           },
         ],
       }),
+    );
+  });
+
+  it("rejects attribute filters when family and subtype are missing", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const error = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        attributeFilters: [
+          {
+            key: "bedrooms",
+            min: 2,
+          },
+        ],
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(RequestValidationError);
+    expect((error as RequestValidationError).details).toEqual([
+      {
+        path: "attr",
+        message: "Attribute filters require both family and subtype.",
+      },
+    ]);
+  });
+
+  it("rejects inverted public search price ranges", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const error = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        minDailyPrice: 300,
+        maxDailyPrice: 100,
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(BadRequestError);
+    expect((error as BadRequestError).message).toBe(
+      "Minimum daily price cannot exceed maximum daily price.",
+    );
+  });
+
+  it("rejects invalid public search availability windows", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const error = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        availabilityWindow: {
+          startAt: "2026-07-05T00:00:00.000Z",
+          endAt: "2026-07-01T00:00:00.000Z",
+        },
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(BadRequestError);
+    expect((error as BadRequestError).message).toBe(
+      "Availability window must define a valid, non-empty range.",
     );
   });
 

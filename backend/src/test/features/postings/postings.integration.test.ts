@@ -109,6 +109,23 @@ function createOwnerListingResult() {
   };
 }
 
+function createPublicSearchResult(overrides: Record<string, unknown> = {}) {
+  return {
+    postings: [createPosting()],
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
+    source: "elasticsearch" as const,
+    query: "loft",
+    ...overrides,
+  };
+}
+
 class FakeRequestContainer implements ServiceContainer {
   private readonly contentSanitizationService = new ContentSanitizationService();
 
@@ -261,6 +278,19 @@ function createApp() {
     }),
   };
 
+  const postingsPublicAutocompleteService = {
+    autocompletePublic: jest.fn(async () => ({
+      query: "lo",
+      suggestions: [
+        {
+          value: "Sunny loft",
+          kind: "name" as const,
+        },
+      ],
+      source: "elasticsearch" as const,
+    })),
+  };
+
   const postingsReviewsService = {
     list: jest.fn(async () => ({
       reviews: [createReview()],
@@ -292,6 +322,7 @@ function createApp() {
 
   const controller = new PostingsController(
     postingsService as never,
+    postingsPublicAutocompleteService as never,
     postingsAnalyticsService as never,
     postingsReviewsService as never,
     recommendationActivityPublisher as never,
@@ -329,6 +360,7 @@ function createApp() {
     app,
     postingsService,
     postingsAnalyticsService,
+    postingsPublicAutocompleteService,
     postingsReviewsService,
     recommendationActivityPublisher,
     tokenService,
@@ -455,6 +487,112 @@ describe("Postings integration", () => {
     expect(postingsAnalyticsService.trackPublicView).toHaveBeenCalledTimes(1);
     expect(recommendationActivityPublisher.publishPostingView).toHaveBeenCalledTimes(1);
     expect(detailResponse.status).toBe(200);
+  });
+
+  it("preserves relevance-ranked public search results and metadata through the route layer", async () => {
+    const { app, postingsService, postingsAnalyticsService } = createApp();
+    postingsService.searchPublic.mockResolvedValueOnce(
+      createPublicSearchResult({
+        postings: [
+          createPosting({
+            id: "posting-exact",
+            name: "Saint-Roch Production Flat",
+            tags: ["quebec-city", "flat", "production"],
+            location: {
+              latitude: 46.81,
+              longitude: -71.22,
+              city: "Quebec City",
+              region: "Quebec",
+              country: "Canada",
+            },
+          }),
+          createPosting({
+            id: "posting-broad",
+            name: "Gastown Production Loft",
+            tags: ["vancouver", "loft", "production"],
+            location: {
+              latitude: 49.28,
+              longitude: -123.11,
+              city: "Vancouver",
+              region: "British Columbia",
+              country: "Canada",
+            },
+          }),
+        ],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 2,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        query: "Saint-Roch Production Flat",
+      }),
+    );
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/postings?page=1&pageSize=20&q=Saint-Roch%20Production%20Flat")}`,
+    );
+
+    expect(postingsService.searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 20,
+        query: "Saint-Roch Production Flat",
+        sort: "relevance",
+      }),
+    );
+    expect(postingsAnalyticsService.trackSearchImpressions).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "posting-exact",
+        name: "Saint-Roch Production Flat",
+      }),
+      expect.objectContaining({
+        id: "posting-broad",
+        name: "Gastown Production Loft",
+      }),
+    ]);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        postings: [
+          {
+            id: "posting-exact",
+            name: "Saint-Roch Production Flat",
+          },
+          {
+            id: "posting-broad",
+            name: "Gastown Production Loft",
+          },
+        ],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 2,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        source: "elasticsearch",
+        query: "Saint-Roch Production Flat",
+      },
+      error: null,
+      message: "Request completed successfully.",
+      meta: {
+        requestId: "unknown",
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 2,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        source: "elasticsearch",
+      },
+    });
   });
 
   it("handles owner lifecycle, owner listings, and batch endpoints", async () => {
