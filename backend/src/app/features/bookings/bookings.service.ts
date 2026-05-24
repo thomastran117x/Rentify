@@ -3,6 +3,8 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
+  BookingDashboardItem,
+  BookingDashboardSort,
   BookingCancellationActor,
   BookingCancellationFailureReason,
   BookingCancellationQuoteResult,
@@ -18,6 +20,12 @@ import type {
   ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardActionNeeded,
+  OwnerBookingDashboardInput,
+  OwnerBookingDashboardResult,
+  RenterBookingDashboardBucket,
+  RenterBookingDashboardInput,
+  RenterBookingDashboardResult,
   UpdateBookingRequestInput,
 } from "@/features/bookings/bookings.model";
 import {
@@ -42,6 +50,7 @@ import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type { PaymentsRepository } from "@/features/payments/payments.repository";
+import type { RentingRecord } from "@/features/rentings/rentings.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -176,6 +185,155 @@ export class BookingsService {
 
   async listOwned(input: ListOwnedBookingRequestsInput): Promise<BookingRequestsListResult> {
     return this.bookingsRepository.listByOwner(input);
+  }
+
+  async dashboardMine(input: RenterBookingDashboardInput): Promise<RenterBookingDashboardResult> {
+    const [bookingRequests, rentings] = await Promise.all([
+      this.bookingsRepository.listDashboardByRenter({
+        renterId: input.renterId,
+        status: input.status,
+      }),
+      input.status
+        ? Promise.resolve([])
+        : this.rentingsRepository.listByRenterForDashboard(input.renterId),
+    ]);
+
+    const items = [
+      ...bookingRequests
+        .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
+        .map((bookingRequest) => this.toRenterDashboardBookingItem(bookingRequest)),
+      ...rentings.map((renting) => this.toRenterDashboardRentingItem(renting)),
+    ];
+
+    const summary = items.reduce(
+      (counts, item) => {
+        const bucket = this.resolveRenterBucket(item);
+
+        if (bucket === "action_needed") {
+          counts.actionNeeded += 1;
+        } else if (bucket === "upcoming") {
+          counts.upcoming += 1;
+        } else if (bucket === "pending") {
+          counts.pending += 1;
+        } else if (bucket === "past") {
+          counts.past += 1;
+        } else if (bucket === "cancelled") {
+          counts.cancelled += 1;
+        }
+
+        return counts;
+      },
+      {
+        upcoming: 0,
+        pending: 0,
+        actionNeeded: 0,
+        past: 0,
+        cancelled: 0,
+      },
+    );
+
+    const filteredItems = items.filter((item) =>
+      input.bucket ? this.resolveRenterBucket(item) === input.bucket : true,
+    );
+    const sortedItems = this.sortDashboardItems(filteredItems, input.sort);
+    const { items: pagedItems, pagination } = this.paginateDashboardItems(
+      sortedItems,
+      input.page,
+      input.pageSize,
+    );
+
+    return {
+      summary,
+      items: pagedItems,
+      pagination,
+      filters: {
+        page: input.page,
+        pageSize: input.pageSize,
+        sort: input.sort,
+        bucket: input.bucket,
+        status: input.status,
+      },
+    };
+  }
+
+  async dashboardOwned(input: OwnerBookingDashboardInput): Promise<OwnerBookingDashboardResult> {
+    const [bookingRequests, postings] = await Promise.all([
+      this.bookingsRepository.listDashboardByOwner({
+        ownerId: input.ownerId,
+        status: input.status,
+        postingId: input.postingId,
+      }),
+      this.bookingsRepository.listDashboardPostingOptionsByOwner(input.ownerId),
+    ]);
+
+    const items = bookingRequests
+      .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
+      .map((bookingRequest) => this.toOwnerDashboardItem(bookingRequest));
+
+    const summary = items.reduce(
+      (counts, item) => {
+        if (!this.isOwnerDashboardOpenItem(item)) {
+          return counts;
+        }
+
+        counts.totalOpen += 1;
+
+        if (item.actionNeededCategory === "approval") {
+          counts.approval += 1;
+        }
+
+        if (item.actionNeededCategory === "payment") {
+          counts.payment += 1;
+        }
+
+        if (item.actionNeededCategory === "payment_failure") {
+          counts.paymentFailure += 1;
+        }
+
+        if (item.actionNeededCategory === "conversion") {
+          counts.conversion += 1;
+        }
+
+        if (item.isExpiringHold) {
+          counts.expiringHold += 1;
+        }
+
+        return counts;
+      },
+      {
+        approval: 0,
+        payment: 0,
+        expiringHold: 0,
+        paymentFailure: 0,
+        conversion: 0,
+        totalOpen: 0,
+      },
+    );
+
+    const filteredItems = items.filter((item) =>
+      input.actionNeeded ? this.matchesOwnerActionNeeded(item, input.actionNeeded) : true,
+    );
+    const sortedItems = this.sortDashboardItems(filteredItems, input.sort);
+    const { items: pagedItems, pagination } = this.paginateDashboardItems(
+      sortedItems,
+      input.page,
+      input.pageSize,
+    );
+
+    return {
+      summary,
+      items: pagedItems,
+      postings,
+      pagination,
+      filters: {
+        page: input.page,
+        pageSize: input.pageSize,
+        sort: input.sort,
+        status: input.status,
+        actionNeeded: input.actionNeeded,
+        postingId: input.postingId,
+      },
+    };
   }
 
   async getById(id: string, userId: string): Promise<BookingRequestRecord> {
@@ -496,6 +654,376 @@ export class BookingsService {
     await invalidatePublicPostingProjection(this.postingsPublicCacheService, declined.postingId);
     await this.postingsRepository.enqueueSearchSync(declined.postingId);
     return declined;
+  }
+
+  private toRenterDashboardBookingItem(bookingRequest: BookingRequestRecord): BookingDashboardItem {
+    const isExpiringHold = this.isExpiringHold(bookingRequest.holdExpiresAt, bookingRequest.status);
+    const isPaymentAction =
+      bookingRequest.status === "approved" || bookingRequest.status === "awaiting_payment";
+    const isPaymentFailure = bookingRequest.status === "payment_failed";
+    const isPending = bookingRequest.status === "pending";
+    const isPaid = bookingRequest.status === "paid";
+    const isTerminal = this.isTerminalBookingStatus(bookingRequest.status);
+    const nextAction = isPaymentFailure
+      ? {
+          code: "retry_payment" as const,
+          label: "Retry payment before the hold expires.",
+        }
+      : isPaymentAction
+        ? {
+            code: "complete_payment" as const,
+            label: "Complete payment before the hold expires.",
+          }
+        : isPending
+          ? {
+              code: "await_owner_response" as const,
+              label: "Wait for the owner to approve or decline this request.",
+            }
+          : isPaid
+            ? {
+                code: "monitor_upcoming" as const,
+                label: "Your booking is secured. Watch for the upcoming rental window.",
+              }
+            : {
+                code: "none" as const,
+                label: "No next action is required.",
+              };
+    const deadlineAt = isTerminal ? undefined : bookingRequest.holdExpiresAt;
+
+    return {
+      id: bookingRequest.id,
+      kind: "booking_request",
+      bookingRequestId: bookingRequest.id,
+      postingId: bookingRequest.postingId,
+      renterId: bookingRequest.renterId,
+      ownerId: bookingRequest.ownerId,
+      status: bookingRequest.status,
+      sourceStatus: bookingRequest.status,
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
+      durationDays: bookingRequest.durationDays,
+      guestCount: bookingRequest.guestCount,
+      pricingCurrency: bookingRequest.pricingCurrency,
+      dailyPriceAmount: bookingRequest.dailyPriceAmount,
+      estimatedTotal: bookingRequest.estimatedTotal,
+      createdAt: bookingRequest.createdAt,
+      updatedAt: bookingRequest.updatedAt,
+      posting: bookingRequest.posting,
+      holdExpiresAt: bookingRequest.holdExpiresAt,
+      approvedAt: bookingRequest.approvedAt,
+      paymentRequiredAt: bookingRequest.paymentRequiredAt,
+      paymentFailedAt: bookingRequest.paymentFailedAt,
+      convertedAt: bookingRequest.convertedAt,
+      actionNeededCategory: isPaymentFailure
+        ? "payment_failure"
+        : isPaymentAction
+          ? "payment"
+          : undefined,
+      isExpiringHold,
+      nextAction,
+      urgency: {
+        level: isPaymentFailure || isExpiringHold ? "high" : isPaymentAction ? "medium" : isPending || isPaid ? "low" : "none",
+        rank: isPaymentFailure || isExpiringHold ? 0 : isPaymentAction ? 1 : isPending ? 2 : isPaid ? 3 : 5,
+        isActionable: isPaymentAction || isPaymentFailure,
+        label: isPaymentFailure
+          ? "Payment failed"
+          : isExpiringHold
+            ? "Hold expires soon"
+            : isPaymentAction
+              ? "Payment needed"
+              : isPending
+                ? "Pending"
+                : isPaid
+                  ? "Upcoming"
+                  : "No urgency",
+        deadlineAt,
+      },
+    };
+  }
+
+  private toRenterDashboardRentingItem(renting: RentingRecord): BookingDashboardItem {
+    const isPast = new Date(renting.endAt).getTime() < Date.now();
+
+    return {
+      id: renting.id,
+      kind: "renting",
+      rentingId: renting.id,
+      bookingRequestId: renting.bookingRequestId,
+      postingId: renting.postingId,
+      renterId: renting.renterId,
+      ownerId: renting.ownerId,
+      status: "confirmed",
+      sourceStatus: "confirmed",
+      startAt: renting.startAt,
+      endAt: renting.endAt,
+      durationDays: renting.durationDays,
+      guestCount: renting.guestCount,
+      pricingCurrency: renting.pricingCurrency,
+      dailyPriceAmount: renting.dailyPriceAmount,
+      estimatedTotal: renting.estimatedTotal,
+      createdAt: renting.createdAt,
+      updatedAt: renting.updatedAt,
+      confirmedAt: renting.confirmedAt,
+      posting: {
+        ...renting.posting,
+        effectiveMaxBookingDurationDays: BOOKING_DEFAULTS.defaultMaxBookingDurationDays,
+      },
+      isExpiringHold: false,
+      nextAction: {
+        code: "view_renting",
+        label: isPast
+          ? "This renting has finished."
+          : "Prepare for the upcoming rental window.",
+      },
+      urgency: {
+        level: isPast ? "none" : "low",
+        rank: isPast ? 5 : 3,
+        isActionable: false,
+        label: isPast ? "Past" : "Upcoming",
+      },
+    };
+  }
+
+  private toOwnerDashboardItem(bookingRequest: BookingRequestRecord): BookingDashboardItem {
+    const isExpiringHold = this.isExpiringHold(bookingRequest.holdExpiresAt, bookingRequest.status);
+    const actionNeededCategory = this.resolveOwnerActionNeededCategory(bookingRequest);
+    const nextAction = actionNeededCategory === "approval"
+      ? {
+          code: "review_request" as const,
+          label: isExpiringHold
+            ? "Approve or decline before the hold expires."
+            : "Review and decide this booking request.",
+        }
+      : actionNeededCategory === "payment"
+        ? {
+            code: "complete_payment" as const,
+            label: "Renter payment is still needed before the hold expires.",
+          }
+        : actionNeededCategory === "payment_failure"
+          ? {
+              code: "retry_payment" as const,
+              label: "Renter payment failed. Follow up before the hold expires.",
+            }
+          : actionNeededCategory === "conversion"
+            ? {
+                code: "convert_to_renting" as const,
+                label: "Convert this paid booking into a confirmed renting.",
+              }
+            : {
+                code: "none" as const,
+                label: this.isTerminalBookingStatus(bookingRequest.status)
+                  ? "No next action is required."
+                  : "Watch this booking while it moves through the flow.",
+              };
+    const isActionable = Boolean(actionNeededCategory);
+
+    return {
+      id: bookingRequest.id,
+      kind: "booking_request",
+      bookingRequestId: bookingRequest.id,
+      postingId: bookingRequest.postingId,
+      renterId: bookingRequest.renterId,
+      ownerId: bookingRequest.ownerId,
+      status: bookingRequest.status,
+      sourceStatus: bookingRequest.status,
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
+      durationDays: bookingRequest.durationDays,
+      guestCount: bookingRequest.guestCount,
+      pricingCurrency: bookingRequest.pricingCurrency,
+      dailyPriceAmount: bookingRequest.dailyPriceAmount,
+      estimatedTotal: bookingRequest.estimatedTotal,
+      createdAt: bookingRequest.createdAt,
+      updatedAt: bookingRequest.updatedAt,
+      posting: bookingRequest.posting,
+      holdExpiresAt: bookingRequest.holdExpiresAt,
+      approvedAt: bookingRequest.approvedAt,
+      paymentRequiredAt: bookingRequest.paymentRequiredAt,
+      paymentFailedAt: bookingRequest.paymentFailedAt,
+      convertedAt: bookingRequest.convertedAt,
+      actionNeededCategory,
+      isExpiringHold,
+      nextAction,
+      urgency: {
+        level: isExpiringHold || actionNeededCategory === "payment_failure"
+          ? "high"
+          : isActionable
+            ? "medium"
+            : this.isTerminalBookingStatus(bookingRequest.status)
+              ? "none"
+              : "low",
+        rank: isExpiringHold || actionNeededCategory === "payment_failure"
+          ? 0
+          : isActionable
+            ? 1
+            : this.isTerminalBookingStatus(bookingRequest.status)
+              ? 5
+              : 3,
+        isActionable,
+        label: isExpiringHold
+          ? "Hold expires soon"
+          : actionNeededCategory === "approval"
+            ? "Approval needed"
+            : actionNeededCategory === "payment"
+              ? "Awaiting payment"
+              : actionNeededCategory === "payment_failure"
+                ? "Payment failed"
+                : actionNeededCategory === "conversion"
+                  ? "Convert to renting"
+                  : this.isTerminalBookingStatus(bookingRequest.status)
+                    ? "Closed"
+                    : "Open",
+        deadlineAt: this.isTerminalBookingStatus(bookingRequest.status)
+          ? undefined
+          : bookingRequest.holdExpiresAt,
+      },
+    };
+  }
+
+  private resolveRenterBucket(item: BookingDashboardItem): RenterBookingDashboardBucket | null {
+    if (item.kind === "renting") {
+      return new Date(item.endAt).getTime() < Date.now() ? "past" : "upcoming";
+    }
+
+    if (["approved", "awaiting_payment", "payment_failed"].includes(item.sourceStatus)) {
+      return "action_needed";
+    }
+
+    if (item.sourceStatus === "pending") {
+      return "pending";
+    }
+
+    if (["declined", "expired", "cancelled", "refunded"].includes(item.sourceStatus)) {
+      return "cancelled";
+    }
+
+    if (item.sourceStatus === "paid") {
+      return new Date(item.endAt).getTime() < Date.now() ? "past" : "upcoming";
+    }
+
+    return null;
+  }
+
+  private resolveOwnerActionNeededCategory(
+    bookingRequest: BookingRequestRecord,
+  ): OwnerBookingDashboardActionNeeded | undefined {
+    if (bookingRequest.status === "pending") {
+      return "approval";
+    }
+
+    if (bookingRequest.status === "approved" || bookingRequest.status === "awaiting_payment") {
+      return "payment";
+    }
+
+    if (bookingRequest.status === "payment_failed") {
+      return "payment_failure";
+    }
+
+    if (
+      bookingRequest.status === "paid" &&
+      !bookingRequest.convertedAt &&
+      !bookingRequest.rentingId
+    ) {
+      return "conversion";
+    }
+
+    return undefined;
+  }
+
+  private matchesOwnerActionNeeded(
+    item: BookingDashboardItem,
+    actionNeeded: OwnerBookingDashboardActionNeeded,
+  ): boolean {
+    if (actionNeeded === "expiring_hold") {
+      return item.isExpiringHold;
+    }
+
+    return item.actionNeededCategory === actionNeeded;
+  }
+
+  private sortDashboardItems(
+    items: BookingDashboardItem[],
+    sort: BookingDashboardSort,
+  ): BookingDashboardItem[] {
+    return items.slice().sort((left, right) => {
+      if (sort === "start_at") {
+        const leftTerminal = this.isTerminalDashboardItem(left);
+        const rightTerminal = this.isTerminalDashboardItem(right);
+
+        if (leftTerminal !== rightTerminal) {
+          return leftTerminal ? 1 : -1;
+        }
+
+        return (
+          new Date(left.startAt).getTime() - new Date(right.startAt).getTime() ||
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+        );
+      }
+
+      return (
+        left.urgency.rank - right.urgency.rank ||
+        this.resolveDeadlineSortValue(left) - this.resolveDeadlineSortValue(right) ||
+        new Date(left.startAt).getTime() - new Date(right.startAt).getTime() ||
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+    });
+  }
+
+  private paginateDashboardItems(items: BookingDashboardItem[], page: number, pageSize: number) {
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+
+    return {
+      items: items.slice(start, end),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  private resolveDeadlineSortValue(item: BookingDashboardItem): number {
+    const deadlineAt = item.urgency.deadlineAt;
+    return deadlineAt ? new Date(deadlineAt).getTime() : Number.MAX_SAFE_INTEGER;
+  }
+
+  private isOwnerDashboardOpenItem(item: BookingDashboardItem): boolean {
+    return (
+      item.kind === "booking_request" &&
+      item.status !== "confirmed" &&
+      !this.isTerminalBookingStatus(item.status)
+    );
+  }
+
+  private isConvertedBooking(bookingRequest: BookingRequestRecord): boolean {
+    return bookingRequest.status === "paid" && Boolean(bookingRequest.convertedAt || bookingRequest.rentingId);
+  }
+
+  private isTerminalDashboardItem(item: BookingDashboardItem): boolean {
+    return (
+      item.kind === "booking_request" &&
+      item.status !== "confirmed" &&
+      this.isTerminalBookingStatus(item.status)
+    );
+  }
+
+  private isTerminalBookingStatus(status: BookingRequestRecord["status"]): boolean {
+    return ["declined", "expired", "cancelled", "refunded"].includes(status);
+  }
+
+  private isExpiringHold(holdExpiresAt: string, status: BookingRequestRecord["status"]): boolean {
+    if (this.isTerminalBookingStatus(status)) {
+      return false;
+    }
+
+    const expiresAt = new Date(holdExpiresAt).getTime();
+    return expiresAt <= Date.now() + 24 * MILLISECONDS_PER_HOUR;
   }
 
   private async refundCancelledPaidBooking(

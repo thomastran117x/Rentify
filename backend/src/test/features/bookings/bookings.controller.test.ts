@@ -109,6 +109,112 @@ describe("BookingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("maps renter dashboard query params into dashboardMine inputs", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    const dashboardMine = jest.fn(async () => ({
+      summary: {
+        upcoming: 0,
+        pending: 0,
+        actionNeeded: 1,
+        past: 0,
+        cancelled: 0,
+      },
+      items: [],
+      pagination: {
+        page: 2,
+        pageSize: 5,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+      filters: {
+        page: 2,
+        pageSize: 5,
+        sort: "urgency",
+        bucket: "action_needed",
+        status: "awaiting_payment",
+      },
+    }));
+    const controller = new BookingsController(
+      {
+        dashboardMine,
+      } as never,
+      {} as never,
+    );
+
+    const response = await controller.dashboardMine(
+      createContext({
+        url: "https://example.test/booking-requests/me/dashboard?page=2&pageSize=5&sort=urgency&bucket=action_needed&status=awaiting_payment",
+      }),
+    );
+
+    expect(dashboardMine).toHaveBeenCalledWith({
+      renterId: "renter-1",
+      page: 2,
+      pageSize: 5,
+      sort: "urgency",
+      bucket: "action_needed",
+      status: "awaiting_payment",
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("maps owner dashboard query params into dashboardOwned inputs", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "owner-1", role: "owner" }));
+    const dashboardOwned = jest.fn(async () => ({
+      summary: {
+        approval: 1,
+        payment: 0,
+        expiringHold: 1,
+        paymentFailure: 0,
+        conversion: 0,
+        totalOpen: 1,
+      },
+      items: [],
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      filters: {
+        page: 1,
+        pageSize: 10,
+        sort: "start_at",
+        status: "pending",
+        actionNeeded: "approval",
+        postingId: "posting-1",
+      },
+    }));
+    const controller = new BookingsController(
+      {
+        dashboardOwned,
+      } as never,
+      {} as never,
+    );
+
+    const response = await controller.dashboardOwned(
+      createContext({
+        url: "https://example.test/booking-requests/owner/dashboard?sort=start_at&status=pending&actionNeeded=approval&postingId=posting-1",
+      }),
+    );
+
+    expect(dashboardOwned).toHaveBeenCalledWith({
+      ownerId: "owner-1",
+      page: 1,
+      pageSize: 20,
+      sort: "start_at",
+      status: "pending",
+      actionNeeded: "approval",
+      postingId: "posting-1",
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("returns cancellation quotes for accessible booking requests", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
     const getCancellationQuote = jest.fn(async () => ({

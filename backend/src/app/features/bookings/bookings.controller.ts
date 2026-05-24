@@ -19,6 +19,10 @@ import type {
   ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardInput,
+  OwnerBookingDashboardQuery,
+  RenterBookingDashboardInput,
+  RenterBookingDashboardQuery,
   UpdateBookingRequestInput,
 } from "@/features/bookings/bookings.model";
 import {
@@ -27,6 +31,8 @@ import {
   createBookingRequestSchema,
   decideBookingRequestSchema,
   listBookingRequestsQuerySchema,
+  ownerBookingDashboardQuerySchema,
+  renterBookingDashboardQuerySchema,
   updateBookingRequestSchema,
 } from "@/features/bookings/bookings.model";
 import type { BookingsService } from "@/features/bookings/bookings.service";
@@ -78,6 +84,27 @@ export class BookingsController {
     requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.listOwned(
       this.toListOwnedInput(auth.sub, this.parseListQuery(context)),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  dashboardMine = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.bookingsService.dashboardMine(
+      this.toDashboardMineInput(auth.sub, this.parseRenterDashboardQuery(context)),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  dashboardOwned = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    requireMinimumRole(auth, "owner");
+    const result = await this.bookingsService.dashboardOwned(
+      this.toDashboardOwnedInput(auth.sub, this.parseOwnerDashboardQuery(context)),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
@@ -167,6 +194,39 @@ export class BookingsController {
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
         status: url.searchParams.get("status") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseRenterDashboardQuery(context: Context<AppBindings>): RenterBookingDashboardQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return renterBookingDashboardQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
+        bucket: url.searchParams.get("bucket") ?? undefined,
+        status: url.searchParams.get("status") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseOwnerDashboardQuery(context: Context<AppBindings>): OwnerBookingDashboardQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return ownerBookingDashboardQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
+        status: url.searchParams.get("status") ?? undefined,
+        actionNeeded: url.searchParams.get("actionNeeded") ?? undefined,
+        postingId: url.searchParams.get("postingId") ?? undefined,
       });
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
@@ -293,6 +353,35 @@ export class BookingsController {
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
+    };
+  }
+
+  private toDashboardMineInput(
+    renterId: string,
+    query: RenterBookingDashboardQuery,
+  ): RenterBookingDashboardInput {
+    return {
+      renterId,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+      bucket: query.bucket,
+      status: query.status,
+    };
+  }
+
+  private toDashboardOwnedInput(
+    ownerId: string,
+    query: OwnerBookingDashboardQuery,
+  ): OwnerBookingDashboardInput {
+    return {
+      ownerId,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+      status: query.status,
+      actionNeeded: query.actionNeeded,
+      postingId: query.postingId,
     };
   }
 

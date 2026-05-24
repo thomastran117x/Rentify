@@ -88,6 +88,41 @@ function createBookingRequestRecord(overrides: Partial<BookingRequestRecord> = {
   };
 }
 
+function createRentingRecord(
+  overrides: Partial<Record<string, unknown>> = {},
+) {
+  return {
+    id: "renting-1",
+    postingId: "posting-1",
+    bookingRequestId: "booking-1",
+    renterId: "renter-1",
+    ownerId: "owner-1",
+    status: "confirmed",
+    startAt: "2099-05-01T00:00:00.000Z",
+    endAt: "2099-05-04T00:00:00.000Z",
+    durationDays: 3,
+    guestCount: 2,
+    pricingCurrency: "CAD",
+    pricingSnapshot: {
+      currency: "CAD",
+      daily: {
+        amount: 120,
+      },
+    },
+    dailyPriceAmount: 120,
+    estimatedTotal: 360,
+    confirmedAt: "2099-04-23T00:00:00.000Z",
+    createdAt: "2099-04-23T00:00:00.000Z",
+    updatedAt: "2099-04-23T00:00:00.000Z",
+    posting: {
+      id: "posting-1",
+      name: "City loft",
+      primaryPhotoUrl: "https://example.test/loft.jpg",
+    },
+    ...overrides,
+  };
+}
+
 function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: "payment-1",
@@ -119,6 +154,10 @@ function createService(options?: {
   activeRequestCount?: number;
   availabilityOverlap?: boolean;
   createdBooking?: BookingRequestRecord;
+  dashboardBookings?: BookingRequestRecord[];
+  dashboardOwnerBookings?: BookingRequestRecord[];
+  dashboardOwnerPostingOptions?: Array<{ id: string; name: string }>;
+  dashboardRentings?: Array<ReturnType<typeof createRentingRecord>>;
   posting?: PostingRecord;
   paymentRecord?: ReturnType<typeof createPaymentRecord> | null;
   rentingOverlap?: boolean;
@@ -152,6 +191,13 @@ function createService(options?: {
         hasPreviousPage: false,
       },
     })),
+    listDashboardByRenter: jest.fn(async () => options?.dashboardBookings ?? [createdBooking]),
+    listDashboardByOwner: jest.fn(
+      async () => options?.dashboardOwnerBookings ?? options?.dashboardBookings ?? [createdBooking],
+    ),
+    listDashboardPostingOptionsByOwner: jest.fn(
+      async () => options?.dashboardOwnerPostingOptions ?? [{ id: "posting-1", name: "City loft" }],
+    ),
     cancel: jest.fn(async () => ({
       ...createdBooking,
       status: "cancelled",
@@ -174,6 +220,7 @@ function createService(options?: {
 
   const rentingsRepository = {
     hasOverlap: jest.fn(async () => options?.rentingOverlap ?? false),
+    listByRenterForDashboard: jest.fn(async () => options?.dashboardRentings ?? []),
   } as unknown as RentingsRepository;
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
@@ -231,6 +278,9 @@ function createService(options?: {
       approve: jest.Mock;
       decline: jest.Mock;
       listByOwner: jest.Mock;
+      listDashboardByRenter: jest.Mock;
+      listDashboardByOwner: jest.Mock;
+      listDashboardPostingOptionsByOwner: jest.Mock;
       cancel: jest.Mock;
       hasBlockingAvailabilityOverlap: jest.Mock;
     },
@@ -246,6 +296,7 @@ function createService(options?: {
     },
     rentingsRepository: rentingsRepository as unknown as {
       hasOverlap: jest.Mock;
+      listByRenterForDashboard: jest.Mock;
     },
     cacheService: cacheService as unknown as {
       acquireLock: jest.Mock;
@@ -659,6 +710,188 @@ describe("BookingsService", () => {
       status: undefined,
     });
     expect(result.bookingRequests).toHaveLength(1);
+  });
+
+  it("builds a renter dashboard with action-needed, upcoming, past, and cancelled buckets", async () => {
+    const pending = createBookingRequestRecord({
+      id: "booking-pending",
+      status: "pending",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-03T00:00:00.000Z",
+    });
+    const awaitingPayment = createBookingRequestRecord({
+      id: "booking-awaiting",
+      status: "awaiting_payment",
+      holdExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      startAt: "2099-05-04T00:00:00.000Z",
+      endAt: "2099-05-06T00:00:00.000Z",
+    });
+    const cancelled = createBookingRequestRecord({
+      id: "booking-cancelled",
+      status: "cancelled",
+      startAt: "2099-05-07T00:00:00.000Z",
+      endAt: "2099-05-08T00:00:00.000Z",
+    });
+    const paidConverted = createBookingRequestRecord({
+      id: "booking-paid-converted",
+      status: "paid",
+      convertedAt: "2099-04-21T00:00:00.000Z",
+      rentingId: "renting-1",
+    });
+    const futureRenting = createRentingRecord({
+      id: "renting-future",
+      bookingRequestId: "booking-future",
+      startAt: "2099-05-10T00:00:00.000Z",
+      endAt: "2099-05-12T00:00:00.000Z",
+    });
+    const pastRenting = createRentingRecord({
+      id: "renting-past",
+      bookingRequestId: "booking-past",
+      startAt: "2026-04-10T00:00:00.000Z",
+      endAt: "2026-04-12T00:00:00.000Z",
+    });
+    const { service, bookingsRepository, rentingsRepository } = createService({
+      dashboardBookings: [pending, awaitingPayment, cancelled, paidConverted],
+      dashboardRentings: [futureRenting, pastRenting],
+    });
+
+    const result = await service.dashboardMine({
+      renterId: "renter-1",
+      page: 1,
+      pageSize: 10,
+      sort: "urgency",
+    });
+
+    expect(bookingsRepository.listDashboardByRenter).toHaveBeenCalledWith({
+      renterId: "renter-1",
+      status: undefined,
+    });
+    expect(rentingsRepository.listByRenterForDashboard).toHaveBeenCalledWith("renter-1");
+    expect(result.summary).toEqual({
+      upcoming: 1,
+      pending: 1,
+      actionNeeded: 1,
+      past: 1,
+      cancelled: 1,
+    });
+    expect(result.items.find((item) => item.id === "booking-awaiting")).toMatchObject({
+      kind: "booking_request",
+      id: "booking-awaiting",
+      actionNeededCategory: "payment",
+      isExpiringHold: true,
+    });
+    expect(result.items.some((item) => item.id === "booking-paid-converted")).toBe(false);
+  });
+
+  it("filters renter dashboards by status before merging rentings", async () => {
+    const awaitingPayment = createBookingRequestRecord({
+      id: "booking-awaiting",
+      status: "awaiting_payment",
+    });
+    const { service, bookingsRepository, rentingsRepository } = createService({
+      dashboardBookings: [awaitingPayment],
+      dashboardRentings: [createRentingRecord()],
+    });
+
+    const result = await service.dashboardMine({
+      renterId: "renter-1",
+      page: 1,
+      pageSize: 10,
+      sort: "urgency",
+      status: "awaiting_payment",
+      bucket: "action_needed",
+    });
+
+    expect(bookingsRepository.listDashboardByRenter).toHaveBeenCalledWith({
+      renterId: "renter-1",
+      status: "awaiting_payment",
+    });
+    expect(rentingsRepository.listByRenterForDashboard).not.toHaveBeenCalled();
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe("booking-awaiting");
+  });
+
+  it("builds owner dashboards with cross-posting scoping and action-needed filters", async () => {
+    const pending = createBookingRequestRecord({
+      id: "booking-pending",
+      postingId: "posting-1",
+      posting: {
+        id: "posting-1",
+        name: "City loft",
+        effectiveMaxBookingDurationDays: 30,
+      },
+      status: "pending",
+      holdExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+    });
+    const paymentFailed = createBookingRequestRecord({
+      id: "booking-failed",
+      postingId: "posting-2",
+      posting: {
+        id: "posting-2",
+        name: "Studio set",
+        effectiveMaxBookingDurationDays: 30,
+      },
+      status: "payment_failed",
+      holdExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+    });
+    const converted = createBookingRequestRecord({
+      id: "booking-converted",
+      postingId: "posting-3",
+      status: "paid",
+      convertedAt: "2099-04-21T00:00:00.000Z",
+      rentingId: "renting-3",
+    });
+    const readyToConvert = createBookingRequestRecord({
+      id: "booking-convert",
+      postingId: "posting-4",
+      posting: {
+        id: "posting-4",
+        name: "Canal cottage",
+        effectiveMaxBookingDurationDays: 30,
+      },
+      status: "paid",
+      holdExpiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+    });
+    const { service, bookingsRepository } = createService({
+      dashboardOwnerBookings: [pending, paymentFailed, converted, readyToConvert],
+      dashboardOwnerPostingOptions: [
+        { id: "posting-1", name: "City loft" },
+        { id: "posting-2", name: "Studio set" },
+        { id: "posting-4", name: "Canal cottage" },
+      ],
+    });
+
+    const result = await service.dashboardOwned({
+      ownerId: "owner-1",
+      page: 1,
+      pageSize: 10,
+      sort: "urgency",
+      actionNeeded: "conversion",
+    });
+
+    expect(bookingsRepository.listDashboardByOwner).toHaveBeenCalledWith({
+      ownerId: "owner-1",
+      status: undefined,
+      postingId: undefined,
+    });
+    expect(result.summary).toEqual({
+      approval: 1,
+      payment: 0,
+      expiringHold: 1,
+      paymentFailure: 1,
+      conversion: 1,
+      totalOpen: 3,
+    });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: "booking-convert",
+      actionNeededCategory: "conversion",
+    });
+    expect(result.postings).toEqual([
+      { id: "posting-1", name: "City loft" },
+      { id: "posting-2", name: "Studio set" },
+      { id: "posting-4", name: "Canal cottage" },
+    ]);
   });
 
   it("quotes full paid refunds for renter cancellations more than 48 hours before start", async () => {

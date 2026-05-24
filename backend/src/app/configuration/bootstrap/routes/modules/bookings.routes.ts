@@ -26,6 +26,14 @@ export const bookingsRouteModule: RouteModule = {
       resolveHandler<BookingsController>(containerTokens.bookingsController, "listOwned"),
     );
     app.get(
+      "/booking-requests/me/dashboard",
+      resolveHandler<BookingsController>(containerTokens.bookingsController, "dashboardMine"),
+    );
+    app.get(
+      "/booking-requests/owner/dashboard",
+      resolveHandler<BookingsController>(containerTokens.bookingsController, "dashboardOwned"),
+    );
+    app.get(
       "/booking-requests/:id",
       resolveHandler<BookingsController>(containerTokens.bookingsController, "getById"),
     );

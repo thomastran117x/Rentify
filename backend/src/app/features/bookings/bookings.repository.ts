@@ -9,6 +9,7 @@ import {
 } from "@/features/postings/postings.model";
 import type {
   ActiveBookingOverlapInput,
+  BookingDashboardPostingOption,
   BookingCancellationActor,
   BookingRequestExpirationRecord,
   BookingRequestRecord,
@@ -18,6 +19,8 @@ import type {
   ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardInput,
+  RenterBookingDashboardInput,
 } from "@/features/bookings/bookings.model";
 
 type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
@@ -410,6 +413,107 @@ export class BookingsRepository extends BaseRepository {
       pagination: this.createPagination(input.page, input.pageSize, total),
       ...(input.status ? { status: input.status } : {}),
     };
+  }
+
+  async listDashboardByRenter(
+    input: Pick<RenterBookingDashboardInput, "renterId" | "status">,
+  ): Promise<BookingRequestRecord[]> {
+    const where: Prisma.BookingRequestWhereInput = {
+      renterId: input.renterId,
+      ...(input.status ? { status: input.status } : {}),
+    };
+
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        include: {
+          renting: {
+            select: {
+              id: true,
+            },
+          },
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return rows.map((row) => this.mapBookingRequest(row));
+  }
+
+  async listDashboardByOwner(
+    input: Pick<OwnerBookingDashboardInput, "ownerId" | "status" | "postingId">,
+  ): Promise<BookingRequestRecord[]> {
+    const where: Prisma.BookingRequestWhereInput = {
+      ownerId: input.ownerId,
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.postingId ? { postingId: input.postingId } : {}),
+    };
+
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        include: {
+          renting: {
+            select: {
+              id: true,
+            },
+          },
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return rows.map((row) => this.mapBookingRequest(row));
+  }
+
+  async listDashboardPostingOptionsByOwner(ownerId: string): Promise<BookingDashboardPostingOption[]> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where: {
+          ownerId,
+        },
+        select: {
+          postingId: true,
+          posting: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ posting: { name: "asc" } }, { createdAt: "desc" }],
+      }),
+    );
+
+    const options = new Map<string, BookingDashboardPostingOption>();
+
+    for (const row of rows) {
+      if (!options.has(row.postingId)) {
+        options.set(row.postingId, {
+          id: row.postingId,
+          name: row.posting.name,
+        });
+      }
+    }
+
+    return Array.from(options.values());
   }
 
   async hasOfficialReservationOverlap(input: ActiveBookingOverlapInput): Promise<boolean> {

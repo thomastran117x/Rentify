@@ -229,6 +229,31 @@ export class RentingsRepository extends BaseRepository {
     };
   }
 
+  async listByRenterForDashboard(renterId: string): Promise<RentingRecord[]> {
+    const rentings = await this.executeAsync(() =>
+      this.prisma.renting.findMany({
+        where: {
+          renterId,
+          status: "confirmed",
+        },
+        orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return rentings.map((renting) => this.mapRenting(renting));
+  }
+
   async hasOverlap(postingId: string, startAt: Date, endAt: Date, excludeRentingId?: string): Promise<boolean> {
     const match = await this.executeAsync(() =>
       this.prisma.renting.findFirst({

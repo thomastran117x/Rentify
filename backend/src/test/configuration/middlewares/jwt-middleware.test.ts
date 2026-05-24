@@ -391,6 +391,33 @@ describe("jwt middleware helpers", () => {
     await expect(requireJwtAuth(rentingContext)).resolves.toEqual(principal);
   });
 
+  it("accepts PAT bearer auth on booking dashboard read routes", async () => {
+    const principal = createPatPrincipal({
+      scopes: ["mcp:read"],
+    });
+    const renterDashboardContext = createContext({
+      method: "GET",
+      url: "https://example.test/booking-requests/me/dashboard",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
+    });
+    const ownerDashboardContext = createContext({
+      method: "GET",
+      url: "https://example.test/booking-requests/owner/dashboard",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
+    });
+
+    await expect(requireJwtAuth(renterDashboardContext)).resolves.toEqual(principal);
+    await expect(requireJwtAuth(ownerDashboardContext)).resolves.toEqual(principal);
+  });
+
   it("accepts PAT bearer auth on booking write routes with mcp:write scope", async () => {
     const principal = createPatPrincipal({
       scopes: ["mcp:read", "mcp:write"],

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KeyRound, Link2, ShieldCheck, Unlink } from "lucide-react";
-import { AccountBookingsPanel } from "@/components/account/account-bookings-panel";
 import { AuthOAuthButtons, type OAuthProvider } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
@@ -305,7 +304,22 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <AccountBookingsPanel role={session.user.role} />
+        <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-950">Bookings workspace</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Booking management now lives in one dedicated workspace with renter and owner views, urgency sorting, and action-needed summaries.
+              </p>
+            </div>
+            <Link
+              href="/bookings"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Open bookings
+            </Link>
+          </div>
+        </section>
 
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start gap-4">
