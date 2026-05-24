@@ -23,7 +23,7 @@ describe("RentingsRepository", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("queries for an ended confirmed renting when checking review eligibility", async () => {
+  it("queries for a completed non-disputed renting when checking review eligibility", async () => {
     const now = new Date("2026-04-23T12:00:00.000Z");
     const findFirst = jest.fn(async () => ({
       id: "renting-1",
@@ -46,10 +46,11 @@ describe("RentingsRepository", () => {
       where: {
         postingId: "posting-1",
         renterId: "renter-1",
-        status: "confirmed",
-        endAt: {
+        status: "completed",
+        completedAt: {
           lte: now,
         },
+        dispute: null,
       },
       select: {
         id: true,

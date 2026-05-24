@@ -114,6 +114,7 @@ describe("BookingsController", () => {
     const dashboardMine = jest.fn(async () => ({
       summary: {
         upcoming: 0,
+        active: 0,
         pending: 0,
         actionNeeded: 1,
         past: 0,
@@ -169,6 +170,9 @@ describe("BookingsController", () => {
         expiringHold: 1,
         paymentFailure: 0,
         conversion: 0,
+        upcomingRentings: 0,
+        activeRentings: 0,
+        pastRentings: 0,
         totalOpen: 1,
       },
       items: [],

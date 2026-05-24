@@ -12,6 +12,7 @@ export const flowLockKeys = {
     `booking-request:${bookingRequestId}:convert`,
   bookingRequestCap: (postingId: string, renterId: string) =>
     `booking-request-cap:${postingId}:${renterId}`,
+  rentingState: (rentingId: string) => `renting:${rentingId}:state`,
   postingBookingWindow: (postingId: string) => `posting:${postingId}:booking-window`,
 };
 

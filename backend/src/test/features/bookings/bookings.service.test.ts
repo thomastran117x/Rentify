@@ -221,6 +221,7 @@ function createService(options?: {
   const rentingsRepository = {
     hasOverlap: jest.fn(async () => options?.rentingOverlap ?? false),
     listByRenterForDashboard: jest.fn(async () => options?.dashboardRentings ?? []),
+    listByOwnerForDashboard: jest.fn(async () => options?.dashboardRentings ?? []),
   } as unknown as RentingsRepository;
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
@@ -297,6 +298,7 @@ function createService(options?: {
     rentingsRepository: rentingsRepository as unknown as {
       hasOverlap: jest.Mock;
       listByRenterForDashboard: jest.Mock;
+      listByOwnerForDashboard: jest.Mock;
     },
     cacheService: cacheService as unknown as {
       acquireLock: jest.Mock;
@@ -744,15 +746,24 @@ describe("BookingsService", () => {
       startAt: "2099-05-10T00:00:00.000Z",
       endAt: "2099-05-12T00:00:00.000Z",
     });
+    const activeRenting = createRentingRecord({
+      id: "renting-active",
+      bookingRequestId: "booking-active",
+      status: "active",
+      startAt: "2099-05-11T00:00:00.000Z",
+      endAt: "2099-05-13T00:00:00.000Z",
+    });
     const pastRenting = createRentingRecord({
       id: "renting-past",
       bookingRequestId: "booking-past",
+      status: "completed",
+      completedAt: "2026-04-12T00:00:00.000Z",
       startAt: "2026-04-10T00:00:00.000Z",
       endAt: "2026-04-12T00:00:00.000Z",
     });
     const { service, bookingsRepository, rentingsRepository } = createService({
       dashboardBookings: [pending, awaitingPayment, cancelled, paidConverted],
-      dashboardRentings: [futureRenting, pastRenting],
+      dashboardRentings: [futureRenting, activeRenting, pastRenting],
     });
 
     const result = await service.dashboardMine({
@@ -769,6 +780,7 @@ describe("BookingsService", () => {
     expect(rentingsRepository.listByRenterForDashboard).toHaveBeenCalledWith("renter-1");
     expect(result.summary).toEqual({
       upcoming: 1,
+      active: 1,
       pending: 1,
       actionNeeded: 1,
       past: 1,
@@ -852,8 +864,27 @@ describe("BookingsService", () => {
       status: "paid",
       holdExpiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     });
+    const ownerUpcomingRenting = createRentingRecord({
+      id: "renting-upcoming",
+      bookingRequestId: "booking-renting-upcoming",
+      status: "confirmed",
+    });
+    const ownerActiveRenting = createRentingRecord({
+      id: "renting-active",
+      bookingRequestId: "booking-renting-active",
+      status: "active",
+    });
+    const ownerPastRenting = createRentingRecord({
+      id: "renting-past",
+      bookingRequestId: "booking-renting-past",
+      status: "completed",
+      completedAt: "2026-04-12T00:00:00.000Z",
+      startAt: "2026-04-10T00:00:00.000Z",
+      endAt: "2026-04-12T00:00:00.000Z",
+    });
     const { service, bookingsRepository } = createService({
       dashboardOwnerBookings: [pending, paymentFailed, converted, readyToConvert],
+      dashboardRentings: [ownerUpcomingRenting, ownerActiveRenting, ownerPastRenting],
       dashboardOwnerPostingOptions: [
         { id: "posting-1", name: "City loft" },
         { id: "posting-2", name: "Studio set" },
@@ -880,6 +911,9 @@ describe("BookingsService", () => {
       expiringHold: 1,
       paymentFailure: 1,
       conversion: 1,
+      upcomingRentings: 1,
+      activeRentings: 1,
+      pastRentings: 1,
       totalOpen: 3,
     });
     expect(result.items).toHaveLength(1);

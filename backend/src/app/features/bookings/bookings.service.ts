@@ -213,6 +213,8 @@ export class BookingsService {
           counts.actionNeeded += 1;
         } else if (bucket === "upcoming") {
           counts.upcoming += 1;
+        } else if (bucket === "active") {
+          counts.active += 1;
         } else if (bucket === "pending") {
           counts.pending += 1;
         } else if (bucket === "past") {
@@ -225,6 +227,7 @@ export class BookingsService {
       },
       {
         upcoming: 0,
+        active: 0,
         pending: 0,
         actionNeeded: 0,
         past: 0,
@@ -266,13 +269,33 @@ export class BookingsService {
       this.bookingsRepository.listDashboardPostingOptionsByOwner(input.ownerId),
     ]);
 
-    const items = bookingRequests
-      .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
-      .map((bookingRequest) => this.toOwnerDashboardItem(bookingRequest));
+    const rentings = input.status
+      ? []
+      : await this.rentingsRepository.listByOwnerForDashboard({
+          ownerId: input.ownerId,
+          postingId: input.postingId,
+        });
+
+    const items = [
+      ...bookingRequests
+        .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
+        .map((bookingRequest) => this.toOwnerDashboardItem(bookingRequest)),
+      ...rentings.map((renting) => this.toOwnerDashboardRentingItem(renting)),
+    ];
 
     const summary = items.reduce(
       (counts, item) => {
         if (!this.isOwnerDashboardOpenItem(item)) {
+          const rentingPhase = this.resolveRentingPhase(item);
+
+          if (rentingPhase === "upcoming") {
+            counts.upcomingRentings += 1;
+          } else if (rentingPhase === "active") {
+            counts.activeRentings += 1;
+          } else if (rentingPhase === "past") {
+            counts.pastRentings += 1;
+          }
+
           return counts;
         }
 
@@ -306,6 +329,9 @@ export class BookingsService {
         expiringHold: 0,
         paymentFailure: 0,
         conversion: 0,
+        upcomingRentings: 0,
+        activeRentings: 0,
+        pastRentings: 0,
         totalOpen: 0,
       },
     );
@@ -742,7 +768,85 @@ export class BookingsService {
   }
 
   private toRenterDashboardRentingItem(renting: RentingRecord): BookingDashboardItem {
-    const isPast = new Date(renting.endAt).getTime() < Date.now();
+    const nextAction =
+      renting.status === "confirmed"
+        ? {
+            code: "view_renting" as const,
+            label: renting.pickupInstructions && renting.returnInstructions
+              ? "Review instructions before check-in."
+              : "Watch for upcoming rental instructions.",
+          }
+        : renting.status === "check_in_ready"
+          ? {
+              code: "mark_check_in_complete" as const,
+              label: "Confirm pickup or check-in when the rental starts.",
+            }
+          : renting.status === "active"
+            ? {
+                code: "mark_return_complete" as const,
+                label: "Confirm return or check-out when the rental ends.",
+              }
+            : renting.status === "return_due"
+              ? {
+                  code: "mark_return_complete" as const,
+                  label: "Confirm return or check-out now.",
+                }
+              : renting.status === "disputed"
+                ? {
+                    code: "view_renting" as const,
+                    label: "A dispute is open for this renting.",
+                  }
+                : renting.status === "completed"
+                  ? {
+                      code: "none" as const,
+                      label: "This renting has been completed.",
+                    }
+                  : {
+                      code: "none" as const,
+                      label: "No next action is required.",
+                    };
+    const urgency =
+      renting.status === "disputed"
+        ? {
+            level: "high" as const,
+            rank: 0,
+            isActionable: true,
+            label: "Dispute open",
+          }
+        : renting.status === "return_due"
+          ? {
+              level: "high" as const,
+              rank: 1,
+              isActionable: true,
+              label: "Return due",
+            }
+          : renting.status === "active"
+            ? {
+                level: "medium" as const,
+                rank: 2,
+                isActionable: true,
+                label: "Active",
+              }
+            : renting.status === "check_in_ready"
+              ? {
+                  level: "medium" as const,
+                  rank: 3,
+                  isActionable: true,
+                  label: "Check-in ready",
+                }
+              : renting.status === "confirmed"
+                ? {
+                    level: "low" as const,
+                    rank: 4,
+                    isActionable: false,
+                    label: "Upcoming",
+                  }
+                : {
+                    level: "none" as const,
+                    rank: 5,
+                    isActionable: false,
+                    label: renting.status === "completed" ? "Completed" : "Closed",
+                  };
 
     return {
       id: renting.id,
@@ -752,8 +856,8 @@ export class BookingsService {
       postingId: renting.postingId,
       renterId: renting.renterId,
       ownerId: renting.ownerId,
-      status: "confirmed",
-      sourceStatus: "confirmed",
+      status: renting.status,
+      sourceStatus: renting.status,
       startAt: renting.startAt,
       endAt: renting.endAt,
       durationDays: renting.durationDays,
@@ -764,23 +868,71 @@ export class BookingsService {
       createdAt: renting.createdAt,
       updatedAt: renting.updatedAt,
       confirmedAt: renting.confirmedAt,
+      pickupInstructions: renting.pickupInstructions,
+      returnInstructions: renting.returnInstructions,
+      checkInReadyAt: renting.checkInReadyAt,
+      checkInCompletedAt: renting.checkInCompletedAt,
+      returnDueAt: renting.returnDueAt,
+      completedAt: renting.completedAt,
+      disputedAt: renting.disputedAt,
+      cancelledAt: renting.cancelledAt,
+      dispute: renting.dispute,
       posting: {
         ...renting.posting,
         effectiveMaxBookingDurationDays: BOOKING_DEFAULTS.defaultMaxBookingDurationDays,
       },
       isExpiringHold: false,
-      nextAction: {
-        code: "view_renting",
-        label: isPast
-          ? "This renting has finished."
-          : "Prepare for the upcoming rental window.",
-      },
-      urgency: {
-        level: isPast ? "none" : "low",
-        rank: isPast ? 5 : 3,
-        isActionable: false,
-        label: isPast ? "Past" : "Upcoming",
-      },
+      nextAction,
+      urgency,
+    };
+  }
+
+  private toOwnerDashboardRentingItem(renting: RentingRecord): BookingDashboardItem {
+    const hasInstructions = Boolean(renting.pickupInstructions && renting.returnInstructions);
+    const nextAction =
+      renting.status === "confirmed"
+        ? hasInstructions
+          ? {
+              code: "mark_check_in_ready" as const,
+              label: "Mark this renting as check-in ready.",
+            }
+          : {
+              code: "update_instructions" as const,
+              label: "Add pickup and return instructions before check-in.",
+            }
+        : renting.status === "check_in_ready"
+          ? {
+              code: "mark_check_in_complete" as const,
+              label: "Confirm pickup or check-in when handoff happens.",
+            }
+          : renting.status === "active"
+            ? {
+                code: "mark_return_complete" as const,
+                label: "Confirm return or check-out when the rental ends.",
+              }
+            : renting.status === "return_due"
+              ? {
+                  code: "mark_return_complete" as const,
+                  label: "Confirm return or check-out now.",
+                }
+              : renting.status === "disputed"
+                ? {
+                    code: "view_renting" as const,
+                    label: "A dispute is open for this renting.",
+                  }
+                : renting.status === "completed"
+                  ? {
+                      code: "none" as const,
+                      label: "This renting has been completed.",
+                    }
+                  : {
+                      code: "none" as const,
+                      label: "No next action is required.",
+                    };
+
+    return {
+      ...this.toRenterDashboardRentingItem(renting),
+      nextAction,
     };
   }
 
@@ -882,7 +1034,8 @@ export class BookingsService {
 
   private resolveRenterBucket(item: BookingDashboardItem): RenterBookingDashboardBucket | null {
     if (item.kind === "renting") {
-      return new Date(item.endAt).getTime() < Date.now() ? "past" : "upcoming";
+      const phase = this.resolveRentingPhase(item);
+      return phase === "active" ? "active" : phase === "past" ? "past" : phase === "upcoming" ? "upcoming" : "cancelled";
     }
 
     if (["approved", "awaiting_payment", "payment_failed"].includes(item.sourceStatus)) {
@@ -899,6 +1052,30 @@ export class BookingsService {
 
     if (item.sourceStatus === "paid") {
       return new Date(item.endAt).getTime() < Date.now() ? "past" : "upcoming";
+    }
+
+    return null;
+  }
+
+  private resolveRentingPhase(item: BookingDashboardItem): "upcoming" | "active" | "past" | "cancelled" | null {
+    if (item.kind !== "renting") {
+      return null;
+    }
+
+    if (["confirmed", "check_in_ready"].includes(item.sourceStatus)) {
+      return "upcoming";
+    }
+
+    if (["active", "return_due", "disputed"].includes(item.sourceStatus)) {
+      return "active";
+    }
+
+    if (item.sourceStatus === "completed") {
+      return "past";
+    }
+
+    if (item.sourceStatus === "cancelled") {
+      return "cancelled";
     }
 
     return null;
@@ -996,8 +1173,7 @@ export class BookingsService {
   private isOwnerDashboardOpenItem(item: BookingDashboardItem): boolean {
     return (
       item.kind === "booking_request" &&
-      item.status !== "confirmed" &&
-      !this.isTerminalBookingStatus(item.status)
+      !this.isTerminalBookingStatus(item.status as BookingRequestRecord["status"])
     );
   }
 
@@ -1006,11 +1182,12 @@ export class BookingsService {
   }
 
   private isTerminalDashboardItem(item: BookingDashboardItem): boolean {
-    return (
-      item.kind === "booking_request" &&
-      item.status !== "confirmed" &&
-      this.isTerminalBookingStatus(item.status)
-    );
+    if (item.kind === "renting") {
+      return ["completed", "cancelled"].includes(item.status);
+    }
+
+    return item.kind === "booking_request"
+      && this.isTerminalBookingStatus(item.status as BookingRequestRecord["status"]);
   }
 
   private isTerminalBookingStatus(status: BookingRequestRecord["status"]): boolean {

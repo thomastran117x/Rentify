@@ -184,6 +184,23 @@ export interface RentingRecord extends Record<string, unknown> {
   dailyPriceAmount?: number;
   estimatedTotal?: number;
   confirmedAt?: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: {
+    id: string;
+    rentingId: string;
+    openedByUserId: string;
+    reason: string;
+    details?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
   posting: RentifyRentingPostingSummary;
 }
 

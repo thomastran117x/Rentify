@@ -205,8 +205,32 @@ export interface SeedPaymentFixture {
 
 export interface SeedRentingFixture {
   id: string;
-  status: "confirmed";
+  status:
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
   confirmedAt: string;
+  createdAt: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: SeedRentingDisputeFixture;
+}
+
+export interface SeedRentingDisputeFixture {
+  id: string;
+  openedByUserEmail: string;
+  reason: string;
+  details?: string;
   createdAt: string;
 }
 

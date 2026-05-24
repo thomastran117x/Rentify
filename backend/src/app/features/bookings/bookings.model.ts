@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RentingDisputeRecord } from "@/features/rentings/rentings.model";
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_MAX_BOOKING_DURATION_DAYS,
@@ -46,6 +47,7 @@ export const bookingDashboardSortSchema = z.enum(["urgency", "start_at"]);
 export const renterBookingDashboardBucketSchema = z.enum([
   "action_needed",
   "upcoming",
+  "active",
   "pending",
   "past",
   "cancelled",
@@ -246,6 +248,11 @@ export type BookingDashboardNextActionCode =
   | "complete_payment"
   | "retry_payment"
   | "convert_to_renting"
+  | "update_instructions"
+  | "mark_check_in_ready"
+  | "mark_check_in_complete"
+  | "mark_return_complete"
+  | "open_dispute"
   | "await_owner_response"
   | "monitor_upcoming"
   | "view_renting"
@@ -272,8 +279,24 @@ export interface BookingDashboardItem {
   postingId: string;
   renterId: string;
   ownerId: string;
-  status: BookingRequestStatus | "confirmed";
-  sourceStatus: BookingRequestStatus | "confirmed";
+  status:
+    | BookingRequestStatus
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
+  sourceStatus:
+    | BookingRequestStatus
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
   startAt: string;
   endAt: string;
   durationDays: number;
@@ -290,6 +313,15 @@ export interface BookingDashboardItem {
   paymentFailedAt?: string;
   convertedAt?: string;
   confirmedAt?: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: RentingDisputeRecord;
   actionNeededCategory?: OwnerBookingDashboardActionNeeded;
   isExpiringHold: boolean;
   nextAction: BookingDashboardNextAction;
@@ -303,6 +335,7 @@ export interface BookingDashboardPostingOption {
 
 export interface RenterBookingDashboardSummary {
   upcoming: number;
+  active: number;
   pending: number;
   actionNeeded: number;
   past: number;
@@ -315,6 +348,9 @@ export interface OwnerBookingDashboardSummary {
   expiringHold: number;
   paymentFailure: number;
   conversion: number;
+  upcomingRentings: number;
+  activeRentings: number;
+  pastRentings: number;
   totalOpen: number;
 }
 

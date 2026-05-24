@@ -10,10 +10,20 @@ export type BookingRequestStatus =
   | "cancelled"
   | "refunded";
 
+export type RentingStatus =
+  | "confirmed"
+  | "check_in_ready"
+  | "active"
+  | "return_due"
+  | "completed"
+  | "disputed"
+  | "cancelled";
+
 export type BookingDashboardSort = "urgency" | "start_at";
 export type RenterBookingDashboardBucket =
   | "action_needed"
   | "upcoming"
+  | "active"
   | "pending"
   | "past"
   | "cancelled";
@@ -92,6 +102,11 @@ export type BookingDashboardNextActionCode =
   | "complete_payment"
   | "retry_payment"
   | "convert_to_renting"
+  | "update_instructions"
+  | "mark_check_in_ready"
+  | "mark_check_in_complete"
+  | "mark_return_complete"
+  | "open_dispute"
   | "await_owner_response"
   | "monitor_upcoming"
   | "view_renting"
@@ -110,6 +125,49 @@ export interface BookingDashboardUrgency {
   deadlineAt?: string;
 }
 
+export interface RentingDisputeRecord {
+  id: string;
+  rentingId: string;
+  openedByUserId: string;
+  reason: string;
+  details?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RentingRecord {
+  id: string;
+  postingId: string;
+  bookingRequestId: string;
+  renterId: string;
+  ownerId: string;
+  status: RentingStatus;
+  startAt: string;
+  endAt: string;
+  durationDays: number;
+  guestCount: number;
+  pricingCurrency: string;
+  dailyPriceAmount: number;
+  estimatedTotal: number;
+  confirmedAt: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  posting: {
+    id: string;
+    name: string;
+    primaryPhotoUrl?: string;
+  };
+  dispute?: RentingDisputeRecord;
+}
+
 export interface BookingDashboardItem {
   id: string;
   kind: "booking_request" | "renting";
@@ -118,8 +176,8 @@ export interface BookingDashboardItem {
   postingId: string;
   renterId: string;
   ownerId: string;
-  status: BookingRequestStatus | "confirmed";
-  sourceStatus: BookingRequestStatus | "confirmed";
+  status: BookingRequestStatus | RentingStatus;
+  sourceStatus: BookingRequestStatus | RentingStatus;
   startAt: string;
   endAt: string;
   durationDays: number;
@@ -136,6 +194,15 @@ export interface BookingDashboardItem {
   paymentFailedAt?: string;
   convertedAt?: string;
   confirmedAt?: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: RentingDisputeRecord;
   actionNeededCategory?: OwnerBookingDashboardActionNeeded;
   isExpiringHold: boolean;
   nextAction: BookingDashboardNextAction;
@@ -149,6 +216,7 @@ export interface BookingDashboardPostingOption {
 
 export interface RenterBookingDashboardSummary {
   upcoming: number;
+  active: number;
   pending: number;
   actionNeeded: number;
   past: number;
@@ -161,6 +229,9 @@ export interface OwnerBookingDashboardSummary {
   expiringHold: number;
   paymentFailure: number;
   conversion: number;
+  upcomingRentings: number;
+  activeRentings: number;
+  pastRentings: number;
   totalOpen: number;
 }
 

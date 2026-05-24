@@ -5,6 +5,40 @@ import type { PostingsPublicCacheService } from "@/features/postings/postings.pu
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import { RentingsService } from "@/features/rentings/rentings.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import ForbiddenError from "@/errors/http/forbidden.error";
+import BadRequestError from "@/errors/http/bad-request.error";
+
+function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "renting-1",
+    postingId: "posting-1",
+    ownerId: "owner-1",
+    renterId: "renter-1",
+    bookingRequestId: "booking-1",
+    status: "confirmed",
+    startAt: "2026-05-01T00:00:00.000Z",
+    endAt: "2026-05-04T00:00:00.000Z",
+    durationDays: 3,
+    guestCount: 2,
+    pricingCurrency: "CAD",
+    pricingSnapshot: {
+      currency: "CAD",
+      daily: {
+        amount: 120,
+      },
+    },
+    dailyPriceAmount: 120,
+    estimatedTotal: 360,
+    confirmedAt: "2026-04-23T00:00:00.000Z",
+    createdAt: "2026-04-23T00:00:00.000Z",
+    updatedAt: "2026-04-23T00:00:00.000Z",
+    posting: {
+      id: "posting-1",
+      name: "City loft",
+    },
+    ...overrides,
+  };
+}
 
 describe("RentingsService", () => {
   it("releases only the reservation it acquired when conversion fails", async () => {
@@ -173,5 +207,145 @@ describe("RentingsService", () => {
       ["posting-1"],
       ["posting-1"],
     ]);
+  });
+
+  it("promotes ended active rentings to return_due when reading a renting", async () => {
+    const rentingsRepository = {
+      promoteReturnDueForRenting: jest.fn(async () => undefined),
+      findById: jest.fn(async () =>
+        createRentingRecord({
+          status: "return_due",
+          endAt: "2026-04-20T00:00:00.000Z",
+          returnDueAt: "2026-04-20T00:00:00.000Z",
+        }),
+      ),
+    } as unknown as RentingsRepository;
+    const service = new RentingsService(
+      rentingsRepository,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await service.getById("renting-1", "renter-1", "user");
+
+    expect((rentingsRepository.promoteReturnDueForRenting as unknown as jest.Mock)).toHaveBeenCalled();
+    expect(result.status).toBe("return_due");
+  });
+
+  it("rejects renters trying to update instructions", async () => {
+    const rentingsRepository = {
+      promoteReturnDueForRenting: jest.fn(async () => undefined),
+      findById: jest.fn(async () => createRentingRecord()),
+    } as unknown as RentingsRepository;
+    const cacheService = {
+      acquireLock: jest.fn(async (key: string) => ({
+        key,
+        token: `${key}-token`,
+        release: jest.fn(async () => true),
+        extend: jest.fn(async () => true),
+      })),
+    } as unknown as CacheService;
+    const service = new RentingsService(
+      rentingsRepository,
+      {} as never,
+      {} as never,
+      {} as never,
+      cacheService,
+      {} as never,
+    );
+
+    await expect(
+      service.updateInstructions({
+        rentingId: "renting-1",
+        actorUserId: "renter-1",
+        actorRole: "user",
+        pickupInstructions: "Meet outside.",
+        returnInstructions: "Leave with concierge.",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("allows owners to complete returns on active rentings", async () => {
+    const rentingsRepository = {
+      promoteReturnDueForRenting: jest.fn(async () => undefined),
+      findById: jest.fn(async () =>
+        createRentingRecord({
+          status: "active",
+        }),
+      ),
+      markCompleted: jest.fn(async () =>
+        createRentingRecord({
+          status: "completed",
+          completedAt: "2026-05-04T00:00:00.000Z",
+        }),
+      ),
+    } as unknown as RentingsRepository;
+    const cacheService = {
+      acquireLock: jest.fn(async (key: string) => ({
+        key,
+        token: `${key}-token`,
+        release: jest.fn(async () => true),
+        extend: jest.fn(async () => true),
+      })),
+    } as unknown as CacheService;
+    const service = new RentingsService(
+      rentingsRepository,
+      {} as never,
+      {} as never,
+      {} as never,
+      cacheService,
+      {} as never,
+    );
+
+    const result = await service.markCompleted({
+      rentingId: "renting-1",
+      actorUserId: "owner-1",
+      actorRole: "owner",
+    });
+
+    expect((rentingsRepository.markCompleted as unknown as jest.Mock)).toHaveBeenCalled();
+    expect(result.status).toBe("completed");
+  });
+
+  it("rejects disputes after the 7-day completion window", async () => {
+    const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString();
+    const rentingsRepository = {
+      promoteReturnDueForRenting: jest.fn(async () => undefined),
+      findById: jest.fn(async () =>
+        createRentingRecord({
+          status: "completed",
+          completedAt: elevenDaysAgo,
+        }),
+      ),
+    } as unknown as RentingsRepository;
+    const cacheService = {
+      acquireLock: jest.fn(async (key: string) => ({
+        key,
+        token: `${key}-token`,
+        release: jest.fn(async () => true),
+        extend: jest.fn(async () => true),
+      })),
+    } as unknown as CacheService;
+    const service = new RentingsService(
+      rentingsRepository,
+      {} as never,
+      {} as never,
+      {} as never,
+      cacheService,
+      {} as never,
+    );
+
+    await expect(
+      service.createDispute({
+        rentingId: "renting-1",
+        actorUserId: "renter-1",
+        actorRole: "user",
+        reason: "Issue",
+        details: "Too late",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 });

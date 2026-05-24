@@ -183,7 +183,14 @@ export interface ListBookingRequestsQuery extends QueryParams {
 export interface ListMyRentingsQuery extends QueryParams {
   page?: number;
   pageSize?: number;
-  status?: "confirmed";
+  status?:
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
 }
 
 export class BackendApiError extends Error {

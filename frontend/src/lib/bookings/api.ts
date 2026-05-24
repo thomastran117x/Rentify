@@ -9,6 +9,7 @@ import type {
   BookingRequestStatus,
   OwnerBookingDashboardActionNeeded,
   OwnerBookingDashboardResult,
+  RentingRecord,
   RenterBookingDashboardBucket,
   RenterBookingDashboardResult,
 } from "@/lib/bookings/types";
@@ -35,7 +36,7 @@ function readCsrfToken(): string | undefined {
 }
 
 async function authenticatedJson<TResponse, TBody extends object | undefined = undefined>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   path: string,
   body?: TBody,
 ): Promise<TResponse> {
@@ -145,6 +146,58 @@ export const bookingsApi = {
     return authenticatedJson<BookingRequestRecord, { reason?: string | null }>(
       "POST",
       `/booking-requests/${encodeURIComponent(bookingRequestId)}/cancel`,
+      input,
+    );
+  },
+
+  updateRentingInstructions(
+    rentingId: string,
+    input: {
+      pickupInstructions: string;
+      returnInstructions: string;
+    },
+  ): Promise<RentingRecord> {
+    return authenticatedJson<RentingRecord, typeof input>(
+      "PUT",
+      `/rentings/${encodeURIComponent(rentingId)}/instructions`,
+      input,
+    );
+  },
+
+  markRentingCheckInReady(rentingId: string): Promise<RentingRecord> {
+    return authenticatedJson<RentingRecord, Record<string, never>>(
+      "POST",
+      `/rentings/${encodeURIComponent(rentingId)}/check-in-ready`,
+      {},
+    );
+  },
+
+  markRentingCheckInComplete(rentingId: string): Promise<RentingRecord> {
+    return authenticatedJson<RentingRecord, Record<string, never>>(
+      "POST",
+      `/rentings/${encodeURIComponent(rentingId)}/check-in`,
+      {},
+    );
+  },
+
+  completeRentingReturn(rentingId: string): Promise<RentingRecord> {
+    return authenticatedJson<RentingRecord, Record<string, never>>(
+      "POST",
+      `/rentings/${encodeURIComponent(rentingId)}/return`,
+      {},
+    );
+  },
+
+  createRentingDispute(
+    rentingId: string,
+    input: {
+      reason: string;
+      details?: string | null;
+    },
+  ): Promise<RentingRecord> {
+    return authenticatedJson<RentingRecord, typeof input>(
+      "POST",
+      `/rentings/${encodeURIComponent(rentingId)}/disputes`,
       input,
     );
   },

@@ -27,6 +27,7 @@ model User {
   bookingRequestsAsOwner  BookingRequest[] @relation("BookingRequestOwner")
   rentingsAsRenter Renting[] @relation("RentingRenter")
   rentingsAsOwner  Renting[] @relation("RentingOwner")
+  rentingDisputesOpened RentingDispute[] @relation("RentingDisputeOpenedBy")
   paymentsAsRenter Payment[] @relation("PaymentRenter")
   paymentsAsOwner  Payment[] @relation("PaymentOwner")
   payouts          Payout[]
@@ -271,17 +272,41 @@ model Renting {
   dailyPriceAmount  Decimal       @map("daily_price_amount") @db.Decimal(18, 2)
   estimatedTotal    Decimal       @map("estimated_total") @db.Decimal(18, 2)
   confirmedAt       DateTime      @map("confirmed_at") @db.DateTime(6)
+  pickupInstructions String?      @map("pickup_instructions") @db.VarChar(1000)
+  returnInstructions String?      @map("return_instructions") @db.VarChar(1000)
+  checkInReadyAt    DateTime?     @map("check_in_ready_at") @db.DateTime(6)
+  checkInCompletedAt DateTime?    @map("check_in_completed_at") @db.DateTime(6)
+  returnDueAt       DateTime?     @map("return_due_at") @db.DateTime(6)
+  completedAt       DateTime?     @map("completed_at") @db.DateTime(6)
+  disputedAt        DateTime?     @map("disputed_at") @db.DateTime(6)
+  cancelledAt       DateTime?     @map("cancelled_at") @db.DateTime(6)
   createdAt         DateTime      @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.DateTime(6)
   posting           Posting       @relation(fields: [postingId], references: [id], onDelete: Cascade)
   bookingRequest    BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
   renter            User          @relation("RentingRenter", fields: [renterId], references: [id], onDelete: Cascade)
   owner             User          @relation("RentingOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  dispute           RentingDispute?
 
   @@index([postingId, status, startAt])
   @@index([renterId, status, createdAt])
   @@index([ownerId, status, createdAt])
   @@map("rentings")
+}
+
+model RentingDispute {
+  id             String   @id @db.VarChar(36)
+  rentingId      String   @unique @map("renting_id") @db.VarChar(36)
+  openedByUserId String   @map("opened_by_user_id") @db.VarChar(36)
+  reason         String   @db.VarChar(255)
+  details        String?  @db.VarChar(2000)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  renting        Renting  @relation(fields: [rentingId], references: [id], onDelete: Cascade)
+  openedBy       User     @relation("RentingDisputeOpenedBy", fields: [openedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([openedByUserId, createdAt])
+  @@map("renting_disputes")
 }
 
 model Payment {
@@ -799,6 +824,12 @@ enum BookingCancellationActor {
 
 enum RentingStatus {
   confirmed
+  check_in_ready
+  active
+  return_due
+  completed
+  disputed
+  cancelled
 }
 
 enum PaymentProvider {

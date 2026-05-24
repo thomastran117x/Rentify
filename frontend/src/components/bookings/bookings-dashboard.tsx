@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
-import { CalendarDays, CircleDollarSign, ReceiptText, XCircle } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, ClipboardList, ReceiptText, XCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { ApiError } from "@/lib/auth/types";
 import { bookingsApi } from "@/lib/bookings/api";
@@ -49,6 +49,7 @@ const RENTER_BUCKET_OPTIONS: Array<{ label: string; value?: RenterBookingDashboa
   { label: "All buckets" },
   { label: "Action needed", value: "action_needed" },
   { label: "Upcoming", value: "upcoming" },
+  { label: "Active", value: "active" },
   { label: "Pending", value: "pending" },
   { label: "Past", value: "past" },
   { label: "Cancelled / refunded", value: "cancelled" },
@@ -150,37 +151,88 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
     return "bg-rose-100 text-rose-700";
   }
 
+  if (status === "disputed") {
+    return "bg-rose-100 text-rose-700";
+  }
+
   if (["pending", "approved", "awaiting_payment", "payment_processing"].includes(status)) {
     return "bg-amber-100 text-amber-800";
   }
 
-  if (status === "paid" || status === "confirmed") {
+  if (status === "paid" || status === "confirmed" || status === "completed") {
     return "bg-emerald-100 text-emerald-700";
+  }
+
+  if (status === "check_in_ready" || status === "active" || status === "return_due") {
+    return "bg-sky-100 text-sky-700";
   }
 
   return "bg-slate-100 text-slate-600";
 }
 
+function canOpenDispute(item: BookingDashboardItem): boolean {
+  if (item.kind !== "renting" || item.dispute) {
+    return false;
+  }
+
+  if (item.sourceStatus === "active" || item.sourceStatus === "return_due") {
+    return true;
+  }
+
+  if (item.sourceStatus !== "completed") {
+    return false;
+  }
+
+  const anchor = item.completedAt ?? item.endAt;
+  return Date.now() - new Date(anchor).getTime() <= 7 * 24 * 60 * 60 * 1000;
+}
+
 interface BookingItemCardProps {
   item: BookingDashboardItem;
+  view: DashboardView;
   quoteByBookingId: Record<string, BookingCancellationQuoteResult | undefined>;
   reasonByBookingId: Record<string, string>;
+  instructionDraftByRentingId: Record<string, { pickupInstructions: string; returnInstructions: string } | undefined>;
+  disputeDraftByRentingId: Record<string, { reason: string; details: string } | undefined>;
   quotePendingId: string | null;
   cancelPendingId: string | null;
+  rentingMutationPendingKey: string | null;
   onReviewCancellation: (bookingRequestId: string) => Promise<void>;
   onReasonChange: (bookingRequestId: string, value: string) => void;
   onCancelBooking: (bookingRequestId: string) => Promise<void>;
+  onInstructionChange: (
+    rentingId: string,
+    field: "pickupInstructions" | "returnInstructions",
+    value: string,
+  ) => void;
+  onSaveInstructions: (rentingId: string) => Promise<void>;
+  onMarkCheckInReady: (rentingId: string) => Promise<void>;
+  onMarkCheckInComplete: (rentingId: string) => Promise<void>;
+  onCompleteReturn: (rentingId: string) => Promise<void>;
+  onDisputeChange: (rentingId: string, field: "reason" | "details", value: string) => void;
+  onCreateDispute: (rentingId: string) => Promise<void>;
 }
 
 function BookingItemCard({
   item,
+  view,
   quoteByBookingId,
   reasonByBookingId,
+  instructionDraftByRentingId,
+  disputeDraftByRentingId,
   quotePendingId,
   cancelPendingId,
+  rentingMutationPendingKey,
   onReviewCancellation,
   onReasonChange,
   onCancelBooking,
+  onInstructionChange,
+  onSaveInstructions,
+  onMarkCheckInReady,
+  onMarkCheckInComplete,
+  onCompleteReturn,
+  onDisputeChange,
+  onCreateDispute,
 }: BookingItemCardProps) {
   const quote = item.bookingRequestId ? quoteByBookingId[item.bookingRequestId] : undefined;
   const cancellationTimestamp = formatDateTime(
@@ -189,6 +241,24 @@ function BookingItemCard({
   const actionNeededLabel = humanizeActionNeeded(item.actionNeededCategory);
   const holdExpiresAt = formatDateTime(item.holdExpiresAt);
   const confirmedAt = formatDateTime(item.confirmedAt);
+  const checkInReadyAt = formatDateTime(item.checkInReadyAt);
+  const checkInCompletedAt = formatDateTime(item.checkInCompletedAt);
+  const returnDueAt = formatDateTime(item.returnDueAt);
+  const completedAt = formatDateTime(item.completedAt);
+  const disputedAt = formatDateTime(item.disputedAt);
+  const rentingInstructions = item.kind === "renting"
+    ? instructionDraftByRentingId[item.rentingId ?? ""]
+      ?? {
+        pickupInstructions: item.pickupInstructions ?? "",
+        returnInstructions: item.returnInstructions ?? "",
+      }
+    : undefined;
+  const disputeDraft = item.kind === "renting"
+    ? disputeDraftByRentingId[item.rentingId ?? ""] ?? { reason: "", details: "" }
+    : undefined;
+  const canEditInstructions = item.kind === "renting" && view === "owner";
+  const isRentingActionPending = (action: string) =>
+    rentingMutationPendingKey === `${action}:${item.rentingId}`;
 
   return (
     <article className="overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
@@ -240,7 +310,50 @@ function BookingItemCard({
               </div>
             </div>
 
-            {canReviewCancellation(item) && item.bookingRequestId ? (
+            {item.kind === "renting" && item.rentingId ? (
+              <div className="flex flex-wrap gap-2">
+                {canEditInstructions && (
+                  <button
+                    type="button"
+                    onClick={() => void onSaveInstructions(item.rentingId!)}
+                    disabled={isRentingActionPending("save-instructions")}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRentingActionPending("save-instructions") ? "Saving..." : "Save instructions"}
+                  </button>
+                )}
+                {view === "owner" && item.sourceStatus === "confirmed" ? (
+                  <button
+                    type="button"
+                    onClick={() => void onMarkCheckInReady(item.rentingId!)}
+                    disabled={isRentingActionPending("check-in-ready")}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRentingActionPending("check-in-ready") ? "Updating..." : "Mark check-in ready"}
+                  </button>
+                ) : null}
+                {["confirmed", "check_in_ready"].includes(item.sourceStatus) ? (
+                  <button
+                    type="button"
+                    onClick={() => void onMarkCheckInComplete(item.rentingId!)}
+                    disabled={isRentingActionPending("check-in-complete")}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRentingActionPending("check-in-complete") ? "Updating..." : "Confirm check-in"}
+                  </button>
+                ) : null}
+                {["active", "return_due"].includes(item.sourceStatus) ? (
+                  <button
+                    type="button"
+                    onClick={() => void onCompleteReturn(item.rentingId!)}
+                    disabled={isRentingActionPending("complete-return")}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRentingActionPending("complete-return") ? "Updating..." : "Confirm return"}
+                  </button>
+                ) : null}
+              </div>
+            ) : canReviewCancellation(item) && item.bookingRequestId ? (
               <button
                 type="button"
                 onClick={() => void onReviewCancellation(item.bookingRequestId!)}
@@ -266,7 +379,7 @@ function BookingItemCard({
               ) : (
                 <p className="mt-2 text-sm text-slate-600">
                   {item.kind === "renting"
-                    ? "Confirmed rentings stay visible here so upcoming starts and completed trips are easy to review."
+                    ? "Renting lifecycle actions stay attached to the same card so pickup, return, and dispute follow-up remain easy to track."
                     : "This summary keeps the booking state, urgency, and likely next step together in one card."}
                 </p>
               )}
@@ -279,10 +392,143 @@ function BookingItemCard({
               <div className="mt-3 grid gap-2 text-sm text-slate-600">
                 <p>Status: <span className="font-medium text-slate-900">{humanizeStatus(item.sourceStatus)}</span></p>
                 <p>Urgency: <span className="font-medium text-slate-900">{item.urgency.label}</span></p>
-                <p>Kind: <span className="font-medium text-slate-900">{item.kind === "renting" ? "Confirmed renting" : "Booking request"}</span></p>
+                <p>Kind: <span className="font-medium text-slate-900">{item.kind === "renting" ? "Renting" : "Booking request"}</span></p>
+                {checkInReadyAt ? <p>Check-in ready: <span className="font-medium text-slate-900">{checkInReadyAt}</span></p> : null}
+                {checkInCompletedAt ? <p>Check-in completed: <span className="font-medium text-slate-900">{checkInCompletedAt}</span></p> : null}
+                {returnDueAt ? <p>Return due: <span className="font-medium text-slate-900">{returnDueAt}</span></p> : null}
+                {completedAt ? <p>Completed: <span className="font-medium text-slate-900">{completedAt}</span></p> : null}
+                {disputedAt ? <p>Disputed: <span className="font-medium text-slate-900">{disputedAt}</span></p> : null}
               </div>
             </div>
           </div>
+
+          {item.kind === "renting" && item.rentingId ? (
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700">
+                    <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-950">Rental instructions</p>
+                    {canEditInstructions && rentingInstructions ? (
+                      <div className="mt-3 grid gap-3">
+                        <label className="grid gap-2 text-sm text-slate-700">
+                          <span className="font-medium">Pickup / check-in</span>
+                          <textarea
+                            value={rentingInstructions.pickupInstructions}
+                            onChange={(event) =>
+                              onInstructionChange(item.rentingId!, "pickupInstructions", event.target.value)
+                            }
+                            rows={3}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
+                            placeholder="Share where and how pickup or check-in works."
+                          />
+                        </label>
+                        <label className="grid gap-2 text-sm text-slate-700">
+                          <span className="font-medium">Return / check-out</span>
+                          <textarea
+                            value={rentingInstructions.returnInstructions}
+                            onChange={(event) =>
+                              onInstructionChange(item.rentingId!, "returnInstructions", event.target.value)
+                            }
+                            rows={3}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
+                            placeholder="Share where and how return or check-out works."
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid gap-3 text-sm text-slate-700">
+                        <div>
+                          <p className="font-medium text-slate-900">Pickup / check-in</p>
+                          <p className="mt-1 leading-6">{item.pickupInstructions ?? "Instructions will appear here once the owner adds them."}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Return / check-out</p>
+                          <p className="mt-1 leading-6">{item.returnInstructions ?? "Return instructions will appear here once the owner adds them."}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-950">Lifecycle timeline</p>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                      <p>Confirmed: <span className="font-medium text-slate-900">{confirmedAt ?? "Not recorded"}</span></p>
+                      {checkInReadyAt ? <p>Check-in ready: <span className="font-medium text-slate-900">{checkInReadyAt}</span></p> : null}
+                      {checkInCompletedAt ? <p>Check-in completed: <span className="font-medium text-slate-900">{checkInCompletedAt}</span></p> : null}
+                      {returnDueAt ? <p>Return due: <span className="font-medium text-slate-900">{returnDueAt}</span></p> : null}
+                      {completedAt ? <p>Completed: <span className="font-medium text-slate-900">{completedAt}</span></p> : null}
+                      {item.dispute ? (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3">
+                          <p className="font-medium text-rose-900">Dispute open</p>
+                          <p className="mt-1 text-rose-900">{item.dispute.reason}</p>
+                          {item.dispute.details ? <p className="mt-1 text-rose-800">{item.dispute.details}</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {item.kind === "renting" && item.rentingId && canOpenDispute(item) ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-700">
+                  <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-rose-950">Open a dispute</p>
+                  <div className="mt-3 grid gap-3">
+                    <label className="grid gap-2 text-sm text-rose-950">
+                      <span className="font-medium">Reason</span>
+                      <input
+                        value={disputeDraft?.reason ?? ""}
+                        onChange={(event) =>
+                          onDisputeChange(item.rentingId!, "reason", event.target.value)
+                        }
+                        className="h-11 rounded-xl border border-rose-200 bg-white px-3 text-slate-900 outline-none transition focus:border-rose-500"
+                        placeholder="Summarize the issue."
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-rose-950">
+                      <span className="font-medium">Details</span>
+                      <textarea
+                        value={disputeDraft?.details ?? ""}
+                        onChange={(event) =>
+                          onDisputeChange(item.rentingId!, "details", event.target.value)
+                        }
+                        rows={3}
+                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-rose-500"
+                        placeholder="Add the context support or the other party should see."
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void onCreateDispute(item.rentingId!)}
+                        disabled={isRentingActionPending("open-dispute")}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-700 px-5 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                        {isRentingActionPending("open-dispute") ? "Opening..." : "Open dispute"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {item.kind === "booking_request" &&
           ["cancelled", "refunded"].includes(item.sourceStatus) ? (
@@ -405,6 +651,13 @@ export function BookingsDashboard() {
     Record<string, BookingCancellationQuoteResult | undefined>
   >({});
   const [reasonByBookingId, setReasonByBookingId] = useState<Record<string, string>>({});
+  const [instructionDraftByRentingId, setInstructionDraftByRentingId] = useState<
+    Record<string, { pickupInstructions: string; returnInstructions: string } | undefined>
+  >({});
+  const [disputeDraftByRentingId, setDisputeDraftByRentingId] = useState<
+    Record<string, { reason: string; details: string } | undefined>
+  >({});
+  const [rentingMutationPendingKey, setRentingMutationPendingKey] = useState<string | null>(null);
 
   const showOwnerView = session?.user.role === "owner" || session?.user.role === "admin";
 
@@ -558,6 +811,104 @@ export function BookingsDashboard() {
     }
   }
 
+  async function runRentingMutation(
+    pendingKey: string,
+    request: () => Promise<void>,
+    successText: string,
+    fallbackErrorText: string,
+  ) {
+    setRentingMutationPendingKey(pendingKey);
+    setBanner(null);
+
+    try {
+      await request();
+      await refreshActiveDashboard();
+      setBanner({
+        tone: "success",
+        text: successText,
+      });
+    } catch (error) {
+      setBanner({
+        tone: "error",
+        text:
+          error instanceof ApiError
+            ? error.message
+            : fallbackErrorText,
+      });
+    } finally {
+      setRentingMutationPendingKey(null);
+    }
+  }
+
+  async function handleSaveInstructions(rentingId: string) {
+    const draft = instructionDraftByRentingId[rentingId];
+
+    await runRentingMutation(
+      `save-instructions:${rentingId}`,
+      async () => {
+        await bookingsApi.updateRentingInstructions(rentingId, {
+          pickupInstructions: draft?.pickupInstructions?.trim() ?? "",
+          returnInstructions: draft?.returnInstructions?.trim() ?? "",
+        });
+      },
+      "Renting instructions updated.",
+      "Renting instructions could not be updated.",
+    );
+  }
+
+  async function handleMarkCheckInReady(rentingId: string) {
+    await runRentingMutation(
+      `check-in-ready:${rentingId}`,
+      async () => {
+        await bookingsApi.markRentingCheckInReady(rentingId);
+      },
+      "Renting marked as check-in ready.",
+      "Renting could not be marked as check-in ready.",
+    );
+  }
+
+  async function handleMarkCheckInComplete(rentingId: string) {
+    await runRentingMutation(
+      `check-in-complete:${rentingId}`,
+      async () => {
+        await bookingsApi.markRentingCheckInComplete(rentingId);
+      },
+      "Renting check-in confirmed.",
+      "Renting check-in could not be confirmed.",
+    );
+  }
+
+  async function handleCompleteReturn(rentingId: string) {
+    await runRentingMutation(
+      `complete-return:${rentingId}`,
+      async () => {
+        await bookingsApi.completeRentingReturn(rentingId);
+      },
+      "Renting return confirmed.",
+      "Renting return could not be confirmed.",
+    );
+  }
+
+  async function handleCreateDispute(rentingId: string) {
+    const draft = disputeDraftByRentingId[rentingId];
+
+    await runRentingMutation(
+      `open-dispute:${rentingId}`,
+      async () => {
+        await bookingsApi.createRentingDispute(rentingId, {
+          reason: draft?.reason?.trim() ?? "",
+          details: draft?.details?.trim() || null,
+        });
+        setDisputeDraftByRentingId((current) => ({
+          ...current,
+          [rentingId]: { reason: "", details: "" },
+        }));
+      },
+      "Renting dispute opened.",
+      "Renting dispute could not be opened.",
+    );
+  }
+
   if (status === "loading" || loading) {
     return (
       <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
@@ -656,6 +1007,12 @@ export function BookingsDashboard() {
               <SummaryCard label="Total open" value={ownerDashboard?.summary.totalOpen ?? 0} />
             </section>
 
+            <section className="mt-4 grid gap-4 md:grid-cols-3">
+              <SummaryCard label="Upcoming rentals" value={ownerDashboard?.summary.upcomingRentings ?? 0} />
+              <SummaryCard label="Active rentals" value={ownerDashboard?.summary.activeRentings ?? 0} />
+              <SummaryCard label="Past rentals" value={ownerDashboard?.summary.pastRentings ?? 0} />
+            </section>
+
             <section className="mt-6 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
               <div className="grid gap-4 lg:grid-cols-4">
                 <FilterField label="Action needed">
@@ -744,8 +1101,9 @@ export function BookingsDashboard() {
           </>
         ) : (
           <>
-            <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
               <SummaryCard label="Upcoming" value={renterDashboard?.summary.upcoming ?? 0} />
+              <SummaryCard label="Active" value={renterDashboard?.summary.active ?? 0} />
               <SummaryCard label="Pending" value={renterDashboard?.summary.pending ?? 0} />
               <SummaryCard label="Action needed" value={renterDashboard?.summary.actionNeeded ?? 0} />
               <SummaryCard label="Past" value={renterDashboard?.summary.past ?? 0} />
@@ -828,7 +1186,7 @@ export function BookingsDashboard() {
                 <div>
                   <p className="font-semibold text-slate-950">No bookings match these filters</p>
                   <p className="mt-2 max-w-2xl leading-6">
-                    Try clearing a filter or switching views. This workspace will keep active booking work, upcoming rentings, and closed outcomes grouped in one place as activity lands.
+                    Try clearing a filter or switching views. This workspace keeps booking work, upcoming handoffs, active rentals, and completed outcomes grouped in one place as activity lands.
                   </p>
                 </div>
               </div>
@@ -838,10 +1196,14 @@ export function BookingsDashboard() {
               <BookingItemCard
                 key={`${item.kind}-${item.id}`}
                 item={item}
+                view={activeView}
                 quoteByBookingId={quoteByBookingId}
                 reasonByBookingId={reasonByBookingId}
+                instructionDraftByRentingId={instructionDraftByRentingId}
+                disputeDraftByRentingId={disputeDraftByRentingId}
                 quotePendingId={quotePendingId}
                 cancelPendingId={cancelPendingId}
+                rentingMutationPendingKey={rentingMutationPendingKey}
                 onReviewCancellation={handleReviewCancellation}
                 onReasonChange={(bookingRequestId, value) =>
                   setReasonByBookingId((current) => ({
@@ -850,6 +1212,35 @@ export function BookingsDashboard() {
                   }))
                 }
                 onCancelBooking={handleCancelBooking}
+                onInstructionChange={(rentingId, field, value) =>
+                  setInstructionDraftByRentingId((current) => ({
+                    ...current,
+                    [rentingId]: {
+                      pickupInstructions:
+                        field === "pickupInstructions"
+                          ? value
+                          : current[rentingId]?.pickupInstructions ?? "",
+                      returnInstructions:
+                        field === "returnInstructions"
+                          ? value
+                          : current[rentingId]?.returnInstructions ?? "",
+                    },
+                  }))
+                }
+                onSaveInstructions={handleSaveInstructions}
+                onMarkCheckInReady={handleMarkCheckInReady}
+                onMarkCheckInComplete={handleMarkCheckInComplete}
+                onCompleteReturn={handleCompleteReturn}
+                onDisputeChange={(rentingId, field, value) =>
+                  setDisputeDraftByRentingId((current) => ({
+                    ...current,
+                    [rentingId]: {
+                      reason: field === "reason" ? value : current[rentingId]?.reason ?? "",
+                      details: field === "details" ? value : current[rentingId]?.details ?? "",
+                    },
+                  }))
+                }
+                onCreateDispute={handleCreateDispute}
               />
             ))
           )}

@@ -80,6 +80,11 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
   { method: "POST", pattern: /^\/booking-requests\/[^/]+\/approve$/, requiredScope: "mcp:write" },
   { method: "POST", pattern: /^\/booking-requests\/[^/]+\/decline$/, requiredScope: "mcp:write" },
   { method: "POST", pattern: /^\/booking-requests\/[^/]+\/convert$/, requiredScope: "mcp:write" },
+  { method: "PUT", pattern: /^\/rentings\/[^/]+\/instructions$/, requiredScope: "mcp:write" },
+  { method: "POST", pattern: /^\/rentings\/[^/]+\/check-in-ready$/, requiredScope: "mcp:write" },
+  { method: "POST", pattern: /^\/rentings\/[^/]+\/check-in$/, requiredScope: "mcp:write" },
+  { method: "POST", pattern: /^\/rentings\/[^/]+\/return$/, requiredScope: "mcp:write" },
+  { method: "POST", pattern: /^\/rentings\/[^/]+\/disputes$/, requiredScope: "mcp:write" },
 ];
 
 function assertPersonalAccessTokenAccess(context: Context<AppBindings>, auth: AuthPrincipal): void {

@@ -29,6 +29,7 @@ export const bookingsSeedModule: SeedModule = {
     const bookingIds = SEED_BOOKINGS.map((fixture) => fixture.id);
     const paymentIds = SEED_BOOKINGS.map((fixture) => fixture.payment?.id).filter(isDefined);
     const rentingIds = SEED_BOOKINGS.map((fixture) => fixture.renting?.id).filter(isDefined);
+    const rentingDisputeIds = SEED_BOOKINGS.map((fixture) => fixture.renting?.dispute?.id).filter(isDefined);
     const blockIds = SEED_BOOKINGS.flatMap((fixture) =>
       [fixture.holdBlock?.id, fixture.rentingBlock?.id].filter(isDefined),
     );
@@ -46,6 +47,13 @@ export const bookingsSeedModule: SeedModule = {
       fixture.payment?.ledgerEntries.map((entry) => entry.id) ?? [],
     );
 
+    await prisma.rentingDispute.deleteMany({
+      where: {
+        id: {
+          in: rentingDisputeIds,
+        },
+      },
+    });
     await prisma.refund.deleteMany({
       where: {
         id: {
@@ -330,9 +338,43 @@ export const bookingsSeedModule: SeedModule = {
             dailyPriceAmount: fixture.dailyPriceAmount,
             estimatedTotal: fixture.estimatedTotal,
             confirmedAt: new Date(fixture.renting.confirmedAt),
+            pickupInstructions: fixture.renting.pickupInstructions ?? null,
+            returnInstructions: fixture.renting.returnInstructions ?? null,
+            checkInReadyAt: fixture.renting.checkInReadyAt
+              ? new Date(fixture.renting.checkInReadyAt)
+              : null,
+            checkInCompletedAt: fixture.renting.checkInCompletedAt
+              ? new Date(fixture.renting.checkInCompletedAt)
+              : null,
+            returnDueAt: fixture.renting.returnDueAt
+              ? new Date(fixture.renting.returnDueAt)
+              : null,
+            completedAt: fixture.renting.completedAt
+              ? new Date(fixture.renting.completedAt)
+              : null,
+            disputedAt: fixture.renting.disputedAt
+              ? new Date(fixture.renting.disputedAt)
+              : null,
+            cancelledAt: fixture.renting.cancelledAt
+              ? new Date(fixture.renting.cancelledAt)
+              : null,
             createdAt: new Date(fixture.renting.createdAt),
           },
         });
+
+        if (fixture.renting.dispute) {
+          await prisma.rentingDispute.create({
+            data: {
+              id: fixture.renting.dispute.id,
+              rentingId: fixture.renting.id,
+              openedByUserId: state.userIdsByEmail.get(fixture.renting.dispute.openedByUserEmail)
+                ?? renterId,
+              reason: fixture.renting.dispute.reason,
+              details: fixture.renting.dispute.details ?? null,
+              createdAt: new Date(fixture.renting.dispute.createdAt),
+            },
+          });
+        }
       }
     }
 
