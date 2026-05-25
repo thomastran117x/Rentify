@@ -44,7 +44,7 @@ jobs:
           if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
             base_sha="$(git rev-parse HEAD^)"
           fi
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^frontend/' | grep -E '\.(css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' || true)
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^frontend/' | grep -E '\.(css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' | sed 's#^frontend/##' || true)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No changed frontend files require formatting checks."
             exit 0
@@ -95,7 +95,7 @@ jobs:
           if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
             base_sha="$(git rev-parse HEAD^)"
           fi
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^backend/' | grep -E '\.(cjs|css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' || true)
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base_sha" "$HEAD_SHA" | grep '^backend/' | grep -E '\.(cjs|css|js|json|jsx|md|mjs|ts|tsx|ya?ml)$' | sed 's#^backend/##' || true)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No changed backend files require formatting checks."
             exit 0
