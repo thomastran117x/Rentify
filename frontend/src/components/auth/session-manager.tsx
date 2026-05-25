@@ -24,6 +24,10 @@ export function SessionManager({ session, onComplete }: SessionManagerProps) {
         if (!session && authApi.hasRefreshCookieHint()) {
           await authApi.refresh();
         }
+      } catch (error) {
+        console.error("Unable to restore session from refresh cookie hint.", {
+          cause: error instanceof Error ? error.message : "Unknown error",
+        });
       } finally {
         onComplete();
       }

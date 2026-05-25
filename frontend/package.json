@@ -8,9 +8,8 @@
     "start": "next start -p 3040",
     "format": "npx --yes prettier@3.6.2 --write .",
     "lint": "eslint .",
-    "test:postings-search": "node --experimental-transform-types --loader ./scripts/test-loader.mjs src/lib/postings/search.test.ts",
-    "test:public-postings": "node --experimental-strip-types --loader ./scripts/test-loader.mjs src/lib/postings/public.test.ts",
-    "test:search-form": "node --experimental-strip-types src/lib/postings/search-form.test.ts",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
@@ -22,15 +21,20 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@playwright/test": "^1.56.1",
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "jsdom": "^26.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
