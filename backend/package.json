@@ -11,6 +11,8 @@
     "seed": "tsx src/app/scripts/seed.ts",
     "seed:dev": "tsx src/app/scripts/seed.ts",
     "seed:refresh": "tsx src/app/scripts/seed.ts --refresh",
+    "openapi:generate": "tsx src/app/scripts/openapi.ts --write",
+    "openapi:check": "tsx src/app/scripts/openapi.ts --check",
     "dev:analytics-worker": "tsx watch src/app/workers/analytics/postings-analytics.worker.ts",
     "dev:booking-expiry-worker": "tsx watch src/app/workers/bookings/booking-expiry.worker.ts",
     "dev:email-worker": "tsx watch src/app/workers/email/email-delivery.worker.ts",

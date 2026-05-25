@@ -150,6 +150,8 @@ Notes:
 ## Documentation
 
 - Application plan: [docs/rentify-plan.md](C:/Users/thoma/Documents/Rent/docs/rentify-plan.md)
+- Backend OpenAPI YAML: [backend/openapi/openapi.yaml](C:/Users/thoma/Documents/Rent/backend/openapi/openapi.yaml)
+- Served OpenAPI YAML: `http://localhost:8040/api/v1/openapi.yaml`
 
 As the project evolves, it would be useful to add:
 

@@ -191,7 +191,9 @@ export const outputFormatMiddleware = createMiddleware<AppBindings>(
     setVaryAccept(headers);
 
     if (outputFormat === "json") {
-      headers.set("content-type", getContentType("json"));
+      if (isJsonLikeContentType(response.headers.get("content-type"))) {
+        headers.set("content-type", getContentType("json"));
+      }
 
       context.res = new Response(response.body, {
         status: response.status,
