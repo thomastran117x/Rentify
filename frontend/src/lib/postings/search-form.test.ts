@@ -1,43 +1,47 @@
-import assert from "node:assert/strict";
-const { buildSearchFormQuery, toDateTimeLocalValue, toUtcIsoDateTime } =
-  await import(new URL("./search-form.ts", import.meta.url).href);
+import { describe, expect, it } from "vitest";
+import {
+  buildSearchFormQuery,
+  toDateTimeLocalValue,
+  toUtcIsoDateTime,
+} from "./search-form";
 
-const localValue = "2026-06-15T09:30";
-const isoValue = toUtcIsoDateTime(localValue);
+describe("search form helpers", () => {
+  it("round-trips browser datetime-local values through UTC ISO strings", () => {
+    const localValue = "2026-06-15T09:30";
+    const isoValue = toUtcIsoDateTime(localValue);
 
-assert.ok(
-  isoValue,
-  "expected a UTC ISO value for a valid datetime-local input",
-);
-assert.equal(
-  toDateTimeLocalValue(isoValue),
-  localValue,
-  "expected ISO query params to rehydrate into browser-local datetime-local values",
-);
+    expect(isoValue).toBeTruthy();
+    expect(toDateTimeLocalValue(isoValue ?? undefined)).toBe(localValue);
+  });
 
-const params = buildSearchFormQuery([
-  ["q", "loft"],
-  ["page", "1"],
-  ["tags", "wifi"],
-  ["tags", "desk"],
-  ["startAt", "2026-06-15T09:30"],
-  ["endAt", "2026-06-17T18:45"],
-]);
+  it("builds query params and normalizes dates", () => {
+    const params = buildSearchFormQuery([
+      ["q", "loft"],
+      ["page", "1"],
+      ["tags", "wifi"],
+      ["tags", "desk"],
+      ["startAt", "2026-06-15T09:30"],
+      ["endAt", "2026-06-17T18:45"],
+    ]);
 
-assert.equal(params.get("q"), "loft");
-assert.deepEqual(params.getAll("tags"), ["wifi", "desk"]);
-assert.equal(params.get("page"), "1");
-assert.equal(params.get("startAt"), toUtcIsoDateTime("2026-06-15T09:30"));
-assert.equal(params.get("endAt"), toUtcIsoDateTime("2026-06-17T18:45"));
+    expect(params.get("q")).toBe("loft");
+    expect(params.getAll("tags")).toEqual(["wifi", "desk"]);
+    expect(params.get("page")).toBe("1");
+    expect(params.get("startAt")).toBe(toUtcIsoDateTime("2026-06-15T09:30"));
+    expect(params.get("endAt")).toBe(toUtcIsoDateTime("2026-06-17T18:45"));
+  });
 
-const emptyDateParams = buildSearchFormQuery([
-  ["q", "   "],
-  ["minDailyPrice", ""],
-  ["startAt", ""],
-  ["endAt", ""],
-]);
+  it("omits empty values", () => {
+    const emptyDateParams = buildSearchFormQuery([
+      ["q", "   "],
+      ["minDailyPrice", ""],
+      ["startAt", ""],
+      ["endAt", ""],
+    ]);
 
-assert.equal(emptyDateParams.get("q"), null);
-assert.equal(emptyDateParams.get("minDailyPrice"), null);
-assert.equal(emptyDateParams.get("startAt"), null);
-assert.equal(emptyDateParams.get("endAt"), null);
+    expect(emptyDateParams.get("q")).toBeNull();
+    expect(emptyDateParams.get("minDailyPrice")).toBeNull();
+    expect(emptyDateParams.get("startAt")).toBeNull();
+    expect(emptyDateParams.get("endAt")).toBeNull();
+  });
+});

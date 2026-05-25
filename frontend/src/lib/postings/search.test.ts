@@ -1,106 +1,113 @@
-import assert from "node:assert/strict";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  PublicPostingAutocompleteError,
+  fetchPublicPostingAutocomplete,
+} from "./search";
 
-const { PublicPostingAutocompleteError, fetchPublicPostingAutocomplete } =
-  await import(new URL("./search.ts", import.meta.url).href);
-
-const originalFetch = globalThis.fetch;
-
-try {
-  let lastRequestUrl = "";
-
-  globalThis.fetch = async (input) => {
-    lastRequestUrl = String(input);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "ok",
-        data: {
-          query: "tor",
-          suggestions: [
-            { value: "Downtown Toronto Loft", kind: "name" },
-            { value: "toronto", kind: "tag" },
-          ],
-          source: "elasticsearch",
-        },
-        error: null,
-      }),
-      {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-        },
-      },
-    );
-  };
-
-  const result = await fetchPublicPostingAutocomplete({
-    q: "tor",
-    family: "place",
-    subtype: "entire_place",
-    limit: 6,
+describe("fetchPublicPostingAutocomplete", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  assert.equal(result.query, "tor");
-  assert.equal(result.suggestions[0]?.value, "Downtown Toronto Loft");
+  it("builds the autocomplete request and returns suggestions", async () => {
+    let lastRequestUrl = "";
 
-  const requestUrl = new URL(lastRequestUrl);
-  assert.equal(requestUrl.pathname, "/api/v1/postings/autocomplete");
-  assert.equal(requestUrl.searchParams.get("q"), "tor");
-  assert.equal(requestUrl.searchParams.get("family"), "place");
-  assert.equal(requestUrl.searchParams.get("subtype"), "entire_place");
-  assert.equal(requestUrl.searchParams.get("limit"), "6");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        lastRequestUrl = String(input);
 
-  globalThis.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        success: false,
-        message: "Validation failed.",
-        data: null,
-        error: {
-          code: "VALIDATION_ERROR",
-        },
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              query: "tor",
+              suggestions: [
+                { value: "Downtown Toronto Loft", kind: "name" },
+                { value: "toronto", kind: "tag" },
+              ],
+              source: "elasticsearch",
+            },
+            error: null,
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        );
       }),
-      {
-        status: 400,
-        statusText: "Bad Request",
-        headers: {
-          "content-type": "application/json",
-        },
-      },
     );
 
-  await assert.rejects(
-    () =>
+    const result = await fetchPublicPostingAutocomplete({
+      q: "tor",
+      family: "place",
+      subtype: "entire_place",
+      limit: 6,
+    });
+
+    expect(result.query).toBe("tor");
+    expect(result.suggestions[0]?.value).toBe("Downtown Toronto Loft");
+
+    const requestUrl = new URL(lastRequestUrl);
+    expect(requestUrl.pathname).toBe("/api/v1/postings/autocomplete");
+    expect(requestUrl.searchParams.get("q")).toBe("tor");
+    expect(requestUrl.searchParams.get("family")).toBe("place");
+    expect(requestUrl.searchParams.get("subtype")).toBe("entire_place");
+    expect(requestUrl.searchParams.get("limit")).toBe("6");
+  });
+
+  it("throws a typed error for API validation failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Validation failed.",
+              data: null,
+              error: {
+                code: "VALIDATION_ERROR",
+              },
+            }),
+            {
+              status: 400,
+              statusText: "Bad Request",
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    await expect(
       fetchPublicPostingAutocomplete({
         q: "t",
       }),
-    (error: unknown) => {
-      if (!(error instanceof PublicPostingAutocompleteError)) {
-        return false;
-      }
+    ).rejects.toMatchObject<Partial<PublicPostingAutocompleteError>>({
+      message: "Validation failed.",
+      debug: {
+        status: 400,
+      },
+    });
+  });
 
-      const autocompleteError = error as InstanceType<
-        typeof PublicPostingAutocompleteError
-      >;
+  it("rethrows abort errors unchanged", async () => {
+    const abortError = new Error("The user aborted a request.");
+    abortError.name = "AbortError";
 
-      return (
-        autocompleteError.debug.status === 400 &&
-        autocompleteError.message === "Validation failed."
-      );
-    },
-  );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw abortError;
+      }),
+    );
 
-  const abortError = new DOMException(
-    "The user aborted a request.",
-    "AbortError",
-  );
-  globalThis.fetch = async () => {
-    throw abortError;
-  };
-
-  await assert.rejects(
-    () =>
+    await expect(
       fetchPublicPostingAutocomplete(
         {
           q: "tor",
@@ -109,8 +116,6 @@ try {
           signal: new AbortController().signal,
         },
       ),
-    (error: unknown) => error === abortError,
-  );
-} finally {
-  globalThis.fetch = originalFetch;
-}
+    ).rejects.toBe(abortError);
+  });
+});
