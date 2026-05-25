@@ -18,9 +18,11 @@ function createApp() {
     context.set("requestId", "request-123");
     context.set(
       "logger",
-      loggerFactory.forComponent("http-logging.middleware.test", "middleware").child({
-        requestId: "request-123",
-      }),
+      loggerFactory
+        .forComponent("http-logging.middleware.test", "middleware")
+        .child({
+          requestId: "request-123",
+        }),
     );
     await next();
   });
@@ -36,7 +38,10 @@ describe("httpLoggingMiddleware", () => {
   });
 
   function spyStdout() {
-    return jest.spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array, callback?: unknown) => {
+    return jest.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+      callback?: unknown,
+    ) => {
       if (typeof callback === "function") {
         callback(null);
       }
@@ -56,7 +61,9 @@ describe("httpLoggingMiddleware", () => {
     expect(response.status).toBe(200);
     expect(writeSpy).toHaveBeenCalled();
 
-    const output = writeSpy.mock.calls.map(([message]) => String(message)).join("\n");
+    const output = writeSpy.mock.calls
+      .map(([message]) => String(message))
+      .join("\n");
     expect(output).toContain("/oauth/callback?page=2&pageSize=10&format=json");
   });
 
@@ -71,7 +78,9 @@ describe("httpLoggingMiddleware", () => {
     expect(response.status).toBe(200);
     expect(writeSpy).toHaveBeenCalled();
 
-    const output = writeSpy.mock.calls.map(([message]) => String(message)).join("\n");
+    const output = writeSpy.mock.calls
+      .map(([message]) => String(message))
+      .join("\n");
     expect(output).toContain("/oauth/callback?");
     expect(output).toContain("page=2");
     expect(output).toContain("code=%5BREDACTED%5D");

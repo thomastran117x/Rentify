@@ -41,7 +41,9 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(undefined);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -56,7 +58,11 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || session.user.role === "user") {
+    if (
+      status !== "authenticated" ||
+      !session ||
+      session.user.role === "user"
+    ) {
       return;
     }
 
@@ -70,10 +76,13 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
       }
 
       try {
-        const nextDetail = await postingsAnalyticsApi.getPostingDetail(postingId, {
-          window: windowValue,
-          granularity: windowValue === "7d" ? granularity : "day",
-        });
+        const nextDetail = await postingsAnalyticsApi.getPostingDetail(
+          postingId,
+          {
+            window: windowValue,
+            granularity: windowValue === "7d" ? granularity : "day",
+          },
+        );
 
         if (!active) {
           return;
@@ -86,7 +95,11 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
         });
       } catch (nextError) {
         if (active) {
-          setError(nextError instanceof Error ? nextError.message : "Posting analytics could not be loaded.");
+          setError(
+            nextError instanceof Error
+              ? nextError.message
+              : "Posting analytics could not be loaded.",
+          );
         }
       } finally {
         if (active) {
@@ -138,13 +151,19 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
     <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
       <div className="mx-auto max-w-7xl">
         <div className="mb-4">
-          <Link href="/dashboard" className="text-sm font-medium text-slate-500 transition hover:text-slate-950">
+          <Link
+            href="/dashboard"
+            className="text-sm font-medium text-slate-500 transition hover:text-slate-950"
+          >
             ← Back to dashboard
           </Link>
         </div>
 
         {error ? (
-          <ErrorState title="Posting analytics could not be loaded" description={error} />
+          <ErrorState
+            title="Posting analytics could not be loaded"
+            description={error}
+          />
         ) : null}
 
         {!error && !detail ? (
@@ -161,7 +180,11 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                 <div className="relative min-h-56 bg-slate-100">
                   {detail.primaryPhotoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={detail.primaryPhotoUrl} alt={detail.name} className="absolute inset-0 h-full w-full object-cover" />
+                    <img
+                      src={detail.primaryPhotoUrl}
+                      alt={detail.name}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)]" />
                   )}
@@ -169,28 +192,44 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                 <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="max-w-3xl">
-                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">Posting detail</p>
-                      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">{detail.name}</h1>
-                      <p className="mt-3 text-sm text-slate-500">{formatStatus(detail.status)}</p>
+                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+                        Posting detail
+                      </p>
+                      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
+                        {detail.name}
+                      </h1>
+                      <p className="mt-3 text-sm text-slate-500">
+                        {formatStatus(detail.status)}
+                      </p>
                       <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-600">
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                          {formatCompactNumber(detail.totals.searchImpressions)} impressions
+                          {formatCompactNumber(detail.totals.searchImpressions)}{" "}
+                          impressions
                         </span>
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                          {formatCompactNumber(detail.totals.bookingRequests)} requests
+                          {formatCompactNumber(detail.totals.bookingRequests)}{" "}
+                          requests
                         </span>
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                          {formatCompactNumber(detail.totals.confirmedBookings)} confirmed
+                          {formatCompactNumber(detail.totals.confirmedBookings)}{" "}
+                          confirmed
                         </span>
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                          {formatMoney(detail.totals.estimatedConfirmedRevenue)} revenue
+                          {formatMoney(detail.totals.estimatedConfirmedRevenue)}{" "}
+                          revenue
                         </span>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <WindowSwitcher value={windowValue} onChange={setWindowValue} />
-                      <FreshnessBadge lastUpdatedAt={lastUpdatedAt} refreshing={refreshing} />
+                      <WindowSwitcher
+                        value={windowValue}
+                        onChange={setWindowValue}
+                      />
+                      <FreshnessBadge
+                        lastUpdatedAt={lastUpdatedAt}
+                        refreshing={refreshing}
+                      />
                     </div>
                   </div>
                 </div>
@@ -215,32 +254,81 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                 <TrendChart buckets={detail.buckets} metricKey={metricKey} />
               </AnalyticsCard>
 
-              <AnalyticsCard title="Posting diagnostics" subtitle="These reads turn raw activity into next-step hints.">
+              <AnalyticsCard
+                title="Posting diagnostics"
+                subtitle="These reads turn raw activity into next-step hints."
+              >
                 <DiagnosticsList items={diagnostics} />
               </AnalyticsCard>
             </section>
 
             <section className="mt-6 grid gap-6 lg:grid-cols-3">
-              <AnalyticsCard title="Traffic and conversion" subtitle="Core metrics for discovery and demand.">
+              <AnalyticsCard
+                title="Traffic and conversion"
+                subtitle="Core metrics for discovery and demand."
+              >
                 <div className="grid gap-3">
-                  <MetricRow label="CTR" value={formatPercent(detail.derivedMetrics.ctr)} />
-                  <MetricRow label="View to request" value={formatPercent(detail.derivedMetrics.viewToRequestRate)} />
-                  <MetricRow label="Request to approval" value={formatPercent(detail.derivedMetrics.requestToApprovalRate)} />
-                  <MetricRow label="Request to confirmed" value={formatPercent(detail.derivedMetrics.requestToConfirmedRate)} />
+                  <MetricRow
+                    label="CTR"
+                    value={formatPercent(detail.derivedMetrics.ctr)}
+                  />
+                  <MetricRow
+                    label="View to request"
+                    value={formatPercent(
+                      detail.derivedMetrics.viewToRequestRate,
+                    )}
+                  />
+                  <MetricRow
+                    label="Request to approval"
+                    value={formatPercent(
+                      detail.derivedMetrics.requestToApprovalRate,
+                    )}
+                  />
+                  <MetricRow
+                    label="Request to confirmed"
+                    value={formatPercent(
+                      detail.derivedMetrics.requestToConfirmedRate,
+                    )}
+                  />
                 </div>
               </AnalyticsCard>
 
-              <AnalyticsCard title="Revenue and utilization" subtitle="Operational context beyond raw bookings.">
+              <AnalyticsCard
+                title="Revenue and utilization"
+                subtitle="Operational context beyond raw bookings."
+              >
                 <div className="grid gap-3">
-                  <MetricRow label="Confirmed revenue" value={formatMoney(detail.totals.estimatedConfirmedRevenue)} />
-                  <MetricRow label="Refunded revenue" value={formatMoney(detail.totals.refundedRevenue)} />
-                  <MetricRow label="Avg revenue / confirmed booking" value={formatMoney(detail.derivedMetrics.averageRevenuePerConfirmedBooking)} />
-                  <MetricRow label="Utilization" value={formatPercent(detail.derivedMetrics.utilizationRate)} />
-                  <MetricRow label="Booked days" value={formatCompactNumber(detail.totals.confirmedBookedDays)} />
+                  <MetricRow
+                    label="Confirmed revenue"
+                    value={formatMoney(detail.totals.estimatedConfirmedRevenue)}
+                  />
+                  <MetricRow
+                    label="Refunded revenue"
+                    value={formatMoney(detail.totals.refundedRevenue)}
+                  />
+                  <MetricRow
+                    label="Avg revenue / confirmed booking"
+                    value={formatMoney(
+                      detail.derivedMetrics.averageRevenuePerConfirmedBooking,
+                    )}
+                  />
+                  <MetricRow
+                    label="Utilization"
+                    value={formatPercent(detail.derivedMetrics.utilizationRate)}
+                  />
+                  <MetricRow
+                    label="Booked days"
+                    value={formatCompactNumber(
+                      detail.totals.confirmedBookedDays,
+                    )}
+                  />
                 </div>
               </AnalyticsCard>
 
-              <AnalyticsCard title="Request outcomes" subtitle="Where approved demand is falling away after inquiry.">
+              <AnalyticsCard
+                title="Request outcomes"
+                subtitle="Where approved demand is falling away after inquiry."
+              >
                 <OutcomeBars metrics={detail.totals} />
               </AnalyticsCard>
             </section>

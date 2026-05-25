@@ -25,7 +25,10 @@ import {
   PAYMENT_PROVIDER,
   PAYMENT_PROCESSING_TIMEOUT_MINUTES,
 } from "@/features/payments/payments.model";
-import { calculatePlatformFeeAmount, createExponentialBackoffDate } from "@/features/payments/payments.utils";
+import {
+  calculatePlatformFeeAmount,
+  createExponentialBackoffDate,
+} from "@/features/payments/payments.utils";
 
 type PaymentPersistence = Prisma.PaymentGetPayload<{
   include: {
@@ -95,23 +98,33 @@ export class PaymentsRepository extends BaseRepository {
         });
 
         if (!booking) {
-          throw new ResourceNotFoundError("Booking request could not be found.");
+          throw new ResourceNotFoundError(
+            "Booking request could not be found.",
+          );
         }
 
         if (booking.renterId !== input.renterId) {
-          throw new ForbiddenError("You do not have access to this booking request.");
+          throw new ForbiddenError(
+            "You do not have access to this booking request.",
+          );
         }
 
         if (booking.renting || booking.convertedAt) {
-          throw new BadRequestError("This booking request has already been finalized.");
+          throw new BadRequestError(
+            "This booking request has already been finalized.",
+          );
         }
 
         if (!["awaiting_payment", "payment_failed"].includes(booking.status)) {
-          throw new BadRequestError("This booking request is not ready for payment.");
+          throw new BadRequestError(
+            "This booking request is not ready for payment.",
+          );
         }
 
         if (booking.holdExpiresAt.getTime() <= Date.now()) {
-          throw new BadRequestError("This booking request has already expired.");
+          throw new BadRequestError(
+            "This booking request has already expired.",
+          );
         }
 
         if (booking.payment) {
@@ -130,9 +143,16 @@ export class PaymentsRepository extends BaseRepository {
           }
         }
 
-        const rentalSubtotal = Math.round(Number(booking.estimatedTotal) * (depositBps / 10_000) * 100) / 100;
-        const platformFeeAmount = calculatePlatformFeeAmount(rentalSubtotal, platformFeeBps);
-        const totalAmount = Math.round((rentalSubtotal + platformFeeAmount) * 100) / 100;
+        const rentalSubtotal =
+          Math.round(
+            Number(booking.estimatedTotal) * (depositBps / 10_000) * 100,
+          ) / 100;
+        const platformFeeAmount = calculatePlatformFeeAmount(
+          rentalSubtotal,
+          platformFeeBps,
+        );
+        const totalAmount =
+          Math.round((rentalSubtotal + platformFeeAmount) * 100) / 100;
 
         const payment =
           booking.payment ??
@@ -256,10 +276,12 @@ export class PaymentsRepository extends BaseRepository {
 
         await transaction.bookingRequest.update({
           where: {
-            id: (await transaction.payment.findUniqueOrThrow({
-              where: { id: paymentId },
-              select: { bookingRequestId: true },
-            })).bookingRequestId,
+            id: (
+              await transaction.payment.findUniqueOrThrow({
+                where: { id: paymentId },
+                select: { bookingRequestId: true },
+              })
+            ).bookingRequestId,
           },
           data: {
             status: "payment_processing",
@@ -298,15 +320,22 @@ export class PaymentsRepository extends BaseRepository {
   ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
-        const existingAttempt = await transaction.paymentAttempt.findUniqueOrThrow({
-          where: {
-            id: attemptId,
-          },
-        });
+        const existingAttempt =
+          await transaction.paymentAttempt.findUniqueOrThrow({
+            where: {
+              id: attemptId,
+            },
+          });
 
-        const retryable = errorInfo.retryable && existingAttempt.retryCount + 1 < MAX_RETRY_ATTEMPTS;
+        const retryable =
+          errorInfo.retryable &&
+          existingAttempt.retryCount + 1 < MAX_RETRY_ATTEMPTS;
         const nextRetryAt = retryable
-          ? createExponentialBackoffDate(existingAttempt.retryCount + 1, 2_000, 5 * 60 * 1000)
+          ? createExponentialBackoffDate(
+              existingAttempt.retryCount + 1,
+              2_000,
+              5 * 60 * 1000,
+            )
           : null;
 
         await transaction.paymentAttempt.update({
@@ -419,6 +448,34 @@ export class PaymentsRepository extends BaseRepository {
     return payment;
   }
 
+  async findByBookingRequestId(
+    bookingRequestId: string,
+  ): Promise<PaymentRecord | null> {
+    const payment = await this.executeAsync(() =>
+      this.prisma.payment.findUnique({
+        where: {
+          bookingRequestId,
+        },
+        include: {
+          bookingRequest: true,
+          attempts: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          refunds: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          payout: true,
+        },
+      }),
+    );
+
+    return payment ? this.mapPayment(payment) : null;
+  }
+
   async createRefundRecord(input: CreateRefundInput): Promise<{
     refundId: string;
     paymentId: string;
@@ -441,7 +498,9 @@ export class PaymentsRepository extends BaseRepository {
         }
 
         if (!payment.squarePaymentId) {
-          throw new BadRequestError("This payment is not linked to a Square payment yet.");
+          throw new BadRequestError(
+            "This payment is not linked to a Square payment yet.",
+          );
         }
 
         const existing = payment.refunds.find(
@@ -457,8 +516,18 @@ export class PaymentsRepository extends BaseRepository {
           };
         }
 
-        if (input.amount > Number(payment.totalAmount)) {
-          throw new BadRequestError("Refund amount cannot exceed the original payment total.");
+        const succeededTotal = payment.refunds
+          .filter((refund) => refund.status === "succeeded")
+          .reduce((sum, refund) => sum + Number(refund.amount), 0);
+        const remainingRefundableAmount = Math.max(
+          0,
+          Number(payment.totalAmount) - succeededTotal,
+        );
+
+        if (input.amount > remainingRefundableAmount) {
+          throw new BadRequestError(
+            "Refund amount cannot exceed the remaining refundable total.",
+          );
         }
 
         const refund = await transaction.refund.create({
@@ -483,7 +552,13 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async completeRefund(refundId: string, result: ProviderRefundResult): Promise<PaymentRecord> {
+  async completeRefund(
+    refundId: string,
+    result: ProviderRefundResult,
+    options?: {
+      preserveBookingStatus?: boolean;
+    },
+  ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const refund = await transaction.refund.findUniqueOrThrow({
@@ -497,7 +572,12 @@ export class PaymentsRepository extends BaseRepository {
             id: refundId,
           },
           data: {
-            status: result.status === "COMPLETED" ? "succeeded" : result.status === "FAILED" ? "failed" : "pending",
+            status:
+              result.status === "COMPLETED"
+                ? "succeeded"
+                : result.status === "FAILED"
+                  ? "failed"
+                  : "pending",
             squareRefundId: result.providerRefundId ?? null,
             completedAt: result.status === "COMPLETED" ? new Date() : null,
           },
@@ -533,7 +613,11 @@ export class PaymentsRepository extends BaseRepository {
           .reduce((sum, item) => sum + Number(item.amount), 0);
         const paymentTotal = Number(paymentRow.totalAmount);
         const nextPaymentStatus =
-          succeededTotal >= paymentTotal ? "refunded" : succeededTotal > 0 ? "partially_refunded" : paymentRow.status;
+          succeededTotal >= paymentTotal
+            ? "refunded"
+            : succeededTotal > 0
+              ? "partially_refunded"
+              : paymentRow.status;
 
         await transaction.payment.update({
           where: {
@@ -544,21 +628,39 @@ export class PaymentsRepository extends BaseRepository {
           },
         });
 
+        const shouldPreserveBookingStatus =
+          options?.preserveBookingStatus === true;
         await transaction.bookingRequest.update({
           where: {
             id: paymentRow.bookingRequestId,
           },
-          data:
-            succeededTotal >= paymentTotal
+          data: shouldPreserveBookingStatus
+            ? succeededTotal > 0
               ? {
-                  status: "refunded",
                   refundedAt: new Date(),
-                  holdBlockId: null,
                 }
-              : {},
+              : {}
+            : paymentRow.bookingRequest.status === "cancelled"
+              ? succeededTotal > 0
+                ? {
+                    refundedAt: new Date(),
+                    holdBlockId: null,
+                  }
+                : {}
+              : succeededTotal >= paymentTotal
+                ? {
+                    status: "refunded",
+                    refundedAt: new Date(),
+                    holdBlockId: null,
+                  }
+                : {},
         });
 
-        if (succeededTotal >= paymentTotal && paymentRow.bookingRequest.holdBlockId) {
+        if (
+          !shouldPreserveBookingStatus &&
+          succeededTotal >= paymentTotal &&
+          paymentRow.bookingRequest.holdBlockId
+        ) {
           await transaction.postingAvailabilityBlock.deleteMany({
             where: {
               id: paymentRow.bookingRequest.holdBlockId,
@@ -667,8 +769,12 @@ export class PaymentsRepository extends BaseRepository {
       this.prisma.payment.findFirst({
         where: {
           OR: [
-            ...(input.squarePaymentId ? [{ squarePaymentId: input.squarePaymentId }] : []),
-            ...(input.squareOrderId ? [{ squareOrderId: input.squareOrderId }] : []),
+            ...(input.squarePaymentId
+              ? [{ squarePaymentId: input.squarePaymentId }]
+              : []),
+            ...(input.squareOrderId
+              ? [{ squareOrderId: input.squareOrderId }]
+              : []),
           ],
         },
         include: {
@@ -707,8 +813,12 @@ export class PaymentsRepository extends BaseRepository {
         const payment = await transaction.payment.findFirst({
           where: {
             OR: [
-              ...(input.providerPaymentId ? [{ squarePaymentId: input.providerPaymentId }] : []),
-              ...(input.providerOrderId ? [{ squareOrderId: input.providerOrderId }] : []),
+              ...(input.providerPaymentId
+                ? [{ squarePaymentId: input.providerPaymentId }]
+                : []),
+              ...(input.providerOrderId
+                ? [{ squareOrderId: input.providerOrderId }]
+                : []),
             ],
           },
           include: {
@@ -757,7 +867,8 @@ export class PaymentsRepository extends BaseRepository {
             },
             data: {
               status: "succeeded",
-              squarePaymentId: input.providerPaymentId ?? payment.squarePaymentId,
+              squarePaymentId:
+                input.providerPaymentId ?? payment.squarePaymentId,
               responsePayload: input.raw as Prisma.InputJsonValue,
               failureCategory: null,
               failureCode: null,
@@ -780,7 +891,9 @@ export class PaymentsRepository extends BaseRepository {
           },
         });
 
-        const bookingAlreadyConverted = Boolean(booking.renting || booking.convertedAt);
+        const bookingAlreadyConverted = Boolean(
+          booking.renting || booking.convertedAt,
+        );
         let reconciliationRequired = false;
         let holdBlockId = booking.holdBlockId;
 
@@ -830,19 +943,23 @@ export class PaymentsRepository extends BaseRepository {
             }),
           ]);
 
-          reconciliationRequired = Boolean(availabilityConflict || rentingConflict);
+          reconciliationRequired = Boolean(
+            availabilityConflict || rentingConflict,
+          );
 
           if (!reconciliationRequired) {
-            const holdBlock = await transaction.postingAvailabilityBlock.create({
-              data: {
-                id: randomUUID(),
-                postingId: booking.postingId,
-                startAt: booking.startAt,
-                endAt: booking.endAt,
-                note: `Booking paid reservation: ${booking.id}`,
-                source: "booking_hold",
+            const holdBlock = await transaction.postingAvailabilityBlock.create(
+              {
+                data: {
+                  id: randomUUID(),
+                  postingId: booking.postingId,
+                  startAt: booking.startAt,
+                  endAt: booking.endAt,
+                  note: `Booking paid reservation: ${booking.id}`,
+                  source: "booking_hold",
+                },
               },
-            });
+            );
             holdBlockId = holdBlock.id;
           }
         }
@@ -933,7 +1050,10 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async markPaymentFailed(input: ProviderPaymentStatus, category: PaymentFailureCategory): Promise<PaymentRecord | null> {
+  async markPaymentFailed(
+    input: ProviderPaymentStatus,
+    category: PaymentFailureCategory,
+  ): Promise<PaymentRecord | null> {
     if (!input.providerPaymentId && !input.providerOrderId) {
       return null;
     }
@@ -943,8 +1063,12 @@ export class PaymentsRepository extends BaseRepository {
         const paymentRow = await transaction.payment.findFirst({
           where: {
             OR: [
-              ...(input.providerPaymentId ? [{ squarePaymentId: input.providerPaymentId }] : []),
-              ...(input.providerOrderId ? [{ squareOrderId: input.providerOrderId }] : []),
+              ...(input.providerPaymentId
+                ? [{ squarePaymentId: input.providerPaymentId }]
+                : []),
+              ...(input.providerOrderId
+                ? [{ squareOrderId: input.providerOrderId }]
+                : []),
             ],
           },
           include: {
@@ -990,7 +1114,11 @@ export class PaymentsRepository extends BaseRepository {
               failureMessage: input.failureMessage ?? null,
               responsePayload: input.raw as Prisma.InputJsonValue,
               nextRetryAt: retryable
-                ? createExponentialBackoffDate(paymentRow.attempts[0].retryCount + 1, 2_000, 5 * 60 * 1000)
+                ? createExponentialBackoffDate(
+                    paymentRow.attempts[0].retryCount + 1,
+                    2_000,
+                    5 * 60 * 1000,
+                  )
                 : null,
             },
           });
@@ -1265,7 +1393,9 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async listPayoutsForOwner(input: ListPayoutsInput): Promise<PayoutListResult> {
+  async listPayoutsForOwner(
+    input: ListPayoutsInput,
+  ): Promise<PayoutListResult> {
     const where: Prisma.PayoutWhereInput = {
       ownerId: input.ownerId,
       ...(input.status ? { status: input.status } : {}),
@@ -1319,7 +1449,8 @@ export class PaymentsRepository extends BaseRepository {
         startAt: payment.bookingRequest.startAt.toISOString(),
         endAt: payment.bookingRequest.endAt.toISOString(),
         holdExpiresAt: payment.bookingRequest.holdExpiresAt.toISOString(),
-        paymentReconciliationRequired: payment.bookingRequest.paymentReconciliationRequired,
+        paymentReconciliationRequired:
+          payment.bookingRequest.paymentReconciliationRequired,
       },
       attempts: payment.attempts.map((attempt) => ({
         id: attempt.id,

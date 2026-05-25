@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-const { buildSearchFormQuery, toDateTimeLocalValue, toUtcIsoDateTime } = await import(
-  new URL("./search-form.ts", import.meta.url).href
-);
+const { buildSearchFormQuery, toDateTimeLocalValue, toUtcIsoDateTime } =
+  await import(new URL("./search-form.ts", import.meta.url).href);
 
 const localValue = "2026-06-15T09:30";
 const isoValue = toUtcIsoDateTime(localValue);
 
-assert.ok(isoValue, "expected a UTC ISO value for a valid datetime-local input");
+assert.ok(
+  isoValue,
+  "expected a UTC ISO value for a valid datetime-local input",
+);
 assert.equal(
   toDateTimeLocalValue(isoValue),
   localValue,

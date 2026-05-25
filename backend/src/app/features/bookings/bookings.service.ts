@@ -3,23 +3,41 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
+  BookingDashboardItem,
+  BookingDashboardSort,
+  BookingCancellationActor,
+  BookingCancellationFailureReason,
+  BookingCancellationQuoteResult,
+  BookingCancellationRefundType,
   BookingQuoteFailureReason,
   BookingQuoteInput,
   BookingQuoteResult,
   BookingRequestRecord,
   BookingRequestsListResult,
+  CancelBookingRequestInput,
   CreateBookingRequestInput,
   DecideBookingRequestInput,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardActionNeeded,
+  OwnerBookingDashboardInput,
+  OwnerBookingDashboardResult,
+  RenterBookingDashboardBucket,
+  RenterBookingDashboardInput,
+  RenterBookingDashboardResult,
   UpdateBookingRequestInput,
 } from "@/features/bookings/bookings.model";
 import {
   APPROVED_BOOKING_HOLD_HOURS,
   BOOKING_DEFAULTS,
+  BOOKING_CANCELLATION_POLICY_CODE,
+  FULL_REFUND_CUTOFF_HOURS,
   MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING,
+  MAX_BOOKING_CANCELLATION_REASON_LENGTH,
   MAX_BOOKING_GUEST_COUNT,
   MAX_BOOKING_NOTE_LENGTH,
+  PARTIAL_REFUND_CUTOFF_HOURS,
   PENDING_BOOKING_HOLD_HOURS,
 } from "@/features/bookings/bookings.model";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
@@ -30,9 +48,13 @@ import { invalidatePublicPostingProjection } from "@/features/postings/postings.
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
+import type { PaymentsRepository } from "@/features/payments/payments.repository";
+import type { RentingRecord } from "@/features/rentings/rentings.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
 interface NormalizedBookingRequestInput {
   startAt: Date;
@@ -42,7 +64,8 @@ interface NormalizedBookingRequestInput {
   note: string | null;
 }
 
-interface NormalizedCreateBookingRequestInput extends NormalizedBookingRequestInput {
+interface NormalizedCreateBookingRequestInput
+  extends NormalizedBookingRequestInput {
   contactName: string;
   contactEmail: string;
   contactPhoneNumber: string | null;
@@ -55,6 +78,15 @@ interface BookingRequestValidationResult {
   failureReasons: BookingQuoteFailureReason[];
 }
 
+interface BookingCancellationAssessment {
+  actor: BookingCancellationActor;
+  reasonRequired: boolean;
+  refundType: BookingCancellationRefundType;
+  refundAmount: number;
+  currency: string;
+  failureReasons: BookingCancellationFailureReason[];
+}
+
 export class BookingsService {
   constructor(
     private readonly bookingsRepository: BookingsRepository,
@@ -63,9 +95,13 @@ export class BookingsService {
     private readonly rentingsRepository: RentingsRepository,
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
+    private readonly paymentsRepository: PaymentsRepository,
+    private readonly paymentProvider: PaymentProviderAdapter,
   ) {}
 
-  async create(input: CreateBookingRequestInput): Promise<BookingRequestRecord> {
+  async create(
+    input: CreateBookingRequestInput,
+  ): Promise<BookingRequestRecord> {
     const validation = await this.validateBookingRequest(input);
     this.assertBookingRequestValidationPassed(validation);
 
@@ -82,27 +118,32 @@ export class BookingsService {
         this.assertBookingRequestValidationPassed(lockedValidation);
 
         const { posting: lockedPosting, normalized } = lockedValidation;
-        const bookingRequest = await this.bookingsRepository.createIfWithinActiveRequestLimit(
-          {
-            postingId: lockedPosting.id,
-            renterId: input.renterId,
-            ownerId: lockedPosting.ownerId,
-            startAt: normalized.startAt,
-            endAt: normalized.endAt,
-            durationDays: normalized.durationDays,
-            guestCount: normalized.guestCount,
-            contactName: input.contactName.trim(),
-            contactEmail: input.contactEmail.trim().toLowerCase(),
-            contactPhoneNumber: input.contactPhoneNumber?.trim() || null,
-            note: normalized.note,
-            pricingCurrency: lockedPosting.pricing.currency,
-            pricingSnapshot: lockedPosting.pricing,
-            dailyPriceAmount: lockedPosting.pricing.daily.amount,
-            estimatedTotal: lockedPosting.pricing.daily.amount * normalized.durationDays,
-            holdExpiresAt: this.addHours(new Date(), PENDING_BOOKING_HOLD_HOURS),
-          },
-          MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING,
-        );
+        const bookingRequest =
+          await this.bookingsRepository.createIfWithinActiveRequestLimit(
+            {
+              postingId: lockedPosting.id,
+              renterId: input.renterId,
+              ownerId: lockedPosting.ownerId,
+              startAt: normalized.startAt,
+              endAt: normalized.endAt,
+              durationDays: normalized.durationDays,
+              guestCount: normalized.guestCount,
+              contactName: input.contactName.trim(),
+              contactEmail: input.contactEmail.trim().toLowerCase(),
+              contactPhoneNumber: input.contactPhoneNumber?.trim() || null,
+              note: normalized.note,
+              pricingCurrency: lockedPosting.pricing.currency,
+              pricingSnapshot: lockedPosting.pricing,
+              dailyPriceAmount: lockedPosting.pricing.daily.amount,
+              estimatedTotal:
+                lockedPosting.pricing.daily.amount * normalized.durationDays,
+              holdExpiresAt: this.addHours(
+                new Date(),
+                PENDING_BOOKING_HOLD_HOURS,
+              ),
+            },
+            MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING,
+          );
 
         if (!bookingRequest) {
           throw new ConflictError(
@@ -121,7 +162,10 @@ export class BookingsService {
       occurredAt: created.createdAt,
       estimatedTotal: created.estimatedTotal,
     });
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, created.postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      created.postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(created.postingId);
 
     return created;
@@ -146,8 +190,199 @@ export class BookingsService {
     };
   }
 
-  async listMine(input: ListRenterBookingRequestsInput): Promise<BookingRequestsListResult> {
+  async listMine(
+    input: ListRenterBookingRequestsInput,
+  ): Promise<BookingRequestsListResult> {
     return this.bookingsRepository.listByRenter(input);
+  }
+
+  async listOwned(
+    input: ListOwnedBookingRequestsInput,
+  ): Promise<BookingRequestsListResult> {
+    return this.bookingsRepository.listByOwner(input);
+  }
+
+  async dashboardMine(
+    input: RenterBookingDashboardInput,
+  ): Promise<RenterBookingDashboardResult> {
+    const [bookingRequests, rentings] = await Promise.all([
+      this.bookingsRepository.listDashboardByRenter({
+        renterId: input.renterId,
+        status: input.status,
+      }),
+      input.status
+        ? Promise.resolve([])
+        : this.rentingsRepository.listByRenterForDashboard(input.renterId),
+    ]);
+
+    const items = [
+      ...bookingRequests
+        .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
+        .map((bookingRequest) =>
+          this.toRenterDashboardBookingItem(bookingRequest),
+        ),
+      ...rentings.map((renting) => this.toRenterDashboardRentingItem(renting)),
+    ];
+
+    const summary = items.reduce(
+      (counts, item) => {
+        const bucket = this.resolveRenterBucket(item);
+
+        if (bucket === "action_needed") {
+          counts.actionNeeded += 1;
+        } else if (bucket === "upcoming") {
+          counts.upcoming += 1;
+        } else if (bucket === "active") {
+          counts.active += 1;
+        } else if (bucket === "pending") {
+          counts.pending += 1;
+        } else if (bucket === "past") {
+          counts.past += 1;
+        } else if (bucket === "cancelled") {
+          counts.cancelled += 1;
+        }
+
+        return counts;
+      },
+      {
+        upcoming: 0,
+        active: 0,
+        pending: 0,
+        actionNeeded: 0,
+        past: 0,
+        cancelled: 0,
+      },
+    );
+
+    const filteredItems = items.filter((item) =>
+      input.bucket ? this.resolveRenterBucket(item) === input.bucket : true,
+    );
+    const sortedItems = this.sortDashboardItems(filteredItems, input.sort);
+    const { items: pagedItems, pagination } = this.paginateDashboardItems(
+      sortedItems,
+      input.page,
+      input.pageSize,
+    );
+
+    return {
+      summary,
+      items: pagedItems,
+      pagination,
+      filters: {
+        page: input.page,
+        pageSize: input.pageSize,
+        sort: input.sort,
+        bucket: input.bucket,
+        status: input.status,
+      },
+    };
+  }
+
+  async dashboardOwned(
+    input: OwnerBookingDashboardInput,
+  ): Promise<OwnerBookingDashboardResult> {
+    const [bookingRequests, postings] = await Promise.all([
+      this.bookingsRepository.listDashboardByOwner({
+        ownerId: input.ownerId,
+        status: input.status,
+        postingId: input.postingId,
+      }),
+      this.bookingsRepository.listDashboardPostingOptionsByOwner(input.ownerId),
+    ]);
+
+    const rentings = input.status
+      ? []
+      : await this.rentingsRepository.listByOwnerForDashboard({
+          ownerId: input.ownerId,
+          postingId: input.postingId,
+        });
+
+    const items = [
+      ...bookingRequests
+        .filter((bookingRequest) => !this.isConvertedBooking(bookingRequest))
+        .map((bookingRequest) => this.toOwnerDashboardItem(bookingRequest)),
+      ...rentings.map((renting) => this.toOwnerDashboardRentingItem(renting)),
+    ];
+
+    const summary = items.reduce(
+      (counts, item) => {
+        if (!this.isOwnerDashboardOpenItem(item)) {
+          const rentingPhase = this.resolveRentingPhase(item);
+
+          if (rentingPhase === "upcoming") {
+            counts.upcomingRentings += 1;
+          } else if (rentingPhase === "active") {
+            counts.activeRentings += 1;
+          } else if (rentingPhase === "past") {
+            counts.pastRentings += 1;
+          }
+
+          return counts;
+        }
+
+        counts.totalOpen += 1;
+
+        if (item.actionNeededCategory === "approval") {
+          counts.approval += 1;
+        }
+
+        if (item.actionNeededCategory === "payment") {
+          counts.payment += 1;
+        }
+
+        if (item.actionNeededCategory === "payment_failure") {
+          counts.paymentFailure += 1;
+        }
+
+        if (item.actionNeededCategory === "conversion") {
+          counts.conversion += 1;
+        }
+
+        if (item.isExpiringHold) {
+          counts.expiringHold += 1;
+        }
+
+        return counts;
+      },
+      {
+        approval: 0,
+        payment: 0,
+        expiringHold: 0,
+        paymentFailure: 0,
+        conversion: 0,
+        upcomingRentings: 0,
+        activeRentings: 0,
+        pastRentings: 0,
+        totalOpen: 0,
+      },
+    );
+
+    const filteredItems = items.filter((item) =>
+      input.actionNeeded
+        ? this.matchesOwnerActionNeeded(item, input.actionNeeded)
+        : true,
+    );
+    const sortedItems = this.sortDashboardItems(filteredItems, input.sort);
+    const { items: pagedItems, pagination } = this.paginateDashboardItems(
+      sortedItems,
+      input.page,
+      input.pageSize,
+    );
+
+    return {
+      summary,
+      items: pagedItems,
+      postings,
+      pagination,
+      filters: {
+        page: input.page,
+        pageSize: input.pageSize,
+        sort: input.sort,
+        status: input.status,
+        actionNeeded: input.actionNeeded,
+        postingId: input.postingId,
+      },
+    };
   }
 
   async getById(id: string, userId: string): Promise<BookingRequestRecord> {
@@ -157,26 +392,39 @@ export class BookingsService {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
-    if (bookingRequest.ownerId !== userId && bookingRequest.renterId !== userId) {
-      throw new ForbiddenError("You do not have access to this booking request.");
+    if (
+      bookingRequest.ownerId !== userId &&
+      bookingRequest.renterId !== userId
+    ) {
+      throw new ForbiddenError(
+        "You do not have access to this booking request.",
+      );
     }
 
     return bookingRequest;
   }
 
-  async updateOwnPending(input: UpdateBookingRequestInput): Promise<BookingRequestRecord> {
-    const existing = await this.bookingsRepository.findById(input.bookingRequestId);
+  async updateOwnPending(
+    input: UpdateBookingRequestInput,
+  ): Promise<BookingRequestRecord> {
+    const existing = await this.bookingsRepository.findById(
+      input.bookingRequestId,
+    );
 
     if (!existing) {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
     if (existing.renterId !== input.renterId) {
-      throw new ForbiddenError("You do not have access to this booking request.");
+      throw new ForbiddenError(
+        "You do not have access to this booking request.",
+      );
     }
 
     if (existing.status !== "pending") {
-      throw new BadRequestError("Only pending booking requests can be updated.");
+      throw new BadRequestError(
+        "Only pending booking requests can be updated.",
+      );
     }
 
     if (new Date(existing.holdExpiresAt).getTime() <= Date.now()) {
@@ -190,25 +438,39 @@ export class BookingsService {
         flowLockKeys.postingBookingWindow(existing.postingId),
       ],
       async () => {
-        const lockedBookingRequest = await this.bookingsRepository.findById(input.bookingRequestId);
+        const lockedBookingRequest = await this.bookingsRepository.findById(
+          input.bookingRequestId,
+        );
 
         if (!lockedBookingRequest) {
-          throw new ResourceNotFoundError("Booking request could not be found.");
+          throw new ResourceNotFoundError(
+            "Booking request could not be found.",
+          );
         }
 
         if (lockedBookingRequest.renterId !== input.renterId) {
-          throw new ForbiddenError("You do not have access to this booking request.");
+          throw new ForbiddenError(
+            "You do not have access to this booking request.",
+          );
         }
 
         if (lockedBookingRequest.status !== "pending") {
-          throw new BadRequestError("Only pending booking requests can be updated.");
+          throw new BadRequestError(
+            "Only pending booking requests can be updated.",
+          );
         }
 
-        if (new Date(lockedBookingRequest.holdExpiresAt).getTime() <= Date.now()) {
-          throw new BadRequestError("This booking request has already expired.");
+        if (
+          new Date(lockedBookingRequest.holdExpiresAt).getTime() <= Date.now()
+        ) {
+          throw new BadRequestError(
+            "This booking request has already expired.",
+          );
         }
 
-        const posting = await this.requirePostingEditableForRenter(lockedBookingRequest.postingId);
+        const posting = await this.requirePostingEditableForRenter(
+          lockedBookingRequest.postingId,
+        );
         const normalized = this.normalizeCreateInput(
           {
             postingId: lockedBookingRequest.postingId,
@@ -230,7 +492,11 @@ export class BookingsService {
           normalized.endAt,
           lockedBookingRequest.id,
         );
-        await this.assertNoRentingOverlap(posting.id, normalized.startAt, normalized.endAt);
+        await this.assertNoRentingOverlap(
+          posting.id,
+          normalized.startAt,
+          normalized.endAt,
+        );
 
         const nextBookingRequest = await this.bookingsRepository.updatePending(
           lockedBookingRequest.id,
@@ -247,7 +513,8 @@ export class BookingsService {
             pricingCurrency: posting.pricing.currency,
             pricingSnapshot: posting.pricing,
             dailyPriceAmount: posting.pricing.daily.amount,
-            estimatedTotal: posting.pricing.daily.amount * normalized.durationDays,
+            estimatedTotal:
+              posting.pricing.daily.amount * normalized.durationDays,
           },
         );
 
@@ -262,9 +529,116 @@ export class BookingsService {
       "Another request is already modifying this booking request. Please retry.",
     );
 
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, updated.postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      updated.postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(updated.postingId);
     return updated;
+  }
+
+  async getCancellationQuote(
+    bookingRequestId: string,
+    userId: string,
+  ): Promise<BookingCancellationQuoteResult> {
+    const bookingRequest = await this.getById(bookingRequestId, userId);
+    const assessment = await this.assessCancellation(bookingRequest, userId);
+
+    return {
+      bookingRequestId: bookingRequest.id,
+      cancellable: assessment.failureReasons.length === 0,
+      actor: assessment.actor,
+      bookingStatus: bookingRequest.status,
+      reasonRequired: assessment.reasonRequired,
+      policyCode: BOOKING_CANCELLATION_POLICY_CODE,
+      refundType: assessment.refundType,
+      refundAmount: assessment.refundAmount,
+      currency: assessment.currency,
+      failureReasons: assessment.failureReasons,
+    };
+  }
+
+  async cancel(
+    input: CancelBookingRequestInput,
+  ): Promise<BookingRequestRecord> {
+    const bookingRequest = await this.getById(
+      input.bookingRequestId,
+      input.actorUserId,
+    );
+    const actor = this.resolveCancellationActor(
+      bookingRequest,
+      input.actorUserId,
+    );
+    const reason = this.normalizeCancellationReason(input.reason);
+
+    if (actor === "owner" && !reason) {
+      throw new BadRequestError("Owners must provide a cancellation reason.");
+    }
+
+    const cancelled = await withFlowLocks(
+      this.cacheService,
+      [
+        flowLockKeys.bookingRequestDecision(bookingRequest.id),
+        flowLockKeys.bookingRequestState(bookingRequest.id),
+        flowLockKeys.postingBookingWindow(bookingRequest.postingId),
+      ],
+      async () => {
+        const lockedBookingRequest = await this.getById(
+          input.bookingRequestId,
+          input.actorUserId,
+        );
+        const assessment = await this.assessCancellation(
+          lockedBookingRequest,
+          input.actorUserId,
+        );
+
+        this.throwIfCancellationNotAllowed(assessment);
+
+        if (
+          lockedBookingRequest.status === "paid" &&
+          assessment.refundAmount > 0
+        ) {
+          await this.refundCancelledPaidBooking(
+            lockedBookingRequest,
+            input.actorUserId,
+            assessment.refundAmount,
+            reason,
+            assessment.currency,
+          );
+        }
+
+        const nextBookingRequest = await this.bookingsRepository.cancel({
+          bookingRequestId: lockedBookingRequest.id,
+          actorUserId: input.actorUserId,
+          actor: assessment.actor,
+          expectedStatus: lockedBookingRequest.status,
+          reason,
+          cancellationPolicyCode: BOOKING_CANCELLATION_POLICY_CODE,
+          cancellationRefundAmount: assessment.refundAmount,
+        });
+
+        if (!nextBookingRequest) {
+          throw new ConflictError(
+            "This booking request changed before it could be cancelled.",
+          );
+        }
+
+        return nextBookingRequest;
+      },
+      "Another request is already modifying this booking request. Please retry.",
+    );
+
+    await this.postingsAnalyticsRepository.enqueueBookingCancelledEvent({
+      postingId: cancelled.postingId,
+      ownerId: cancelled.ownerId,
+      occurredAt: cancelled.cancelledAt ?? new Date().toISOString(),
+    });
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      cancelled.postingId,
+    );
+    await this.postingsRepository.enqueueSearchSync(cancelled.postingId);
+    return cancelled;
   }
 
   async listForOwnerPosting(
@@ -283,8 +657,13 @@ export class BookingsService {
     return this.bookingsRepository.listByOwnerAndPosting(input);
   }
 
-  async approve(input: DecideBookingRequestInput): Promise<BookingRequestRecord> {
-    const bookingRequest = await this.requireOwnerBookingRequest(input.bookingRequestId, input.ownerId);
+  async approve(
+    input: DecideBookingRequestInput,
+  ): Promise<BookingRequestRecord> {
+    const bookingRequest = await this.requireOwnerBookingRequest(
+      input.bookingRequestId,
+      input.ownerId,
+    );
     const approved = await withFlowLocks(
       this.cacheService,
       [
@@ -299,7 +678,9 @@ export class BookingsService {
         );
 
         this.assertCanDecide(lockedBookingRequest, "approve");
-        await this.requirePostingActionableForOwner(lockedBookingRequest.postingId);
+        await this.requirePostingActionableForOwner(
+          lockedBookingRequest.postingId,
+        );
         await this.assertNoRentingOverlap(
           lockedBookingRequest.postingId,
           new Date(lockedBookingRequest.startAt),
@@ -335,13 +716,21 @@ export class BookingsService {
       ownerId: approved.ownerId,
       occurredAt: approved.approvedAt ?? new Date().toISOString(),
     });
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, approved.postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      approved.postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(approved.postingId);
     return approved;
   }
 
-  async decline(input: DecideBookingRequestInput): Promise<BookingRequestRecord> {
-    const bookingRequest = await this.requireOwnerBookingRequest(input.bookingRequestId, input.ownerId);
+  async decline(
+    input: DecideBookingRequestInput,
+  ): Promise<BookingRequestRecord> {
+    const bookingRequest = await this.requireOwnerBookingRequest(
+      input.bookingRequestId,
+      input.ownerId,
+    );
     const declined = await withFlowLocks(
       this.cacheService,
       [
@@ -378,12 +767,680 @@ export class BookingsService {
       ownerId: declined.ownerId,
       occurredAt: declined.declinedAt ?? new Date().toISOString(),
     });
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, declined.postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      declined.postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(declined.postingId);
     return declined;
   }
 
-  private async requirePostingEditableForRenter(postingId: string): Promise<PostingRecord> {
+  private toRenterDashboardBookingItem(
+    bookingRequest: BookingRequestRecord,
+  ): BookingDashboardItem {
+    const isExpiringHold = this.isExpiringHold(
+      bookingRequest.holdExpiresAt,
+      bookingRequest.status,
+    );
+    const isPaymentAction =
+      bookingRequest.status === "approved" ||
+      bookingRequest.status === "awaiting_payment";
+    const isPaymentFailure = bookingRequest.status === "payment_failed";
+    const isPending = bookingRequest.status === "pending";
+    const isPaid = bookingRequest.status === "paid";
+    const isTerminal = this.isTerminalBookingStatus(bookingRequest.status);
+    const nextAction = isPaymentFailure
+      ? {
+          code: "retry_payment" as const,
+          label: "Retry payment before the hold expires.",
+        }
+      : isPaymentAction
+        ? {
+            code: "complete_payment" as const,
+            label: "Complete payment before the hold expires.",
+          }
+        : isPending
+          ? {
+              code: "await_owner_response" as const,
+              label: "Wait for the owner to approve or decline this request.",
+            }
+          : isPaid
+            ? {
+                code: "monitor_upcoming" as const,
+                label:
+                  "Your booking is secured. Watch for the upcoming rental window.",
+              }
+            : {
+                code: "none" as const,
+                label: "No next action is required.",
+              };
+    const deadlineAt = isTerminal ? undefined : bookingRequest.holdExpiresAt;
+
+    return {
+      id: bookingRequest.id,
+      kind: "booking_request",
+      bookingRequestId: bookingRequest.id,
+      postingId: bookingRequest.postingId,
+      renterId: bookingRequest.renterId,
+      ownerId: bookingRequest.ownerId,
+      status: bookingRequest.status,
+      sourceStatus: bookingRequest.status,
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
+      durationDays: bookingRequest.durationDays,
+      guestCount: bookingRequest.guestCount,
+      pricingCurrency: bookingRequest.pricingCurrency,
+      dailyPriceAmount: bookingRequest.dailyPriceAmount,
+      estimatedTotal: bookingRequest.estimatedTotal,
+      createdAt: bookingRequest.createdAt,
+      updatedAt: bookingRequest.updatedAt,
+      posting: bookingRequest.posting,
+      holdExpiresAt: bookingRequest.holdExpiresAt,
+      approvedAt: bookingRequest.approvedAt,
+      paymentRequiredAt: bookingRequest.paymentRequiredAt,
+      paymentFailedAt: bookingRequest.paymentFailedAt,
+      convertedAt: bookingRequest.convertedAt,
+      actionNeededCategory: isPaymentFailure
+        ? "payment_failure"
+        : isPaymentAction
+          ? "payment"
+          : undefined,
+      isExpiringHold,
+      nextAction,
+      urgency: {
+        level:
+          isPaymentFailure || isExpiringHold
+            ? "high"
+            : isPaymentAction
+              ? "medium"
+              : isPending || isPaid
+                ? "low"
+                : "none",
+        rank:
+          isPaymentFailure || isExpiringHold
+            ? 0
+            : isPaymentAction
+              ? 1
+              : isPending
+                ? 2
+                : isPaid
+                  ? 3
+                  : 5,
+        isActionable: isPaymentAction || isPaymentFailure,
+        label: isPaymentFailure
+          ? "Payment failed"
+          : isExpiringHold
+            ? "Hold expires soon"
+            : isPaymentAction
+              ? "Payment needed"
+              : isPending
+                ? "Pending"
+                : isPaid
+                  ? "Upcoming"
+                  : "No urgency",
+        deadlineAt,
+      },
+    };
+  }
+
+  private toRenterDashboardRentingItem(
+    renting: RentingRecord,
+  ): BookingDashboardItem {
+    const nextAction =
+      renting.status === "confirmed"
+        ? {
+            code: "view_renting" as const,
+            label:
+              renting.pickupInstructions && renting.returnInstructions
+                ? "Review instructions before check-in."
+                : "Watch for upcoming rental instructions.",
+          }
+        : renting.status === "check_in_ready"
+          ? {
+              code: "mark_check_in_complete" as const,
+              label: "Confirm pickup or check-in when the rental starts.",
+            }
+          : renting.status === "active"
+            ? {
+                code: "mark_return_complete" as const,
+                label: "Confirm return or check-out when the rental ends.",
+              }
+            : renting.status === "return_due"
+              ? {
+                  code: "mark_return_complete" as const,
+                  label: "Confirm return or check-out now.",
+                }
+              : renting.status === "disputed"
+                ? {
+                    code: "view_renting" as const,
+                    label: "A dispute is open for this renting.",
+                  }
+                : renting.status === "completed"
+                  ? {
+                      code: "none" as const,
+                      label: "This renting has been completed.",
+                    }
+                  : {
+                      code: "none" as const,
+                      label: "No next action is required.",
+                    };
+    const urgency =
+      renting.status === "disputed"
+        ? {
+            level: "high" as const,
+            rank: 0,
+            isActionable: true,
+            label: "Dispute open",
+          }
+        : renting.status === "return_due"
+          ? {
+              level: "high" as const,
+              rank: 1,
+              isActionable: true,
+              label: "Return due",
+            }
+          : renting.status === "active"
+            ? {
+                level: "medium" as const,
+                rank: 2,
+                isActionable: true,
+                label: "Active",
+              }
+            : renting.status === "check_in_ready"
+              ? {
+                  level: "medium" as const,
+                  rank: 3,
+                  isActionable: true,
+                  label: "Check-in ready",
+                }
+              : renting.status === "confirmed"
+                ? {
+                    level: "low" as const,
+                    rank: 4,
+                    isActionable: false,
+                    label: "Upcoming",
+                  }
+                : {
+                    level: "none" as const,
+                    rank: 5,
+                    isActionable: false,
+                    label:
+                      renting.status === "completed" ? "Completed" : "Closed",
+                  };
+
+    return {
+      id: renting.id,
+      kind: "renting",
+      rentingId: renting.id,
+      bookingRequestId: renting.bookingRequestId,
+      postingId: renting.postingId,
+      renterId: renting.renterId,
+      ownerId: renting.ownerId,
+      status: renting.status,
+      sourceStatus: renting.status,
+      startAt: renting.startAt,
+      endAt: renting.endAt,
+      durationDays: renting.durationDays,
+      guestCount: renting.guestCount,
+      pricingCurrency: renting.pricingCurrency,
+      dailyPriceAmount: renting.dailyPriceAmount,
+      estimatedTotal: renting.estimatedTotal,
+      createdAt: renting.createdAt,
+      updatedAt: renting.updatedAt,
+      confirmedAt: renting.confirmedAt,
+      pickupInstructions: renting.pickupInstructions,
+      returnInstructions: renting.returnInstructions,
+      checkInReadyAt: renting.checkInReadyAt,
+      checkInCompletedAt: renting.checkInCompletedAt,
+      returnDueAt: renting.returnDueAt,
+      completedAt: renting.completedAt,
+      disputedAt: renting.disputedAt,
+      cancelledAt: renting.cancelledAt,
+      dispute: renting.dispute,
+      posting: {
+        ...renting.posting,
+        effectiveMaxBookingDurationDays:
+          BOOKING_DEFAULTS.defaultMaxBookingDurationDays,
+      },
+      isExpiringHold: false,
+      nextAction,
+      urgency,
+    };
+  }
+
+  private toOwnerDashboardRentingItem(
+    renting: RentingRecord,
+  ): BookingDashboardItem {
+    const hasInstructions = Boolean(
+      renting.pickupInstructions && renting.returnInstructions,
+    );
+    const nextAction =
+      renting.status === "confirmed"
+        ? hasInstructions
+          ? {
+              code: "mark_check_in_ready" as const,
+              label: "Mark this renting as check-in ready.",
+            }
+          : {
+              code: "update_instructions" as const,
+              label: "Add pickup and return instructions before check-in.",
+            }
+        : renting.status === "check_in_ready"
+          ? {
+              code: "mark_check_in_complete" as const,
+              label: "Confirm pickup or check-in when handoff happens.",
+            }
+          : renting.status === "active"
+            ? {
+                code: "mark_return_complete" as const,
+                label: "Confirm return or check-out when the rental ends.",
+              }
+            : renting.status === "return_due"
+              ? {
+                  code: "mark_return_complete" as const,
+                  label: "Confirm return or check-out now.",
+                }
+              : renting.status === "disputed"
+                ? {
+                    code: "view_renting" as const,
+                    label: "A dispute is open for this renting.",
+                  }
+                : renting.status === "completed"
+                  ? {
+                      code: "none" as const,
+                      label: "This renting has been completed.",
+                    }
+                  : {
+                      code: "none" as const,
+                      label: "No next action is required.",
+                    };
+
+    return {
+      ...this.toRenterDashboardRentingItem(renting),
+      nextAction,
+    };
+  }
+
+  private toOwnerDashboardItem(
+    bookingRequest: BookingRequestRecord,
+  ): BookingDashboardItem {
+    const isExpiringHold = this.isExpiringHold(
+      bookingRequest.holdExpiresAt,
+      bookingRequest.status,
+    );
+    const actionNeededCategory =
+      this.resolveOwnerActionNeededCategory(bookingRequest);
+    const nextAction =
+      actionNeededCategory === "approval"
+        ? {
+            code: "review_request" as const,
+            label: isExpiringHold
+              ? "Approve or decline before the hold expires."
+              : "Review and decide this booking request.",
+          }
+        : actionNeededCategory === "payment"
+          ? {
+              code: "complete_payment" as const,
+              label: "Renter payment is still needed before the hold expires.",
+            }
+          : actionNeededCategory === "payment_failure"
+            ? {
+                code: "retry_payment" as const,
+                label:
+                  "Renter payment failed. Follow up before the hold expires.",
+              }
+            : actionNeededCategory === "conversion"
+              ? {
+                  code: "convert_to_renting" as const,
+                  label: "Convert this paid booking into a confirmed renting.",
+                }
+              : {
+                  code: "none" as const,
+                  label: this.isTerminalBookingStatus(bookingRequest.status)
+                    ? "No next action is required."
+                    : "Watch this booking while it moves through the flow.",
+                };
+    const isActionable = Boolean(actionNeededCategory);
+
+    return {
+      id: bookingRequest.id,
+      kind: "booking_request",
+      bookingRequestId: bookingRequest.id,
+      postingId: bookingRequest.postingId,
+      renterId: bookingRequest.renterId,
+      ownerId: bookingRequest.ownerId,
+      status: bookingRequest.status,
+      sourceStatus: bookingRequest.status,
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
+      durationDays: bookingRequest.durationDays,
+      guestCount: bookingRequest.guestCount,
+      pricingCurrency: bookingRequest.pricingCurrency,
+      dailyPriceAmount: bookingRequest.dailyPriceAmount,
+      estimatedTotal: bookingRequest.estimatedTotal,
+      createdAt: bookingRequest.createdAt,
+      updatedAt: bookingRequest.updatedAt,
+      posting: bookingRequest.posting,
+      holdExpiresAt: bookingRequest.holdExpiresAt,
+      approvedAt: bookingRequest.approvedAt,
+      paymentRequiredAt: bookingRequest.paymentRequiredAt,
+      paymentFailedAt: bookingRequest.paymentFailedAt,
+      convertedAt: bookingRequest.convertedAt,
+      actionNeededCategory,
+      isExpiringHold,
+      nextAction,
+      urgency: {
+        level:
+          isExpiringHold || actionNeededCategory === "payment_failure"
+            ? "high"
+            : isActionable
+              ? "medium"
+              : this.isTerminalBookingStatus(bookingRequest.status)
+                ? "none"
+                : "low",
+        rank:
+          isExpiringHold || actionNeededCategory === "payment_failure"
+            ? 0
+            : isActionable
+              ? 1
+              : this.isTerminalBookingStatus(bookingRequest.status)
+                ? 5
+                : 3,
+        isActionable,
+        label: isExpiringHold
+          ? "Hold expires soon"
+          : actionNeededCategory === "approval"
+            ? "Approval needed"
+            : actionNeededCategory === "payment"
+              ? "Awaiting payment"
+              : actionNeededCategory === "payment_failure"
+                ? "Payment failed"
+                : actionNeededCategory === "conversion"
+                  ? "Convert to renting"
+                  : this.isTerminalBookingStatus(bookingRequest.status)
+                    ? "Closed"
+                    : "Open",
+        deadlineAt: this.isTerminalBookingStatus(bookingRequest.status)
+          ? undefined
+          : bookingRequest.holdExpiresAt,
+      },
+    };
+  }
+
+  private resolveRenterBucket(
+    item: BookingDashboardItem,
+  ): RenterBookingDashboardBucket | null {
+    if (item.kind === "renting") {
+      const phase = this.resolveRentingPhase(item);
+      return phase === "active"
+        ? "active"
+        : phase === "past"
+          ? "past"
+          : phase === "upcoming"
+            ? "upcoming"
+            : "cancelled";
+    }
+
+    if (
+      ["approved", "awaiting_payment", "payment_failed"].includes(
+        item.sourceStatus,
+      )
+    ) {
+      return "action_needed";
+    }
+
+    if (item.sourceStatus === "pending") {
+      return "pending";
+    }
+
+    if (
+      ["declined", "expired", "cancelled", "refunded"].includes(
+        item.sourceStatus,
+      )
+    ) {
+      return "cancelled";
+    }
+
+    if (item.sourceStatus === "paid") {
+      return new Date(item.endAt).getTime() < Date.now() ? "past" : "upcoming";
+    }
+
+    return null;
+  }
+
+  private resolveRentingPhase(
+    item: BookingDashboardItem,
+  ): "upcoming" | "active" | "past" | "cancelled" | null {
+    if (item.kind !== "renting") {
+      return null;
+    }
+
+    if (["confirmed", "check_in_ready"].includes(item.sourceStatus)) {
+      return "upcoming";
+    }
+
+    if (["active", "return_due", "disputed"].includes(item.sourceStatus)) {
+      return "active";
+    }
+
+    if (item.sourceStatus === "completed") {
+      return "past";
+    }
+
+    if (item.sourceStatus === "cancelled") {
+      return "cancelled";
+    }
+
+    return null;
+  }
+
+  private resolveOwnerActionNeededCategory(
+    bookingRequest: BookingRequestRecord,
+  ): OwnerBookingDashboardActionNeeded | undefined {
+    if (bookingRequest.status === "pending") {
+      return "approval";
+    }
+
+    if (
+      bookingRequest.status === "approved" ||
+      bookingRequest.status === "awaiting_payment"
+    ) {
+      return "payment";
+    }
+
+    if (bookingRequest.status === "payment_failed") {
+      return "payment_failure";
+    }
+
+    if (
+      bookingRequest.status === "paid" &&
+      !bookingRequest.convertedAt &&
+      !bookingRequest.rentingId
+    ) {
+      return "conversion";
+    }
+
+    return undefined;
+  }
+
+  private matchesOwnerActionNeeded(
+    item: BookingDashboardItem,
+    actionNeeded: OwnerBookingDashboardActionNeeded,
+  ): boolean {
+    if (actionNeeded === "expiring_hold") {
+      return item.isExpiringHold;
+    }
+
+    return item.actionNeededCategory === actionNeeded;
+  }
+
+  private sortDashboardItems(
+    items: BookingDashboardItem[],
+    sort: BookingDashboardSort,
+  ): BookingDashboardItem[] {
+    return items.slice().sort((left, right) => {
+      if (sort === "start_at") {
+        const leftTerminal = this.isTerminalDashboardItem(left);
+        const rightTerminal = this.isTerminalDashboardItem(right);
+
+        if (leftTerminal !== rightTerminal) {
+          return leftTerminal ? 1 : -1;
+        }
+
+        return (
+          new Date(left.startAt).getTime() -
+            new Date(right.startAt).getTime() ||
+          new Date(right.createdAt).getTime() -
+            new Date(left.createdAt).getTime()
+        );
+      }
+
+      return (
+        left.urgency.rank - right.urgency.rank ||
+        this.resolveDeadlineSortValue(left) -
+          this.resolveDeadlineSortValue(right) ||
+        new Date(left.startAt).getTime() - new Date(right.startAt).getTime() ||
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+    });
+  }
+
+  private paginateDashboardItems(
+    items: BookingDashboardItem[],
+    page: number,
+    pageSize: number,
+  ) {
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+
+    return {
+      items: items.slice(start, end),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  private resolveDeadlineSortValue(item: BookingDashboardItem): number {
+    const deadlineAt = item.urgency.deadlineAt;
+    return deadlineAt
+      ? new Date(deadlineAt).getTime()
+      : Number.MAX_SAFE_INTEGER;
+  }
+
+  private isOwnerDashboardOpenItem(item: BookingDashboardItem): boolean {
+    return (
+      item.kind === "booking_request" &&
+      !this.isTerminalBookingStatus(
+        item.status as BookingRequestRecord["status"],
+      )
+    );
+  }
+
+  private isConvertedBooking(bookingRequest: BookingRequestRecord): boolean {
+    return (
+      bookingRequest.status === "paid" &&
+      Boolean(bookingRequest.convertedAt || bookingRequest.rentingId)
+    );
+  }
+
+  private isTerminalDashboardItem(item: BookingDashboardItem): boolean {
+    if (item.kind === "renting") {
+      return ["completed", "cancelled"].includes(item.status);
+    }
+
+    return (
+      item.kind === "booking_request" &&
+      this.isTerminalBookingStatus(
+        item.status as BookingRequestRecord["status"],
+      )
+    );
+  }
+
+  private isTerminalBookingStatus(
+    status: BookingRequestRecord["status"],
+  ): boolean {
+    return ["declined", "expired", "cancelled", "refunded"].includes(status);
+  }
+
+  private isExpiringHold(
+    holdExpiresAt: string,
+    status: BookingRequestRecord["status"],
+  ): boolean {
+    if (this.isTerminalBookingStatus(status)) {
+      return false;
+    }
+
+    const expiresAt = new Date(holdExpiresAt).getTime();
+    return expiresAt <= Date.now() + 24 * MILLISECONDS_PER_HOUR;
+  }
+
+  private async refundCancelledPaidBooking(
+    bookingRequest: BookingRequestRecord,
+    actorUserId: string,
+    refundAmount: number,
+    reason: string | null,
+    currency: string,
+  ): Promise<void> {
+    const payment = await this.paymentsRepository.findByBookingRequestId(
+      bookingRequest.id,
+    );
+
+    if (!payment) {
+      throw new ConflictError(
+        "This paid booking cannot be cancelled because its payment record is missing.",
+      );
+    }
+
+    try {
+      const idempotencyKey = `booking-cancel-${bookingRequest.id}`;
+      const { refundId, providerPaymentId } =
+        await this.paymentsRepository.createRefundRecord({
+          paymentId: payment.id,
+          actorUserId,
+          amount: refundAmount,
+          reason,
+          idempotencyKey,
+        });
+      const result = await this.paymentProvider.createRefund({
+        idempotencyKey,
+        providerPaymentId,
+        amount: refundAmount,
+        currency,
+        reason,
+      });
+
+      await this.paymentsRepository.completeRefund(refundId, result, {
+        preserveBookingStatus: true,
+      });
+
+      if (result.status === "FAILED") {
+        throw new ConflictError(
+          "The refund could not be completed, so the booking was not cancelled.",
+        );
+      }
+    } catch (error) {
+      if (error instanceof BadRequestError || error instanceof ConflictError) {
+        throw error;
+      }
+
+      const errorInfo = this.paymentProvider.classifyError(error);
+      throw new ConflictError(
+        `The refund could not be completed, so the booking was not cancelled. ${errorInfo.message}`,
+      );
+    }
+  }
+
+  private async requirePostingEditableForRenter(
+    postingId: string,
+  ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
     if (!posting) {
@@ -391,21 +1448,30 @@ export class BookingsService {
     }
 
     if (posting.archivedAt || posting.status !== "published") {
-      throw new BadRequestError("Pending booking requests cannot be updated for this posting.");
+      throw new BadRequestError(
+        "Pending booking requests cannot be updated for this posting.",
+      );
     }
 
     return posting;
   }
 
-  private async requirePostingActionableForOwner(postingId: string): Promise<PostingRecord> {
+  private async requirePostingActionableForOwner(
+    postingId: string,
+  ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
     if (!posting) {
       throw new ResourceNotFoundError("Posting could not be found.");
     }
 
-    if (posting.archivedAt || !["published", "paused"].includes(posting.status)) {
-      throw new BadRequestError("This posting can no longer accept booking decisions.");
+    if (
+      posting.archivedAt ||
+      !["published", "paused"].includes(posting.status)
+    ) {
+      throw new BadRequestError(
+        "This posting can no longer accept booking decisions.",
+      );
     }
 
     return posting;
@@ -425,17 +1491,240 @@ export class BookingsService {
     bookingRequestId: string,
     ownerId: string,
   ): Promise<BookingRequestRecord> {
-    const bookingRequest = await this.bookingsRepository.findById(bookingRequestId);
+    const bookingRequest =
+      await this.bookingsRepository.findById(bookingRequestId);
 
     if (!bookingRequest) {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
     if (bookingRequest.ownerId !== ownerId) {
-      throw new ForbiddenError("You do not have access to this booking request.");
+      throw new ForbiddenError(
+        "You do not have access to this booking request.",
+      );
     }
 
     return bookingRequest;
+  }
+
+  private resolveCancellationActor(
+    bookingRequest: BookingRequestRecord,
+    userId: string,
+  ): BookingCancellationActor {
+    if (bookingRequest.renterId === userId) {
+      return "renter";
+    }
+
+    if (bookingRequest.ownerId === userId) {
+      return "owner";
+    }
+
+    throw new ForbiddenError("You do not have access to this booking request.");
+  }
+
+  private normalizeCancellationReason(
+    reason: string | null | undefined,
+  ): string | null {
+    const normalized = reason?.trim() || null;
+
+    if (
+      normalized &&
+      normalized.length > MAX_BOOKING_CANCELLATION_REASON_LENGTH
+    ) {
+      throw new BadRequestError(
+        `Cancellation reason cannot exceed ${MAX_BOOKING_CANCELLATION_REASON_LENGTH} characters.`,
+      );
+    }
+
+    return normalized;
+  }
+
+  private async assessCancellation(
+    bookingRequest: BookingRequestRecord,
+    userId: string,
+  ): Promise<BookingCancellationAssessment> {
+    const actor = this.resolveCancellationActor(bookingRequest, userId);
+    const reasonRequired = actor === "owner";
+    const currency = bookingRequest.pricingCurrency;
+    const failureReasons: BookingCancellationFailureReason[] = [];
+
+    if (bookingRequest.rentingId || bookingRequest.convertedAt) {
+      failureReasons.push({
+        code: "booking_already_converted",
+        message:
+          "Converted bookings cannot be cancelled through booking requests.",
+      });
+    } else if (new Date(bookingRequest.startAt).getTime() <= Date.now()) {
+      failureReasons.push({
+        code: "already_started",
+        message:
+          "Bookings cannot be cancelled at or after the rental start time.",
+      });
+    } else if (bookingRequest.status === "payment_processing") {
+      failureReasons.push({
+        code: "payment_processing_in_progress",
+        message:
+          "This booking is currently processing payment and cannot be cancelled yet. Please retry once the payment finishes.",
+      });
+    } else if (
+      !this.isCancellationStatusEligible(actor, bookingRequest.status)
+    ) {
+      failureReasons.push({
+        code: "booking_status_ineligible",
+        message: `Booking requests in status ${bookingRequest.status} cannot be cancelled.`,
+      });
+    }
+
+    if (failureReasons.length > 0 || bookingRequest.status !== "paid") {
+      return {
+        actor,
+        reasonRequired,
+        refundType: "none",
+        refundAmount: 0,
+        currency,
+        failureReasons,
+      };
+    }
+
+    const payment = await this.paymentsRepository.findByBookingRequestId(
+      bookingRequest.id,
+    );
+
+    if (!payment) {
+      return {
+        actor,
+        reasonRequired,
+        refundType: "unsupported",
+        refundAmount: 0,
+        currency,
+        failureReasons: [
+          {
+            code: "payment_missing",
+            message:
+              "This paid booking cannot be cancelled because its payment record is unavailable.",
+          },
+        ],
+      };
+    }
+
+    const refundableAmount = this.resolveRemainingRefundableAmount(payment);
+    const refundAmount = this.resolveCancellationRefundAmount(
+      actor,
+      bookingRequest.startAt,
+      refundableAmount,
+    );
+    const refundType = this.resolveRefundType(refundableAmount, refundAmount);
+
+    return {
+      actor,
+      reasonRequired,
+      refundType,
+      refundAmount,
+      currency: payment.pricingCurrency,
+      failureReasons,
+    };
+  }
+
+  private isCancellationStatusEligible(
+    actor: BookingCancellationActor,
+    status: BookingRequestRecord["status"],
+  ): boolean {
+    const renterStatuses: BookingRequestRecord["status"][] = [
+      "pending",
+      "approved",
+      "awaiting_payment",
+      "payment_failed",
+      "paid",
+    ];
+    const ownerStatuses: BookingRequestRecord["status"][] = [
+      "pending",
+      "approved",
+      "awaiting_payment",
+      "payment_failed",
+      "paid",
+    ];
+
+    return actor === "renter"
+      ? renterStatuses.includes(status)
+      : ownerStatuses.includes(status);
+  }
+
+  private resolveRemainingRefundableAmount(payment: {
+    totalAmount: number;
+    refunds: Array<{ status: string; amount: number }>;
+  }): number {
+    const succeededRefundTotal = payment.refunds
+      .filter((refund) => refund.status === "succeeded")
+      .reduce((sum, refund) => sum + refund.amount, 0);
+
+    return Math.max(
+      0,
+      Math.round((payment.totalAmount - succeededRefundTotal) * 100) / 100,
+    );
+  }
+
+  private resolveCancellationRefundAmount(
+    actor: BookingCancellationActor,
+    bookingStartAt: string,
+    refundableAmount: number,
+  ): number {
+    if (refundableAmount <= 0) {
+      return 0;
+    }
+
+    if (actor === "owner") {
+      return refundableAmount;
+    }
+
+    const hoursUntilStart =
+      (new Date(bookingStartAt).getTime() - Date.now()) / MILLISECONDS_PER_HOUR;
+
+    if (hoursUntilStart > FULL_REFUND_CUTOFF_HOURS) {
+      return refundableAmount;
+    }
+
+    if (hoursUntilStart > PARTIAL_REFUND_CUTOFF_HOURS) {
+      return Math.round(refundableAmount * 50) / 100;
+    }
+
+    return 0;
+  }
+
+  private resolveRefundType(
+    refundableAmount: number,
+    refundAmount: number,
+  ): BookingCancellationRefundType {
+    if (refundableAmount <= 0) {
+      return "none";
+    }
+
+    if (refundAmount >= refundableAmount) {
+      return "full";
+    }
+
+    if (refundAmount > 0) {
+      return "partial";
+    }
+
+    return "none";
+  }
+
+  private throwIfCancellationNotAllowed(
+    assessment: BookingCancellationAssessment,
+  ): void {
+    const firstFailure = assessment.failureReasons[0];
+
+    if (!firstFailure) {
+      return;
+    }
+
+    if (firstFailure.code === "payment_processing_in_progress") {
+      throw new ConflictError(firstFailure.message);
+    }
+
+    throw new BadRequestError(firstFailure.message, {
+      code: firstFailure.code,
+    });
   }
 
   private normalizeCreateInput(
@@ -445,18 +1734,29 @@ export class BookingsService {
     const startAt = new Date(input.startAt);
     const endAt = new Date(input.endAt);
 
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || startAt >= endAt) {
-      throw new BadRequestError("Booking request dates must define a valid, non-empty range.");
+    if (
+      Number.isNaN(startAt.getTime()) ||
+      Number.isNaN(endAt.getTime()) ||
+      startAt >= endAt
+    ) {
+      throw new BadRequestError(
+        "Booking request dates must define a valid, non-empty range.",
+      );
     }
 
-    const durationDays = Math.ceil((endAt.getTime() - startAt.getTime()) / MILLISECONDS_PER_DAY);
+    const durationDays = Math.ceil(
+      (endAt.getTime() - startAt.getTime()) / MILLISECONDS_PER_DAY,
+    );
 
     if (durationDays < 1) {
-      throw new BadRequestError("Booking requests must be at least one day long.");
+      throw new BadRequestError(
+        "Booking requests must be at least one day long.",
+      );
     }
 
     const effectiveMaxDuration =
-      posting.maxBookingDurationDays ?? BOOKING_DEFAULTS.defaultMaxBookingDurationDays;
+      posting.maxBookingDurationDays ??
+      BOOKING_DEFAULTS.defaultMaxBookingDurationDays;
 
     if (durationDays > effectiveMaxDuration) {
       throw new BadRequestError(
@@ -464,15 +1764,7 @@ export class BookingsService {
       );
     }
 
-    if (!Number.isInteger(input.guestCount) || input.guestCount < 1) {
-      throw new BadRequestError("Guest count must be a positive integer.");
-    }
-
-    if (input.guestCount > MAX_BOOKING_GUEST_COUNT) {
-      throw new BadRequestError(
-        `Guest count cannot exceed ${MAX_BOOKING_GUEST_COUNT}.`,
-      );
-    }
+    const guestCount = this.resolveGuestCountOrThrow(input.guestCount, posting);
 
     const note = input.note?.trim() || null;
     const contactName = input.contactName.trim();
@@ -489,7 +1781,7 @@ export class BookingsService {
       ...input,
       startAt,
       endAt,
-      guestCount: input.guestCount,
+      guestCount,
       contactName,
       contactEmail,
       contactPhoneNumber,
@@ -500,6 +1792,7 @@ export class BookingsService {
 
   private normalizeCreateInputForQuote(
     input: BookingQuoteInput,
+    posting: PostingRecord,
     maxBookingDurationDays: number,
   ): {
     normalized: NormalizedBookingRequestInput | null;
@@ -509,7 +1802,11 @@ export class BookingsService {
     const startAt = new Date(input.startAt);
     const endAt = new Date(input.endAt);
 
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || startAt >= endAt) {
+    if (
+      Number.isNaN(startAt.getTime()) ||
+      Number.isNaN(endAt.getTime()) ||
+      startAt >= endAt
+    ) {
       failureReasons.push({
         code: "invalid_dates",
         field: "startAt",
@@ -521,7 +1818,9 @@ export class BookingsService {
       };
     }
 
-    const durationDays = Math.ceil((endAt.getTime() - startAt.getTime()) / MILLISECONDS_PER_DAY);
+    const durationDays = Math.ceil(
+      (endAt.getTime() - startAt.getTime()) / MILLISECONDS_PER_DAY,
+    );
 
     if (durationDays < 1) {
       failureReasons.push({
@@ -543,22 +1842,11 @@ export class BookingsService {
       });
     }
 
-    if (!Number.isInteger(input.guestCount) || input.guestCount < 1) {
-      failureReasons.push({
-        code: "invalid_guest_count",
-        field: "guestCount",
-        message: "Guest count must be a positive integer.",
-      });
-    } else if (input.guestCount > MAX_BOOKING_GUEST_COUNT) {
-      failureReasons.push({
-        code: "guest_count_exceeded",
-        field: "guestCount",
-        message: `Guest count cannot exceed ${MAX_BOOKING_GUEST_COUNT}.`,
-        details: {
-          maxGuestCount: MAX_BOOKING_GUEST_COUNT,
-        },
-      });
-    }
+    const guestCount = this.resolveGuestCountOrCollectFailures(
+      input.guestCount,
+      posting,
+      failureReasons,
+    );
 
     const note = input.note?.trim() || null;
 
@@ -577,7 +1865,7 @@ export class BookingsService {
       normalized: {
         startAt,
         endAt,
-        guestCount: input.guestCount,
+        guestCount,
         note,
         durationDays,
       },
@@ -590,7 +1878,8 @@ export class BookingsService {
   ): Promise<BookingRequestValidationResult> {
     const posting = await this.requirePosting(input.postingId);
     const maxBookingDurationDays =
-      posting.maxBookingDurationDays ?? BOOKING_DEFAULTS.defaultMaxBookingDurationDays;
+      posting.maxBookingDurationDays ??
+      BOOKING_DEFAULTS.defaultMaxBookingDurationDays;
     const failureReasons: BookingQuoteFailureReason[] = [];
 
     if (posting.status !== "published" || posting.archivedAt) {
@@ -607,40 +1896,47 @@ export class BookingsService {
       });
     }
 
-    const normalizedResult = this.normalizeCreateInputForQuote(input, maxBookingDurationDays);
+    const normalizedResult = this.normalizeCreateInputForQuote(
+      input,
+      posting,
+      maxBookingDurationDays,
+    );
     failureReasons.push(...normalizedResult.failureReasons);
 
     if (normalizedResult.normalized) {
-      const [rentingOverlap, availabilityOverlap, activeRequestCount] = await Promise.all([
-        this.rentingsRepository.hasOverlap(
-          posting.id,
-          normalizedResult.normalized.startAt,
-          normalizedResult.normalized.endAt,
-        ),
-        this.bookingsRepository.hasBlockingAvailabilityOverlap({
-          postingId: posting.id,
-          startAt: normalizedResult.normalized.startAt,
-          endAt: normalizedResult.normalized.endAt,
-          excludeBookingRequestId: undefined,
-        }),
-        this.bookingsRepository.countActiveRequestsForRenterPosting({
-          postingId: posting.id,
-          renterId: input.renterId,
-          excludeBookingRequestId: undefined,
-        }),
-      ]);
+      const [rentingOverlap, availabilityOverlap, activeRequestCount] =
+        await Promise.all([
+          this.rentingsRepository.hasOverlap(
+            posting.id,
+            normalizedResult.normalized.startAt,
+            normalizedResult.normalized.endAt,
+          ),
+          this.bookingsRepository.hasBlockingAvailabilityOverlap({
+            postingId: posting.id,
+            startAt: normalizedResult.normalized.startAt,
+            endAt: normalizedResult.normalized.endAt,
+            excludeBookingRequestId: undefined,
+          }),
+          this.bookingsRepository.countActiveRequestsForRenterPosting({
+            postingId: posting.id,
+            renterId: input.renterId,
+            excludeBookingRequestId: undefined,
+          }),
+        ]);
 
       if (rentingOverlap) {
         failureReasons.push({
           code: "renting_overlap",
-          message: "The requested dates are already reserved by an existing renting.",
+          message:
+            "The requested dates are already reserved by an existing renting.",
         });
       }
 
       if (availabilityOverlap) {
         failureReasons.push({
           code: "availability_block_overlap",
-          message: "The requested dates overlap with existing availability blocks.",
+          message:
+            "The requested dates overlap with existing availability blocks.",
         });
       }
 
@@ -662,6 +1958,83 @@ export class BookingsService {
       maxBookingDurationDays,
       failureReasons,
     };
+  }
+
+  private resolveGuestCountOrThrow(
+    guestCount: number | undefined,
+    posting: PostingRecord,
+  ): number {
+    if (posting.variant.family !== "place") {
+      return 1;
+    }
+
+    if (
+      guestCount === undefined ||
+      !Number.isInteger(guestCount) ||
+      guestCount < 1
+    ) {
+      throw new BadRequestError("Guest count must be a positive integer.");
+    }
+
+    const normalizedGuestCount = guestCount as number;
+    const maxGuestCount = this.resolveMaxGuestCountForPosting(posting);
+
+    if (normalizedGuestCount > maxGuestCount) {
+      throw new BadRequestError(`Guest count cannot exceed ${maxGuestCount}.`);
+    }
+
+    return normalizedGuestCount;
+  }
+
+  private resolveGuestCountOrCollectFailures(
+    guestCount: number | undefined,
+    posting: PostingRecord,
+    failureReasons: BookingQuoteFailureReason[],
+  ): number {
+    if (posting.variant.family !== "place") {
+      return 1;
+    }
+
+    if (
+      guestCount === undefined ||
+      !Number.isInteger(guestCount) ||
+      guestCount < 1
+    ) {
+      failureReasons.push({
+        code: "invalid_guest_count",
+        field: "guestCount",
+        message: "Guest count must be a positive integer.",
+      });
+      return 1;
+    }
+
+    const normalizedGuestCount = guestCount as number;
+    const maxGuestCount = this.resolveMaxGuestCountForPosting(posting);
+
+    if (normalizedGuestCount > maxGuestCount) {
+      failureReasons.push({
+        code: "guest_count_exceeded",
+        field: "guestCount",
+        message: `Guest count cannot exceed ${maxGuestCount}.`,
+        details: {
+          maxGuestCount,
+        },
+      });
+    }
+
+    return normalizedGuestCount;
+  }
+
+  private resolveMaxGuestCountForPosting(posting: PostingRecord): number {
+    if (posting.variant.family !== "place") {
+      return MAX_BOOKING_GUEST_COUNT;
+    }
+
+    const details = posting.details as {
+      guest_capacity: number;
+    };
+
+    return Math.min(details.guest_capacity, MAX_BOOKING_GUEST_COUNT);
   }
 
   private assertBookingRequestValidationPassed(
@@ -703,15 +2076,18 @@ export class BookingsService {
     endAt: Date,
     excludeBookingRequestId?: string,
   ): Promise<void> {
-    const overlap = await this.bookingsRepository.hasBlockingAvailabilityOverlap({
-      postingId,
-      startAt,
-      endAt,
-      excludeBookingRequestId,
-    });
+    const overlap =
+      await this.bookingsRepository.hasBlockingAvailabilityOverlap({
+        postingId,
+        startAt,
+        endAt,
+        excludeBookingRequestId,
+      });
 
     if (overlap) {
-      throw new BadRequestError("The requested dates overlap with existing availability blocks.");
+      throw new BadRequestError(
+        "The requested dates overlap with existing availability blocks.",
+      );
     }
   }
 
@@ -720,11 +2096,12 @@ export class BookingsService {
     renterId: string,
     excludeBookingRequestId?: string,
   ): Promise<void> {
-    const activeRequestCount = await this.bookingsRepository.countActiveRequestsForRenterPosting({
-      postingId,
-      renterId,
-      excludeBookingRequestId,
-    });
+    const activeRequestCount =
+      await this.bookingsRepository.countActiveRequestsForRenterPosting({
+        postingId,
+        renterId,
+        excludeBookingRequestId,
+      });
 
     if (activeRequestCount >= MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING) {
       throw new BadRequestError(
@@ -733,11 +2110,21 @@ export class BookingsService {
     }
   }
 
-  private async assertNoRentingOverlap(postingId: string, startAt: Date, endAt: Date): Promise<void> {
-    const overlap = await this.rentingsRepository.hasOverlap(postingId, startAt, endAt);
+  private async assertNoRentingOverlap(
+    postingId: string,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<void> {
+    const overlap = await this.rentingsRepository.hasOverlap(
+      postingId,
+      startAt,
+      endAt,
+    );
 
     if (overlap) {
-      throw new BadRequestError("The requested dates are already reserved by an existing renting.");
+      throw new BadRequestError(
+        "The requested dates are already reserved by an existing renting.",
+      );
     }
   }
 

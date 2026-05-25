@@ -6,17 +6,28 @@ import { loggerFactory } from "@/configuration/logging";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { detectOutputFormat, serializeToXml } from "./output-format.middleware";
 
-const errorLogger = loggerFactory.forComponent("error-handler.middleware", "middleware");
+const errorLogger = loggerFactory.forComponent(
+  "error-handler.middleware",
+  "middleware",
+);
 
-export function handleApplicationError(error: unknown, context: Context<AppBindings>): Response {
+export function handleApplicationError(
+  error: unknown,
+  context: Context<AppBindings>,
+): Response {
   const { status, body } = toErrorResponse(error);
   const responseBody = buildErrorResponse(context, body);
-  const outputFormat = context.var.outputFormat ?? detectOutputFormat(context.req.raw);
+  const outputFormat =
+    context.var.outputFormat ?? detectOutputFormat(context.req.raw);
   const headers = new Headers(context.res?.headers);
 
   if (status >= 500) {
     const requestLogger = context.get("logger");
-    (requestLogger ?? errorLogger).error("Unhandled application error.", undefined, error);
+    (requestLogger ?? errorLogger).error(
+      "Unhandled application error.",
+      undefined,
+      error,
+    );
   }
 
   if (outputFormat === "xml") {

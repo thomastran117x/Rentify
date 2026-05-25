@@ -4,7 +4,10 @@ import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import { requireMinimumRole } from "@/features/auth/authorization";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
-import { RequestValidationError, parseRequestBody } from "@/configuration/validation/request";
+import {
+  RequestValidationError,
+  parseRequestBody,
+} from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import type {
   CreatePaymentSessionBody,
@@ -24,7 +27,9 @@ import type { PaymentsService } from "@/features/payments/payments.service";
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  createSessionForBooking = async (context: Context<AppBindings>): Promise<Response> => {
+  createSessionForBooking = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, createPaymentSessionSchema);
     const result = await this.paymentsService.createPaymentSession({
@@ -39,7 +44,10 @@ export class PaymentsController {
 
   getById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const result = await this.paymentsService.getPaymentById(this.requirePaymentId(context), auth.sub);
+    const result = await this.paymentsService.getPaymentById(
+      this.requirePaymentId(context),
+      auth.sub,
+    );
     return ok(context, result);
   };
 
@@ -86,14 +94,21 @@ export class PaymentsController {
     const rawBody = await context.req.text();
     const signatureHeader = context.req.header("x-square-hmacsha256-signature");
     await this.paymentsService.processSquareWebhook(rawBody, signatureHeader);
-    return ok(context, { ok: true }, {
-      message: "Payment webhook processed successfully.",
-    });
+    return ok(
+      context,
+      { ok: true },
+      {
+        message: "Payment webhook processed successfully.",
+      },
+    );
   };
 
   reconcile = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const result = await this.paymentsService.reconcilePayment(this.requirePaymentId(context), auth.sub);
+    const result = await this.paymentsService.reconcilePayment(
+      this.requirePaymentId(context),
+      auth.sub,
+    );
     return ok(context, result, {
       message: "Payment reconciled successfully.",
     });
@@ -103,12 +118,18 @@ export class PaymentsController {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "admin");
     await this.paymentsService.repairPayment(this.requirePaymentId(context));
-    return ok(context, { ok: true }, {
-      message: "Payment repair queued successfully.",
-    });
+    return ok(
+      context,
+      { ok: true },
+      {
+        message: "Payment repair queued successfully.",
+      },
+    );
   };
 
-  private parseListPayoutsQuery(context: Context<AppBindings>): ListPayoutsQuery {
+  private parseListPayoutsQuery(
+    context: Context<AppBindings>,
+  ): ListPayoutsQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -119,7 +140,9 @@ export class PaymentsController {
       });
     } catch (error) {
       if ("issues" in (error as object)) {
-        const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+        const issues = (
+          error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+        ).issues;
 
         throw new RequestValidationError(
           "Request query validation failed.",
@@ -134,7 +157,10 @@ export class PaymentsController {
     }
   }
 
-  private toListPayoutsInput(userId: string, query: ListPayoutsQuery): ListPayoutsInput {
+  private toListPayoutsInput(
+    userId: string,
+    query: ListPayoutsQuery,
+  ): ListPayoutsInput {
     return {
       ownerId: userId,
       page: query.page,

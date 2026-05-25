@@ -1,9 +1,15 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import { AuthController } from "@/features/auth/auth.controller";
-import type { AuthSessionResult, AuthUserProfile } from "@/features/auth/auth.model";
+import type {
+  AuthSessionResult,
+  AuthUserProfile,
+} from "@/features/auth/auth.model";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { JwtClaims } from "@/features/auth/token/token.service";
-import type { AppBindings, ClientRequestContext } from "@/configuration/http/bindings";
+import type {
+  AppBindings,
+  ClientRequestContext,
+} from "@/configuration/http/bindings";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
@@ -24,7 +30,9 @@ jest.mock("hono/cookie", () => ({
   deleteCookie: (...args: unknown[]) => mockDeleteCookie(...args),
 }));
 
-function createClient(overrides?: Partial<ClientRequestContext>): ClientRequestContext {
+function createClient(
+  overrides?: Partial<ClientRequestContext>,
+): ClientRequestContext {
   return {
     ip: "127.0.0.1",
     device: {
@@ -51,7 +59,9 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   };
 }
 
-function createAuthUser(overrides: Partial<AuthUserProfile> = {}): AuthUserProfile {
+function createAuthUser(
+  overrides: Partial<AuthUserProfile> = {},
+): AuthUserProfile {
   return {
     id: "user-1",
     email: "user@example.com",
@@ -71,7 +81,9 @@ function createAuthUser(overrides: Partial<AuthUserProfile> = {}): AuthUserProfi
   };
 }
 
-function createSessionResult(overrides?: Partial<AuthSessionResult>): AuthSessionResult {
+function createSessionResult(
+  overrides?: Partial<AuthSessionResult>,
+): AuthSessionResult {
   return {
     accessToken: "access-token-1",
     refreshToken: "refresh-token-1",
@@ -124,7 +136,8 @@ function createContext(options?: {
   const context = {
     req: {
       json: async () => options?.body ?? {},
-      header: (name: string) => options?.headers?.[name.toLowerCase()] ?? options?.headers?.[name],
+      header: (name: string) =>
+        options?.headers?.[name.toLowerCase()] ?? options?.headers?.[name],
     },
     get: (name: string) => variables.get(name),
     set: (name: string, value: unknown) => {
@@ -153,90 +166,85 @@ function createController(overrides?: {
   logout?: (input: unknown) => Promise<unknown>;
   localVerify?: (input: unknown) => Promise<unknown>;
   removeKnownDevice?: (input: unknown) => Promise<unknown>;
-  captchaVerify?: (input: unknown) => Promise<{ success: boolean; failOpen: boolean; errors: string[] }>;
+  captchaVerify?: (
+    input: unknown,
+  ) => Promise<{ success: boolean; failOpen: boolean; errors: string[] }>;
 }) {
   const authService = {
-    localAuthenticate:
-      jest.fn(overrides?.localAuthenticate ?? (async () => createSessionResult())),
-    localSignup:
-      jest.fn(
-        overrides?.localSignup ??
-          (async () => ({
-            verificationRequired: true,
-            email: "user@example.com",
-            alreadyPending: false,
-          })),
-      ),
-    resendForgotPassword:
-      jest.fn(
-        overrides?.resendForgotPassword ??
-          (async () => ({
-            accepted: true,
-          })),
-      ),
-    resendVerificationEmail:
-      jest.fn(
-        overrides?.resendVerificationEmail ??
-          (async () => ({
-            accepted: true,
-          })),
-      ),
-    resendUnlockLocalLogin:
-      jest.fn(
-        overrides?.resendUnlockLocalLogin ??
-          (async () => ({
-            accepted: true,
-          })),
-      ),
-    changePassword:
-      jest.fn(
-        overrides?.changePassword ??
-          (async () => createSessionResult({
+    localAuthenticate: jest.fn(
+      overrides?.localAuthenticate ?? (async () => createSessionResult()),
+    ),
+    localSignup: jest.fn(
+      overrides?.localSignup ??
+        (async () => ({
+          verificationRequired: true,
+          email: "user@example.com",
+          alreadyPending: false,
+        })),
+    ),
+    resendForgotPassword: jest.fn(
+      overrides?.resendForgotPassword ??
+        (async () => ({
+          accepted: true,
+        })),
+    ),
+    resendVerificationEmail: jest.fn(
+      overrides?.resendVerificationEmail ??
+        (async () => ({
+          accepted: true,
+        })),
+    ),
+    resendUnlockLocalLogin: jest.fn(
+      overrides?.resendUnlockLocalLogin ??
+        (async () => ({
+          accepted: true,
+        })),
+    ),
+    changePassword: jest.fn(
+      overrides?.changePassword ??
+        (async () =>
+          createSessionResult({
             accessToken: "changed-access-token",
             refreshToken: "changed-refresh-token",
           })),
-      ),
-    refresh:
-      jest.fn(
-        overrides?.refresh ??
-          (async () => createSessionResult({
+    ),
+    refresh: jest.fn(
+      overrides?.refresh ??
+        (async () =>
+          createSessionResult({
             accessToken: "refreshed-access-token",
             refreshToken: "refreshed-refresh-token",
           })),
-      ),
-    logout:
-      jest.fn(
-        overrides?.logout ??
-          (async () => ({
-            loggedOut: true,
-          })),
-      ),
-    localVerify:
-      jest.fn(
-        overrides?.localVerify ??
-          (async () => ({
-            verified: true,
-          })),
-      ),
-    removeKnownDevice:
-      jest.fn(
-        overrides?.removeKnownDevice ??
-          (async () => ({
-            removed: true,
-            deviceId: "device-2",
-          })),
-      ),
+    ),
+    logout: jest.fn(
+      overrides?.logout ??
+        (async () => ({
+          loggedOut: true,
+        })),
+    ),
+    localVerify: jest.fn(
+      overrides?.localVerify ??
+        (async () => ({
+          verified: true,
+        })),
+    ),
+    removeKnownDevice: jest.fn(
+      overrides?.removeKnownDevice ??
+        (async () => ({
+          removed: true,
+          deviceId: "device-2",
+        })),
+    ),
   };
   const captchaService = {
-    verify:
-      jest.fn(
-        overrides?.captchaVerify ??
-          (async () => ({
-            success: true,
-            failOpen: false,
-            errors: [],
-          })),
-      ),
+    verify: jest.fn(
+      overrides?.captchaVerify ??
+        (async () => ({
+          success: true,
+          failOpen: false,
+          errors: [],
+        })),
+    ),
   };
   const tokenService = {};
 
@@ -291,19 +299,29 @@ describe("AuthController", () => {
       client: context.get("client"),
       deviceId: "device-1",
     });
-    expect(mockSetCookie).toHaveBeenCalledWith(context, "refresh_token", "refresh-token-1", {
-      path: "/",
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-      maxAge: 86_400,
-    });
-    expect(mockSetCookie).toHaveBeenCalledWith(context, "csrf_token", expect.any(String), {
-      path: "/",
-      secure: false,
-      sameSite: "Lax",
-      maxAge: 86_400,
-    });
+    expect(mockSetCookie).toHaveBeenCalledWith(
+      context,
+      "refresh_token",
+      "refresh-token-1",
+      {
+        path: "/",
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+        maxAge: 86_400,
+      },
+    );
+    expect(mockSetCookie).toHaveBeenCalledWith(
+      context,
+      "csrf_token",
+      expect.any(String),
+      {
+        path: "/",
+        secure: false,
+        sameSite: "Lax",
+        maxAge: 86_400,
+      },
+    );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
@@ -400,13 +418,18 @@ describe("AuthController", () => {
 
     const response = await controller.localAuthenticate(context);
 
-    expect(mockSetCookie).toHaveBeenCalledWith(context, "refresh_token", "refresh-token-1", {
-      path: "/",
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-      maxAge: 86_400,
-    });
+    expect(mockSetCookie).toHaveBeenCalledWith(
+      context,
+      "refresh_token",
+      "refresh-token-1",
+      {
+        path: "/",
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+        maxAge: 86_400,
+      },
+    );
     const body = await response.json();
     expect(body).toMatchObject({
       success: true,
@@ -435,7 +458,9 @@ describe("AuthController", () => {
       },
     });
 
-    await expect(controller.localSignup(context)).rejects.toMatchObject<Partial<BadRequestError>>({
+    await expect(controller.localSignup(context)).rejects.toMatchObject<
+      Partial<BadRequestError>
+    >({
       message: "Captcha verification failed.",
       details: {
         errors: ["turnstile-timeout"],
@@ -542,10 +567,12 @@ describe("AuthController", () => {
       sub: "user-9",
       deviceId: "token-device-9",
     });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", auth);
-      return auth;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
     const { controller, authService } = createController();
     const context = createContext({
       client: createClient({
@@ -598,10 +625,12 @@ describe("AuthController", () => {
       sub: "user-4",
       deviceId: "device-4",
     });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", auth);
-      return auth;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
     mockGetCookie.mockReturnValue("refresh-cookie-token");
     const { controller, authService } = createController();
     const context = createContext();
@@ -642,10 +671,12 @@ describe("AuthController", () => {
       sub: "user-7",
       role: "owner",
     });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", auth);
-      return auth;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
     const { controller, authService } = createController();
     const context = createContext();
 
@@ -661,10 +692,12 @@ describe("AuthController", () => {
     const auth = createClaims({
       sub: "user-12",
     });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", auth);
-      return auth;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
     const { controller, authService } = createController();
     const context = createContext({
       body: {

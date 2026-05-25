@@ -1,4 +1,10 @@
-import { createFixtureId, type SeedDeviceFixture, type SeedOAuthIdentityFixture, type SeedPersonalAccessTokenFixture, type SeedUserFixture } from "@/seeds/types";
+import {
+  createFixtureId,
+  type SeedDeviceFixture,
+  type SeedOAuthIdentityFixture,
+  type SeedPersonalAccessTokenFixture,
+  type SeedUserFixture,
+} from "@/seeds/types";
 
 export const SEED_USERS: SeedUserFixture[] = [
   {
@@ -234,9 +240,13 @@ export const SEED_PERSONAL_ACCESS_TOKENS: SeedPersonalAccessTokenFixture[] = [
     name: "Local MCP Admin",
     publicId: "rentpatadmin00000000000000000001",
     tokenPrefix: "rpat_admin_local",
-    secretHash:
-      "$2b$12$3QQzCwOD6oTi27C3l2qvQuSr7VbqWv4xC9n9Y3M6aQ7Q4Fh0l1yz2",
-    scopes: ["postings:read", "postings:write", "bookings:read", "payments:read"],
+    secretHash: "$2b$12$3QQzCwOD6oTi27C3l2qvQuSr7VbqWv4xC9n9Y3M6aQ7Q4Fh0l1yz2",
+    scopes: [
+      "postings:read",
+      "postings:write",
+      "bookings:read",
+      "payments:read",
+    ],
     lastUsedAt: "2026-04-18T15:10:00.000Z",
     expiresAt: "2027-04-18T15:10:00.000Z",
   },
@@ -246,8 +256,7 @@ export const SEED_PERSONAL_ACCESS_TOKENS: SeedPersonalAccessTokenFixture[] = [
     name: "Local Automation",
     publicId: "rentpatuser200000000000000000002",
     tokenPrefix: "rpat_user_local",
-    secretHash:
-      "$2b$12$F4DgmxsGv3jo2o4iLjM0I.Q1iP8.Y7P8uS5elG6WgVpjhY8Q6J4mW",
+    secretHash: "$2b$12$F4DgmxsGv3jo2o4iLjM0I.Q1iP8.Y7P8uS5elG6WgVpjhY8Q6J4mW",
     scopes: ["profile:read", "postings:read"],
     expiresAt: "2026-12-31T23:59:59.000Z",
   },

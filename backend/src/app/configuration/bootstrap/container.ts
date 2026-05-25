@@ -41,12 +41,16 @@ export function initializeContainer(): RootServiceContainer {
 
 export function getContainer(): RootServiceContainer {
   if (!rootContainer) {
-    throw new Error("Application container has not been initialized. Call initializeContainer() first.");
+    throw new Error(
+      "Application container has not been initialized. Call initializeContainer() first.",
+    );
   }
 
   return rootContainer;
 }
 
-export function getRequestContainer(context: Context<AppBindings>): ServiceContainer {
+export function getRequestContainer(
+  context: Context<AppBindings>,
+): ServiceContainer {
   return context.get("container");
 }

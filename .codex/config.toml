@@ -10,3 +10,4 @@ RENTIFY_PAT = "${RENTIFY_PAT}"
 [mcp_servers.playwright]
 command = "npx"
 args = ["@playwright/mcp@latest"]
+default_tools_approval_mode = "approve" 

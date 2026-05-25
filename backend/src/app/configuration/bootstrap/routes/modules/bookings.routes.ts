@@ -7,35 +7,94 @@ export const bookingsRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/postings/:id/booking-requests",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "createForPosting"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "createForPosting",
+      ),
     );
     app.post(
       "/postings/:id/booking-quote",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "quoteForPosting"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "quoteForPosting",
+      ),
     );
     app.get(
       "/postings/:id/booking-requests",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "listForOwnerPosting"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "listForOwnerPosting",
+      ),
     );
     app.get(
       "/booking-requests/me",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "listMine"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "listMine",
+      ),
+    );
+    app.get(
+      "/booking-requests/owner",
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "listOwned",
+      ),
+    );
+    app.get(
+      "/booking-requests/me/dashboard",
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "dashboardMine",
+      ),
+    );
+    app.get(
+      "/booking-requests/owner/dashboard",
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "dashboardOwned",
+      ),
     );
     app.get(
       "/booking-requests/:id",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "getById"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "getById",
+      ),
+    );
+    app.get(
+      "/booking-requests/:id/cancellation-quote",
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "getCancellationQuote",
+      ),
     );
     app.put(
       "/booking-requests/:id",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "updateOwn"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "updateOwn",
+      ),
     );
     app.post(
       "/booking-requests/:id/approve",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "approve"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "approve",
+      ),
     );
     app.post(
       "/booking-requests/:id/decline",
-      resolveHandler<BookingsController>(containerTokens.bookingsController, "decline"),
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "decline",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/cancel",
+      resolveHandler<BookingsController>(
+        containerTokens.bookingsController,
+        "cancel",
+      ),
     );
   },
 };

@@ -23,7 +23,9 @@ export function HomeSessionPanel() {
       clearSession();
 
       if (error instanceof ApiError && error.status === 401) {
-        setMessage("The session was already expired, so local auth state was cleared.");
+        setMessage(
+          "The session was already expired, so local auth state was cleared.",
+        );
         return;
       }
 

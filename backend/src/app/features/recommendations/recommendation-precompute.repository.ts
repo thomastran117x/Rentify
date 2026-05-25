@@ -46,7 +46,9 @@ const SIGNAL_EVENT_TYPES = [
 ] as const;
 
 export class RecommendationPrecomputeRepository extends BaseRepository {
-  async claimRefreshJobBatch(limit: number): Promise<RecommendationRefreshJobRecord[]> {
+  async claimRefreshJobBatch(
+    limit: number,
+  ): Promise<RecommendationRefreshJobRecord[]> {
     return this.executeAsync(async () => {
       const recommendationRefreshJob = (this.prisma as any)
         .recommendationRefreshJob as RefreshJobDelegate;
@@ -129,7 +131,11 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     );
   }
 
-  async markRefreshJobRetry(id: string, attempts: number, errorMessage: string): Promise<void> {
+  async markRefreshJobRetry(
+    id: string,
+    attempts: number,
+    errorMessage: string,
+  ): Promise<void> {
     const recommendationRefreshJob = (this.prisma as any)
       .recommendationRefreshJob as RefreshJobDelegate;
     const backoffSeconds = Math.min(300, 2 ** Math.min(attempts, 8));
@@ -150,8 +156,12 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     );
   }
 
-  async listUserActivityRows(userId: string, windowStart: Date): Promise<RecommendationActivityRow[]> {
-    const recommendationActivity = (this.prisma as any).recommendationActivity as {
+  async listUserActivityRows(
+    userId: string,
+    windowStart: Date,
+  ): Promise<RecommendationActivityRow[]> {
+    const recommendationActivity = (this.prisma as any)
+      .recommendationActivity as {
       findMany: (args: unknown) => Promise<Array<Record<string, unknown>>>;
     };
 
@@ -203,8 +213,11 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     });
   }
 
-  async listPopularActivityRows(windowStart: Date): Promise<RecommendationActivityRow[]> {
-    const recommendationActivity = (this.prisma as any).recommendationActivity as {
+  async listPopularActivityRows(
+    windowStart: Date,
+  ): Promise<RecommendationActivityRow[]> {
+    const recommendationActivity = (this.prisma as any)
+      .recommendationActivity as {
       findMany: (args: unknown) => Promise<Array<Record<string, unknown>>>;
     };
 
@@ -294,13 +307,19 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
         family: row.family as RecommendationPostingCandidate["family"],
         subtype: row.subtype as RecommendationPostingCandidate["subtype"],
         tags: this.readTags(row.tags),
-        availabilityStatus: row.availabilityStatus as RecommendationPostingCandidate["availabilityStatus"],
-        publishedAt: row.publishedAt instanceof Date ? row.publishedAt.toISOString() : undefined,
+        availabilityStatus:
+          row.availabilityStatus as RecommendationPostingCandidate["availabilityStatus"],
+        publishedAt:
+          row.publishedAt instanceof Date
+            ? row.publishedAt.toISOString()
+            : undefined,
       }));
     });
   }
 
-  async listPublishedPopularSegments(): Promise<RecommendationPopularSegmentRecord[]> {
+  async listPublishedPopularSegments(): Promise<
+    RecommendationPopularSegmentRecord[]
+  > {
     const posting = (this.prisma as any).posting as {
       findMany: (args: unknown) => Promise<Array<Record<string, unknown>>>;
     };
@@ -324,8 +343,10 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
       });
 
       for (const row of rows) {
-        const family = row.family as RecommendationPopularSegmentRecord["segmentValue"];
-        const subtype = row.subtype as RecommendationPopularSegmentRecord["segmentValue"];
+        const family =
+          row.family as RecommendationPopularSegmentRecord["segmentValue"];
+        const subtype =
+          row.subtype as RecommendationPopularSegmentRecord["segmentValue"];
 
         segments.set(`family:${family}`, {
           segmentType: "family",
@@ -341,7 +362,9 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     });
   }
 
-  async listPopularSnapshotFreshness(): Promise<RecommendationPopularSnapshotFreshnessRecord[]> {
+  async listPopularSnapshotFreshness(): Promise<
+    RecommendationPopularSnapshotFreshnessRecord[]
+  > {
     const popularRecommendationSnapshot = (this.prisma as any)
       .popularRecommendationSnapshot as PopularRecommendationSnapshotDelegate;
 
@@ -398,26 +421,42 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
           },
           update: {
             qualified: input.profile.qualified,
-            activityWindowStartAt: new Date(input.profile.activityWindowStartAt),
-            lastSignalAt: input.profile.lastSignalAt ? new Date(input.profile.lastSignalAt) : null,
+            activityWindowStartAt: new Date(
+              input.profile.activityWindowStartAt,
+            ),
+            lastSignalAt: input.profile.lastSignalAt
+              ? new Date(input.profile.lastSignalAt)
+              : null,
             distinctPostingCount: input.profile.distinctPostingCount,
-            signalCounts: input.profile.signalCounts as unknown as Prisma.InputJsonValue,
-            familyAffinities: input.profile.familyAffinities as unknown as Prisma.InputJsonValue,
-            subtypeAffinities: input.profile.subtypeAffinities as unknown as Prisma.InputJsonValue,
-            tagAffinities: input.profile.tagAffinities as unknown as Prisma.InputJsonValue,
+            signalCounts: input.profile
+              .signalCounts as unknown as Prisma.InputJsonValue,
+            familyAffinities: input.profile
+              .familyAffinities as unknown as Prisma.InputJsonValue,
+            subtypeAffinities: input.profile
+              .subtypeAffinities as unknown as Prisma.InputJsonValue,
+            tagAffinities: input.profile
+              .tagAffinities as unknown as Prisma.InputJsonValue,
             rebuiltAt: new Date(input.profile.rebuiltAt),
           },
           create: {
             id: randomUUID(),
             userId: input.profile.userId,
             qualified: input.profile.qualified,
-            activityWindowStartAt: new Date(input.profile.activityWindowStartAt),
-            lastSignalAt: input.profile.lastSignalAt ? new Date(input.profile.lastSignalAt) : null,
+            activityWindowStartAt: new Date(
+              input.profile.activityWindowStartAt,
+            ),
+            lastSignalAt: input.profile.lastSignalAt
+              ? new Date(input.profile.lastSignalAt)
+              : null,
             distinctPostingCount: input.profile.distinctPostingCount,
-            signalCounts: input.profile.signalCounts as unknown as Prisma.InputJsonValue,
-            familyAffinities: input.profile.familyAffinities as unknown as Prisma.InputJsonValue,
-            subtypeAffinities: input.profile.subtypeAffinities as unknown as Prisma.InputJsonValue,
-            tagAffinities: input.profile.tagAffinities as unknown as Prisma.InputJsonValue,
+            signalCounts: input.profile
+              .signalCounts as unknown as Prisma.InputJsonValue,
+            familyAffinities: input.profile
+              .familyAffinities as unknown as Prisma.InputJsonValue,
+            subtypeAffinities: input.profile
+              .subtypeAffinities as unknown as Prisma.InputJsonValue,
+            tagAffinities: input.profile
+              .tagAffinities as unknown as Prisma.InputJsonValue,
             rebuiltAt: new Date(input.profile.rebuiltAt),
           },
         });
@@ -441,7 +480,8 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
               ? new Date(input.snapshot.sourceLastSignalAt)
               : null,
             candidateCount: input.snapshot.candidateCount,
-            candidates: input.snapshot.candidates as unknown as Prisma.InputJsonValue,
+            candidates: input.snapshot
+              .candidates as unknown as Prisma.InputJsonValue,
           },
           create: {
             id: randomUUID(),
@@ -451,7 +491,8 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
               ? new Date(input.snapshot.sourceLastSignalAt)
               : null,
             candidateCount: input.snapshot.candidateCount,
-            candidates: input.snapshot.candidates as unknown as Prisma.InputJsonValue,
+            candidates: input.snapshot
+              .candidates as unknown as Prisma.InputJsonValue,
           },
         });
       }),
@@ -537,12 +578,16 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     }
 
     const existingProcessedAt = existing.processedAt as Date | null | undefined;
-    const existingProcessingAt = existing.processingAt as Date | null | undefined;
+    const existingProcessingAt = existing.processingAt as
+      | Date
+      | null
+      | undefined;
     const existingAvailableAt = existing.availableAt as Date | null | undefined;
 
     if (!existingProcessedAt) {
       const nextAvailableAt =
-        existingAvailableAt && existingAvailableAt.getTime() < job.availableAt.getTime()
+        existingAvailableAt &&
+        existingAvailableAt.getTime() < job.availableAt.getTime()
           ? existingAvailableAt
           : job.availableAt;
 
@@ -592,15 +637,20 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
         typeof job.segmentType === "string"
           ? (job.segmentType as RecommendationPopularSegmentType)
           : undefined,
-      segmentValue: typeof job.segmentValue === "string" ? job.segmentValue : undefined,
+      segmentValue:
+        typeof job.segmentValue === "string" ? job.segmentValue : undefined,
       attempts: Number(job.attempts ?? 0),
       availableAt: new Date(job.availableAt as Date).toISOString(),
       createdAt: new Date(job.createdAt as Date).toISOString(),
-      updatedAt: (processingAt ?? new Date(job.updatedAt as Date)).toISOString(),
+      updatedAt: (
+        processingAt ?? new Date(job.updatedAt as Date)
+      ).toISOString(),
     };
   }
 
   private readTags(value: unknown): string[] {
-    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+    return Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === "string")
+      : [];
   }
 }

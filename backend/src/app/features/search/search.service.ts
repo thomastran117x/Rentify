@@ -85,7 +85,8 @@ export class SearchService {
         }
 
         await this.postingsSearchIndexService.ensureLiveIndex();
-        const targetIndexName = await this.postingsSearchIndexService.createVersionedIndex();
+        const targetIndexName =
+          await this.postingsSearchIndexService.createVersionedIndex();
         return createSearchReindexRun(targetIndexName);
       },
     );
@@ -101,8 +102,11 @@ export class SearchService {
     return this.postingsRepository.findSearchReindexRunById(id);
   }
 
-  async replayDeadLetteredOutbox(limit: number): Promise<ReplayDeadLetteredSearchOutboxResult> {
-    const revived = await this.postingsRepository.reviveDeadLetteredSearchOutbox(limit);
+  async replayDeadLetteredOutbox(
+    limit: number,
+  ): Promise<ReplayDeadLetteredSearchOutboxResult> {
+    const revived =
+      await this.postingsRepository.reviveDeadLetteredSearchOutbox(limit);
 
     return {
       revived,
@@ -117,8 +121,12 @@ export class SearchService {
     }
 
     const aliasStatus = await this.postingsSearchIndexService.getAliasStatus();
-    const activeTargets = new Set([...aliasStatus.readTargets, ...aliasStatus.writeTargets]);
-    const runs = await this.postingsRepository.listCompletedSearchReindexRunsWithRetainedIndices();
+    const activeTargets = new Set([
+      ...aliasStatus.readTargets,
+      ...aliasStatus.writeTargets,
+    ]);
+    const runs =
+      await this.postingsRepository.listCompletedSearchReindexRunsWithRetainedIndices();
     let deleted = 0;
 
     for (const run of runs) {
@@ -129,7 +137,9 @@ export class SearchService {
       }
 
       await this.postingsSearchIndexService.deleteConcreteIndex(indexName);
-      await this.postingsRepository.clearSearchReindexRunRetainedIndexName(run.id);
+      await this.postingsRepository.clearSearchReindexRunRetainedIndexName(
+        run.id,
+      );
       deleted += 1;
     }
 
@@ -139,45 +149,53 @@ export class SearchService {
   }
 
   async getStatus(): Promise<SearchStatusResult> {
-    const [aliasHealth, currentReindexRun, latestReindexRun, lagMetrics, queueInspection] =
-      await Promise.all([
-        this.postingsSearchIndexService.isElasticsearchEnabled()
-          ? this.postingsSearchIndexService.getAliasStatus()
-          : Promise.resolve(this.createDisabledAliasHealth()),
-        this.postingsRepository.findActiveSearchReindexRun(),
-        this.postingsRepository.findLatestSearchReindexRun(),
-        this.postingsRepository.getSearchOutboxLagMetrics(),
-        this.postingsSearchIndexService.isElasticsearchEnabled()
-          ? this.searchQueueService
-              .getQueueCounts()
-              .then((counts) => ({
-                inspection: {
-                  ok: true as const,
-                },
-                counts,
-              }))
-              .catch((error) => {
-                recordQueueInspectionFailure();
-                return {
-                  inspection: {
-                    ok: false as const,
-                    error: error instanceof Error ? error.message : "Unable to inspect search queues.",
-                  },
-                };
-              })
-          : Promise.resolve({
+    const [
+      aliasHealth,
+      currentReindexRun,
+      latestReindexRun,
+      lagMetrics,
+      queueInspection,
+    ] = await Promise.all([
+      this.postingsSearchIndexService.isElasticsearchEnabled()
+        ? this.postingsSearchIndexService.getAliasStatus()
+        : Promise.resolve(this.createDisabledAliasHealth()),
+      this.postingsRepository.findActiveSearchReindexRun(),
+      this.postingsRepository.findLatestSearchReindexRun(),
+      this.postingsRepository.getSearchOutboxLagMetrics(),
+      this.postingsSearchIndexService.isElasticsearchEnabled()
+        ? this.searchQueueService
+            .getQueueCounts()
+            .then((counts) => ({
               inspection: {
                 ok: true as const,
               },
-              counts: {
-                main: createEmptyQueueCounts(),
-                retry1: createEmptyQueueCounts(),
-                retry2: createEmptyQueueCounts(),
-                retry3: createEmptyQueueCounts(),
-                deadLetter: createEmptyQueueCounts(),
-              },
-            }),
-      ]);
+              counts,
+            }))
+            .catch((error) => {
+              recordQueueInspectionFailure();
+              return {
+                inspection: {
+                  ok: false as const,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to inspect search queues.",
+                },
+              };
+            })
+        : Promise.resolve({
+            inspection: {
+              ok: true as const,
+            },
+            counts: {
+              main: createEmptyQueueCounts(),
+              retry1: createEmptyQueueCounts(),
+              retry2: createEmptyQueueCounts(),
+              retry3: createEmptyQueueCounts(),
+              deadLetter: createEmptyQueueCounts(),
+            },
+          }),
+    ]);
     const telemetry = getSearchTelemetrySnapshot();
 
     return {
@@ -190,7 +208,8 @@ export class SearchService {
       },
       elasticsearch: {
         enabled: this.postingsSearchIndexService.isElasticsearchEnabled(),
-        circuitBreaker: this.postingsSearchIndexService.getCircuitBreakerState(),
+        circuitBreaker:
+          this.postingsSearchIndexService.getCircuitBreakerState(),
         telemetry: {
           ...telemetry.elasticsearchRequests,
           ...telemetry.circuitBreaker,
@@ -202,7 +221,9 @@ export class SearchService {
       pendingOutboxOldestAgeMs: lagMetrics.unpublishedOldestAgeMs,
       lag: lagMetrics,
       queueInspection: queueInspection.inspection,
-      ...("counts" in queueInspection ? { queueCounts: queueInspection.counts } : {}),
+      ...("counts" in queueInspection
+        ? { queueCounts: queueInspection.counts }
+        : {}),
       telemetry: {
         fallbacks: telemetry.fallbacks,
         queueInspectionFailures: telemetry.queueInspectionFailures,
@@ -212,7 +233,10 @@ export class SearchService {
     };
   }
 
-  async processOutboxRelayBatch(limit: number, maxPublishAttempts: number): Promise<number> {
+  async processOutboxRelayBatch(
+    limit: number,
+    maxPublishAttempts: number,
+  ): Promise<number> {
     await this.postingsSearchIndexService.ensureLiveIndex();
     await this.searchQueueService.ensureTopology();
 
@@ -231,17 +255,24 @@ export class SearchService {
           publishedToBroker = true;
           break;
         } catch (error) {
-          publishError = error instanceof Error ? error.message : "Unknown relay error.";
+          publishError =
+            error instanceof Error ? error.message : "Unknown relay error.";
         }
       }
 
       if (!publishedToBroker) {
         try {
           const errorMessage = publishError ?? "Unknown relay error.";
-          await this.postingsRepository.releaseSearchOutboxClaims(relayJob.supersededIds, errorMessage);
+          await this.postingsRepository.releaseSearchOutboxClaims(
+            relayJob.supersededIds,
+            errorMessage,
+          );
 
           if (job.publishAttempts + 1 >= maxPublishAttempts) {
-            await this.postingsRepository.markSearchOutboxDeadLettered(job.id, errorMessage);
+            await this.postingsRepository.markSearchOutboxDeadLettered(
+              job.id,
+              errorMessage,
+            );
           } else {
             await this.postingsRepository.markSearchOutboxPublishRetry(
               job.id,
@@ -250,31 +281,52 @@ export class SearchService {
             );
           }
         } catch (error) {
-          this.logger.error("Failed to persist relay failure state.", {
-            outboxId: job.id,
-          }, error);
+          this.logger.error(
+            "Failed to persist relay failure state.",
+            {
+              outboxId: job.id,
+            },
+            error,
+          );
         }
 
         continue;
       }
 
       try {
-        await this.postingsRepository.markSearchOutboxRelayed(job.id, relayJob.supersededIds, job.id);
+        await this.postingsRepository.markSearchOutboxRelayed(
+          job.id,
+          relayJob.supersededIds,
+          job.id,
+        );
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown relay state error.";
-        await this.postingsRepository.releaseSearchOutboxClaims(claimedIds, errorMessage);
-        this.logger.error("Search relay publish succeeded but outbox state could not be finalized.", {
-          outboxId: job.id,
-          supersededIds: relayJob.supersededIds,
-        }, error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown relay state error.";
+        await this.postingsRepository.releaseSearchOutboxClaims(
+          claimedIds,
+          errorMessage,
+        );
+        this.logger.error(
+          "Search relay publish succeeded but outbox state could not be finalized.",
+          {
+            outboxId: job.id,
+            supersededIds: relayJob.supersededIds,
+          },
+          error,
+        );
       }
     }
 
     return jobs.length;
   }
 
-  async processIndexJob(payload: SearchIndexJobPayload, maxAttempts: number): Promise<void> {
-    const job = await this.postingsRepository.getSearchOutboxById(payload.outboxId);
+  async processIndexJob(
+    payload: SearchIndexJobPayload,
+    maxAttempts: number,
+  ): Promise<void> {
+    const job = await this.postingsRepository.getSearchOutboxById(
+      payload.outboxId,
+    );
 
     if (!job || job.deadLetteredAt || job.indexedAt) {
       return;
@@ -297,15 +349,26 @@ export class SearchService {
       }
 
       if (job.operation === "delete") {
-        await this.postingsSearchIndexService.deleteDocument(job.postingId, job.targetIndexName);
+        await this.postingsSearchIndexService.deleteDocument(
+          job.postingId,
+          job.targetIndexName,
+        );
       } else {
-        const documents = await this.postingsRepository.findByIdsForIndexing([job.postingId]);
+        const documents = await this.postingsRepository.findByIdsForIndexing([
+          job.postingId,
+        ]);
         const document = documents[0];
 
         if (!document || !isPostingSearchIndexable(document.status)) {
-          await this.postingsSearchIndexService.deleteDocument(job.postingId, job.targetIndexName);
+          await this.postingsSearchIndexService.deleteDocument(
+            job.postingId,
+            job.targetIndexName,
+          );
         } else {
-          await this.postingsSearchIndexService.upsertDocument(document, job.targetIndexName);
+          await this.postingsSearchIndexService.upsertDocument(
+            document,
+            job.targetIndexName,
+          );
         }
       }
 
@@ -376,13 +439,17 @@ export class SearchService {
     }
 
     if (immediateIndexIds.length > 0) {
-      await this.postingsRepository.markSearchOutboxesIndexed(immediateIndexIds);
+      await this.postingsRepository.markSearchOutboxesIndexed(
+        immediateIndexIds,
+      );
     }
 
     const documents = await this.postingsRepository.findByIdsForIndexing(
       upsertCandidates.map(({ job }) => job.postingId!).filter(Boolean),
     );
-    const documentsById = new Map(documents.map((document) => [document.id, document]));
+    const documentsById = new Map(
+      documents.map((document) => [document.id, document]),
+    );
     const upsertGroups = new Map<string, BatchedUpsertGroup>();
     const deleteGroups = new Map<string, BatchedDeleteGroup>();
 
@@ -419,15 +486,22 @@ export class SearchService {
     await Promise.all(
       Array.from(upsertGroups.entries(), async ([targetIndexName, group]) => {
         try {
-          await this.postingsSearchIndexService.bulkUpsertDocuments(group.documents, targetIndexName);
+          await this.postingsSearchIndexService.bulkUpsertDocuments(
+            group.documents,
+            targetIndexName,
+          );
           await this.postingsRepository.markSearchOutboxesIndexed(
             group.entries.map(({ job }) => job.id),
           );
         } catch (error) {
-          this.logger.warn("Falling back to per-job upsert processing after bulk indexing failed.", {
-            targetIndexName,
-            jobIds: group.entries.map(({ job }) => job.id),
-          }, error);
+          this.logger.warn(
+            "Falling back to per-job upsert processing after bulk indexing failed.",
+            {
+              targetIndexName,
+              jobIds: group.entries.map(({ job }) => job.id),
+            },
+            error,
+          );
           fallbackPayloads.push(...group.entries.map(({ payload }) => payload));
         }
       }),
@@ -444,10 +518,14 @@ export class SearchService {
             group.entries.map(({ job }) => job.id),
           );
         } catch (error) {
-          this.logger.warn("Falling back to per-job delete processing after bulk delete failed.", {
-            targetIndexName,
-            jobIds: group.entries.map(({ job }) => job.id),
-          }, error);
+          this.logger.warn(
+            "Falling back to per-job delete processing after bulk delete failed.",
+            {
+              targetIndexName,
+              jobIds: group.entries.map(({ job }) => job.id),
+            },
+            error,
+          );
           fallbackPayloads.push(...group.entries.map(({ payload }) => payload));
         }
       }),
@@ -475,7 +553,8 @@ export class SearchService {
       }
 
       if (run.status === "waiting_for_catchup") {
-        const catchUpState = await this.postingsRepository.getSearchReindexCatchUpState(run.id);
+        const catchUpState =
+          await this.postingsRepository.getSearchReindexCatchUpState(run.id);
 
         if (catchUpState.state === "waiting") {
           await this.postingsRepository.clearSearchReindexRunProcessing(run.id);
@@ -486,14 +565,26 @@ export class SearchService {
           throw new SearchReindexCatchUpError(catchUpState.errorMessage);
         }
 
-        const previousCompletedRun = await this.postingsRepository.findLatestCompletedSearchReindexRun();
+        const previousCompletedRun =
+          await this.postingsRepository.findLatestCompletedSearchReindexRun();
         const { previousReadTargets, previousWriteTargets } =
-          await this.postingsSearchIndexService.swapAliases(run.targetIndexName);
-        const retainedIndexName =
-          [...previousReadTargets, ...previousWriteTargets].find((index) => index !== run.targetIndexName);
+          await this.postingsSearchIndexService.swapAliases(
+            run.targetIndexName,
+          );
+        const retainedIndexName = [
+          ...previousReadTargets,
+          ...previousWriteTargets,
+        ].find((index) => index !== run.targetIndexName);
 
-        await this.postingsRepository.markSearchReindexRunCompleted(run.id, retainedIndexName);
-        await this.cleanupPreviousRetainedIndex(previousCompletedRun, run.targetIndexName, retainedIndexName);
+        await this.postingsRepository.markSearchReindexRunCompleted(
+          run.id,
+          retainedIndexName,
+        );
+        await this.cleanupPreviousRetainedIndex(
+          previousCompletedRun,
+          run.targetIndexName,
+          retainedIndexName,
+        );
         recordReindexRunCompleted(this.readReindexDurationMs(run));
       }
 
@@ -501,10 +592,14 @@ export class SearchService {
     } catch (error) {
       if (this.isTransientReindexError(error)) {
         await this.postingsRepository.clearSearchReindexRunProcessing(run.id);
-        this.logger.warn("Search reindex run hit a transient infrastructure error and will be retried.", {
-          runId: run.id,
-          targetIndexName: run.targetIndexName,
-        }, error);
+        this.logger.warn(
+          "Search reindex run hit a transient infrastructure error and will be retried.",
+          {
+            runId: run.id,
+            targetIndexName: run.targetIndexName,
+          },
+          error,
+        );
         return 0;
       }
 
@@ -513,10 +608,14 @@ export class SearchService {
         error instanceof Error ? error.message : "Unknown reindex error.",
       );
       recordReindexRunFailed(this.readReindexDurationMs(run));
-      this.logger.error("Search reindex run failed.", {
-        runId: run.id,
-        targetIndexName: run.targetIndexName,
-      }, error);
+      this.logger.error(
+        "Search reindex run failed.",
+        {
+          runId: run.id,
+          targetIndexName: run.targetIndexName,
+        },
+        error,
+      );
       return 1;
     }
   }
@@ -525,28 +624,39 @@ export class SearchService {
     run: SearchReindexRunRecord,
     batchSize: number,
   ): Promise<void> {
-    const totalPostings = await this.postingsRepository.countPublishedPostingsForIndexing(
-      run.sourceSnapshotAt,
+    const totalPostings =
+      await this.postingsRepository.countPublishedPostingsForIndexing(
+        run.sourceSnapshotAt,
+      );
+    await this.postingsRepository.markSearchReindexRunRunning(
+      run.id,
+      totalPostings,
     );
-    await this.postingsRepository.markSearchReindexRunRunning(run.id, totalPostings);
 
     let cursorId: string | undefined;
     let indexedPostings = 0;
 
     while (true) {
-      const documents = await this.postingsRepository.listPublishedForIndexingBatch(
-        batchSize,
-        cursorId,
-        run.sourceSnapshotAt,
-      );
+      const documents =
+        await this.postingsRepository.listPublishedForIndexingBatch(
+          batchSize,
+          cursorId,
+          run.sourceSnapshotAt,
+        );
 
       if (documents.length === 0) {
         break;
       }
 
-      for (const chunk of this.chunkDocuments(documents, REINDEX_HEARTBEAT_BULK_CHUNK_SIZE)) {
+      for (const chunk of this.chunkDocuments(
+        documents,
+        REINDEX_HEARTBEAT_BULK_CHUNK_SIZE,
+      )) {
         await this.postingsRepository.touchSearchReindexRunProcessing(run.id);
-        await this.postingsSearchIndexService.bulkUpsertDocuments(chunk, run.targetIndexName);
+        await this.postingsSearchIndexService.bulkUpsertDocuments(
+          chunk,
+          run.targetIndexName,
+        );
         await this.postingsRepository.touchSearchReindexRunProcessing(run.id);
       }
       indexedPostings += documents.length;
@@ -557,7 +667,10 @@ export class SearchService {
       });
     }
 
-    await this.postingsRepository.enqueueSearchReindexBarrier(run.id, run.targetIndexName);
+    await this.postingsRepository.enqueueSearchReindexBarrier(
+      run.id,
+      run.targetIndexName,
+    );
   }
 
   async processReconciliationBatch(limit: number): Promise<number> {
@@ -566,26 +679,36 @@ export class SearchService {
     }
 
     await this.postingsSearchIndexService.ensureLiveIndex();
-    const documents = await this.postingsRepository.listRecentForIndexReconciliation(limit);
+    const documents =
+      await this.postingsRepository.listRecentForIndexReconciliation(limit);
 
     if (documents.length === 0) {
       return 0;
     }
 
     const targetIndexName = this.postingsSearchIndexService.getWriteAliasName();
-    const upserts = documents.filter((document) => isPostingSearchIndexable(document.status));
+    const upserts = documents.filter((document) =>
+      isPostingSearchIndexable(document.status),
+    );
     const deletes = documents
       .filter((document) => !isPostingSearchIndexable(document.status))
       .map((document) => document.id);
 
     if (upserts.length > 0) {
       try {
-        await this.postingsSearchIndexService.bulkUpsertDocuments(upserts, targetIndexName);
-      } catch (error) {
-        this.logger.warn("Search reconciliation bulk upsert failed; falling back to per-document sync.", {
+        await this.postingsSearchIndexService.bulkUpsertDocuments(
+          upserts,
           targetIndexName,
-          documentIds: upserts.map((document) => document.id),
-        }, error);
+        );
+      } catch (error) {
+        this.logger.warn(
+          "Search reconciliation bulk upsert failed; falling back to per-document sync.",
+          {
+            targetIndexName,
+            documentIds: upserts.map((document) => document.id),
+          },
+          error,
+        );
         for (const document of upserts) {
           await this.postingsSearchIndexService.upsertDocument(document);
         }
@@ -594,12 +717,19 @@ export class SearchService {
 
     if (deletes.length > 0) {
       try {
-        await this.postingsSearchIndexService.bulkDeleteDocuments(deletes, targetIndexName);
-      } catch (error) {
-        this.logger.warn("Search reconciliation bulk delete failed; falling back to per-document sync.", {
+        await this.postingsSearchIndexService.bulkDeleteDocuments(
+          deletes,
           targetIndexName,
-          documentIds: deletes,
-        }, error);
+        );
+      } catch (error) {
+        this.logger.warn(
+          "Search reconciliation bulk delete failed; falling back to per-document sync.",
+          {
+            targetIndexName,
+            documentIds: deletes,
+          },
+          error,
+        );
         for (const id of deletes) {
           await this.postingsSearchIndexService.deleteDocument(id);
         }
@@ -635,7 +765,9 @@ export class SearchService {
     };
   }
 
-  private readReindexDurationMs(run: SearchReindexRunRecord): number | undefined {
+  private readReindexDurationMs(
+    run: SearchReindexRunRecord,
+  ): number | undefined {
     if (!run.startedAt) {
       return undefined;
     }
@@ -688,12 +820,18 @@ export class SearchService {
     return Array.from(groups.values());
   }
 
-  private createRelayCoalescingKey(job: PostingSearchOutboxRecord): string | null {
+  private createRelayCoalescingKey(
+    job: PostingSearchOutboxRecord,
+  ): string | null {
     if (job.operation === "barrier" || !job.postingId) {
       return null;
     }
 
-    return [job.postingId, job.reindexRunId ?? "live", job.targetIndexName ?? "live"].join(":");
+    return [
+      job.postingId,
+      job.reindexRunId ?? "live",
+      job.targetIndexName ?? "live",
+    ].join(":");
   }
 
   private chunkDocuments<T>(documents: T[], size: number): T[][] {
@@ -712,8 +850,12 @@ export class SearchService {
     maxAttempts: number,
     error: unknown,
   ): Promise<void> {
-    const errorMessage = error instanceof Error ? error.message : "Unknown indexing error.";
-    const attempt = await this.postingsRepository.incrementSearchOutboxAttempt(job.id, errorMessage);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown indexing error.";
+    const attempt = await this.postingsRepository.incrementSearchOutboxAttempt(
+      job.id,
+      errorMessage,
+    );
     const nextPayload = {
       ...payload,
       attempt,
@@ -721,7 +863,10 @@ export class SearchService {
 
     if (attempt >= maxAttempts) {
       await this.searchQueueService.publishDeadLetterJob(nextPayload);
-      await this.postingsRepository.markSearchOutboxDeadLettered(job.id, errorMessage);
+      await this.postingsRepository.markSearchOutboxDeadLettered(
+        job.id,
+        errorMessage,
+      );
       return;
     }
 
@@ -729,15 +874,20 @@ export class SearchService {
   }
 
   private logStaleOutboxJob(job: PostingSearchOutboxRecord): void {
-    this.logger.info("Skipping stale search outbox job because a newer job exists.", {
-      outboxId: job.id,
-      postingId: job.postingId,
-      targetIndexName: job.targetIndexName,
-    });
+    this.logger.info(
+      "Skipping stale search outbox job because a newer job exists.",
+      {
+        outboxId: job.id,
+        postingId: job.postingId,
+        targetIndexName: job.targetIndexName,
+      },
+    );
   }
 
   private resolveIndexTargetName(job: PostingSearchOutboxRecord): string {
-    return job.targetIndexName ?? this.postingsSearchIndexService.getWriteAliasName();
+    return (
+      job.targetIndexName ?? this.postingsSearchIndexService.getWriteAliasName()
+    );
   }
 
   private getOrCreateUpsertGroup(
@@ -793,20 +943,32 @@ export class SearchService {
     }
 
     try {
-      const aliasStatus = await this.postingsSearchIndexService.getAliasStatus();
-      const activeTargets = new Set([...aliasStatus.readTargets, ...aliasStatus.writeTargets]);
+      const aliasStatus =
+        await this.postingsSearchIndexService.getAliasStatus();
+      const activeTargets = new Set([
+        ...aliasStatus.readTargets,
+        ...aliasStatus.writeTargets,
+      ]);
 
       if (activeTargets.has(previousRetainedIndexName)) {
         return;
       }
 
-      await this.postingsSearchIndexService.deleteConcreteIndex(previousRetainedIndexName);
-      await this.postingsRepository.clearSearchReindexRunRetainedIndexName(previousCompletedRun.id);
+      await this.postingsSearchIndexService.deleteConcreteIndex(
+        previousRetainedIndexName,
+      );
+      await this.postingsRepository.clearSearchReindexRunRetainedIndexName(
+        previousCompletedRun.id,
+      );
     } catch (error) {
-      this.logger.warn("Failed to clean up a stale retained search index.", {
-        reindexRunId: previousCompletedRun.id,
-        retainedIndexName: previousRetainedIndexName,
-      }, error);
+      this.logger.warn(
+        "Failed to clean up a stale retained search index.",
+        {
+          reindexRunId: previousCompletedRun.id,
+          retainedIndexName: previousRetainedIndexName,
+        },
+        error,
+      );
     }
   }
 

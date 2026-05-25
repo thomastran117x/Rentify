@@ -58,7 +58,11 @@ async function main(): Promise<void> {
 }
 
 void main().catch(async (error: unknown) => {
-  seedScriptLogger.critical("Failed to run seed orchestrator.", undefined, error);
+  seedScriptLogger.critical(
+    "Failed to run seed orchestrator.",
+    undefined,
+    error,
+  );
   await Promise.allSettled([disconnectDatabase(), disconnectLogging()]);
   process.exit(1);
 });

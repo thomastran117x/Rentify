@@ -5,7 +5,7 @@ class ServiceNotImplementedError extends AppError {
     super(message, 501, "SERVICE_NOT_IMPLEMENTED", details);
     this.name = "ServiceNotImplementedError";
   }
-} 
+}
 
 export default ServiceNotImplementedError;
 export { ServiceNotImplementedError };

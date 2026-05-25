@@ -3,29 +3,26 @@ import { MarketingPageShell } from "@/components/marketing/marketing-page-shell"
 
 export const metadata: Metadata = {
   title: "Privacy | Rentify",
-  description: "Read the Rentify privacy policy and how information is handled across the site.",
+  description:
+    "Read the Rentify privacy policy and how information is handled across the site.",
 };
 
 const privacySections = [
   {
     title: "Information we collect",
-    body:
-      "We may collect contact details, account details, usage information, device information, and messages you choose to send through the site or account-related flows.",
+    body: "We may collect contact details, account details, usage information, device information, and messages you choose to send through the site or account-related flows.",
   },
   {
     title: "How information is used",
-    body:
-      "Information is used to operate the service, maintain security, support customer communication, improve product experiences, and meet legal or compliance obligations.",
+    body: "Information is used to operate the service, maintain security, support customer communication, improve product experiences, and meet legal or compliance obligations.",
   },
   {
     title: "Sharing and processors",
-    body:
-      "We may work with infrastructure, analytics, communication, and verification providers who process information on our behalf under appropriate contractual safeguards.",
+    body: "We may work with infrastructure, analytics, communication, and verification providers who process information on our behalf under appropriate contractual safeguards.",
   },
   {
     title: "Retention and rights",
-    body:
-      "We retain information for as long as necessary to provide the service, resolve disputes, enforce agreements, and meet regulatory requirements. Users may request access, correction, or deletion where applicable.",
+    body: "We retain information for as long as necessary to provide the service, resolve disputes, enforce agreements, and meet regulatory requirements. Users may request access, correction, or deletion where applicable.",
   },
 ];
 
@@ -45,8 +42,8 @@ export default function PrivacyPage() {
             May 13, 2026
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Review and adapt this content with counsel before using it as your final
-            published policy.
+            Review and adapt this content with counsel before using it as your
+            final published policy.
           </p>
         </div>
       }

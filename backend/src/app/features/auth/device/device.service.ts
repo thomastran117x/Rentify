@@ -70,15 +70,24 @@ export class DeviceService {
     deviceId?: string,
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
-      const knownDevice = await this.deviceRepository.findKnownDevice(user.id, deviceId);
+      const knownDevice = await this.deviceRepository.findKnownDevice(
+        user.id,
+        deviceId,
+      );
 
       if (knownDevice) {
-        await this.deviceRepository.touchKnownDevice(user.id, deviceId, client.ip);
+        await this.deviceRepository.touchKnownDevice(
+          user.id,
+          deviceId,
+          client.ip,
+        );
 
         return {
           deviceId,
           known: true,
-          knownByIp: Boolean(client.ip && knownDevice.lastIpAddress === client.ip),
+          knownByIp: Boolean(
+            client.ip && knownDevice.lastIpAddress === client.ip,
+          ),
         };
       }
     }
@@ -91,7 +100,10 @@ export class DeviceService {
       };
     }
 
-    const knownByIp = await this.deviceRepository.hasKnownIpAddress(user.id, client.ip);
+    const knownByIp = await this.deviceRepository.hasKnownIpAddress(
+      user.id,
+      client.ip,
+    );
 
     if (knownByIp) {
       await this.deviceRepository.touchKnownIpAddress(user.id, client.ip);
@@ -118,15 +130,24 @@ export class DeviceService {
     deviceId?: string,
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
-      const knownDevice = await this.deviceRepository.findKnownDevice(user.id, deviceId);
+      const knownDevice = await this.deviceRepository.findKnownDevice(
+        user.id,
+        deviceId,
+      );
 
       if (knownDevice) {
-        await this.deviceRepository.touchKnownDevice(user.id, deviceId, client.ip);
+        await this.deviceRepository.touchKnownDevice(
+          user.id,
+          deviceId,
+          client.ip,
+        );
 
         return {
           deviceId,
           known: true,
-          knownByIp: Boolean(client.ip && knownDevice.lastIpAddress === client.ip),
+          knownByIp: Boolean(
+            client.ip && knownDevice.lastIpAddress === client.ip,
+          ),
         };
       }
     }
@@ -139,7 +160,10 @@ export class DeviceService {
       };
     }
 
-    const knownByIp = await this.deviceRepository.hasKnownIpAddress(user.id, client.ip);
+    const knownByIp = await this.deviceRepository.hasKnownIpAddress(
+      user.id,
+      client.ip,
+    );
 
     if (knownByIp) {
       await this.deviceRepository.touchKnownIpAddress(user.id, client.ip);
@@ -187,7 +211,10 @@ export class DeviceService {
   }
 
   async removeKnownDevice(userId: string, deviceId: string): Promise<void> {
-    const wasRemoved = await this.deviceRepository.removeKnownDevice(userId, deviceId);
+    const wasRemoved = await this.deviceRepository.removeKnownDevice(
+      userId,
+      deviceId,
+    );
 
     if (!wasRemoved) {
       throw new BadRequestError("Known device could not be found.");
@@ -206,7 +233,11 @@ export class DeviceService {
       return;
     }
 
-    await this.cache.set(notificationKey, "1", this.unknownDeviceAlertCooldownInSeconds);
+    await this.cache.set(
+      notificationKey,
+      "1",
+      this.unknownDeviceAlertCooldownInSeconds,
+    );
 
     await this.emailService.sendNewDeviceEmail({
       to: user.email,

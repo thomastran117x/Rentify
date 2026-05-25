@@ -31,7 +31,9 @@ type ProfilePersistence = {
 };
 
 export class ProfileRepository extends BaseRepository {
-  async findPublicProfiles(input: ListProfilesInput): Promise<ListProfilesResult> {
+  async findPublicProfiles(
+    input: ListProfilesInput,
+  ): Promise<ListProfilesResult> {
     const where: Prisma.ProfileWhereInput = {
       isPrivate: false,
       ...(input.query
@@ -184,7 +186,9 @@ export class ProfileRepository extends BaseRepository {
           data: {
             username: input.username,
             phoneNumber: input.phoneNumber ?? null,
-            ...(input.isPrivate !== undefined ? { isPrivate: input.isPrivate } : {}),
+            ...(input.isPrivate !== undefined
+              ? { isPrivate: input.isPrivate }
+              : {}),
             ...(input.recommendationPersonalizationEnabled !== undefined
               ? {
                   recommendationPersonalizationEnabled:

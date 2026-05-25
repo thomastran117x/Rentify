@@ -22,7 +22,10 @@ describe("BaseRepository", () => {
   });
 
   it("logs retry attempts with operation labels for transient database errors", async () => {
-    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array, callback?: unknown) => {
+    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+      callback?: unknown,
+    ) => {
       if (typeof callback === "function") {
         callback(null);
       }
@@ -48,7 +51,9 @@ describe("BaseRepository", () => {
     ).resolves.toBe("ok");
 
     expect(operation).toHaveBeenCalledTimes(2);
-    const output = writeSpy.mock.calls.map(([message]) => String(message)).join("\n");
+    const output = writeSpy.mock.calls
+      .map(([message]) => String(message))
+      .join("\n");
     expect(output).toContain("Database operation retry scheduled.");
     expect(output).toContain("operation=TestRepository.testOperation");
     expect(output).toContain("errorCode=ECONNRESET");
@@ -57,8 +62,9 @@ describe("BaseRepository", () => {
   it("wraps Prisma transactions in the shared execution helper", async () => {
     const transaction = { marker: "transaction" };
     const database = {
-      $transaction: jest.fn(async (callback: (tx: typeof transaction) => Promise<string>) =>
-        callback(transaction),
+      $transaction: jest.fn(
+        async (callback: (tx: typeof transaction) => Promise<string>) =>
+          callback(transaction),
       ),
     };
     const repository = new TestRepository(database as never);
@@ -73,4 +79,3 @@ describe("BaseRepository", () => {
     expect(database.$transaction).toHaveBeenCalledTimes(1);
   });
 });
-

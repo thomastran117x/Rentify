@@ -1,8 +1,4 @@
-import type {
-  Channel,
-  ConsumeMessage,
-  ConfirmChannel,
-} from "amqplib";
+import type { Channel, ConsumeMessage, ConfirmChannel } from "amqplib";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
@@ -12,7 +8,10 @@ import type {
 } from "@/features/search/search.model";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
-const searchQueueLogger = loggerFactory.forComponent("search.queue.service", "queue");
+const searchQueueLogger = loggerFactory.forComponent(
+  "search.queue.service",
+  "queue",
+);
 
 interface SearchQueueBatchEntry {
   payload: SearchIndexJobPayload;
@@ -27,12 +26,16 @@ export class SearchQueueService {
   private publisherChannelPromise: Promise<ConfirmChannel> | null = null;
   private publisherTopologyPromise: Promise<void> | null = null;
 
-  constructor(indexBaseName = environment.getElasticsearchConfig().postingsIndexName) {
+  constructor(
+    indexBaseName = environment.getElasticsearchConfig().postingsIndexName,
+  ) {
     const prefix = `${indexBaseName}.search-index`;
 
     this.exchangeName = `${prefix}.exchange`;
     this.mainQueueName = `${prefix}.main`;
-    this.retryQueueNames = RETRY_DELAYS_MS.map((_, index) => `${prefix}.retry.${index + 1}`);
+    this.retryQueueNames = RETRY_DELAYS_MS.map(
+      (_, index) => `${prefix}.retry.${index + 1}`,
+    );
     this.deadLetterQueueName = `${prefix}.dead-letter`;
   }
 
@@ -50,8 +53,14 @@ export class SearchQueueService {
     await this.publishWithRoutingKey("main", payload);
   }
 
-  async publishRetryJob(payload: SearchIndexJobPayload, attempt: number): Promise<void> {
-    const retryIndex = Math.min(Math.max(attempt - 1, 0), this.retryQueueNames.length - 1);
+  async publishRetryJob(
+    payload: SearchIndexJobPayload,
+    attempt: number,
+  ): Promise<void> {
+    const retryIndex = Math.min(
+      Math.max(attempt - 1, 0),
+      this.retryQueueNames.length - 1,
+    );
     await this.publishWithRoutingKey(`retry.${retryIndex + 1}`, payload);
   }
 
@@ -71,31 +80,44 @@ export class SearchQueueService {
     await this.assertTopology(channel);
     await channel.prefetch(prefetch);
 
-    const consumeResult = await channel.consume(this.mainQueueName, async (message) => {
-      if (!message) {
-        return;
-      }
-
-      try {
-        let payload: SearchIndexJobPayload;
-
-        try {
-          payload = JSON.parse(message.content.toString("utf8")) as SearchIndexJobPayload;
-        } catch (error) {
-          searchQueueLogger.error("Search index consumer received an invalid JSON payload.", {
-            messageId: message.properties.messageId,
-          }, error);
-          await this.publishMalformedMessage(channel, message, error);
-          channel.ack(message);
+    const consumeResult = await channel.consume(
+      this.mainQueueName,
+      async (message) => {
+        if (!message) {
           return;
         }
 
-        await onMessage(payload, message, channel);
-      } catch (error) {
-        searchQueueLogger.error("Search index consumer failed before ack/nack handling.", undefined, error);
-        channel.nack(message, false, true);
-      }
-    });
+        try {
+          let payload: SearchIndexJobPayload;
+
+          try {
+            payload = JSON.parse(
+              message.content.toString("utf8"),
+            ) as SearchIndexJobPayload;
+          } catch (error) {
+            searchQueueLogger.error(
+              "Search index consumer received an invalid JSON payload.",
+              {
+                messageId: message.properties.messageId,
+              },
+              error,
+            );
+            await this.publishMalformedMessage(channel, message, error);
+            channel.ack(message);
+            return;
+          }
+
+          await onMessage(payload, message, channel);
+        } catch (error) {
+          searchQueueLogger.error(
+            "Search index consumer failed before ack/nack handling.",
+            undefined,
+            error,
+          );
+          channel.nack(message, false, true);
+        }
+      },
+    );
 
     return async () => {
       await channel.cancel(consumeResult.consumerTag);
@@ -108,7 +130,10 @@ export class SearchQueueService {
     batchSize: number,
     flushIntervalMs: number,
     maxConcurrentBatches: number,
-    onBatch: (entries: SearchQueueBatchEntry[], channel: Channel) => Promise<void>,
+    onBatch: (
+      entries: SearchQueueBatchEntry[],
+      channel: Channel,
+    ) => Promise<void>,
   ): Promise<() => Promise<void>> {
     const channel = await createRabbitMqChannel();
     await this.assertTopology(channel);
@@ -128,7 +153,11 @@ export class SearchQueueService {
     };
 
     const scheduleFlush = () => {
-      if (flushTimer || pendingEntries.length === 0 || activeFlushes.size >= maxConcurrentBatches) {
+      if (
+        flushTimer ||
+        pendingEntries.length === 0 ||
+        activeFlushes.size >= maxConcurrentBatches
+      ) {
         return;
       }
 
@@ -138,7 +167,10 @@ export class SearchQueueService {
     };
 
     const flushPending = async (): Promise<void> => {
-      if (pendingEntries.length === 0 || activeFlushes.size >= maxConcurrentBatches) {
+      if (
+        pendingEntries.length === 0 ||
+        activeFlushes.size >= maxConcurrentBatches
+      ) {
         clearFlushTimer();
         return;
       }
@@ -153,7 +185,11 @@ export class SearchQueueService {
         try {
           await onBatch(batch, channel);
         } catch (error) {
-          searchQueueLogger.error("Search index batch consumer failed before ack/nack handling.", undefined, error);
+          searchQueueLogger.error(
+            "Search index batch consumer failed before ack/nack handling.",
+            undefined,
+            error,
+          );
           for (const entry of batch) {
             channel.nack(entry.message, false, true);
           }
@@ -162,7 +198,10 @@ export class SearchQueueService {
             activeFlushes.delete(flushState.promise);
           }
 
-          if (pendingEntries.length >= batchSize && activeFlushes.size < maxConcurrentBatches) {
+          if (
+            pendingEntries.length >= batchSize &&
+            activeFlushes.size < maxConcurrentBatches
+          ) {
             void flushPending();
           } else {
             scheduleFlush();
@@ -174,47 +213,66 @@ export class SearchQueueService {
       await flushState.promise;
     };
 
-    const consumeResult = await channel.consume(this.mainQueueName, async (message) => {
-      if (!message) {
-        return;
-      }
-
-      try {
-        let payload: SearchIndexJobPayload;
-
-        try {
-          payload = JSON.parse(message.content.toString("utf8")) as SearchIndexJobPayload;
-        } catch (error) {
-          searchQueueLogger.error("Search index consumer received an invalid JSON payload.", {
-            messageId: message.properties.messageId,
-          }, error);
-          await this.publishMalformedMessage(channel, message, error);
-          channel.ack(message);
+    const consumeResult = await channel.consume(
+      this.mainQueueName,
+      async (message) => {
+        if (!message) {
           return;
         }
 
-        pendingEntries.push({
-          payload,
-          message,
-        });
+        try {
+          let payload: SearchIndexJobPayload;
 
-        if (pendingEntries.length >= batchSize && activeFlushes.size < maxConcurrentBatches) {
-          void flushPending();
-        } else {
-          scheduleFlush();
+          try {
+            payload = JSON.parse(
+              message.content.toString("utf8"),
+            ) as SearchIndexJobPayload;
+          } catch (error) {
+            searchQueueLogger.error(
+              "Search index consumer received an invalid JSON payload.",
+              {
+                messageId: message.properties.messageId,
+              },
+              error,
+            );
+            await this.publishMalformedMessage(channel, message, error);
+            channel.ack(message);
+            return;
+          }
+
+          pendingEntries.push({
+            payload,
+            message,
+          });
+
+          if (
+            pendingEntries.length >= batchSize &&
+            activeFlushes.size < maxConcurrentBatches
+          ) {
+            void flushPending();
+          } else {
+            scheduleFlush();
+          }
+        } catch (error) {
+          searchQueueLogger.error(
+            "Search index consumer failed before ack/nack handling.",
+            undefined,
+            error,
+          );
+          channel.nack(message, false, true);
         }
-      } catch (error) {
-        searchQueueLogger.error("Search index consumer failed before ack/nack handling.", undefined, error);
-        channel.nack(message, false, true);
-      }
-    });
+      },
+    );
 
     return async () => {
       clearFlushTimer();
       await channel.cancel(consumeResult.consumerTag);
 
       while (pendingEntries.length > 0 || activeFlushes.size > 0) {
-        if (pendingEntries.length > 0 && activeFlushes.size < maxConcurrentBatches) {
+        if (
+          pendingEntries.length > 0 &&
+          activeFlushes.size < maxConcurrentBatches
+        ) {
           await flushPending();
           continue;
         }
@@ -304,16 +362,27 @@ export class SearchQueueService {
           "x-dead-letter-routing-key": "main",
         },
       });
-      await channel.bindQueue(queueName, this.exchangeName, `retry.${index + 1}`);
+      await channel.bindQueue(
+        queueName,
+        this.exchangeName,
+        `retry.${index + 1}`,
+      );
     }
 
     await channel.assertQueue(this.deadLetterQueueName, {
       durable: true,
     });
-    await channel.bindQueue(this.deadLetterQueueName, this.exchangeName, "dead-letter");
+    await channel.bindQueue(
+      this.deadLetterQueueName,
+      this.exchangeName,
+      "dead-letter",
+    );
   }
 
-  private toQueueCounts(queue: { messageCount: number; consumerCount: number }): SearchQueueCounts {
+  private toQueueCounts(queue: {
+    messageCount: number;
+    consumerCount: number;
+  }): SearchQueueCounts {
     return {
       ready: queue.messageCount,
       consumers: queue.consumerCount,
@@ -333,7 +402,8 @@ export class SearchQueueService {
       headers: {
         ...(message.properties.headers ?? {}),
         deadLetterReason: "invalid_json",
-        deadLetterError: error instanceof Error ? error.message : "Invalid JSON payload.",
+        deadLetterError:
+          error instanceof Error ? error.message : "Invalid JSON payload.",
       },
     });
     await channel.waitForConfirms();
@@ -355,12 +425,16 @@ export class SearchQueueService {
     return this.publisherChannelPromise;
   }
 
-  private async ensurePublisherTopology(channel: ConfirmChannel): Promise<void> {
+  private async ensurePublisherTopology(
+    channel: ConfirmChannel,
+  ): Promise<void> {
     if (!this.publisherTopologyPromise) {
-      this.publisherTopologyPromise = this.assertTopology(channel).catch((error) => {
-        this.publisherTopologyPromise = null;
-        throw error;
-      });
+      this.publisherTopologyPromise = this.assertTopology(channel).catch(
+        (error) => {
+          this.publisherTopologyPromise = null;
+          throw error;
+        },
+      );
     }
 
     await this.publisherTopologyPromise;

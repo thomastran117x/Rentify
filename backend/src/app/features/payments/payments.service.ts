@@ -26,17 +26,26 @@ function readEventPaymentDetails(payload: Record<string, unknown>): {
   refundId?: string;
   status?: string;
 } {
-  const entity = (payload.data as Record<string, unknown> | undefined)?.object as Record<string, unknown> | undefined;
-  const payment = (entity?.payment as Record<string, unknown> | undefined) ?? entity;
-  const refund = (entity?.refund as Record<string, unknown> | undefined) ?? entity;
+  const entity = (payload.data as Record<string, unknown> | undefined)
+    ?.object as Record<string, unknown> | undefined;
+  const payment =
+    (entity?.payment as Record<string, unknown> | undefined) ?? entity;
+  const refund =
+    (entity?.refund as Record<string, unknown> | undefined) ?? entity;
 
   return {
     paymentId:
       (payment?.id as string | undefined) ??
       ((payload.payment_id as string | undefined) || undefined),
-    orderId: (payment?.order_id as string | undefined) ?? ((payload.order_id as string | undefined) || undefined),
-    refundId: (refund?.id as string | undefined) ?? ((payload.refund_id as string | undefined) || undefined),
-    status: (payment?.status as string | undefined) ?? (refund?.status as string | undefined),
+    orderId:
+      (payment?.order_id as string | undefined) ??
+      ((payload.order_id as string | undefined) || undefined),
+    refundId:
+      (refund?.id as string | undefined) ??
+      ((payload.refund_id as string | undefined) || undefined),
+    status:
+      (payment?.status as string | undefined) ??
+      (refund?.status as string | undefined),
   };
 }
 
@@ -50,13 +59,16 @@ export class PaymentsService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
   ) {}
 
-  async createPaymentSession(input: CreatePaymentSessionInput): Promise<PaymentRecord> {
+  async createPaymentSession(
+    input: CreatePaymentSessionInput,
+  ): Promise<PaymentRecord> {
     const idempotencyKey = createPaymentIdempotencyKey(input.idempotencyKey);
-    const attempt = await this.paymentsRepository.createPaymentAttemptForBooking({
-      bookingRequestId: input.bookingRequestId,
-      renterId: input.renterId,
-      idempotencyKey,
-    });
+    const attempt =
+      await this.paymentsRepository.createPaymentAttemptForBooking({
+        bookingRequestId: input.bookingRequestId,
+        renterId: input.renterId,
+        idempotencyKey,
+      });
 
     const existingAttempt = attempt.payment.attempts.find(
       (item) => item.id === attempt.attemptId && item.providerRequestId,
@@ -96,7 +108,10 @@ export class PaymentsService {
   }
 
   async retryPayment(input: RetryPaymentInput): Promise<PaymentRecord> {
-    const payment = await this.paymentsRepository.findAccessibleById(input.paymentId, input.renterId);
+    const payment = await this.paymentsRepository.findAccessibleById(
+      input.paymentId,
+      input.renterId,
+    );
 
     if (!["failed_retryable", "failed_final"].includes(payment.status)) {
       throw new BadRequestError("This payment is not eligible for retry.");
@@ -109,12 +124,18 @@ export class PaymentsService {
     });
   }
 
-  async getPaymentById(paymentId: string, userId: string): Promise<PaymentRecord> {
+  async getPaymentById(
+    paymentId: string,
+    userId: string,
+  ): Promise<PaymentRecord> {
     return this.paymentsRepository.findAccessibleById(paymentId, userId);
   }
 
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
-    await this.paymentsRepository.findAccessibleById(input.paymentId, input.actorUserId);
+    await this.paymentsRepository.findAccessibleById(
+      input.paymentId,
+      input.actorUserId,
+    );
 
     const idempotencyKey = createPaymentIdempotencyKey(input.idempotencyKey);
     const { refundId, providerPaymentId, pricingCurrency } =
@@ -131,7 +152,10 @@ export class PaymentsService {
       reason: input.reason,
     });
 
-    const payment = await this.paymentsRepository.completeRefund(refundId, result);
+    const payment = await this.paymentsRepository.completeRefund(
+      refundId,
+      result,
+    );
     await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
       postingId: payment.postingId,
       ownerId: payment.ownerId,
@@ -146,8 +170,14 @@ export class PaymentsService {
     return this.paymentsRepository.listPayoutsForOwner(input);
   }
 
-  async processSquareWebhook(rawBody: string, signatureHeader: string | undefined): Promise<void> {
-    const verification = this.paymentProvider.verifyWebhookSignature(rawBody, signatureHeader);
+  async processSquareWebhook(
+    rawBody: string,
+    signatureHeader: string | undefined,
+  ): Promise<void> {
+    const verification = this.paymentProvider.verifyWebhookSignature(
+      rawBody,
+      signatureHeader,
+    );
 
     const details = readEventPaymentDetails(verification.payload);
     const payment = await this.paymentsRepository.findBySquareReferences({
@@ -164,7 +194,9 @@ export class PaymentsService {
     });
 
     if (!verification.isValid) {
-      throw new BadRequestError("Square webhook signature verification failed.");
+      throw new BadRequestError(
+        "Square webhook signature verification failed.",
+      );
     }
 
     if (stored.alreadyProcessed) {
@@ -202,19 +234,30 @@ export class PaymentsService {
     await this.paymentsRepository.markWebhookProcessed(verification.eventId);
   }
 
-  async reconcilePayment(paymentId: string, userId: string): Promise<PaymentRecord> {
-    const payment = await this.paymentsRepository.findAccessibleById(paymentId, userId);
+  async reconcilePayment(
+    paymentId: string,
+    userId: string,
+  ): Promise<PaymentRecord> {
+    const payment = await this.paymentsRepository.findAccessibleById(
+      paymentId,
+      userId,
+    );
     const status = await this.paymentProvider.getPaymentStatus({
       providerPaymentId: payment.squarePaymentId,
       providerOrderId: payment.squareOrderId,
     });
 
     if (!status) {
-      throw new ResourceNotFoundError("Provider payment could not be found for reconciliation.");
+      throw new ResourceNotFoundError(
+        "Provider payment could not be found for reconciliation.",
+      );
     }
 
     if (status.status === "COMPLETED") {
-      const result = await this.markCompletedPaymentStatus(status, payment.postingId);
+      const result = await this.markCompletedPaymentStatus(
+        status,
+        payment.postingId,
+      );
 
       if (!result.payment) {
         throw new ResourceNotFoundError("Payment could not be reconciled.");
@@ -266,7 +309,10 @@ export class PaymentsService {
     }
 
     if (status.status === "COMPLETED") {
-      const result = await this.markCompletedPaymentStatus(status, payment.postingId);
+      const result = await this.markCompletedPaymentStatus(
+        status,
+        payment.postingId,
+      );
       await this.enqueueSearchSync(result.payment?.postingId);
       return;
     }
@@ -285,7 +331,9 @@ export class PaymentsService {
     const candidates = await this.paymentsRepository.listRetryCandidates(limit);
 
     for (const candidate of candidates) {
-      const ready = await this.paymentsRepository.markAttemptForRetry(candidate.attemptId);
+      const ready = await this.paymentsRepository.markAttemptForRetry(
+        candidate.attemptId,
+      );
 
       if (!ready) {
         continue;
@@ -322,7 +370,8 @@ export class PaymentsService {
   }
 
   async processRepairQueue(limit: number): Promise<number> {
-    const candidates = await this.paymentsRepository.listRepairCandidates(limit);
+    const candidates =
+      await this.paymentsRepository.listRepairCandidates(limit);
 
     for (const candidate of candidates) {
       await this.repairPayment(candidate.paymentId);
@@ -353,11 +402,16 @@ export class PaymentsService {
       return;
     }
 
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(postingId);
   }
 
-  private async enqueuePaymentFailedAnalytics(payment?: PaymentRecord | null): Promise<void> {
+  private async enqueuePaymentFailedAnalytics(
+    payment?: PaymentRecord | null,
+  ): Promise<void> {
     if (!payment) {
       return;
     }

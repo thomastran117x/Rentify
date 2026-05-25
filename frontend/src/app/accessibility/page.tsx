@@ -4,29 +4,26 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 
 export const metadata: Metadata = {
   title: "Accessibility | Rentify",
-  description: "Read Rentify's accessibility commitments and learn how to request support or accommodations.",
+  description:
+    "Read Rentify's accessibility commitments and learn how to request support or accommodations.",
 };
 
 const accessibilityAreas = [
   {
     title: "Readable content and structure",
-    body:
-      "We aim to keep headings, section order, and page copy understandable so people can navigate the site with less cognitive friction.",
+    body: "We aim to keep headings, section order, and page copy understandable so people can navigate the site with less cognitive friction.",
   },
   {
     title: "Keyboard and device support",
-    body:
-      "Core navigation, links, and interactive controls should remain usable across common devices and keyboard-first workflows.",
+    body: "Core navigation, links, and interactive controls should remain usable across common devices and keyboard-first workflows.",
   },
   {
     title: "Ongoing improvement",
-    body:
-      "Accessibility work is continuous. We expect to keep refining contrast, focus states, semantics, and interaction patterns as the product evolves.",
+    body: "Accessibility work is continuous. We expect to keep refining contrast, focus states, semantics, and interaction patterns as the product evolves.",
   },
   {
     title: "Help when you need it",
-    body:
-      "If you encounter a barrier, contact the team so we can provide an alternate path or work toward a fix where reasonable.",
+    body: "If you encounter a barrier, contact the team so we can provide an alternate path or work toward a fix where reasonable.",
   },
 ];
 
@@ -81,7 +78,9 @@ export default function AccessibilityPage() {
               <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
                 {area.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">{area.body}</p>
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                {area.body}
+              </p>
             </article>
           ))}
         </div>

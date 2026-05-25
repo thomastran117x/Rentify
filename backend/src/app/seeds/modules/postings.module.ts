@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import type { SeedModule } from "@/seeds/types";
 
@@ -25,7 +25,10 @@ const LEGACY_SEED_POSTING_IDS = [
   "aaaaaa20-aaaa-aaaa-aaaa-aaaaaaaaaa20",
 ];
 
-function buildLifecycleTimestamps(index: number, status: "draft" | "published" | "paused") {
+function buildLifecycleTimestamps(
+  index: number,
+  status: "draft" | "published" | "paused",
+) {
   const base = new Date("2026-04-01T12:00:00.000Z");
   base.setUTCDate(base.getUTCDate() + index);
 
@@ -35,11 +38,39 @@ function buildLifecycleTimestamps(index: number, status: "draft" | "published" |
   };
 }
 
+function toPostingDetailsColumns(
+  family: "place" | "equipment" | "vehicle",
+  details: Record<string, unknown>,
+) {
+  switch (family) {
+    case "place":
+      return {
+        placeDetails: details as never,
+        equipmentDetails: Prisma.DbNull,
+        vehicleDetails: Prisma.DbNull,
+      };
+    case "equipment":
+      return {
+        placeDetails: Prisma.DbNull,
+        equipmentDetails: details as never,
+        vehicleDetails: Prisma.DbNull,
+      };
+    case "vehicle":
+      return {
+        placeDetails: Prisma.DbNull,
+        equipmentDetails: Prisma.DbNull,
+        vehicleDetails: details as never,
+      };
+  }
+}
+
 async function syncOwnerProfilePostingCounts(
   userIdsByEmail: Map<string, string>,
   prisma: PrismaClient,
 ): Promise<void> {
-  const ownerEmails = Array.from(new Set(SEED_POSTINGS.map((posting) => posting.ownerEmail)));
+  const ownerEmails = Array.from(
+    new Set(SEED_POSTINGS.map((posting) => posting.ownerEmail)),
+  );
 
   for (const ownerEmail of ownerEmails) {
     const ownerId = userIdsByEmail.get(ownerEmail);
@@ -95,10 +126,15 @@ export const postingsSeedModule: SeedModule = {
       const ownerId = state.userIdsByEmail.get(fixturePosting.ownerEmail);
 
       if (!ownerId) {
-        throw new Error(`Missing fixture owner for posting seed: ${fixturePosting.ownerEmail}`);
+        throw new Error(
+          `Missing fixture owner for posting seed: ${fixturePosting.ownerEmail}`,
+        );
       }
 
-      const { pausedAt, publishedAt } = buildLifecycleTimestamps(index + 1, fixturePosting.status);
+      const { pausedAt, publishedAt } = buildLifecycleTimestamps(
+        index + 1,
+        fixturePosting.status,
+      );
 
       await prisma.posting.upsert({
         where: {
@@ -114,7 +150,10 @@ export const postingsSeedModule: SeedModule = {
           pricingCurrency: fixturePosting.pricingCurrency,
           pricing: fixturePosting.pricing as never,
           tags: fixturePosting.tags as never,
-          attributes: fixturePosting.attributes as never,
+          ...toPostingDetailsColumns(
+            fixturePosting.family,
+            fixturePosting.details,
+          ),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,
@@ -139,7 +178,10 @@ export const postingsSeedModule: SeedModule = {
           pricingCurrency: fixturePosting.pricingCurrency,
           pricing: fixturePosting.pricing as never,
           tags: fixturePosting.tags as never,
-          attributes: fixturePosting.attributes as never,
+          ...toPostingDetailsColumns(
+            fixturePosting.family,
+            fixturePosting.details,
+          ),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,
@@ -205,6 +247,8 @@ export const postingsSeedModule: SeedModule = {
     }
 
     await syncOwnerProfilePostingCounts(state.userIdsByEmail, prisma);
-    logger.info(`Seeded ${SEED_POSTINGS.length} postings with photos and owner availability.`);
+    logger.info(
+      `Seeded ${SEED_POSTINGS.length} postings with photos and owner availability.`,
+    );
   },
 };

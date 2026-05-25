@@ -31,7 +31,9 @@ export interface SendPasswordResetEmailInput {
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
-  async sendVerificationEmail(input: SendVerificationEmailInput): Promise<void> {
+  async sendVerificationEmail(
+    input: SendVerificationEmailInput,
+  ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("verification", input);
   }
 
@@ -43,7 +45,9 @@ export class EmailService {
     await this.emailQueueService.enqueueEmailJob("login_unlock", input);
   }
 
-  async sendPasswordResetEmail(input: SendPasswordResetEmailInput): Promise<void> {
+  async sendPasswordResetEmail(
+    input: SendPasswordResetEmailInput,
+  ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("password_reset", input);
   }
 }

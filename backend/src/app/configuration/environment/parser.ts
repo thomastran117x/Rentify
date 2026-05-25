@@ -40,7 +40,9 @@ import type {
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
 
-export function parseEnvironmentState(source: NodeJS.ProcessEnv): EnvironmentState {
+export function parseEnvironmentState(
+  source: NodeJS.ProcessEnv,
+): EnvironmentState {
   const raw = normalizeRawEnvironment(source);
   const errors: string[] = [];
   const nodeEnv = parseNodeEnvironment(raw, errors);
@@ -48,17 +50,37 @@ export function parseEnvironmentState(source: NodeJS.ProcessEnv): EnvironmentSta
   const rateLimiterStrategy = parseRateLimiterStrategy(raw, errors);
 
   const databaseUrl = readRequiredString(raw, "DATABASE_URL", errors);
-  const accessTokenSecret = readRequiredSecret(raw, "ACCESS_TOKEN_SECRET", errors);
-  const refreshTokenSecret = readRequiredSecret(raw, "REFRESH_TOKEN_SECRET", errors);
+  const accessTokenSecret = readRequiredSecret(
+    raw,
+    "ACCESS_TOKEN_SECRET",
+    errors,
+  );
+  const refreshTokenSecret = readRequiredSecret(
+    raw,
+    "REFRESH_TOKEN_SECRET",
+    errors,
+  );
   const personalAccessTokenSecret = readRequiredSecret(
     raw,
     "PERSONAL_ACCESS_TOKEN_SECRET",
     errors,
   );
   const gmailUser = readRequiredString(raw, "GMAIL_USER", errors);
-  const gmailAppPassword = readRequiredString(raw, "GMAIL_APP_PASSWORD", errors);
-  const squareAccessToken = readRequiredString(raw, "SQUARE_ACCESS_TOKEN", errors);
-  const squareLocationId = readRequiredString(raw, "SQUARE_LOCATION_ID", errors);
+  const gmailAppPassword = readRequiredString(
+    raw,
+    "GMAIL_APP_PASSWORD",
+    errors,
+  );
+  const squareAccessToken = readRequiredString(
+    raw,
+    "SQUARE_ACCESS_TOKEN",
+    errors,
+  );
+  const squareLocationId = readRequiredString(
+    raw,
+    "SQUARE_LOCATION_ID",
+    errors,
+  );
   const squareWebhookSignatureKey = readRequiredString(
     raw,
     "SQUARE_WEBHOOK_SIGNATURE_KEY",
@@ -111,7 +133,10 @@ export function parseEnvironmentState(source: NodeJS.ProcessEnv): EnvironmentSta
 
   if (errors.length > 0) {
     throw new Error(
-      ["Environment validation failed.", ...errors.map((error) => `- ${error}`)].join("\n"),
+      [
+        "Environment validation failed.",
+        ...errors.map((error) => `- ${error}`),
+      ].join("\n"),
     );
   }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RentingDisputeRecord } from "@/features/rentings/rentings.model";
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_MAX_BOOKING_DURATION_DAYS,
@@ -8,6 +9,7 @@ import {
 
 export const MAX_BOOKING_NOTE_LENGTH = 1000;
 export const MAX_BOOKING_DECISION_NOTE_LENGTH = 1000;
+export const MAX_BOOKING_CANCELLATION_REASON_LENGTH = 1000;
 export const MAX_BOOKING_GUEST_COUNT = 20;
 export const MAX_BOOKING_CONTACT_NAME_LENGTH = 255;
 export const MAX_BOOKING_CONTACT_EMAIL_LENGTH = 255;
@@ -16,6 +18,9 @@ export const MAX_ACTIVE_BOOKING_REQUESTS_PER_POSTING = 2;
 export const PENDING_BOOKING_HOLD_HOURS = 24;
 export const APPROVED_BOOKING_HOLD_HOURS = 72;
 export const CONVERSION_RESERVATION_MINUTES = 5;
+export const BOOKING_CANCELLATION_POLICY_CODE = "platform_default_v1" as const;
+export const FULL_REFUND_CUTOFF_HOURS = 48;
+export const PARTIAL_REFUND_CUTOFF_HOURS = 24;
 
 const trimmedStringSchema = z.string().trim().min(1);
 const nullableTrimmedStringSchema = z
@@ -38,14 +43,52 @@ export const bookingRequestStatusSchema = z.enum([
   "refunded",
 ]);
 
+export const bookingDashboardSortSchema = z.enum(["urgency", "start_at"]);
+export const renterBookingDashboardBucketSchema = z.enum([
+  "action_needed",
+  "upcoming",
+  "active",
+  "pending",
+  "past",
+  "cancelled",
+]);
+export const ownerBookingDashboardActionNeededSchema = z.enum([
+  "approval",
+  "payment",
+  "expiring_hold",
+  "payment_failure",
+  "conversion",
+]);
+export const bookingDashboardUrgencyLevelSchema = z.enum([
+  "high",
+  "medium",
+  "low",
+  "none",
+]);
+export const bookingCancellationActorSchema = z.enum(["renter", "owner"]);
+export const bookingCancellationRefundTypeSchema = z.enum([
+  "full",
+  "partial",
+  "none",
+  "unsupported",
+]);
+
 export const createBookingRequestSchema = z.object({
-  startAt: z.string().datetime("Booking request start time must be an ISO datetime."),
-  endAt: z.string().datetime("Booking request end time must be an ISO datetime."),
+  startAt: z
+    .string()
+    .datetime("Booking request start time must be an ISO datetime."),
+  endAt: z
+    .string()
+    .datetime("Booking request end time must be an ISO datetime."),
   guestCount: z.coerce
     .number()
     .int("Guest count must be an integer.")
     .min(1, "Guest count must be at least 1.")
-    .max(MAX_BOOKING_GUEST_COUNT, `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`),
+    .max(
+      MAX_BOOKING_GUEST_COUNT,
+      `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`,
+    )
+    .optional(),
   note: nullableTrimmedStringSchema.pipe(
     z.string().trim().max(MAX_BOOKING_NOTE_LENGTH).nullable().optional(),
   ),
@@ -88,22 +131,106 @@ export const bookingQuoteSchema = createBookingRequestSchema.pick({
 
 export const decideBookingRequestSchema = z.object({
   note: nullableTrimmedStringSchema.pipe(
-    z.string().trim().max(MAX_BOOKING_DECISION_NOTE_LENGTH).nullable().optional(),
+    z
+      .string()
+      .trim()
+      .max(MAX_BOOKING_DECISION_NOTE_LENGTH)
+      .nullable()
+      .optional(),
+  ),
+});
+
+export const cancelBookingRequestSchema = z.object({
+  reason: nullableTrimmedStringSchema.pipe(
+    z
+      .string()
+      .trim()
+      .max(
+        MAX_BOOKING_CANCELLATION_REASON_LENGTH,
+        `Cancellation reason must be at most ${MAX_BOOKING_CANCELLATION_REASON_LENGTH} characters.`,
+      )
+      .nullable()
+      .optional(),
   ),
 });
 
 export const listBookingRequestsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   status: bookingRequestStatusSchema.optional(),
 });
 
+export const renterBookingDashboardQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
+  sort: bookingDashboardSortSchema.default("urgency"),
+  bucket: renterBookingDashboardBucketSchema.optional(),
+  status: bookingRequestStatusSchema.optional(),
+});
+
+export const ownerBookingDashboardQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
+  sort: bookingDashboardSortSchema.default("urgency"),
+  status: bookingRequestStatusSchema.optional(),
+  actionNeeded: ownerBookingDashboardActionNeededSchema.optional(),
+  postingId: z.string().trim().min(1).optional(),
+});
+
 export type BookingRequestStatus = z.infer<typeof bookingRequestStatusSchema>;
-export type CreateBookingRequestBody = z.infer<typeof createBookingRequestSchema>;
+export type BookingDashboardSort = z.infer<typeof bookingDashboardSortSchema>;
+export type RenterBookingDashboardBucket = z.infer<
+  typeof renterBookingDashboardBucketSchema
+>;
+export type OwnerBookingDashboardActionNeeded = z.infer<
+  typeof ownerBookingDashboardActionNeededSchema
+>;
+export type BookingDashboardUrgencyLevel = z.infer<
+  typeof bookingDashboardUrgencyLevelSchema
+>;
+export type BookingCancellationActor = z.infer<
+  typeof bookingCancellationActorSchema
+>;
+export type BookingCancellationRefundType = z.infer<
+  typeof bookingCancellationRefundTypeSchema
+>;
+export type CreateBookingRequestBody = z.infer<
+  typeof createBookingRequestSchema
+>;
 export type BookingQuoteBody = z.infer<typeof bookingQuoteSchema>;
-export type UpdateBookingRequestBody = z.infer<typeof updateBookingRequestSchema>;
-export type DecideBookingRequestBody = z.infer<typeof decideBookingRequestSchema>;
-export type ListBookingRequestsQuery = z.infer<typeof listBookingRequestsQuerySchema>;
+export type UpdateBookingRequestBody = z.infer<
+  typeof updateBookingRequestSchema
+>;
+export type DecideBookingRequestBody = z.infer<
+  typeof decideBookingRequestSchema
+>;
+export type CancelBookingRequestBody = z.infer<
+  typeof cancelBookingRequestSchema
+>;
+export type ListBookingRequestsQuery = z.infer<
+  typeof listBookingRequestsQuerySchema
+>;
+export type RenterBookingDashboardQuery = z.infer<
+  typeof renterBookingDashboardQuerySchema
+>;
+export type OwnerBookingDashboardQuery = z.infer<
+  typeof ownerBookingDashboardQuerySchema
+>;
 
 export interface BookingRequestPostingSummary {
   id: string;
@@ -135,6 +262,11 @@ export interface BookingRequestRecord {
   paymentRequiredAt?: string;
   paymentFailedAt?: string;
   cancelledAt?: string;
+  cancelledByUserId?: string;
+  cancellationActor?: BookingCancellationActor;
+  cancellationReason?: string;
+  cancellationPolicyCode?: string;
+  cancellationRefundAmount?: number;
   refundedAt?: string;
   declinedAt?: string;
   expiredAt?: string;
@@ -163,12 +295,151 @@ export interface BookingRequestsListResult {
   status?: BookingRequestStatus;
 }
 
+export type BookingDashboardNextActionCode =
+  | "review_request"
+  | "complete_payment"
+  | "retry_payment"
+  | "convert_to_renting"
+  | "update_instructions"
+  | "mark_check_in_ready"
+  | "mark_check_in_complete"
+  | "mark_return_complete"
+  | "open_dispute"
+  | "await_owner_response"
+  | "monitor_upcoming"
+  | "view_renting"
+  | "none";
+
+export interface BookingDashboardNextAction {
+  code: BookingDashboardNextActionCode;
+  label: string;
+}
+
+export interface BookingDashboardUrgency {
+  level: BookingDashboardUrgencyLevel;
+  rank: number;
+  isActionable: boolean;
+  label: string;
+  deadlineAt?: string;
+}
+
+export interface BookingDashboardItem {
+  id: string;
+  kind: "booking_request" | "renting";
+  bookingRequestId?: string;
+  rentingId?: string;
+  postingId: string;
+  renterId: string;
+  ownerId: string;
+  status:
+    | BookingRequestStatus
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
+  sourceStatus:
+    | BookingRequestStatus
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
+  startAt: string;
+  endAt: string;
+  durationDays: number;
+  guestCount: number;
+  pricingCurrency: string;
+  dailyPriceAmount: number;
+  estimatedTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  posting: BookingRequestPostingSummary;
+  holdExpiresAt?: string;
+  approvedAt?: string;
+  paymentRequiredAt?: string;
+  paymentFailedAt?: string;
+  convertedAt?: string;
+  confirmedAt?: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: RentingDisputeRecord;
+  actionNeededCategory?: OwnerBookingDashboardActionNeeded;
+  isExpiringHold: boolean;
+  nextAction: BookingDashboardNextAction;
+  urgency: BookingDashboardUrgency;
+}
+
+export interface BookingDashboardPostingOption {
+  id: string;
+  name: string;
+}
+
+export interface RenterBookingDashboardSummary {
+  upcoming: number;
+  active: number;
+  pending: number;
+  actionNeeded: number;
+  past: number;
+  cancelled: number;
+}
+
+export interface OwnerBookingDashboardSummary {
+  approval: number;
+  payment: number;
+  expiringHold: number;
+  paymentFailure: number;
+  conversion: number;
+  upcomingRentings: number;
+  activeRentings: number;
+  pastRentings: number;
+  totalOpen: number;
+}
+
+export interface RenterBookingDashboardResult {
+  summary: RenterBookingDashboardSummary;
+  items: BookingDashboardItem[];
+  pagination: BookingRequestsListResult["pagination"];
+  filters: {
+    page: number;
+    pageSize: number;
+    sort: BookingDashboardSort;
+    bucket?: RenterBookingDashboardBucket;
+    status?: BookingRequestStatus;
+  };
+}
+
+export interface OwnerBookingDashboardResult {
+  summary: OwnerBookingDashboardSummary;
+  items: BookingDashboardItem[];
+  postings: BookingDashboardPostingOption[];
+  pagination: BookingRequestsListResult["pagination"];
+  filters: {
+    page: number;
+    pageSize: number;
+    sort: BookingDashboardSort;
+    status?: BookingRequestStatus;
+    actionNeeded?: OwnerBookingDashboardActionNeeded;
+    postingId?: string;
+  };
+}
+
 export interface CreateBookingRequestInput {
   postingId: string;
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   contactName: string;
   contactEmail: string;
   contactPhoneNumber?: string | null;
@@ -180,7 +451,7 @@ export interface BookingQuoteInput {
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 
@@ -220,12 +491,18 @@ export interface DecideBookingRequestInput {
   note?: string | null;
 }
 
+export interface CancelBookingRequestInput {
+  bookingRequestId: string;
+  actorUserId: string;
+  reason?: string | null;
+}
+
 export interface UpdateBookingRequestInput {
   bookingRequestId: string;
   renterId: string;
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   contactName: string;
   contactEmail: string;
   contactPhoneNumber?: string | null;
@@ -239,12 +516,38 @@ export interface ListRenterBookingRequestsInput {
   status?: BookingRequestStatus;
 }
 
+export interface ListOwnedBookingRequestsInput {
+  ownerId: string;
+  page: number;
+  pageSize: number;
+  status?: BookingRequestStatus;
+}
+
 export interface ListOwnerBookingRequestsInput {
   ownerId: string;
   postingId: string;
   page: number;
   pageSize: number;
   status?: BookingRequestStatus;
+}
+
+export interface RenterBookingDashboardInput {
+  renterId: string;
+  page: number;
+  pageSize: number;
+  sort: BookingDashboardSort;
+  bucket?: RenterBookingDashboardBucket;
+  status?: BookingRequestStatus;
+}
+
+export interface OwnerBookingDashboardInput {
+  ownerId: string;
+  page: number;
+  pageSize: number;
+  sort: BookingDashboardSort;
+  status?: BookingRequestStatus;
+  actionNeeded?: OwnerBookingDashboardActionNeeded;
+  postingId?: string;
 }
 
 export interface CreateBookingRequestPersistenceInput {
@@ -280,6 +583,32 @@ export interface BookingRequestExpirationRecord {
   ownerId: string;
   status: BookingRequestStatus;
   holdBlockId?: string;
+}
+
+export type BookingCancellationFailureCode =
+  | "already_started"
+  | "booking_already_converted"
+  | "booking_status_ineligible"
+  | "payment_processing_in_progress"
+  | "payment_missing"
+  | "payment_refund_failed";
+
+export interface BookingCancellationFailureReason {
+  code: BookingCancellationFailureCode;
+  message: string;
+}
+
+export interface BookingCancellationQuoteResult {
+  bookingRequestId: string;
+  cancellable: boolean;
+  actor: BookingCancellationActor;
+  bookingStatus: BookingRequestStatus;
+  reasonRequired: boolean;
+  policyCode: string;
+  refundType: BookingCancellationRefundType;
+  refundAmount: number;
+  currency: string;
+  failureReasons: BookingCancellationFailureReason[];
 }
 
 export const BOOKING_DEFAULTS = {

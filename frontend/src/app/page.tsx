@@ -14,6 +14,7 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
+import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 
 const stats = [
   { label: "Active postings", value: "4.2k+" },
@@ -62,12 +63,14 @@ const sitePages = [
   },
   {
     title: "Services",
-    description: "Explore the product capabilities that support search, listings, and trust.",
+    description:
+      "Explore the product capabilities that support search, listings, and trust.",
     href: "/services",
   },
   {
     title: "About",
-    description: "Learn what Rentify is trying to improve about rental discovery.",
+    description:
+      "Learn what Rentify is trying to improve about rental discovery.",
     href: "/about",
   },
   {
@@ -77,22 +80,26 @@ const sitePages = [
   },
   {
     title: "Contact",
-    description: "Reach support for renter questions, owner setup, or partnerships.",
+    description:
+      "Reach support for renter questions, owner setup, or partnerships.",
     href: "/contact",
   },
   {
     title: "Accessibility",
-    description: "Read our accessibility commitment and request support when needed.",
+    description:
+      "Read our accessibility commitment and request support when needed.",
     href: "/accessibility",
   },
   {
     title: "Privacy",
-    description: "Understand how data is handled across the site and account flows.",
+    description:
+      "Understand how data is handled across the site and account flows.",
     href: "/privacy",
   },
   {
     title: "Terms",
-    description: "Review the marketplace rules, responsibilities, and limitations.",
+    description:
+      "Review the marketplace rules, responsibilities, and limitations.",
     href: "/terms",
   },
 ];
@@ -130,16 +137,17 @@ function SearchIcon() {
 
 export default function Home() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    const formData = new FormData(event.currentTarget);
     const params = new URLSearchParams();
+    const searchQuery = String(formData.get("q") ?? "").trim();
 
-    if (searchQuery.trim()) {
-      params.set("query", searchQuery.trim());
+    if (searchQuery) {
+      params.set("q", searchQuery);
     }
 
     if (locationQuery.trim()) {
@@ -178,18 +186,14 @@ export default function Home() {
               className="mt-8 rounded-3xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-950/5"
             >
               <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr_auto]">
-                <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
-                  <span className="text-slate-400 transition group-focus-within:text-violet-600">
-                    <SearchIcon />
-                  </span>
-                  <span className="sr-only">Search rentals</span>
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="What are you looking for?"
-                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                  />
-                </label>
+                <PostingAutocompleteInput
+                  label="Search rentals"
+                  placeholder="What are you looking for?"
+                  shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
+                  icon={<SearchIcon />}
+                  iconClassName="text-slate-400 transition group-focus-within:text-violet-600"
+                  inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
 
                 <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
                   <MapPin className="h-4 w-4 text-slate-400 transition group-focus-within:text-violet-600" />
@@ -357,9 +361,7 @@ export default function Home() {
       <section className="border-y border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold text-violet-700">
-              Why Rentify
-            </p>
+            <p className="text-sm font-semibold text-violet-700">Why Rentify</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
               A cleaner way to discover and manage rentals.
             </h2>
@@ -466,9 +468,7 @@ export default function Home() {
       <section className="border-y border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <div>
-            <p className="text-sm font-semibold text-violet-700">
-              Core pages
-            </p>
+            <p className="text-sm font-semibold text-violet-700">Core pages</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
               The rest of the site now carries the same design system.
             </h2>
@@ -508,9 +508,7 @@ export default function Home() {
       <section className="px-4 pb-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-2xl shadow-slate-950/10 sm:p-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
           <div>
-            <p className="text-sm font-semibold text-violet-300">
-              For owners
-            </p>
+            <p className="text-sm font-semibold text-violet-300">For owners</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
               Have something to rent out?
             </h2>

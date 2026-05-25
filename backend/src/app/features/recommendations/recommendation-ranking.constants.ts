@@ -13,7 +13,10 @@ export const POPULAR_RECOMMENDATION_LIMITS = {
   family_subtype: 150,
 } as const;
 
-export const RECOMMENDATION_EVENT_WEIGHTS: Record<RecommendationActivityEventType, number> = {
+export const RECOMMENDATION_EVENT_WEIGHTS: Record<
+  RecommendationActivityEventType,
+  number
+> = {
   posting_view: 1,
   search_click: 2,
   booking_request_created: 5,

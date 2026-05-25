@@ -3,7 +3,10 @@
 import { useState, type ReactNode } from "react";
 import { publicEnv } from "@/lib/env";
 import { authApi } from "@/lib/auth/api";
-import type { AuthResponseBody, LinkedOAuthProvidersResult } from "@/lib/auth/types";
+import type {
+  AuthResponseBody,
+  LinkedOAuthProvidersResult,
+} from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 export type OAuthProvider = "google" | "microsoft";
@@ -42,7 +45,9 @@ const OAUTH_SCOPE = "openid email profile";
 function createRandomString(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 async function createPkceChallenge(verifier: string): Promise<string> {
@@ -74,9 +79,10 @@ function getPopupFeatures(): string {
 }
 
 function parsePopupPayload(rawPayload: string): PopupAuthResult {
-  const normalized = rawPayload.startsWith("#") || rawPayload.startsWith("?")
-    ? rawPayload.slice(1)
-    : rawPayload;
+  const normalized =
+    rawPayload.startsWith("#") || rawPayload.startsWith("?")
+      ? rawPayload.slice(1)
+      : rawPayload;
   const params = new URLSearchParams(normalized);
 
   return {
@@ -131,7 +137,13 @@ async function buildOAuthUrl(
 ): Promise<string> {
   const redirectUri = `${window.location.origin}/auth/${provider}`;
   const codeChallenge = await createPkceChallenge(codeVerifier);
-  const params = buildProviderParams(provider, state, nonce, redirectUri, codeChallenge);
+  const params = buildProviderParams(
+    provider,
+    state,
+    nonce,
+    redirectUri,
+    codeChallenge,
+  );
 
   return `${getProviderAuthorizeUrl(provider)}?${params.toString()}`;
 }
@@ -140,7 +152,10 @@ function getProviderDisplayName(provider: OAuthProvider): string {
   return provider === "google" ? "Google" : "Microsoft";
 }
 
-function readProviderError(provider: OAuthProvider, payload: PopupAuthResult): string {
+function readProviderError(
+  provider: OAuthProvider,
+  payload: PopupAuthResult,
+): string {
   if (payload.errorDescription) {
     return payload.errorDescription.replace(/\+/g, " ");
   }
@@ -245,7 +260,9 @@ async function openProviderPopup(
   );
 
   if (!popup) {
-    throw new Error("Your browser blocked the sign-in popup. Please allow popups and try again.");
+    throw new Error(
+      "Your browser blocked the sign-in popup. Please allow popups and try again.",
+    );
   }
 
   return new Promise((resolve, reject) => {
@@ -260,7 +277,11 @@ async function openProviderPopup(
     const closePoll = window.setInterval(() => {
       if (popup.closed && !finished) {
         cleanup();
-        reject(new Error("The sign-in popup was closed before authentication finished."));
+        reject(
+          new Error(
+            "The sign-in popup was closed before authentication finished.",
+          ),
+        );
       }
     }, 400);
 
@@ -269,9 +290,14 @@ async function openProviderPopup(
         return;
       }
 
-      const data = event.data as { source?: string; payload?: string } | undefined;
+      const data = event.data as
+        | { source?: string; payload?: string }
+        | undefined;
 
-      if (data?.source !== "rentify-oauth-popup" || typeof data.payload !== "string") {
+      if (
+        data?.source !== "rentify-oauth-popup" ||
+        typeof data.payload !== "string"
+      ) {
         return;
       }
 
@@ -280,7 +306,11 @@ async function openProviderPopup(
       if (payload.state !== state) {
         cleanup();
         popup.close();
-        reject(new Error("The sign-in response could not be verified. Please try again."));
+        reject(
+          new Error(
+            "The sign-in response could not be verified. Please try again.",
+          ),
+        );
         return;
       }
 
@@ -373,26 +403,33 @@ export function AuthOAuthButtons({
   onError,
   disabledProviders = [],
 }: AuthOAuthButtonsProps) {
-  const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(null);
+  const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
+    null,
+  );
   const isLinkMode = mode === "link";
 
-  const providerConfigs = ([
-    {
-      provider: "google" as const,
-      label: isLinkMode ? "Link Google" : "Continue with Google",
-      pendingLabel: "Connecting to Google...",
-      enabled: Boolean(publicEnv.googleOAuthClientId) && !disabledProviders.includes("google"),
-      icon: <GoogleIcon />,
-    },
-    {
-      provider: "microsoft" as const,
-      label: isLinkMode ? "Link Microsoft" : "Continue with Microsoft",
-      pendingLabel: "Connecting to Microsoft...",
-      enabled:
-        Boolean(publicEnv.microsoftOAuthClientId) && !disabledProviders.includes("microsoft"),
-      icon: <MicrosoftIcon />,
-    },
-  ] satisfies ProviderButtonConfig[]).filter((provider) => provider.enabled);
+  const providerConfigs = (
+    [
+      {
+        provider: "google" as const,
+        label: isLinkMode ? "Link Google" : "Continue with Google",
+        pendingLabel: "Connecting to Google...",
+        enabled:
+          Boolean(publicEnv.googleOAuthClientId) &&
+          !disabledProviders.includes("google"),
+        icon: <GoogleIcon />,
+      },
+      {
+        provider: "microsoft" as const,
+        label: isLinkMode ? "Link Microsoft" : "Continue with Microsoft",
+        pendingLabel: "Connecting to Microsoft...",
+        enabled:
+          Boolean(publicEnv.microsoftOAuthClientId) &&
+          !disabledProviders.includes("microsoft"),
+        icon: <MicrosoftIcon />,
+      },
+    ] satisfies ProviderButtonConfig[]
+  ).filter((provider) => provider.enabled);
 
   async function handleProviderClick(provider: OAuthProvider) {
     setPendingProvider(provider);
@@ -414,15 +451,27 @@ export function AuthOAuthButtons({
             };
 
       if (isLinkMode) {
-        const linkedProviders = await linkWithProvider(provider, providerInput, result.nonce);
+        const linkedProviders = await linkWithProvider(
+          provider,
+          providerInput,
+          result.nonce,
+        );
         onLinked?.(linkedProviders);
         return;
       }
 
-      const session = await authenticateWithProvider(provider, providerInput, result.nonce);
+      const session = await authenticateWithProvider(
+        provider,
+        providerInput,
+        result.nonce,
+      );
       onSuccess?.(session);
     } catch (error) {
-      onError(error instanceof Error ? error.message : "OAuth sign-in could not be completed.");
+      onError(
+        error instanceof Error
+          ? error.message
+          : "OAuth sign-in could not be completed.",
+      );
     } finally {
       setPendingProvider(null);
     }

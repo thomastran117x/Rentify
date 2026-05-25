@@ -85,7 +85,10 @@ function assertSafeInputs(
   }
 }
 
-export function assertSafeRequestBody(context: Context<AppBindings>, body: unknown): void {
+export function assertSafeRequestBody(
+  context: Context<AppBindings>,
+  body: unknown,
+): void {
   const inputs: ContentSanitizationInput[] = [];
   collectStringInputs(body, "", inputs);
   assertSafeInputs(context, inputs, "Request body validation failed.");
@@ -130,7 +133,10 @@ export function assertSafeRouteParams(context: Context<AppBindings>): void {
   assertSafeInputs(context, inputs, "Route parameter validation failed.");
 }
 
-export function requireSafeRouteParam(context: Context<AppBindings>, name: string): string {
+export function requireSafeRouteParam(
+  context: Context<AppBindings>,
+  name: string,
+): string {
   const value = context.req.param(name);
 
   if (!value) {

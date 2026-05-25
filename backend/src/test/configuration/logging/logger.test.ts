@@ -35,7 +35,10 @@ describe("logger", () => {
     process.env.NODE_ENV = "development";
     process.env.LOG_LEVEL = "debug";
 
-    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array, callback?: unknown) => {
+    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+      callback?: unknown,
+    ) => {
       if (typeof callback === "function") {
         callback(null);
       }
@@ -50,7 +53,9 @@ describe("logger", () => {
 
     await waitForLogger();
 
-    const output = writeSpy.mock.calls.map(([message]) => String(message)).join("\n");
+    const output = writeSpy.mock.calls
+      .map(([message]) => String(message))
+      .join("\n");
     expect(output).toContain("Logger ready.");
     expect(output).toContain("service/logger.test");
     expect(output).toContain("requestId=req-1");
@@ -73,7 +78,10 @@ describe("logger", () => {
 
     await waitForLogger();
 
-    const fileContent = await readFile(path.join(tempDirectory, "application.log.jsonl"), "utf8");
+    const fileContent = await readFile(
+      path.join(tempDirectory, "application.log.jsonl"),
+      "utf8",
+    );
     const [firstLine] = fileContent.trim().split("\n");
     const event = JSON.parse(firstLine ?? "{}") as Record<string, unknown>;
 

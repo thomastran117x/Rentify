@@ -1,23 +1,35 @@
 export const POSTING_FAMILY_VALUES = ["place", "equipment", "vehicle"] as const;
 
-export const POSTING_SUBTYPE_VALUES = [
+export const PLACE_POSTING_SUBTYPE_VALUES = [
   "entire_place",
   "private_room",
   "shared_room",
   "workspace",
   "storage_space",
+] as const;
+
+export const EQUIPMENT_POSTING_SUBTYPE_VALUES = [
   "tool",
   "camera",
   "audio",
   "event_equipment",
   "sports_outdoor",
   "general_equipment",
+] as const;
+
+export const VEHICLE_POSTING_SUBTYPE_VALUES = [
   "car",
   "truck_van",
   "bike",
   "motorcycle",
   "trailer",
   "general_vehicle",
+] as const;
+
+export const POSTING_SUBTYPE_VALUES = [
+  ...PLACE_POSTING_SUBTYPE_VALUES,
+  ...EQUIPMENT_POSTING_SUBTYPE_VALUES,
+  ...VEHICLE_POSTING_SUBTYPE_VALUES,
 ] as const;
 
 export type PostingFamilyValue = (typeof POSTING_FAMILY_VALUES)[number];
@@ -42,7 +54,9 @@ export interface PostingSubtypeDefinition {
 
 export interface PostingFamilyDefinition {
   label: string;
-  subtypes: Record<PostingSubtypeValue, PostingSubtypeDefinition> | Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>;
+  subtypes:
+    | Record<PostingSubtypeValue, PostingSubtypeDefinition>
+    | Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>;
   searchableAttributes: Record<string, SearchablePostingAttributeDefinition>;
 }
 
@@ -110,10 +124,15 @@ export const postingVariantCatalog = {
 export function getPostingVariantDefinition(
   family: PostingFamilyValue,
   subtype: PostingSubtypeValue,
-): { family: PostingFamilyDefinition; subtype: PostingSubtypeDefinition } | null {
+): {
+  family: PostingFamilyDefinition;
+  subtype: PostingSubtypeDefinition;
+} | null {
   const familyDefinition = postingVariantCatalog[family];
   const subtypeDefinition = (
-    familyDefinition.subtypes as Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>
+    familyDefinition.subtypes as Partial<
+      Record<PostingSubtypeValue, PostingSubtypeDefinition>
+    >
   )[subtype];
 
   if (!subtypeDefinition) {
@@ -139,10 +158,14 @@ export function getPostingSearchableAttributeDefinitions(
   return variant.family.searchableAttributes;
 }
 
-export function isPostingFamilyValue(value: string): value is PostingFamilyValue {
+export function isPostingFamilyValue(
+  value: string,
+): value is PostingFamilyValue {
   return POSTING_FAMILY_VALUES.includes(value as PostingFamilyValue);
 }
 
-export function isPostingSubtypeValue(value: string): value is PostingSubtypeValue {
+export function isPostingSubtypeValue(
+  value: string,
+): value is PostingSubtypeValue {
   return POSTING_SUBTYPE_VALUES.includes(value as PostingSubtypeValue);
 }

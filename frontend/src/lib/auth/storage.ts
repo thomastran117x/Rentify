@@ -33,7 +33,10 @@ function emitStorageChange(): void {
   window.dispatchEvent(new Event(AUTH_STORAGE_EVENT));
 }
 
-export function getStoredSessionSnapshot(): StoredAuthSession | null | undefined {
+export function getStoredSessionSnapshot():
+  | StoredAuthSession
+  | null
+  | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
@@ -41,7 +44,9 @@ export function getStoredSessionSnapshot(): StoredAuthSession | null | undefined
   return readStoredSession();
 }
 
-export function subscribeToStoredSession(onStoreChange: () => void): () => void {
+export function subscribeToStoredSession(
+  onStoreChange: () => void,
+): () => void {
   if (!canUseStorage()) {
     return () => undefined;
   }
@@ -50,7 +55,10 @@ export function subscribeToStoredSession(onStoreChange: () => void): () => void 
     onStoreChange();
   };
   const handleStorageChange = (event: StorageEvent) => {
-    if (event.key === AUTH_STORAGE_SIGNAL_KEY || event.key === SESSION_STORAGE_KEY) {
+    if (
+      event.key === AUTH_STORAGE_SIGNAL_KEY ||
+      event.key === SESSION_STORAGE_KEY
+    ) {
       handleChange();
     }
   };

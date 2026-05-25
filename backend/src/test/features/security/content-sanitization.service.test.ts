@@ -7,7 +7,8 @@ describe("ContentSanitizationService", () => {
     const violations = service.inspect([
       {
         path: "description",
-        value: "Bright two bedroom apartment with parking and in-suite laundry.",
+        value:
+          "Bright two bedroom apartment with parking and in-suite laundry.",
       },
       {
         path: "tags.0",
@@ -60,13 +61,13 @@ describe("ContentSanitizationService", () => {
   it("rejects obvious injection markers", () => {
     const violations = service.inspect([
       {
-        path: "attributes.entryCode",
+        path: "details.entryCode",
         value: "' OR 1=1 --",
       },
     ]);
 
     expect(violations).toHaveLength(1);
-    expect(violations[0]?.path).toBe("attributes.entryCode");
+    expect(violations[0]?.path).toBe("details.entryCode");
     expect(violations[0]?.code).toBe("INJECTION_PATTERN");
   });
 });

@@ -40,7 +40,17 @@ export function registerRentingsTools(
       inputSchema: {
         page: z.number().int().min(1).optional(),
         pageSize: z.number().int().min(1).max(50).optional(),
-        status: z.enum(["confirmed"]).optional(),
+        status: z
+          .enum([
+            "confirmed",
+            "check_in_ready",
+            "active",
+            "return_due",
+            "completed",
+            "disputed",
+            "cancelled",
+          ])
+          .optional(),
       },
     },
     handlers.listMyRentings,

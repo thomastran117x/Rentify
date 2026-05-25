@@ -93,7 +93,7 @@ export interface SeedPostingFixture {
   pricingCurrency: string;
   pricing: Record<string, unknown>;
   tags: string[];
-  attributes: Record<string, string | number | boolean | string[]>;
+  details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
@@ -110,7 +110,12 @@ export interface SeedPostingFixture {
 export interface SeedPaymentAttemptFixture {
   id: string;
   idempotencyKey: string;
-  status: "pending" | "processing" | "succeeded" | "failed_retryable" | "failed_final";
+  status:
+    | "pending"
+    | "processing"
+    | "succeeded"
+    | "failed_retryable"
+    | "failed_final";
   retryCount?: number;
   failureCategory?: "transient" | "permanent" | "unknown";
   failureCode?: string;
@@ -205,8 +210,32 @@ export interface SeedPaymentFixture {
 
 export interface SeedRentingFixture {
   id: string;
-  status: "confirmed";
+  status:
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
   confirmedAt: string;
+  createdAt: string;
+  pickupInstructions?: string;
+  returnInstructions?: string;
+  checkInReadyAt?: string;
+  checkInCompletedAt?: string;
+  returnDueAt?: string;
+  completedAt?: string;
+  disputedAt?: string;
+  cancelledAt?: string;
+  dispute?: SeedRentingDisputeFixture;
+}
+
+export interface SeedRentingDisputeFixture {
+  id: string;
+  openedByUserEmail: string;
+  reason: string;
+  details?: string;
   createdAt: string;
 }
 

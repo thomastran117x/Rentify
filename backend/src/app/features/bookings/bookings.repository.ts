@@ -9,13 +9,18 @@ import {
 } from "@/features/postings/postings.model";
 import type {
   ActiveBookingOverlapInput,
+  BookingDashboardPostingOption,
+  BookingCancellationActor,
   BookingRequestExpirationRecord,
   BookingRequestRecord,
   BookingRequestsListResult,
   BookingRequestStatus,
   CreateBookingRequestPersistenceInput,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardInput,
+  RenterBookingDashboardInput,
 } from "@/features/bookings/bookings.model";
 
 type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
@@ -40,13 +45,16 @@ type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
 export class BookingsRepository extends BaseRepository {
   private readonly activeBookingStatuses: BookingRequestStatus[] = [
     "pending",
+    "approved",
     "awaiting_payment",
     "payment_processing",
     "payment_failed",
     "paid",
   ];
 
-  async create(input: CreateBookingRequestPersistenceInput): Promise<BookingRequestRecord> {
+  async create(
+    input: CreateBookingRequestPersistenceInput,
+  ): Promise<BookingRequestRecord> {
     const created = await this.executeAsync(() =>
       this.prisma.bookingRequest.create({
         data: {
@@ -220,7 +228,10 @@ export class BookingsRepository extends BaseRepository {
           return null;
         }
 
-        if (existing.status !== "pending" || existing.holdExpiresAt.getTime() <= Date.now()) {
+        if (
+          existing.status !== "pending" ||
+          existing.holdExpiresAt.getTime() <= Date.now()
+        ) {
           return null;
         }
 
@@ -280,7 +291,9 @@ export class BookingsRepository extends BaseRepository {
     return updated ? this.mapBookingRequest(updated) : null;
   }
 
-  async listByRenter(input: ListRenterBookingRequestsInput): Promise<BookingRequestsListResult> {
+  async listByRenter(
+    input: ListRenterBookingRequestsInput,
+  ): Promise<BookingRequestsListResult> {
     const where: Prisma.BookingRequestWhereInput = {
       renterId: input.renterId,
       ...(input.status ? { status: input.status } : {}),
@@ -367,7 +380,156 @@ export class BookingsRepository extends BaseRepository {
     };
   }
 
-  async hasOfficialReservationOverlap(input: ActiveBookingOverlapInput): Promise<boolean> {
+  async listByOwner(
+    input: ListOwnedBookingRequestsInput,
+  ): Promise<BookingRequestsListResult> {
+    const where: Prisma.BookingRequestWhereInput = {
+      ownerId: input.ownerId,
+      ...(input.status ? { status: input.status } : {}),
+    };
+    const skip = (input.page - 1) * input.pageSize;
+
+    const [rows, total] = await this.executeAsync(() =>
+      Promise.all([
+        this.prisma.bookingRequest.findMany({
+          where,
+          skip,
+          take: input.pageSize,
+          orderBy: [{ createdAt: "desc" }],
+          include: {
+            renting: {
+              select: {
+                id: true,
+              },
+            },
+            posting: {
+              include: {
+                photos: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
+            },
+          },
+        }),
+        this.prisma.bookingRequest.count({ where }),
+      ]),
+    );
+
+    return {
+      bookingRequests: rows.map((row) => this.mapBookingRequest(row)),
+      pagination: this.createPagination(input.page, input.pageSize, total),
+      ...(input.status ? { status: input.status } : {}),
+    };
+  }
+
+  async listDashboardByRenter(
+    input: Pick<RenterBookingDashboardInput, "renterId" | "status">,
+  ): Promise<BookingRequestRecord[]> {
+    const where: Prisma.BookingRequestWhereInput = {
+      renterId: input.renterId,
+      ...(input.status ? { status: input.status } : {}),
+    };
+
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        include: {
+          renting: {
+            select: {
+              id: true,
+            },
+          },
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return rows.map((row) => this.mapBookingRequest(row));
+  }
+
+  async listDashboardByOwner(
+    input: Pick<OwnerBookingDashboardInput, "ownerId" | "status" | "postingId">,
+  ): Promise<BookingRequestRecord[]> {
+    const where: Prisma.BookingRequestWhereInput = {
+      ownerId: input.ownerId,
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.postingId ? { postingId: input.postingId } : {}),
+    };
+
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        include: {
+          renting: {
+            select: {
+              id: true,
+            },
+          },
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return rows.map((row) => this.mapBookingRequest(row));
+  }
+
+  async listDashboardPostingOptionsByOwner(
+    ownerId: string,
+  ): Promise<BookingDashboardPostingOption[]> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where: {
+          ownerId,
+        },
+        select: {
+          postingId: true,
+          posting: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ posting: { name: "asc" } }, { createdAt: "desc" }],
+      }),
+    );
+
+    const options = new Map<string, BookingDashboardPostingOption>();
+
+    for (const row of rows) {
+      if (!options.has(row.postingId)) {
+        options.set(row.postingId, {
+          id: row.postingId,
+          name: row.posting.name,
+        });
+      }
+    }
+
+    return Array.from(options.values());
+  }
+
+  async hasOfficialReservationOverlap(
+    input: ActiveBookingOverlapInput,
+  ): Promise<boolean> {
     const match = await this.executeAsync(() =>
       this.prisma.bookingRequest.findFirst({
         where: {
@@ -463,41 +625,47 @@ export class BookingsRepository extends BaseRepository {
             return null;
           }
 
-          if (existing.status !== "pending" || existing.holdExpiresAt <= new Date()) {
+          if (
+            existing.status !== "pending" ||
+            existing.holdExpiresAt <= new Date()
+          ) {
             return null;
           }
 
-          const availabilityBlock = await transaction.postingAvailabilityBlock.findFirst({
-            where: {
-              postingId: existing.postingId,
-              startAt: {
-                lt: existing.endAt,
-              },
-              endAt: {
-                gt: existing.startAt,
-              },
-              OR: [
-                {
-                  bookingRequestHold: null,
+          const availabilityBlock =
+            await transaction.postingAvailabilityBlock.findFirst({
+              where: {
+                postingId: existing.postingId,
+                startAt: {
+                  lt: existing.endAt,
                 },
-                {
-                  bookingRequestHold: {
-                    status: "paid",
-                    convertedAt: null,
-                    id: {
-                      not: existing.id,
+                endAt: {
+                  gt: existing.startAt,
+                },
+                OR: [
+                  {
+                    bookingRequestHold: null,
+                  },
+                  {
+                    bookingRequestHold: {
+                      status: "paid",
+                      convertedAt: null,
+                      id: {
+                        not: existing.id,
+                      },
                     },
                   },
-                },
-              ],
-            },
-            select: {
-              id: true,
-            },
-          });
+                ],
+              },
+              select: {
+                id: true,
+              },
+            });
 
           if (availabilityBlock) {
-            throw new BadRequestError("The requested dates are no longer available.");
+            throw new BadRequestError(
+              "The requested dates are no longer available.",
+            );
           }
 
           const result = await transaction.bookingRequest.updateMany({
@@ -549,7 +717,10 @@ export class BookingsRepository extends BaseRepository {
 
         return approved ? this.mapBookingRequest(approved) : null;
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -631,13 +802,129 @@ export class BookingsRepository extends BaseRepository {
     return declined ? this.mapBookingRequest(declined) : null;
   }
 
-  async listExpiredCandidates(limit: number): Promise<BookingRequestExpirationRecord[]> {
+  async cancel(input: {
+    bookingRequestId: string;
+    actorUserId: string;
+    actor: BookingCancellationActor;
+    expectedStatus: BookingRequestStatus;
+    reason?: string | null;
+    cancellationPolicyCode: string;
+    cancellationRefundAmount: number;
+  }): Promise<BookingRequestRecord | null> {
+    const cancelled = await this.executeAsync(async () =>
+      this.prisma.$transaction(async (transaction) => {
+        const existing = await transaction.bookingRequest.findUnique({
+          where: {
+            id: input.bookingRequestId,
+          },
+          select: {
+            id: true,
+            renterId: true,
+            ownerId: true,
+            status: true,
+            holdBlockId: true,
+            convertedAt: true,
+          },
+        });
+
+        if (!existing) {
+          return null;
+        }
+
+        if (
+          (input.actor === "renter" &&
+            existing.renterId !== input.actorUserId) ||
+          (input.actor === "owner" && existing.ownerId !== input.actorUserId)
+        ) {
+          return null;
+        }
+
+        if (existing.status !== input.expectedStatus || existing.convertedAt) {
+          return null;
+        }
+
+        const result = await transaction.bookingRequest.updateMany({
+          where: {
+            id: existing.id,
+            status: input.expectedStatus,
+            convertedAt: null,
+            ...(input.actor === "renter"
+              ? {
+                  renterId: input.actorUserId,
+                }
+              : {
+                  ownerId: input.actorUserId,
+                }),
+          },
+          data: {
+            status: "cancelled",
+            cancelledAt: new Date(),
+            cancelledByUserId: input.actorUserId,
+            cancellationActor: input.actor,
+            cancellationReason: input.reason ?? null,
+            cancellationPolicyCode: input.cancellationPolicyCode,
+            cancellationRefundAmount: new Prisma.Decimal(
+              input.cancellationRefundAmount,
+            ),
+            holdBlockId: null,
+            conversionReservedAt: null,
+            conversionReservationExpiresAt: null,
+          },
+        });
+
+        if (result.count !== 1) {
+          return null;
+        }
+
+        if (existing.holdBlockId) {
+          await transaction.postingAvailabilityBlock.deleteMany({
+            where: {
+              id: existing.holdBlockId,
+            },
+          });
+        }
+
+        return transaction.bookingRequest.findUniqueOrThrow({
+          where: {
+            id: existing.id,
+          },
+          include: {
+            renting: {
+              select: {
+                id: true,
+              },
+            },
+            posting: {
+              include: {
+                photos: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
+            },
+          },
+        });
+      }),
+    );
+
+    return cancelled ? this.mapBookingRequest(cancelled) : null;
+  }
+
+  async listExpiredCandidates(
+    limit: number,
+  ): Promise<BookingRequestExpirationRecord[]> {
     const now = new Date();
     const rows = await this.executeAsync(() =>
       this.prisma.bookingRequest.findMany({
         where: {
           status: {
-            in: ["pending", "awaiting_payment", "payment_processing", "payment_failed"],
+            in: [
+              "pending",
+              "awaiting_payment",
+              "payment_processing",
+              "payment_failed",
+            ],
           },
           convertedAt: null,
           OR: [
@@ -740,7 +1027,14 @@ export class BookingsRepository extends BaseRepository {
           return false;
         }
 
-        if (!["pending", "awaiting_payment", "payment_processing", "payment_failed"].includes(existing.status)) {
+        if (
+          ![
+            "pending",
+            "awaiting_payment",
+            "payment_processing",
+            "payment_failed",
+          ].includes(existing.status)
+        ) {
           return false;
         }
 
@@ -791,9 +1085,12 @@ export class BookingsRepository extends BaseRepository {
         }
 
         if (
-          ["awaiting_payment", "payment_processing", "payment_failed", "approved"].includes(
-            existing.status,
-          ) &&
+          [
+            "awaiting_payment",
+            "payment_processing",
+            "payment_failed",
+            "approved",
+          ].includes(existing.status) &&
           existing.holdBlockId
         ) {
           await transaction.postingAvailabilityBlock.deleteMany({
@@ -843,7 +1140,9 @@ export class BookingsRepository extends BaseRepository {
     );
 
     if (result.count !== 1) {
-      throw new ConflictError("This booking request is already reserved for conversion.");
+      throw new ConflictError(
+        "This booking request is already reserved for conversion.",
+      );
     }
 
     return {
@@ -876,7 +1175,9 @@ export class BookingsRepository extends BaseRepository {
     );
   }
 
-  private mapBookingRequest(bookingRequest: BookingRequestPersistence): BookingRequestRecord {
+  private mapBookingRequest(
+    bookingRequest: BookingRequestPersistence,
+  ): BookingRequestRecord {
     return {
       id: bookingRequest.id,
       postingId: bookingRequest.postingId,
@@ -900,6 +1201,16 @@ export class BookingsRepository extends BaseRepository {
       paymentRequiredAt: bookingRequest.paymentRequiredAt?.toISOString(),
       paymentFailedAt: bookingRequest.paymentFailedAt?.toISOString(),
       cancelledAt: bookingRequest.cancelledAt?.toISOString(),
+      cancelledByUserId: bookingRequest.cancelledByUserId ?? undefined,
+      cancellationActor: bookingRequest.cancellationActor ?? undefined,
+      cancellationReason: bookingRequest.cancellationReason ?? undefined,
+      cancellationPolicyCode:
+        bookingRequest.cancellationPolicyCode ?? undefined,
+      cancellationRefundAmount:
+        bookingRequest.cancellationRefundAmount !== null &&
+        bookingRequest.cancellationRefundAmount !== undefined
+          ? Number(bookingRequest.cancellationRefundAmount)
+          : undefined,
       refundedAt: bookingRequest.refundedAt?.toISOString(),
       declinedAt: bookingRequest.declinedAt?.toISOString(),
       expiredAt: bookingRequest.expiredAt?.toISOString(),
@@ -909,7 +1220,8 @@ export class BookingsRepository extends BaseRepository {
         bookingRequest.conversionReservationExpiresAt?.toISOString(),
       holdExpiresAt: bookingRequest.holdExpiresAt.toISOString(),
       holdBlockId: bookingRequest.holdBlockId ?? undefined,
-      paymentReconciliationRequired: bookingRequest.paymentReconciliationRequired,
+      paymentReconciliationRequired:
+        bookingRequest.paymentReconciliationRequired,
       rentingId: bookingRequest.renting?.id ?? undefined,
       createdAt: bookingRequest.createdAt.toISOString(),
       updatedAt: bookingRequest.updatedAt.toISOString(),
@@ -918,7 +1230,8 @@ export class BookingsRepository extends BaseRepository {
         name: bookingRequest.posting.name,
         primaryPhotoUrl: bookingRequest.posting.photos[0]?.blobUrl,
         effectiveMaxBookingDurationDays:
-          bookingRequest.posting.maxBookingDurationDays ?? DEFAULT_MAX_BOOKING_DURATION_DAYS,
+          bookingRequest.posting.maxBookingDurationDays ??
+          DEFAULT_MAX_BOOKING_DURATION_DAYS,
       },
     };
   }

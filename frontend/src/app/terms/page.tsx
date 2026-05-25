@@ -3,29 +3,26 @@ import { MarketingPageShell } from "@/components/marketing/marketing-page-shell"
 
 export const metadata: Metadata = {
   title: "Terms | Rentify",
-  description: "Review the Rentify terms for site access, marketplace usage, account responsibilities, and limitations.",
+  description:
+    "Review the Rentify terms for site access, marketplace usage, account responsibilities, and limitations.",
 };
 
 const termsSections = [
   {
     title: "Using the marketplace",
-    body:
-      "By accessing Rentify, you agree to use the marketplace lawfully, provide accurate information when needed, and avoid interfering with the security, performance, or availability of the service.",
+    body: "By accessing Rentify, you agree to use the marketplace lawfully, provide accurate information when needed, and avoid interfering with the security, performance, or availability of the service.",
   },
   {
     title: "Accounts and responsibilities",
-    body:
-      "If you create an account, you are responsible for maintaining your credentials and for the activity that occurs under that account, subject to applicable consumer protections and local law.",
+    body: "If you create an account, you are responsible for maintaining your credentials and for the activity that occurs under that account, subject to applicable consumer protections and local law.",
   },
   {
     title: "Listings, availability, and pricing",
-    body:
-      "Listings may change over time. Availability, pricing, delivery details, and owner-specific requirements should be confirmed through the applicable booking or support flow before final commitment.",
+    body: "Listings may change over time. Availability, pricing, delivery details, and owner-specific requirements should be confirmed through the applicable booking or support flow before final commitment.",
   },
   {
     title: "Limitations and additional terms",
-    body:
-      "Rentify may update or suspend parts of the marketplace from time to time. Specific listings, payment flows, local rules, or booking agreements may carry additional terms depending on the category and jurisdiction involved.",
+    body: "Rentify may update or suspend parts of the marketplace from time to time. Specific listings, payment flows, local rules, or booking agreements may carry additional terms depending on the category and jurisdiction involved.",
   },
 ];
 
@@ -45,9 +42,9 @@ export default function TermsPage() {
             Template content
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Review this language with legal counsel before publishing, especially if
-            your marketplace processes payments, recurring rentals, or regional
-            consumer rights.
+            Review this language with legal counsel before publishing,
+            especially if your marketplace processes payments, recurring
+            rentals, or regional consumer rights.
           </p>
         </div>
       }

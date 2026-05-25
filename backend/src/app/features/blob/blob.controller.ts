@@ -13,10 +13,17 @@ import { BlobService } from "@/features/blob/blob.service";
 export class BlobController {
   constructor(private readonly blobService: BlobService) {}
 
-  createUploadUrl = async (context: Context<AppBindings>): Promise<Response> => {
+  createUploadUrl = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     await requireJwtAuth(context);
-    const input = await parseRequestBody(context, createBlobUploadUrlRequestSchema);
-    const result = this.blobService.createUploadUrl(this.toCreateBlobUploadUrlInput(context, input));
+    const input = await parseRequestBody(
+      context,
+      createBlobUploadUrlRequestSchema,
+    );
+    const result = this.blobService.createUploadUrl(
+      this.toCreateBlobUploadUrlInput(context, input),
+    );
 
     return created(context, result, {
       message: "Blob upload URL created successfully.",

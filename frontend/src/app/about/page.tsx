@@ -4,7 +4,8 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 
 export const metadata: Metadata = {
   title: "About | Rentify",
-  description: "Learn how Rentify helps renters discover listings faster and gives owners a cleaner way to present them.",
+  description:
+    "Learn how Rentify helps renters discover listings faster and gives owners a cleaner way to present them.",
 };
 
 const values = [
@@ -61,8 +62,9 @@ export default function AboutPage() {
             Search confidence, trustworthy listings, and better owner tools.
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Rentify keeps the marketplace experience grounded in useful structure so
-            renters can move faster and owners can keep information accurate.
+            Rentify keeps the marketplace experience grounded in useful
+            structure so renters can move faster and owners can keep information
+            accurate.
           </p>
         </div>
       }
@@ -82,7 +84,9 @@ export default function AboutPage() {
               <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
                 {value.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">{value.description}</p>
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                {value.description}
+              </p>
             </article>
           ))}
         </div>
@@ -97,8 +101,8 @@ export default function AboutPage() {
             Useful structure before feature noise.
           </h2>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
-            The marketplace gets stronger when search, listing content, and support
-            flows answer the obvious questions early and clearly.
+            The marketplace gets stronger when search, listing content, and
+            support flows answer the obvious questions early and clearly.
           </p>
         </div>
         <div className="grid gap-4">

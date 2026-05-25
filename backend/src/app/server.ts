@@ -37,7 +37,10 @@ async function bootstrap(): Promise<void> {
     });
 
     server.close();
-    await Promise.allSettled([disconnectApplicationResources(), disconnectLogging()]);
+    await Promise.allSettled([
+      disconnectApplicationResources(),
+      disconnectLogging(),
+    ]);
     process.exit(0);
   };
 
@@ -52,6 +55,9 @@ async function bootstrap(): Promise<void> {
 
 void bootstrap().catch(async (error: unknown) => {
   serverLogger.critical("Failed to start server.", undefined, error);
-  await Promise.allSettled([disconnectApplicationResources(), disconnectLogging()]);
+  await Promise.allSettled([
+    disconnectApplicationResources(),
+    disconnectLogging(),
+  ]);
   process.exit(1);
 });

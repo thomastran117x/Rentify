@@ -24,7 +24,10 @@ export class RecommendationActivityPublisher {
     private readonly queueService: RecommendationActivityQueueService,
     private readonly profileRepository: ProfileRepository,
   ) {
-    this.logger = loggerFactory.forClass(RecommendationActivityPublisher, "service");
+    this.logger = loggerFactory.forClass(
+      RecommendationActivityPublisher,
+      "service",
+    );
   }
 
   async publishPostingView(input: {
@@ -33,7 +36,10 @@ export class RecommendationActivityPublisher {
     requestId?: string;
     actorUserId?: string;
   }): Promise<void> {
-    if (!isPostingPubliclyVisible(input.posting) || input.client.device.type === "bot") {
+    if (
+      !isPostingPubliclyVisible(input.posting) ||
+      input.client.device.type === "bot"
+    ) {
       return;
     }
 
@@ -55,7 +61,9 @@ export class RecommendationActivityPublisher {
       source: "posting_detail",
       searchSessionId: null,
       metadata: {},
-      personalizationEnabled: await this.readPersonalizationEnabled(input.actorUserId),
+      personalizationEnabled: await this.readPersonalizationEnabled(
+        input.actorUserId,
+      ),
     });
   }
 
@@ -92,7 +100,9 @@ export class RecommendationActivityPublisher {
         hasGeoFilter: input.body.hasGeoFilter,
         hasAvailabilityFilter: input.body.hasAvailabilityFilter,
       },
-      personalizationEnabled: await this.readPersonalizationEnabled(input.actorUserId),
+      personalizationEnabled: await this.readPersonalizationEnabled(
+        input.actorUserId,
+      ),
     });
   }
 
@@ -148,7 +158,9 @@ export class RecommendationActivityPublisher {
         endAt: input.renting.endAt,
         guestCount: input.renting.guestCount,
       },
-      personalizationEnabled: await this.readPersonalizationEnabled(input.renting.renterId),
+      personalizationEnabled: await this.readPersonalizationEnabled(
+        input.renting.renterId,
+      ),
     });
   }
 
@@ -177,7 +189,9 @@ export class RecommendationActivityPublisher {
       metadata: {
         status: input.posting.status,
       },
-      personalizationEnabled: await this.readPersonalizationEnabled(input.actorUserId),
+      personalizationEnabled: await this.readPersonalizationEnabled(
+        input.actorUserId,
+      ),
     });
   }
 
@@ -188,21 +202,29 @@ export class RecommendationActivityPublisher {
     try {
       await this.queueService.publishActivityEvent(payload);
     } catch (error) {
-      this.logger.warn("Recommendation activity publish failed.", {
-        eventType,
-        postingId: payload.postingId,
-        requestId: payload.requestId,
-      }, error);
+      this.logger.warn(
+        "Recommendation activity publish failed.",
+        {
+          eventType,
+          postingId: payload.postingId,
+          requestId: payload.requestId,
+        },
+        error,
+      );
     }
   }
 
-  private async readPersonalizationEnabled(userId?: string): Promise<boolean | null> {
+  private async readPersonalizationEnabled(
+    userId?: string,
+  ): Promise<boolean | null> {
     if (!userId) {
       return null;
     }
 
     const enabled =
-      await this.profileRepository.findRecommendationPersonalizationEnabledByUserId(userId);
+      await this.profileRepository.findRecommendationPersonalizationEnabledByUserId(
+        userId,
+      );
 
     return enabled ?? true;
   }

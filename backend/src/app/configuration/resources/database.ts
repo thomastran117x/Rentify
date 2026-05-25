@@ -19,14 +19,16 @@ function createDatabaseClient(): PrismaClient {
   client.$on("query", (event) => {
     const shouldLogQuery = config.queryLoggingEnabled;
     const shouldLogSlowQuery =
-      config.slowQueryThresholdMs > 0 && event.duration >= config.slowQueryThresholdMs;
+      config.slowQueryThresholdMs > 0 &&
+      event.duration >= config.slowQueryThresholdMs;
 
     if (!shouldLogQuery && !shouldLogSlowQuery) {
       return;
     }
 
-    const logMethod =
-      shouldLogSlowQuery ? databaseLogger.warn.bind(databaseLogger) : databaseLogger.info.bind(databaseLogger);
+    const logMethod = shouldLogSlowQuery
+      ? databaseLogger.warn.bind(databaseLogger)
+      : databaseLogger.info.bind(databaseLogger);
 
     logMethod("Database query completed.", {
       durationMs: event.duration,
@@ -57,7 +59,9 @@ export async function connectDatabase(): Promise<PrismaClient> {
 
 export function getDatabaseClient(): PrismaClient {
   if (!database) {
-    throw new Error("Database has not been initialized. Call connectDatabase() first.");
+    throw new Error(
+      "Database has not been initialized. Call connectDatabase() first.",
+    );
   }
 
   return database;

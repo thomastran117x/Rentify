@@ -4,7 +4,8 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 
 export const metadata: Metadata = {
   title: "FAQ | Rentify",
-  description: "Find answers to common Rentify questions about searching, listings, policies, and support.",
+  description:
+    "Find answers to common Rentify questions about searching, listings, policies, and support.",
 };
 
 const faqs = [
@@ -70,8 +71,8 @@ export default function FaqPage() {
             Quick answers first.
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            If the answer you need is not here, the contact page is the next fastest
-            route to a human response.
+            If the answer you need is not here, the contact page is the next
+            fastest route to a human response.
           </p>
         </div>
       }

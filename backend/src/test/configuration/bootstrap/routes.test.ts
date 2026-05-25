@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
-import { containerTokens, type ServiceContainer } from "@/configuration/bootstrap/container";
+import {
+  containerTokens,
+  type ServiceContainer,
+} from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
 import type { AppBindings } from "@/configuration/http/bindings";
 
@@ -49,7 +52,13 @@ describe("mountRoutes", () => {
   it("mounts enabled route modules by default", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
     const blobController = {
-      createUploadUrl: async (context: Parameters<Exclude<typeof createApp, undefined>>[0] extends never ? never : never) => {
+      createUploadUrl: async (
+        context: Parameters<
+          Exclude<typeof createApp, undefined>
+        >[0] extends never
+          ? never
+          : never,
+      ) => {
         return new Response(JSON.stringify({ ok: true }), {
           headers: {
             "content-type": "application/json; charset=UTF-8",
@@ -62,12 +71,18 @@ describe("mountRoutes", () => {
       new Map([[containerTokens.blobController, blobController]]),
     );
 
-    const response = await app.request(`http://rent.test${buildApiPath("/blob/upload-url")}`, {
-      method: "POST",
-    });
-    const legacyResponse = await app.request("http://rent.test/blob/upload-url", {
-      method: "POST",
-    });
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/blob/upload-url")}`,
+      {
+        method: "POST",
+      },
+    );
+    const legacyResponse = await app.request(
+      "http://rent.test/blob/upload-url",
+      {
+        method: "POST",
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(legacyResponse.status).toBe(404);
@@ -95,9 +110,12 @@ describe("mountRoutes", () => {
       ]),
     );
 
-    const response = await app.request(`http://rent.test${buildApiPath("/blob/upload-url")}`, {
-      method: "POST",
-    });
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/blob/upload-url")}`,
+      {
+        method: "POST",
+      },
+    );
 
     expect(response.status).toBe(404);
   });
@@ -124,10 +142,15 @@ describe("mountRoutes", () => {
       new Map([[containerTokens.authController, authController]]),
     );
 
-    const disabledResponse = await app.request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
-      method: "POST",
-    });
-    const enabledResponse = await app.request(`http://rent.test${buildApiPath("/auth/oauth/providers")}`);
+    const disabledResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/login")}`,
+      {
+        method: "POST",
+      },
+    );
+    const enabledResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/providers")}`,
+    );
 
     expect(disabledResponse.status).toBe(404);
     expect(enabledResponse.status).toBe(200);
@@ -154,12 +177,15 @@ describe("mountRoutes", () => {
           status: 200,
         }),
       getById: async (context: { req: { param(name: string): string } }) =>
-        new Response(JSON.stringify({ id: context.req.param("id"), route: "getById" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
+        new Response(
+          JSON.stringify({ id: context.req.param("id"), route: "getById" }),
+          {
+            headers: {
+              "content-type": "application/json; charset=UTF-8",
+            },
+            status: 200,
           },
-          status: 200,
-        }),
+        ),
       listMine: async () =>
         new Response(JSON.stringify({ route: "listMine" }), {
           headers: {
@@ -179,16 +205,23 @@ describe("mountRoutes", () => {
       new Map([[containerTokens.postingsController, postingsController]]),
     );
 
-    const [batchResponse, mineResponse, analyticsResponse, itemResponse] = await Promise.all([
-      app.request(`http://rent.test${buildApiPath("/postings/batch")}`),
-      app.request(`http://rent.test${buildApiPath("/postings/me")}`),
-      app.request(`http://rent.test${buildApiPath("/postings/analytics/summary")}`),
-      app.request(`http://rent.test${buildApiPath("/postings/posting-123")}`),
-    ]);
+    const [batchResponse, mineResponse, analyticsResponse, itemResponse] =
+      await Promise.all([
+        app.request(`http://rent.test${buildApiPath("/postings/batch")}`),
+        app.request(`http://rent.test${buildApiPath("/postings/me")}`),
+        app.request(
+          `http://rent.test${buildApiPath("/postings/analytics/summary")}`,
+        ),
+        app.request(`http://rent.test${buildApiPath("/postings/posting-123")}`),
+      ]);
 
-    await expect(batchResponse.json()).resolves.toEqual({ route: "batchPublic" });
+    await expect(batchResponse.json()).resolves.toEqual({
+      route: "batchPublic",
+    });
     await expect(mineResponse.json()).resolves.toEqual({ route: "listMine" });
-    await expect(analyticsResponse.json()).resolves.toEqual({ route: "analyticsSummary" });
+    await expect(analyticsResponse.json()).resolves.toEqual({
+      route: "analyticsSummary",
+    });
     await expect(itemResponse.json()).resolves.toEqual({
       id: "posting-123",
       route: "getById",

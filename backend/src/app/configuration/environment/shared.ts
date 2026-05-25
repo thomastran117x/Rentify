@@ -1,11 +1,16 @@
-import { RAW_ENVIRONMENT_VARIABLE_NAMES, MINIMUM_TOKEN_SECRET_LENGTH } from "@/configuration/environment/constants";
+import {
+  RAW_ENVIRONMENT_VARIABLE_NAMES,
+  MINIMUM_TOKEN_SECRET_LENGTH,
+} from "@/configuration/environment/constants";
 import type {
   EnvironmentVariableName,
   NumberOptions,
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
 
-export function normalizeOptionalString(value: string | undefined): string | undefined {
+export function normalizeOptionalString(
+  value: string | undefined,
+): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -29,7 +34,10 @@ export function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-export function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+export function parseBoolean(
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
   if (!value) {
     return fallback;
   }
@@ -37,7 +45,9 @@ export function parseBoolean(value: string | undefined, fallback: boolean): bool
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
-export function normalizeRawEnvironment(source: NodeJS.ProcessEnv): RawEnvironmentValues {
+export function normalizeRawEnvironment(
+  source: NodeJS.ProcessEnv,
+): RawEnvironmentValues {
   const raw: RawEnvironmentValues = {};
 
   for (const name of RAW_ENVIRONMENT_VARIABLE_NAMES) {
@@ -112,7 +122,9 @@ export function readRequiredSecret(
   const value = readRequiredString(raw, name, errors);
 
   if (value && value.length < MINIMUM_TOKEN_SECRET_LENGTH) {
-    errors.push(`${name} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`);
+    errors.push(
+      `${name} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`,
+    );
   }
 
   return value;

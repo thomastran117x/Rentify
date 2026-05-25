@@ -105,86 +105,166 @@ interface PostingOperationalMetrics {
   confirmedBookedDays: number;
 }
 
-type AnalyticsOutboxPersistence = Prisma.PostingAnalyticsOutboxGetPayload<object>;
+type AnalyticsOutboxPersistence =
+  Prisma.PostingAnalyticsOutboxGetPayload<object>;
 
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export class PostingsAnalyticsRepository extends BaseRepository {
-  async enqueuePostingViewedEvent(input: EnqueuePostingViewedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "posting_viewed", {
-      occurredAt: input.occurredAt,
-      viewerHash: input.viewerHash,
-      userId: input.userId ?? null,
-      ipAddressHash: input.ipAddressHash ?? null,
-      userAgentHash: input.userAgentHash ?? null,
-      deviceType: input.deviceType,
-    });
+  async enqueuePostingViewedEvent(
+    input: EnqueuePostingViewedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "posting_viewed",
+      {
+        occurredAt: input.occurredAt,
+        viewerHash: input.viewerHash,
+        userId: input.userId ?? null,
+        ipAddressHash: input.ipAddressHash ?? null,
+        userAgentHash: input.userAgentHash ?? null,
+        deviceType: input.deviceType,
+      },
+    );
   }
 
-  async enqueueSearchImpressionEvent(input: EnqueueSearchImpressionEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "search_impression", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueSearchImpressionEvent(
+    input: EnqueueSearchImpressionEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "search_impression",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueSearchClickEvent(input: EnqueueSearchClickEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "search_click", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueSearchClickEvent(
+    input: EnqueueSearchClickEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "search_click",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueBookingRequestedEvent(input: EnqueueBookingRequestedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "booking_requested", {
-      occurredAt: input.occurredAt,
-      estimatedTotal: input.estimatedTotal,
-    });
+  async enqueueBookingRequestedEvent(
+    input: EnqueueBookingRequestedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "booking_requested",
+      {
+        occurredAt: input.occurredAt,
+        estimatedTotal: input.estimatedTotal,
+      },
+    );
   }
 
-  async enqueueBookingApprovedEvent(input: EnqueueBookingApprovedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "booking_approved", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueBookingApprovedEvent(
+    input: EnqueueBookingApprovedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "booking_approved",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueBookingDeclinedEvent(input: EnqueueBookingDeclinedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "booking_declined", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueBookingDeclinedEvent(
+    input: EnqueueBookingDeclinedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "booking_declined",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueBookingExpiredEvent(input: EnqueueBookingExpiredEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "booking_expired", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueBookingExpiredEvent(
+    input: EnqueueBookingExpiredEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "booking_expired",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueBookingCancelledEvent(input: EnqueueBookingCancelledEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "booking_cancelled", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueueBookingCancelledEvent(
+    input: EnqueueBookingCancelledEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "booking_cancelled",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueuePaymentFailedEvent(input: EnqueuePaymentFailedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "payment_failed", {
-      occurredAt: input.occurredAt,
-    });
+  async enqueuePaymentFailedEvent(
+    input: EnqueuePaymentFailedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "payment_failed",
+      {
+        occurredAt: input.occurredAt,
+      },
+    );
   }
 
-  async enqueueRefundRecordedEvent(input: EnqueueRefundRecordedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "refund_recorded", {
-      occurredAt: input.occurredAt,
-      refundedAmount: input.refundedAmount,
-    });
+  async enqueueRefundRecordedEvent(
+    input: EnqueueRefundRecordedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "refund_recorded",
+      {
+        occurredAt: input.occurredAt,
+        refundedAmount: input.refundedAmount,
+      },
+    );
   }
 
-  async enqueueRentingConfirmedEvent(input: EnqueueRentingConfirmedEventInput): Promise<void> {
-    await this.enqueueOutboxEvent(input.postingId, input.ownerId, "renting_confirmed", {
-      occurredAt: input.occurredAt,
-      estimatedTotal: input.estimatedTotal,
-    });
+  async enqueueRentingConfirmedEvent(
+    input: EnqueueRentingConfirmedEventInput,
+  ): Promise<void> {
+    await this.enqueueOutboxEvent(
+      input.postingId,
+      input.ownerId,
+      "renting_confirmed",
+      {
+        occurredAt: input.occurredAt,
+        estimatedTotal: input.estimatedTotal,
+      },
+    );
   }
 
-  async claimOutboxBatch(limit: number): Promise<PostingAnalyticsOutboxRecord[]> {
+  async claimOutboxBatch(
+    limit: number,
+  ): Promise<PostingAnalyticsOutboxRecord[]> {
     return this.executeAsync(async () => {
       const now = new Date();
       const staleProcessingThreshold = new Date(now.getTime() - 5 * 60 * 1000);
@@ -263,7 +343,11 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async markOutboxRetry(id: string, attempts: number, errorMessage: string): Promise<void> {
+  async markOutboxRetry(
+    id: string,
+    attempts: number,
+    errorMessage: string,
+  ): Promise<void> {
     const backoffSeconds = Math.min(300, 2 ** Math.min(attempts, 8));
     await this.executeAsync(() =>
       this.prisma.postingAnalyticsOutbox.update({
@@ -282,7 +366,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processPostingViewedEvent(input: ProcessPostingViewedEventInput): Promise<void> {
+  async processPostingViewedEvent(
+    input: ProcessPostingViewedEventInput,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const occurredAt = new Date(input.occurredAt);
@@ -305,32 +391,47 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           },
         });
 
-        const uniqueInsert = await transaction.postingAnalyticsUniqueView.createMany({
-          data: [
-            {
-              postingId: input.postingId,
-              ownerId: input.ownerId,
-              viewerHash: input.viewerHash,
-              eventDate,
-            },
-          ],
-          skipDuplicates: true,
-        });
+        const uniqueInsert =
+          await transaction.postingAnalyticsUniqueView.createMany({
+            data: [
+              {
+                postingId: input.postingId,
+                ownerId: input.ownerId,
+                viewerHash: input.viewerHash,
+                eventDate,
+              },
+            ],
+            skipDuplicates: true,
+          });
         const uniqueIncrement = uniqueInsert.count > 0 ? 1 : 0;
 
-        await this.incrementHourlyMetrics(transaction, input.postingId, input.ownerId, eventHour, {
-          views: 1,
-          uniqueViews: uniqueIncrement,
-        });
-        await this.incrementDailyMetrics(transaction, input.postingId, input.ownerId, eventDate, {
-          views: 1,
-          uniqueViews: uniqueIncrement,
-        });
+        await this.incrementHourlyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventHour,
+          {
+            views: 1,
+            uniqueViews: uniqueIncrement,
+          },
+        );
+        await this.incrementDailyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventDate,
+          {
+            views: 1,
+            uniqueViews: uniqueIncrement,
+          },
+        );
       }),
     );
   }
 
-  async processSearchImpressionEvent(input: ProcessSearchImpressionEventInput): Promise<void> {
+  async processSearchImpressionEvent(
+    input: ProcessSearchImpressionEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -342,7 +443,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processSearchClickEvent(input: ProcessSearchClickEventInput): Promise<void> {
+  async processSearchClickEvent(
+    input: ProcessSearchClickEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -354,7 +457,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processBookingRequestedEvent(input: ProcessBookingRequestedEventInput): Promise<void> {
+  async processBookingRequestedEvent(
+    input: ProcessBookingRequestedEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -366,7 +471,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processBookingApprovedEvent(input: ProcessBookingApprovedEventInput): Promise<void> {
+  async processBookingApprovedEvent(
+    input: ProcessBookingApprovedEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -378,7 +485,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processBookingDeclinedEvent(input: ProcessBookingDeclinedEventInput): Promise<void> {
+  async processBookingDeclinedEvent(
+    input: ProcessBookingDeclinedEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -390,7 +499,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processBookingExpiredEvent(input: ProcessBookingExpiredEventInput): Promise<void> {
+  async processBookingExpiredEvent(
+    input: ProcessBookingExpiredEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -402,7 +513,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processBookingCancelledEvent(input: ProcessBookingCancelledEventInput): Promise<void> {
+  async processBookingCancelledEvent(
+    input: ProcessBookingCancelledEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -414,7 +527,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processPaymentFailedEvent(input: ProcessPaymentFailedEventInput): Promise<void> {
+  async processPaymentFailedEvent(
+    input: ProcessPaymentFailedEventInput,
+  ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
@@ -426,43 +541,73 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     );
   }
 
-  async processRefundRecordedEvent(input: ProcessRefundRecordedEventInput): Promise<void> {
+  async processRefundRecordedEvent(
+    input: ProcessRefundRecordedEventInput,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const eventDate = new Date(input.eventDate);
         const eventHour = new Date(input.eventHour);
         const refundedAmount = new Prisma.Decimal(input.refundedAmount);
 
-        await this.incrementHourlyMetrics(transaction, input.postingId, input.ownerId, eventHour, {
-          refundedRevenue: refundedAmount,
-        });
-        await this.incrementDailyMetrics(transaction, input.postingId, input.ownerId, eventDate, {
-          refundedRevenue: refundedAmount,
-        });
+        await this.incrementHourlyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventHour,
+          {
+            refundedRevenue: refundedAmount,
+          },
+        );
+        await this.incrementDailyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventDate,
+          {
+            refundedRevenue: refundedAmount,
+          },
+        );
       }),
     );
   }
 
-  async processRentingConfirmedEvent(input: ProcessRentingConfirmedEventInput): Promise<void> {
+  async processRentingConfirmedEvent(
+    input: ProcessRentingConfirmedEventInput,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const eventDate = new Date(input.eventDate);
         const eventHour = new Date(input.eventHour);
         const estimatedTotal = new Prisma.Decimal(input.estimatedTotal);
 
-        await this.incrementHourlyMetrics(transaction, input.postingId, input.ownerId, eventHour, {
-          confirmedBookings: 1,
-          estimatedConfirmedRevenue: estimatedTotal,
-        });
-        await this.incrementDailyMetrics(transaction, input.postingId, input.ownerId, eventDate, {
-          confirmedBookings: 1,
-          estimatedConfirmedRevenue: estimatedTotal,
-        });
+        await this.incrementHourlyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventHour,
+          {
+            confirmedBookings: 1,
+            estimatedConfirmedRevenue: estimatedTotal,
+          },
+        );
+        await this.incrementDailyMetrics(
+          transaction,
+          input.postingId,
+          input.ownerId,
+          eventDate,
+          {
+            confirmedBookings: 1,
+            estimatedConfirmedRevenue: estimatedTotal,
+          },
+        );
       }),
     );
   }
 
-  async getOwnerSummary(input: PostingAnalyticsSummaryInput): Promise<OwnerPostingsAnalyticsSummary> {
+  async getOwnerSummary(
+    input: PostingAnalyticsSummaryInput,
+  ): Promise<OwnerPostingsAnalyticsSummary> {
     const tableSql = this.dailyTableSql();
     const range = this.createWindowRange(input.window);
     const whereSql = Prisma.sql`
@@ -493,7 +638,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       ]),
     );
 
-    const operationalMetrics = await this.getOperationalMetricsMap(operationalRows, range);
+    const operationalMetrics = await this.getOperationalMetricsMap(
+      operationalRows,
+      range,
+    );
     const totals = this.combineMetrics(
       this.mapBucketMetrics(row[0]),
       this.sumOperationalMetrics(operationalMetrics.values()),
@@ -508,7 +656,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     };
   }
 
-  async listOwnerPostingsAnalytics(input: ListPostingAnalyticsInput): Promise<PostingAnalyticsListResult> {
+  async listOwnerPostingsAnalytics(
+    input: ListPostingAnalyticsInput,
+  ): Promise<PostingAnalyticsListResult> {
     const range = this.createWindowRange(input.window);
     const skip = (input.page - 1) * input.pageSize;
     const tableSql = this.dailyTableSql();
@@ -575,14 +725,18 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
     const total = Number(countRows[0]?.total ?? 0);
     const postingStates = rows.map((row) => this.toOperationalState(row));
-    const operationalMap = await this.getOperationalMetricsMap(postingStates, range);
+    const operationalMap = await this.getOperationalMetricsMap(
+      postingStates,
+      range,
+    );
 
     return {
       window: input.window,
       postings: rows.map((row): PostingAnalyticsListItem => {
         const totals = this.combineMetrics(
           this.mapBucketMetrics(row),
-          operationalMap.get(row.postingId) ?? this.createEmptyOperationalMetrics(),
+          operationalMap.get(row.postingId) ??
+            this.createEmptyOperationalMetrics(),
         );
 
         return {
@@ -603,7 +757,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   async getPostingAnalyticsDetail(
     input: PostingAnalyticsDetailInput,
   ): Promise<PostingAnalyticsDetail | null> {
-    const header = await this.findPostingAnalyticsHeader(input.postingId, input.ownerId);
+    const header = await this.findPostingAnalyticsHeader(
+      input.postingId,
+      input.ownerId,
+    );
 
     if (!header) {
       return null;
@@ -611,16 +768,20 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
     const range = this.createWindowRange(input.window);
     const totalsTable = this.dailyTableSql();
-    const detailTable = input.granularity === "hour" ? this.hourlyTableSql() : this.dailyTableSql();
+    const detailTable =
+      input.granularity === "hour"
+        ? this.hourlyTableSql()
+        : this.dailyTableSql();
     const whereTotalsSql = Prisma.sql`
       posting_id = ${input.postingId}
       AND owner_id = ${input.ownerId}
       ${range.startAt ? Prisma.sql`AND bucket_start >= ${range.startAt}` : Prisma.empty}
     `;
 
-    const [totalRows, bucketRows, operationalMap] = await this.executeAsync(async () => {
-      const [totals, buckets, operational] = await Promise.all([
-        this.prisma.$queryRaw<AnalyticsAggregateRow[]>(Prisma.sql`
+    const [totalRows, bucketRows, operationalMap] = await this.executeAsync(
+      async () => {
+        const [totals, buckets, operational] = await Promise.all([
+          this.prisma.$queryRaw<AnalyticsAggregateRow[]>(Prisma.sql`
           SELECT
             COALESCE(SUM(search_impressions), 0) AS searchImpressions,
             COALESCE(SUM(search_clicks), 0) AS searchClicks,
@@ -638,7 +799,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           FROM ${totalsTable}
           WHERE ${whereTotalsSql}
         `),
-        this.prisma.$queryRaw<PostingAnalyticsBucketRow[]>(Prisma.sql`
+          this.prisma.$queryRaw<PostingAnalyticsBucketRow[]>(Prisma.sql`
           SELECT
             bucket_start AS bucketStart,
             COALESCE(SUM(search_impressions), 0) AS searchImpressions,
@@ -659,15 +820,20 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           GROUP BY bucket_start
           ORDER BY bucket_start ASC
         `),
-        this.getOperationalMetricsMap([this.toOperationalState(header)], range),
-      ]);
+          this.getOperationalMetricsMap(
+            [this.toOperationalState(header)],
+            range,
+          ),
+        ]);
 
-      return [totals, buckets, operational] as const;
-    });
+        return [totals, buckets, operational] as const;
+      },
+    );
 
     const totals = this.combineMetrics(
       this.mapBucketMetrics(totalRows[0]),
-      operationalMap.get(header.postingId) ?? this.createEmptyOperationalMetrics(),
+      operationalMap.get(header.postingId) ??
+        this.createEmptyOperationalMetrics(),
     );
 
     return {
@@ -683,7 +849,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         const startAt = row.bucketStart;
         const endAt = new Date(
           startAt.getTime() +
-            (input.granularity === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
+            (input.granularity === "hour"
+              ? 60 * 60 * 1000
+              : 24 * 60 * 60 * 1000),
         );
         const metrics = this.mapBucketMetrics(row);
 
@@ -735,8 +903,20 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         const eventDate = new Date(eventDateIso);
         const eventHour = new Date(eventHourIso);
 
-        await this.incrementHourlyMetrics(transaction, postingId, ownerId, eventHour, increments);
-        await this.incrementDailyMetrics(transaction, postingId, ownerId, eventDate, increments);
+        await this.incrementHourlyMetrics(
+          transaction,
+          postingId,
+          ownerId,
+          eventHour,
+          increments,
+        );
+        await this.incrementDailyMetrics(
+          transaction,
+          postingId,
+          ownerId,
+          eventDate,
+          increments,
+        );
       }),
     );
   }
@@ -794,7 +974,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<Map<string, PostingOperationalMetrics>> {
     const postingIds = postingStates.map((posting) => posting.postingId);
     const metrics = new Map<string, PostingOperationalMetrics>(
-      postingIds.map((postingId) => [postingId, this.createEmptyOperationalMetrics()]),
+      postingIds.map((postingId) => [
+        postingId,
+        this.createEmptyOperationalMetrics(),
+      ]),
     );
 
     if (postingIds.length === 0) {
@@ -803,19 +986,34 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
     const [ownerBlocks, rentings] = await this.executeAsync(() =>
       Promise.all([
-        this.prisma.$queryRaw<PostingTimeSpanRow[]>(this.createTimeSpanQuery("posting_availability_blocks", "posting_id", postingIds, range, Prisma.sql`source = 'owner'`)),
-        this.prisma.$queryRaw<PostingTimeSpanRow[]>(this.createTimeSpanQuery("rentings", "posting_id", postingIds, range)),
+        this.prisma.$queryRaw<PostingTimeSpanRow[]>(
+          this.createTimeSpanQuery(
+            "posting_availability_blocks",
+            "posting_id",
+            postingIds,
+            range,
+            Prisma.sql`source = 'owner'`,
+          ),
+        ),
+        this.prisma.$queryRaw<PostingTimeSpanRow[]>(
+          this.createTimeSpanQuery("rentings", "posting_id", postingIds, range),
+        ),
       ]),
     );
 
     for (const posting of postingStates) {
-      const entry = metrics.get(posting.postingId) ?? this.createEmptyOperationalMetrics();
-      entry.activeDaysPublished = this.calculateActiveDaysPublished(posting, range);
+      const entry =
+        metrics.get(posting.postingId) ?? this.createEmptyOperationalMetrics();
+      entry.activeDaysPublished = this.calculateActiveDaysPublished(
+        posting,
+        range,
+      );
       metrics.set(posting.postingId, entry);
     }
 
     for (const block of ownerBlocks) {
-      const entry = metrics.get(block.postingId) ?? this.createEmptyOperationalMetrics();
+      const entry =
+        metrics.get(block.postingId) ?? this.createEmptyOperationalMetrics();
       entry.calendarBlockedDays += this.calculateOverlapDays(
         block.startAt,
         block.endAt,
@@ -826,7 +1024,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     }
 
     for (const renting of rentings) {
-      const entry = metrics.get(renting.postingId) ?? this.createEmptyOperationalMetrics();
+      const entry =
+        metrics.get(renting.postingId) ?? this.createEmptyOperationalMetrics();
       entry.confirmedBookedDays += this.calculateOverlapDays(
         renting.startAt,
         renting.endAt,
@@ -874,7 +1073,12 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         },
       },
       update: this.toCounterUpdate(increments),
-      create: this.createRollupCreate(postingId, ownerId, bucketStart, increments),
+      create: this.createRollupCreate(
+        postingId,
+        ownerId,
+        bucketStart,
+        increments,
+      ),
     });
   }
 
@@ -893,7 +1097,12 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         },
       },
       update: this.toCounterUpdate(increments),
-      create: this.createRollupCreate(postingId, ownerId, bucketStart, increments),
+      create: this.createRollupCreate(
+        postingId,
+        ownerId,
+        bucketStart,
+        increments,
+      ),
     });
   }
 
@@ -1029,7 +1238,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     return Prisma.sql`posting_analytics_hourly`;
   }
 
-  private createWindowRange(window: PostingAnalyticsWindow): { startAt?: Date; endAt: Date } {
+  private createWindowRange(window: PostingAnalyticsWindow): {
+    startAt?: Date;
+    endAt: Date;
+  } {
     const endAt = new Date();
 
     switch (window) {
@@ -1051,7 +1263,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     }
   }
 
-  private mapBucketMetrics(row?: AnalyticsAggregateRow): PostingAnalyticsBucketMetrics {
+  private mapBucketMetrics(
+    row?: AnalyticsAggregateRow,
+  ): PostingAnalyticsBucketMetrics {
     return {
       searchImpressions: Number(row?.searchImpressions ?? 0),
       searchClicks: Number(row?.searchClicks ?? 0),
@@ -1097,11 +1311,26 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): PostingAnalyticsDerivedMetrics {
     return {
       ctr: this.safeDivide(metrics.searchClicks, metrics.searchImpressions),
-      viewToRequestRate: this.safeDivide(metrics.bookingRequests, metrics.views),
-      clickToRequestRate: this.safeDivide(metrics.bookingRequests, metrics.searchClicks),
-      requestToApprovalRate: this.safeDivide(metrics.approvedRequests, metrics.bookingRequests),
-      requestToConfirmedRate: this.safeDivide(metrics.confirmedBookings, metrics.bookingRequests),
-      utilizationRate: this.safeDivide(metrics.confirmedBookedDays, metrics.activeDaysPublished),
+      viewToRequestRate: this.safeDivide(
+        metrics.bookingRequests,
+        metrics.views,
+      ),
+      clickToRequestRate: this.safeDivide(
+        metrics.bookingRequests,
+        metrics.searchClicks,
+      ),
+      requestToApprovalRate: this.safeDivide(
+        metrics.approvedRequests,
+        metrics.bookingRequests,
+      ),
+      requestToConfirmedRate: this.safeDivide(
+        metrics.confirmedBookings,
+        metrics.bookingRequests,
+      ),
+      utilizationRate: this.safeDivide(
+        metrics.confirmedBookedDays,
+        metrics.activeDaysPublished,
+      ),
       averageRevenuePerConfirmedBooking: this.safeDivide(
         metrics.estimatedConfirmedRevenue,
         metrics.confirmedBookings,
@@ -1154,7 +1383,11 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       payload: (outbox.payload ?? {}) as Record<string, unknown>,
       attempts: outbox.attempts,
       availableAt: outbox.availableAt.toISOString(),
-      processingAt: (processingAt ?? outbox.processingAt ?? undefined)?.toISOString(),
+      processingAt: (
+        processingAt ??
+        outbox.processingAt ??
+        undefined
+      )?.toISOString(),
       processedAt: outbox.processedAt?.toISOString(),
       lastError: outbox.lastError ?? undefined,
       createdAt: outbox.createdAt.toISOString(),
@@ -1209,7 +1442,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
     const activeEnd =
       posting.archivedAt ??
-      (posting.status === "paused" && posting.pausedAt ? posting.pausedAt : range.endAt);
+      (posting.status === "paused" && posting.pausedAt
+        ? posting.pausedAt
+        : range.endAt);
 
     return this.calculateOverlapDays(
       posting.publishedAt,
@@ -1225,7 +1460,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     rangeStartAt: Date | undefined,
     rangeEndAt: Date,
   ): number {
-    const clampedStart = Math.max(startAt.getTime(), rangeStartAt?.getTime() ?? startAt.getTime());
+    const clampedStart = Math.max(
+      startAt.getTime(),
+      rangeStartAt?.getTime() ?? startAt.getTime(),
+    );
     const clampedEnd = Math.min(endAt.getTime(), rangeEndAt.getTime());
 
     if (clampedEnd <= clampedStart) {
@@ -1236,7 +1474,11 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private safeDivide(numerator: number, denominator: number): number {
-    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+    if (
+      !Number.isFinite(numerator) ||
+      !Number.isFinite(denominator) ||
+      denominator <= 0
+    ) {
       return 0;
     }
 
@@ -1259,4 +1501,3 @@ interface CounterIncrements {
   estimatedConfirmedRevenue: Prisma.Decimal;
   refundedRevenue: Prisma.Decimal;
 }
-

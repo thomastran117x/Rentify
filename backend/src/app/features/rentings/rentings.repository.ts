@@ -4,10 +4,14 @@ import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import type {
+  CreateRentingDisputeInput,
   ListMyRentingsInput,
+  ListOwnerDashboardRentingsInput,
   ListRentingsResult,
+  RentingDisputeRecord,
   RentingRecord,
   RentingStatus,
+  UpdateRentingInstructionsInput,
 } from "@/features/rentings/rentings.model";
 import type { PostingPricing } from "@/features/postings/postings.model";
 
@@ -22,6 +26,7 @@ type RentingPersistence = Prisma.RentingGetPayload<{
         };
       };
     };
+    dispute: true;
   };
 }>;
 
@@ -62,18 +67,25 @@ export class RentingsRepository extends BaseRepository {
           const now = new Date();
 
           if (bookingRequest.status !== "paid") {
-            throw new BadRequestError("Only paid booking requests can be converted into rentings.");
+            throw new BadRequestError(
+              "Only paid booking requests can be converted into rentings.",
+            );
           }
 
           if (bookingRequest.convertedAt || bookingRequest.renting) {
-            throw new BadRequestError("This booking request has already been converted into a renting.");
+            throw new BadRequestError(
+              "This booking request has already been converted into a renting.",
+            );
           }
 
           if (
             !bookingRequest.conversionReservationExpiresAt ||
-            bookingRequest.conversionReservationExpiresAt.getTime() <= now.getTime()
+            bookingRequest.conversionReservationExpiresAt.getTime() <=
+              now.getTime()
           ) {
-            throw new BadRequestError("This booking request is not currently reserved for conversion.");
+            throw new BadRequestError(
+              "This booking request is not currently reserved for conversion.",
+            );
           }
 
           const overlapWithRenting = await transaction.renting.findFirst({
@@ -92,7 +104,9 @@ export class RentingsRepository extends BaseRepository {
           });
 
           if (overlapWithRenting) {
-            throw new BadRequestError("The requested dates are no longer available.");
+            throw new BadRequestError(
+              "The requested dates are no longer available.",
+            );
           }
 
           if (bookingRequest.holdBlockId) {
@@ -127,7 +141,8 @@ export class RentingsRepository extends BaseRepository {
               durationDays: bookingRequest.durationDays,
               guestCount: bookingRequest.guestCount,
               pricingCurrency: bookingRequest.pricingCurrency,
-              pricingSnapshot: bookingRequest.pricingSnapshot as Prisma.InputJsonValue,
+              pricingSnapshot:
+                bookingRequest.pricingSnapshot as Prisma.InputJsonValue,
               dailyPriceAmount: bookingRequest.dailyPriceAmount,
               estimatedTotal: bookingRequest.estimatedTotal,
               confirmedAt: now,
@@ -142,6 +157,7 @@ export class RentingsRepository extends BaseRepository {
                   },
                 },
               },
+              dispute: true,
             },
           });
 
@@ -160,13 +176,79 @@ export class RentingsRepository extends BaseRepository {
           return this.mapRenting(renting);
         });
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-          throw new ConflictError("This booking request has already been converted into a renting.");
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new ConflictError(
+            "This booking request has already been converted into a renting.",
+          );
         }
 
         throw error;
       }
     });
+  }
+
+  async promoteReturnDueForRenting(
+    rentingId: string,
+    now: Date,
+  ): Promise<void> {
+    await this.executeAsync(() =>
+      this.prisma.renting.updateMany({
+        where: {
+          id: rentingId,
+          status: "active",
+          endAt: {
+            lte: now,
+          },
+        },
+        data: {
+          status: "return_due",
+          returnDueAt: now,
+        },
+      }),
+    );
+  }
+
+  async promoteReturnDueForUser(userId: string, now: Date): Promise<void> {
+    await this.executeAsync(() =>
+      this.prisma.renting.updateMany({
+        where: {
+          OR: [{ renterId: userId }, { ownerId: userId }],
+          status: "active",
+          endAt: {
+            lte: now,
+          },
+        },
+        data: {
+          status: "return_due",
+          returnDueAt: now,
+        },
+      }),
+    );
+  }
+
+  async promoteReturnDueForOwner(
+    input: ListOwnerDashboardRentingsInput,
+    now: Date,
+  ): Promise<void> {
+    await this.executeAsync(() =>
+      this.prisma.renting.updateMany({
+        where: {
+          ownerId: input.ownerId,
+          ...(input.postingId ? { postingId: input.postingId } : {}),
+          status: "active",
+          endAt: {
+            lte: now,
+          },
+        },
+        data: {
+          status: "return_due",
+          returnDueAt: now,
+        },
+      }),
+    );
   }
 
   async findById(id: string): Promise<RentingRecord | null> {
@@ -185,6 +267,7 @@ export class RentingsRepository extends BaseRepository {
               },
             },
           },
+          dispute: true,
         },
       }),
     );
@@ -205,7 +288,7 @@ export class RentingsRepository extends BaseRepository {
           where,
           skip,
           take: input.pageSize,
-          orderBy: [{ createdAt: "desc" }],
+          orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
           include: {
             posting: {
               include: {
@@ -216,6 +299,7 @@ export class RentingsRepository extends BaseRepository {
                 },
               },
             },
+            dispute: true,
           },
         }),
         this.prisma.renting.count({ where }),
@@ -229,11 +313,372 @@ export class RentingsRepository extends BaseRepository {
     };
   }
 
-  async hasOverlap(postingId: string, startAt: Date, endAt: Date, excludeRentingId?: string): Promise<boolean> {
+  async listByRenterForDashboard(renterId: string): Promise<RentingRecord[]> {
+    const rentings = await this.executeAsync(() =>
+      this.prisma.renting.findMany({
+        where: {
+          renterId,
+        },
+        orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      }),
+    );
+
+    return rentings.map((renting) => this.mapRenting(renting));
+  }
+
+  async listByOwnerForDashboard(
+    input: ListOwnerDashboardRentingsInput,
+  ): Promise<RentingRecord[]> {
+    const rentings = await this.executeAsync(() =>
+      this.prisma.renting.findMany({
+        where: {
+          ownerId: input.ownerId,
+          ...(input.postingId ? { postingId: input.postingId } : {}),
+        },
+        orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      }),
+    );
+
+    return rentings.map((renting) => this.mapRenting(renting));
+  }
+
+  async updateInstructions(
+    input: UpdateRentingInstructionsInput,
+  ): Promise<RentingRecord | null> {
+    const renting = await this.executeAsync(async () => {
+      const updated = await this.prisma.renting.update({
+        where: {
+          id: input.rentingId,
+        },
+        data: {
+          pickupInstructions: input.pickupInstructions,
+          returnInstructions: input.returnInstructions,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      return updated;
+    }).catch((error) => {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return null;
+      }
+
+      throw error;
+    });
+
+    return renting ? this.mapRenting(renting) : null;
+  }
+
+  async markCheckInReady(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
+    return this.executeAsync(async () => {
+      const renting = await this.prisma.renting.findUnique({
+        where: {
+          id: rentingId,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      if (!renting) {
+        return null;
+      }
+
+      if (renting.status !== "confirmed") {
+        throw new BadRequestError(
+          "Only confirmed rentings can be marked as check-in ready.",
+        );
+      }
+
+      if (!renting.pickupInstructions || !renting.returnInstructions) {
+        throw new BadRequestError(
+          "Pickup and return instructions are required before check-in is ready.",
+        );
+      }
+
+      const updated = await this.prisma.renting.update({
+        where: {
+          id: rentingId,
+        },
+        data: {
+          status: "check_in_ready",
+          checkInReadyAt: renting.checkInReadyAt ?? now,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      return this.mapRenting(updated);
+    });
+  }
+
+  async markCheckInComplete(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
+    return this.executeAsync(async () => {
+      const renting = await this.prisma.renting.findUnique({
+        where: {
+          id: rentingId,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      if (!renting) {
+        return null;
+      }
+
+      if (!["confirmed", "check_in_ready"].includes(renting.status)) {
+        throw new BadRequestError("Only upcoming rentings can be checked in.");
+      }
+
+      const updated = await this.prisma.renting.update({
+        where: {
+          id: rentingId,
+        },
+        data: {
+          status: "active",
+          checkInReadyAt: renting.checkInReadyAt ?? now,
+          checkInCompletedAt: now,
+          returnDueAt: null,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      return this.mapRenting(updated);
+    });
+  }
+
+  async markCompleted(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
+    return this.executeAsync(async () => {
+      const renting = await this.prisma.renting.findUnique({
+        where: {
+          id: rentingId,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      if (!renting) {
+        return null;
+      }
+
+      if (!["active", "return_due"].includes(renting.status)) {
+        throw new BadRequestError(
+          "Only active or return-due rentings can be completed.",
+        );
+      }
+
+      const updated = await this.prisma.renting.update({
+        where: {
+          id: rentingId,
+        },
+        data: {
+          status: "completed",
+          returnDueAt:
+            renting.status === "active" && renting.endAt <= now
+              ? (renting.returnDueAt ?? now)
+              : renting.returnDueAt,
+          completedAt: now,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      return this.mapRenting(updated);
+    });
+  }
+
+  async createDispute(
+    input: CreateRentingDisputeInput,
+    now: Date,
+  ): Promise<RentingRecord | null> {
+    return this.executeAsync(async () => {
+      const renting = await this.prisma.renting.findUnique({
+        where: {
+          id: input.rentingId,
+        },
+        include: {
+          posting: {
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          },
+          dispute: true,
+        },
+      });
+
+      if (!renting) {
+        return null;
+      }
+
+      if (renting.dispute) {
+        throw new ConflictError(
+          "A dispute has already been opened for this renting.",
+        );
+      }
+
+      const updated = await this.prisma.$transaction(async (transaction) => {
+        await transaction.rentingDispute.create({
+          data: {
+            id: randomUUID(),
+            rentingId: input.rentingId,
+            openedByUserId: input.actorUserId,
+            reason: input.reason,
+            details: input.details ?? null,
+            createdAt: now,
+          },
+        });
+
+        return transaction.renting.update({
+          where: {
+            id: input.rentingId,
+          },
+          data: {
+            status: "disputed",
+            disputedAt: now,
+          },
+          include: {
+            posting: {
+              include: {
+                photos: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                },
+              },
+            },
+            dispute: true,
+          },
+        });
+      });
+
+      return this.mapRenting(updated);
+    });
+  }
+
+  async hasOverlap(
+    postingId: string,
+    startAt: Date,
+    endAt: Date,
+    excludeRentingId?: string,
+  ): Promise<boolean> {
     const match = await this.executeAsync(() =>
       this.prisma.renting.findFirst({
         where: {
           postingId,
+          status: {
+            not: "cancelled",
+          },
           ...(excludeRentingId
             ? {
                 id: {
@@ -267,10 +712,11 @@ export class RentingsRepository extends BaseRepository {
         where: {
           postingId: input.postingId,
           renterId: input.renterId,
-          status: "confirmed",
-          endAt: {
+          status: "completed",
+          completedAt: {
             lte: input.now,
           },
+          dispute: null,
         },
         select: {
           id: true,
@@ -298,6 +744,14 @@ export class RentingsRepository extends BaseRepository {
       dailyPriceAmount: Number(renting.dailyPriceAmount),
       estimatedTotal: Number(renting.estimatedTotal),
       confirmedAt: renting.confirmedAt.toISOString(),
+      pickupInstructions: renting.pickupInstructions ?? undefined,
+      returnInstructions: renting.returnInstructions ?? undefined,
+      checkInReadyAt: renting.checkInReadyAt?.toISOString(),
+      checkInCompletedAt: renting.checkInCompletedAt?.toISOString(),
+      returnDueAt: renting.returnDueAt?.toISOString(),
+      completedAt: renting.completedAt?.toISOString(),
+      disputedAt: renting.disputedAt?.toISOString(),
+      cancelledAt: renting.cancelledAt?.toISOString(),
       createdAt: renting.createdAt.toISOString(),
       updatedAt: renting.updatedAt.toISOString(),
       posting: {
@@ -305,6 +759,27 @@ export class RentingsRepository extends BaseRepository {
         name: renting.posting.name,
         primaryPhotoUrl: renting.posting.photos[0]?.blobUrl,
       },
+      dispute: renting.dispute ? this.mapDispute(renting.dispute) : undefined,
+    };
+  }
+
+  private mapDispute(dispute: {
+    id: string;
+    rentingId: string;
+    openedByUserId: string;
+    reason: string;
+    details: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): RentingDisputeRecord {
+    return {
+      id: dispute.id,
+      rentingId: dispute.rentingId,
+      openedByUserId: dispute.openedByUserId,
+      reason: dispute.reason,
+      details: dispute.details ?? undefined,
+      createdAt: dispute.createdAt.toISOString(),
+      updatedAt: dispute.updatedAt.toISOString(),
     };
   }
 

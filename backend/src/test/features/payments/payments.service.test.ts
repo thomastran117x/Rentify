@@ -81,14 +81,14 @@ describe("PaymentsService", () => {
       postingsPublicCacheService,
     );
 
-    await expect(service.reconcilePayment("payment-1", "renter-1")).rejects.toBeInstanceOf(
-      ConflictError,
-    );
-    expect((cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0]).toBe(
-      "posting:posting-1:booking-window",
-    );
+    await expect(
+      service.reconcilePayment("payment-1", "renter-1"),
+    ).rejects.toBeInstanceOf(ConflictError);
     expect(
-      (postingsPublicCacheService.invalidatePublic as unknown as jest.Mock),
+      (cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0],
+    ).toBe("posting:posting-1:booking-window");
+    expect(
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
     ).toHaveBeenCalledWith("posting-1");
   });
 
@@ -151,12 +151,14 @@ describe("PaymentsService", () => {
       postingsPublicCacheService,
     );
 
-    await expect(service.processSquareWebhook("{}", "sig")).resolves.toBeUndefined();
-    expect((paymentsRepository.markWebhookProcessed as unknown as jest.Mock)).toHaveBeenCalledWith(
-      "event-1",
-    );
+    await expect(
+      service.processSquareWebhook("{}", "sig"),
+    ).resolves.toBeUndefined();
     expect(
-      (postingsPublicCacheService.invalidatePublic as unknown as jest.Mock),
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-1");
+    expect(
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
     ).toHaveBeenCalledWith("posting-1");
   });
 });

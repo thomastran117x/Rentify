@@ -13,7 +13,8 @@ export function LoginFormCard({ children }: LoginFormCardProps) {
         <p className={theme.auth.cardEyebrow}>Account access</p>
         <h2 className={theme.auth.cardTitle}>Sign in</h2>
         <p className={theme.auth.cardDescription}>
-          Access your bookings, listings, and messages from one polished workspace.
+          Access your bookings, listings, and messages from one polished
+          workspace.
         </p>
       </div>
 

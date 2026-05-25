@@ -11,8 +11,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -60,8 +61,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -107,8 +109,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -136,12 +139,49 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
     const result = await repository.decline("booking-1", "owner-1", "declined");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when cancel loses its conditional updateMany write", async () => {
+    const transaction = {
+      bookingRequest: {
+        findUnique: jest.fn(async () => ({
+          id: "booking-1",
+          renterId: "renter-1",
+          ownerId: "owner-1",
+          status: "paid",
+          holdBlockId: "block-1",
+          convertedAt: null,
+        })),
+        updateMany: jest.fn(async () => ({
+          count: 0,
+        })),
+      },
+    };
+    const database = {
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
+    };
+
+    const repository = new BookingsRepository(database as never);
+    const result = await repository.cancel({
+      bookingRequestId: "booking-1",
+      actorUserId: "renter-1",
+      actor: "renter",
+      expectedStatus: "paid",
+      reason: "Plans changed",
+      cancellationPolicyCode: "platform_default_v1",
+      cancellationRefundAmount: 110,
+    });
 
     expect(result).toBeNull();
   });

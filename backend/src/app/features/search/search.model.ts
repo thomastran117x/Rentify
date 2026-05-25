@@ -1,5 +1,8 @@
 export type SearchIndexJobOperation = "upsert" | "delete" | "barrier";
-export type SearchFallbackReason = "circuit-open" | "es-unavailable" | "index-drift";
+export type SearchFallbackReason =
+  | "circuit-open"
+  | "es-unavailable"
+  | "index-drift";
 export type SearchReindexStatus =
   | "pending"
   | "running"
@@ -96,7 +99,10 @@ export interface SearchTelemetrySnapshot {
     createdIndexCount: number;
     repairedReadAliasCount: number;
     repairedWriteAliasCount: number;
-    lastAction?: "created_index" | "repaired_read_alias" | "repaired_write_alias";
+    lastAction?:
+      | "created_index"
+      | "repaired_read_alias"
+      | "repaired_write_alias";
   };
 }
 
@@ -133,7 +139,10 @@ export interface SearchStatusResult {
     retry3: SearchQueueCounts;
     deadLetter: SearchQueueCounts;
   };
-  telemetry: Omit<SearchTelemetrySnapshot, "elasticsearchRequests" | "circuitBreaker">;
+  telemetry: Omit<
+    SearchTelemetrySnapshot,
+    "elasticsearchRequests" | "circuitBreaker"
+  >;
 }
 
 export interface ReplayDeadLetteredSearchOutboxResult {

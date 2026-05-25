@@ -23,7 +23,12 @@ interface LoggingRuntimeConfig {
 }
 
 type PendingLogEvent = Pick<LogEvent, "level" | "message"> &
-  Partial<Omit<LogEvent, "environment" | "level" | "message" | "runtime" | "service" | "timestamp">> & {
+  Partial<
+    Omit<
+      LogEvent,
+      "environment" | "level" | "message" | "runtime" | "service" | "timestamp"
+    >
+  > & {
     timestamp?: string;
   };
 
@@ -71,7 +76,11 @@ function parseLogLevel(value: string | undefined): LogLevel {
 function normalizeNodeEnvironment(value: string | undefined): string {
   const normalized = value?.trim().toLowerCase();
 
-  if (normalized === "production" || normalized === "test" || normalized === "development") {
+  if (
+    normalized === "production" ||
+    normalized === "test" ||
+    normalized === "development"
+  ) {
     return normalized;
   }
 
@@ -96,7 +105,9 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
 
     return {
       environment: nodeEnv,
-      fallbackDirectory: process.env.LOG_FALLBACK_DIRECTORY?.trim() || DEFAULT_FALLBACK_DIRECTORY,
+      fallbackDirectory:
+        process.env.LOG_FALLBACK_DIRECTORY?.trim() ||
+        DEFAULT_FALLBACK_DIRECTORY,
       level: parseLogLevel(process.env.LOG_LEVEL),
       mode: nodeEnv === "production" ? "rabbitmq" : "console",
       rabbitMqUrl: process.env.RABBITMQ_URL?.trim() || undefined,
@@ -118,13 +129,17 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
-function pruneUndefinedEntries<TValue extends Record<string, unknown>>(value: TValue): TValue {
+function pruneUndefinedEntries<TValue extends Record<string, unknown>>(
+  value: TValue,
+): TValue {
   return Object.fromEntries(
     Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
   ) as TValue;
 }
 
-function normalizeFields(fields?: Record<string, unknown>): Record<string, unknown> | undefined {
+function normalizeFields(
+  fields?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   if (!fields) {
     return undefined;
   }
@@ -160,7 +175,9 @@ function normalizeError(error: unknown): NormalizedLogError {
     const details = isPlainObject(error)
       ? pruneUndefinedEntries(
           Object.fromEntries(
-            Object.entries(error).filter(([key]) => !["message", "name", "stack"].includes(key)),
+            Object.entries(error).filter(
+              ([key]) => !["message", "name", "stack"].includes(key),
+            ),
           ) as Record<string, unknown>,
         )
       : undefined;
@@ -177,7 +194,9 @@ function normalizeError(error: unknown): NormalizedLogError {
     return {
       name: typeof error.name === "string" ? error.name : "UnknownError",
       message:
-        typeof error.message === "string" ? error.message : "Unknown non-Error failure payload.",
+        typeof error.message === "string"
+          ? error.message
+          : "Unknown non-Error failure payload.",
       details: pruneUndefinedEntries({ ...error }),
     };
   }
@@ -191,9 +210,10 @@ function normalizeError(error: unknown): NormalizedLogError {
 class PrettyTerminalWriter {
   async write(event: LogEvent): Promise<void> {
     const line = `${formatPrettyLogEvent(event)}\n`;
-    const stream = event.level === "error" || event.level === "critical"
-      ? process.stderr
-      : process.stdout;
+    const stream =
+      event.level === "error" || event.level === "critical"
+        ? process.stderr
+        : process.stdout;
 
     await new Promise<void>((resolve, reject) => {
       stream.write(line, (error) => {
@@ -283,7 +303,9 @@ class BestEffortLogDispatcher {
     }
   }
 
-  private getFallbackFileWriter(fallbackDirectory: string): JsonlFallbackFileWriter {
+  private getFallbackFileWriter(
+    fallbackDirectory: string,
+  ): JsonlFallbackFileWriter {
     const existingWriter = this.fallbackFileWriterCache.get(fallbackDirectory);
 
     if (existingWriter) {
@@ -307,7 +329,9 @@ class BestEffortLogDispatcher {
         message: originalEvent.message,
       },
       primaryError: normalizeError(primaryError),
-      ...(fallbackError ? { fallbackError: normalizeError(fallbackError) } : {}),
+      ...(fallbackError
+        ? { fallbackError: normalizeError(fallbackError) }
+        : {}),
     });
   }
 }
@@ -326,15 +350,27 @@ class LoggerImpl implements Logger {
     this.log("info", message, fields);
   }
 
-  warn(message: string, fields?: Record<string, unknown>, error?: unknown): void {
+  warn(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void {
     this.log("warn", message, fields, error);
   }
 
-  error(message: string, fields?: Record<string, unknown>, error?: unknown): void {
+  error(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void {
     this.log("error", message, fields, error);
   }
 
-  critical(message: string, fields?: Record<string, unknown>, error?: unknown): void {
+  critical(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void {
     this.log("critical", message, fields, error);
   }
 
@@ -395,7 +431,9 @@ class DefaultLoggerFactory implements LoggerFactory {
 
 const dispatcher = new BestEffortLogDispatcher();
 
-export const loggerFactory: LoggerFactory = new DefaultLoggerFactory(dispatcher);
+export const loggerFactory: LoggerFactory = new DefaultLoggerFactory(
+  dispatcher,
+);
 export const logger = loggerFactory.forComponent("root", "app");
 export default logger;
 

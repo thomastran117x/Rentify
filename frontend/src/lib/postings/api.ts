@@ -6,7 +6,7 @@ import { publicEnv } from "@/lib/env";
 export interface BookingQuoteInput {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 
@@ -93,7 +93,10 @@ function readCsrfToken(): string | undefined {
   return token ? decodeURIComponent(token) : undefined;
 }
 
-async function authenticatedJson<TResponse, TBody extends object | undefined = undefined>(
+async function authenticatedJson<
+  TResponse,
+  TBody extends object | undefined = undefined,
+>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: TBody,
@@ -107,7 +110,9 @@ async function authenticatedJson<TResponse, TBody extends object | undefined = u
     headers: {
       accept: "application/json",
       ...(body ? { "content-type": "application/json" } : {}),
-      ...(session?.accessToken ? { authorization: `Bearer ${session.accessToken}` } : {}),
+      ...(session?.accessToken
+        ? { authorization: `Bearer ${session.accessToken}` }
+        : {}),
       ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
       ...(deviceId ? { "x-device-id": deviceId } : {}),
       ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
@@ -129,7 +134,10 @@ export const postingsApi = {
   getPosting<TResponse extends PostingDetailResponse = PostingDetailResponse>(
     postingId: string,
   ): Promise<TResponse> {
-    return authenticatedJson<TResponse>("GET", `/postings/${encodeURIComponent(postingId)}`);
+    return authenticatedJson<TResponse>(
+      "GET",
+      `/postings/${encodeURIComponent(postingId)}`,
+    );
   },
 
   pausePosting(postingId: string): Promise<PostingLifecycleRecord> {
@@ -140,7 +148,10 @@ export const postingsApi = {
   },
 
   duplicatePosting<TResponse>(postingId: string): Promise<TResponse> {
-    return authenticatedJson<TResponse>("POST", `/postings/${encodeURIComponent(postingId)}/duplicate`);
+    return authenticatedJson<TResponse>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/duplicate`,
+    );
   },
 
   unpausePosting(postingId: string): Promise<PostingLifecycleRecord> {
@@ -150,7 +161,10 @@ export const postingsApi = {
     );
   },
 
-  quoteBooking(postingId: string, input: BookingQuoteInput): Promise<BookingQuoteResult> {
+  quoteBooking(
+    postingId: string,
+    input: BookingQuoteInput,
+  ): Promise<BookingQuoteResult> {
     return authenticatedJson<BookingQuoteResult, BookingQuoteInput>(
       "POST",
       `/postings/${encodeURIComponent(postingId)}/booking-quote`,
@@ -161,10 +175,9 @@ export const postingsApi = {
   listAvailabilityBlocks(
     postingId: string,
   ): Promise<{ availabilityBlocks: PostingAvailabilityBlock[] }> {
-    return authenticatedJson<{ availabilityBlocks: PostingAvailabilityBlock[] }>(
-      "GET",
-      `/postings/${encodeURIComponent(postingId)}/availability-blocks`,
-    );
+    return authenticatedJson<{
+      availabilityBlocks: PostingAvailabilityBlock[];
+    }>("GET", `/postings/${encodeURIComponent(postingId)}/availability-blocks`);
   },
 
   createAvailabilityBlock(
@@ -190,7 +203,10 @@ export const postingsApi = {
     );
   },
 
-  async deleteAvailabilityBlock(postingId: string, blockId: string): Promise<void> {
+  async deleteAvailabilityBlock(
+    postingId: string,
+    blockId: string,
+  ): Promise<void> {
     await authenticatedJson<null>(
       "DELETE",
       `/postings/${encodeURIComponent(postingId)}/availability-blocks/${encodeURIComponent(blockId)}`,

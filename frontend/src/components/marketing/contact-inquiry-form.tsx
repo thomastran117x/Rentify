@@ -100,7 +100,9 @@ export function ContactInquiryForm() {
             placeholder="Your name"
             className={getFieldClassName(Boolean(errors.name))}
           />
-          {errors.name ? <span className="text-xs text-rose-700">{errors.name}</span> : null}
+          {errors.name ? (
+            <span className="text-xs text-rose-700">{errors.name}</span>
+          ) : null}
         </label>
 
         <label className="grid gap-2 text-sm text-slate-600">
@@ -170,8 +172,8 @@ export function ContactInquiryForm() {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-md text-xs leading-6 text-slate-500">
-          This contact flow currently stores submissions in the browser only, so we
-          can validate the experience before wiring it to backend delivery.
+          This contact flow currently stores submissions in the browser only, so
+          we can validate the experience before wiring it to backend delivery.
         </p>
 
         <button
@@ -185,8 +187,8 @@ export function ContactInquiryForm() {
 
       {isSubmitted ? (
         <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
-          Thanks. Your inquiry has been captured locally and is ready for backend
-          integration next.
+          Thanks. Your inquiry has been captured locally and is ready for
+          backend integration next.
         </div>
       ) : null}
     </form>

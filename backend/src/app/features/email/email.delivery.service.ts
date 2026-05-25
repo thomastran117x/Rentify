@@ -1,4 +1,7 @@
-import { getEnvironmentVariable, getOptionalEnvironmentVariable } from "@/configuration/environment";
+import {
+  getEnvironmentVariable,
+  getOptionalEnvironmentVariable,
+} from "@/configuration/environment";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendLoginUnlockEmailInput,
@@ -82,8 +85,14 @@ export class EmailDeliveryService {
         },
       });
 
-    this.fromEmail = options.fromEmail ?? getOptionalEnvironmentVariable("EMAIL_FROM") ?? gmailUser;
-    this.fromName = options.fromName ?? getOptionalEnvironmentVariable("EMAIL_FROM_NAME") ?? "Rent";
+    this.fromEmail =
+      options.fromEmail ??
+      getOptionalEnvironmentVariable("EMAIL_FROM") ??
+      gmailUser;
+    this.fromName =
+      options.fromName ??
+      getOptionalEnvironmentVariable("EMAIL_FROM_NAME") ??
+      "Rent";
     this.appBaseUrl = trimTrailingSlash(
       options.appBaseUrl ??
         getOptionalEnvironmentVariable("APP_BASE_URL") ??
@@ -93,7 +102,8 @@ export class EmailDeliveryService {
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULTS.initialDelayMs;
     this.maxDelayMs = options.maxDelayMs ?? DEFAULTS.maxDelayMs;
-    this.backoffMultiplier = options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
+    this.backoffMultiplier =
+      options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
   }
 
   async deliver(payload: EmailJobPayload): Promise<void> {
@@ -113,7 +123,9 @@ export class EmailDeliveryService {
     }
   }
 
-  async sendVerificationEmail(input: SendVerificationEmailInput): Promise<void> {
+  async sendVerificationEmail(
+    input: SendVerificationEmailInput,
+  ): Promise<void> {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedVerificationCode = escapeHtml(input.verificationCode);
@@ -148,7 +160,9 @@ export class EmailDeliveryService {
           ? new Date(input.detectedAt)
           : new Date();
     const details = this.buildDeviceDetails(input, detectedAt);
-    const htmlDetails = details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("");
+    const htmlDetails = details
+      .map((detail) => `<li>${escapeHtml(detail)}</li>`)
+      .join("");
 
     await this.sendWithRetry({
       to: input.to,
@@ -202,7 +216,9 @@ export class EmailDeliveryService {
     });
   }
 
-  async sendPasswordResetEmail(input: SendPasswordResetEmailInput): Promise<void> {
+  async sendPasswordResetEmail(
+    input: SendPasswordResetEmailInput,
+  ): Promise<void> {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedResetCode = escapeHtml(input.resetCode);
@@ -259,7 +275,9 @@ export class EmailDeliveryService {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error("Email delivery failed.");
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Email delivery failed.");
   }
 
   private formatFromHeader(): string {
@@ -270,7 +288,10 @@ export class EmailDeliveryService {
     return firstName?.trim() || "there";
   }
 
-  private buildDeviceDetails(input: SendNewDeviceEmailInput, detectedAt: Date): string[] {
+  private buildDeviceDetails(
+    input: SendNewDeviceEmailInput,
+    detectedAt: Date,
+  ): string[] {
     const details = [`Detected at: ${detectedAt.toISOString()}`];
 
     if (input.deviceLabel) {
@@ -308,7 +329,9 @@ export class EmailDeliveryService {
       return true;
     }
 
-    return /timeout|connection|temporar|rate limit|greeting/i.test(error.message);
+    return /timeout|connection|temporar|rate limit|greeting/i.test(
+      error.message,
+    );
   }
 
   private calculateDelayMs(attempt: number): number {
@@ -316,7 +339,9 @@ export class EmailDeliveryService {
       this.initialDelayMs * this.backoffMultiplier ** attempt,
       this.maxDelayMs,
     );
-    const jitterMs = Math.floor(Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)));
+    const jitterMs = Math.floor(
+      Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)),
+    );
 
     return exponentialDelay + jitterMs;
   }

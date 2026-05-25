@@ -24,7 +24,10 @@ export class PersonalAccessTokenController {
 
   create = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await requireSessionAuth(context);
-    const input = await parseRequestBody(context, createPersonalAccessTokenRequestSchema);
+    const input = await parseRequestBody(
+      context,
+      createPersonalAccessTokenRequestSchema,
+    );
     const result = await this.personalAccessTokenService.create(
       this.toCreateInput(auth.sub, input),
     );

@@ -131,8 +131,16 @@ export function clearStoredCaptcha(): void {
   emitCaptchaChange();
 }
 
-export function useAuthCaptchaToken(): [string, (token: string) => void, () => void] {
-  const token = useSyncExternalStore(subscribeToCaptchaStore, getCaptchaSnapshot, () => "");
+export function useAuthCaptchaToken(): [
+  string,
+  (token: string) => void,
+  () => void,
+] {
+  const token = useSyncExternalStore(
+    subscribeToCaptchaStore,
+    getCaptchaSnapshot,
+    () => "",
+  );
 
   function setToken(nextToken: string): void {
     if (!nextToken.trim()) {

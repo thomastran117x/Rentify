@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
-import { getRedisClient, type redisClient } from "@/configuration/resources/redis";
+import {
+  getRedisClient,
+  type redisClient,
+} from "@/configuration/resources/redis";
 
 type RedisClient = NonNullable<typeof redisClient>;
 
@@ -51,7 +54,11 @@ export class CacheService {
     });
   }
 
-  async setJson(key: string, value: unknown, ttlInSeconds?: number): Promise<void> {
+  async setJson(
+    key: string,
+    value: unknown,
+    ttlInSeconds?: number,
+  ): Promise<void> {
     await this.set(key, JSON.stringify(value), ttlInSeconds);
   }
 
@@ -215,7 +222,11 @@ export class CacheService {
     return result === 1;
   }
 
-  async extendLock(lockKey: string, token: string, ttlInMs: number): Promise<boolean> {
+  async extendLock(
+    lockKey: string,
+    token: string,
+    ttlInMs: number,
+  ): Promise<boolean> {
     const script = `
       if redis.call("GET", KEYS[1]) == ARGV[1] then
         return redis.call("PEXPIRE", KEYS[1], ARGV[2])
@@ -224,12 +235,11 @@ export class CacheService {
       return 0
     `;
 
-    const result = await this.eval<number>(script, [
-      lockKey,
-    ], [
-      token,
-      ttlInMs.toString(),
-    ]);
+    const result = await this.eval<number>(
+      script,
+      [lockKey],
+      [token, ttlInMs.toString()],
+    );
 
     return result === 1;
   }

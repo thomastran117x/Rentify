@@ -31,7 +31,10 @@ interface ApiErrorShape {
   };
 }
 
-function validateRequest(values: { email: string; captchaToken: string }): RequestErrors {
+function validateRequest(values: {
+  email: string;
+  captchaToken: string;
+}): RequestErrors {
   const errors: RequestErrors = {};
 
   if (!values.email.trim()) {
@@ -87,7 +90,8 @@ function getRequestFailureResult(error: unknown): {
       case "CAPTCHA_REQUIRED":
       case "CAPTCHA_MISSING":
         return {
-          generalError: "Please complete the security check before requesting a reset code.",
+          generalError:
+            "Please complete the security check before requesting a reset code.",
           fieldErrors: {
             captchaToken: "Complete the verification to continue.",
           },
@@ -96,26 +100,30 @@ function getRequestFailureResult(error: unknown): {
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldErrors: {
             captchaToken: "Please complete the verification again.",
           },
         };
       default:
         return {
-          generalError: message || "We couldn't start password reset right now.",
+          generalError:
+            message || "We couldn't start password reset right now.",
         };
     }
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
     };
   }
 
   return {
-    generalError: "We couldn't start password reset. Check your connection and try again.",
+    generalError:
+      "We couldn't start password reset. Check your connection and try again.",
   };
 }
 
@@ -127,14 +135,17 @@ function getResetFailureResult(error: unknown): {
   const status = apiError?.status;
   const code = apiError?.body?.code;
   const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as { retryAfterSeconds?: number } | undefined;
+  const details = apiError?.body?.details as
+    | { retryAfterSeconds?: number }
+    | undefined;
 
   if (status === 400) {
     switch (code) {
       case "CAPTCHA_REQUIRED":
       case "CAPTCHA_MISSING":
         return {
-          generalError: "Please complete the security check before requesting another reset code.",
+          generalError:
+            "Please complete the security check before requesting another reset code.",
           fieldErrors: {
             captchaToken: "Complete the verification to continue.",
           },
@@ -143,7 +154,8 @@ function getResetFailureResult(error: unknown): {
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldErrors: {
             captchaToken: "Please complete the verification again.",
           },
@@ -160,7 +172,8 @@ function getResetFailureResult(error: unknown): {
 
   if (status === 409) {
     return {
-      generalError: message || "This account is not eligible for password reset.",
+      generalError:
+        message || "This account is not eligible for password reset.",
     };
   }
 
@@ -169,18 +182,21 @@ function getResetFailureResult(error: unknown): {
     return {
       generalError: retryAfterSeconds
         ? `A reset code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message || "A reset code was sent recently. Please wait before retrying.",
+        : message ||
+          "A reset code was sent recently. Please wait before retrying.",
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
     };
   }
 
   return {
-    generalError: "We couldn't reset your password right now. Check your connection and try again.",
+    generalError:
+      "We couldn't reset your password right now. Check your connection and try again.",
   };
 }
 
@@ -200,7 +216,8 @@ export function ForgotPasswordForm() {
   const [resetPending, setResetPending] = useState(false);
   const [resending, setResending] = useState(false);
   const [requestComplete, setRequestComplete] = useState(false);
-  const [captchaToken, setCaptchaToken, clearCaptchaToken] = useAuthCaptchaToken();
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken();
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -298,7 +315,9 @@ export function ForgotPasswordForm() {
         captchaToken,
       });
 
-      setResentMessage(`If ${email.trim().toLowerCase()} is eligible, a new reset code is on the way.`);
+      setResentMessage(
+        `If ${email.trim().toLowerCase()} is eligible, a new reset code is on the way.`,
+      );
     } catch (error) {
       const failure = getResetFailureResult(error);
       setGeneralError(failure.generalError);
@@ -309,8 +328,14 @@ export function ForgotPasswordForm() {
   }
 
   const emailHasValue = useMemo(() => email.trim().length > 0, [email]);
-  const newPasswordHasValue = useMemo(() => newPassword.length > 0, [newPassword]);
-  const confirmPasswordHasValue = useMemo(() => confirmPassword.length > 0, [confirmPassword]);
+  const newPasswordHasValue = useMemo(
+    () => newPassword.length > 0,
+    [newPassword],
+  );
+  const confirmPasswordHasValue = useMemo(
+    () => confirmPassword.length > 0,
+    [confirmPassword],
+  );
 
   if (status === "loading") {
     return (
@@ -355,7 +380,8 @@ export function ForgotPasswordForm() {
             <p className={theme.auth.fieldErrorText}>{requestErrors.email}</p>
           ) : (
             <p className={theme.auth.fieldText}>
-              We will email a reset code if this account can use local password sign-in.
+              We will email a reset code if this account can use local password
+              sign-in.
             </p>
           )}
         </div>
@@ -383,7 +409,8 @@ export function ForgotPasswordForm() {
       <div className={theme.auth.successPanel}>
         <p className="text-sm font-semibold">Check your inbox</p>
         <p className="mt-2 text-sm leading-6">
-          If {email.trim().toLowerCase()} is eligible for local password reset, we sent a 6-digit code.
+          If {email.trim().toLowerCase()} is eligible for local password reset,
+          we sent a 6-digit code.
         </p>
       </div>
 
@@ -409,7 +436,9 @@ export function ForgotPasswordForm() {
             maxLength={6}
             placeholder="123456"
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(event) =>
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             className={`h-14 w-full rounded-2xl border bg-white px-4 text-center text-[22px] tracking-[0.35em] text-slate-900 outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 ${
               resetErrors.code
                 ? theme.auth.fieldError
@@ -418,7 +447,9 @@ export function ForgotPasswordForm() {
                   : theme.auth.fieldDefault
             }`}
           />
-          {resetErrors.code ? <p className={theme.auth.fieldErrorText}>{resetErrors.code}</p> : null}
+          {resetErrors.code ? (
+            <p className={theme.auth.fieldErrorText}>{resetErrors.code}</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -442,7 +473,9 @@ export function ForgotPasswordForm() {
             }`}
           />
           {resetErrors.newPassword ? (
-            <p className={theme.auth.fieldErrorText}>{resetErrors.newPassword}</p>
+            <p className={theme.auth.fieldErrorText}>
+              {resetErrors.newPassword}
+            </p>
           ) : null}
         </div>
 
@@ -467,7 +500,9 @@ export function ForgotPasswordForm() {
             }`}
           />
           {resetErrors.confirmPassword ? (
-            <p className={theme.auth.fieldErrorText}>{resetErrors.confirmPassword}</p>
+            <p className={theme.auth.fieldErrorText}>
+              {resetErrors.confirmPassword}
+            </p>
           ) : null}
         </div>
 

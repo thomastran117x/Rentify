@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/features/postings/postings.model";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from "@/features/postings/postings.model";
 
 const optionalReviewTextSchema = z
   .string()
@@ -11,26 +14,32 @@ const optionalReviewTextSchema = z
 
 export const createPostingReviewRequestSchema = z.object({
   rating: z.number().int().min(1).max(5),
-  title: z
-    .string()
-    .trim()
-    .min(1)
-    .max(120)
-    .nullable()
-    .optional(),
+  title: z.string().trim().min(1).max(120).nullable().optional(),
   comment: optionalReviewTextSchema,
 });
 
-export const updatePostingReviewRequestSchema = createPostingReviewRequestSchema;
+export const updatePostingReviewRequestSchema =
+  createPostingReviewRequestSchema;
 
 export const listPostingReviewsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
 });
 
-export type CreatePostingReviewRequestBody = z.infer<typeof createPostingReviewRequestSchema>;
-export type UpdatePostingReviewRequestBody = z.infer<typeof updatePostingReviewRequestSchema>;
-export type ListPostingReviewsQuery = z.infer<typeof listPostingReviewsQuerySchema>;
+export type CreatePostingReviewRequestBody = z.infer<
+  typeof createPostingReviewRequestSchema
+>;
+export type UpdatePostingReviewRequestBody = z.infer<
+  typeof updatePostingReviewRequestSchema
+>;
+export type ListPostingReviewsQuery = z.infer<
+  typeof listPostingReviewsQuerySchema
+>;
 
 export interface PostingReviewRecord {
   id: string;
@@ -72,4 +81,3 @@ export interface UpsertPostingReviewInput {
   title?: string | null;
   comment?: string | null;
 }
-

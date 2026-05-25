@@ -11,19 +11,28 @@ import { requireSafeRouteParam } from "@/configuration/validation/input-sanitiza
 import type {
   BookingQuoteBody,
   BookingQuoteInput,
+  CancelBookingRequestBody,
   CreateBookingRequestBody,
   CreateBookingRequestInput,
   DecideBookingRequestInput,
   ListBookingRequestsQuery,
+  ListOwnedBookingRequestsInput,
   ListOwnerBookingRequestsInput,
   ListRenterBookingRequestsInput,
+  OwnerBookingDashboardInput,
+  OwnerBookingDashboardQuery,
+  RenterBookingDashboardInput,
+  RenterBookingDashboardQuery,
   UpdateBookingRequestInput,
 } from "@/features/bookings/bookings.model";
 import {
   bookingQuoteSchema,
+  cancelBookingRequestSchema,
   createBookingRequestSchema,
   decideBookingRequestSchema,
   listBookingRequestsQuerySchema,
+  ownerBookingDashboardQuerySchema,
+  renterBookingDashboardQuerySchema,
   updateBookingRequestSchema,
 } from "@/features/bookings/bookings.model";
 import type { BookingsService } from "@/features/bookings/bookings.service";
@@ -35,7 +44,9 @@ export class BookingsController {
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
   ) {}
 
-  createForPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  createForPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, createBookingRequestSchema);
     const result = await this.bookingsService.create(
@@ -51,7 +62,9 @@ export class BookingsController {
     });
   };
 
-  quoteForPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  quoteForPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, bookingQuoteSchema);
     const result = await this.bookingsService.quote(
@@ -70,11 +83,55 @@ export class BookingsController {
     });
   };
 
-  listForOwnerPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  listOwned = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    requireMinimumRole(auth, "owner");
+    const result = await this.bookingsService.listOwned(
+      this.toListOwnedInput(auth.sub, this.parseListQuery(context)),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  dashboardMine = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.bookingsService.dashboardMine(
+      this.toDashboardMineInput(
+        auth.sub,
+        this.parseRenterDashboardQuery(context),
+      ),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  dashboardOwned = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    requireMinimumRole(auth, "owner");
+    const result = await this.bookingsService.dashboardOwned(
+      this.toDashboardOwnedInput(
+        auth.sub,
+        this.parseOwnerDashboardQuery(context),
+      ),
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  listForOwnerPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.listForOwnerPosting(
-      this.toListOwnerPostingInput(auth.sub, this.requirePostingId(context), this.parseListQuery(context)),
+      this.toListOwnerPostingInput(
+        auth.sub,
+        this.requirePostingId(context),
+        this.parseListQuery(context),
+      ),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
@@ -84,6 +141,17 @@ export class BookingsController {
   getById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.bookingsService.getById(
+      this.requireBookingRequestId(context),
+      auth.sub,
+    );
+    return ok(context, result);
+  };
+
+  getCancellationQuote = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.bookingsService.getCancellationQuote(
       this.requireBookingRequestId(context),
       auth.sub,
     );
@@ -106,7 +174,11 @@ export class BookingsController {
     requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.approve(
-      this.toDecisionInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toDecisionInput(
+        this.requireBookingRequestId(context),
+        auth.sub,
+        body,
+      ),
     );
     return ok(context, result, {
       message: "Booking request approved successfully.",
@@ -118,14 +190,31 @@ export class BookingsController {
     requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.decline(
-      this.toDecisionInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toDecisionInput(
+        this.requireBookingRequestId(context),
+        auth.sub,
+        body,
+      ),
     );
     return ok(context, result, {
       message: "Booking request declined successfully.",
     });
   };
 
-  private parseListQuery(context: Context<AppBindings>): ListBookingRequestsQuery {
+  cancel = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, cancelBookingRequestSchema);
+    const result = await this.bookingsService.cancel(
+      this.toCancelInput(this.requireBookingRequestId(context), auth.sub, body),
+    );
+    return ok(context, result, {
+      message: "Booking request cancelled successfully.",
+    });
+  };
+
+  private parseListQuery(
+    context: Context<AppBindings>,
+  ): ListBookingRequestsQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -133,6 +222,43 @@ export class BookingsController {
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
         status: url.searchParams.get("status") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseRenterDashboardQuery(
+    context: Context<AppBindings>,
+  ): RenterBookingDashboardQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return renterBookingDashboardQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
+        bucket: url.searchParams.get("bucket") ?? undefined,
+        status: url.searchParams.get("status") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseOwnerDashboardQuery(
+    context: Context<AppBindings>,
+  ): OwnerBookingDashboardQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return ownerBookingDashboardQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
+        status: url.searchParams.get("status") ?? undefined,
+        actionNeeded: url.searchParams.get("actionNeeded") ?? undefined,
+        postingId: url.searchParams.get("postingId") ?? undefined,
       });
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
@@ -192,7 +318,7 @@ export class BookingsController {
     body: {
       startAt: string;
       endAt: string;
-      guestCount: number;
+      guestCount?: number;
       note?: string | null;
       contactName: string;
       contactEmail: string;
@@ -212,12 +338,36 @@ export class BookingsController {
     };
   }
 
+  private toCancelInput(
+    bookingRequestId: string,
+    actorUserId: string,
+    body: CancelBookingRequestBody,
+  ) {
+    return {
+      bookingRequestId,
+      actorUserId,
+      reason: body.reason ?? null,
+    };
+  }
+
   private toListMineInput(
     renterId: string,
     query: ListBookingRequestsQuery,
   ): ListRenterBookingRequestsInput {
     return {
       renterId,
+      page: query.page,
+      pageSize: query.pageSize,
+      status: query.status,
+    };
+  }
+
+  private toListOwnedInput(
+    ownerId: string,
+    query: ListBookingRequestsQuery,
+  ): ListOwnedBookingRequestsInput {
+    return {
+      ownerId,
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
@@ -238,6 +388,35 @@ export class BookingsController {
     };
   }
 
+  private toDashboardMineInput(
+    renterId: string,
+    query: RenterBookingDashboardQuery,
+  ): RenterBookingDashboardInput {
+    return {
+      renterId,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+      bucket: query.bucket,
+      status: query.status,
+    };
+  }
+
+  private toDashboardOwnedInput(
+    ownerId: string,
+    query: OwnerBookingDashboardQuery,
+  ): OwnerBookingDashboardInput {
+    return {
+      ownerId,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+      status: query.status,
+      actionNeeded: query.actionNeeded,
+      postingId: query.postingId,
+    };
+  }
+
   private requirePostingId(context: Context<AppBindings>): string {
     return requireSafeRouteParam(context, "id");
   }
@@ -254,9 +433,14 @@ export class BookingsController {
     return context.get("requestId");
   }
 
-  private toValidationError(error: unknown, message: string): RequestValidationError {
+  private toValidationError(
+    error: unknown,
+    message: string,
+  ): RequestValidationError {
     if ("issues" in (error as object)) {
-      const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+      const issues = (
+        error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+      ).issues;
 
       return new RequestValidationError(
         message,

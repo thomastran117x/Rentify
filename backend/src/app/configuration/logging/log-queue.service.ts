@@ -1,4 +1,10 @@
-import { connect, type Channel, type ChannelModel, type ConfirmChannel, type ConsumeMessage } from "amqplib";
+import {
+  connect,
+  type Channel,
+  type ChannelModel,
+  type ConfirmChannel,
+  type ConsumeMessage,
+} from "amqplib";
 import { environment } from "@/configuration/environment";
 import type { LogEvent } from "@/configuration/logging/types";
 
@@ -30,11 +36,16 @@ export class ApplicationLogQueueService {
 
     try {
       await this.ensurePublisherTopology(channel);
-      channel.publish(this.exchangeName, "main", Buffer.from(JSON.stringify(event), "utf8"), {
-        persistent: true,
-        contentType: "application/json",
-        timestamp: Date.now(),
-      });
+      channel.publish(
+        this.exchangeName,
+        "main",
+        Buffer.from(JSON.stringify(event), "utf8"),
+        {
+          persistent: true,
+          contentType: "application/json",
+          timestamp: Date.now(),
+        },
+      );
       await channel.waitForConfirms();
     } catch (error) {
       this.resetPublisherChannel();
@@ -44,33 +55,40 @@ export class ApplicationLogQueueService {
 
   async consumeLogEvents(
     prefetch: number,
-    onMessage: (event: LogEvent, message: ConsumeMessage, channel: Channel) => Promise<void>,
+    onMessage: (
+      event: LogEvent,
+      message: ConsumeMessage,
+      channel: Channel,
+    ) => Promise<void>,
   ): Promise<() => Promise<void>> {
     const channel = await this.createChannel();
     await this.assertTopology(channel);
     await channel.prefetch(prefetch);
 
-    const consumeResult = await channel.consume(this.mainQueueName, async (message) => {
-      if (!message) {
-        return;
-      }
-
-      try {
-        let payload: LogEvent;
-
-        try {
-          payload = JSON.parse(message.content.toString("utf8")) as LogEvent;
-        } catch (error) {
-          await this.publishMalformedMessage(channel, message, error);
-          channel.ack(message);
+    const consumeResult = await channel.consume(
+      this.mainQueueName,
+      async (message) => {
+        if (!message) {
           return;
         }
 
-        await onMessage(payload, message, channel);
-      } catch {
-        channel.nack(message, false, true);
-      }
-    });
+        try {
+          let payload: LogEvent;
+
+          try {
+            payload = JSON.parse(message.content.toString("utf8")) as LogEvent;
+          } catch (error) {
+            await this.publishMalformedMessage(channel, message, error);
+            channel.ack(message);
+            return;
+          }
+
+          await onMessage(payload, message, channel);
+        } catch {
+          channel.nack(message, false, true);
+        }
+      },
+    );
 
     return async () => {
       await channel.cancel(consumeResult.consumerTag);
@@ -160,12 +178,16 @@ export class ApplicationLogQueueService {
     return this.publisherChannelPromise;
   }
 
-  private async ensurePublisherTopology(channel: ConfirmChannel): Promise<void> {
+  private async ensurePublisherTopology(
+    channel: ConfirmChannel,
+  ): Promise<void> {
     if (!this.publisherTopologyPromise) {
-      this.publisherTopologyPromise = this.assertTopology(channel).catch((error) => {
-        this.publisherTopologyPromise = null;
-        throw error;
-      });
+      this.publisherTopologyPromise = this.assertTopology(channel).catch(
+        (error) => {
+          this.publisherTopologyPromise = null;
+          throw error;
+        },
+      );
     }
 
     await this.publisherTopologyPromise;
@@ -194,13 +216,21 @@ export class ApplicationLogQueueService {
           "x-dead-letter-routing-key": "main",
         },
       });
-      await channel.bindQueue(queueName, this.exchangeName, `retry.${index + 1}`);
+      await channel.bindQueue(
+        queueName,
+        this.exchangeName,
+        `retry.${index + 1}`,
+      );
     }
 
     await channel.assertQueue(this.deadLetterQueueName, {
       durable: true,
     });
-    await channel.bindQueue(this.deadLetterQueueName, this.exchangeName, "dead-letter");
+    await channel.bindQueue(
+      this.deadLetterQueueName,
+      this.exchangeName,
+      "dead-letter",
+    );
   }
 
   private async publishMalformedMessage(
@@ -215,7 +245,8 @@ export class ApplicationLogQueueService {
       headers: {
         ...(message.properties.headers ?? {}),
         deadLetterReason: "invalid_json",
-        deadLetterError: error instanceof Error ? error.message : "Invalid JSON payload.",
+        deadLetterError:
+          error instanceof Error ? error.message : "Invalid JSON payload.",
       },
     });
     await channel.waitForConfirms();

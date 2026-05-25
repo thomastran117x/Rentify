@@ -79,7 +79,8 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldErrors: {
             captchaToken: "Please complete the verification again.",
           },
@@ -93,7 +94,8 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
 
       default:
         return {
-          generalError: message || "Your sign-in request was invalid. Please try again.",
+          generalError:
+            message || "Your sign-in request was invalid. Please try again.",
         };
     }
   }
@@ -143,19 +145,22 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
   if (status === 423) {
     return {
       generalError:
-        message || "This sign-in is locked. Use the code from your email to unlock it.",
+        message ||
+        "This sign-in is locked. Use the code from your email to unlock it.",
       unlockRequired: true,
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
     };
   }
 
   return {
-    generalError: "We couldn't complete sign in. Check your connection and try again.",
+    generalError:
+      "We couldn't complete sign in. Check your connection and try again.",
   };
 }
 
@@ -189,7 +194,11 @@ function LockIcon() {
       className="h-5 w-5"
       aria-hidden="true"
     >
-      <path d="M7 10V8a5 5 0 0 1 10 0v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M7 10V8a5 5 0 0 1 10 0v2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <rect
         x="4"
         y="10"
@@ -306,7 +315,8 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [captchaToken, setCaptchaToken, clearCaptchaToken] = useAuthCaptchaToken();
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken();
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<LoginErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -354,7 +364,9 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       const failure = getLoginFailureResult(error);
 
       setGeneralError(failure.generalError);
-      setUnlockEmail(failure.unlockRequired ? email.trim().toLowerCase() : null);
+      setUnlockEmail(
+        failure.unlockRequired ? email.trim().toLowerCase() : null,
+      );
       setErrors((current) => ({
         ...current,
         ...(failure.fieldErrors ?? {}),
@@ -398,7 +410,10 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   return (
     <div className="space-y-5">
-      <AuthOAuthButtons onSuccess={handleOAuthSuccess} onError={setGeneralError} />
+      <AuthOAuthButtons
+        onSuccess={handleOAuthSuccess}
+        onError={setGeneralError}
+      />
 
       <div className="flex items-center gap-3">
         <div className={theme.auth.dividerLine} />
@@ -481,7 +496,9 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             </button>
           </div>
 
-          {errors.password ? <p className={theme.auth.fieldErrorText}>{errors.password}</p> : null}
+          {errors.password ? (
+            <p className={theme.auth.fieldErrorText}>{errors.password}</p>
+          ) : null}
         </div>
 
         <AuthCaptchaPanel

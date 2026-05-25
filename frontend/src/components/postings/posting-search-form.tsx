@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { buildSearchFormQuery, toDateTimeLocalValue } from "@/lib/postings/search-form";
+import {
+  buildSearchFormQuery,
+  toDateTimeLocalValue,
+} from "@/lib/postings/search-form";
 
 interface PostingSearchFormProps {
   children: React.ReactNode;
@@ -34,7 +37,9 @@ export function PostingSearchForm({
 
     const form = event.currentTarget;
     const query = buildSearchFormQuery(new FormData(form).entries()).toString();
-    const target = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    const target = query
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
 
     window.location.assign(target);
   }
@@ -46,7 +51,11 @@ export function PostingSearchForm({
   );
 }
 
-function setDateInputValue(form: HTMLFormElement, name: "startAt" | "endAt", value?: string): void {
+function setDateInputValue(
+  form: HTMLFormElement,
+  name: "startAt" | "endAt",
+  value?: string,
+): void {
   const input = form.elements.namedItem(name);
 
   if (!(input instanceof HTMLInputElement)) {

@@ -15,9 +15,11 @@ import {
 const workerName = "Search maintainer worker";
 const workerResources = searchBrokerWorkerResources;
 const MIN_IDLE_SLEEP_MS = 100;
-const workerLogger = loggerFactory.forComponent("search-maintainer.worker", "worker").child({
-  workerName,
-});
+const workerLogger = loggerFactory
+  .forComponent("search-maintainer.worker", "worker")
+  .child({
+    workerName,
+  });
 
 export async function bootstrapSearchMaintainerWorker(): Promise<void> {
   await bootstrapWorker({
@@ -37,29 +39,52 @@ export async function bootstrapSearchMaintainerWorker(): Promise<void> {
         let processedCount = 0;
 
         if (now >= nextRelayAt) {
-          processedCount += await runScheduledTask(container.createScope(), async ({ scope }) => {
-            const searchService = scope.resolve(containerTokens.searchService);
-            return searchService.processOutboxRelayBatch(
-              relayConfig.batchSize,
-              relayConfig.maxAttempts,
-            );
-          }, workerName, "relay");
+          processedCount += await runScheduledTask(
+            container.createScope(),
+            async ({ scope }) => {
+              const searchService = scope.resolve(
+                containerTokens.searchService,
+              );
+              return searchService.processOutboxRelayBatch(
+                relayConfig.batchSize,
+                relayConfig.maxAttempts,
+              );
+            },
+            workerName,
+            "relay",
+          );
           nextRelayAt = Date.now() + relayConfig.pollIntervalMs;
         }
 
         if (Date.now() >= nextReindexAt) {
-          processedCount += await runScheduledTask(container.createScope(), async ({ scope }) => {
-            const searchService = scope.resolve(containerTokens.searchService);
-            return searchService.processReindexRuns(reindexConfig.batchSize);
-          }, workerName, "reindex");
+          processedCount += await runScheduledTask(
+            container.createScope(),
+            async ({ scope }) => {
+              const searchService = scope.resolve(
+                containerTokens.searchService,
+              );
+              return searchService.processReindexRuns(reindexConfig.batchSize);
+            },
+            workerName,
+            "reindex",
+          );
           nextReindexAt = Date.now() + reindexConfig.pollIntervalMs;
         }
 
         if (Date.now() >= nextReconcileAt) {
-          processedCount += await runScheduledTask(container.createScope(), async ({ scope }) => {
-            const searchService = scope.resolve(containerTokens.searchService);
-            return searchService.processReconciliationBatch(reconcileConfig.batchSize);
-          }, workerName, "reconcile");
+          processedCount += await runScheduledTask(
+            container.createScope(),
+            async ({ scope }) => {
+              const searchService = scope.resolve(
+                containerTokens.searchService,
+              );
+              return searchService.processReconciliationBatch(
+                reconcileConfig.batchSize,
+              );
+            },
+            workerName,
+            "reconcile",
+          );
           nextReconcileAt = Date.now() + reconcileConfig.pollIntervalMs;
         }
 
@@ -67,7 +92,11 @@ export async function bootstrapSearchMaintainerWorker(): Promise<void> {
           continue;
         }
 
-        const nextWakeAt = Math.min(nextRelayAt, nextReindexAt, nextReconcileAt);
+        const nextWakeAt = Math.min(
+          nextRelayAt,
+          nextReindexAt,
+          nextReconcileAt,
+        );
         const sleepMs = Math.max(MIN_IDLE_SLEEP_MS, nextWakeAt - Date.now());
         await sleep(sleepMs);
       }
@@ -84,10 +113,14 @@ async function runScheduledTask(
   try {
     return (await task({ scope })) ?? 0;
   } catch (error) {
-    workerLogger.error("Scheduled search maintenance task failed.", {
-      parentWorkerName,
-      taskName,
-    }, error);
+    workerLogger.error(
+      "Scheduled search maintenance task failed.",
+      {
+        parentWorkerName,
+        taskName,
+      },
+      error,
+    );
     return 0;
   } finally {
     await scope.dispose();

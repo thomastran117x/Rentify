@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 
-const {
-  PublicPostingDetailError,
-  fetchPublicPostingDetail,
-} = await import(new URL("./public.ts", import.meta.url).href);
-const {
-  formatPostingAttributeLabel,
-  formatPostingAttributeValue,
-} = await import(new URL("./public-format.ts", import.meta.url).href);
+const { PublicPostingDetailError, fetchPublicPostingDetail } = await import(
+  new URL("./public.ts", import.meta.url).href
+);
+const { formatPostingAttributeLabel, formatPostingAttributeValue } =
+  await import(new URL("./public-format.ts", import.meta.url).href);
 
 const originalFetch = globalThis.fetch;
 
@@ -36,7 +33,7 @@ try {
           pricingCurrency: "CAD",
           photos: [],
           tags: ["wifi"],
-          attributes: {
+          details: {
             guest_capacity: 12,
             parking: true,
             amenities: ["wifi", "projector"],
@@ -72,7 +69,10 @@ try {
   assert.equal(posting.name, "Studio Loft");
   assert.equal(posting.variant.subtype, "workspace");
   assert.equal(formatPostingAttributeLabel("guest_capacity"), "Guest capacity");
-  assert.equal(formatPostingAttributeValue(posting.attributes.amenities), "Wi-Fi, Projector");
+  assert.equal(
+    formatPostingAttributeValue(posting.details.amenities),
+    "Wi-Fi, Projector",
+  );
 
   globalThis.fetch = async () =>
     new Response(
@@ -98,10 +98,19 @@ try {
 
   await assert.rejects(
     () => fetchPublicPostingDetail("missing-posting"),
-    (error: unknown) =>
-      error instanceof PublicPostingDetailError &&
-      error.debug.status === 404 &&
-      error.message === "Posting could not be found.",
+    (error: unknown) => {
+      if (!(error instanceof PublicPostingDetailError)) {
+        return false;
+      }
+
+      const detailError = error as InstanceType<
+        typeof PublicPostingDetailError
+      >;
+      return (
+        detailError.debug.status === 404 &&
+        detailError.message === "Posting could not be found."
+      );
+    },
   );
 
   globalThis.fetch = async () =>
@@ -128,10 +137,19 @@ try {
 
   await assert.rejects(
     () => fetchPublicPostingDetail("posting-2"),
-    (error: unknown) =>
-      error instanceof PublicPostingDetailError &&
-      error.debug.status === 500 &&
-      error.message === "Server exploded.",
+    (error: unknown) => {
+      if (!(error instanceof PublicPostingDetailError)) {
+        return false;
+      }
+
+      const detailError = error as InstanceType<
+        typeof PublicPostingDetailError
+      >;
+      return (
+        detailError.debug.status === 500 &&
+        detailError.message === "Server exploded."
+      );
+    },
   );
 } finally {
   globalThis.fetch = originalFetch;

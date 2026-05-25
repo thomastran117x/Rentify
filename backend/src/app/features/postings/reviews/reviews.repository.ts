@@ -52,7 +52,9 @@ export class PostingsReviewsRepository extends BaseRepository {
     return this.mapReview(review);
   }
 
-  async updateOwnReview(input: UpsertPostingReviewInput): Promise<PostingReviewRecord | null> {
+  async updateOwnReview(
+    input: UpsertPostingReviewInput,
+  ): Promise<PostingReviewRecord | null> {
     try {
       const review = await this.executeAsync(() =>
         this.prisma.postingReview.update({
@@ -79,7 +81,10 @@ export class PostingsReviewsRepository extends BaseRepository {
 
       return this.mapReview(review);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
         return null;
       }
 
@@ -87,7 +92,10 @@ export class PostingsReviewsRepository extends BaseRepository {
     }
   }
 
-  async findOwnReview(postingId: string, reviewerId: string): Promise<PostingReviewRecord | null> {
+  async findOwnReview(
+    postingId: string,
+    reviewerId: string,
+  ): Promise<PostingReviewRecord | null> {
     const review = await this.executeAsync(() =>
       this.prisma.postingReview.findUnique({
         where: {
@@ -198,7 +206,9 @@ export class PostingsReviewsRepository extends BaseRepository {
     };
   }
 
-  private mapSummary(aggregate: PostingReviewAggregatePersistence): PostingReviewSummary {
+  private mapSummary(
+    aggregate: PostingReviewAggregatePersistence,
+  ): PostingReviewSummary {
     return {
       averageRating: Number((aggregate._avg.rating ?? 0).toFixed(2)),
       reviewCount: aggregate._count._all,
@@ -218,5 +228,3 @@ export class PostingsReviewsRepository extends BaseRepository {
     };
   }
 }
-
-

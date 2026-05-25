@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { createMiddleware } from "hono/factory";
 import type { AppBindings } from "@/configuration/http/bindings";
-import { containerTokens, getRequestContainer } from "@/configuration/bootstrap/container";
+import {
+  containerTokens,
+  getRequestContainer,
+} from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
 import { loggerFactory } from "@/configuration/logging";
@@ -50,7 +53,10 @@ const slidingWindowMemoryStore = new Map<string, number[]>();
 const tokenBucketMemoryStore = new Map<string, MemoryTokenBucketState>();
 const REDIS_FALLBACK_LOG_COOLDOWN_MS = 60_000;
 let lastRedisFallbackLogAt = 0;
-const rateLimiterLogger = loggerFactory.forComponent("rate-limiter.middleware", "middleware");
+const rateLimiterLogger = loggerFactory.forComponent(
+  "rate-limiter.middleware",
+  "middleware",
+);
 
 const SLIDING_WINDOW_SCRIPT = `
 local key = KEYS[1]
@@ -166,18 +172,17 @@ function createDefaultPolicy(request: Request): RateLimitPolicy {
 function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   return (
     request.method === "POST" &&
-    (
-      /^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
-        pathname,
-      ) ||
-      /^\/auth\/oauth\/(google|microsoft|apple)$/.test(pathname)
-    )
+    (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
+      pathname,
+    ) ||
+      /^\/auth\/oauth\/(google|microsoft|apple)$/.test(pathname))
   );
 }
 
 function isAuthSessionRoute(request: Request, pathname: string): boolean {
   return (
-    (request.method === "POST" && /^\/auth\/(logout|device\/verify)$/.test(pathname)) ||
+    (request.method === "POST" &&
+      /^\/auth\/(logout|device\/verify)$/.test(pathname)) ||
     /^\/auth\/oauth\/[^/]+\/link$/.test(pathname) ||
     (request.method === "DELETE" && /^\/auth\/oauth\/[^/]+$/.test(pathname))
   );
@@ -190,10 +195,8 @@ function isAuthRefreshRoute(request: Request, pathname: string): boolean {
 function isPaymentMutationRoute(request: Request, pathname: string): boolean {
   return (
     request.method === "POST" &&
-    (
-      /^\/booking-requests\/[^/]+\/payment-session$/.test(pathname) ||
-      /^\/payments\/[^/]+\/(retry|refunds|reconcile|repair)$/.test(pathname)
-    )
+    (/^\/booking-requests\/[^/]+\/payment-session$/.test(pathname) ||
+      /^\/payments\/[^/]+\/(retry|refunds|reconcile|repair)$/.test(pathname))
   );
 }
 
@@ -422,7 +425,7 @@ function evaluateTokenBucketInMemory(
     return {
       allowed: false,
       remaining: Math.max(0, Math.floor(tokens)),
-      retryAfterSeconds: Math.max(1, Math.ceil(((1 - tokens) / refillRate))),
+      retryAfterSeconds: Math.max(1, Math.ceil((1 - tokens) / refillRate)),
     };
   }
 
@@ -471,10 +474,13 @@ function logRedisFallback(error: unknown, policy: RateLimitPolicy): void {
 
   lastRedisFallbackLogAt = now;
 
-  rateLimiterLogger.warn("Rate limiter falling back to in-memory evaluation because Redis is unavailable.", {
-    policy: policy.id,
-    error: error instanceof Error ? error.message : error,
-  });
+  rateLimiterLogger.warn(
+    "Rate limiter falling back to in-memory evaluation because Redis is unavailable.",
+    {
+      policy: policy.id,
+      error: error instanceof Error ? error.message : error,
+    },
+  );
 }
 
 async function evaluateRateLimit(
@@ -516,40 +522,48 @@ export function resetRateLimiterMemoryFallbackForTests(): void {
   lastRedisFallbackLogAt = 0;
 }
 
-export const rateLimiterMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  if (!isEnabled()) {
+export const rateLimiterMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    if (!isEnabled()) {
+      await next();
+      return;
+    }
+
+    const policy = resolveRateLimitPolicy(context.req.raw);
+    const identity = await resolveRateLimitIdentity(context);
+    const key = buildRateLimitKey(policy, identity.keyPart);
+    const strategy = policy.strategy;
+    const evaluation = await evaluateRateLimit(context, key, policy);
+
+    context.header("x-ratelimit-limit", String(policy.limit));
+    context.header("x-ratelimit-backend", evaluation.backend);
+    context.header(
+      "x-ratelimit-remaining",
+      String(Math.max(0, evaluation.result.remaining)),
+    );
+    context.header("x-ratelimit-policy", policy.id);
+    context.header("x-ratelimit-strategy", strategy);
+    if (evaluation.backend === "memory") {
+      context.header("x-ratelimit-degraded", "true");
+    }
+
+    if (!evaluation.result.allowed) {
+      context.header(
+        "retry-after",
+        String(Math.max(1, evaluation.result.retryAfterSeconds)),
+      );
+      throw new TooManyRequestError(
+        "Too many requests. Please try again later.",
+        {
+          backend: evaluation.backend,
+          identityType: identity.type,
+          policy: policy.id,
+          strategy,
+          retryAfterSeconds: Math.max(1, evaluation.result.retryAfterSeconds),
+        },
+      );
+    }
+
     await next();
-    return;
-  }
-
-  const policy = resolveRateLimitPolicy(context.req.raw);
-  const identity = await resolveRateLimitIdentity(context);
-  const key = buildRateLimitKey(policy, identity.keyPart);
-  const strategy = policy.strategy;
-  const evaluation = await evaluateRateLimit(context, key, policy);
-
-  context.header("x-ratelimit-limit", String(policy.limit));
-  context.header("x-ratelimit-backend", evaluation.backend);
-  context.header(
-    "x-ratelimit-remaining",
-    String(Math.max(0, evaluation.result.remaining)),
-  );
-  context.header("x-ratelimit-policy", policy.id);
-  context.header("x-ratelimit-strategy", strategy);
-  if (evaluation.backend === "memory") {
-    context.header("x-ratelimit-degraded", "true");
-  }
-
-  if (!evaluation.result.allowed) {
-    context.header("retry-after", String(Math.max(1, evaluation.result.retryAfterSeconds)));
-    throw new TooManyRequestError("Too many requests. Please try again later.", {
-      backend: evaluation.backend,
-      identityType: identity.type,
-      policy: policy.id,
-      strategy,
-      retryAfterSeconds: Math.max(1, evaluation.result.retryAfterSeconds),
-    });
-  }
-
-  await next();
-});
+  },
+);

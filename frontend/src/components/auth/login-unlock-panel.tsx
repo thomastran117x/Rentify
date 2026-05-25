@@ -29,7 +29,9 @@ function getUnlockFailureResult(error: unknown): {
   const apiError = error as ApiErrorShape | undefined;
   const status = apiError?.status;
   const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as { retryAfterSeconds?: number } | undefined;
+  const details = apiError?.body?.details as
+    | { retryAfterSeconds?: number }
+    | undefined;
 
   if (status === 400) {
     return {
@@ -44,20 +46,23 @@ function getUnlockFailureResult(error: unknown): {
     return {
       generalError: retryAfterSeconds
         ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message || "A new unlock code was sent recently. Please wait before retrying.",
+        : message ||
+          "A new unlock code was sent recently. Please wait before retrying.",
       fieldError: undefined,
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
       fieldError: undefined,
     };
   }
 
   return {
-    generalError: "We couldn't unlock sign-in right now. Check your connection and try again.",
+    generalError:
+      "We couldn't unlock sign-in right now. Check your connection and try again.",
     fieldError: undefined,
   };
 }
@@ -70,26 +75,31 @@ function getResendUnlockFailureResult(error: unknown): {
   const status = apiError?.status;
   const code = apiError?.body?.code;
   const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as { retryAfterSeconds?: number } | undefined;
+  const details = apiError?.body?.details as
+    | { retryAfterSeconds?: number }
+    | undefined;
 
   if (status === 400) {
     switch (code) {
       case "CAPTCHA_REQUIRED":
       case "CAPTCHA_MISSING":
         return {
-          generalError: "Please complete the security check before requesting another unlock code.",
+          generalError:
+            "Please complete the security check before requesting another unlock code.",
           fieldError: "Complete the verification to continue.",
         };
       case "CAPTCHA_INVALID":
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldError: "Please complete the verification again.",
         };
       default:
         return {
-          generalError: message || "We couldn't send another unlock code right now.",
+          generalError:
+            message || "We couldn't send another unlock code right now.",
         };
     }
   }
@@ -100,32 +110,40 @@ function getResendUnlockFailureResult(error: unknown): {
     return {
       generalError: retryAfterSeconds
         ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message || "A new unlock code was sent recently. Please wait before retrying.",
+        : message ||
+          "A new unlock code was sent recently. Please wait before retrying.",
       fieldError: undefined,
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
       fieldError: undefined,
     };
   }
 
   return {
-    generalError: "We couldn't resend an unlock code right now. Check your connection and try again.",
+    generalError:
+      "We couldn't resend an unlock code right now. Check your connection and try again.",
     fieldError: undefined,
   };
 }
 
-export function LoginUnlockPanel({ email, onUnlocked, onCancel }: LoginUnlockPanelProps) {
+export function LoginUnlockPanel({
+  email,
+  onUnlocked,
+  onCancel,
+}: LoginUnlockPanelProps) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [resending, setResending] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [resentMessage, setResentMessage] = useState<string | null>(null);
-  const [captchaToken, setCaptchaToken, clearCaptchaToken] = useAuthCaptchaToken();
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken();
   const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   async function handleUnlock(event: React.FormEvent<HTMLFormElement>) {
@@ -177,7 +195,9 @@ export function LoginUnlockPanel({ email, onUnlocked, onCancel }: LoginUnlockPan
         email,
         captchaToken,
       });
-      setResentMessage("If sign-in is locked for this email, a new unlock code is on the way.");
+      setResentMessage(
+        "If sign-in is locked for this email, a new unlock code is on the way.",
+      );
     } catch (error) {
       const failure = getResendUnlockFailureResult(error);
       setGeneralError(failure.generalError);
@@ -193,7 +213,8 @@ export function LoginUnlockPanel({ email, onUnlocked, onCancel }: LoginUnlockPan
       <div className={theme.auth.warningPanel}>
         <p className="text-sm font-semibold">Sign-in temporarily locked</p>
         <p className="mt-2 text-sm leading-6">
-          We sent an unlock code to {email}. Enter it below to restore local sign-in.
+          We sent an unlock code to {email}. Enter it below to restore local
+          sign-in.
         </p>
       </div>
 
@@ -220,7 +241,9 @@ export function LoginUnlockPanel({ email, onUnlocked, onCancel }: LoginUnlockPan
             maxLength={6}
             placeholder="123456"
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(event) =>
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             className={`h-14 w-full rounded-2xl border bg-white px-4 text-center text-[22px] tracking-[0.35em] text-slate-900 outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 ${
               codeError
                 ? theme.auth.fieldError
@@ -230,7 +253,9 @@ export function LoginUnlockPanel({ email, onUnlocked, onCancel }: LoginUnlockPan
             }`}
           />
 
-          {codeError ? <p className={theme.auth.fieldErrorText}>{codeError}</p> : null}
+          {codeError ? (
+            <p className={theme.auth.fieldErrorText}>{codeError}</p>
+          ) : null}
           {!codeError ? (
             <p className={theme.auth.fieldText}>
               Enter the 6-digit code from your email to unlock local sign-in.

@@ -21,7 +21,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user2@rentify.local",
     rating: 4,
     title: "Reliable downtown setup",
-    comment: "Fast pickup, bright natural light, and everything matched the listing.",
+    comment:
+      "Fast pickup, bright natural light, and everything matched the listing.",
     createdAt: "2026-04-13T18:00:00.000Z",
   },
   {
@@ -30,7 +31,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user3@rentify.local",
     rating: 4,
     title: "Solid workshop setup",
-    comment: "Worked well for a team review session with plenty of room to spread out.",
+    comment:
+      "Worked well for a team review session with plenty of room to spread out.",
     createdAt: "2026-04-14T16:30:00.000Z",
   },
   {
@@ -39,7 +41,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user4@rentify.local",
     rating: 5,
     title: "Easy for collaborative sessions",
-    comment: "The host was organized and the layout made team workshops feel effortless.",
+    comment:
+      "The host was organized and the layout made team workshops feel effortless.",
     createdAt: "2026-04-15T19:15:00.000Z",
   },
   {
@@ -48,7 +51,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user1@rentify.local",
     rating: 5,
     title: "Quiet and photogenic",
-    comment: "The canal view is even better in person and the space photographed beautifully.",
+    comment:
+      "The canal view is even better in person and the space photographed beautifully.",
     createdAt: "2026-04-16T20:10:00.000Z",
   },
   {
@@ -57,7 +61,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user2@rentify.local",
     rating: 5,
     title: "Perfect for a polished client stay",
-    comment: "Quiet at night, easy check-in, and the details felt premium without being fussy.",
+    comment:
+      "Quiet at night, easy check-in, and the details felt premium without being fussy.",
     createdAt: "2026-04-17T20:10:00.000Z",
   },
   {
@@ -66,7 +71,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user3@rentify.local",
     rating: 5,
     title: "Flexible for production",
-    comment: "The loft handled a client walkthrough really well and gave us space for quick staging changes.",
+    comment:
+      "The loft handled a client walkthrough really well and gave us space for quick staging changes.",
     createdAt: "2026-04-18T20:10:00.000Z",
   },
   {
@@ -75,7 +81,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user4@rentify.local",
     rating: 4,
     title: "Comfortable creative base",
-    comment: "Good natural light and a layout that works for small shoots without feeling cramped.",
+    comment:
+      "Good natural light and a layout that works for small shoots without feeling cramped.",
     createdAt: "2026-04-19T20:10:00.000Z",
   },
   {
@@ -84,7 +91,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user5@rentify.local",
     rating: 5,
     title: "Styled beautifully",
-    comment: "Excellent for editorial stills and a short stay, with thoughtful details throughout.",
+    comment:
+      "Excellent for editorial stills and a short stay, with thoughtful details throughout.",
     createdAt: "2026-04-20T20:10:00.000Z",
   },
   {
@@ -93,7 +101,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user6@rentify.local",
     rating: 4,
     title: "Strong for content teams",
-    comment: "The rooms had enough separation for wardrobe, talent, and gear without stepping on each other.",
+    comment:
+      "The rooms had enough separation for wardrobe, talent, and gear without stepping on each other.",
     createdAt: "2026-04-21T20:10:00.000Z",
   },
   {
@@ -102,7 +111,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user7@rentify.local",
     rating: 5,
     title: "Would book again",
-    comment: "Beautifully maintained, simple check-in, and the host communicated clearly the whole time.",
+    comment:
+      "Beautifully maintained, simple check-in, and the host communicated clearly the whole time.",
     createdAt: "2026-04-22T18:40:00.000Z",
   },
   {
@@ -111,7 +121,8 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
     reviewerEmail: "user8@rentify.local",
     rating: 4,
     title: "Calm and dependable",
-    comment: "A very easy stay for a review trip, with great transit access and a polished interior.",
+    comment:
+      "A very easy stay for a review trip, with great transit access and a polished interior.",
     createdAt: "2026-04-21T20:10:00.000Z",
   },
 ];
@@ -239,95 +250,96 @@ export const SEED_POSTING_VIEW_EVENTS: SeedPostingViewEventFixture[] = [
   },
 ];
 
-export const SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture[] = [
-  {
-    id: createFixtureId(4020, 1),
-    postingId: createFixtureId(2000, 1),
-    eventType: "posting_viewed",
-    payload: {
-      occurredAt: "2026-04-24T09:00:00.000Z",
-      viewerHash: "viewer-hash-1",
-      userId: createFixtureId(1000, 9),
-      ipAddressHash: "ip-hash-1",
-      userAgentHash: "ua-hash-1",
-      deviceType: "desktop",
-      source: "seed",
+export const SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture[] =
+  [
+    {
+      id: createFixtureId(4020, 1),
+      postingId: createFixtureId(2000, 1),
+      eventType: "posting_viewed",
+      payload: {
+        occurredAt: "2026-04-24T09:00:00.000Z",
+        viewerHash: "viewer-hash-1",
+        userId: createFixtureId(1000, 9),
+        ipAddressHash: "ip-hash-1",
+        userAgentHash: "ua-hash-1",
+        deviceType: "desktop",
+        source: "seed",
+      },
+      attempts: 0,
+      availableAt: "2026-04-24T09:00:00.000Z",
+      processedAt: "2026-04-24T09:01:00.000Z",
     },
-    attempts: 0,
-    availableAt: "2026-04-24T09:00:00.000Z",
-    processedAt: "2026-04-24T09:01:00.000Z",
-  },
-  {
-    id: createFixtureId(4020, 2),
-    postingId: createFixtureId(2000, 11),
-    eventType: "booking_requested",
-    payload: {
-      occurredAt: "2026-04-24T10:00:00.000Z",
-      estimatedTotal: 120,
-      bookingId: createFixtureId(3000, 5),
-      source: "seed",
+    {
+      id: createFixtureId(4020, 2),
+      postingId: createFixtureId(2000, 11),
+      eventType: "booking_requested",
+      payload: {
+        occurredAt: "2026-04-24T10:00:00.000Z",
+        estimatedTotal: 120,
+        bookingId: createFixtureId(3000, 5),
+        source: "seed",
+      },
+      attempts: 0,
+      availableAt: "2026-04-24T10:00:00.000Z",
+      processedAt: "2026-04-24T10:01:00.000Z",
     },
-    attempts: 0,
-    availableAt: "2026-04-24T10:00:00.000Z",
-    processedAt: "2026-04-24T10:01:00.000Z",
-  },
-  {
-    id: createFixtureId(4020, 3),
-    postingId: createFixtureId(2000, 16),
-    eventType: "renting_confirmed",
-    payload: {
-      occurredAt: "2026-04-24T11:00:00.000Z",
-      estimatedTotal: 495,
-      bookingId: createFixtureId(3000, 15),
-      source: "seed",
+    {
+      id: createFixtureId(4020, 3),
+      postingId: createFixtureId(2000, 16),
+      eventType: "renting_confirmed",
+      payload: {
+        occurredAt: "2026-04-24T11:00:00.000Z",
+        estimatedTotal: 495,
+        bookingId: createFixtureId(3000, 15),
+        source: "seed",
+      },
+      attempts: 0,
+      availableAt: "2026-04-24T11:00:00.000Z",
+      processedAt: "2026-04-24T11:01:00.000Z",
     },
-    attempts: 0,
-    availableAt: "2026-04-24T11:00:00.000Z",
-    processedAt: "2026-04-24T11:01:00.000Z",
-  },
-  {
-    id: createFixtureId(4020, 4),
-    postingId: createFixtureId(2000, 21),
-    eventType: "renting_confirmed",
-    payload: {
-      occurredAt: "2026-04-24T12:00:00.000Z",
-      estimatedTotal: 420,
-      paymentId: createFixtureId(3300, 16),
-      source: "seed",
+    {
+      id: createFixtureId(4020, 4),
+      postingId: createFixtureId(2000, 21),
+      eventType: "renting_confirmed",
+      payload: {
+        occurredAt: "2026-04-24T12:00:00.000Z",
+        estimatedTotal: 420,
+        paymentId: createFixtureId(3300, 16),
+        source: "seed",
+      },
+      attempts: 0,
+      availableAt: "2026-04-24T12:00:00.000Z",
+      processedAt: "2026-04-24T12:01:00.000Z",
     },
-    attempts: 0,
-    availableAt: "2026-04-24T12:00:00.000Z",
-    processedAt: "2026-04-24T12:01:00.000Z",
-  },
-  {
-    id: createFixtureId(4020, 5),
-    postingId: createFixtureId(2000, 23),
-    eventType: "posting_viewed",
-    payload: {
-      occurredAt: "2026-04-24T13:00:00.000Z",
-      viewerHash: "viewer-hash-7",
-      userId: createFixtureId(1000, 5),
-      ipAddressHash: "ip-hash-7",
-      userAgentHash: "ua-hash-7",
-      deviceType: "mobile",
-      source: "seed",
+    {
+      id: createFixtureId(4020, 5),
+      postingId: createFixtureId(2000, 23),
+      eventType: "posting_viewed",
+      payload: {
+        occurredAt: "2026-04-24T13:00:00.000Z",
+        viewerHash: "viewer-hash-7",
+        userId: createFixtureId(1000, 5),
+        ipAddressHash: "ip-hash-7",
+        userAgentHash: "ua-hash-7",
+        deviceType: "mobile",
+        source: "seed",
+      },
+      attempts: 1,
+      availableAt: "2026-04-24T13:00:00.000Z",
+      processedAt: "2026-04-24T13:05:00.000Z",
     },
-    attempts: 1,
-    availableAt: "2026-04-24T13:00:00.000Z",
-    processedAt: "2026-04-24T13:05:00.000Z",
-  },
-  {
-    id: createFixtureId(4020, 6),
-    postingId: createFixtureId(2000, 29),
-    eventType: "renting_confirmed",
-    payload: {
-      occurredAt: "2026-04-24T14:00:00.000Z",
-      estimatedTotal: 516,
-      paymentId: createFixtureId(3300, 26),
-      source: "seed",
+    {
+      id: createFixtureId(4020, 6),
+      postingId: createFixtureId(2000, 29),
+      eventType: "renting_confirmed",
+      payload: {
+        occurredAt: "2026-04-24T14:00:00.000Z",
+        estimatedTotal: 516,
+        paymentId: createFixtureId(3300, 26),
+        source: "seed",
+      },
+      attempts: 0,
+      availableAt: "2026-04-24T14:00:00.000Z",
+      processedAt: "2026-04-24T14:01:00.000Z",
     },
-    attempts: 0,
-    availableAt: "2026-04-24T14:00:00.000Z",
-    processedAt: "2026-04-24T14:01:00.000Z",
-  },
-];
+  ];

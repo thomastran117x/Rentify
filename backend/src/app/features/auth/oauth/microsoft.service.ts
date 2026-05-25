@@ -47,7 +47,10 @@ function readClientSecret(): string | undefined {
 }
 
 function readTenant(): string {
-  return getOptionalEnvironmentVariable("MICROSOFT_OAUTH_TENANT")?.trim() || "consumers";
+  return (
+    getOptionalEnvironmentVariable("MICROSOFT_OAUTH_TENANT")?.trim() ||
+    "consumers"
+  );
 }
 
 function buildJwksUrl(tenant: string): string {
@@ -79,10 +82,7 @@ function splitName(name?: string): { firstName?: string; lastName?: string } {
     return {};
   }
 
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
 
   if (!parts.length) {
     return {};
@@ -113,20 +113,27 @@ class MicrosoftOAuthService {
       nonce: input.nonce,
     });
 
-    const emailClaim = typeof payload.email === "string" ? payload.email : undefined;
+    const emailClaim =
+      typeof payload.email === "string" ? payload.email : undefined;
 
     if (!payload.sub || !emailClaim) {
-      throw new UnauthorizedError("Microsoft ID token is missing required claims.");
+      throw new UnauthorizedError(
+        "Microsoft ID token is missing required claims.",
+      );
     }
 
     const emailVerified =
-      payload.email_verified === undefined ? true : normalizeEmailVerified(payload.email_verified);
+      payload.email_verified === undefined
+        ? true
+        : normalizeEmailVerified(payload.email_verified);
 
     if (!emailVerified) {
       throw new UnauthorizedError("Microsoft account email is not verified.");
     }
 
-    const tokenNames = splitName(typeof payload.name === "string" ? payload.name : undefined);
+    const tokenNames = splitName(
+      typeof payload.name === "string" ? payload.name : undefined,
+    );
 
     return {
       provider: "microsoft",
@@ -138,9 +145,13 @@ class MicrosoftOAuthService {
     };
   }
 
-  private async exchangeCodeForIdToken(input: OAuthAuthenticateInput): Promise<string> {
+  private async exchangeCodeForIdToken(
+    input: OAuthAuthenticateInput,
+  ): Promise<string> {
     if (!input.code || !input.codeVerifier) {
-      throw new BadRequestError("Microsoft authorization code exchange is missing PKCE inputs.");
+      throw new BadRequestError(
+        "Microsoft authorization code exchange is missing PKCE inputs.",
+      );
     }
 
     const tenant = readTenant();
@@ -184,7 +195,9 @@ class MicrosoftOAuthService {
     }
 
     if (!payload.id_token) {
-      throw new UnauthorizedError("Microsoft token response did not include an ID token.");
+      throw new UnauthorizedError(
+        "Microsoft token response did not include an ID token.",
+      );
     }
 
     return payload.id_token;

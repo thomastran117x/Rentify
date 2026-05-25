@@ -2,7 +2,11 @@ import { parseDisabledRouteModuleIds } from "@/configuration/bootstrap/routes/co
 import type { RouteModuleId } from "@/configuration/bootstrap/routes/types";
 import { DEFAULT_LOG_FALLBACK_DIRECTORY } from "@/configuration/environment/constants";
 import { parseNumber } from "@/configuration/environment/shared";
-import type { AppEnvironment, NodeEnvironment, RawEnvironmentValues } from "@/configuration/environment/types";
+import type {
+  AppEnvironment,
+  NodeEnvironment,
+  RawEnvironmentValues,
+} from "@/configuration/environment/types";
 
 export function parseNodeEnvironment(
   raw: RawEnvironmentValues,
@@ -18,11 +22,15 @@ export function parseNodeEnvironment(
   return "development";
 }
 
-function parseLoggingMode(nodeEnv: NodeEnvironment): AppEnvironment["logging"]["mode"] {
+function parseLoggingMode(
+  nodeEnv: NodeEnvironment,
+): AppEnvironment["logging"]["mode"] {
   return nodeEnv === "production" ? "rabbitmq" : "console";
 }
 
-function parseLogLevel(value: string | undefined): AppEnvironment["logging"]["level"] {
+function parseLogLevel(
+  value: string | undefined,
+): AppEnvironment["logging"]["level"] {
   const normalized = value?.trim().toLowerCase();
 
   if (
@@ -73,7 +81,8 @@ export function buildLoggingConfig(
   nodeEnv: NodeEnvironment,
 ): AppEnvironment["logging"] {
   return {
-    fallbackDirectory: raw.LOG_FALLBACK_DIRECTORY ?? DEFAULT_LOG_FALLBACK_DIRECTORY,
+    fallbackDirectory:
+      raw.LOG_FALLBACK_DIRECTORY ?? DEFAULT_LOG_FALLBACK_DIRECTORY,
     level: parseLogLevel(raw.LOG_LEVEL),
     mode: parseLoggingMode(nodeEnv),
     serviceName: raw.LOG_SERVICE_NAME ?? "backend",

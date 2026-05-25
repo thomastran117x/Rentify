@@ -1,7 +1,11 @@
 import { config } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { parseEnvironmentState } from "@/configuration/environment/parser";
-import type { AppEnvironment, EnvironmentState, NodeEnvironment } from "@/configuration/environment/types";
+import type {
+  AppEnvironment,
+  EnvironmentState,
+  NodeEnvironment,
+} from "@/configuration/environment/types";
 
 const envFilePath = fileURLToPath(new URL("../../../../.env", import.meta.url));
 
@@ -176,7 +180,9 @@ export class EnvironmentManager {
   }
 
   getEnvironmentVariable(name: string): string {
-    const value = (this.state?.raw as Record<string, string | undefined> | undefined)?.[name];
+    const value = (
+      this.state?.raw as Record<string, string | undefined> | undefined
+    )?.[name];
 
     if (!value) {
       throw new Error(`Missing required environment variable: ${name}`);
@@ -186,7 +192,9 @@ export class EnvironmentManager {
   }
 
   getOptionalEnvironmentVariable(name: string): string | undefined {
-    return (this.state?.raw as Record<string, string | undefined> | undefined)?.[name];
+    return (
+      this.state?.raw as Record<string, string | undefined> | undefined
+    )?.[name];
   }
 }
 
@@ -204,6 +212,8 @@ export function getEnvironmentVariable(name: string): string {
   return environment.getEnvironmentVariable(name);
 }
 
-export function getOptionalEnvironmentVariable(name: string): string | undefined {
+export function getOptionalEnvironmentVariable(
+  name: string,
+): string | undefined {
   return environment.getOptionalEnvironmentVariable(name);
 }

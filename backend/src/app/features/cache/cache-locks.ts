@@ -12,7 +12,9 @@ export const flowLockKeys = {
     `booking-request:${bookingRequestId}:convert`,
   bookingRequestCap: (postingId: string, renterId: string) =>
     `booking-request-cap:${postingId}:${renterId}`,
-  postingBookingWindow: (postingId: string) => `posting:${postingId}:booking-window`,
+  rentingState: (rentingId: string) => `renting:${rentingId}:state`,
+  postingBookingWindow: (postingId: string) =>
+    `posting:${postingId}:booking-window`,
 };
 
 export async function withFlowLock<T>(

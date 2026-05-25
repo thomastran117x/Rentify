@@ -1,6 +1,7 @@
 "use client";
 
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { publicEnv } from "@/lib/env";
 import { theme } from "@/styles/theme";
 
 interface AuthCaptchaPanelProps {
@@ -20,8 +21,10 @@ export function AuthCaptchaPanel({
     <div className={theme.auth.captchaPanel}>
       <TurnstileWidget value={token} onChange={onChange} />
 
-      {token ? (
-        <div className={`mt-3 flex flex-wrap items-center justify-between gap-3 ${theme.auth.successPanel}`}>
+      {publicEnv.turnstileSiteKey && token ? (
+        <div
+          className={`mt-3 flex flex-wrap items-center justify-between gap-3 ${theme.auth.successPanel}`}
+        >
           <button
             type="button"
             onClick={onReset}
@@ -32,7 +35,9 @@ export function AuthCaptchaPanel({
         </div>
       ) : null}
 
-      {error ? <p className={`mt-2 ${theme.auth.fieldErrorText}`}>{error}</p> : null}
+      {error ? (
+        <p className={`mt-2 ${theme.auth.fieldErrorText}`}>{error}</p>
+      ) : null}
     </div>
   );
 }

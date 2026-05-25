@@ -1,6 +1,11 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
-import { SEED_DEVICES, SEED_OAUTH_IDENTITIES, SEED_PERSONAL_ACCESS_TOKENS, SEED_USERS } from "@/seeds/fixtures/users";
+import {
+  SEED_DEVICES,
+  SEED_OAUTH_IDENTITIES,
+  SEED_PERSONAL_ACCESS_TOKENS,
+  SEED_USERS,
+} from "@/seeds/fixtures/users";
 import type { SeedModule } from "@/seeds/types";
 
 const BCRYPT_SALT_ROUNDS = 12;
@@ -120,7 +125,9 @@ export const usersSeedModule: SeedModule = {
       const userId = state.userIdsByEmail.get(fixture.userEmail);
 
       if (!userId) {
-        throw new Error(`Missing user for seeded personal access token ${fixture.id}.`);
+        throw new Error(
+          `Missing user for seeded personal access token ${fixture.id}.`,
+        );
       }
 
       await prisma.personalAccessToken.create({
@@ -150,7 +157,9 @@ export const usersSeedModule: SeedModule = {
       const userId = state.userIdsByEmail.get(fixture.userEmail);
 
       if (!userId) {
-        throw new Error(`Missing user for seeded OAuth identity ${fixture.id}.`);
+        throw new Error(
+          `Missing user for seeded OAuth identity ${fixture.id}.`,
+        );
       }
 
       await prisma.oAuthIdentity.create({

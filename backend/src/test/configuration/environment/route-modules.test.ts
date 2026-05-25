@@ -7,12 +7,9 @@ describe("route module environment parsing", () => {
 
   it("normalizes duplicates and whitespace in DISABLED_ROUTE_MODULES", () => {
     expect(
-      parseDisabledRouteModuleIds(" blob, auth-local ,blob,postings-public ").disabledIds,
-    ).toEqual([
-      "blob",
-      "auth-local",
-      "postings-public",
-    ]);
+      parseDisabledRouteModuleIds(" blob, auth-local ,blob,postings-public ")
+        .disabledIds,
+    ).toEqual(["blob", "auth-local", "postings-public"]);
   });
 
   it("returns invalid route module ids separately", () => {

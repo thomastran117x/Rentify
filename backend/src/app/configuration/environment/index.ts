@@ -6,7 +6,10 @@ export {
   getOptionalEnvironmentVariable,
   loadEnvironment,
 } from "@/configuration/environment/manager";
-export { parseEnvironment, parseEnvironmentState } from "@/configuration/environment/parser";
+export {
+  parseEnvironment,
+  parseEnvironmentState,
+} from "@/configuration/environment/parser";
 export type {
   AppEnvironment,
   EnvironmentState,

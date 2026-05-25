@@ -141,7 +141,9 @@ async function authenticatedGet<TResponse>(path: string): Promise<TResponse> {
     method: "GET",
     headers: {
       accept: "application/json",
-      ...(session?.accessToken ? { authorization: `Bearer ${session.accessToken}` } : {}),
+      ...(session?.accessToken
+        ? { authorization: `Bearer ${session.accessToken}` }
+        : {}),
       ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
       ...(deviceId ? { "x-device-id": deviceId } : {}),
       ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
@@ -158,7 +160,9 @@ async function authenticatedGet<TResponse>(path: string): Promise<TResponse> {
   return unwrapApiResponse<TResponse>(payload);
 }
 
-function buildQuery(params: Record<string, string | number | undefined>): string {
+function buildQuery(
+  params: Record<string, string | number | undefined>,
+): string {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -171,7 +175,9 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 }
 
 export const postingsAnalyticsApi = {
-  getOwnerSummary(window: PostingAnalyticsWindow): Promise<OwnerPostingsAnalyticsSummary> {
+  getOwnerSummary(
+    window: PostingAnalyticsWindow,
+  ): Promise<OwnerPostingsAnalyticsSummary> {
     return authenticatedGet<OwnerPostingsAnalyticsSummary>(
       `/postings/analytics/summary?${buildQuery({ window })}`,
     );

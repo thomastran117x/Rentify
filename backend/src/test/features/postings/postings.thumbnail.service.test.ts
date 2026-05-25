@@ -12,13 +12,11 @@ class FakePostingsRepository {
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
   };
-  updatedThumbnail:
-    | {
-        photoId: string;
-        thumbnailBlobName: string;
-        thumbnailBlobUrl: string;
-      }
-    | null = null;
+  updatedThumbnail: {
+    photoId: string;
+    thumbnailBlobName: string;
+    thumbnailBlobUrl: string;
+  } | null = null;
   enqueuedSearchPostingId: string | null = null;
 
   async findPrimaryPhotoForThumbnailing() {
@@ -55,7 +53,8 @@ describe("PostingThumbnailService", () => {
     }));
     const uploadBuffer = jest.fn(async () => ({
       blobName: "postings/thumbnails/photo-1.webp",
-      blobUrl: "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
+      blobUrl:
+        "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
     }));
     const buildPostingPhotoThumbnailBlobName = jest.fn(
       () => "postings/thumbnails/photo-1.webp",
@@ -76,7 +75,9 @@ describe("PostingThumbnailService", () => {
     await service.generateForPosting("posting-1");
 
     expect(downloadBlob).toHaveBeenCalledWith("postings/photo-1.jpg");
-    expect(buildPostingPhotoThumbnailBlobName).toHaveBeenCalledWith("postings/photo-1.jpg");
+    expect(buildPostingPhotoThumbnailBlobName).toHaveBeenCalledWith(
+      "postings/photo-1.jpg",
+    );
     expect(uploadBuffer).toHaveBeenCalledWith(
       expect.objectContaining({
         blobName: "postings/thumbnails/photo-1.webp",
@@ -86,10 +87,11 @@ describe("PostingThumbnailService", () => {
     expect(repository.updatedThumbnail).toEqual({
       photoId: "photo-1",
       thumbnailBlobName: "postings/thumbnails/photo-1.webp",
-      thumbnailBlobUrl: "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
+      thumbnailBlobUrl:
+        "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
     });
     expect(
-      (postingsPublicCacheService.invalidatePublic as unknown as jest.Mock),
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
     ).toHaveBeenCalledWith("posting-1");
     expect(repository.enqueuedSearchPostingId).toBe("posting-1");
   });
@@ -99,7 +101,8 @@ describe("PostingThumbnailService", () => {
     repository.primaryPhoto = {
       ...repository.primaryPhoto,
       thumbnailBlobName: "postings/thumbnails/photo-1.webp",
-      thumbnailBlobUrl: "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
+      thumbnailBlobUrl:
+        "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
     };
     const downloadBlob = jest.fn();
     const postingsPublicCacheService = {

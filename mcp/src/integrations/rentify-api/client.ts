@@ -1,5 +1,6 @@
 import type {
   BatchGetPostingsResponse,
+  BookingCancellationQuoteResponse,
   BookingQuoteResponse,
   BookingRequestRecord,
   BookingRequestsListResponse,
@@ -102,7 +103,7 @@ export interface PostingWriteBody extends JsonObject {
     position: number;
   }>;
   tags: string[];
-  attributes: Record<string, string | number | boolean | string[]>;
+  details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
@@ -141,7 +142,7 @@ export interface PostingReviewBody extends JsonObject {
 export interface BookingRequestBody extends JsonObject {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
   contactName: string;
   contactEmail: string;
@@ -151,12 +152,16 @@ export interface BookingRequestBody extends JsonObject {
 export interface BookingQuoteBody extends JsonObject {
   startAt: string;
   endAt: string;
-  guestCount: number;
+  guestCount?: number;
   note?: string | null;
 }
 
 export interface BookingRequestDecisionBody extends JsonObject {
   note?: string | null;
+}
+
+export interface CancelBookingRequestBody extends JsonObject {
+  reason?: string | null;
 }
 
 export interface ListBookingRequestsQuery extends QueryParams {
@@ -178,7 +183,14 @@ export interface ListBookingRequestsQuery extends QueryParams {
 export interface ListMyRentingsQuery extends QueryParams {
   page?: number;
   pageSize?: number;
-  status?: "confirmed";
+  status?:
+    | "confirmed"
+    | "check_in_ready"
+    | "active"
+    | "return_due"
+    | "completed"
+    | "disputed"
+    | "cancelled";
 }
 
 export class BackendApiError extends Error {
@@ -450,6 +462,12 @@ export class RentifyApiClient {
     return this.getProtected<BookingRequestsListResponse>("/booking-requests/me", query);
   }
 
+  async listOwnedBookingRequests(
+    query: ListBookingRequestsQuery = {},
+  ): Promise<BookingRequestsListResponse> {
+    return this.getProtected<BookingRequestsListResponse>("/booking-requests/owner", query);
+  }
+
   async listPostingBookingRequests(
     postingId: string,
     query: ListBookingRequestsQuery = {},
@@ -462,6 +480,14 @@ export class RentifyApiClient {
 
   async getBookingRequest(id: string): Promise<BookingRequestRecord> {
     return this.getProtected<BookingRequestRecord>(`/booking-requests/${encodeURIComponent(id)}`);
+  }
+
+  async getBookingCancellationQuote(
+    id: string,
+  ): Promise<BookingCancellationQuoteResponse> {
+    return this.getProtected<BookingCancellationQuoteResponse>(
+      `/booking-requests/${encodeURIComponent(id)}/cancellation-quote`,
+    );
   }
 
   async updateBookingRequest(id: string, body: BookingRequestBody): Promise<BookingRequestRecord> {
@@ -487,6 +513,16 @@ export class RentifyApiClient {
   ): Promise<BookingRequestRecord> {
     return this.postProtected<BookingRequestRecord>(
       `/booking-requests/${encodeURIComponent(id)}/decline`,
+      body,
+    );
+  }
+
+  async cancelBookingRequest(
+    id: string,
+    body: CancelBookingRequestBody = {},
+  ): Promise<BookingRequestRecord> {
+    return this.postProtected<BookingRequestRecord>(
+      `/booking-requests/${encodeURIComponent(id)}/cancel`,
       body,
     );
   }

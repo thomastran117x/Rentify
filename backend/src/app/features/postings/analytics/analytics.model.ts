@@ -19,11 +19,21 @@ export const postingAnalyticsDetailQuerySchema = z.object({
   granularity: postingAnalyticsGranularitySchema.default("day"),
 });
 
-export type PostingAnalyticsWindow = z.infer<typeof postingAnalyticsWindowSchema>;
-export type PostingAnalyticsGranularity = z.infer<typeof postingAnalyticsGranularitySchema>;
-export type PostingAnalyticsSummaryQuery = z.infer<typeof postingAnalyticsSummaryQuerySchema>;
-export type ListPostingAnalyticsQuery = z.infer<typeof listPostingAnalyticsQuerySchema>;
-export type PostingAnalyticsDetailQuery = z.infer<typeof postingAnalyticsDetailQuerySchema>;
+export type PostingAnalyticsWindow = z.infer<
+  typeof postingAnalyticsWindowSchema
+>;
+export type PostingAnalyticsGranularity = z.infer<
+  typeof postingAnalyticsGranularitySchema
+>;
+export type PostingAnalyticsSummaryQuery = z.infer<
+  typeof postingAnalyticsSummaryQuerySchema
+>;
+export type ListPostingAnalyticsQuery = z.infer<
+  typeof listPostingAnalyticsQuerySchema
+>;
+export type PostingAnalyticsDetailQuery = z.infer<
+  typeof postingAnalyticsDetailQuerySchema
+>;
 
 export interface PostingAnalyticsMetrics {
   searchImpressions: number;
@@ -146,7 +156,8 @@ interface BasePostingAnalyticsEventInput {
   occurredAt: string;
 }
 
-export interface EnqueuePostingViewedEventInput extends BasePostingAnalyticsEventInput {
+export interface EnqueuePostingViewedEventInput
+  extends BasePostingAnalyticsEventInput {
   viewerHash: string;
   userId?: string;
   ipAddressHash?: string;
@@ -154,83 +165,104 @@ export interface EnqueuePostingViewedEventInput extends BasePostingAnalyticsEven
   deviceType: string;
 }
 
-export interface EnqueueSearchImpressionEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueSearchImpressionEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueSearchClickEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueSearchClickEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueBookingRequestedEventInput extends BasePostingAnalyticsEventInput {
+export interface EnqueueBookingRequestedEventInput
+  extends BasePostingAnalyticsEventInput {
   estimatedTotal: number;
 }
 
-export interface EnqueueBookingApprovedEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueBookingApprovedEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueBookingDeclinedEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueBookingDeclinedEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueBookingExpiredEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueBookingExpiredEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueBookingCancelledEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueueBookingCancelledEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueuePaymentFailedEventInput extends BasePostingAnalyticsEventInput {}
+export interface EnqueuePaymentFailedEventInput
+  extends BasePostingAnalyticsEventInput {}
 
-export interface EnqueueRefundRecordedEventInput extends BasePostingAnalyticsEventInput {
+export interface EnqueueRefundRecordedEventInput
+  extends BasePostingAnalyticsEventInput {
   refundedAmount: number;
 }
 
-export interface EnqueueRentingConfirmedEventInput extends BasePostingAnalyticsEventInput {
+export interface EnqueueRentingConfirmedEventInput
+  extends BasePostingAnalyticsEventInput {
   estimatedTotal: number;
 }
 
-export interface ProcessPostingViewedEventInput extends EnqueuePostingViewedEventInput {
+export interface ProcessPostingViewedEventInput
+  extends EnqueuePostingViewedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessSearchImpressionEventInput extends EnqueueSearchImpressionEventInput {
+export interface ProcessSearchImpressionEventInput
+  extends EnqueueSearchImpressionEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessSearchClickEventInput extends EnqueueSearchClickEventInput {
+export interface ProcessSearchClickEventInput
+  extends EnqueueSearchClickEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessBookingRequestedEventInput extends EnqueueBookingRequestedEventInput {
+export interface ProcessBookingRequestedEventInput
+  extends EnqueueBookingRequestedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessBookingApprovedEventInput extends EnqueueBookingApprovedEventInput {
+export interface ProcessBookingApprovedEventInput
+  extends EnqueueBookingApprovedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessBookingDeclinedEventInput extends EnqueueBookingDeclinedEventInput {
+export interface ProcessBookingDeclinedEventInput
+  extends EnqueueBookingDeclinedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessBookingExpiredEventInput extends EnqueueBookingExpiredEventInput {
+export interface ProcessBookingExpiredEventInput
+  extends EnqueueBookingExpiredEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessBookingCancelledEventInput extends EnqueueBookingCancelledEventInput {
+export interface ProcessBookingCancelledEventInput
+  extends EnqueueBookingCancelledEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessPaymentFailedEventInput extends EnqueuePaymentFailedEventInput {
+export interface ProcessPaymentFailedEventInput
+  extends EnqueuePaymentFailedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessRefundRecordedEventInput extends EnqueueRefundRecordedEventInput {
+export interface ProcessRefundRecordedEventInput
+  extends EnqueueRefundRecordedEventInput {
   eventDate: string;
   eventHour: string;
 }
 
-export interface ProcessRentingConfirmedEventInput extends EnqueueRentingConfirmedEventInput {
+export interface ProcessRentingConfirmedEventInput
+  extends EnqueueRentingConfirmedEventInput {
   eventDate: string;
   eventHour: string;
 }
@@ -268,12 +300,14 @@ export interface PostingAnalyticsSummaryInput {
   window: PostingAnalyticsWindow;
 }
 
-export interface ListPostingAnalyticsInput extends PostingAnalyticsSummaryInput {
+export interface ListPostingAnalyticsInput
+  extends PostingAnalyticsSummaryInput {
   page: number;
   pageSize: number;
 }
 
-export interface PostingAnalyticsDetailInput extends PostingAnalyticsSummaryInput {
+export interface PostingAnalyticsDetailInput
+  extends PostingAnalyticsSummaryInput {
   postingId: string;
   granularity: PostingAnalyticsGranularity;
 }

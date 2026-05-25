@@ -20,22 +20,38 @@ export class RecommendationActivityProcessor {
     const posting = await this.repository.findPostingSummary(payload.postingId);
 
     if (!posting) {
-      throw new Error(`Posting ${payload.postingId} could not be resolved for recommendation activity.`);
+      throw new Error(
+        `Posting ${payload.postingId} could not be resolved for recommendation activity.`,
+      );
     }
 
     const occurredAt = new Date(payload.occurredAt);
     if (Number.isNaN(occurredAt.getTime())) {
-      throw new Error("Recommendation activity occurredAt must be a valid ISO datetime.");
+      throw new Error(
+        "Recommendation activity occurredAt must be a valid ISO datetime.",
+      );
     }
 
     const personalizationEligible = this.isPersonalizationEligible(payload);
-    const activity = this.buildActivity(payload, posting, occurredAt, personalizationEligible);
-    const jobs = this.buildRefreshJobs(payload, posting, occurredAt, personalizationEligible);
+    const activity = this.buildActivity(
+      payload,
+      posting,
+      occurredAt,
+      personalizationEligible,
+    );
+    const jobs = this.buildRefreshJobs(
+      payload,
+      posting,
+      occurredAt,
+      personalizationEligible,
+    );
 
     await this.repository.persistActivityAndRefreshJobs(activity, jobs);
   }
 
-  private isPersonalizationEligible(payload: RecommendationActivityEventPayload): boolean {
+  private isPersonalizationEligible(
+    payload: RecommendationActivityEventPayload,
+  ): boolean {
     if (
       ![
         "posting_view",

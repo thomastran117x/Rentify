@@ -124,7 +124,10 @@ export class TokenService {
 
   async verifyAccessToken(token: string): Promise<JwtClaims> {
     const claims = this.verifyJwt(token);
-    const sessionValidation = await this.getCurrentSessionValidation(claims.sub, claims.tokenVersion);
+    const sessionValidation = await this.getCurrentSessionValidation(
+      claims.sub,
+      claims.tokenVersion,
+    );
 
     return {
       ...claims,
@@ -242,7 +245,10 @@ export class TokenService {
 
     const expectedSignature = signValue(body, this.getRefreshTokenSecret());
 
-    if (!safeEquals(signature, expectedSignature) || !safeEquals(signature, session.signature)) {
+    if (
+      !safeEquals(signature, expectedSignature) ||
+      !safeEquals(signature, session.signature)
+    ) {
       throw new UnauthorizedError("Invalid refresh token signature.");
     }
 
@@ -288,7 +294,10 @@ export class TokenService {
       throw new UnauthorizedError("Invalid access token signature.");
     }
 
-    const header = JSON.parse(fromBase64Url(encodedHeader)) as { alg?: string; typ?: string };
+    const header = JSON.parse(fromBase64Url(encodedHeader)) as {
+      alg?: string;
+      typ?: string;
+    };
 
     if (header.alg !== ACCESS_TOKEN_ALGORITHM || header.typ !== "JWT") {
       throw new UnauthorizedError("Invalid access token header.");
@@ -338,8 +347,10 @@ export class TokenService {
     userId: string,
     tokenVersion?: string | number | boolean | null,
   ): Promise<{ tokenVersion: number; role: AppRole }> {
-    const sessionValidation = await this.authRepository.findSessionValidationByUserId(userId);
-    const normalizedTokenVersion = typeof tokenVersion === "number" ? tokenVersion : 0;
+    const sessionValidation =
+      await this.authRepository.findSessionValidationByUserId(userId);
+    const normalizedTokenVersion =
+      typeof tokenVersion === "number" ? tokenVersion : 0;
 
     if (!sessionValidation) {
       throw new UnauthorizedError("Authenticated user could not be found.");
@@ -364,19 +375,29 @@ export class TokenService {
   }
 
   private getAccessTokenSecret(): string {
-    return this.accessTokenSecret ?? environment.getTokenConfig().accessTokenSecret;
+    return (
+      this.accessTokenSecret ?? environment.getTokenConfig().accessTokenSecret
+    );
   }
 
   private getRefreshTokenSecret(): string {
-    return this.refreshTokenSecret ?? environment.getTokenConfig().refreshTokenSecret;
+    return (
+      this.refreshTokenSecret ?? environment.getTokenConfig().refreshTokenSecret
+    );
   }
 
   private getAccessTokenTtlSeconds(): number {
-    return this.accessTokenTtlSeconds ?? environment.getTokenConfig().accessTokenTtlSeconds;
+    return (
+      this.accessTokenTtlSeconds ??
+      environment.getTokenConfig().accessTokenTtlSeconds
+    );
   }
 
   private getRefreshTokenTtlSeconds(): number {
-    return this.refreshTokenTtlSeconds ?? environment.getTokenConfig().refreshTokenTtlSeconds;
+    return (
+      this.refreshTokenTtlSeconds ??
+      environment.getTokenConfig().refreshTokenTtlSeconds
+    );
   }
 
   private getRememberMeRefreshTokenTtlSeconds(): number {
@@ -392,10 +413,15 @@ export class TokenService {
   }
 
   private getRefreshTokenMode(): RefreshTokenMode {
-    return this.refreshTokenMode ?? environment.getTokenConfig().refreshTokenMode;
+    return (
+      this.refreshTokenMode ?? environment.getTokenConfig().refreshTokenMode
+    );
   }
 
   private getRefreshTokenCachePrefix(): string {
-    return this.refreshTokenCachePrefix ?? environment.getTokenConfig().refreshTokenCachePrefix;
+    return (
+      this.refreshTokenCachePrefix ??
+      environment.getTokenConfig().refreshTokenCachePrefix
+    );
   }
 }

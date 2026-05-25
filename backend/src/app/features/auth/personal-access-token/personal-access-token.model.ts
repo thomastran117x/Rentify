@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const UNSAFE_PAT_INPUT_MESSAGE = "Input contains unsupported HTML or script content.";
+const UNSAFE_PAT_INPUT_MESSAGE =
+  "Input contains unsupported HTML or script content.";
 const UNSAFE_PAT_INPUT_PATTERN =
   /<[^>]*>|&lt;|&gt;|javascript:|data:text\/html|on[a-z]+\s*=|<\/?script\b/i;
 
@@ -13,7 +14,9 @@ function normalizeScopeList(scopes: readonly string[]): string[] {
 }
 
 export const personalAccessTokenScopeSchema = z.enum(["mcp:read", "mcp:write"]);
-export type PersonalAccessTokenScope = z.infer<typeof personalAccessTokenScopeSchema>;
+export type PersonalAccessTokenScope = z.infer<
+  typeof personalAccessTokenScopeSchema
+>;
 
 export const createPersonalAccessTokenRequestSchema = z
   .object({
@@ -22,7 +25,10 @@ export const createPersonalAccessTokenRequestSchema = z
       .trim()
       .min(1, "Token name is required.")
       .max(120, "Token name must be 120 characters or fewer.")
-      .refine((value) => !containsUnsafePatInput(value), UNSAFE_PAT_INPUT_MESSAGE),
+      .refine(
+        (value) => !containsUnsafePatInput(value),
+        UNSAFE_PAT_INPUT_MESSAGE,
+      ),
     scopes: z
       .array(personalAccessTokenScopeSchema)
       .min(1, "At least one scope is required.")
@@ -106,7 +112,8 @@ export interface PersonalAccessTokenListResult {
   tokens: PersonalAccessTokenSummary[];
 }
 
-export interface CreatePersonalAccessTokenResult extends PersonalAccessTokenSummary {
+export interface CreatePersonalAccessTokenResult
+  extends PersonalAccessTokenSummary {
   token: string;
 }
 
@@ -114,4 +121,3 @@ export interface RevokePersonalAccessTokenResult {
   revoked: true;
   tokenId: string;
 }
-

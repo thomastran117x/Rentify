@@ -39,7 +39,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getStoredSessionSnapshot,
     () => undefined,
   );
-  const [isInitialSessionRestorePending, setIsInitialSessionRestorePending] = useState(true);
+  const [isInitialSessionRestorePending, setIsInitialSessionRestorePending] =
+    useState(true);
 
   const handleInitialRestoreComplete = useCallback(() => {
     setIsInitialSessionRestorePending(false);

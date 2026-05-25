@@ -7,8 +7,12 @@ function createApp() {
   const app = new Hono<AppBindings>();
   app.use("*", requestBodyPolicyMiddleware);
   app.onError(handleApplicationError);
-  app.post("/profiles", async (context) => context.json(await context.req.json()));
-  app.post("/payments/webhooks/square", async (context) => context.json({ body: await context.req.text() }));
+  app.post("/profiles", async (context) =>
+    context.json(await context.req.json()),
+  );
+  app.post("/payments/webhooks/square", async (context) =>
+    context.json({ body: await context.req.text() }),
+  );
   return app;
 }
 
@@ -85,19 +89,22 @@ describe("requestBodyPolicyMiddleware", () => {
 
   it("allows raw webhook routes to keep reading their json payload as text", async () => {
     const app = createApp();
-    const response = await app.request("http://rent.test/payments/webhooks/square", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
+    const response = await app.request(
+      "http://rent.test/payments/webhooks/square",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          eventId: "evt_123",
+        }),
       },
-      body: JSON.stringify({
-        eventId: "evt_123",
-      }),
-    });
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      body: "{\"eventId\":\"evt_123\"}",
+      body: '{"eventId":"evt_123"}',
     });
   });
 });

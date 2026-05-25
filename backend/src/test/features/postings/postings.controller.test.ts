@@ -25,6 +25,14 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   };
 }
 
+function createPlaceDetails() {
+  return {
+    guest_capacity: 2,
+    property_type: "condo",
+    amenities: [],
+  };
+}
+
 function createContext(options?: {
   body?: unknown;
   url?: string;
@@ -34,7 +42,8 @@ function createContext(options?: {
     req: {
       json: async () => options?.body ?? {},
       url: options?.url ?? "https://example.test/postings",
-      param: (name?: string) => (name ? options?.params?.[name] : options?.params ?? {}),
+      param: (name?: string) =>
+        name ? options?.params?.[name] : (options?.params ?? {}),
     },
     get: (name?: string) => {
       if (name === "client") {
@@ -72,6 +81,24 @@ function createContext(options?: {
   return context as unknown as Context<AppBindings>;
 }
 
+function createController(
+  postingsService: Record<string, unknown>,
+  overrides?: {
+    autocomplete?: Record<string, unknown>;
+    analytics?: Record<string, unknown>;
+    reviews?: Record<string, unknown>;
+    recommendationActivityPublisher?: Record<string, unknown>;
+  },
+) {
+  return new PostingsController(
+    postingsService as never,
+    (overrides?.autocomplete ?? {}) as never,
+    (overrides?.analytics ?? {}) as never,
+    (overrides?.reviews ?? {}) as never,
+    (overrides?.recommendationActivityPublisher ?? {}) as never,
+  );
+}
+
 describe("PostingsController", () => {
   beforeEach(() => {
     mockRequireJwtAuth.mockReset();
@@ -91,15 +118,15 @@ describe("PostingsController", () => {
       },
       source: "elasticsearch" as const,
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       url: "https://example.test/postings?page=2&pageSize=5&family=vehicle&subtype=car",
@@ -132,15 +159,15 @@ describe("PostingsController", () => {
       },
       source: "elasticsearch" as const,
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       url: "https://example.test/postings?family=place&subtype=entire_place&attr.bedrooms.min=2&attr.bedrooms.max=4&attr.amenities=wifi&attr.amenities=desk",
@@ -180,15 +207,15 @@ describe("PostingsController", () => {
       },
       source: "elasticsearch" as const,
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       url: "https://example.test/postings?latitude=43.6532&longitude=-79.3832&radiusKm=12",
@@ -209,21 +236,23 @@ describe("PostingsController", () => {
 
   it("rejects partial geo filters before reaching the service", async () => {
     const searchPublic = jest.fn();
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       url: "https://example.test/postings?latitude=43.6532&radiusKm=12",
     });
 
-    await expect(controller.search(context)).rejects.toMatchObject<Partial<RequestValidationError>>({
+    await expect(controller.search(context)).rejects.toMatchObject<
+      Partial<RequestValidationError>
+    >({
       message: "Request query validation failed.",
       details: expect.arrayContaining([
         {
@@ -256,15 +285,15 @@ describe("PostingsController", () => {
       },
       source: "elasticsearch" as const,
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       url: "https://example.test/postings?page=&pageSize=&q=&family=&subtype=&availabilityStatus=&minDailyPrice=&maxDailyPrice=&latitude=&longitude=&radiusKm=&startAt=&endAt=&sort=&attr.bedrooms.min=",
@@ -289,6 +318,78 @@ describe("PostingsController", () => {
     });
   });
 
+  it("maps trimmed query, split tags, and availability windows into the service input", async () => {
+    const searchPublic = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      source: "elasticsearch" as const,
+      query: "Saint-Roch Production Flat",
+    }));
+    const controller = createController(
+      {
+        searchPublic,
+      },
+      {
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
+    );
+    const context = createContext({
+      url: "https://example.test/postings?q=%20Saint-Roch%20Production%20Flat%20&tags=flat,production&tags=quebec-city&startAt=2026-07-01T00:00:00.000Z&endAt=2026-07-05T00:00:00.000Z",
+    });
+
+    await controller.search(context);
+
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Saint-Roch Production Flat",
+        tags: ["flat", "production", "quebec-city"],
+        availabilityWindow: {
+          startAt: "2026-07-01T00:00:00.000Z",
+          endAt: "2026-07-05T00:00:00.000Z",
+        },
+      }),
+    );
+  });
+
+  it("rejects invalid attribute range values before reaching the service", async () => {
+    const searchPublic = jest.fn();
+    const controller = createController(
+      {
+        searchPublic,
+      },
+      {
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
+    );
+    const context = createContext({
+      url: "https://example.test/postings?family=place&subtype=entire_place&attr.bedrooms.min=two",
+    });
+
+    await expect(controller.search(context)).rejects.toMatchObject<
+      Partial<RequestValidationError>
+    >({
+      message: "Request query validation failed.",
+      details: [
+        {
+          path: "attr.bedrooms.min",
+          message: "Attribute range values must be valid numbers.",
+        },
+      ],
+    });
+    expect(searchPublic).not.toHaveBeenCalled();
+  });
+
   it("returns search results even when impression tracking fails", async () => {
     const searchPublic = jest.fn(async () => ({
       postings: [],
@@ -302,17 +403,17 @@ describe("PostingsController", () => {
       },
       source: "elasticsearch" as const,
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         searchPublic,
-      } as never,
+      },
       {
-        trackSearchImpressions: jest.fn(async () => {
-          throw new Error("analytics unavailable");
-        }),
-      } as never,
-      {} as never,
-      {} as never,
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => {
+            throw new Error("analytics unavailable");
+          }),
+        },
+      },
     );
     const context = createContext();
 
@@ -345,13 +446,14 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
         ],
         tags: [],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -367,10 +469,9 @@ describe("PostingsController", () => {
     await expect(controller.create(context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
-      message: "Request body validation failed.",
       details: [
         {
-          path: "variant",
+          path: "",
         },
       ],
     });
@@ -404,13 +505,14 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
         ],
         tags: ["camera, lens"],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -466,13 +568,14 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
         ],
         tags: [],
-        attributes: {},
+        details: createPlaceDetails(),
         availabilityStatus: "available",
         availabilityBlocks: [],
         location: {
@@ -488,10 +591,9 @@ describe("PostingsController", () => {
     await expect(controller.update(context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
-      message: "Request body validation failed.",
       details: [
         {
-          path: "availabilityBlocks",
+          path: "",
         },
       ],
     });
@@ -554,11 +656,15 @@ describe("PostingsController", () => {
 
     const response = await controller.createAvailabilityBlock(context);
 
-    expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith("posting-1", "owner-1", {
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-03T00:00:00.000Z",
-      note: "Maintenance",
-    });
+    expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      {
+        startAt: "2026-05-01T00:00:00.000Z",
+        endAt: "2026-05-03T00:00:00.000Z",
+        note: "Maintenance",
+      },
+    );
     expect(response.status).toBe(201);
   });
 
@@ -592,11 +698,16 @@ describe("PostingsController", () => {
 
     const response = await controller.updateAvailabilityBlock(context);
 
-    expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith("posting-1", "owner-1", "block-1", {
-      startAt: "2026-05-02T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
-      note: undefined,
-    });
+    expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      "block-1",
+      {
+        startAt: "2026-05-02T00:00:00.000Z",
+        endAt: "2026-05-04T00:00:00.000Z",
+        note: undefined,
+      },
+    );
     expect(response.status).toBe(200);
   });
 
@@ -610,16 +721,16 @@ describe("PostingsController", () => {
       id: "posting-1",
       status: "published",
     }));
-    const controller = new PostingsController(
+    const controller = createController(
       {
         pause,
         unpause,
-      } as never,
-      {} as never,
-      {} as never,
+      },
       {
-        publishPostingLifecycle: jest.fn(async () => undefined),
-      } as never,
+        recommendationActivityPublisher: {
+          publishPostingLifecycle: jest.fn(async () => undefined),
+        },
+      },
     );
     const context = createContext({
       params: {
@@ -660,16 +771,14 @@ describe("PostingsController", () => {
   it("tracks search click activity and returns 202", async () => {
     mockGetOptionalJwtAuth.mockResolvedValue(null);
     const publishSearchClick = jest.fn(async () => undefined);
-    const controller = new PostingsController(
-      {} as never,
-      {
+    const controller = createController({} as never, {
+      analytics: {
         trackSearchClick: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
-      {
+      },
+      recommendationActivityPublisher: {
         publishSearchClick,
-      } as never,
-    );
+      },
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -699,21 +808,22 @@ describe("PostingsController", () => {
     mockGetOptionalJwtAuth.mockResolvedValue(null);
     const trackPublicView = jest.fn(async () => undefined);
     const publishPostingView = jest.fn(async () => undefined);
-    const controller = new PostingsController(
+    const controller = createController(
       {
         getById: jest.fn(async () => ({
           id: "posting-1",
           ownerId: "owner-1",
           status: "published",
         })),
-      } as never,
+      },
       {
-        trackPublicView,
-      } as never,
-      {} as never,
-      {
-        publishPostingView,
-      } as never,
+        analytics: {
+          trackPublicView,
+        },
+        recommendationActivityPublisher: {
+          publishPostingView,
+        },
+      },
     );
     const context = createContext({
       params: {

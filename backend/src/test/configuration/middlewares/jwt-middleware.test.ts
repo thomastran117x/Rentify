@@ -1,5 +1,8 @@
 import type { Context } from "hono";
-import type { AppBindings, ClientRequestContext } from "@/configuration/http/bindings";
+import type {
+  AppBindings,
+  ClientRequestContext,
+} from "@/configuration/http/bindings";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -7,7 +10,11 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { PostingsController } from "@/features/postings/postings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
-import { getOptionalJwtAuth, requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
+import {
+  getOptionalJwtAuth,
+  requireJwtAuth,
+  requireSessionAuth,
+} from "@/configuration/middlewares/jwt-middleware";
 import type { PersonalAccessTokenPrincipal } from "@/features/auth/auth.principal";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
@@ -34,7 +41,8 @@ class FakePersonalAccessTokenService {
 }
 
 class FakeContainer implements ServiceContainer {
-  private readonly contentSanitizationService = new ContentSanitizationService();
+  private readonly contentSanitizationService =
+    new ContentSanitizationService();
 
   constructor(
     private readonly tokenService: FakeTokenService,
@@ -126,7 +134,9 @@ function createContext(options?: {
       method: options?.method ?? "GET",
       url: options?.url ?? "https://example.test/resource",
       header: (name: string) =>
-        name.toLowerCase() === "authorization" ? options?.authorization : undefined,
+        name.toLowerCase() === "authorization"
+          ? options?.authorization
+          : undefined,
       param: (name: string) => options?.params?.[name],
       json: async () => ({}),
     },
@@ -172,7 +182,9 @@ describe("jwt middleware helpers", () => {
   it("requireJwtAuth rejects when the authorization header is missing", async () => {
     const context = createContext();
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<UnauthorizedError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<UnauthorizedError>
+    >({
       message: "Authorization header is required.",
     });
   });
@@ -182,7 +194,9 @@ describe("jwt middleware helpers", () => {
       authorization: "Basic abc123",
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<UnauthorizedError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<UnauthorizedError>
+    >({
       message: "Authorization header must use the Bearer scheme.",
     });
   });
@@ -201,7 +215,9 @@ describe("jwt middleware helpers", () => {
       authorization: "Token nope",
     });
 
-    await expect(getOptionalJwtAuth(context)).rejects.toMatchObject<Partial<UnauthorizedError>>({
+    await expect(getOptionalJwtAuth(context)).rejects.toMatchObject<
+      Partial<UnauthorizedError>
+    >({
       message: "Authorization header must use the Bearer scheme.",
     });
   });
@@ -245,10 +261,12 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/profile/me",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService((token) => {
-        expect(token).toContain("rpat_");
-        return principal;
-      }),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        (token) => {
+          expect(token).toContain("rpat_");
+          return principal;
+        },
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -265,7 +283,9 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/api/v1/profile/me",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -280,7 +300,9 @@ describe("jwt middleware helpers", () => {
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<ForbiddenError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
       message: "Personal access tokens cannot access this endpoint.",
     });
   });
@@ -294,7 +316,9 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/postings/post_1/publish",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -311,7 +335,9 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/postings/post_1/booking-quote",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -328,7 +354,9 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/postings/post_1/activity/search-click",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -345,18 +373,53 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/booking-requests/booking_1",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
     const rentingContext = createContext({
       method: "GET",
       url: "https://example.test/rentings/renting_1",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     await expect(requireJwtAuth(bookingContext)).resolves.toEqual(principal);
     await expect(requireJwtAuth(rentingContext)).resolves.toEqual(principal);
+  });
+
+  it("accepts PAT bearer auth on booking dashboard read routes", async () => {
+    const principal = createPatPrincipal({
+      scopes: ["mcp:read"],
+    });
+    const renterDashboardContext = createContext({
+      method: "GET",
+      url: "https://example.test/booking-requests/me/dashboard",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
+    });
+    const ownerDashboardContext = createContext({
+      method: "GET",
+      url: "https://example.test/booking-requests/owner/dashboard",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
+    });
+
+    await expect(requireJwtAuth(renterDashboardContext)).resolves.toEqual(
+      principal,
+    );
+    await expect(requireJwtAuth(ownerDashboardContext)).resolves.toEqual(
+      principal,
+    );
   });
 
   it("accepts PAT bearer auth on booking write routes with mcp:write scope", async () => {
@@ -368,7 +431,9 @@ describe("jwt middleware helpers", () => {
       url: "https://example.test/booking-requests/booking_1/approve",
       authorization:
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-      personalAccessTokenService: new FakePersonalAccessTokenService(() => principal),
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
     });
 
     const result = await requireJwtAuth(context);
@@ -388,7 +453,9 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<ForbiddenError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
       message: "Personal access token does not include the required scope.",
     });
   });
@@ -406,7 +473,9 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<ForbiddenError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
       message: "Personal access token does not include the required scope.",
     });
   });
@@ -424,7 +493,9 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<ForbiddenError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
       message: "Personal access token does not include the required scope.",
     });
   });
@@ -442,13 +513,43 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<Partial<ForbiddenError>>({
+    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
       message: "Personal access tokens cannot access this endpoint.",
+    });
+  });
+
+  it("requireSessionAuth rejects PAT principals even on allowlisted routes", async () => {
+    const context = createContext({
+      url: "https://example.test/profile/me",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(() =>
+        createPatPrincipal(),
+      ),
+    });
+
+    await expect(requireSessionAuth(context)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
+      message: "This endpoint requires a signed-in user session.",
     });
   });
 
   it("postings controller getById preserves optional auth and tracks public views anonymously", async () => {
     let receivedViewerId: string | undefined;
+    const trackPublicView = jest.fn(
+      async (
+        posting: { id: string; ownerId: string },
+        client: ClientRequestContext,
+        viewerId?: string,
+      ) => {
+        expect(posting.id).toBe("posting-123");
+        expect(client.device.id).toBe("device-1");
+        expect(viewerId).toBeUndefined();
+      },
+    );
     const controller = new PostingsController(
       {
         getById: async (postingId: string, viewerId?: string) => {
@@ -459,16 +560,9 @@ describe("jwt middleware helpers", () => {
           };
         },
       } as never,
+      {} as never,
       {
-        trackPublicView: async (
-          posting: { id: string; ownerId: string },
-          client: ClientRequestContext,
-          viewerId?: string,
-        ) => {
-          expect(posting.id).toBe("posting-123");
-          expect(client.device.id).toBe("device-1");
-          expect(viewerId).toBeUndefined();
-        },
+        trackPublicView,
       } as never,
       {} as never,
       {
@@ -486,6 +580,7 @@ describe("jwt middleware helpers", () => {
 
     expect(receivedViewerId).toBeUndefined();
     expect(context.get("auth")).toBeUndefined();
+    expect(trackPublicView).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,

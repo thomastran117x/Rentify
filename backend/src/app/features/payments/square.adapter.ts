@@ -1,4 +1,4 @@
-import { getEnvironment } from "@/configuration/environment/index";
+import { environment, getEnvironment } from "@/configuration/environment/index";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type {
   PaymentFailureCategory,
@@ -26,7 +26,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readNestedRecord(input: Record<string, unknown>, path: string[]): Record<string, unknown> | undefined {
+function readNestedRecord(
+  input: Record<string, unknown>,
+  path: string[],
+): Record<string, unknown> | undefined {
   let current: unknown = input;
 
   for (const segment of path) {
@@ -40,7 +43,10 @@ function readNestedRecord(input: Record<string, unknown>, path: string[]): Recor
   return isPlainObject(current) ? current : undefined;
 }
 
-function readNestedString(input: Record<string, unknown>, path: string[]): string | undefined {
+function readNestedString(
+  input: Record<string, unknown>,
+  path: string[],
+): string | undefined {
   let current: unknown = input;
 
   for (const segment of path) {
@@ -54,7 +60,10 @@ function readNestedString(input: Record<string, unknown>, path: string[]): strin
   return typeof current === "string" ? current : undefined;
 }
 
-function readNestedNumber(input: Record<string, unknown>, path: string[]): number | undefined {
+function readNestedNumber(
+  input: Record<string, unknown>,
+  path: string[],
+): number | undefined {
   let current: unknown = input;
 
   for (const segment of path) {
@@ -113,13 +122,16 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
       pre_populated_data: {},
     };
 
-    const response = await this.requestJson("/v2/online-checkout/payment-links", {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: {
-        "Content-Type": "application/json",
+    const response = await this.requestJson(
+      "/v2/online-checkout/payment-links",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
 
     const body = response.body;
     const paymentLink = readNestedRecord(body, ["payment_link"]);
@@ -142,9 +154,12 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     providerOrderId?: string;
   }): Promise<ProviderPaymentStatus | null> {
     if (input.providerPaymentId) {
-      const response = await this.requestJson(`/v2/payments/${input.providerPaymentId}`, {
-        method: "GET",
-      });
+      const response = await this.requestJson(
+        `/v2/payments/${input.providerPaymentId}`,
+        {
+          method: "GET",
+        },
+      );
       const payment = readNestedRecord(response.body, ["payment"]);
 
       if (!payment) {
@@ -153,14 +168,28 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
 
       return {
         providerPaymentId: readNestedString(response.body, ["payment", "id"]),
-        providerOrderId: readNestedString(response.body, ["payment", "order_id"]),
+        providerOrderId: readNestedString(response.body, [
+          "payment",
+          "order_id",
+        ]),
         status: this.normalizePaymentStatus(
           readNestedString(response.body, ["payment", "status"]) ?? "PENDING",
         ),
         amount: this.readMoneyAmount(payment),
-        currency: readNestedString(response.body, ["payment", "amount_money", "currency"]),
-        failureCode: readNestedString(response.body, ["payment", "card_details", "status"]),
-        failureMessage: readNestedString(response.body, ["payment", "delay_action"]),
+        currency: readNestedString(response.body, [
+          "payment",
+          "amount_money",
+          "currency",
+        ]),
+        failureCode: readNestedString(response.body, [
+          "payment",
+          "card_details",
+          "status",
+        ]),
+        failureMessage: readNestedString(response.body, [
+          "payment",
+          "delay_action",
+        ]),
         raw: response.body,
       };
     }
@@ -175,6 +204,20 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     currency: string;
     reason?: string | null;
   }): Promise<ProviderRefundResult> {
+    if (this.shouldSimulateRefunds()) {
+      return {
+        providerRefundId: `mock-refund-${input.idempotencyKey}`,
+        status: "COMPLETED",
+        raw: {
+          mock: true,
+          providerPaymentId: input.providerPaymentId,
+          amount: input.amount,
+          currency: input.currency,
+          reason: input.reason ?? undefined,
+        },
+      };
+    }
+
     const response = await this.requestJson("/v2/refunds", {
       method: "POST",
       body: JSON.stringify({
@@ -222,10 +265,15 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
   classifyError(error: unknown): ProviderErrorInfo {
     if (typeof error === "object" && error !== null && "status" in error) {
       const status = (error as { status?: unknown }).status;
-      const message = error instanceof Error ? error.message : "Square request failed.";
+      const message =
+        error instanceof Error ? error.message : "Square request failed.";
       const codeValue = (error as { code?: unknown }).code;
       const code = typeof codeValue === "string" ? codeValue : undefined;
-      return classifyHttpError(typeof status === "number" ? status : undefined, message, code);
+      return classifyHttpError(
+        typeof status === "number" ? status : undefined,
+        message,
+        code,
+      );
     }
 
     const codeValue =
@@ -233,13 +281,20 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
         ? (error as { code?: unknown }).code
         : undefined;
     const code = typeof codeValue === "string" ? codeValue : undefined;
-    const transientCodes = new Set(["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE"]);
-    const category: PaymentFailureCategory = code && transientCodes.has(code) ? "transient" : "unknown";
+    const transientCodes = new Set([
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ETIMEDOUT",
+      "EPIPE",
+    ]);
+    const category: PaymentFailureCategory =
+      code && transientCodes.has(code) ? "transient" : "unknown";
 
     return {
       category,
       code,
-      message: error instanceof Error ? error.message : "Square request failed.",
+      message:
+        error instanceof Error ? error.message : "Square request failed.",
       retryable: true,
     };
   }
@@ -259,10 +314,14 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
 
     const requestId = response.headers.get("x-request-id") ?? undefined;
     const text = await response.text();
-    const body = text.length > 0 ? (JSON.parse(text) as Record<string, unknown>) : {};
+    const body =
+      text.length > 0 ? (JSON.parse(text) as Record<string, unknown>) : {};
 
     if (!response.ok) {
-      const error = new Error(this.readSquareErrorMessage(body) ?? `Square request failed with ${response.status}.`) as Error & {
+      const error = new Error(
+        this.readSquareErrorMessage(body) ??
+          `Square request failed with ${response.status}.`,
+      ) as Error & {
         status?: number;
         code?: string;
       };
@@ -278,12 +337,16 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     };
   }
 
-  private readSquareErrorMessage(body: Record<string, unknown>): string | undefined {
+  private readSquareErrorMessage(
+    body: Record<string, unknown>,
+  ): string | undefined {
     const errors = (body as SquareApiErrorResponse).errors;
     return errors?.[0]?.detail;
   }
 
-  private normalizePaymentStatus(status: string): ProviderPaymentStatus["status"] {
+  private normalizePaymentStatus(
+    status: string,
+  ): ProviderPaymentStatus["status"] {
     switch (status) {
       case "COMPLETED":
         return "COMPLETED";
@@ -296,7 +359,9 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     }
   }
 
-  private normalizeRefundStatus(status: string): ProviderRefundResult["status"] {
+  private normalizeRefundStatus(
+    status: string,
+  ): ProviderRefundResult["status"] {
     switch (status) {
       case "COMPLETED":
         return "COMPLETED";
@@ -308,8 +373,24 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     }
   }
 
-  private readMoneyAmount(payment: Record<string, unknown>): number | undefined {
+  private readMoneyAmount(
+    payment: Record<string, unknown>,
+  ): number | undefined {
     const amountMinor = readNestedNumber(payment, ["amount_money", "amount"]);
     return amountMinor === undefined ? undefined : amountMinor / 100;
+  }
+
+  private shouldSimulateRefunds(): boolean {
+    return (
+      environment.isDevelopment() &&
+      [this.accessToken, this.locationId, this.webhookSignatureKey].some(
+        (value) => this.isPlaceholderCredential(value),
+      )
+    );
+  }
+
+  private isPlaceholderCredential(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    return normalized.length === 0 || normalized.startsWith("change-me-");
   }
 }

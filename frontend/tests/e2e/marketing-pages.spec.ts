@@ -23,7 +23,9 @@ test("marketing pages render and remain navigable", async ({ page }) => {
       name: "Find the right rental without the clutter.",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "How it works" }).first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "How it works" }).first(),
+  ).toBeVisible();
 
   await page.goto("/how-it-works");
   await expect(
@@ -61,17 +63,25 @@ test("marketing pages render and remain navigable", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("contact form shows validation and local success state", async ({ page }) => {
+test("contact form shows validation and local success state", async ({
+  page,
+}) => {
   await page.goto("/contact");
 
   await page.getByRole("button", { name: "Send inquiry" }).click();
 
   await expect(page.getByText("Please enter your name.")).toBeVisible();
-  await expect(page.getByText("Please enter your email address.")).toBeVisible();
-  await expect(page.getByText("Please share a few project details.")).toBeVisible();
+  await expect(
+    page.getByText("Please enter your email address."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Please share a few project details."),
+  ).toBeVisible();
 
   await page.getByRole("textbox", { name: /^Name/ }).fill("Taylor Morgan");
-  await page.getByRole("textbox", { name: /^Email/ }).fill("taylor@example.com");
+  await page
+    .getByRole("textbox", { name: /^Email/ })
+    .fill("taylor@example.com");
   await page
     .getByRole("textbox", { name: /^Company or portfolio/ })
     .fill("Northline Rentals");

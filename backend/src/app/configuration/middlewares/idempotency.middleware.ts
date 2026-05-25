@@ -3,7 +3,10 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { AppBindings } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
-import { REQUEST_ID_HEADER_NAME, validateRequestId } from "./request-id.middleware";
+import {
+  REQUEST_ID_HEADER_NAME,
+  validateRequestId,
+} from "./request-id.middleware";
 
 const IDEMPOTENCY_KEY_HEADER_NAME = "idempotency-key";
 const LEGACY_IDEMPOTENCY_KEY_HEADER_NAME = "x-idempotency-key";
@@ -17,7 +20,10 @@ function normalizeKey(value: string | null | undefined): string | null {
 function validateIdempotencyKey(value: string): string {
   if (!IDEMPOTENCY_KEY_PATTERN.test(value)) {
     throw new BadRequestError("Idempotency key header is invalid.", {
-      headers: [IDEMPOTENCY_KEY_HEADER_NAME, LEGACY_IDEMPOTENCY_KEY_HEADER_NAME],
+      headers: [
+        IDEMPOTENCY_KEY_HEADER_NAME,
+        LEGACY_IDEMPOTENCY_KEY_HEADER_NAME,
+      ],
     });
   }
 
@@ -28,12 +34,20 @@ function readIdempotencyKeyHeader(
   context: Pick<Context<AppBindings>, "req">,
 ): string | null {
   const primary = normalizeKey(context.req.header(IDEMPOTENCY_KEY_HEADER_NAME));
-  const legacy = normalizeKey(context.req.header(LEGACY_IDEMPOTENCY_KEY_HEADER_NAME));
+  const legacy = normalizeKey(
+    context.req.header(LEGACY_IDEMPOTENCY_KEY_HEADER_NAME),
+  );
 
   if (primary && legacy && primary !== legacy) {
-    throw new BadRequestError("Conflicting idempotency key headers were provided.", {
-      headers: [IDEMPOTENCY_KEY_HEADER_NAME, LEGACY_IDEMPOTENCY_KEY_HEADER_NAME],
-    });
+    throw new BadRequestError(
+      "Conflicting idempotency key headers were provided.",
+      {
+        headers: [
+          IDEMPOTENCY_KEY_HEADER_NAME,
+          LEGACY_IDEMPOTENCY_KEY_HEADER_NAME,
+        ],
+      },
+    );
   }
 
   return primary ?? legacy;
@@ -59,7 +73,8 @@ export function resolveIdempotencyKey(
     return validateIdempotencyKey(headerKey);
   }
 
-  const requestId = normalizeKey(context.get("requestId")) ??
+  const requestId =
+    normalizeKey(context.get("requestId")) ??
     normalizeKey(context.req.header(REQUEST_ID_HEADER_NAME));
   if (requestId) {
     return validateRequestId(requestId);
@@ -68,13 +83,15 @@ export function resolveIdempotencyKey(
   return randomUUID();
 }
 
-export const idempotencyMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const key = resolveIdempotencyKey(context);
-  context.set("idempotencyKey", key);
+export const idempotencyMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const key = resolveIdempotencyKey(context);
+    context.set("idempotencyKey", key);
 
-  try {
-    await next();
-  } finally {
-    context.header(IDEMPOTENCY_KEY_HEADER_NAME, key);
-  }
-});
+    try {
+      await next();
+    } finally {
+      context.header(IDEMPOTENCY_KEY_HEADER_NAME, key);
+    }
+  },
+);

@@ -6,6 +6,10 @@ module.exports = {
   testMatch: ["**/*.test.ts"],
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
+    "^@/configuration/environment$":
+      "<rootDir>/src/test/support/environment-stub.ts",
+    "^@/configuration/environment/index$":
+      "<rootDir>/src/test/support/environment-stub.ts",
     "^@/(.*)$": "<rootDir>/src/app/$1",
   },
   transform: {

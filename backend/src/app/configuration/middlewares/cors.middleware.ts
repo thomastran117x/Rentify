@@ -3,20 +3,51 @@ import type { MiddlewareHandler } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 
+function expandLoopbackOriginAliases(origin: string): string[] {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.trim().toLowerCase();
+
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return [url.origin];
+    }
+
+    const aliases = new Set<string>([url.origin]);
+
+    for (const loopbackHostname of ["localhost", "127.0.0.1"]) {
+      url.hostname = loopbackHostname;
+      aliases.add(url.origin);
+    }
+
+    return [...aliases];
+  } catch {
+    return [origin];
+  }
+}
+
 function readAllowedOrigins(): string[] {
   const configuredOrigins =
     getOptionalEnvironmentVariable("CORS_ALLOWED_ORIGINS") ??
     getOptionalEnvironmentVariable("FRONTEND_URL") ??
     "http://localhost:3040";
 
-  return configuredOrigins
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  return [
+    ...new Set(
+      configuredOrigins
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+        .flatMap((origin) => expandLoopbackOriginAliases(origin)),
+    ),
+  ];
 }
 
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
-  return allowedOrigins.includes(origin);
+  try {
+    return allowedOrigins.includes(new URL(origin).origin);
+  } catch {
+    return allowedOrigins.includes(origin);
+  }
 }
 
 export function createCorsMiddleware(): MiddlewareHandler<AppBindings> {

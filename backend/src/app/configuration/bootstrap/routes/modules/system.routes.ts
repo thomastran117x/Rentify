@@ -1,5 +1,8 @@
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
-import { getApiRoutePrefix, getApiVersion } from "@/configuration/http/api-path";
+import {
+  getApiRoutePrefix,
+  getApiVersion,
+} from "@/configuration/http/api-path";
 import { buildErrorResponse, ok } from "@/configuration/http/responses";
 import { pingDatabase } from "@/configuration/resources/database";
 
@@ -43,7 +46,9 @@ export const systemRouteModule: RouteModule = {
                 database: {
                   ok: false,
                   message:
-                    error instanceof Error ? error.message : "Database health check failed.",
+                    error instanceof Error
+                      ? error.message
+                      : "Database health check failed.",
                 },
               },
             },

@@ -8,7 +8,10 @@ import { SignupVerificationPanel } from "@/components/auth/signup-verification-p
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
-import type { AuthResponseBody, SignupVerificationPendingResult } from "@/lib/auth/types";
+import type {
+  AuthResponseBody,
+  SignupVerificationPendingResult,
+} from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface SignupErrors {
@@ -89,7 +92,8 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
       case "CAPTCHA_REQUIRED":
       case "CAPTCHA_MISSING":
         return {
-          generalError: "Please complete the security check before creating your account.",
+          generalError:
+            "Please complete the security check before creating your account.",
           fieldErrors: {
             captchaToken: "Complete the verification to continue.",
           },
@@ -99,7 +103,8 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldErrors: {
             captchaToken: "Please complete the verification again.",
           },
@@ -113,7 +118,8 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
 
       default:
         return {
-          generalError: message || "Your sign-up request was invalid. Please try again.",
+          generalError:
+            message || "Your sign-up request was invalid. Please try again.",
         };
     }
   }
@@ -121,7 +127,8 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
   if (status === 409) {
     return {
       generalError:
-        message || "An account with this email already exists. Try signing in instead.",
+        message ||
+        "An account with this email already exists. Try signing in instead.",
       fieldErrors: {
         email: "This email is already in use.",
       },
@@ -130,12 +137,14 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
     };
   }
 
   return {
-    generalError: "We couldn't complete sign up. Check your connection and try again.",
+    generalError:
+      "We couldn't complete sign up. Check your connection and try again.",
   };
 }
 
@@ -193,7 +202,11 @@ function LockIcon() {
       className="h-5 w-5"
       aria-hidden="true"
     >
-      <path d="M7 10V8a5 5 0 0 1 10 0v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M7 10V8a5 5 0 0 1 10 0v2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <rect
         x="4"
         y="10"
@@ -309,7 +322,8 @@ export function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [captchaToken, setCaptchaToken, clearCaptchaToken] = useAuthCaptchaToken();
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<SignupErrors>({});
@@ -376,11 +390,20 @@ export function SignupForm() {
     }
   }
 
-  const firstNameHasValue = useMemo(() => firstName.trim().length > 0, [firstName]);
-  const lastNameHasValue = useMemo(() => lastName.trim().length > 0, [lastName]);
+  const firstNameHasValue = useMemo(
+    () => firstName.trim().length > 0,
+    [firstName],
+  );
+  const lastNameHasValue = useMemo(
+    () => lastName.trim().length > 0,
+    [lastName],
+  );
   const emailHasValue = useMemo(() => email.trim().length > 0, [email]);
   const passwordHasValue = useMemo(() => password.length > 0, [password]);
-  const confirmPasswordHasValue = useMemo(() => confirmPassword.length > 0, [confirmPassword]);
+  const confirmPasswordHasValue = useMemo(
+    () => confirmPassword.length > 0,
+    [confirmPassword],
+  );
 
   if (status === "loading") {
     return (
@@ -400,7 +423,10 @@ export function SignupForm() {
 
   return (
     <div className="space-y-5">
-      <AuthOAuthButtons onSuccess={handleOAuthSuccess} onError={setGeneralError} />
+      <AuthOAuthButtons
+        onSuccess={handleOAuthSuccess}
+        onError={setGeneralError}
+      />
 
       <div className="flex items-center gap-3">
         <div className={theme.auth.dividerLine} />
@@ -537,7 +563,9 @@ export function SignupForm() {
 
                   <button
                     type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                     aria-pressed={showPassword}
                     onClick={() => setShowPassword((current) => !current)}
                     className={theme.auth.iconButton}
@@ -556,7 +584,10 @@ export function SignupForm() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="confirmPassword" className={theme.auth.fieldLabel}>
+                <label
+                  htmlFor="confirmPassword"
+                  className={theme.auth.fieldLabel}
+                >
                   Confirm password
                 </label>
 
@@ -586,9 +617,13 @@ export function SignupForm() {
 
                   <button
                     type="button"
-                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
                     aria-pressed={showConfirmPassword}
-                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    onClick={() =>
+                      setShowConfirmPassword((current) => !current)
+                    }
                     className={theme.auth.iconButton}
                   >
                     {showConfirmPassword ? <EyeClosedIcon /> : <EyeOpenIcon />}
@@ -596,7 +631,9 @@ export function SignupForm() {
                 </div>
 
                 {errors.confirmPassword ? (
-                  <p className={theme.auth.fieldErrorText}>{errors.confirmPassword}</p>
+                  <p className={theme.auth.fieldErrorText}>
+                    {errors.confirmPassword}
+                  </p>
                 ) : (
                   <p className={theme.auth.fieldText}>
                     Re-enter your password to confirm there are no typos.

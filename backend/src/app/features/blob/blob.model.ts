@@ -17,7 +17,9 @@ export const createBlobUploadUrlRequestSchema = z.object({
     .optional(),
 });
 
-export type CreateBlobUploadUrlRequestBody = z.infer<typeof createBlobUploadUrlRequestSchema>;
+export type CreateBlobUploadUrlRequestBody = z.infer<
+  typeof createBlobUploadUrlRequestSchema
+>;
 
 export interface CreateBlobUploadUrlInput {
   userId: string;

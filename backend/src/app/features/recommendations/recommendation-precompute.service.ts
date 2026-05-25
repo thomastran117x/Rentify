@@ -25,7 +25,10 @@ import type {
   UserRecommendationSnapshotRecord,
 } from "@/features/recommendations/recommendation-precompute.model";
 import type { RecommendationPopularSegmentType } from "@/features/recommendations/recommendation-activity.model";
-import { isPostingFamilyValue, isPostingSubtypeValue } from "@/features/postings/postings.variants";
+import {
+  isPostingFamilyValue,
+  isPostingSubtypeValue,
+} from "@/features/postings/postings.variants";
 
 interface CandidateScoreParts {
   posting: RecommendationPostingCandidate;
@@ -52,7 +55,9 @@ interface PopularSegmentFilter {
 }
 
 export class RecommendationPrecomputeService {
-  constructor(private readonly repository: RecommendationPrecomputeRepository) {}
+  constructor(
+    private readonly repository: RecommendationPrecomputeRepository,
+  ) {}
 
   async processBatch(limit: number): Promise<number> {
     await this.enqueueMissingOrStalePopularJobs();
@@ -67,7 +72,9 @@ export class RecommendationPrecomputeService {
         await this.repository.markRefreshJobRetry(
           job.id,
           job.attempts + 1,
-          error instanceof Error ? error.message : "Unknown recommendation precompute error.",
+          error instanceof Error
+            ? error.message
+            : "Unknown recommendation precompute error.",
         );
       }
     }
@@ -75,20 +82,30 @@ export class RecommendationPrecomputeService {
     return jobs.length;
   }
 
-  async enqueueMissingOrStalePopularJobs(now: Date = new Date()): Promise<void> {
+  async enqueueMissingOrStalePopularJobs(
+    now: Date = new Date(),
+  ): Promise<void> {
     const [segments, freshness] = await Promise.all([
       this.repository.listPublishedPopularSegments(),
       this.repository.listPopularSnapshotFreshness(),
     ]);
     const freshnessByKey = new Map(
       freshness.map((snapshot) => [
-        this.createPopularSegmentKey(snapshot.segmentType, snapshot.segmentValue),
+        this.createPopularSegmentKey(
+          snapshot.segmentType,
+          snapshot.segmentValue,
+        ),
         new Date(snapshot.generatedAt),
       ]),
     );
-    const staleBefore = new Date(now.getTime() - POPULAR_RECOMMENDATION_STALE_HOURS * 60 * 60 * 1000);
+    const staleBefore = new Date(
+      now.getTime() - POPULAR_RECOMMENDATION_STALE_HOURS * 60 * 60 * 1000,
+    );
     const jobs = segments.flatMap((segment) => {
-      const key = this.createPopularSegmentKey(segment.segmentType, segment.segmentValue);
+      const key = this.createPopularSegmentKey(
+        segment.segmentType,
+        segment.segmentValue,
+      );
       const generatedAt = freshnessByKey.get(key);
 
       if (generatedAt && generatedAt >= staleBefore) {
@@ -98,7 +115,10 @@ export class RecommendationPrecomputeService {
       return [
         {
           jobType: "popular_refresh" as const,
-          dedupeKey: this.createPopularRefreshDedupeKey(segment.segmentType, segment.segmentValue),
+          dedupeKey: this.createPopularRefreshDedupeKey(
+            segment.segmentType,
+            segment.segmentValue,
+          ),
           segmentType: segment.segmentType,
           segmentValue: segment.segmentValue,
           availableAt: now,
@@ -124,17 +144,28 @@ export class RecommendationPrecomputeService {
     }
 
     if (job.jobType !== "popular_refresh") {
-      throw new Error(`Unsupported recommendation refresh job type: ${job.jobType}`);
+      throw new Error(
+        `Unsupported recommendation refresh job type: ${job.jobType}`,
+      );
     }
 
-    const segment = this.parsePopularSegmentJob(job.segmentType, job.segmentValue);
+    const segment = this.parsePopularSegmentJob(
+      job.segmentType,
+      job.segmentValue,
+    );
     await this.rebuildPopularRecommendations(segment);
   }
 
   private async rebuildUserRecommendations(userId: string): Promise<void> {
     const now = new Date();
-    const activityWindowStart = this.createLookbackStart(now, PERSONALIZED_RECOMMENDATION_LOOKBACK_DAYS);
-    const popularityWindowStart = this.createLookbackStart(now, POPULAR_RECOMMENDATION_LOOKBACK_DAYS);
+    const activityWindowStart = this.createLookbackStart(
+      now,
+      PERSONALIZED_RECOMMENDATION_LOOKBACK_DAYS,
+    );
+    const popularityWindowStart = this.createLookbackStart(
+      now,
+      POPULAR_RECOMMENDATION_LOOKBACK_DAYS,
+    );
     const [activities, popularityRows, candidates] = await Promise.all([
       this.repository.listUserActivityRows(userId, activityWindowStart),
       this.repository.listPopularActivityRows(popularityWindowStart),
@@ -143,7 +174,12 @@ export class RecommendationPrecomputeService {
       }),
     ]);
 
-    const profile = this.buildUserProfile(userId, activityWindowStart, now, activities);
+    const profile = this.buildUserProfile(
+      userId,
+      activityWindowStart,
+      now,
+      activities,
+    );
 
     if (!profile.qualified) {
       await this.repository.upsertUserRecommendationArtifacts({
@@ -152,8 +188,17 @@ export class RecommendationPrecomputeService {
       return;
     }
 
-    const popularityByPosting = this.buildActivityScoreByPosting(popularityRows, now);
-    const snapshot = this.buildUserSnapshot(profile, now, candidates, popularityByPosting, activities);
+    const popularityByPosting = this.buildActivityScoreByPosting(
+      popularityRows,
+      now,
+    );
+    const snapshot = this.buildUserSnapshot(
+      profile,
+      now,
+      candidates,
+      popularityByPosting,
+      activities,
+    );
 
     await this.repository.upsertUserRecommendationArtifacts({
       profile,
@@ -161,21 +206,35 @@ export class RecommendationPrecomputeService {
     });
   }
 
-  private async rebuildPopularRecommendations(segment: RecommendationPopularSegmentRecord): Promise<void> {
+  private async rebuildPopularRecommendations(
+    segment: RecommendationPopularSegmentRecord,
+  ): Promise<void> {
     const now = new Date();
-    const windowStart = this.createLookbackStart(now, POPULAR_RECOMMENDATION_LOOKBACK_DAYS);
+    const windowStart = this.createLookbackStart(
+      now,
+      POPULAR_RECOMMENDATION_LOOKBACK_DAYS,
+    );
     const [activityRows, candidates] = await Promise.all([
       this.repository.listPopularActivityRows(windowStart),
-      this.repository.listPublishedRecommendationCandidates(this.createSegmentFilter(segment)),
+      this.repository.listPublishedRecommendationCandidates(
+        this.createSegmentFilter(segment),
+      ),
     ]);
-    const filteredActivityRows = activityRows.filter((row) => this.matchesSegment(row, segment));
-    const activityByPosting = this.buildActivityScoreByPosting(filteredActivityRows, now);
+    const filteredActivityRows = activityRows.filter((row) =>
+      this.matchesSegment(row, segment),
+    );
+    const activityByPosting = this.buildActivityScoreByPosting(
+      filteredActivityRows,
+      now,
+    );
     const candidateParts = candidates.map((posting) => ({
       posting,
       rawActivity: activityByPosting.get(posting.id) ?? 0,
       freshness: this.calculateFreshness(posting.publishedAt, now),
       availabilityBias:
-        POPULAR_RECOMMENDATION_WEIGHTS.availabilityBiasByStatus[posting.availabilityStatus],
+        POPULAR_RECOMMENDATION_WEIGHTS.availabilityBiasByStatus[
+          posting.availabilityStatus
+        ],
     }));
     const normalizedActivity = this.normalizeComponentMap(
       candidateParts.map((part) => ({
@@ -190,7 +249,11 @@ export class RecommendationPrecomputeService {
           POPULAR_RECOMMENDATION_WEIGHTS.activity * activity +
           POPULAR_RECOMMENDATION_WEIGHTS.freshness * part.freshness +
           part.availabilityBias;
-        const reasonCodes = this.buildPopularReasonCodes(part.posting, activity, part.freshness);
+        const reasonCodes = this.buildPopularReasonCodes(
+          part.posting,
+          activity,
+          part.freshness,
+        );
 
         return {
           postingId: part.posting.id,
@@ -201,11 +264,13 @@ export class RecommendationPrecomputeService {
       })
       .sort((left, right) => this.compareScoredCandidates(left, right))
       .slice(0, POPULAR_RECOMMENDATION_LIMITS[segment.segmentType])
-      .map<RecommendationCandidateRecord>(({ postingId, score, reasonCodes }) => ({
-        postingId,
-        score,
-        reasonCodes,
-      }));
+      .map<RecommendationCandidateRecord>(
+        ({ postingId, score, reasonCodes }) => ({
+          postingId,
+          score,
+          reasonCodes,
+        }),
+      );
 
     const latestSignalAt = this.readLatestSignalAt(filteredActivityRows);
 
@@ -243,7 +308,10 @@ export class RecommendationPrecomputeService {
         lastSignalAt = occurredAt;
       }
 
-      if (activity.eventType === "booking_request_created" || activity.eventType === "renting_confirmed") {
+      if (
+        activity.eventType === "booking_request_created" ||
+        activity.eventType === "renting_confirmed"
+      ) {
         hasStrongSignal = true;
       }
 
@@ -282,7 +350,11 @@ export class RecommendationPrecomputeService {
     const tagAffinities = this.toAffinityMap(profile.tagAffinities);
     const viewedPostingIds = new Set(
       activities
-        .filter((activity) => activity.eventType === "posting_view" || activity.eventType === "search_click")
+        .filter(
+          (activity) =>
+            activity.eventType === "posting_view" ||
+            activity.eventType === "search_click",
+        )
         .map((activity) => activity.postingId),
     );
 
@@ -290,11 +362,16 @@ export class RecommendationPrecomputeService {
       posting,
       rawSubtypeAffinity: subtypeAffinities.get(posting.subtype) ?? 0,
       rawFamilyAffinity: familyAffinities.get(posting.family) ?? 0,
-      rawTagAffinity: posting.tags.reduce((total, tag) => total + (tagAffinities.get(tag) ?? 0), 0),
+      rawTagAffinity: posting.tags.reduce(
+        (total, tag) => total + (tagAffinities.get(tag) ?? 0),
+        0,
+      ),
       rawPopularity: popularityByPosting.get(posting.id) ?? 0,
       freshness: this.calculateFreshness(posting.publishedAt, now),
       availabilityBias:
-        PERSONALIZED_RECOMMENDATION_WEIGHTS.availabilityBiasByStatus[posting.availabilityStatus],
+        PERSONALIZED_RECOMMENDATION_WEIGHTS.availabilityBiasByStatus[
+          posting.availabilityStatus
+        ],
       viewedPenalty: viewedPostingIds.has(posting.id)
         ? PERSONALIZED_RECOMMENDATION_WEIGHTS.viewedPenalty
         : 0,
@@ -356,11 +433,13 @@ export class RecommendationPrecomputeService {
       })
       .sort((left, right) => this.compareScoredCandidates(left, right))
       .slice(0, PERSONALIZED_RECOMMENDATION_LIMIT)
-      .map<RecommendationCandidateRecord>(({ postingId, score, reasonCodes }) => ({
-        postingId,
-        score,
-        reasonCodes,
-      }));
+      .map<RecommendationCandidateRecord>(
+        ({ postingId, score, reasonCodes }) => ({
+          postingId,
+          score,
+          reasonCodes,
+        }),
+      );
 
     return {
       userId: profile.userId,
@@ -378,13 +457,20 @@ export class RecommendationPrecomputeService {
     const totals = new Map<string, number>();
 
     for (const row of rows) {
-      this.incrementScore(totals, row.postingId, this.calculateActivityScore(row, now));
+      this.incrementScore(
+        totals,
+        row.postingId,
+        this.calculateActivityScore(row, now),
+      );
     }
 
     return totals;
   }
 
-  private calculateActivityScore(activity: RecommendationActivityRow, now: Date): number {
+  private calculateActivityScore(
+    activity: RecommendationActivityRow,
+    now: Date,
+  ): number {
     const weight = RECOMMENDATION_EVENT_WEIGHTS[activity.eventType] ?? 0;
     const multiplier = this.readRecencyMultiplier(activity.lastOccurredAt, now);
 
@@ -393,7 +479,10 @@ export class RecommendationPrecomputeService {
 
   private readRecencyMultiplier(occurredAtIso: string, now: Date): number {
     const occurredAt = new Date(occurredAtIso);
-    const ageDays = Math.max(0, (now.getTime() - occurredAt.getTime()) / (24 * 60 * 60 * 1000));
+    const ageDays = Math.max(
+      0,
+      (now.getTime() - occurredAt.getTime()) / (24 * 60 * 60 * 1000),
+    );
 
     for (const bucket of RECOMMENDATION_RECENCY_MULTIPLIERS) {
       if (ageDays <= bucket.maxAgeDays) {
@@ -404,7 +493,10 @@ export class RecommendationPrecomputeService {
     return 0;
   }
 
-  private calculateFreshness(publishedAtIso: string | undefined, now: Date): number {
+  private calculateFreshness(
+    publishedAtIso: string | undefined,
+    now: Date,
+  ): number {
     if (!publishedAtIso) {
       return 0;
     }
@@ -420,12 +512,20 @@ export class RecommendationPrecomputeService {
     return Math.max(0, 1 - ageMs / maxAgeMs);
   }
 
-  private normalizeComponentMap(entries: Array<{ postingId: string; value: number }>): Map<string, number> {
-    const maxValue = entries.reduce((currentMax, entry) => Math.max(currentMax, entry.value), 0);
+  private normalizeComponentMap(
+    entries: Array<{ postingId: string; value: number }>,
+  ): Map<string, number> {
+    const maxValue = entries.reduce(
+      (currentMax, entry) => Math.max(currentMax, entry.value),
+      0,
+    );
     const normalized = new Map<string, number>();
 
     for (const entry of entries) {
-      normalized.set(entry.postingId, maxValue > 0 ? entry.value / maxValue : 0);
+      normalized.set(
+        entry.postingId,
+        maxValue > 0 ? entry.value / maxValue : 0,
+      );
     }
 
     return normalized;
@@ -493,8 +593,13 @@ export class RecommendationPrecomputeService {
     return reasonCodes;
   }
 
-  private toSortedAffinityScores(scores: Map<string, number>): RecommendationAffinityScore[] {
-    const maxScore = [...scores.values()].reduce((currentMax, value) => Math.max(currentMax, value), 0);
+  private toSortedAffinityScores(
+    scores: Map<string, number>,
+  ): RecommendationAffinityScore[] {
+    const maxScore = [...scores.values()].reduce(
+      (currentMax, value) => Math.max(currentMax, value),
+      0,
+    );
 
     return [...scores.entries()]
       .map(([value, score]) => ({
@@ -510,15 +615,23 @@ export class RecommendationPrecomputeService {
       });
   }
 
-  private toAffinityMap(scores: RecommendationAffinityScore[]): Map<string, number> {
+  private toAffinityMap(
+    scores: RecommendationAffinityScore[],
+  ): Map<string, number> {
     return new Map(scores.map((entry) => [entry.value, entry.score]));
   }
 
-  private incrementScore(scores: Map<string, number>, key: string, amount: number): void {
+  private incrementScore(
+    scores: Map<string, number>,
+    key: string,
+    amount: number,
+  ): void {
     scores.set(key, (scores.get(key) ?? 0) + amount);
   }
 
-  private readLatestSignalAt(rows: RecommendationActivityRow[]): Date | undefined {
+  private readLatestSignalAt(
+    rows: RecommendationActivityRow[],
+  ): Date | undefined {
     return rows.reduce<Date | undefined>((latest, row) => {
       const occurredAt = new Date(row.lastOccurredAt);
       return !latest || occurredAt > latest ? occurredAt : latest;
@@ -538,7 +651,8 @@ export class RecommendationPrecomputeService {
 
     if (segment.segmentType === "family") {
       return {
-        family: segment.segmentValue as RecommendationPostingCandidate["family"],
+        family:
+          segment.segmentValue as RecommendationPostingCandidate["family"],
       };
     }
 
@@ -570,7 +684,9 @@ export class RecommendationPrecomputeService {
     segmentValue: string | undefined,
   ): RecommendationPopularSegmentRecord {
     if (!segmentType || !segmentValue) {
-      throw new Error("Popular recommendation refresh job is missing segment metadata.");
+      throw new Error(
+        "Popular recommendation refresh job is missing segment metadata.",
+      );
     }
 
     if (segmentType === "global") {
@@ -582,7 +698,9 @@ export class RecommendationPrecomputeService {
 
     if (segmentType === "family") {
       if (!isPostingFamilyValue(segmentValue)) {
-        throw new Error(`Invalid family recommendation segment: ${segmentValue}`);
+        throw new Error(
+          `Invalid family recommendation segment: ${segmentValue}`,
+        );
       }
 
       return {
@@ -593,7 +711,9 @@ export class RecommendationPrecomputeService {
 
     const [family, subtype] = segmentValue.split(":");
     if (!isPostingFamilyValue(family) || !isPostingSubtypeValue(subtype)) {
-      throw new Error(`Invalid family_subtype recommendation segment: ${segmentValue}`);
+      throw new Error(
+        `Invalid family_subtype recommendation segment: ${segmentValue}`,
+      );
     }
 
     return {

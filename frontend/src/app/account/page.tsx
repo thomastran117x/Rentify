@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KeyRound, Link2, ShieldCheck, Unlink } from "lucide-react";
-import { AuthOAuthButtons, type OAuthProvider } from "@/components/auth/oauth-buttons";
+import {
+  AuthOAuthButtons,
+  type OAuthProvider,
+} from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
@@ -44,17 +47,26 @@ function formatDateTime(value?: string): string {
 
 export default function AccountPage() {
   const { status, session } = useAuth();
-  const [providers, setProviders] = useState<LinkedOAuthProvidersResult | null>(null);
+  const [providers, setProviders] = useState<LinkedOAuthProvidersResult | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
-  const [pendingUnlink, setPendingUnlink] = useState<LinkedOAuthProvider | null>(null);
-  const [personalAccessTokens, setPersonalAccessTokens] = useState<PersonalAccessTokenSummary[]>([]);
+  const [pendingUnlink, setPendingUnlink] =
+    useState<LinkedOAuthProvider | null>(null);
+  const [personalAccessTokens, setPersonalAccessTokens] = useState<
+    PersonalAccessTokenSummary[]
+  >([]);
   const [tokenMessage, setTokenMessage] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [tokenName, setTokenName] = useState("Rentify MCP");
   const [tokenExpiryDays, setTokenExpiryDays] = useState("30");
-  const [tokenAccessLevel, setTokenAccessLevel] = useState<"read" | "write">("read");
+  const [tokenAccessLevel, setTokenAccessLevel] = useState<"read" | "write">(
+    "read",
+  );
   const [pendingTokenCreate, setPendingTokenCreate] = useState(false);
-  const [pendingTokenRevoke, setPendingTokenRevoke] = useState<string | null>(null);
+  const [pendingTokenRevoke, setPendingTokenRevoke] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -95,7 +107,8 @@ export default function AccountPage() {
   }, [status]);
 
   const linkedProviderNames = useMemo(
-    () => new Set(providers?.providers.map((provider) => provider.provider) ?? []),
+    () =>
+      new Set(providers?.providers.map((provider) => provider.provider) ?? []),
     [providers],
   );
 
@@ -138,11 +151,16 @@ export default function AccountPage() {
       const result = await authApi.createPersonalAccessToken({
         name: normalizedName,
         expiresInDays: Number(tokenExpiryDays),
-        scopes: tokenAccessLevel === "write" ? ["mcp:read", "mcp:write"] : ["mcp:read"],
+        scopes:
+          tokenAccessLevel === "write"
+            ? ["mcp:read", "mcp:write"]
+            : ["mcp:read"],
       });
       setPersonalAccessTokens((current) => [result, ...current]);
       setCreatedToken(result.token);
-      setTokenMessage("Personal access token created. This value is only shown once.");
+      setTokenMessage(
+        "Personal access token created. This value is only shown once.",
+      );
     } catch (error) {
       setTokenMessage(
         error instanceof ApiError
@@ -219,7 +237,9 @@ export default function AccountPage() {
             </div>
             <div>
               <h1 className="text-3xl font-semibold text-slate-950">Account</h1>
-              <p className="mt-1 text-sm text-slate-600">{session.user.email}</p>
+              <p className="mt-1 text-sm text-slate-600">
+                {session.user.email}
+              </p>
             </div>
           </div>
 
@@ -245,7 +265,9 @@ export default function AccountPage() {
               <Link2 className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-slate-950">Login methods</h2>
+              <h2 className="text-2xl font-semibold text-slate-950">
+                Login methods
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 Manage Google and Microsoft sign-in for this account.
               </p>
@@ -276,7 +298,9 @@ export default function AccountPage() {
                 <button
                   type="button"
                   onClick={() => void handleUnlink(provider.provider)}
-                  disabled={!canUnlinkProvider || pendingUnlink === provider.provider}
+                  disabled={
+                    !canUnlinkProvider || pendingUnlink === provider.provider
+                  }
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   title={
                     canUnlinkProvider
@@ -285,7 +309,9 @@ export default function AccountPage() {
                   }
                 >
                   <Unlink className="h-4 w-4" aria-hidden="true" />
-                  {pendingUnlink === provider.provider ? "Unlinking..." : "Unlink"}
+                  {pendingUnlink === provider.provider
+                    ? "Unlinking..."
+                    : "Unlink"}
                 </button>
               </div>
             ))}
@@ -294,7 +320,9 @@ export default function AccountPage() {
           <div className="mt-6">
             <AuthOAuthButtons
               mode="link"
-              disabledProviders={Array.from(linkedProviderNames) as OAuthProvider[]}
+              disabledProviders={
+                Array.from(linkedProviderNames) as OAuthProvider[]
+              }
               onLinked={(result) => {
                 setProviders(result);
                 setMessage("Provider linked.");
@@ -305,14 +333,38 @@ export default function AccountPage() {
         </section>
 
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-950">
+                Bookings workspace
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Booking management now lives in one dedicated workspace with
+                renter and owner views, urgency sorting, and action-needed
+                summaries.
+              </p>
+            </div>
+            <Link
+              href="/bookings"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Open bookings
+            </Link>
+          </div>
+        </section>
+
+        <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
               <KeyRound className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-slate-950">Personal access tokens</h2>
+              <h2 className="text-2xl font-semibold text-slate-950">
+                Personal access tokens
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Create MCP tokens for read-only access or full posting management. The full token value is shown only once.
+                Create MCP tokens for read-only access or full posting
+                management. The full token value is shown only once.
               </p>
             </div>
           </div>
@@ -325,9 +377,12 @@ export default function AccountPage() {
 
           {createdToken ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="text-sm font-semibold text-amber-900">Copy this token now</p>
+              <p className="text-sm font-semibold text-amber-900">
+                Copy this token now
+              </p>
               <p className="mt-1 text-sm text-amber-800">
-                After you leave this page, Rentify will only keep the token prefix and metadata.
+                After you leave this page, Rentify will only keep the token
+                prefix and metadata.
               </p>
               <code className="mt-3 block overflow-x-auto rounded-lg bg-white px-3 py-3 text-sm text-slate-900">
                 {createdToken}
@@ -402,7 +457,9 @@ export default function AccountPage() {
                       {token.tokenPrefix} - scope {token.scopes.join(", ")}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Created {formatDateTime(token.createdAt)} - last used {formatDateTime(token.lastUsedAt)} - expires {formatDateTime(token.expiresAt)}
+                      Created {formatDateTime(token.createdAt)} - last used{" "}
+                      {formatDateTime(token.lastUsedAt)} - expires{" "}
+                      {formatDateTime(token.expiresAt)}
                     </p>
                     {token.revokedAt ? (
                       <p className="mt-1 text-xs font-medium text-rose-600">
@@ -413,11 +470,20 @@ export default function AccountPage() {
 
                   <button
                     type="button"
-                    onClick={() => void handleRevokePersonalAccessToken(token.id)}
-                    disabled={Boolean(token.revokedAt) || pendingTokenRevoke === token.id}
+                    onClick={() =>
+                      void handleRevokePersonalAccessToken(token.id)
+                    }
+                    disabled={
+                      Boolean(token.revokedAt) ||
+                      pendingTokenRevoke === token.id
+                    }
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {pendingTokenRevoke === token.id ? "Revoking..." : token.revokedAt ? "Revoked" : "Revoke"}
+                    {pendingTokenRevoke === token.id
+                      ? "Revoking..."
+                      : token.revokedAt
+                        ? "Revoked"
+                        : "Revoke"}
                   </button>
                 </div>
               ))

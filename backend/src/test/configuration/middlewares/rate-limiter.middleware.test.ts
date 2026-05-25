@@ -86,9 +86,11 @@ function createApp(
 
 describe("resolveRateLimitPolicy", () => {
   it("assigns a stricter auth policy to login routes", () => {
-    const policy = resolveRateLimitPolicy(new Request("http://rent.test/auth/local/login", {
-      method: "POST",
-    }));
+    const policy = resolveRateLimitPolicy(
+      new Request("http://rent.test/auth/local/login", {
+        method: "POST",
+      }),
+    );
 
     expect(policy).toMatchObject({
       id: "auth-sensitive",
@@ -99,9 +101,11 @@ describe("resolveRateLimitPolicy", () => {
   });
 
   it("assigns the same auth policy to versioned login routes", () => {
-    const policy = resolveRateLimitPolicy(new Request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
-      method: "POST",
-    }));
+    const policy = resolveRateLimitPolicy(
+      new Request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
+        method: "POST",
+      }),
+    );
 
     expect(policy).toMatchObject({
       id: "auth-sensitive",
@@ -113,10 +117,14 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns a stable payment-write bucket to dynamic payment mutation routes", () => {
     const firstPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/payments/payment-1/refunds", { method: "POST" }),
+      new Request("http://rent.test/payments/payment-1/refunds", {
+        method: "POST",
+      }),
     );
     const secondPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/payments/payment-2/refunds", { method: "POST" }),
+      new Request("http://rent.test/payments/payment-2/refunds", {
+        method: "POST",
+      }),
     );
 
     expect(firstPolicy.id).toBe("payments-write");
@@ -146,9 +154,11 @@ describe("resolveRateLimitPolicy", () => {
   });
 
   it("falls back to the default policy for unrelated routes", () => {
-    const policy = resolveRateLimitPolicy(new Request("http://rent.test/postings", {
-      method: "POST",
-    }));
+    const policy = resolveRateLimitPolicy(
+      new Request("http://rent.test/postings", {
+        method: "POST",
+      }),
+    );
 
     expect(policy).toMatchObject({
       id: "default",
@@ -218,9 +228,12 @@ describe("rateLimiterMiddleware", () => {
     app.onError(handleApplicationError);
     api.post("/auth/local/login", (context) => context.json({ ok: true }));
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
-      method: "POST",
-    });
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/login")}`,
+      {
+        method: "POST",
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-ratelimit-policy")).toBe("auth-sensitive");
@@ -283,13 +296,17 @@ describe("rateLimiterMiddleware", () => {
 
     expect(response.status).toBe(200);
     expect(verifyAccessToken).toHaveBeenCalledWith("valid-access-token");
-    expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe("rate-limit:POST:/postings:user:user-1");
+    expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe(
+      "rate-limit:POST:/postings:user:user-1",
+    );
   });
 
   it("falls back to the client ip when optional bearer auth is invalid", async () => {
-    const verifyAccessToken = jest.fn().mockRejectedValue(
-      new UnauthorizedError("Invalid access token signature."),
-    );
+    const verifyAccessToken = jest
+      .fn()
+      .mockRejectedValue(
+        new UnauthorizedError("Invalid access token signature."),
+      );
     const { app, cacheEval } = createApp(undefined, verifyAccessToken);
     const response = await app.request("http://rent.test/postings", {
       method: "POST",
@@ -299,11 +316,16 @@ describe("rateLimiterMiddleware", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe("rate-limit:POST:/postings:ip:203.0.113.10");
+    expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe(
+      "rate-limit:POST:/postings:ip:203.0.113.10",
+    );
   });
 
   it("falls back to in-memory limiting when Redis is unavailable", async () => {
-    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array, callback?: unknown) => {
+    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+      callback?: unknown,
+    ) => {
       if (typeof callback === "function") {
         callback(null);
       }
@@ -311,7 +333,13 @@ describe("rateLimiterMiddleware", () => {
       return true;
     }) as never);
     const { app } = createApp(
-      jest.fn().mockRejectedValue(new Error("Redis has not been initialized. Call connectRedis() first.")),
+      jest
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "Redis has not been initialized. Call connectRedis() first.",
+          ),
+        ),
     );
 
     const response = await app.request("http://rent.test/auth/local/login", {
@@ -325,7 +353,10 @@ describe("rateLimiterMiddleware", () => {
   });
 
   it("still enforces limits when running on the in-memory fallback", async () => {
-    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array, callback?: unknown) => {
+    const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+      callback?: unknown,
+    ) => {
       if (typeof callback === "function") {
         callback(null);
       }
@@ -333,7 +364,9 @@ describe("rateLimiterMiddleware", () => {
       return true;
     }) as never);
     const { app } = createApp(
-      jest.fn().mockRejectedValue(new Error("Redis connection closed unexpectedly.")),
+      jest
+        .fn()
+        .mockRejectedValue(new Error("Redis connection closed unexpectedly.")),
     );
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -345,9 +378,12 @@ describe("rateLimiterMiddleware", () => {
       expect(response.headers.get("x-ratelimit-backend")).toBe("memory");
     }
 
-    const limitedResponse = await app.request("http://rent.test/auth/local/login", {
-      method: "POST",
-    });
+    const limitedResponse = await app.request(
+      "http://rent.test/auth/local/login",
+      {
+        method: "POST",
+      },
+    );
 
     expect(limitedResponse.status).toBe(429);
     expect(limitedResponse.headers.get("x-ratelimit-backend")).toBe("memory");

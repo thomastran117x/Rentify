@@ -1,9 +1,20 @@
 import { jest } from "@jest/globals";
 
-function waitForLogger(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 25);
-  });
+async function waitFor(assertion: () => void, timeoutMs = 500): Promise<void> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      assertion();
+      return;
+    } catch {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+    }
+  }
+
+  assertion();
 }
 
 describe("logger failure handling", () => {
@@ -26,33 +37,54 @@ describe("logger failure handling", () => {
     process.env.RABBITMQ_URL = "";
     process.env.LOG_FALLBACK_DIRECTORY = "C:/tmp/logger-failure";
 
-    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-
-    jest.unstable_mockModule("node:fs/promises", async () => {
-      const actual = await jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
-
-      return {
-        ...actual,
-        mkdir: jest.fn(async () => {
-          throw new Error("mkdir failed");
-        }),
-      };
-    });
-
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const loggingModule = await import("@/configuration/logging");
-    loggingModule.loggerFactory.forComponent("logger.test", "service").critical("Total logging failure.");
+    const dispatcher = (
+      loggingModule.loggerFactory as {
+        dispatcher: {
+          queueService: {
+            publishLogEvent: (event: unknown) => Promise<void>;
+          };
+          getFallbackFileWriter: (fallbackDirectory: string) => {
+            write: (event: unknown) => Promise<void>;
+          };
+        };
+      }
+    ).dispatcher;
+    const originalPublishLogEvent = dispatcher.queueService.publishLogEvent;
+    const originalGetFallbackFileWriter = dispatcher.getFallbackFileWriter;
 
-    await waitForLogger();
+    dispatcher.queueService.publishLogEvent = jest.fn(async () => {
+      throw new Error("publish failed");
+    });
+    dispatcher.getFallbackFileWriter = jest.fn(() => ({
+      write: async () => {
+        throw new Error("mkdir failed");
+      },
+    }));
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[LOGGER FAILURE] Failed to persist log event.",
-      expect.objectContaining({
-        originalEvent: expect.objectContaining({
-          component: "logger.test",
-          level: "critical",
-          message: "Total logging failure.",
-        }),
-      }),
-    );
+    loggingModule.loggerFactory
+      .forComponent("logger.test", "service")
+      .critical("Total logging failure.");
+
+    try {
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "[LOGGER FAILURE] Failed to persist log event.",
+          expect.objectContaining({
+            originalEvent: expect.objectContaining({
+              component: "logger.test",
+              level: "critical",
+              message: "Total logging failure.",
+            }),
+          }),
+        );
+      });
+    } finally {
+      dispatcher.queueService.publishLogEvent = originalPublishLogEvent;
+      dispatcher.getFallbackFileWriter = originalGetFallbackFileWriter;
+    }
   });
 });

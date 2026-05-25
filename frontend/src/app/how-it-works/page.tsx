@@ -5,7 +5,8 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 
 export const metadata: Metadata = {
   title: "How It Works | Rentify",
-  description: "See how renters discover listings on Rentify and how owners can publish and manage rentals on the platform.",
+  description:
+    "See how renters discover listings on Rentify and how owners can publish and manage rentals on the platform.",
 };
 
 const renterSteps = [

@@ -17,7 +17,9 @@ export function validateInfrastructureConfig(
   const elasticsearchEnabled = parseBoolean(raw.ELASTICSEARCH_ENABLED, false);
 
   if (elasticsearchEnabled && !raw.ELASTICSEARCH_URL) {
-    errors.push("ELASTICSEARCH_URL is required when ELASTICSEARCH_ENABLED is true.");
+    errors.push(
+      "ELASTICSEARCH_URL is required when ELASTICSEARCH_ENABLED is true.",
+    );
   }
 
   if (nodeEnv === "production" && !raw.RABBITMQ_URL) {
@@ -42,10 +44,19 @@ export function buildDatabaseConfig(
 ): AppEnvironment["database"] {
   return {
     url: databaseUrl,
-    autoSeedEnabled: parseBoolean(raw.DATABASE_AUTO_SEED_ENABLED, nodeEnv !== "production"),
+    autoSeedEnabled: parseBoolean(
+      raw.DATABASE_AUTO_SEED_ENABLED,
+      nodeEnv !== "production",
+    ),
     autoSeedRefresh: parseBoolean(raw.DATABASE_AUTO_SEED_REFRESH, false),
-    operationLoggingEnabled: parseBoolean(raw.DATABASE_OPERATION_LOGGING_ENABLED, false),
-    queryLoggingEnabled: parseBoolean(raw.DATABASE_QUERY_LOGGING_ENABLED, false),
+    operationLoggingEnabled: parseBoolean(
+      raw.DATABASE_OPERATION_LOGGING_ENABLED,
+      false,
+    ),
+    queryLoggingEnabled: parseBoolean(
+      raw.DATABASE_QUERY_LOGGING_ENABLED,
+      false,
+    ),
     slowOperationThresholdMs: parseNumber(
       raw,
       "DATABASE_SLOW_OPERATION_THRESHOLD_MS",
@@ -85,10 +96,16 @@ export function buildRedisConfig(
       integer: true,
       min: 0,
     }),
-    connectTimeoutMs: parseNumber(raw, "REDIS_CONNECT_TIMEOUT_MS", 10_000, errors, {
-      integer: true,
-      min: 1,
-    }),
+    connectTimeoutMs: parseNumber(
+      raw,
+      "REDIS_CONNECT_TIMEOUT_MS",
+      10_000,
+      errors,
+      {
+        integer: true,
+        min: 1,
+      },
+    ),
   };
 }
 
@@ -132,7 +149,8 @@ export function buildElasticsearchConfig(
     url: raw.ELASTICSEARCH_URL?.replace(/\/+$/, ""),
     username: raw.ELASTICSEARCH_USERNAME,
     password: raw.ELASTICSEARCH_PASSWORD,
-    postingsIndexName: raw.ELASTICSEARCH_POSTINGS_INDEX ?? DEFAULT_ELASTICSEARCH_POSTINGS_INDEX,
+    postingsIndexName:
+      raw.ELASTICSEARCH_POSTINGS_INDEX ?? DEFAULT_ELASTICSEARCH_POSTINGS_INDEX,
     timeoutMs: parseNumber(raw, "ELASTICSEARCH_TIMEOUT_MS", 2_000, errors, {
       integer: true,
       min: 1,

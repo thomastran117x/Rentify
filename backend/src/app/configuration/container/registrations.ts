@@ -45,6 +45,7 @@ import { PostingsPublicCacheService } from "@/features/postings/postings.public-
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import { PostingsRepository } from "@/features/postings/postings.repository";
+import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
 import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
 import { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
 import { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
@@ -61,7 +62,9 @@ import type { RootServiceContainer } from "@/configuration/container/core";
 import { loggerFactory } from "@/configuration/logging";
 import { containerTokens } from "@/configuration/container/tokens";
 
-export function registerApplicationServices(container: RootServiceContainer): void {
+export function registerApplicationServices(
+  container: RootServiceContainer,
+): void {
   container.register({
     token: containerTokens.loggerFactory,
     lifetime: "singleton",
@@ -90,7 +93,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     token: containerTokens.emailService,
     lifetime: "singleton",
     dependencies: [containerTokens.emailQueueService],
-    resolve: ({ resolve }) => new EmailService(resolve(containerTokens.emailQueueService)),
+    resolve: ({ resolve }) =>
+      new EmailService(resolve(containerTokens.emailQueueService)),
   });
   container.register({
     token: containerTokens.captchaService,
@@ -157,7 +161,10 @@ export function registerApplicationServices(container: RootServiceContainer): vo
   container.register({
     token: containerTokens.tokenService,
     lifetime: "singleton",
-    dependencies: [containerTokens.cacheService, containerTokens.authRepository],
+    dependencies: [
+      containerTokens.cacheService,
+      containerTokens.authRepository,
+    ],
     resolve: ({ resolve }) =>
       new TokenService({
         cache: resolve(containerTokens.cacheService),
@@ -208,7 +215,9 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     lifetime: "singleton",
     dependencies: [containerTokens.personalAccessTokenRepository],
     resolve: ({ resolve }) =>
-      new PersonalAccessTokenService(resolve(containerTokens.personalAccessTokenRepository)),
+      new PersonalAccessTokenService(
+        resolve(containerTokens.personalAccessTokenRepository),
+      ),
   });
   container.register({
     token: containerTokens.authController,
@@ -230,7 +239,9 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     lifetime: "scoped",
     dependencies: [containerTokens.personalAccessTokenService],
     resolve: ({ resolve }) =>
-      new PersonalAccessTokenController(resolve(containerTokens.personalAccessTokenService)),
+      new PersonalAccessTokenController(
+        resolve(containerTokens.personalAccessTokenService),
+      ),
   });
   container.register({
     token: containerTokens.blobService,
@@ -242,7 +253,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     token: containerTokens.blobController,
     lifetime: "scoped",
     dependencies: [containerTokens.blobService],
-    resolve: ({ resolve }) => new BlobController(resolve(containerTokens.blobService)),
+    resolve: ({ resolve }) =>
+      new BlobController(resolve(containerTokens.blobService)),
   });
   container.register({
     token: containerTokens.bookingsRepository,
@@ -265,7 +277,10 @@ export function registerApplicationServices(container: RootServiceContainer): vo
   container.register({
     token: containerTokens.profileService,
     lifetime: "scoped",
-    dependencies: [containerTokens.profileRepository, containerTokens.blobService],
+    dependencies: [
+      containerTokens.profileRepository,
+      containerTokens.blobService,
+    ],
     resolve: ({ resolve }) =>
       new ProfileService(
         resolve(containerTokens.profileRepository),
@@ -276,7 +291,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     token: containerTokens.profileController,
     lifetime: "scoped",
     dependencies: [containerTokens.profileService],
-    resolve: ({ resolve }) => new ProfileController(resolve(containerTokens.profileService)),
+    resolve: ({ resolve }) =>
+      new ProfileController(resolve(containerTokens.profileService)),
   });
   container.register({
     token: containerTokens.recommendationActivityQueueService,
@@ -351,7 +367,9 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     lifetime: "scoped",
     dependencies: [containerTokens.recommendationQueryService],
     resolve: ({ resolve }) =>
-      new RecommendationsController(resolve(containerTokens.recommendationQueryService)),
+      new RecommendationsController(
+        resolve(containerTokens.recommendationQueryService),
+      ),
   });
   container.register({
     token: containerTokens.postingsRepository,
@@ -388,6 +406,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
       containerTokens.rentingsRepository,
       containerTokens.cacheService,
       containerTokens.postingsPublicCacheService,
+      containerTokens.paymentsRepository,
+      containerTokens.paymentProvider,
     ],
     resolve: ({ resolve }) =>
       new BookingsService(
@@ -397,6 +417,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
         resolve(containerTokens.rentingsRepository),
         resolve(containerTokens.cacheService),
         resolve(containerTokens.postingsPublicCacheService),
+        resolve(containerTokens.paymentsRepository),
+        resolve(containerTokens.paymentProvider),
       ),
   });
   container.register({
@@ -449,7 +471,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     token: containerTokens.paymentsController,
     lifetime: "scoped",
     dependencies: [containerTokens.paymentsService],
-    resolve: ({ resolve }) => new PaymentsController(resolve(containerTokens.paymentsService)),
+    resolve: ({ resolve }) =>
+      new PaymentsController(resolve(containerTokens.paymentsService)),
   });
   container.register({
     token: containerTokens.rentingsService,
@@ -509,7 +532,10 @@ export function registerApplicationServices(container: RootServiceContainer): vo
   container.register({
     token: containerTokens.postingsPublicCacheService,
     lifetime: "singleton",
-    dependencies: [containerTokens.cacheService, containerTokens.postingsRepository],
+    dependencies: [
+      containerTokens.cacheService,
+      containerTokens.postingsRepository,
+    ],
     resolve: ({ resolve }) =>
       new PostingsPublicCacheService(
         resolve(containerTokens.cacheService),
@@ -517,9 +543,21 @@ export function registerApplicationServices(container: RootServiceContainer): vo
       ),
   });
   container.register({
+    token: containerTokens.postingsPublicAutocompleteService,
+    lifetime: "scoped",
+    dependencies: [containerTokens.postingsRepository],
+    resolve: ({ resolve }) =>
+      new PostingsPublicAutocompleteService(
+        resolve(containerTokens.postingsRepository),
+      ),
+  });
+  container.register({
     token: containerTokens.postingsPublicSearchService,
     lifetime: "scoped",
-    dependencies: [containerTokens.postingsRepository, containerTokens.postingsPublicCacheService],
+    dependencies: [
+      containerTokens.postingsRepository,
+      containerTokens.postingsPublicCacheService,
+    ],
     resolve: ({ resolve }) =>
       new PostingsPublicSearchService(
         resolve(containerTokens.postingsRepository),
@@ -578,7 +616,8 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     token: containerTokens.searchController,
     lifetime: "scoped",
     dependencies: [containerTokens.searchService],
-    resolve: ({ resolve }) => new SearchController(resolve(containerTokens.searchService)),
+    resolve: ({ resolve }) =>
+      new SearchController(resolve(containerTokens.searchService)),
   });
   container.register({
     token: containerTokens.contentSanitizationService,
@@ -618,6 +657,7 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     lifetime: "scoped",
     dependencies: [
       containerTokens.postingsService,
+      containerTokens.postingsPublicAutocompleteService,
       containerTokens.postingsAnalyticsService,
       containerTokens.postingsReviewsService,
       containerTokens.recommendationActivityPublisher,
@@ -625,6 +665,7 @@ export function registerApplicationServices(container: RootServiceContainer): vo
     resolve: ({ resolve }) =>
       new PostingsController(
         resolve(containerTokens.postingsService),
+        resolve(containerTokens.postingsPublicAutocompleteService),
         resolve(containerTokens.postingsAnalyticsService),
         resolve(containerTokens.postingsReviewsService),
         resolve(containerTokens.recommendationActivityPublisher),

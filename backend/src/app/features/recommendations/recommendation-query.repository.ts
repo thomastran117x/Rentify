@@ -7,9 +7,7 @@ import type {
   UserRecommendationProfileRecord,
   UserRecommendationSnapshotRecord,
 } from "@/features/recommendations/recommendation-precompute.model";
-import type {
-  RecommendationPopularSegmentType,
-} from "@/features/recommendations/recommendation-activity.model";
+import type { RecommendationPopularSegmentType } from "@/features/recommendations/recommendation-activity.model";
 
 interface RecommendationPersonalizationContextRecord {
   recommendationPersonalizationEnabled: boolean;
@@ -31,11 +29,13 @@ export class RecommendationQueryRepository extends BaseRepository {
   ): Promise<RecommendationPersonalizationContextRecord> {
     return this.executeAsync(async () => {
       const [profileSettings, profile, snapshot] = await Promise.all([
-        (this.prisma.profile as unknown as {
-          findUnique: (args: unknown) => Promise<{
-            recommendationPersonalizationEnabled?: boolean | null;
-          } | null>;
-        }).findUnique({
+        (
+          this.prisma.profile as unknown as {
+            findUnique: (args: unknown) => Promise<{
+              recommendationPersonalizationEnabled?: boolean | null;
+            } | null>;
+          }
+        ).findUnique({
           where: {
             userId,
           },
@@ -59,7 +59,9 @@ export class RecommendationQueryRepository extends BaseRepository {
         recommendationPersonalizationEnabled:
           profileSettings?.recommendationPersonalizationEnabled ?? true,
         profile: profile ? this.mapUserRecommendationProfile(profile) : null,
-        snapshot: snapshot ? this.mapUserRecommendationSnapshot(snapshot) : null,
+        snapshot: snapshot
+          ? this.mapUserRecommendationSnapshot(snapshot)
+          : null,
       };
     });
   }
@@ -69,9 +71,13 @@ export class RecommendationQueryRepository extends BaseRepository {
     segmentValue: string,
   ): Promise<PopularRecommendationSnapshotRecord | null> {
     const snapshot = await this.executeAsync(() =>
-      ((this.prisma as any).popularRecommendationSnapshot as {
-        findUnique: (args: unknown) => Promise<Record<string, unknown> | null>;
-      }).findUnique({
+      (
+        (this.prisma as any).popularRecommendationSnapshot as {
+          findUnique: (
+            args: unknown,
+          ) => Promise<Record<string, unknown> | null>;
+        }
+      ).findUnique({
         where: {
           segmentType_segmentValue: {
             segmentType,
@@ -93,41 +99,42 @@ export class RecommendationQueryRepository extends BaseRepository {
         "payment_failed",
         "paid",
       ];
-      const [ownedPostings, activeBookingRequests, confirmedRentings] = await Promise.all([
-        this.prisma.posting.findMany({
-          where: {
-            ownerId: userId,
-            status: "published",
-            archivedAt: null,
-          },
-          select: {
-            id: true,
-          },
-        }),
-        this.prisma.bookingRequest.findMany({
-          where: {
-            renterId: userId,
-            status: {
-              in: activeBookingStatuses,
+      const [ownedPostings, activeBookingRequests, confirmedRentings] =
+        await Promise.all([
+          this.prisma.posting.findMany({
+            where: {
+              ownerId: userId,
+              status: "published",
+              archivedAt: null,
             },
-            convertedAt: null,
-          },
-          select: {
-            postingId: true,
-          },
-          distinct: ["postingId"],
-        }),
-        this.prisma.renting.findMany({
-          where: {
-            renterId: userId,
-            status: "confirmed",
-          },
-          select: {
-            postingId: true,
-          },
-          distinct: ["postingId"],
-        }),
-      ]);
+            select: {
+              id: true,
+            },
+          }),
+          this.prisma.bookingRequest.findMany({
+            where: {
+              renterId: userId,
+              status: {
+                in: activeBookingStatuses,
+              },
+              convertedAt: null,
+            },
+            select: {
+              postingId: true,
+            },
+            distinct: ["postingId"],
+          }),
+          this.prisma.renting.findMany({
+            where: {
+              renterId: userId,
+              status: "confirmed",
+            },
+            select: {
+              postingId: true,
+            },
+            distinct: ["postingId"],
+          }),
+        ]);
 
       return new Set([
         ...ownedPostings.map((posting) => posting.id),
@@ -147,7 +154,9 @@ export class RecommendationQueryRepository extends BaseRepository {
     return this.executeAsync(async () => {
       const now = new Date();
       const idsSql = Prisma.join(input.candidateIds);
-      const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      const rows = await this.prisma.$queryRaw<
+        Array<{ id: string }>
+      >(Prisma.sql`
         SELECT postings.id
         FROM postings
         WHERE postings.id IN (${idsSql})
@@ -198,7 +207,9 @@ export class RecommendationQueryRepository extends BaseRepository {
     });
   }
 
-  private mapUserRecommendationProfile(record: Record<string, unknown>): UserRecommendationProfileRecord {
+  private mapUserRecommendationProfile(
+    record: Record<string, unknown>,
+  ): UserRecommendationProfileRecord {
     return {
       userId: String(record.userId),
       qualified: Boolean(record.qualified),
@@ -213,7 +224,9 @@ export class RecommendationQueryRepository extends BaseRepository {
     };
   }
 
-  private mapUserRecommendationSnapshot(record: Record<string, unknown>): UserRecommendationSnapshotRecord {
+  private mapUserRecommendationSnapshot(
+    record: Record<string, unknown>,
+  ): UserRecommendationSnapshotRecord {
     return {
       userId: String(record.userId),
       generatedAt: this.toIsoString(record.generatedAt),
@@ -223,7 +236,9 @@ export class RecommendationQueryRepository extends BaseRepository {
     };
   }
 
-  private mapPopularRecommendationSnapshot(record: Record<string, unknown>): PopularRecommendationSnapshotRecord {
+  private mapPopularRecommendationSnapshot(
+    record: Record<string, unknown>,
+  ): PopularRecommendationSnapshotRecord {
     return {
       segmentType: record.segmentType as RecommendationPopularSegmentType,
       segmentValue: String(record.segmentValue),
@@ -240,32 +255,53 @@ export class RecommendationQueryRepository extends BaseRepository {
     }
 
     return value
-      .filter((entry): entry is JsonObject => typeof entry === "object" && entry !== null)
+      .filter(
+        (entry): entry is JsonObject =>
+          typeof entry === "object" && entry !== null,
+      )
       .map((entry) => ({
         postingId: String(entry.postingId ?? ""),
-        score: typeof entry.score === "number" ? entry.score : Number(entry.score ?? 0),
+        score:
+          typeof entry.score === "number"
+            ? entry.score
+            : Number(entry.score ?? 0),
         reasonCodes: Array.isArray(entry.reasonCodes)
-          ? entry.reasonCodes.filter((code): code is RecommendationCandidateRecord["reasonCodes"][number] => typeof code === "string")
+          ? entry.reasonCodes.filter(
+              (
+                code,
+              ): code is RecommendationCandidateRecord["reasonCodes"][number] =>
+                typeof code === "string",
+            )
           : [],
       }))
       .filter((entry) => entry.postingId.length > 0);
   }
 
-  private readAffinityScores(value: unknown): UserRecommendationProfileRecord["familyAffinities"] {
+  private readAffinityScores(
+    value: unknown,
+  ): UserRecommendationProfileRecord["familyAffinities"] {
     if (!Array.isArray(value)) {
       return [];
     }
 
     return value
-      .filter((entry): entry is JsonObject => typeof entry === "object" && entry !== null)
+      .filter(
+        (entry): entry is JsonObject =>
+          typeof entry === "object" && entry !== null,
+      )
       .map((entry) => ({
         value: String(entry.value ?? ""),
-        score: typeof entry.score === "number" ? entry.score : Number(entry.score ?? 0),
+        score:
+          typeof entry.score === "number"
+            ? entry.score
+            : Number(entry.score ?? 0),
       }))
       .filter((entry) => entry.value.length > 0);
   }
 
-  private readSignalCounts(value: unknown): UserRecommendationProfileRecord["signalCounts"] {
+  private readSignalCounts(
+    value: unknown,
+  ): UserRecommendationProfileRecord["signalCounts"] {
     const objectValue =
       typeof value === "object" && value !== null ? (value as JsonObject) : {};
 
@@ -278,7 +314,9 @@ export class RecommendationQueryRepository extends BaseRepository {
   }
 
   private toIsoString(value: unknown): string {
-    return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
+    return value instanceof Date
+      ? value.toISOString()
+      : new Date(String(value)).toISOString();
   }
 
   private toOptionalIsoString(value: unknown): string | undefined {

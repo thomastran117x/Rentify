@@ -9,7 +9,9 @@ const DEFAULT_REQUEST_BODY_MAX_BYTES = 1024 * 1024;
 const REQUEST_BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function readRequestBodyMaxBytes(): number {
-  const configuredValue = getOptionalEnvironmentVariable("REQUEST_BODY_MAX_BYTES");
+  const configuredValue = getOptionalEnvironmentVariable(
+    "REQUEST_BODY_MAX_BYTES",
+  );
 
   if (!configuredValue) {
     return DEFAULT_REQUEST_BODY_MAX_BYTES;
@@ -40,7 +42,10 @@ function readDeclaredContentLength(request: Request): number | null {
   return parsedValue;
 }
 
-function requestHasBody(request: Request, declaredContentLength: number | null): boolean {
+function requestHasBody(
+  request: Request,
+  declaredContentLength: number | null,
+): boolean {
   if (!REQUEST_BODY_METHODS.has(request.method.toUpperCase())) {
     return false;
   }
@@ -49,12 +54,17 @@ function requestHasBody(request: Request, declaredContentLength: number | null):
     return declaredContentLength > 0;
   }
 
-  return request.headers.has("transfer-encoding") || request.headers.has("content-type");
+  return (
+    request.headers.has("transfer-encoding") ||
+    request.headers.has("content-type")
+  );
 }
 
 function isJsonContentType(contentType: string | null): boolean {
   const normalized = contentType?.toLowerCase() ?? "";
-  return normalized.includes("application/json") || normalized.includes("+json");
+  return (
+    normalized.includes("application/json") || normalized.includes("+json")
+  );
 }
 
 async function assertRequestBodySizeWithinLimit(
@@ -83,23 +93,27 @@ async function assertRequestBodySizeWithinLimit(
   }
 }
 
-export const requestBodyPolicyMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const request = context.req.raw;
-  const declaredContentLength = readDeclaredContentLength(request);
+export const requestBodyPolicyMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const request = context.req.raw;
+    const declaredContentLength = readDeclaredContentLength(request);
 
-  if (!requestHasBody(request, declaredContentLength)) {
+    if (!requestHasBody(request, declaredContentLength)) {
+      await next();
+      return;
+    }
+
+    if (!isJsonContentType(request.headers.get("content-type"))) {
+      throw new UnsupportedMediaTypeError(
+        "Request body must use application/json.",
+      );
+    }
+
+    await assertRequestBodySizeWithinLimit(
+      request,
+      readRequestBodyMaxBytes(),
+      declaredContentLength,
+    );
     await next();
-    return;
-  }
-
-  if (!isJsonContentType(request.headers.get("content-type"))) {
-    throw new UnsupportedMediaTypeError("Request body must use application/json.");
-  }
-
-  await assertRequestBodySizeWithinLimit(
-    request,
-    readRequestBodyMaxBytes(),
-    declaredContentLength,
-  );
-  await next();
-});
+  },
+);

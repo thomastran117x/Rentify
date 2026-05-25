@@ -21,28 +21,30 @@ function readRequestTimeoutMs(): number {
   return parsedValue;
 }
 
-export const requestTimeoutMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const timeoutMs = readRequestTimeoutMs();
+export const requestTimeoutMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const timeoutMs = readRequestTimeoutMs();
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-  try {
-    await Promise.race([
-      next(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          reject(
-            new GatewayTimeoutError("Request timed out.", {
-              requestId: context.get("requestId"),
-              timeoutMs,
-            }),
-          );
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
+    try {
+      await Promise.race([
+        next(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(
+              new GatewayTimeoutError("Request timed out.", {
+                requestId: context.get("requestId"),
+                timeoutMs,
+              }),
+            );
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
-  }
-});
+  },
+);

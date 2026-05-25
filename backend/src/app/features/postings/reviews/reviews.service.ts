@@ -28,13 +28,18 @@ export class PostingsReviewsService {
     this.assertReviewerIsNotOwner(posting.ownerId, reviewerId);
     await this.assertReviewerIsEligible(postingId, reviewerId);
 
-    const existing = await this.postingsReviewsRepository.findOwnReview(postingId, reviewerId);
+    const existing = await this.postingsReviewsRepository.findOwnReview(
+      postingId,
+      reviewerId,
+    );
 
     if (existing) {
       throw new ConflictError("You have already reviewed this posting.");
     }
 
-    return this.postingsReviewsRepository.create(this.toUpsertInput(postingId, reviewerId, body));
+    return this.postingsReviewsRepository.create(
+      this.toUpsertInput(postingId, reviewerId, body),
+    );
   }
 
   async updateOwn(
@@ -57,9 +62,17 @@ export class PostingsReviewsService {
     return review;
   }
 
-  async list(postingId: string, page: number, pageSize: number): Promise<ListPostingReviewsResult> {
+  async list(
+    postingId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<ListPostingReviewsResult> {
     await this.requirePublishedPosting(postingId);
-    return this.postingsReviewsRepository.listByPosting(postingId, page, pageSize);
+    return this.postingsReviewsRepository.listByPosting(
+      postingId,
+      page,
+      pageSize,
+    );
   }
 
   private async requirePublishedPosting(postingId: string) {
@@ -78,7 +91,10 @@ export class PostingsReviewsService {
     }
   }
 
-  private async assertReviewerIsEligible(postingId: string, reviewerId: string): Promise<void> {
+  private async assertReviewerIsEligible(
+    postingId: string,
+    reviewerId: string,
+  ): Promise<void> {
     const eligible = await this.rentingsRepository.hasEligibleReviewRenting({
       postingId,
       renterId: reviewerId,
@@ -86,7 +102,9 @@ export class PostingsReviewsService {
     });
 
     if (!eligible) {
-      throw new ForbiddenError("You can only review postings you have completed a rental for.");
+      throw new ForbiddenError(
+        "You can only review postings you have completed a rental for.",
+      );
     }
   }
 
@@ -104,5 +122,3 @@ export class PostingsReviewsService {
     };
   }
 }
-
-

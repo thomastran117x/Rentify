@@ -59,7 +59,9 @@ export async function connectRedis(): Promise<RedisClient> {
 
 export function getRedisClient(): RedisClient {
   if (!redis || !redis.isOpen) {
-    throw new Error("Redis has not been initialized. Call connectRedis() first.");
+    throw new Error(
+      "Redis has not been initialized. Call connectRedis() first.",
+    );
   }
 
   return redis;

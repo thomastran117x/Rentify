@@ -66,7 +66,9 @@ export class OtpService {
     return this.ttlInSeconds;
   }
 
-  async issue(input: IssueOtpInput): Promise<IssuedOtpResult & { code: string }> {
+  async issue(
+    input: IssueOtpInput,
+  ): Promise<IssuedOtpResult & { code: string }> {
     const cooldownKey = this.getCooldownKey(input);
     const cooldownTtl = await this.cache.ttl(cooldownKey);
 
@@ -148,7 +150,10 @@ export class OtpService {
     return `${this.getOtpKey(input)}:cooldown`;
   }
 
-  private logSuspiciousVerificationAttempt(input: VerifyOtpInput, reason: string): void {
+  private logSuspiciousVerificationAttempt(
+    input: VerifyOtpInput,
+    reason: string,
+  ): void {
     this.logger.warn("Suspicious OTP verification activity", {
       purpose: input.purpose,
       subject: this.redactSubject(input.subject),

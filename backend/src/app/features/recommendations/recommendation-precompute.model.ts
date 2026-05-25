@@ -103,7 +103,8 @@ export interface UpsertUserRecommendationArtifactsInput {
   snapshot?: UserRecommendationSnapshotRecord;
 }
 
-export interface UpsertPopularRecommendationSnapshotInput extends PopularRecommendationSnapshotRecord {}
+export interface UpsertPopularRecommendationSnapshotInput
+  extends PopularRecommendationSnapshotRecord {}
 
 export interface RecommendationPopularSegmentRecord {
   segmentType: RecommendationPopularSegmentType;

@@ -1,4 +1,8 @@
-import { ApiError, type ApiErrorResponse, type ApiResponse } from "@/lib/auth/types";
+import {
+  ApiError,
+  type ApiErrorResponse,
+  type ApiResponse,
+} from "@/lib/auth/types";
 
 export async function readJson(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";

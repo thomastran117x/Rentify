@@ -5,10 +5,13 @@ import {
   type ReadThroughCachePolicy,
 } from "@/features/cache/read-through-swr-cache.service";
 
-class InMemoryCacheService implements Pick<
-  CacheService,
-  "acquireLock" | "get" | "getJson" | "increment" | "setJson"
-> {
+class InMemoryCacheService
+  implements
+    Pick<
+      CacheService,
+      "acquireLock" | "get" | "getJson" | "increment" | "setJson"
+    >
+{
   private readonly values = new Map<string, string>();
   private readonly locks = new Map<string, string>();
 
@@ -21,7 +24,11 @@ class InMemoryCacheService implements Pick<
     return value ? (JSON.parse(value) as T) : null;
   }
 
-  async setJson(key: string, value: unknown, _ttlInSeconds?: number): Promise<void> {
+  async setJson(
+    key: string,
+    value: unknown,
+    _ttlInSeconds?: number,
+  ): Promise<void> {
     this.values.set(key, JSON.stringify(value));
   }
 
@@ -86,7 +93,9 @@ function createEnvelope<T>(
   };
 }
 
-function createPolicy(overrides: Partial<ReadThroughCachePolicy> = {}): ReadThroughCachePolicy {
+function createPolicy(
+  overrides: Partial<ReadThroughCachePolicy> = {},
+): ReadThroughCachePolicy {
   return {
     freshTtlSeconds: 5,
     staleTtlSeconds: 30,
@@ -107,7 +116,12 @@ describe("ReadThroughSwrCacheService", () => {
     const loader = jest.fn(() => deferred.promise);
 
     const firstRead = service.get("entities", "item-1", loader, createPolicy());
-    const secondRead = service.get("entities", "item-1", loader, createPolicy());
+    const secondRead = service.get(
+      "entities",
+      "item-1",
+      loader,
+      createPolicy(),
+    );
 
     deferred.resolve("leader-value");
 
@@ -121,41 +135,52 @@ describe("ReadThroughSwrCacheService", () => {
   it("serves stale entries while triggering only one background refresh in the process", async () => {
     const cacheService = new InMemoryCacheService();
     const service = new ReadThroughSwrCacheService(cacheService);
-    const loader = jest.fn()
-      .mockResolvedValue("fresh-value");
+    const loader = jest.fn().mockResolvedValue("fresh-value");
 
-    await cacheService.setJson("entities:data:item-1:0", createEnvelope("stale-value", {
-      freshOffsetMs: -1_000,
-      staleOffsetMs: 10_000,
-    }));
+    await cacheService.setJson(
+      "entities:data:item-1:0",
+      createEnvelope("stale-value", {
+        freshOffsetMs: -1_000,
+        staleOffsetMs: 10_000,
+      }),
+    );
 
-    await expect(Promise.all([
-      service.get("entities", "item-1", loader, createPolicy()),
-      service.get("entities", "item-1", loader, createPolicy()),
-    ])).resolves.toEqual(["stale-value", "stale-value"]);
+    await expect(
+      Promise.all([
+        service.get("entities", "item-1", loader, createPolicy()),
+        service.get("entities", "item-1", loader, createPolicy()),
+      ]),
+    ).resolves.toEqual(["stale-value", "stale-value"]);
 
     await new Promise((resolve) => {
       setTimeout(resolve, 20);
     });
 
-    await expect(service.get("entities", "item-1", loader, createPolicy())).resolves.toBe(
-      "fresh-value",
-    );
+    await expect(
+      service.get("entities", "item-1", loader, createPolicy()),
+    ).resolves.toBe("fresh-value");
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to a direct load when another instance holds the rebuild lock too long", async () => {
     const cacheService = new InMemoryCacheService();
     const service = new ReadThroughSwrCacheService(cacheService);
-    const externalLock = await cacheService.acquireLock("entities:rebuild:item-1", 5_000);
-    const loader = jest.fn()
-      .mockResolvedValue("direct-fallback");
+    const externalLock = await cacheService.acquireLock(
+      "entities:rebuild:item-1",
+      5_000,
+    );
+    const loader = jest.fn().mockResolvedValue("direct-fallback");
 
     await expect(
-      service.get("entities", "item-1", loader, createPolicy({
-        followerWaitTimeoutMs: 20,
-        followerPollIntervalMs: 5,
-      })),
+      service.get(
+        "entities",
+        "item-1",
+        loader,
+        createPolicy({
+          followerWaitTimeoutMs: 20,
+          followerPollIntervalMs: 5,
+        }),
+      ),
     ).resolves.toBe("direct-fallback");
 
     expect(loader).toHaveBeenCalledTimes(1);
@@ -166,18 +191,22 @@ describe("ReadThroughSwrCacheService", () => {
     const cacheService = new InMemoryCacheService();
     const service = new ReadThroughSwrCacheService(cacheService);
     const refreshDeferred = createDeferred<string | null>();
-    const loader = jest.fn()
+    const loader = jest
+      .fn()
       .mockImplementationOnce(() => refreshDeferred.promise)
       .mockResolvedValueOnce("new-generation");
 
-    await cacheService.setJson("entities:data:item-1:0", createEnvelope("stale-value", {
-      freshOffsetMs: -1_000,
-      staleOffsetMs: 10_000,
-    }));
-
-    await expect(service.get("entities", "item-1", loader, createPolicy())).resolves.toBe(
-      "stale-value",
+    await cacheService.setJson(
+      "entities:data:item-1:0",
+      createEnvelope("stale-value", {
+        freshOffsetMs: -1_000,
+        staleOffsetMs: 10_000,
+      }),
     );
+
+    await expect(
+      service.get("entities", "item-1", loader, createPolicy()),
+    ).resolves.toBe("stale-value");
 
     await service.invalidate("entities", "item-1");
     refreshDeferred.resolve("old-generation");
@@ -186,20 +215,23 @@ describe("ReadThroughSwrCacheService", () => {
       setTimeout(resolve, 20);
     });
 
-    await expect(service.get("entities", "item-1", loader, createPolicy())).resolves.toBe(
-      "new-generation",
-    );
+    await expect(
+      service.get("entities", "item-1", loader, createPolicy()),
+    ).resolves.toBe("new-generation");
     expect(loader).toHaveBeenCalledTimes(2);
   });
 
   it("caches misses briefly so repeated reads do not re-run the loader", async () => {
     const cacheService = new InMemoryCacheService();
     const service = new ReadThroughSwrCacheService(cacheService);
-    const loader = jest.fn()
-      .mockResolvedValue(null);
+    const loader = jest.fn().mockResolvedValue(null);
 
-    await expect(service.get("entities", "item-1", loader, createPolicy())).resolves.toBeNull();
-    await expect(service.get("entities", "item-1", loader, createPolicy())).resolves.toBeNull();
+    await expect(
+      service.get("entities", "item-1", loader, createPolicy()),
+    ).resolves.toBeNull();
+    await expect(
+      service.get("entities", "item-1", loader, createPolicy()),
+    ).resolves.toBeNull();
 
     expect(loader).toHaveBeenCalledTimes(1);
   });
@@ -214,18 +246,25 @@ describe("ReadThroughSwrCacheService", () => {
     });
 
     await expect(
-      service.get("entities", "item-1", async () => "positive-value", positivePolicy),
+      service.get(
+        "entities",
+        "item-1",
+        async () => "positive-value",
+        positivePolicy,
+      ),
     ).resolves.toBe("positive-value");
 
-    const positiveEntry = await cacheService.getJson<ReadThroughCacheEnvelope<string>>(
-      "entities:data:item-1:0",
-    );
+    const positiveEntry = await cacheService.getJson<
+      ReadThroughCacheEnvelope<string>
+    >("entities:data:item-1:0");
 
     expect(positiveEntry).not.toBeNull();
 
     const positiveCachedAt = Date.parse(positiveEntry!.cachedAt);
-    const positiveFreshDelta = Date.parse(positiveEntry!.freshUntil) - positiveCachedAt;
-    const positiveStaleDelta = Date.parse(positiveEntry!.staleUntil) - positiveCachedAt;
+    const positiveFreshDelta =
+      Date.parse(positiveEntry!.freshUntil) - positiveCachedAt;
+    const positiveStaleDelta =
+      Date.parse(positiveEntry!.staleUntil) - positiveCachedAt;
 
     expect(positiveFreshDelta).toBeGreaterThanOrEqual(8_900);
     expect(positiveFreshDelta).toBeLessThanOrEqual(9_100);
@@ -233,21 +272,28 @@ describe("ReadThroughSwrCacheService", () => {
     expect(positiveStaleDelta).toBeLessThanOrEqual(18_100);
 
     await expect(
-      service.get("entities", "item-2", async () => null, createPolicy({
-        negativeTtlSeconds: 5,
-        ttlJitterRatio: 0.5,
-      })),
+      service.get(
+        "entities",
+        "item-2",
+        async () => null,
+        createPolicy({
+          negativeTtlSeconds: 5,
+          ttlJitterRatio: 0.5,
+        }),
+      ),
     ).resolves.toBeNull();
 
-    const negativeEntry = await cacheService.getJson<ReadThroughCacheEnvelope<string>>(
-      "entities:data:item-2:0",
-    );
+    const negativeEntry = await cacheService.getJson<
+      ReadThroughCacheEnvelope<string>
+    >("entities:data:item-2:0");
 
     expect(negativeEntry).not.toBeNull();
 
     const negativeCachedAt = Date.parse(negativeEntry!.cachedAt);
-    const negativeFreshDelta = Date.parse(negativeEntry!.freshUntil) - negativeCachedAt;
-    const negativeStaleDelta = Date.parse(negativeEntry!.staleUntil) - negativeCachedAt;
+    const negativeFreshDelta =
+      Date.parse(negativeEntry!.freshUntil) - negativeCachedAt;
+    const negativeStaleDelta =
+      Date.parse(negativeEntry!.staleUntil) - negativeCachedAt;
 
     expect(negativeFreshDelta).toBeGreaterThanOrEqual(4_900);
     expect(negativeFreshDelta).toBeLessThanOrEqual(5_100);

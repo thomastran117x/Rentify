@@ -73,9 +73,11 @@ class DefaultServiceContainer implements RootServiceContainer {
       token: registration.token as ServiceToken<unknown>,
       lifetime: registration.lifetime,
       dependencies: registration.dependencies,
-      resolve: registration.resolve as (context: ServiceResolutionContext) => unknown,
+      resolve: registration.resolve as (
+        context: ServiceResolutionContext,
+      ) => unknown,
       dispose: registration.dispose
-        ? ((instance: unknown) => registration.dispose?.(instance as TValue))
+        ? (instance: unknown) => registration.dispose?.(instance as TValue)
         : undefined,
     });
   }
@@ -109,7 +111,9 @@ class DefaultServiceContainer implements RootServiceContainer {
       }
 
       if (visiting.has(registration.key)) {
-        const startIndex = path.findIndex((entry) => entry.key === registration.key);
+        const startIndex = path.findIndex(
+          (entry) => entry.key === registration.key,
+        );
         const cycle = [...path.slice(startIndex), registration]
           .map((entry) => entry.token.description)
           .join(" -> ");
@@ -187,8 +191,12 @@ class DefaultServiceContainer implements RootServiceContainer {
     }
 
     if (stack.some((entry) => entry.id === token.id)) {
-      const cycle = [...stack, token].map((entry) => entry.description).join(" -> ");
-      throw new Error(`Circular dependency detected during resolution: ${cycle}`);
+      const cycle = [...stack, token]
+        .map((entry) => entry.description)
+        .join(" -> ");
+      throw new Error(
+        `Circular dependency detected during resolution: ${cycle}`,
+      );
     }
 
     if (registration.lifetime === "singleton") {
@@ -263,7 +271,9 @@ class DefaultServiceContainer implements RootServiceContainer {
   }
 }
 
-export function createServiceToken<TValue>(description: string): ServiceToken<TValue> {
+export function createServiceToken<TValue>(
+  description: string,
+): ServiceToken<TValue> {
   return {
     id: Symbol(description),
     description,

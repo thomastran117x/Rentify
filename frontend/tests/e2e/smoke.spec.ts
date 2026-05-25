@@ -21,15 +21,19 @@ test("homepage renders without backend auth dependencies", async ({ page }) => {
       name: "Find the right rental without the clutter.",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("banner").getByRole("link", { name: "Rentify" })).toBeVisible();
-  await expect(page.getByRole("banner").getByRole("link", { name: "Browse" })).toBeVisible();
+  await expect(
+    page.getByRole("banner").getByRole("link", { name: "Rentify" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("banner").getByRole("link", { name: "Browse" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("banner").getByRole("link", { name: "How it works" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("banner").getByRole("textbox", {
-      name: "Search rentals, equipment, and spaces",
-    }),
+    page.getByPlaceholder("What are you looking for?"),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Log in" }).first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Log in" }).first(),
+  ).toBeVisible();
 });

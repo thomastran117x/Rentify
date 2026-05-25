@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   RentifyApiClient,
   type BookingQuoteBody,
+  type CancelBookingRequestBody,
   type BookingRequestBody,
   type BookingRequestDecisionBody,
   type ListBookingRequestsQuery,
@@ -53,6 +54,8 @@ export interface CreateBookingRequestToolArgs extends BookingRequestBody {
 
 export interface ListMyBookingRequestsToolArgs extends ListBookingRequestsQuery {}
 
+export interface ListOwnedBookingRequestsToolArgs extends ListBookingRequestsQuery {}
+
 export interface ListPostingBookingRequestsToolArgs extends ListBookingRequestsQuery {
   id: string;
 }
@@ -66,6 +69,10 @@ export interface UpdateBookingRequestToolArgs extends BookingRequestBody {
 }
 
 export interface DecideBookingRequestToolArgs extends BookingRequestDecisionBody {
+  id: string;
+}
+
+export interface CancelBookingRequestToolArgs extends CancelBookingRequestBody {
   id: string;
 }
 
@@ -111,6 +118,12 @@ export function createBookingsToolHandlers(apiClient: RentifyApiClient) {
         (result) =>
           `Fetched ${result.bookingRequests.length} of your booking request(s) on page ${result.pagination.page}.`,
       ),
+    listOwnedBookingRequests: (args: ListOwnedBookingRequestsToolArgs) =>
+      executeTool(
+        () => apiClient.listOwnedBookingRequests(args),
+        (result) =>
+          `Fetched ${result.bookingRequests.length} owner booking request(s) on page ${result.pagination.page}.`,
+      ),
     listPostingBookingRequests: (args: ListPostingBookingRequestsToolArgs) =>
       executeTool(
         () =>
@@ -126,6 +139,14 @@ export function createBookingsToolHandlers(apiClient: RentifyApiClient) {
       executeTool(
         () => apiClient.getBookingRequest(args.id),
         (result) => describeBookingRequest(result),
+      ),
+    getBookingCancellationQuote: (args: GetBookingRequestToolArgs) =>
+      executeTool(
+        () => apiClient.getBookingCancellationQuote(args.id),
+        (result) =>
+          result.cancellable
+            ? `Fetched a ${result.refundType} cancellation quote for booking request ${args.id}.`
+            : `Fetched a non-cancellable booking quote for ${args.id} with ${result.failureReasons.length} failure reason(s).`,
       ),
     updateBookingRequest: (args: UpdateBookingRequestToolArgs) =>
       executeTool(
@@ -156,6 +177,14 @@ export function createBookingsToolHandlers(apiClient: RentifyApiClient) {
             note: args.note,
           }),
         (result) => `Declined booking request ${result.id}; it is now ${result.status}.`,
+      ),
+    cancelBookingRequest: (args: CancelBookingRequestToolArgs) =>
+      executeTool(
+        () =>
+          apiClient.cancelBookingRequest(args.id, {
+            reason: args.reason,
+          }),
+        (result) => `Cancelled booking request ${result.id}; it is now ${result.status}.`,
       ),
   };
 }
@@ -205,6 +234,20 @@ export function registerBookingsTools(
   );
 
   server.registerTool(
+    "list_owned_booking_requests",
+    {
+      title: "List Owned Booking Requests",
+      description: "List booking requests across postings owned by the authenticated user.",
+      inputSchema: {
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(50).optional(),
+        status: bookingStatusSchema.optional(),
+      },
+    },
+    handlers.listOwnedBookingRequests,
+  );
+
+  server.registerTool(
     "list_posting_booking_requests",
     {
       title: "List Posting Booking Requests",
@@ -229,6 +272,18 @@ export function registerBookingsTools(
       },
     },
     handlers.getBookingRequest,
+  );
+
+  server.registerTool(
+    "get_booking_cancellation_quote",
+    {
+      title: "Get Booking Cancellation Quote",
+      description: "Fetch cancellation eligibility and refund details for a booking request.",
+      inputSchema: {
+        id: z.string().trim().min(1),
+      },
+    },
+    handlers.getBookingCancellationQuote,
   );
 
   server.registerTool(
@@ -268,5 +323,18 @@ export function registerBookingsTools(
       },
     },
     handlers.declineBookingRequest,
+  );
+
+  server.registerTool(
+    "cancel_booking_request",
+    {
+      title: "Cancel Booking Request",
+      description: "Cancel an accessible booking request with an optional reason.",
+      inputSchema: {
+        id: z.string().trim().min(1),
+        reason: z.string().trim().min(1).max(1000).nullable().optional(),
+      },
+    },
+    handlers.cancelBookingRequest,
   );
 }

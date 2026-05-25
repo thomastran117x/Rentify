@@ -42,11 +42,17 @@ import { PostingsReviewsService } from "@/features/postings/reviews/reviews.serv
 import {
   listOwnerPostingsQuerySchema,
   ownerAvailabilityBlockRequestSchema,
+  postingBatchIdsQuerySchema,
+  postingResourceIdSchema,
+  publicAutocompletePostingsQuerySchema,
   publicSearchPostingsQuerySchema,
+  searchAttributeFiltersSchema,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsQuery,
   type OwnerAvailabilityBlockRequestBody,
+  type PostingAutocompleteInput,
   type PublicSearchPostingsQuery,
+  type PublicAutocompletePostingsQuery,
   type SearchAttributeFilterInput,
   type SearchPostingsInput,
   type UpdatePostingRequestBody,
@@ -56,6 +62,7 @@ import {
   upsertPostingRequestSchema,
 } from "@/features/postings/postings.model";
 import { PostingsService } from "@/features/postings/postings.service";
+import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
 import {
   searchClickActivityRequestSchema,
   type SearchClickActivityRequestBody,
@@ -68,6 +75,7 @@ export class PostingsController {
 
   constructor(
     private readonly postingsService: PostingsService,
+    private readonly postingsPublicAutocompleteService: PostingsPublicAutocompleteService,
     private readonly postingsAnalyticsService: PostingsAnalyticsService,
     private readonly postingsReviewsService: PostingsReviewsService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
@@ -79,7 +87,9 @@ export class PostingsController {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, upsertPostingRequestSchema);
-    const result = await this.postingsService.createDraft(this.toUpsertInput(auth.sub, body));
+    const result = await this.postingsService.createDraft(
+      this.toUpsertInput(auth.sub, body),
+    );
     return created(context, result, {
       message: "Posting draft created successfully.",
     });
@@ -101,13 +111,18 @@ export class PostingsController {
   duplicate = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const result = await this.postingsService.duplicate(this.requireRouteId(context), auth.sub);
+    const result = await this.postingsService.duplicate(
+      this.requireRouteId(context),
+      auth.sub,
+    );
     return created(context, result, {
       message: "Posting duplicated successfully.",
     });
   };
 
-  listAvailabilityBlocks = async (context: Context<AppBindings>): Promise<Response> => {
+  listAvailabilityBlocks = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const result = await this.postingsService.listOwnerAvailabilityBlocks(
@@ -117,10 +132,15 @@ export class PostingsController {
     return ok(context, result);
   };
 
-  createAvailabilityBlock = async (context: Context<AppBindings>): Promise<Response> => {
+  createAvailabilityBlock = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const body = await parseRequestBody(context, ownerAvailabilityBlockRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      ownerAvailabilityBlockRequestSchema,
+    );
     const result = await this.postingsService.createOwnerAvailabilityBlock(
       this.requireRouteId(context),
       auth.sub,
@@ -131,10 +151,15 @@ export class PostingsController {
     });
   };
 
-  updateAvailabilityBlock = async (context: Context<AppBindings>): Promise<Response> => {
+  updateAvailabilityBlock = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const body = await parseRequestBody(context, ownerAvailabilityBlockRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      ownerAvailabilityBlockRequestSchema,
+    );
     const result = await this.postingsService.updateOwnerAvailabilityBlock(
       this.requireRouteId(context),
       auth.sub,
@@ -146,7 +171,9 @@ export class PostingsController {
     });
   };
 
-  deleteAvailabilityBlock = async (context: Context<AppBindings>): Promise<Response> => {
+  deleteAvailabilityBlock = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     await this.postingsService.deleteOwnerAvailabilityBlock(
@@ -160,7 +187,10 @@ export class PostingsController {
   publish = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const result = await this.postingsService.publish(this.requireRouteId(context), auth.sub);
+    const result = await this.postingsService.publish(
+      this.requireRouteId(context),
+      auth.sub,
+    );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_published",
@@ -176,7 +206,10 @@ export class PostingsController {
   archive = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const result = await this.postingsService.archive(this.requireRouteId(context), auth.sub);
+    const result = await this.postingsService.archive(
+      this.requireRouteId(context),
+      auth.sub,
+    );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_archived",
@@ -192,7 +225,10 @@ export class PostingsController {
   pause = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const result = await this.postingsService.pause(this.requireRouteId(context), auth.sub);
+    const result = await this.postingsService.pause(
+      this.requireRouteId(context),
+      auth.sub,
+    );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_paused",
@@ -208,7 +244,10 @@ export class PostingsController {
   unpause = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
-    const result = await this.postingsService.unpause(this.requireRouteId(context), auth.sub);
+    const result = await this.postingsService.unpause(
+      this.requireRouteId(context),
+      auth.sub,
+    );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_unpaused",
@@ -223,7 +262,10 @@ export class PostingsController {
 
   getById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.getOptionalAuth(context);
-    const result = await this.postingsService.getById(this.requireRouteId(context), auth?.sub);
+    const result = await this.postingsService.getById(
+      this.requireRouteId(context),
+      auth?.sub,
+    );
 
     if (!auth || auth.sub !== result.ownerId) {
       await this.postingsAnalyticsService.trackPublicView(
@@ -242,11 +284,18 @@ export class PostingsController {
     return ok(context, result);
   };
 
-  trackSearchClick = async (context: Context<AppBindings>): Promise<Response> => {
+  trackSearchClick = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.getOptionalAuth(context);
-    const body = await parseRequestBody(context, searchClickActivityRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      searchClickActivityRequestSchema,
+    );
 
-    await this.postingsAnalyticsService.trackSearchClick(this.requireRouteId(context));
+    await this.postingsAnalyticsService.trackSearchClick(
+      this.requireRouteId(context),
+    );
     await this.recommendationActivityPublisher.publishSearchClick({
       postingId: this.requireRouteId(context),
       client: context.get("client"),
@@ -288,7 +337,9 @@ export class PostingsController {
   };
 
   batchPublic = async (context: Context<AppBindings>): Promise<Response> => {
-    const result = await this.postingsService.batchPublic(this.parseBatchIds(context));
+    const result = await this.postingsService.batchPublic(
+      this.parseBatchIds(context),
+    );
     return ok(context, result);
   };
 
@@ -296,9 +347,15 @@ export class PostingsController {
     const result = await this.postingsService.searchPublic(
       this.parseSearchPostingsInput(context),
     );
-    void this.postingsAnalyticsService.trackSearchImpressions(result.postings).catch((error) => {
-      this.logger.warn("Failed to record posting search impressions.", undefined, error);
-    });
+    void this.postingsAnalyticsService
+      .trackSearchImpressions(result.postings)
+      .catch((error) => {
+        this.logger.warn(
+          "Failed to record posting search impressions.",
+          undefined,
+          error,
+        );
+      });
     return ok(context, result, {
       meta: mergeResponseMeta(
         paginationMeta(result),
@@ -307,19 +364,35 @@ export class PostingsController {
     });
   };
 
-  analyticsSummary = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
-    const query = this.parseAnalyticsSummaryQuery(context);
-    const result = await this.postingsAnalyticsService.getOwnerSummary(auth.sub, query.window);
+  autocomplete = async (context: Context<AppBindings>): Promise<Response> => {
+    const result =
+      await this.postingsPublicAutocompleteService.autocompletePublic(
+        this.parseAutocompletePostingsInput(context),
+      );
     return ok(context, result);
   };
 
-  analyticsPostings = async (context: Context<AppBindings>): Promise<Response> => {
+  analyticsSummary = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    requireMinimumRole(auth, "owner");
+    const query = this.parseAnalyticsSummaryQuery(context);
+    const result = await this.postingsAnalyticsService.getOwnerSummary(
+      auth.sub,
+      query.window,
+    );
+    return ok(context, result);
+  };
+
+  analyticsPostings = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const input = this.parseListPostingAnalyticsInput(context, auth.sub);
-    const result = await this.postingsAnalyticsService.listOwnerPostingsAnalytics(input);
+    const result =
+      await this.postingsAnalyticsService.listOwnerPostingsAnalytics(input);
     return ok(context, result, {
       meta: paginationMeta(result),
     });
@@ -333,7 +406,8 @@ export class PostingsController {
       auth.sub,
       this.requireRouteId(context),
     );
-    const result = await this.postingsAnalyticsService.getPostingAnalyticsDetail(input);
+    const result =
+      await this.postingsAnalyticsService.getPostingAnalyticsDetail(input);
     return ok(context, result);
   };
 
@@ -351,7 +425,10 @@ export class PostingsController {
 
   createReview = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createPostingReviewRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      createPostingReviewRequestSchema,
+    );
     const result = await this.postingsReviewsService.create(
       this.requireRouteId(context),
       auth.sub,
@@ -362,9 +439,14 @@ export class PostingsController {
     });
   };
 
-  updateOwnReview = async (context: Context<AppBindings>): Promise<Response> => {
+  updateOwnReview = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createPostingReviewRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      createPostingReviewRequestSchema,
+    );
     const result = await this.postingsReviewsService.updateOwn(
       this.requireRouteId(context),
       auth.sub,
@@ -390,7 +472,7 @@ export class PostingsController {
       pricing: body.pricing,
       photos: body.photos,
       tags: body.tags,
-      attributes: body.attributes,
+      details: body.details,
       availabilityStatus: body.availabilityStatus,
       availabilityNotes: body.availabilityNotes ?? null,
       maxBookingDurationDays: body.maxBookingDurationDays ?? null,
@@ -439,7 +521,9 @@ export class PostingsController {
     }
   }
 
-  private parseSearchPostingsInput(context: Context<AppBindings>): SearchPostingsInput {
+  private parseSearchPostingsInput(
+    context: Context<AppBindings>,
+  ): SearchPostingsInput {
     const url = new URL(context.req.url);
 
     try {
@@ -450,9 +534,18 @@ export class PostingsController {
         family: this.readOptionalQueryParam(url.searchParams, "family"),
         subtype: this.readOptionalQueryParam(url.searchParams, "subtype"),
         tags: this.readArrayQuery(url.searchParams, "tags"),
-        availabilityStatus: this.readOptionalQueryParam(url.searchParams, "availabilityStatus"),
-        minDailyPrice: this.readOptionalQueryParam(url.searchParams, "minDailyPrice"),
-        maxDailyPrice: this.readOptionalQueryParam(url.searchParams, "maxDailyPrice"),
+        availabilityStatus: this.readOptionalQueryParam(
+          url.searchParams,
+          "availabilityStatus",
+        ),
+        minDailyPrice: this.readOptionalQueryParam(
+          url.searchParams,
+          "minDailyPrice",
+        ),
+        maxDailyPrice: this.readOptionalQueryParam(
+          url.searchParams,
+          "maxDailyPrice",
+        ),
         latitude: this.readOptionalQueryParam(url.searchParams, "latitude"),
         longitude: this.readOptionalQueryParam(url.searchParams, "longitude"),
         radiusKm: this.readOptionalQueryParam(url.searchParams, "radiusKm"),
@@ -483,7 +576,9 @@ export class PostingsController {
     }
   }
 
-  private parseAnalyticsSummaryQuery(context: Context<AppBindings>): PostingAnalyticsSummaryQuery {
+  private parseAnalyticsSummaryQuery(
+    context: Context<AppBindings>,
+  ): PostingAnalyticsSummaryQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -549,43 +644,6 @@ export class PostingsController {
     query: PublicSearchPostingsQuery,
     attributeFilters?: SearchAttributeFilterInput[],
   ): SearchPostingsInput {
-    if ((query.startAt === undefined) !== (query.endAt === undefined)) {
-      throw new RequestValidationError("Request query validation failed.", [
-        {
-          path: "startAt",
-          message: "startAt and endAt must be provided together.",
-        },
-      ]);
-    }
-
-    const geoValidationIssues: Array<{ path: string; message: string }> = [];
-    const hasLatitude = query.latitude !== undefined;
-    const hasLongitude = query.longitude !== undefined;
-
-    if (hasLatitude !== hasLongitude) {
-      geoValidationIssues.push(
-        {
-          path: "latitude",
-          message: "latitude and longitude must be provided together.",
-        },
-        {
-          path: "longitude",
-          message: "latitude and longitude must be provided together.",
-        },
-      );
-    }
-
-    if (query.radiusKm !== undefined && (!hasLatitude || !hasLongitude)) {
-      geoValidationIssues.push({
-        path: "radiusKm",
-        message: "radiusKm requires both latitude and longitude.",
-      });
-    }
-
-    if (geoValidationIssues.length > 0) {
-      throw new RequestValidationError("Request query validation failed.", geoValidationIssues);
-    }
-
     return {
       page: query.page,
       pageSize: query.pageSize,
@@ -616,11 +674,24 @@ export class PostingsController {
     };
   }
 
-  private readAttributeFilters(searchParams: URLSearchParams): SearchAttributeFilterInput[] | undefined {
+  private toAutocompletePostingsInput(
+    query: PublicAutocompletePostingsQuery,
+  ): PostingAutocompleteInput {
+    return {
+      query: query.q,
+      family: query.family,
+      subtype: query.subtype,
+      limit: query.limit,
+    };
+  }
+
+  private readAttributeFilters(
+    searchParams: URLSearchParams,
+  ): SearchAttributeFilterInput[] | undefined {
     const filters = new Map<
       string,
       {
-        values: string[];
+        values: Array<string>;
         min?: number;
         max?: number;
       }
@@ -641,15 +712,6 @@ export class PostingsController {
       } else if (attributeKey.endsWith(".max")) {
         targetKey = attributeKey.slice(0, -4);
         bound = "max";
-      }
-
-      if (!/^[a-z][a-z0-9_]*$/i.test(targetKey)) {
-        throw new RequestValidationError("Request query validation failed.", [
-          {
-            path: key,
-            message: "Attribute keys must start with a letter and contain only letters, numbers, and underscores.",
-          },
-        ]);
       }
 
       const filter = filters.get(targetKey) ?? { values: [] };
@@ -683,16 +745,19 @@ export class PostingsController {
       return undefined;
     }
 
-    return Array.from(filters.entries()).map(([key, filter]) => ({
-      key,
-      ...(filter.values.length === 0
-        ? {}
-        : {
-            value: filter.values.length === 1 ? filter.values[0] : filter.values,
-          }),
-      ...(filter.min !== undefined ? { min: filter.min } : {}),
-      ...(filter.max !== undefined ? { max: filter.max } : {}),
-    }));
+    return searchAttributeFiltersSchema.parse(
+      Array.from(filters.entries()).map(([key, filter]) => ({
+        key,
+        ...(filter.values.length === 0
+          ? {}
+          : {
+              value:
+                filter.values.length === 1 ? filter.values[0] : filter.values,
+            }),
+        ...(filter.min !== undefined ? { min: filter.min } : {}),
+        ...(filter.max !== undefined ? { max: filter.max } : {}),
+      })),
+    );
   }
 
   private toListPostingAnalyticsInput(
@@ -722,18 +787,32 @@ export class PostingsController {
 
   private parseBatchIds(context: Context<AppBindings>): string[] {
     const url = new URL(context.req.url);
-    const ids = this.readArrayQuery(url.searchParams, "ids");
-
-    if (ids.length === 0) {
-      throw new RequestValidationError("At least one id must be provided.", [
-        {
-          path: "ids",
-          message: "At least one id must be provided.",
-        },
-      ]);
+    try {
+      return postingBatchIdsQuerySchema.parse(
+        this.readArrayQuery(url.searchParams, "ids"),
+      );
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
     }
+  }
 
-    return ids;
+  private parseAutocompletePostingsInput(
+    context: Context<AppBindings>,
+  ): PostingAutocompleteInput {
+    const url = new URL(context.req.url);
+
+    try {
+      const query = publicAutocompletePostingsQuerySchema.parse({
+        q: this.readOptionalQueryParam(url.searchParams, "q"),
+        family: this.readOptionalQueryParam(url.searchParams, "family"),
+        subtype: this.readOptionalQueryParam(url.searchParams, "subtype"),
+        limit: this.readOptionalQueryParam(url.searchParams, "limit"),
+      });
+
+      return this.toAutocompletePostingsInput(query);
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
   }
 
   private readArrayQuery(searchParams: URLSearchParams, key: string): string[] {
@@ -744,7 +823,10 @@ export class PostingsController {
       .filter(Boolean);
   }
 
-  private readOptionalQueryParam(searchParams: URLSearchParams, key: string): string | undefined {
+  private readOptionalQueryParam(
+    searchParams: URLSearchParams,
+    key: string,
+  ): string | undefined {
     const value = searchParams.get(key);
 
     if (value === null) {
@@ -760,15 +842,41 @@ export class PostingsController {
     return this.requireRouteParam(context, "id");
   }
 
-  private requireRouteParam(context: Context<AppBindings>, name: string): string {
-    return requireSafeRouteParam(context, name);
+  private requireRouteParam(
+    context: Context<AppBindings>,
+    name: string,
+  ): string {
+    const value = requireSafeRouteParam(context, name);
+
+    try {
+      return postingResourceIdSchema.parse(value);
+    } catch (error) {
+      if ("issues" in (error as object)) {
+        const issues =
+          (error as { issues?: Array<{ message: string }> }).issues ?? [];
+
+        throw new RequestValidationError(
+          "Route parameter validation failed.",
+          issues.map((issue) => ({
+            path: name,
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
+    }
   }
 
-  private async requireAuth(context: Context<AppBindings>): Promise<AuthPrincipal> {
+  private async requireAuth(
+    context: Context<AppBindings>,
+  ): Promise<AuthPrincipal> {
     return requireJwtAuth(context);
   }
 
-  private async getOptionalAuth(context: Context<AppBindings>): Promise<AuthPrincipal | null> {
+  private async getOptionalAuth(
+    context: Context<AppBindings>,
+  ): Promise<AuthPrincipal | null> {
     return getOptionalJwtAuth(context);
   }
 
@@ -776,9 +884,14 @@ export class PostingsController {
     return context.get("requestId");
   }
 
-  private toValidationError(error: unknown, message: string): RequestValidationError {
+  private toValidationError(
+    error: unknown,
+    message: string,
+  ): RequestValidationError {
     if ("issues" in (error as object)) {
-      const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+      const issues = (
+        error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+      ).issues;
 
       return new RequestValidationError(
         message,

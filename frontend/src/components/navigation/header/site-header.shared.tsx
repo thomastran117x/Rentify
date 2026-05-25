@@ -22,7 +22,9 @@ export const navigationLinks: HeaderNavigationLink[] = [
   { href: "/contact", label: "Contact" },
 ];
 
-export function getAccountLinks(role?: SiteHeaderUserRole): HeaderAccountLink[] {
+export function getAccountLinks(
+  role?: SiteHeaderUserRole,
+): HeaderAccountLink[] {
   return [
     ...(role && role !== "user"
       ? [
@@ -38,6 +40,14 @@ export function getAccountLinks(role?: SiteHeaderUserRole): HeaderAccountLink[] 
           },
         ]
       : []),
+    {
+      href: "/bookings",
+      label: "Bookings",
+      description:
+        role && role !== "user"
+          ? "Track renter and owner booking work in one place"
+          : "Track requests, payments, and upcoming rentings",
+    },
     {
       href: "/account",
       label: "Manage account",

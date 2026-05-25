@@ -2,11 +2,18 @@ import { randomUUID } from "node:crypto";
 import type { Channel, ConsumeMessage } from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
-import type { EmailJobInputByKind, EmailJobKind, EmailJobPayload } from "@/features/email/email.model";
+import type {
+  EmailJobInputByKind,
+  EmailJobKind,
+  EmailJobPayload,
+} from "@/features/email/email.model";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 const EMAIL_QUEUE_PREFIX = "email.delivery";
-const emailQueueLogger = loggerFactory.forComponent("email.queue.service", "queue");
+const emailQueueLogger = loggerFactory.forComponent(
+  "email.queue.service",
+  "queue",
+);
 
 export class EmailQueueService {
   private readonly exchangeName = `${EMAIL_QUEUE_PREFIX}.exchange`;
@@ -29,8 +36,14 @@ export class EmailQueueService {
     } as EmailJobPayload);
   }
 
-  async publishRetryJob(payload: EmailJobPayload, attempt: number): Promise<void> {
-    const retryIndex = Math.min(Math.max(attempt - 1, 0), this.retryQueueNames.length - 1);
+  async publishRetryJob(
+    payload: EmailJobPayload,
+    attempt: number,
+  ): Promise<void> {
+    const retryIndex = Math.min(
+      Math.max(attempt - 1, 0),
+      this.retryQueueNames.length - 1,
+    );
     await this.publishWithRoutingKey(`retry.${retryIndex + 1}`, {
       ...payload,
       attempt,
@@ -53,19 +66,28 @@ export class EmailQueueService {
     await this.assertTopology(channel);
     await channel.prefetch(prefetch);
 
-    const consumeResult = await channel.consume(this.mainQueueName, async (message) => {
-      if (!message) {
-        return;
-      }
+    const consumeResult = await channel.consume(
+      this.mainQueueName,
+      async (message) => {
+        if (!message) {
+          return;
+        }
 
-      try {
-        const payload = JSON.parse(message.content.toString("utf8")) as EmailJobPayload;
-        await onMessage(payload, message, channel);
-      } catch (error) {
-        emailQueueLogger.error("Email worker failed before ack/nack handling.", undefined, error);
-        channel.nack(message, false, true);
-      }
-    });
+        try {
+          const payload = JSON.parse(
+            message.content.toString("utf8"),
+          ) as EmailJobPayload;
+          await onMessage(payload, message, channel);
+        } catch (error) {
+          emailQueueLogger.error(
+            "Email worker failed before ack/nack handling.",
+            undefined,
+            error,
+          );
+          channel.nack(message, false, true);
+        }
+      },
+    );
 
     return async () => {
       await channel.cancel(consumeResult.consumerTag);
@@ -116,12 +138,20 @@ export class EmailQueueService {
           "x-dead-letter-routing-key": "main",
         },
       });
-      await channel.bindQueue(queueName, this.exchangeName, `retry.${index + 1}`);
+      await channel.bindQueue(
+        queueName,
+        this.exchangeName,
+        `retry.${index + 1}`,
+      );
     }
 
     await channel.assertQueue(this.deadLetterQueueName, {
       durable: true,
     });
-    await channel.bindQueue(this.deadLetterQueueName, this.exchangeName, "dead-letter");
+    await channel.bindQueue(
+      this.deadLetterQueueName,
+      this.exchangeName,
+      "dead-letter",
+    );
   }
 }

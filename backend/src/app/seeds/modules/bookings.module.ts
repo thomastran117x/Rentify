@@ -8,7 +8,10 @@ function isDefined<TValue>(value: TValue | undefined): value is TValue {
 function calculateDurationDays(startAt: string, endAt: string): number {
   return Math.max(
     1,
-    Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / (1000 * 60 * 60 * 24)),
+    Math.round(
+      (new Date(endAt).getTime() - new Date(startAt).getTime()) /
+        (1000 * 60 * 60 * 24),
+    ),
   );
 }
 
@@ -27,25 +30,43 @@ export const bookingsSeedModule: SeedModule = {
   name: "bookings",
   async run({ logger, prisma, state }) {
     const bookingIds = SEED_BOOKINGS.map((fixture) => fixture.id);
-    const paymentIds = SEED_BOOKINGS.map((fixture) => fixture.payment?.id).filter(isDefined);
-    const rentingIds = SEED_BOOKINGS.map((fixture) => fixture.renting?.id).filter(isDefined);
+    const paymentIds = SEED_BOOKINGS.map(
+      (fixture) => fixture.payment?.id,
+    ).filter(isDefined);
+    const rentingIds = SEED_BOOKINGS.map(
+      (fixture) => fixture.renting?.id,
+    ).filter(isDefined);
+    const rentingDisputeIds = SEED_BOOKINGS.map(
+      (fixture) => fixture.renting?.dispute?.id,
+    ).filter(isDefined);
     const blockIds = SEED_BOOKINGS.flatMap((fixture) =>
       [fixture.holdBlock?.id, fixture.rentingBlock?.id].filter(isDefined),
     );
-    const attemptIds = SEED_BOOKINGS.flatMap((fixture) =>
-      fixture.payment?.attempts.map((attempt) => attempt.id) ?? [],
+    const attemptIds = SEED_BOOKINGS.flatMap(
+      (fixture) => fixture.payment?.attempts.map((attempt) => attempt.id) ?? [],
     );
-    const refundIds = SEED_BOOKINGS.flatMap((fixture) =>
-      fixture.payment?.refunds.map((refund) => refund.id) ?? [],
+    const refundIds = SEED_BOOKINGS.flatMap(
+      (fixture) => fixture.payment?.refunds.map((refund) => refund.id) ?? [],
     );
-    const payoutIds = SEED_BOOKINGS.flatMap((fixture) => (fixture.payment?.payout ? [fixture.payment.payout.id] : []));
-    const webhookIds = SEED_BOOKINGS.flatMap((fixture) =>
-      fixture.payment?.webhookEvents.map((event) => event.id) ?? [],
+    const payoutIds = SEED_BOOKINGS.flatMap((fixture) =>
+      fixture.payment?.payout ? [fixture.payment.payout.id] : [],
     );
-    const ledgerIds = SEED_BOOKINGS.flatMap((fixture) =>
-      fixture.payment?.ledgerEntries.map((entry) => entry.id) ?? [],
+    const webhookIds = SEED_BOOKINGS.flatMap(
+      (fixture) =>
+        fixture.payment?.webhookEvents.map((event) => event.id) ?? [],
+    );
+    const ledgerIds = SEED_BOOKINGS.flatMap(
+      (fixture) =>
+        fixture.payment?.ledgerEntries.map((entry) => entry.id) ?? [],
     );
 
+    await prisma.rentingDispute.deleteMany({
+      where: {
+        id: {
+          in: rentingDisputeIds,
+        },
+      },
+    });
     await prisma.refund.deleteMany({
       where: {
         id: {
@@ -115,7 +136,9 @@ export const bookingsSeedModule: SeedModule = {
       const renterId = state.userIdsByEmail.get(fixture.renterEmail);
 
       if (!ownerId) {
-        throw new Error(`Missing seeded posting owner for booking ${fixture.id}.`);
+        throw new Error(
+          `Missing seeded posting owner for booking ${fixture.id}.`,
+        );
       }
 
       if (!renterId) {
@@ -169,13 +192,21 @@ export const bookingsSeedModule: SeedModule = {
           estimatedTotal: fixture.estimatedTotal,
           decisionNote: fixture.decisionNote ?? null,
           approvedAt: fixture.approvedAt ? new Date(fixture.approvedAt) : null,
-          paymentRequiredAt: fixture.paymentRequiredAt ? new Date(fixture.paymentRequiredAt) : null,
-          paymentFailedAt: fixture.paymentFailedAt ? new Date(fixture.paymentFailedAt) : null,
-          cancelledAt: fixture.cancelledAt ? new Date(fixture.cancelledAt) : null,
+          paymentRequiredAt: fixture.paymentRequiredAt
+            ? new Date(fixture.paymentRequiredAt)
+            : null,
+          paymentFailedAt: fixture.paymentFailedAt
+            ? new Date(fixture.paymentFailedAt)
+            : null,
+          cancelledAt: fixture.cancelledAt
+            ? new Date(fixture.cancelledAt)
+            : null,
           refundedAt: fixture.refundedAt ? new Date(fixture.refundedAt) : null,
           declinedAt: fixture.declinedAt ? new Date(fixture.declinedAt) : null,
           expiredAt: fixture.expiredAt ? new Date(fixture.expiredAt) : null,
-          convertedAt: fixture.convertedAt ? new Date(fixture.convertedAt) : null,
+          convertedAt: fixture.convertedAt
+            ? new Date(fixture.convertedAt)
+            : null,
           conversionReservedAt: fixture.conversionReservedAt
             ? new Date(fixture.conversionReservedAt)
             : null,
@@ -184,7 +215,8 @@ export const bookingsSeedModule: SeedModule = {
             : null,
           holdExpiresAt: new Date(fixture.holdExpiresAt),
           holdBlockId: fixture.holdBlock?.id ?? null,
-          paymentReconciliationRequired: fixture.paymentReconciliationRequired ?? false,
+          paymentReconciliationRequired:
+            fixture.paymentReconciliationRequired ?? false,
           createdAt: new Date(fixture.createdAt),
         },
       });
@@ -210,9 +242,15 @@ export const bookingsSeedModule: SeedModule = {
             lastAttemptedAt: fixture.payment.lastAttemptedAt
               ? new Date(fixture.payment.lastAttemptedAt)
               : null,
-            succeededAt: fixture.payment.succeededAt ? new Date(fixture.payment.succeededAt) : null,
-            failedAt: fixture.payment.failedAt ? new Date(fixture.payment.failedAt) : null,
-            cancelledAt: fixture.payment.cancelledAt ? new Date(fixture.payment.cancelledAt) : null,
+            succeededAt: fixture.payment.succeededAt
+              ? new Date(fixture.payment.succeededAt)
+              : null,
+            failedAt: fixture.payment.failedAt
+              ? new Date(fixture.payment.failedAt)
+              : null,
+            cancelledAt: fixture.payment.cancelledAt
+              ? new Date(fixture.payment.cancelledAt)
+              : null,
             createdAt: new Date(fixture.payment.createdAt),
           },
         });
@@ -230,11 +268,15 @@ export const bookingsSeedModule: SeedModule = {
               failureMessage: attempt.failureMessage ?? null,
               providerRequestId: attempt.providerRequestId ?? null,
               squarePaymentId: attempt.squarePaymentId ?? null,
-              requestPayload: attempt.requestPayload ? (attempt.requestPayload as never) : undefined,
+              requestPayload: attempt.requestPayload
+                ? (attempt.requestPayload as never)
+                : undefined,
               responsePayload: attempt.responsePayload
                 ? (attempt.responsePayload as never)
                 : undefined,
-              nextRetryAt: attempt.nextRetryAt ? new Date(attempt.nextRetryAt) : null,
+              nextRetryAt: attempt.nextRetryAt
+                ? new Date(attempt.nextRetryAt)
+                : null,
               createdAt: new Date(attempt.createdAt),
             },
           });
@@ -246,7 +288,7 @@ export const bookingsSeedModule: SeedModule = {
               id: refund.id,
               paymentId: fixture.payment.id,
               issuedByUserId: refund.issuedByUserEmail
-                ? state.userIdsByEmail.get(refund.issuedByUserEmail) ?? null
+                ? (state.userIdsByEmail.get(refund.issuedByUserEmail) ?? null)
                 : null,
               status: refund.status,
               amount: refund.amount,
@@ -254,7 +296,9 @@ export const bookingsSeedModule: SeedModule = {
               idempotencyKey: refund.idempotencyKey,
               squareRefundId: refund.squareRefundId ?? null,
               createdAt: new Date(refund.createdAt),
-              completedAt: refund.completedAt ? new Date(refund.completedAt) : null,
+              completedAt: refund.completedAt
+                ? new Date(refund.completedAt)
+                : null,
             },
           });
         }
@@ -291,7 +335,9 @@ export const bookingsSeedModule: SeedModule = {
               eventType: event.eventType,
               signatureValid: event.signatureValid,
               rawPayload: event.rawPayload as never,
-              processedAt: event.processedAt ? new Date(event.processedAt) : null,
+              processedAt: event.processedAt
+                ? new Date(event.processedAt)
+                : null,
               createdAt: new Date(event.createdAt),
             },
           });
@@ -330,12 +376,50 @@ export const bookingsSeedModule: SeedModule = {
             dailyPriceAmount: fixture.dailyPriceAmount,
             estimatedTotal: fixture.estimatedTotal,
             confirmedAt: new Date(fixture.renting.confirmedAt),
+            pickupInstructions: fixture.renting.pickupInstructions ?? null,
+            returnInstructions: fixture.renting.returnInstructions ?? null,
+            checkInReadyAt: fixture.renting.checkInReadyAt
+              ? new Date(fixture.renting.checkInReadyAt)
+              : null,
+            checkInCompletedAt: fixture.renting.checkInCompletedAt
+              ? new Date(fixture.renting.checkInCompletedAt)
+              : null,
+            returnDueAt: fixture.renting.returnDueAt
+              ? new Date(fixture.renting.returnDueAt)
+              : null,
+            completedAt: fixture.renting.completedAt
+              ? new Date(fixture.renting.completedAt)
+              : null,
+            disputedAt: fixture.renting.disputedAt
+              ? new Date(fixture.renting.disputedAt)
+              : null,
+            cancelledAt: fixture.renting.cancelledAt
+              ? new Date(fixture.renting.cancelledAt)
+              : null,
             createdAt: new Date(fixture.renting.createdAt),
           },
         });
+
+        if (fixture.renting.dispute) {
+          await prisma.rentingDispute.create({
+            data: {
+              id: fixture.renting.dispute.id,
+              rentingId: fixture.renting.id,
+              openedByUserId:
+                state.userIdsByEmail.get(
+                  fixture.renting.dispute.openedByUserEmail,
+                ) ?? renterId,
+              reason: fixture.renting.dispute.reason,
+              details: fixture.renting.dispute.details ?? null,
+              createdAt: new Date(fixture.renting.dispute.createdAt),
+            },
+          });
+        }
       }
     }
 
-    logger.info(`Seeded ${SEED_BOOKINGS.length} booking lifecycles with payments and rentings.`);
+    logger.info(
+      `Seeded ${SEED_BOOKINGS.length} booking lifecycles with payments and rentings.`,
+    );
   },
 };
