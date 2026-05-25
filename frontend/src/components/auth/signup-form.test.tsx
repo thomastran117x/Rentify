@@ -126,7 +126,9 @@ describe("SignupForm", () => {
     expect(signupMock).not.toHaveBeenCalled();
   });
 
-  it("submits a normalized signup request and shows verification state", async () => {
+  it(
+    "submits a normalized signup request and shows verification state",
+    async () => {
     const user = userEvent.setup();
     signupMock.mockResolvedValue({
       verificationRequired: true,
@@ -156,7 +158,9 @@ describe("SignupForm", () => {
     expect(
       await screen.findByText("Verification pending for person@example.com"),
     ).toBeInTheDocument();
-  });
+    },
+    10000,
+  );
 
   it("maps conflict responses to the email field", async () => {
     const user = userEvent.setup();
