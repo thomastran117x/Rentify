@@ -39,11 +39,12 @@ describe("site header shared helpers", () => {
   });
 
   it("renders an image avatar when an image URL exists", () => {
-    render(<UserAvatar name="Jane Doe" imageUrl="https://example.com/jane.jpg" />);
-
-    expect(screen.getByRole("img", { name: "Jane Doe avatar" })).toHaveAttribute(
-      "src",
-      "https://example.com/jane.jpg",
+    render(
+      <UserAvatar name="Jane Doe" imageUrl="https://example.com/jane.jpg" />,
     );
+
+    expect(
+      screen.getByRole("img", { name: "Jane Doe avatar" }),
+    ).toHaveAttribute("src", "https://example.com/jane.jpg");
   });
 });

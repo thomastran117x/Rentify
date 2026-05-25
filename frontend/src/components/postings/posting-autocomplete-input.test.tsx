@@ -69,7 +69,9 @@ describe("PostingAutocompleteInput", () => {
     fireEvent.change(input, { target: { value: "lo" } });
     await new Promise((resolve) => window.setTimeout(resolve, 300));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Loft retreat" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Loft retreat" }),
+      ).toBeInTheDocument();
     });
 
     expect(fetchPublicPostingAutocompleteMock).toHaveBeenCalledWith(
@@ -115,7 +117,9 @@ describe("PostingAutocompleteInput", () => {
     fireEvent.change(input, { target: { value: "ca" } });
     await new Promise((resolve) => window.setTimeout(resolve, 300));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Cabin stay" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Cabin stay" }),
+      ).toBeInTheDocument();
     });
 
     fireEvent.keyDown(input, { key: "ArrowDown" });

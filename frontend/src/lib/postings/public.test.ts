@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  PublicPostingDetailError,
-  fetchPublicPostingDetail,
-} from "./public";
+import { PublicPostingDetailError, fetchPublicPostingDetail } from "./public";
 import {
   formatPostingAttributeLabel,
   formatPostingAttributeValue,
@@ -16,60 +13,61 @@ describe("fetchPublicPostingDetail", () => {
   it("returns a public posting and supports formatting helpers", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            success: true,
-            message: "ok",
-            data: {
-              id: "posting-1",
-              ownerId: "owner-1",
-              status: "published",
-              variant: {
-                family: "place",
-                subtype: "workspace",
-              },
-              name: "Studio Loft",
-              description: "Bright workspace in the city core.",
-              pricing: {
-                currency: "CAD",
-                daily: {
-                  amount: 145,
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              message: "ok",
+              data: {
+                id: "posting-1",
+                ownerId: "owner-1",
+                status: "published",
+                variant: {
+                  family: "place",
+                  subtype: "workspace",
                 },
+                name: "Studio Loft",
+                description: "Bright workspace in the city core.",
+                pricing: {
+                  currency: "CAD",
+                  daily: {
+                    amount: 145,
+                  },
+                },
+                pricingCurrency: "CAD",
+                photos: [],
+                tags: ["wifi"],
+                details: {
+                  guest_capacity: 12,
+                  parking: true,
+                  amenities: ["wifi", "projector"],
+                },
+                availabilityStatus: "available",
+                effectiveMaxBookingDurationDays: 7,
+                availabilityBlocks: [],
+                location: {
+                  city: "Toronto",
+                  region: "Ontario",
+                  country: "Canada",
+                  latitude: 43.65,
+                  longitude: -79.38,
+                },
+                createdAt: "2026-05-01T00:00:00.000Z",
+                updatedAt: "2026-05-01T00:00:00.000Z",
               },
-              pricingCurrency: "CAD",
-              photos: [],
-              tags: ["wifi"],
-              details: {
-                guest_capacity: 12,
-                parking: true,
-                amenities: ["wifi", "projector"],
+              error: null,
+              meta: {
+                requestId: "request-1",
               },
-              availabilityStatus: "available",
-              effectiveMaxBookingDurationDays: 7,
-              availabilityBlocks: [],
-              location: {
-                city: "Toronto",
-                region: "Ontario",
-                country: "Canada",
-                latitude: 43.65,
-                longitude: -79.38,
+            }),
+            {
+              status: 200,
+              headers: {
+                "content-type": "application/json",
               },
-              createdAt: "2026-05-01T00:00:00.000Z",
-              updatedAt: "2026-05-01T00:00:00.000Z",
             },
-            error: null,
-            meta: {
-              requestId: "request-1",
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        ),
+          ),
       ),
     );
 
@@ -88,33 +86,34 @@ describe("fetchPublicPostingDetail", () => {
   it("throws a typed not-found error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            success: false,
-            message: "Posting could not be found.",
-            data: null,
-            error: {
-              code: "NOT_FOUND",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Posting could not be found.",
+              data: null,
+              error: {
+                code: "NOT_FOUND",
+              },
+              meta: {
+                requestId: "request-2",
+              },
+            }),
+            {
+              status: 404,
+              statusText: "Not Found",
+              headers: {
+                "content-type": "application/json",
+              },
             },
-            meta: {
-              requestId: "request-2",
-            },
-          }),
-          {
-            status: 404,
-            statusText: "Not Found",
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        ),
+          ),
       ),
     );
 
-    await expect(fetchPublicPostingDetail("missing-posting")).rejects.toMatchObject<
-      Partial<PublicPostingDetailError>
-    >({
+    await expect(
+      fetchPublicPostingDetail("missing-posting"),
+    ).rejects.toMatchObject<Partial<PublicPostingDetailError>>({
       message: "Posting could not be found.",
       debug: {
         status: 404,
@@ -125,27 +124,28 @@ describe("fetchPublicPostingDetail", () => {
   it("throws a typed server error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            success: false,
-            message: "Server exploded.",
-            data: null,
-            error: {
-              code: "INTERNAL_SERVER_ERROR",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Server exploded.",
+              data: null,
+              error: {
+                code: "INTERNAL_SERVER_ERROR",
+              },
+              meta: {
+                requestId: "request-3",
+              },
+            }),
+            {
+              status: 500,
+              statusText: "Internal Server Error",
+              headers: {
+                "content-type": "application/json",
+              },
             },
-            meta: {
-              requestId: "request-3",
-            },
-          }),
-          {
-            status: 500,
-            statusText: "Internal Server Error",
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        ),
+          ),
       ),
     );
 

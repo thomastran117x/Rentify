@@ -4,10 +4,7 @@ import { ApiError } from "@/lib/auth/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeSessionPanel } from "./home-session-panel";
 
-const {
-  useAuthMock,
-  logoutMock,
-} = vi.hoisted(() => ({
+const { useAuthMock, logoutMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   logoutMock: vi.fn(),
 }));
@@ -88,9 +85,7 @@ describe("HomeSessionPanel", () => {
       },
       clearSession,
     });
-    logoutMock.mockRejectedValue(
-      new ApiError("Expired", "UNAUTHORIZED", 401),
-    );
+    logoutMock.mockRejectedValue(new ApiError("Expired", "UNAUTHORIZED", 401));
 
     render(<HomeSessionPanel />);
 

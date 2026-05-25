@@ -64,24 +64,25 @@ describe("authApi", () => {
   });
 
   it("sends login requests with device headers and payload", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: sampleSession,
-          error: null,
-          meta: {
-            requestId: "request-1",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: sampleSession,
+            error: null,
+            meta: {
+              requestId: "request-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
           },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -115,27 +116,28 @@ describe("authApi", () => {
   });
 
   it("includes authorization and CSRF headers on authenticated writes", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            revoked: true,
-            tokenId: "token-1",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              revoked: true,
+              tokenId: "token-1",
+            },
+            error: null,
+            meta: {
+              requestId: "request-2",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
           },
-          error: null,
-          meta: {
-            requestId: "request-2",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 

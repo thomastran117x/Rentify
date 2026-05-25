@@ -52,9 +52,7 @@ describe("MarketingHeroSearch", () => {
     );
     await user.click(screen.getByRole("button", { name: "Search" }));
 
-    expect(routerPushMock).toHaveBeenCalledWith(
-      "/postings?q=camera%20gear",
-    );
+    expect(routerPushMock).toHaveBeenCalledWith("/postings?q=camera%20gear");
   });
 
   it("navigates from a suggested search chip", async () => {

@@ -41,29 +41,30 @@ describe("postingsApi", () => {
   });
 
   it("fetches a posting with auth and device headers", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            viewerReviewState: {
-              eligible: true,
-              hasOwnReview: false,
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              viewerReviewState: {
+                eligible: true,
+                hasOwnReview: false,
+              },
+            },
+            error: null,
+            meta: {
+              requestId: "request-1",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
             },
           },
-          error: null,
-          meta: {
-            requestId: "request-1",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -86,33 +87,34 @@ describe("postingsApi", () => {
   });
 
   it("posts booking quote requests with the provided payload", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            postingId: "posting-1",
-            bookable: true,
-            durationDays: 2,
-            pricingCurrency: "CAD",
-            dailyPriceAmount: 100,
-            estimatedTotal: 200,
-            maxBookingDurationDays: 14,
-            failureReasons: [],
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              postingId: "posting-1",
+              bookable: true,
+              durationDays: 2,
+              pricingCurrency: "CAD",
+              dailyPriceAmount: 100,
+              estimatedTotal: 200,
+              maxBookingDurationDays: 14,
+              failureReasons: [],
+            },
+            error: null,
+            meta: {
+              requestId: "request-2",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
           },
-          error: null,
-          meta: {
-            requestId: "request-2",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -142,24 +144,25 @@ describe("postingsApi", () => {
   });
 
   it("surfaces API errors for availability block mutations", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          message: "Validation failed.",
-          error: {
-            code: "VALIDATION_ERROR",
-            details: {
-              startAt: "required",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            message: "Validation failed.",
+            error: {
+              code: "VALIDATION_ERROR",
+              details: {
+                startAt: "required",
+              },
+            },
+          }),
+          {
+            status: 422,
+            headers: {
+              "content-type": "application/json",
             },
           },
-        }),
-        {
-          status: 422,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 

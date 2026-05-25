@@ -4,10 +4,7 @@ import { ApiError } from "@/lib/auth/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePasswordPanel } from "./home-password-panel";
 
-const {
-  useAuthMock,
-  changePasswordMock,
-} = vi.hoisted(() => ({
+const { useAuthMock, changePasswordMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   changePasswordMock: vi.fn(),
 }));
@@ -49,7 +46,9 @@ describe("HomePasswordPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
-    expect(screen.getByText("Current password is required.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Current password is required."),
+    ).toBeInTheDocument();
     expect(screen.getByText("New password is required.")).toBeInTheDocument();
     expect(
       screen.getByText("Please confirm your new password."),

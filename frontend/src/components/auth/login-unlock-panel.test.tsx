@@ -27,13 +27,7 @@ vi.mock("@/lib/auth/api", () => ({
 }));
 
 vi.mock("@/components/auth/auth-captcha-panel", () => ({
-  AuthCaptchaPanel: ({
-    token,
-    error,
-  }: {
-    token: string;
-    error?: string;
-  }) => (
+  AuthCaptchaPanel: ({ token, error }: { token: string; error?: string }) => (
     <div>
       <div>Captcha token: {token || "empty"}</div>
       {error ? <p>{error}</p> : null}
@@ -113,7 +107,9 @@ describe("LoginUnlockPanel", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Resend unlock code" }));
+    await user.click(
+      screen.getByRole("button", { name: "Resend unlock code" }),
+    );
 
     expect(resendUnlockLocalLoginMock).toHaveBeenCalledWith({
       email: "person@example.com",

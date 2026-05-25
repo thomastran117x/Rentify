@@ -41,46 +41,47 @@ describe("bookingsApi", () => {
   });
 
   it("builds owner dashboard query params and includes auth headers", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            items: [],
-            summary: {
-              approval: 0,
-              payment: 0,
-              expiringHold: 0,
-              paymentFailure: 0,
-              conversion: 0,
-              totalOpen: 0,
-              upcomingRentings: 0,
-              activeRentings: 0,
-              pastRentings: 0,
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              items: [],
+              summary: {
+                approval: 0,
+                payment: 0,
+                expiringHold: 0,
+                paymentFailure: 0,
+                conversion: 0,
+                totalOpen: 0,
+                upcomingRentings: 0,
+                activeRentings: 0,
+                pastRentings: 0,
+              },
+              pagination: {
+                page: 2,
+                pageSize: 10,
+                total: 0,
+                totalPages: 0,
+                hasNextPage: false,
+                hasPreviousPage: true,
+              },
+              postings: [],
             },
-            pagination: {
-              page: 2,
-              pageSize: 10,
-              total: 0,
-              totalPages: 0,
-              hasNextPage: false,
-              hasPreviousPage: true,
+            error: null,
+            meta: {
+              requestId: "request-1",
             },
-            postings: [],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
           },
-          error: null,
-          meta: {
-            requestId: "request-1",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -111,27 +112,28 @@ describe("bookingsApi", () => {
   });
 
   it("posts cancellation requests with the provided reason", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            id: "booking-1",
-            status: "cancelled",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              id: "booking-1",
+              status: "cancelled",
+            },
+            error: null,
+            meta: {
+              requestId: "request-2",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
           },
-          error: null,
-          meta: {
-            requestId: "request-2",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -156,24 +158,25 @@ describe("bookingsApi", () => {
   });
 
   it("surfaces API errors from renting mutations", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          message: "Validation failed.",
-          error: {
-            code: "VALIDATION_ERROR",
-            details: {
-              reason: "required",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            message: "Validation failed.",
+            error: {
+              code: "VALIDATION_ERROR",
+              details: {
+                reason: "required",
+              },
+            },
+          }),
+          {
+            status: 422,
+            headers: {
+              "content-type": "application/json",
             },
           },
-        }),
-        {
-          status: 422,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 

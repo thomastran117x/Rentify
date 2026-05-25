@@ -62,24 +62,25 @@ describe("fetchPublicPostingAutocomplete", () => {
   it("throws a typed error for API validation failures", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            success: false,
-            message: "Validation failed.",
-            data: null,
-            error: {
-              code: "VALIDATION_ERROR",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Validation failed.",
+              data: null,
+              error: {
+                code: "VALIDATION_ERROR",
+              },
+            }),
+            {
+              status: 400,
+              statusText: "Bad Request",
+              headers: {
+                "content-type": "application/json",
+              },
             },
-          }),
-          {
-            status: 400,
-            statusText: "Bad Request",
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        ),
+          ),
       ),
     );
 

@@ -40,13 +40,7 @@ vi.mock("@/lib/auth/api", () => ({
 }));
 
 vi.mock("@/components/auth/auth-captcha-panel", () => ({
-  AuthCaptchaPanel: ({
-    token,
-    error,
-  }: {
-    token: string;
-    error?: string;
-  }) => (
+  AuthCaptchaPanel: ({ token, error }: { token: string; error?: string }) => (
     <div>
       <div>Captcha token: {token || "empty"}</div>
       {error ? <p>{error}</p> : null}
@@ -59,11 +53,9 @@ vi.mock("@/components/auth/oauth-buttons", () => ({
 }));
 
 vi.mock("@/components/auth/signup-verification-panel", () => ({
-  SignupVerificationPanel: ({
-    result,
-  }: {
-    result: { email: string };
-  }) => <div>Verification pending for {result.email}</div>,
+  SignupVerificationPanel: ({ result }: { result: { email: string } }) => (
+    <div>Verification pending for {result.email}</div>
+  ),
 }));
 
 describe("SignupForm", () => {
@@ -107,7 +99,11 @@ describe("SignupForm", () => {
 
   it("shows validation errors for missing and invalid values", async () => {
     const user = userEvent.setup();
-    useAuthCaptchaTokenMock.mockReturnValue(["", vi.fn(), clearCaptchaTokenMock]);
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
 
     render(<SignupForm />);
 
@@ -126,9 +122,7 @@ describe("SignupForm", () => {
     expect(signupMock).not.toHaveBeenCalled();
   });
 
-  it(
-    "submits a normalized signup request and shows verification state",
-    async () => {
+  it("submits a normalized signup request and shows verification state", async () => {
     const user = userEvent.setup();
     signupMock.mockResolvedValue({
       verificationRequired: true,
@@ -158,9 +152,7 @@ describe("SignupForm", () => {
     expect(
       await screen.findByText("Verification pending for person@example.com"),
     ).toBeInTheDocument();
-    },
-    10000,
-  );
+  }, 10000);
 
   it("maps conflict responses to the email field", async () => {
     const user = userEvent.setup();
@@ -180,8 +172,12 @@ describe("SignupForm", () => {
     await user.type(screen.getByLabelText("Confirm password"), "password123");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByText("Account already exists.")).toBeInTheDocument();
-    expect(screen.getByText("This email is already in use.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Account already exists."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This email is already in use."),
+    ).toBeInTheDocument();
   });
 
   it("maps captcha failures and server failures to user-facing messages", async () => {

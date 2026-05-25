@@ -108,7 +108,9 @@ describe("analytics UI helpers", () => {
 
     expect(document.querySelector("svg")).toBeTruthy();
 
-    rerender(<MiniSparkline values={[]} accent="from-slate-950 to-slate-700" />);
+    rerender(
+      <MiniSparkline values={[]} accent="from-slate-950 to-slate-700" />,
+    );
     expect(document.querySelector("svg")).toBeFalsy();
   });
 

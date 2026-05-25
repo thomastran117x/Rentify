@@ -52,7 +52,9 @@ describe("PostingSearchForm", () => {
 
     expect(assignSpy).toHaveBeenCalledWith(
       `/postings?q=loft&tags=wifi&startAt=${encodeURIComponent(
-        new Date(toDateTimeLocalValue("2026-06-15T09:30:00.000Z")).toISOString(),
+        new Date(
+          toDateTimeLocalValue("2026-06-15T09:30:00.000Z"),
+        ).toISOString(),
       )}`,
     );
   });

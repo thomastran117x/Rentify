@@ -8,17 +8,13 @@ import type {
 } from "@/lib/bookings/types";
 import { AccountBookingsPanel } from "./account-bookings-panel";
 
-const {
-  listMineMock,
-  listOwnedMock,
-  getCancellationQuoteMock,
-  cancelMock,
-} = vi.hoisted(() => ({
-  listMineMock: vi.fn(),
-  listOwnedMock: vi.fn(),
-  getCancellationQuoteMock: vi.fn(),
-  cancelMock: vi.fn(),
-}));
+const { listMineMock, listOwnedMock, getCancellationQuoteMock, cancelMock } =
+  vi.hoisted(() => ({
+    listMineMock: vi.fn(),
+    listOwnedMock: vi.fn(),
+    getCancellationQuoteMock: vi.fn(),
+    cancelMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/bookings/api", () => ({
   bookingsApi: {
@@ -120,7 +116,9 @@ describe("AccountBookingsPanel", () => {
 
     render(<AccountBookingsPanel role="user" />);
 
-    expect(screen.getByText("Loading booking management...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading booking management..."),
+    ).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", { name: "Renter bookings" }),
     ).toBeInTheDocument();
@@ -197,9 +195,7 @@ describe("AccountBookingsPanel", () => {
       screen.getByRole("button", { name: "Review cancellation" }),
     );
 
-    expect(
-      await screen.findByText("Cancellation review"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Cancellation review")).toBeInTheDocument();
     await user.type(
       screen.getByRole("textbox", { name: "Owner cancellation reason" }),
       "  Schedule changed  ",

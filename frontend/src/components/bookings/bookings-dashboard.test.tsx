@@ -225,7 +225,9 @@ describe("BookingsDashboard", () => {
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/login");
     });
-    expect(screen.getByText("Loading bookings workspace...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading bookings workspace..."),
+    ).toBeInTheDocument();
   });
 
   it("shows a loading state while auth status is still resolving", () => {
@@ -236,7 +238,9 @@ describe("BookingsDashboard", () => {
 
     render(<BookingsDashboard />);
 
-    expect(screen.getByText("Loading bookings workspace...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading bookings workspace..."),
+    ).toBeInTheDocument();
   });
 
   it("loads the renter dashboard and shows the empty state when there are no items", async () => {
@@ -321,18 +325,20 @@ describe("BookingsDashboard", () => {
     expect(
       await screen.findByRole("button", { name: "Review cancellation" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Review cancellation" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review cancellation" }),
+    );
 
-    expect(
-      await screen.findByText("Cancellation review"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Cancellation review")).toBeInTheDocument();
     fireEvent.change(
       screen.getByRole("textbox", { name: "Owner cancellation reason" }),
       {
         target: { value: "  Guest asked to reschedule  " },
       },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm cancellation" }),
+    );
 
     await waitFor(() => {
       expect(cancelMock).toHaveBeenCalledWith("booking-cancel", {

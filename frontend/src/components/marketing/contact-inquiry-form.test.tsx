@@ -47,8 +47,8 @@ describe("ContactInquiryForm", () => {
     const setTimeoutSpy = vi
       .spyOn(window, "setTimeout")
       .mockImplementation((callback) => {
-      finishSubmission = callback as () => void;
-      return 1 as unknown as ReturnType<typeof window.setTimeout>;
+        finishSubmission = callback as () => void;
+        return 1 as unknown as ReturnType<typeof window.setTimeout>;
       });
 
     render(<ContactInquiryForm />);

@@ -41,66 +41,67 @@ describe("postingsAnalyticsApi", () => {
   });
 
   it("fetches owner analytics summaries with query params and headers", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            window: "30d",
-            totals: {
-              searchImpressions: 100,
-              searchClicks: 20,
-              views: 15,
-              uniqueViews: 12,
-              bookingRequests: 4,
-              approvedRequests: 3,
-              declinedRequests: 1,
-              expiredRequests: 0,
-              cancelledRequests: 0,
-              paymentFailedRequests: 0,
-              confirmedBookings: 2,
-              estimatedConfirmedRevenue: 400,
-              refundedRevenue: 0,
-              activeDaysPublished: 30,
-              calendarBlockedDays: 2,
-              confirmedBookedDays: 6,
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              window: "30d",
+              totals: {
+                searchImpressions: 100,
+                searchClicks: 20,
+                views: 15,
+                uniqueViews: 12,
+                bookingRequests: 4,
+                approvedRequests: 3,
+                declinedRequests: 1,
+                expiredRequests: 0,
+                cancelledRequests: 0,
+                paymentFailedRequests: 0,
+                confirmedBookings: 2,
+                estimatedConfirmedRevenue: 400,
+                refundedRevenue: 0,
+                activeDaysPublished: 30,
+                calendarBlockedDays: 2,
+                confirmedBookedDays: 6,
+              },
+              derivedMetrics: {
+                ctr: 0.2,
+                viewToRequestRate: 0.26,
+                clickToRequestRate: 0.2,
+                requestToApprovalRate: 0.75,
+                requestToConfirmedRate: 0.5,
+                utilizationRate: 0.2,
+                averageRevenuePerConfirmedBooking: 200,
+              },
+              dataAvailability: {
+                searchImpressions: "live",
+                searchClicks: "live",
+                views: "live",
+                bookingRequests: "live",
+                requestOutcomes: "live",
+                confirmedBookings: "live",
+                revenue: "live",
+                isPartial: false,
+              },
+              range: {
+                endAt: "2026-05-24T00:00:00.000Z",
+              },
             },
-            derivedMetrics: {
-              ctr: 0.2,
-              viewToRequestRate: 0.26,
-              clickToRequestRate: 0.2,
-              requestToApprovalRate: 0.75,
-              requestToConfirmedRate: 0.5,
-              utilizationRate: 0.2,
-              averageRevenuePerConfirmedBooking: 200,
+            error: null,
+            meta: {
+              requestId: "request-1",
             },
-            dataAvailability: {
-              searchImpressions: "live",
-              searchClicks: "live",
-              views: "live",
-              bookingRequests: "live",
-              requestOutcomes: "live",
-              confirmedBookings: "live",
-              revenue: "live",
-              isPartial: false,
-            },
-            range: {
-              endAt: "2026-05-24T00:00:00.000Z",
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
             },
           },
-          error: null,
-          meta: {
-            requestId: "request-1",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -123,48 +124,49 @@ describe("postingsAnalyticsApi", () => {
   });
 
   it("lists owner postings with default pagination", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: {
-            window: "7d",
-            postings: [],
-            pagination: {
-              page: 1,
-              pageSize: 20,
-              total: 0,
-              totalPages: 0,
-              hasNextPage: false,
-              hasPreviousPage: false,
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              window: "7d",
+              postings: [],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                total: 0,
+                totalPages: 0,
+                hasNextPage: false,
+                hasPreviousPage: false,
+              },
+              dataAvailability: {
+                searchImpressions: "live",
+                searchClicks: "live",
+                views: "live",
+                bookingRequests: "live",
+                requestOutcomes: "live",
+                confirmedBookings: "live",
+                revenue: "live",
+                isPartial: false,
+              },
+              range: {
+                endAt: "2026-05-24T00:00:00.000Z",
+              },
             },
-            dataAvailability: {
-              searchImpressions: "live",
-              searchClicks: "live",
-              views: "live",
-              bookingRequests: "live",
-              requestOutcomes: "live",
-              confirmedBookings: "live",
-              revenue: "live",
-              isPartial: false,
+            error: null,
+            meta: {
+              requestId: "request-2",
             },
-            range: {
-              endAt: "2026-05-24T00:00:00.000Z",
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
             },
           },
-          error: null,
-          meta: {
-            requestId: "request-2",
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
