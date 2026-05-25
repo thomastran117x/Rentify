@@ -2,7 +2,7 @@ import { jest } from "@jest/globals";
 
 function waitForLogger(): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, 25);
+    setTimeout(resolve, 50);
   });
 }
 
@@ -27,6 +27,16 @@ describe("logger failure handling", () => {
     process.env.LOG_FALLBACK_DIRECTORY = "C:/tmp/logger-failure";
 
     const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    jest.unstable_mockModule("@/configuration/logging/log-queue.service", () => ({
+      ApplicationLogQueueService: class {
+        async publishLogEvent(): Promise<void> {
+          throw new Error("publish failed");
+        }
+
+        async disconnect(): Promise<void> {}
+      },
+    }));
 
     jest.unstable_mockModule("node:fs/promises", async () => {
       const actual = await jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");

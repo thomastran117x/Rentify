@@ -535,6 +535,17 @@ describe("jwt middleware helpers", () => {
 
   it("postings controller getById preserves optional auth and tracks public views anonymously", async () => {
     let receivedViewerId: string | undefined;
+    const trackPublicView = jest.fn(
+      async (
+        posting: { id: string; ownerId: string },
+        client: ClientRequestContext,
+        viewerId?: string,
+      ) => {
+        expect(posting.id).toBe("posting-123");
+        expect(client.device.id).toBe("device-1");
+        expect(viewerId).toBeUndefined();
+      },
+    );
     const controller = new PostingsController(
       {
         getById: async (postingId: string, viewerId?: string) => {
@@ -545,16 +556,9 @@ describe("jwt middleware helpers", () => {
           };
         },
       } as never,
+      {} as never,
       {
-        trackPublicView: async (
-          posting: { id: string; ownerId: string },
-          client: ClientRequestContext,
-          viewerId?: string,
-        ) => {
-          expect(posting.id).toBe("posting-123");
-          expect(client.device.id).toBe("device-1");
-          expect(viewerId).toBeUndefined();
-        },
+        trackPublicView,
       } as never,
       {} as never,
       {
@@ -572,6 +576,7 @@ describe("jwt middleware helpers", () => {
 
     expect(receivedViewerId).toBeUndefined();
     expect(context.get("auth")).toBeUndefined();
+    expect(trackPublicView).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
