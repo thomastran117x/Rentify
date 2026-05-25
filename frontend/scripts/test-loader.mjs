@@ -27,7 +27,11 @@ export async function resolve(specifier, context, defaultResolve) {
       throw new Error(`Unable to resolve aliased specifier: ${specifier}`);
     }
 
-    return defaultResolve(pathToFileURL(resolvedPath).href, context, defaultResolve);
+    return defaultResolve(
+      pathToFileURL(resolvedPath).href,
+      context,
+      defaultResolve,
+    );
   }
 
   return defaultResolve(specifier, context, defaultResolve);

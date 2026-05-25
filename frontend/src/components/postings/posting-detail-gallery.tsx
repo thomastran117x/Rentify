@@ -10,13 +10,20 @@ interface PostingDetailGalleryProps {
   name: string;
 }
 
-export function PostingDetailGallery({ photos, name }: PostingDetailGalleryProps) {
+export function PostingDetailGallery({
+  photos,
+  name,
+}: PostingDetailGalleryProps) {
   const renderablePhotos = photos.filter((photo) =>
     isRenderablePreviewImageUrl(photo.thumbnailBlobUrl ?? photo.blobUrl),
   );
-  const [selectedPhotoId, setSelectedPhotoId] = useState(renderablePhotos[0]?.id ?? null);
+  const [selectedPhotoId, setSelectedPhotoId] = useState(
+    renderablePhotos[0]?.id ?? null,
+  );
   const selectedPhoto =
-    renderablePhotos.find((photo) => photo.id === selectedPhotoId) ?? renderablePhotos[0] ?? null;
+    renderablePhotos.find((photo) => photo.id === selectedPhotoId) ??
+    renderablePhotos[0] ??
+    null;
 
   return (
     <div className="space-y-4">
@@ -30,7 +37,9 @@ export function PostingDetailGallery({ photos, name }: PostingDetailGalleryProps
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className={theme.marketplace.resultFallback}>Preview Unavailable</div>
+            <div className={theme.marketplace.resultFallback}>
+              Preview Unavailable
+            </div>
           )}
         </div>
       </div>

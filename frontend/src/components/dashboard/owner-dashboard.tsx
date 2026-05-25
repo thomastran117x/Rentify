@@ -44,16 +44,24 @@ export function OwnerDashboard() {
   const [page, setPage] = useState(1);
   const [metricKey, setMetricKey] = useState<BucketMetricKey>("views");
   const [granularity, setGranularity] = useState<"hour" | "day">("day");
-  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null);
-  const [summary, setSummary] = useState<OwnerPostingsAnalyticsSummary | null>(null);
-  const [listing, setListing] = useState<PostingAnalyticsListResult | null>(null);
+  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(
+    null,
+  );
+  const [summary, setSummary] = useState<OwnerPostingsAnalyticsSummary | null>(
+    null,
+  );
+  const [listing, setListing] = useState<PostingAnalyticsListResult | null>(
+    null,
+  );
   const [detail, setDetail] = useState<PostingAnalyticsDetail | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(undefined);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -68,7 +76,11 @@ export function OwnerDashboard() {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || session.user.role === "user") {
+    if (
+      status !== "authenticated" ||
+      !session ||
+      session.user.role === "user"
+    ) {
       return;
     }
 
@@ -111,7 +123,11 @@ export function OwnerDashboard() {
         });
       } catch (error) {
         if (active) {
-          setOverviewError(error instanceof Error ? error.message : "Analytics could not be loaded.");
+          setOverviewError(
+            error instanceof Error
+              ? error.message
+              : "Analytics could not be loaded.",
+          );
         }
       } finally {
         if (active) {
@@ -143,7 +159,11 @@ export function OwnerDashboard() {
   }, [page, router, selectedPostingId, session, status, windowValue]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || session.user.role === "user") {
+    if (
+      status !== "authenticated" ||
+      !session ||
+      session.user.role === "user"
+    ) {
       return;
     }
 
@@ -164,10 +184,13 @@ export function OwnerDashboard() {
       }
 
       try {
-        const nextDetail = await postingsAnalyticsApi.getPostingDetail(resolvedPostingId, {
-          window: windowValue,
-          granularity: windowValue === "7d" ? granularity : "day",
-        });
+        const nextDetail = await postingsAnalyticsApi.getPostingDetail(
+          resolvedPostingId,
+          {
+            window: windowValue,
+            granularity: windowValue === "7d" ? granularity : "day",
+          },
+        );
 
         if (!active) {
           return;
@@ -180,7 +203,11 @@ export function OwnerDashboard() {
         });
       } catch (error) {
         if (active) {
-          setDetailError(error instanceof Error ? error.message : "Trend data could not be loaded.");
+          setDetailError(
+            error instanceof Error
+              ? error.message
+              : "Trend data could not be loaded.",
+          );
         }
       } finally {
         if (active) {
@@ -212,20 +239,28 @@ export function OwnerDashboard() {
   }, [granularity, router, selectedPostingId, session, status, windowValue]);
 
   const selectedPosting = useMemo(
-    () => listing?.postings.find((posting) => posting.postingId === selectedPostingId) ?? null,
+    () =>
+      listing?.postings.find(
+        (posting) => posting.postingId === selectedPostingId,
+      ) ?? null,
     [listing, selectedPostingId],
   );
 
   const topCtrPosting = useMemo(() => {
     return listing?.postings
       .filter((posting) => posting.totals.searchImpressions > 0)
-      .sort((left, right) => right.derivedMetrics.ctr - left.derivedMetrics.ctr)[0];
+      .sort(
+        (left, right) => right.derivedMetrics.ctr - left.derivedMetrics.ctr,
+      )[0];
   }, [listing]);
 
   const topConfirmedPosting = useMemo(() => {
     return listing?.postings
       .slice()
-      .sort((left, right) => right.totals.confirmedBookings - left.totals.confirmedBookings)[0];
+      .sort(
+        (left, right) =>
+          right.totals.confirmedBookings - left.totals.confirmedBookings,
+      )[0];
   }, [listing]);
 
   const needsAttentionPosting = useMemo(() => {
@@ -237,7 +272,11 @@ export function OwnerDashboard() {
     );
   }, [listing]);
 
-  if (status === "loading" || (status === "anonymous" && !session) || loadingOverview) {
+  if (
+    status === "loading" ||
+    (status === "anonymous" && !session) ||
+    loadingOverview
+  ) {
     return <LoadingDashboard />;
   }
 
@@ -256,17 +295,24 @@ export function OwnerDashboard() {
           <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7 sm:px-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">Owner dashboard</p>
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+                  Owner dashboard
+                </p>
                 <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
                   Watch your listing funnel move in real time
                 </h1>
                 <p className="mt-3 text-sm leading-7 text-slate-600">
-                  Search visibility, clicks, requests, approvals, confirmations, and revenue all land here so you can see where each posting is gaining momentum or leaking demand.
+                  Search visibility, clicks, requests, approvals, confirmations,
+                  and revenue all land here so you can see where each posting is
+                  gaining momentum or leaking demand.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <WindowSwitcher value={windowValue} onChange={setWindowValue} />
-                <FreshnessBadge lastUpdatedAt={lastUpdatedAt} refreshing={refreshing} />
+                <FreshnessBadge
+                  lastUpdatedAt={lastUpdatedAt}
+                  refreshing={refreshing}
+                />
               </div>
             </div>
           </div>
@@ -290,7 +336,10 @@ export function OwnerDashboard() {
           </div>
         ) : null}
 
-        {!overviewError && summary && listing && listing.postings.length === 0 ? (
+        {!overviewError &&
+        summary &&
+        listing &&
+        listing.postings.length === 0 ? (
           <div className="mt-6">
             <EmptyAnalyticsState
               title="No owner analytics yet"
@@ -307,35 +356,45 @@ export function OwnerDashboard() {
                 value={formatCompactNumber(summary.totals.searchImpressions)}
                 detail="How often your postings were surfaced in public search results."
                 accent="from-sky-500 to-cyan-400"
-                sparklineValues={detail?.buckets.map((bucket) => bucket.metrics.searchImpressions)}
+                sparklineValues={detail?.buckets.map(
+                  (bucket) => bucket.metrics.searchImpressions,
+                )}
               />
               <StatCard
                 eyebrow="Search Clicks"
                 value={formatCompactNumber(summary.totals.searchClicks)}
                 detail={`${formatPercent(summary.derivedMetrics.ctr)} click-through rate from search impression to click.`}
                 accent="from-cyan-500 to-emerald-400"
-                sparklineValues={detail?.buckets.map((bucket) => bucket.metrics.searchClicks)}
+                sparklineValues={detail?.buckets.map(
+                  (bucket) => bucket.metrics.searchClicks,
+                )}
               />
               <StatCard
                 eyebrow="Booking Requests"
                 value={formatCompactNumber(summary.totals.bookingRequests)}
                 detail={`${formatPercent(summary.derivedMetrics.viewToRequestRate)} of listing views turn into requests.`}
                 accent="from-amber-500 to-orange-400"
-                sparklineValues={detail?.buckets.map((bucket) => bucket.metrics.bookingRequests)}
+                sparklineValues={detail?.buckets.map(
+                  (bucket) => bucket.metrics.bookingRequests,
+                )}
               />
               <StatCard
                 eyebrow="Confirmed Bookings"
                 value={formatCompactNumber(summary.totals.confirmedBookings)}
                 detail={`${formatPercent(summary.derivedMetrics.requestToConfirmedRate)} of requests make it all the way to confirmed rentings.`}
                 accent="from-fuchsia-500 to-rose-400"
-                sparklineValues={detail?.buckets.map((bucket) => bucket.metrics.confirmedBookings)}
+                sparklineValues={detail?.buckets.map(
+                  (bucket) => bucket.metrics.confirmedBookings,
+                )}
               />
               <StatCard
                 eyebrow="Confirmed Revenue"
                 value={formatMoney(summary.totals.estimatedConfirmedRevenue)}
                 detail={`${formatMoney(summary.totals.refundedRevenue)} refunded in the current window.`}
                 accent="from-slate-950 to-slate-700"
-                sparklineValues={detail?.buckets.map((bucket) => bucket.metrics.estimatedConfirmedRevenue)}
+                sparklineValues={detail?.buckets.map(
+                  (bucket) => bucket.metrics.estimatedConfirmedRevenue,
+                )}
               />
             </section>
 
@@ -389,25 +448,36 @@ export function OwnerDashboard() {
               >
                 <FunnelCard
                   metrics={selectedPosting?.totals ?? summary.totals}
-                  derivedMetrics={selectedPosting?.derivedMetrics ?? summary.derivedMetrics}
+                  derivedMetrics={
+                    selectedPosting?.derivedMetrics ?? summary.derivedMetrics
+                  }
                 />
               </AnalyticsCard>
             </section>
 
             <section className="mt-6 grid gap-6 lg:grid-cols-3">
-              <AnalyticsCard title="Top movers" subtitle="Quick reads on momentum and drag.">
+              <AnalyticsCard
+                title="Top movers"
+                subtitle="Quick reads on momentum and drag."
+              >
                 <div className="space-y-3">
                   <MoverCard
                     label="Best CTR"
                     posting={topCtrPosting}
-                    value={topCtrPosting ? formatPercent(topCtrPosting.derivedMetrics.ctr) : "—"}
+                    value={
+                      topCtrPosting
+                        ? formatPercent(topCtrPosting.derivedMetrics.ctr)
+                        : "—"
+                    }
                   />
                   <MoverCard
                     label="Most confirmations"
                     posting={topConfirmedPosting}
                     value={
                       topConfirmedPosting
-                        ? formatCompactNumber(topConfirmedPosting.totals.confirmedBookings)
+                        ? formatCompactNumber(
+                            topConfirmedPosting.totals.confirmedBookings,
+                          )
                         : "—"
                     }
                   />
@@ -423,17 +493,32 @@ export function OwnerDashboard() {
                 </div>
               </AnalyticsCard>
 
-              <AnalyticsCard title="Needs attention" subtitle="These diagnostics help explain where conversion is dropping.">
-                <DiagnosticsList items={buildDashboardDiagnostics(selectedPosting?.totals ?? summary.totals)} />
+              <AnalyticsCard
+                title="Needs attention"
+                subtitle="These diagnostics help explain where conversion is dropping."
+              >
+                <DiagnosticsList
+                  items={buildDashboardDiagnostics(
+                    selectedPosting?.totals ?? summary.totals,
+                  )}
+                />
               </AnalyticsCard>
 
-              <AnalyticsCard title="Request outcomes" subtitle="Approvals are only part of the story. Outcome mix helps surface friction after inquiry.">
-                <OutcomeBars metrics={selectedPosting?.totals ?? summary.totals} />
+              <AnalyticsCard
+                title="Request outcomes"
+                subtitle="Approvals are only part of the story. Outcome mix helps surface friction after inquiry."
+              >
+                <OutcomeBars
+                  metrics={selectedPosting?.totals ?? summary.totals}
+                />
               </AnalyticsCard>
             </section>
 
             <section className="mt-6">
-              <AnalyticsCard title="Posting performance" subtitle="Use this list to switch the chart focus and compare conversion at a glance.">
+              <AnalyticsCard
+                title="Posting performance"
+                subtitle="Use this list to switch the chart focus and compare conversion at a glance."
+              >
                 <div className="overflow-hidden rounded-[1.4rem] border border-slate-200">
                   <div className="hidden grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 md:grid">
                     <span>Posting</span>
@@ -446,13 +531,16 @@ export function OwnerDashboard() {
 
                   <div className="divide-y divide-slate-200 bg-white">
                     {listing.postings.map((posting) => {
-                      const isSelected = posting.postingId === selectedPostingId;
+                      const isSelected =
+                        posting.postingId === selectedPostingId;
 
                       return (
                         <button
                           key={posting.postingId}
                           type="button"
-                          onClick={() => setSelectedPostingId(posting.postingId)}
+                          onClick={() =>
+                            setSelectedPostingId(posting.postingId)
+                          }
                           className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 md:grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] ${
                             isSelected ? "bg-sky-50/60" : ""
                           }`}
@@ -469,15 +557,42 @@ export function OwnerDashboard() {
                               ) : null}
                             </div>
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-950">{posting.name}</p>
-                              <p className="mt-1 text-xs text-slate-500">{formatStatus(posting.status)}</p>
+                              <p className="truncate text-sm font-semibold text-slate-950">
+                                {posting.name}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatStatus(posting.status)}
+                              </p>
                             </div>
                           </div>
-                          <MetricCell label="CTR" value={formatPercent(posting.derivedMetrics.ctr)} />
-                          <MetricCell label="Requests" value={formatCompactNumber(posting.totals.bookingRequests)} />
-                          <MetricCell label="Confirmed" value={formatCompactNumber(posting.totals.confirmedBookings)} />
-                          <MetricCell label="Utilization" value={formatPercent(posting.derivedMetrics.utilizationRate)} />
-                          <MetricCell label="Revenue" value={formatMoney(posting.totals.estimatedConfirmedRevenue)} />
+                          <MetricCell
+                            label="CTR"
+                            value={formatPercent(posting.derivedMetrics.ctr)}
+                          />
+                          <MetricCell
+                            label="Requests"
+                            value={formatCompactNumber(
+                              posting.totals.bookingRequests,
+                            )}
+                          />
+                          <MetricCell
+                            label="Confirmed"
+                            value={formatCompactNumber(
+                              posting.totals.confirmedBookings,
+                            )}
+                          />
+                          <MetricCell
+                            label="Utilization"
+                            value={formatPercent(
+                              posting.derivedMetrics.utilizationRate,
+                            )}
+                          />
+                          <MetricCell
+                            label="Revenue"
+                            value={formatMoney(
+                              posting.totals.estimatedConfirmedRevenue,
+                            )}
+                          />
                         </button>
                       );
                     })}
@@ -486,12 +601,15 @@ export function OwnerDashboard() {
 
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <p className="text-sm text-slate-500">
-                    Page {listing.pagination.page} of {listing.pagination.totalPages}
+                    Page {listing.pagination.page} of{" "}
+                    {listing.pagination.totalPages}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      onClick={() =>
+                        setPage((current) => Math.max(1, current - 1))
+                      }
                       disabled={!listing.pagination.hasPreviousPage}
                       className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -501,7 +619,9 @@ export function OwnerDashboard() {
                       type="button"
                       onClick={() =>
                         setPage((current) =>
-                          listing.pagination.hasNextPage ? current + 1 : current,
+                          listing.pagination.hasNextPage
+                            ? current + 1
+                            : current,
                         )
                       }
                       disabled={!listing.pagination.hasNextPage}
@@ -531,9 +651,15 @@ function MoverCard({
 }) {
   return (
     <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 text-lg font-semibold tracking-[-0.04em] text-slate-950">{value}</p>
-      <p className="mt-1 text-sm text-slate-500">{posting?.name ?? "No posting has enough data yet."}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-lg font-semibold tracking-[-0.04em] text-slate-950">
+        {value}
+      </p>
+      <p className="mt-1 text-sm text-slate-500">
+        {posting?.name ?? "No posting has enough data yet."}
+      </p>
     </div>
   );
 }
@@ -541,7 +667,9 @@ function MoverCard({
 function MetricCell({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 md:hidden">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 md:hidden">
+        {label}
+      </p>
       <p className="text-sm font-medium text-slate-700 md:pt-1">{value}</p>
     </div>
   );

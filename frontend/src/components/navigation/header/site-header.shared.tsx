@@ -22,7 +22,9 @@ export const navigationLinks: HeaderNavigationLink[] = [
   { href: "/contact", label: "Contact" },
 ];
 
-export function getAccountLinks(role?: SiteHeaderUserRole): HeaderAccountLink[] {
+export function getAccountLinks(
+  role?: SiteHeaderUserRole,
+): HeaderAccountLink[] {
   return [
     ...(role && role !== "user"
       ? [

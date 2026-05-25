@@ -18,7 +18,7 @@ declare global {
           callback?: (token: string) => void;
           "expired-callback"?: () => void;
           "error-callback"?: (error?: string | number) => void;
-        }
+        },
       ) => string;
       reset: (widgetId?: string) => void;
       remove?: (widgetId: string) => void;
@@ -98,8 +98,8 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
   if (!publicEnv.turnstileSiteKey) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Captcha is disabled for this environment. Local auth requests will use the development
-        verification bypass.
+        Captcha is disabled for this environment. Local auth requests will use
+        the development verification bypass.
       </div>
     );
   }
@@ -120,7 +120,8 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
 
       {hasError && (
         <p className="text-sm text-rose-700">
-          Cloudflare Turnstile could not be loaded. Refresh the page and try again.
+          Cloudflare Turnstile could not be loaded. Refresh the page and try
+          again.
         </p>
       )}
     </div>

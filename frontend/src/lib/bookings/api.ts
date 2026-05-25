@@ -35,7 +35,10 @@ function readCsrfToken(): string | undefined {
   return token ? decodeURIComponent(token) : undefined;
 }
 
-async function authenticatedJson<TResponse, TBody extends object | undefined = undefined>(
+async function authenticatedJson<
+  TResponse,
+  TBody extends object | undefined = undefined,
+>(
   method: "GET" | "POST" | "PUT",
   path: string,
   body?: TBody,
@@ -49,7 +52,9 @@ async function authenticatedJson<TResponse, TBody extends object | undefined = u
     headers: {
       accept: "application/json",
       ...(body ? { "content-type": "application/json" } : {}),
-      ...(session?.accessToken ? { authorization: `Bearer ${session.accessToken}` } : {}),
+      ...(session?.accessToken
+        ? { authorization: `Bearer ${session.accessToken}` }
+        : {}),
       ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
       ...(deviceId ? { "x-device-id": deviceId } : {}),
       ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
@@ -67,7 +72,9 @@ async function authenticatedJson<TResponse, TBody extends object | undefined = u
   return unwrapApiResponse<TResponse>(payload);
 }
 
-function buildQuery(params: Record<string, string | number | undefined>): string {
+function buildQuery(
+  params: Record<string, string | number | undefined>,
+): string {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -81,11 +88,17 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 
 export const bookingsApi = {
   listMine(): Promise<BookingRequestsListResult> {
-    return authenticatedJson<BookingRequestsListResult>("GET", "/booking-requests/me");
+    return authenticatedJson<BookingRequestsListResult>(
+      "GET",
+      "/booking-requests/me",
+    );
   },
 
   listOwned(): Promise<BookingRequestsListResult> {
-    return authenticatedJson<BookingRequestsListResult>("GET", "/booking-requests/owner");
+    return authenticatedJson<BookingRequestsListResult>(
+      "GET",
+      "/booking-requests/owner",
+    );
   },
 
   getMyDashboard(input?: {

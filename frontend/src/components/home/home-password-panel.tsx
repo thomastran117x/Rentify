@@ -91,15 +91,26 @@ export function HomePasswordPanel() {
         }
       }
 
-      setMessage("We couldn't update your password right now. Please try again.");
+      setMessage(
+        "We couldn't update your password right now. Please try again.",
+      );
     } finally {
       setPending(false);
     }
   }
 
-  const currentPasswordHasValue = useMemo(() => currentPassword.length > 0, [currentPassword]);
-  const newPasswordHasValue = useMemo(() => newPassword.length > 0, [newPassword]);
-  const confirmPasswordHasValue = useMemo(() => confirmPassword.length > 0, [confirmPassword]);
+  const currentPasswordHasValue = useMemo(
+    () => currentPassword.length > 0,
+    [currentPassword],
+  );
+  const newPasswordHasValue = useMemo(
+    () => newPassword.length > 0,
+    [newPassword],
+  );
+  const confirmPasswordHasValue = useMemo(
+    () => confirmPassword.length > 0,
+    [confirmPassword],
+  );
 
   if (status !== "authenticated") {
     return null;
@@ -127,7 +138,10 @@ export function HomePasswordPanel() {
         ) : null}
 
         <div className="space-y-2">
-          <label htmlFor="currentPassword" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="currentPassword"
+            className="text-sm font-medium text-slate-700"
+          >
             Current password
           </label>
           <input
@@ -151,7 +165,10 @@ export function HomePasswordPanel() {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="newPassword" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="newPassword"
+            className="text-sm font-medium text-slate-700"
+          >
             New password
           </label>
           <input
@@ -169,11 +186,16 @@ export function HomePasswordPanel() {
                   : "border-slate-200 hover:border-sky-200"
             }`}
           />
-          {errors.newPassword ? <p className="text-sm text-rose-700">{errors.newPassword}</p> : null}
+          {errors.newPassword ? (
+            <p className="text-sm text-rose-700">{errors.newPassword}</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="confirmPassword"
+            className="text-sm font-medium text-slate-700"
+          >
             Confirm new password
           </label>
           <input

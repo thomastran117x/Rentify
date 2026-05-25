@@ -4,7 +4,8 @@ import { MarketingPageShell } from "@/components/marketing/marketing-page-shell"
 
 export const metadata: Metadata = {
   title: "Services | Rentify",
-  description: "Explore the services Rentify provides for renters, owners, and teams managing listings at scale.",
+  description:
+    "Explore the services Rentify provides for renters, owners, and teams managing listings at scale.",
 };
 
 const serviceGroups = [
@@ -58,8 +59,8 @@ export default function ServicesPage() {
               Typical scope
             </p>
             <p className="mt-3 text-sm leading-7 text-slate-600">
-              Search, discovery, listing detail experiences, owner tooling, and the
-              supporting static pages that help users trust the marketplace.
+              Search, discovery, listing detail experiences, owner tooling, and
+              the supporting static pages that help users trust the marketplace.
             </p>
           </div>
           <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
@@ -67,8 +68,8 @@ export default function ServicesPage() {
               Best for
             </p>
             <p className="mt-2 text-sm leading-7 text-slate-900">
-              Renters comparing options, hosts presenting listings, and operations
-              teams who need a clearer marketplace front door.
+              Renters comparing options, hosts presenting listings, and
+              operations teams who need a clearer marketplace front door.
             </p>
           </div>
         </div>
@@ -86,7 +87,9 @@ export default function ServicesPage() {
             <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
               {group.name}
             </h2>
-            <p className="mt-4 text-sm leading-7 text-slate-600">{group.description}</p>
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              {group.description}
+            </p>
           </article>
         ))}
       </section>
@@ -101,8 +104,9 @@ export default function ServicesPage() {
               We can help you figure out the right path on the marketplace.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
-              If you are trying to find a rental, list an asset, or understand how a
-              policy affects your booking flow, the contact page is the next stop.
+              If you are trying to find a rental, list an asset, or understand
+              how a policy affects your booking flow, the contact page is the
+              next stop.
             </p>
           </div>
           <Link

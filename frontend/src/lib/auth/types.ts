@@ -61,7 +61,8 @@ export interface PersonalAccessTokenListResult {
   tokens: PersonalAccessTokenSummary[];
 }
 
-export interface CreatePersonalAccessTokenResult extends PersonalAccessTokenSummary {
+export interface CreatePersonalAccessTokenResult
+  extends PersonalAccessTokenSummary {
   token: string;
 }
 

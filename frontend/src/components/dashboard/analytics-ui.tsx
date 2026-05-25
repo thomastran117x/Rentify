@@ -20,12 +20,32 @@ export const CHART_METRICS: Array<{
   tone: string;
   formatter?: "money";
 }> = [
-  { key: "searchImpressions", label: "Impressions", tone: "from-sky-500 to-cyan-400" },
-  { key: "searchClicks", label: "Search clicks", tone: "from-cyan-500 to-emerald-400" },
+  {
+    key: "searchImpressions",
+    label: "Impressions",
+    tone: "from-sky-500 to-cyan-400",
+  },
+  {
+    key: "searchClicks",
+    label: "Search clicks",
+    tone: "from-cyan-500 to-emerald-400",
+  },
   { key: "views", label: "Listing views", tone: "from-indigo-500 to-sky-400" },
-  { key: "bookingRequests", label: "Requests", tone: "from-amber-500 to-orange-400" },
-  { key: "approvedRequests", label: "Approvals", tone: "from-emerald-500 to-lime-400" },
-  { key: "confirmedBookings", label: "Confirmations", tone: "from-fuchsia-500 to-rose-400" },
+  {
+    key: "bookingRequests",
+    label: "Requests",
+    tone: "from-amber-500 to-orange-400",
+  },
+  {
+    key: "approvedRequests",
+    label: "Approvals",
+    tone: "from-emerald-500 to-lime-400",
+  },
+  {
+    key: "confirmedBookings",
+    label: "Confirmations",
+    tone: "from-fuchsia-500 to-rose-400",
+  },
   {
     key: "estimatedConfirmedRevenue",
     label: "Confirmed revenue",
@@ -187,8 +207,12 @@ export function AnalyticsCard({
     <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-[-0.03em] text-slate-950">{title}</h2>
-          {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+          <h2 className="text-lg font-semibold tracking-[-0.03em] text-slate-950">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          ) : null}
         </div>
         {action ? <div>{action}</div> : null}
       </div>
@@ -206,8 +230,12 @@ export function FreshnessBadge({
 }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800">
-      <span className={`h-2 w-2 rounded-full ${refreshing ? "bg-amber-500" : "bg-emerald-500"}`} />
-      {refreshing ? "Refreshing..." : `Live · ${formatTimestamp(lastUpdatedAt)}`}
+      <span
+        className={`h-2 w-2 rounded-full ${refreshing ? "bg-amber-500" : "bg-emerald-500"}`}
+      />
+      {refreshing
+        ? "Refreshing..."
+        : `Live · ${formatTimestamp(lastUpdatedAt)}`}
     </div>
   );
 }
@@ -230,8 +258,12 @@ export function StatCard({
   const content = (
     <div className="group rounded-[1.6rem] border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
       <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${accent}`} />
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-slate-950">{value}</p>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {eyebrow}
+      </p>
+      <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
+        {value}
+      </p>
       <p className="mt-2 min-h-10 text-sm leading-6 text-slate-500">{detail}</p>
       <div className="mt-4">
         <MiniSparkline values={sparklineValues ?? []} accent={accent} />
@@ -320,14 +352,29 @@ export function TrendChart({
           strokeLinejoin="round"
         />
         {points.map((point) => (
-          <circle key={`${point.x}-${point.y}`} cx={point.x} cy={point.y} r="4" fill="white" stroke="rgb(15 23 42)" strokeWidth="2" />
+          <circle
+            key={`${point.x}-${point.y}`}
+            cx={point.x}
+            cy={point.y}
+            r="4"
+            fill="white"
+            stroke="rgb(15 23 42)"
+            strokeWidth="2"
+          />
         ))}
       </svg>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-4 lg:grid-cols-6">
         {buckets.slice(Math.max(0, buckets.length - 6)).map((bucket) => (
-          <div key={bucket.bucketStart} className="rounded-xl bg-white px-3 py-2">
-            <p className="font-medium text-slate-700">{formatBucketLabel(bucket)}</p>
-            <p className="mt-1 text-slate-500">{formatMetricValue(metricKey, bucket.metrics[metricKey])}</p>
+          <div
+            key={bucket.bucketStart}
+            className="rounded-xl bg-white px-3 py-2"
+          >
+            <p className="font-medium text-slate-700">
+              {formatBucketLabel(bucket)}
+            </p>
+            <p className="mt-1 text-slate-500">
+              {formatMetricValue(metricKey, bucket.metrics[metricKey])}
+            </p>
           </div>
         ))}
       </div>
@@ -343,30 +390,67 @@ export function FunnelCard({
   derivedMetrics: PostingAnalyticsDerivedMetrics;
 }) {
   const steps = [
-    { label: "Impressions", value: metrics.searchImpressions, note: "Discovery in search results" },
-    { label: "Search clicks", value: metrics.searchClicks, note: formatPercent(derivedMetrics.ctr) + " CTR" },
-    { label: "Listing views", value: metrics.views, note: formatWholeNumber(metrics.uniqueViews) + " unique viewers" },
-    { label: "Requests", value: metrics.bookingRequests, note: formatPercent(derivedMetrics.viewToRequestRate) + " view-to-request" },
-    { label: "Approvals", value: metrics.approvedRequests, note: formatPercent(derivedMetrics.requestToApprovalRate) + " approval rate" },
-    { label: "Confirmations", value: metrics.confirmedBookings, note: formatPercent(derivedMetrics.requestToConfirmedRate) + " request-to-confirmed" },
+    {
+      label: "Impressions",
+      value: metrics.searchImpressions,
+      note: "Discovery in search results",
+    },
+    {
+      label: "Search clicks",
+      value: metrics.searchClicks,
+      note: formatPercent(derivedMetrics.ctr) + " CTR",
+    },
+    {
+      label: "Listing views",
+      value: metrics.views,
+      note: formatWholeNumber(metrics.uniqueViews) + " unique viewers",
+    },
+    {
+      label: "Requests",
+      value: metrics.bookingRequests,
+      note:
+        formatPercent(derivedMetrics.viewToRequestRate) + " view-to-request",
+    },
+    {
+      label: "Approvals",
+      value: metrics.approvedRequests,
+      note:
+        formatPercent(derivedMetrics.requestToApprovalRate) + " approval rate",
+    },
+    {
+      label: "Confirmations",
+      value: metrics.confirmedBookings,
+      note:
+        formatPercent(derivedMetrics.requestToConfirmedRate) +
+        " request-to-confirmed",
+    },
   ];
   const maxValue = Math.max(...steps.map((step) => step.value), 1);
 
   return (
     <div className="space-y-3">
       {steps.map((step) => (
-        <div key={step.label} className="rounded-[1.3rem] border border-slate-200 bg-slate-50 p-3">
+        <div
+          key={step.label}
+          className="rounded-[1.3rem] border border-slate-200 bg-slate-50 p-3"
+        >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-slate-900">{step.label}</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {step.label}
+              </p>
               <p className="text-xs text-slate-500">{step.note}</p>
             </div>
-            <p className="text-base font-semibold text-slate-950">{formatWholeNumber(step.value)}</p>
+            <p className="text-base font-semibold text-slate-950">
+              {formatWholeNumber(step.value)}
+            </p>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
             <div
               className="h-full rounded-full bg-gradient-to-r from-slate-950 via-slate-700 to-slate-500"
-              style={{ width: `${Math.max(8, (step.value / maxValue) * 100)}%` }}
+              style={{
+                width: `${Math.max(8, (step.value / maxValue) * 100)}%`,
+              }}
             />
           </div>
         </div>
@@ -375,17 +459,25 @@ export function FunnelCard({
   );
 }
 
-export function OutcomeBars({
-  metrics,
-}: {
-  metrics: PostingAnalyticsMetrics;
-}) {
+export function OutcomeBars({ metrics }: { metrics: PostingAnalyticsMetrics }) {
   const rows = [
-    { label: "Approved", value: metrics.approvedRequests, tone: "bg-emerald-500" },
+    {
+      label: "Approved",
+      value: metrics.approvedRequests,
+      tone: "bg-emerald-500",
+    },
     { label: "Declined", value: metrics.declinedRequests, tone: "bg-rose-500" },
     { label: "Expired", value: metrics.expiredRequests, tone: "bg-amber-500" },
-    { label: "Cancelled", value: metrics.cancelledRequests, tone: "bg-slate-500" },
-    { label: "Payment failed", value: metrics.paymentFailedRequests, tone: "bg-fuchsia-500" },
+    {
+      label: "Cancelled",
+      value: metrics.cancelledRequests,
+      tone: "bg-slate-500",
+    },
+    {
+      label: "Payment failed",
+      value: metrics.paymentFailedRequests,
+      tone: "bg-fuchsia-500",
+    },
   ];
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
 
@@ -395,10 +487,15 @@ export function OutcomeBars({
         <div key={row.label}>
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-slate-700">{row.label}</span>
-            <span className="text-slate-500">{formatWholeNumber(row.value)}</span>
+            <span className="text-slate-500">
+              {formatWholeNumber(row.value)}
+            </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className={`h-full rounded-full ${row.tone}`} style={{ width: `${(row.value / maxValue) * 100}%` }} />
+            <div
+              className={`h-full rounded-full ${row.tone}`}
+              style={{ width: `${(row.value / maxValue) * 100}%` }}
+            />
           </div>
         </div>
       ))}
@@ -409,7 +506,11 @@ export function OutcomeBars({
 export function DiagnosticsList({
   items,
 }: {
-  items: Array<{ title: string; detail: string; tone: "amber" | "emerald" | "rose" | "slate" }>;
+  items: Array<{
+    title: string;
+    detail: string;
+    tone: "amber" | "emerald" | "rose" | "slate";
+  }>;
 }) {
   const toneClasses = {
     amber: "border-amber-200 bg-amber-50 text-amber-900",
@@ -421,7 +522,8 @@ export function DiagnosticsList({
   if (items.length === 0) {
     return (
       <div className="rounded-[1.3rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-        More diagnostics will appear once this posting has enough search and booking activity to compare stages.
+        More diagnostics will appear once this posting has enough search and
+        booking activity to compare stages.
       </div>
     );
   }
@@ -429,7 +531,10 @@ export function DiagnosticsList({
   return (
     <div className="grid gap-3">
       {items.map((item) => (
-        <div key={item.title} className={`rounded-[1.3rem] border px-4 py-4 ${toneClasses[item.tone]}`}>
+        <div
+          key={item.title}
+          className={`rounded-[1.3rem] border px-4 py-4 ${toneClasses[item.tone]}`}
+        >
           <p className="font-semibold">{item.title}</p>
           <p className="mt-1 text-sm opacity-80">{item.detail}</p>
         </div>
@@ -448,7 +553,9 @@ export function EmptyAnalyticsState({
   return (
     <div className="rounded-[1.7rem] border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
       <p className="text-lg font-semibold text-slate-950">{title}</p>
-      <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500">{description}</p>
+      <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+        {description}
+      </p>
     </div>
   );
 }
@@ -475,10 +582,15 @@ export function RestrictedState() {
   return (
     <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900">
       <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">Dashboard</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950">Owner analytics unlock when you start hosting</h1>
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+          Dashboard
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
+          Owner analytics unlock when you start hosting
+        </h1>
         <p className="mt-4 text-sm leading-7 text-slate-600">
-          This workspace is reserved for owner accounts because it summarizes posting performance, booking conversion, and revenue trends.
+          This workspace is reserved for owner accounts because it summarizes
+          posting performance, booking conversion, and revenue trends.
         </p>
         <div className="mt-6">
           <Link
@@ -500,7 +612,10 @@ export function LoadingDashboard() {
         <div className="h-28 rounded-[2rem] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]" />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-40 rounded-[1.6rem] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]" />
+            <div
+              key={index}
+              className="h-40 rounded-[1.6rem] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]"
+            />
           ))}
         </div>
       </div>
@@ -508,7 +623,9 @@ export function LoadingDashboard() {
   );
 }
 
-export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Array<{
+export function buildDashboardDiagnostics(
+  metrics: PostingAnalyticsMetrics,
+): Array<{
   title: string;
   detail: string;
   tone: "amber" | "emerald" | "rose" | "slate";
@@ -522,7 +639,8 @@ export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Arr
   if (metrics.searchImpressions >= 25 && metrics.searchClicks === 0) {
     diagnostics.push({
       title: "High exposure, no search clicks yet",
-      detail: "Your listings are appearing in search, but titles, thumbnails, or price positioning may not be compelling enough to earn the next click.",
+      detail:
+        "Your listings are appearing in search, but titles, thumbnails, or price positioning may not be compelling enough to earn the next click.",
       tone: "amber",
     });
   }
@@ -530,7 +648,8 @@ export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Arr
   if (metrics.views >= 10 && metrics.bookingRequests === 0) {
     diagnostics.push({
       title: "Views are not converting into requests",
-      detail: "Shoppers are landing on the posting, but the value proposition may need stronger photos, clearer availability, or better pricing context.",
+      detail:
+        "Shoppers are landing on the posting, but the value proposition may need stronger photos, clearer availability, or better pricing context.",
       tone: "rose",
     });
   }
@@ -538,7 +657,8 @@ export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Arr
   if (metrics.bookingRequests > 0 && metrics.confirmedBookings === 0) {
     diagnostics.push({
       title: "Requests are coming in, but none are confirming",
-      detail: "The drop-off is happening after inquiry. Approval speed, payment friction, and calendar certainty are worth checking first.",
+      detail:
+        "The drop-off is happening after inquiry. Approval speed, payment friction, and calendar certainty are worth checking first.",
       tone: "amber",
     });
   }
@@ -546,7 +666,8 @@ export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Arr
   if (metrics.confirmedBookings > 0) {
     diagnostics.push({
       title: "The funnel is producing confirmed bookings",
-      detail: "This posting is already converting. Use the live trend chart to spot what changed when performance improved.",
+      detail:
+        "This posting is already converting. Use the live trend chart to spot what changed when performance improved.",
       tone: "emerald",
     });
   }
@@ -554,7 +675,10 @@ export function buildDashboardDiagnostics(metrics: PostingAnalyticsMetrics): Arr
   return diagnostics.slice(0, 3);
 }
 
-export function formatMetricValue(metricKey: BucketMetricKey, value: number): string {
+export function formatMetricValue(
+  metricKey: BucketMetricKey,
+  value: number,
+): string {
   const metric = CHART_METRICS.find((item) => item.key === metricKey);
 
   if (metric?.formatter === "money") {
@@ -569,7 +693,10 @@ function buildChartPoints(values: number[], width: number, height: number) {
   const maxValue = Math.max(...safeValues, 1);
 
   return safeValues.map((value, index) => ({
-    x: safeValues.length === 1 ? width / 2 : (index / (safeValues.length - 1)) * width,
+    x:
+      safeValues.length === 1
+        ? width / 2
+        : (index / (safeValues.length - 1)) * width,
     y: height - (value / maxValue) * (height - 12) - 6,
   }));
 }

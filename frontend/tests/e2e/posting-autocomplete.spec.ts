@@ -12,7 +12,9 @@ function collectConsoleErrors(page: Page) {
   return errors;
 }
 
-test("hero autocomplete navigates to postings with the selected suggestion", async ({ page }) => {
+test("hero autocomplete navigates to postings with the selected suggestion", async ({
+  page,
+}) => {
   const consoleErrors = collectConsoleErrors(page);
 
   await page.goto("/");
@@ -20,7 +22,9 @@ test("hero autocomplete navigates to postings with the selected suggestion", asy
   const searchInput = page.getByPlaceholder("What are you looking for?");
   await searchInput.fill("tor");
 
-  await expect(page.getByRole("button", { name: "Downtown Toronto Loft" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Downtown Toronto Loft" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Downtown Toronto Loft" }).click();
 
   await expect(page).toHaveURL(/\/postings/);
@@ -38,10 +42,14 @@ test("postings autocomplete preserves the family filter when a suggestion is sel
 
   await page.goto("/postings?family=vehicle");
 
-  const searchInput = page.getByPlaceholder("Search cameras, private rooms, bikes, tools...");
+  const searchInput = page.getByPlaceholder(
+    "Search cameras, private rooms, bikes, tools...",
+  );
   await searchInput.fill("trail");
 
-  await expect(page.getByRole("button", { name: "Weekend Trail E-Bike" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Weekend Trail E-Bike" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Weekend Trail E-Bike" }).click();
 
   await expect(page).toHaveURL(/\/postings/);
@@ -52,15 +60,21 @@ test("postings autocomplete preserves the family filter when a suggestion is sel
   expect(consoleErrors).toEqual([]);
 });
 
-test("keyboard navigation selects an autocomplete suggestion", async ({ page }) => {
+test("keyboard navigation selects an autocomplete suggestion", async ({
+  page,
+}) => {
   const consoleErrors = collectConsoleErrors(page);
 
   await page.goto("/postings?family=vehicle");
 
-  const searchInput = page.getByPlaceholder("Search cameras, private rooms, bikes, tools...");
+  const searchInput = page.getByPlaceholder(
+    "Search cameras, private rooms, bikes, tools...",
+  );
   await searchInput.fill("trail");
 
-  await expect(page.getByRole("button", { name: "Weekend Trail E-Bike" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Weekend Trail E-Bike" }),
+  ).toBeVisible();
   await searchInput.press("ArrowDown");
   await searchInput.press("Enter");
 
@@ -72,7 +86,9 @@ test("keyboard navigation selects an autocomplete suggestion", async ({ page }) 
   expect(consoleErrors).toEqual([]);
 });
 
-test("raw search submission still works when autocomplete fails", async ({ page }) => {
+test("raw search submission still works when autocomplete fails", async ({
+  page,
+}) => {
   const consoleErrors = collectConsoleErrors(page);
 
   await page.route("**/api/v1/postings/autocomplete**", async (route) => {

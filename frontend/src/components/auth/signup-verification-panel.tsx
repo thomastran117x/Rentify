@@ -25,22 +25,29 @@ type VerificationFailureResult = {
   fieldError?: string;
 };
 
-function getVerificationFailureResult(error: unknown): VerificationFailureResult {
+function getVerificationFailureResult(
+  error: unknown,
+): VerificationFailureResult {
   const apiError = error as ApiErrorShape | undefined;
   const status = apiError?.status;
   const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as { retryAfterSeconds?: number } | undefined;
+  const details = apiError?.body?.details as
+    | { retryAfterSeconds?: number }
+    | undefined;
 
   if (status === 400) {
     return {
       generalError: null,
-      fieldError: message || "Enter the 6-digit verification code from your email.",
+      fieldError:
+        message || "Enter the 6-digit verification code from your email.",
     };
   }
 
   if (status === 409) {
     return {
-      generalError: message || "This email has already been verified. Try signing in instead.",
+      generalError:
+        message ||
+        "This email has already been verified. Try signing in instead.",
       fieldError: undefined,
     };
   }
@@ -51,20 +58,23 @@ function getVerificationFailureResult(error: unknown): VerificationFailureResult
     return {
       generalError: retryAfterSeconds
         ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message || "A verification code was sent recently. Please wait before retrying.",
+        : message ||
+          "A verification code was sent recently. Please wait before retrying.",
       fieldError: undefined,
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
       fieldError: undefined,
     };
   }
 
   return {
-    generalError: "We couldn't verify your email right now. Check your connection and try again.",
+    generalError:
+      "We couldn't verify your email right now. Check your connection and try again.",
     fieldError: undefined,
   };
 }
@@ -74,26 +84,31 @@ function getResendFailureResult(error: unknown): VerificationFailureResult {
   const status = apiError?.status;
   const code = apiError?.body?.code;
   const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as { retryAfterSeconds?: number } | undefined;
+  const details = apiError?.body?.details as
+    | { retryAfterSeconds?: number }
+    | undefined;
 
   if (status === 400) {
     switch (code) {
       case "CAPTCHA_REQUIRED":
       case "CAPTCHA_MISSING":
         return {
-          generalError: "Please complete the security check before requesting another code.",
+          generalError:
+            "Please complete the security check before requesting another code.",
           fieldError: "Complete the verification to continue.",
         };
       case "CAPTCHA_INVALID":
       case "CAPTCHA_EXPIRED":
       case "TURNSTILE_VALIDATION_FAILED":
         return {
-          generalError: "The security check expired or failed. Please try again.",
+          generalError:
+            "The security check expired or failed. Please try again.",
           fieldError: "Please complete the verification again.",
         };
       default:
         return {
-          generalError: message || "We couldn't send another verification code right now.",
+          generalError:
+            message || "We couldn't send another verification code right now.",
         };
     }
   }
@@ -104,18 +119,21 @@ function getResendFailureResult(error: unknown): VerificationFailureResult {
     return {
       generalError: retryAfterSeconds
         ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message || "A verification code was sent recently. Please wait before retrying.",
+        : message ||
+          "A verification code was sent recently. Please wait before retrying.",
     };
   }
 
   if (status !== undefined && status >= 500) {
     return {
-      generalError: "Something went wrong on our side. Please try again in a moment.",
+      generalError:
+        "Something went wrong on our side. Please try again in a moment.",
     };
   }
 
   return {
-    generalError: "We couldn't resend the verification code right now. Check your connection and try again.",
+    generalError:
+      "We couldn't resend the verification code right now. Check your connection and try again.",
   };
 }
 
@@ -123,7 +141,9 @@ interface SignupVerificationPanelProps {
   result: SignupVerificationPendingResult;
 }
 
-export function SignupVerificationPanel({ result }: SignupVerificationPanelProps) {
+export function SignupVerificationPanel({
+  result,
+}: SignupVerificationPanelProps) {
   const router = useRouter();
   const { setSession } = useAuth();
 
@@ -133,7 +153,8 @@ export function SignupVerificationPanel({ result }: SignupVerificationPanelProps
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [resentMessage, setResentMessage] = useState<string | null>(null);
-  const [captchaToken, setCaptchaToken, clearCaptchaToken] = useAuthCaptchaToken();
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken();
   const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   async function handleVerify(event: React.FormEvent<HTMLFormElement>) {
@@ -187,7 +208,9 @@ export function SignupVerificationPanel({ result }: SignupVerificationPanelProps
         captchaToken,
       });
 
-      setResentMessage("If this email needs verification, a new code is on the way.");
+      setResentMessage(
+        "If this email needs verification, a new code is on the way.",
+      );
     } catch (error) {
       const failure = getResendFailureResult(error);
       setGeneralError(failure.generalError);
@@ -245,10 +268,13 @@ export function SignupVerificationPanel({ result }: SignupVerificationPanelProps
             }`}
           />
 
-          {codeError ? <p className={theme.auth.fieldErrorText}>{codeError}</p> : null}
+          {codeError ? (
+            <p className={theme.auth.fieldErrorText}>{codeError}</p>
+          ) : null}
           {!codeError ? (
             <p className={theme.auth.fieldText}>
-              Enter the 6-digit code from your email to finish creating your account.
+              Enter the 6-digit code from your email to finish creating your
+              account.
             </p>
           ) : null}
         </div>

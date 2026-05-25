@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { theme } from "@/styles/theme";
-import {
-  footerLinkGroups,
-  type FooterLinkItem,
-} from "./site-footer.shared";
+import { footerLinkGroups, type FooterLinkItem } from "./site-footer.shared";
 
 interface FooterLinkGroupProps {
   title: string;

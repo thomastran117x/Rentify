@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, CircleDollarSign, ReceiptText, XCircle } from "lucide-react";
+import {
+  CalendarDays,
+  CircleDollarSign,
+  ReceiptText,
+  XCircle,
+} from "lucide-react";
 import { bookingsApi } from "@/lib/bookings/api";
 import type {
   BookingCancellationQuoteResult,
@@ -50,7 +55,9 @@ function humanizeStatus(status: string): string {
 }
 
 function canReviewCancellation(booking: BookingRequestRecord): boolean {
-  return !["declined", "expired", "cancelled", "refunded"].includes(booking.status);
+  return !["declined", "expired", "cancelled", "refunded"].includes(
+    booking.status,
+  );
 }
 
 interface BookingListSectionProps {
@@ -120,8 +127,17 @@ function BookingListSection({
                     </div>
                     <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                       <p>{formatDateRange(booking.startAt, booking.endAt)}</p>
-                      <p>{formatMoney(booking.estimatedTotal, booking.pricingCurrency)} estimated</p>
-                      <p>{booking.guestCount} guest{booking.guestCount === 1 ? "" : "s"}</p>
+                      <p>
+                        {formatMoney(
+                          booking.estimatedTotal,
+                          booking.pricingCurrency,
+                        )}{" "}
+                        estimated
+                      </p>
+                      <p>
+                        {booking.guestCount} guest
+                        {booking.guestCount === 1 ? "" : "s"}
+                      </p>
                       <p>Requested {formatDateTime(booking.createdAt)}</p>
                     </div>
                   </div>
@@ -130,26 +146,42 @@ function BookingListSection({
                     <button
                       type="button"
                       onClick={() => void onReviewCancellation(booking.id)}
-                      disabled={quotePendingId === booking.id || cancelPendingId === booking.id}
+                      disabled={
+                        quotePendingId === booking.id ||
+                        cancelPendingId === booking.id
+                      }
                       className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {quotePendingId === booking.id ? "Checking..." : "Review cancellation"}
+                      {quotePendingId === booking.id
+                        ? "Checking..."
+                        : "Review cancellation"}
                     </button>
                   ) : null}
                 </div>
 
-                {booking.cancellationActor || booking.cancellationReason || cancellationTimestamp ? (
+                {booking.cancellationActor ||
+                booking.cancellationReason ||
+                cancellationTimestamp ? (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
                     <p className="font-medium text-slate-900">
-                      Cancelled {cancellationTimestamp ? `on ${cancellationTimestamp}` : ""}
+                      Cancelled{" "}
+                      {cancellationTimestamp
+                        ? `on ${cancellationTimestamp}`
+                        : ""}
                     </p>
                     {booking.cancellationActor ? (
                       <p className="mt-1">
-                        Cancelled by {booking.cancellationActor === "owner" ? "owner" : "renter"}.
+                        Cancelled by{" "}
+                        {booking.cancellationActor === "owner"
+                          ? "owner"
+                          : "renter"}
+                        .
                       </p>
                     ) : null}
                     {booking.cancellationReason ? (
-                      <p className="mt-1">Reason: {booking.cancellationReason}</p>
+                      <p className="mt-1">
+                        Reason: {booking.cancellationReason}
+                      </p>
                     ) : null}
                     {booking.cancellationRefundAmount !== undefined ? (
                       <p className="mt-1">
@@ -161,7 +193,9 @@ function BookingListSection({
                       </p>
                     ) : null}
                     {refundedTimestamp ? (
-                      <p className="mt-1">Refund processed {refundedTimestamp}.</p>
+                      <p className="mt-1">
+                        Refund processed {refundedTimestamp}.
+                      </p>
                     ) : null}
                   </div>
                 ) : null}
@@ -179,7 +213,10 @@ function BookingListSection({
                         {quote.cancellable ? (
                           <div className="mt-2 space-y-2 text-sm text-amber-900">
                             <p>
-                              Policy: <span className="font-medium">{quote.policyCode}</span>
+                              Policy:{" "}
+                              <span className="font-medium">
+                                {quote.policyCode}
+                              </span>
                             </p>
                             <p>
                               Refund outcome:{" "}
@@ -196,16 +233,24 @@ function BookingListSection({
                             <p>
                               Refund amount:{" "}
                               <span className="font-medium">
-                                {formatMoney(quote.refundAmount, quote.currency)}
+                                {formatMoney(
+                                  quote.refundAmount,
+                                  quote.currency,
+                                )}
                               </span>
                             </p>
                             {quote.reasonRequired ? (
                               <label className="mt-3 grid gap-2 text-sm text-amber-950">
-                                <span className="font-medium">Owner cancellation reason</span>
+                                <span className="font-medium">
+                                  Owner cancellation reason
+                                </span>
                                 <textarea
                                   value={reasonByBookingId[booking.id] ?? ""}
                                   onChange={(event) =>
-                                    onReasonChange(booking.id, event.target.value)
+                                    onReasonChange(
+                                      booking.id,
+                                      event.target.value,
+                                    )
                                   }
                                   rows={3}
                                   className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-amber-500"
@@ -220,7 +265,10 @@ function BookingListSection({
                                 disabled={cancelPendingId === booking.id}
                                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+                                <CircleDollarSign
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
                                 {cancelPendingId === booking.id
                                   ? "Cancelling..."
                                   : "Confirm cancellation"}
@@ -230,8 +278,14 @@ function BookingListSection({
                         ) : (
                           <div className="mt-2 space-y-2 text-sm text-amber-900">
                             <div className="flex items-start gap-2">
-                              <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                              <p>{quote.failureReasons[0]?.message ?? "This booking cannot be cancelled."}</p>
+                              <XCircle
+                                className="mt-0.5 h-4 w-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <p>
+                                {quote.failureReasons[0]?.message ??
+                                  "This booking cannot be cancelled."}
+                              </p>
                             </div>
                           </div>
                         )}
@@ -253,8 +307,10 @@ interface AccountBookingsPanelProps {
 }
 
 export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
-  const [renterBookings, setRenterBookings] = useState<BookingRequestsListResult | null>(null);
-  const [ownerBookings, setOwnerBookings] = useState<BookingRequestsListResult | null>(null);
+  const [renterBookings, setRenterBookings] =
+    useState<BookingRequestsListResult | null>(null);
+  const [ownerBookings, setOwnerBookings] =
+    useState<BookingRequestsListResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [quotePendingId, setQuotePendingId] = useState<string | null>(null);
@@ -262,7 +318,9 @@ export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
   const [quoteByBookingId, setQuoteByBookingId] = useState<
     Record<string, BookingCancellationQuoteResult | undefined>
   >({});
-  const [reasonByBookingId, setReasonByBookingId] = useState<Record<string, string>>({});
+  const [reasonByBookingId, setReasonByBookingId] = useState<
+    Record<string, string>
+  >({});
 
   const showOwnerSection = role === "owner" || role === "admin";
 

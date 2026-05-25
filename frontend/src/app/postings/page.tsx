@@ -66,7 +66,11 @@ const subtypeOptions = [
   "general_vehicle",
 ] as const;
 
-const availabilityStatusOptions = ["available", "limited", "unavailable"] as const;
+const availabilityStatusOptions = [
+  "available",
+  "limited",
+  "unavailable",
+] as const;
 
 interface PostingsPageProps {
   searchParams?: Promise<{
@@ -110,7 +114,10 @@ function readArrayParam(value?: string | string[]): string[] {
     .filter(Boolean);
 }
 
-function readPositiveNumber(value: string | undefined, fallback: number): number {
+function readPositiveNumber(
+  value: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) return fallback;
   return parsed;
@@ -127,7 +134,11 @@ function isPostingSort(value: string | undefined): value is PostingSort {
 }
 
 function buildSearchHref(
-  input: PublicPostingSearchParams & { page: number; pageSize: number; sort: PostingSort },
+  input: PublicPostingSearchParams & {
+    page: number;
+    pageSize: number;
+    sort: PostingSort;
+  },
 ): string {
   const searchParams = new URLSearchParams();
 
@@ -142,16 +153,20 @@ function buildSearchHref(
       searchParams.append("tags", tag);
     }
   }
-  if (input.availabilityStatus) searchParams.set("availabilityStatus", input.availabilityStatus);
+  if (input.availabilityStatus)
+    searchParams.set("availabilityStatus", input.availabilityStatus);
   if (input.minDailyPrice !== undefined) {
     searchParams.set("minDailyPrice", String(input.minDailyPrice));
   }
   if (input.maxDailyPrice !== undefined) {
     searchParams.set("maxDailyPrice", String(input.maxDailyPrice));
   }
-  if (input.latitude !== undefined) searchParams.set("latitude", String(input.latitude));
-  if (input.longitude !== undefined) searchParams.set("longitude", String(input.longitude));
-  if (input.radiusKm !== undefined) searchParams.set("radiusKm", String(input.radiusKm));
+  if (input.latitude !== undefined)
+    searchParams.set("latitude", String(input.latitude));
+  if (input.longitude !== undefined)
+    searchParams.set("longitude", String(input.longitude));
+  if (input.radiusKm !== undefined)
+    searchParams.set("radiusKm", String(input.radiusKm));
   if (input.startAt) searchParams.set("startAt", input.startAt);
   if (input.endAt) searchParams.set("endAt", input.endAt);
 
@@ -162,7 +177,9 @@ function resolveErrorDetails(
   message: string,
   debug: SearchDebugState | null,
 ): { title: string; description: string } {
-  const isNetworkFailure = debug?.causeMessage?.toLowerCase().includes("fetch failed");
+  const isNetworkFailure = debug?.causeMessage
+    ?.toLowerCase()
+    .includes("fetch failed");
 
   if (isNetworkFailure) {
     return {
@@ -183,7 +200,8 @@ function resolveErrorDetails(
   if (debug?.status !== undefined && debug.status >= 500) {
     return {
       title: "Search server error",
-      description: `The server returned ${debug.status} ${debug.statusText ?? ""}. This is likely temporary - try again in a moment.`.trim(),
+      description:
+        `The server returned ${debug.status} ${debug.statusText ?? ""}. This is likely temporary - try again in a moment.`.trim(),
     };
   }
 
@@ -274,7 +292,8 @@ function ActiveFilters({
   if (q) filters.push(`Search: ${q}`);
   if (family) filters.push(humanizePostingValue(family));
   if (subtype) filters.push(humanizePostingValue(subtype));
-  if (availabilityStatus) filters.push(humanizePostingValue(availabilityStatus));
+  if (availabilityStatus)
+    filters.push(humanizePostingValue(availabilityStatus));
   if (minDailyPrice !== undefined || maxDailyPrice !== undefined) {
     filters.push(
       `Price: ${minDailyPrice ?? 0} - ${maxDailyPrice !== undefined ? maxDailyPrice : "Any"}`,
@@ -282,7 +301,9 @@ function ActiveFilters({
   }
   if (tags && tags.length > 0) filters.push(`Tags: ${tags.join(", ")}`);
   if (latitude !== undefined && longitude !== undefined) {
-    filters.push(`Near ${latitude}, ${longitude}${radiusKm ? ` within ${radiusKm} km` : ""}`);
+    filters.push(
+      `Near ${latitude}, ${longitude}${radiusKm ? ` within ${radiusKm} km` : ""}`,
+    );
   }
   if (startAt || endAt) filters.push("Date window");
 
@@ -338,27 +359,38 @@ function Field({
   );
 }
 
-export default async function PostingsPage({ searchParams }: PostingsPageProps) {
+export default async function PostingsPage({
+  searchParams,
+}: PostingsPageProps) {
   const resolvedSearchParams = await searchParams;
   const q = readSingleParam(resolvedSearchParams?.q)?.trim() || "";
   const sortValue = readSingleParam(resolvedSearchParams?.sort);
   const sort = isPostingSort(sortValue) ? sortValue : "relevance";
-  const page = readPositiveNumber(readSingleParam(resolvedSearchParams?.page), 1);
+  const page = readPositiveNumber(
+    readSingleParam(resolvedSearchParams?.page),
+    1,
+  );
   const requestedPageSize = readPositiveNumber(
     readSingleParam(resolvedSearchParams?.pageSize),
     20,
   );
-  const pageSize = pageSizeOptions.includes(requestedPageSize as (typeof pageSizeOptions)[number])
+  const pageSize = pageSizeOptions.includes(
+    requestedPageSize as (typeof pageSizeOptions)[number],
+  )
     ? requestedPageSize
     : 20;
 
   const familyRaw = readSingleParam(resolvedSearchParams?.family);
-  const family = familyOptions.includes(familyRaw as (typeof familyOptions)[number])
+  const family = familyOptions.includes(
+    familyRaw as (typeof familyOptions)[number],
+  )
     ? (familyRaw as (typeof familyOptions)[number])
     : undefined;
 
   const subtypeRaw = readSingleParam(resolvedSearchParams?.subtype);
-  const subtype = subtypeOptions.includes(subtypeRaw as (typeof subtypeOptions)[number])
+  const subtype = subtypeOptions.includes(
+    subtypeRaw as (typeof subtypeOptions)[number],
+  )
     ? (subtypeRaw as (typeof subtypeOptions)[number])
     : undefined;
 
@@ -367,18 +399,30 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
     return values.length > 0 ? values : undefined;
   })();
 
-  const availabilityStatusRaw = readSingleParam(resolvedSearchParams?.availabilityStatus);
+  const availabilityStatusRaw = readSingleParam(
+    resolvedSearchParams?.availabilityStatus,
+  );
   const availabilityStatus = availabilityStatusOptions.includes(
     availabilityStatusRaw as (typeof availabilityStatusOptions)[number],
   )
     ? (availabilityStatusRaw as (typeof availabilityStatusOptions)[number])
     : undefined;
 
-  const minDailyPrice = parseOptionalNumber(readSingleParam(resolvedSearchParams?.minDailyPrice));
-  const maxDailyPrice = parseOptionalNumber(readSingleParam(resolvedSearchParams?.maxDailyPrice));
-  const latitude = parseOptionalNumber(readSingleParam(resolvedSearchParams?.latitude));
-  const longitude = parseOptionalNumber(readSingleParam(resolvedSearchParams?.longitude));
-  const radiusKm = parseOptionalNumber(readSingleParam(resolvedSearchParams?.radiusKm));
+  const minDailyPrice = parseOptionalNumber(
+    readSingleParam(resolvedSearchParams?.minDailyPrice),
+  );
+  const maxDailyPrice = parseOptionalNumber(
+    readSingleParam(resolvedSearchParams?.maxDailyPrice),
+  );
+  const latitude = parseOptionalNumber(
+    readSingleParam(resolvedSearchParams?.latitude),
+  );
+  const longitude = parseOptionalNumber(
+    readSingleParam(resolvedSearchParams?.longitude),
+  );
+  const radiusKm = parseOptionalNumber(
+    readSingleParam(resolvedSearchParams?.radiusKm),
+  );
 
   const startAt = readSingleParam(resolvedSearchParams?.startAt) || undefined;
   const endAt = readSingleParam(resolvedSearchParams?.endAt) || undefined;
@@ -410,7 +454,10 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
       errorMessage = error.message;
       debugState = error.debug;
     } else {
-      errorMessage = error instanceof Error ? error.message : "Unable to load postings right now.";
+      errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Unable to load postings right now.";
     }
   }
 
@@ -450,28 +497,35 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
                   Find the right rental without the clutter.
                 </h1>
                 <p className={theme.marketplace.description}>
-                  Search by keyword, tag, family, availability, price, dates, or location and
-                  refine the results in one polished flow.
+                  Search by keyword, tag, family, availability, price, dates, or
+                  location and refine the results in one polished flow.
                 </p>
               </div>
 
               <div className={theme.marketplace.utilityList}>
                 <div className={theme.marketplace.utilityCard}>
-                  <p className={theme.marketplace.utilityLabel}>Search with less friction</p>
+                  <p className={theme.marketplace.utilityLabel}>
+                    Search with less friction
+                  </p>
                   <p className={theme.marketplace.utilityDescription}>
                     Start broad, then tighten results with smarter filters.
                   </p>
                 </div>
                 <div className={theme.marketplace.utilityCard}>
-                  <p className={theme.marketplace.utilityLabel}>Date-aware filters</p>
+                  <p className={theme.marketplace.utilityLabel}>
+                    Date-aware filters
+                  </p>
                   <p className={theme.marketplace.utilityDescription}>
                     Narrow by availability windows before you reach out.
                   </p>
                 </div>
                 <div className={theme.marketplace.utilityCard}>
-                  <p className={theme.marketplace.utilityLabel}>Built for variety</p>
+                  <p className={theme.marketplace.utilityLabel}>
+                    Built for variety
+                  </p>
                   <p className={theme.marketplace.utilityDescription}>
-                    Browse places, equipment, and vehicles from one consistent search experience.
+                    Browse places, equipment, and vehicles from one consistent
+                    search experience.
                   </p>
                 </div>
               </div>
@@ -485,7 +539,9 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
               initialEndAt={endAt}
             >
               <input type="hidden" name="page" value="1" />
-              {family ? <input type="hidden" name="family" value={family} /> : null}
+              {family ? (
+                <input type="hidden" name="family" value={family} />
+              ) : null}
 
               <div className={theme.marketplace.primarySearchShell}>
                 <div className={theme.marketplace.primarySearchGrid}>
@@ -506,11 +562,16 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
                     inputClassName={theme.marketplace.primaryInput}
                     dropdownClassName={theme.marketplace.autocompleteDropdown}
                     optionClassName={theme.marketplace.autocompleteOption}
-                    optionActiveClassName={theme.marketplace.autocompleteOptionActive}
+                    optionActiveClassName={
+                      theme.marketplace.autocompleteOptionActive
+                    }
                     loadingClassName={theme.marketplace.autocompleteLoading}
                   />
 
-                  <button type="submit" className={theme.marketplace.primaryButton}>
+                  <button
+                    type="submit"
+                    className={theme.marketplace.primaryButton}
+                  >
                     Search
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -558,9 +619,12 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
                       aria-hidden="true"
                     />
                     <div>
-                      <p className={theme.marketplace.utilityLabel}>Refine as you go</p>
+                      <p className={theme.marketplace.utilityLabel}>
+                        Refine as you go
+                      </p>
                       <p className={theme.marketplace.utilityDescription}>
-                        Keep ranking, availability, and page size right beside the main query.
+                        Keep ranking, availability, and page size right beside
+                        the main query.
                       </p>
                     </div>
                   </div>
@@ -568,11 +632,17 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
 
                 <div className={theme.marketplace.utilityCard}>
                   <div className="flex items-start gap-3">
-                    <Compass className="mt-0.5 h-4 w-4 text-violet-600" aria-hidden="true" />
+                    <Compass
+                      className="mt-0.5 h-4 w-4 text-violet-600"
+                      aria-hidden="true"
+                    />
                     <div>
-                      <p className={theme.marketplace.utilityLabel}>Search nearby</p>
+                      <p className={theme.marketplace.utilityLabel}>
+                        Search nearby
+                      </p>
                       <p className={theme.marketplace.utilityDescription}>
-                        Use distance filters only when location precision actually matters.
+                        Use distance filters only when location precision
+                        actually matters.
                       </p>
                     </div>
                   </div>
@@ -585,9 +655,12 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
                       aria-hidden="true"
                     />
                     <div>
-                      <p className={theme.marketplace.utilityLabel}>Filter by timing</p>
+                      <p className={theme.marketplace.utilityLabel}>
+                        Filter by timing
+                      </p>
                       <p className={theme.marketplace.utilityDescription}>
-                        Availability dates help narrow results before you commit to outreach.
+                        Availability dates help narrow results before you commit
+                        to outreach.
                       </p>
                     </div>
                   </div>
@@ -610,8 +683,17 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
               />
 
               <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Sort results" htmlFor="sort" hint="Choose how results are ranked.">
-                  <select id="sort" name="sort" defaultValue={sort} className={inputClass}>
+                <Field
+                  label="Sort results"
+                  htmlFor="sort"
+                  hint="Choose how results are ranked."
+                >
+                  <select
+                    id="sort"
+                    name="sort"
+                    defaultValue={sort}
+                    className={inputClass}
+                  >
                     {sortOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -663,15 +745,21 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
               <details className={theme.marketplace.advancedShell}>
                 <summary className={theme.marketplace.advancedSummary}>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Advanced filters</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      Advanced filters
+                    </p>
                     <p className="text-xs text-slate-500">
                       Price, subtype, tags, distance, and availability dates.
                     </p>
                   </div>
-                  <span className={`${theme.marketplace.advancedToggle} group-open:hidden`}>
+                  <span
+                    className={`${theme.marketplace.advancedToggle} group-open:hidden`}
+                  >
                     Show
                   </span>
-                  <span className={`hidden ${theme.marketplace.advancedToggle} group-open:inline`}>
+                  <span
+                    className={`hidden ${theme.marketplace.advancedToggle} group-open:inline`}
+                  >
                     Hide
                   </span>
                 </summary>
@@ -834,7 +922,10 @@ export default async function PostingsPage({ searchParams }: PostingsPageProps) 
                       Reset all filters
                     </Link>
 
-                    <button type="submit" className={theme.marketplace.primaryButton}>
+                    <button
+                      type="submit"
+                      className={theme.marketplace.primaryButton}
+                    >
                       Apply filters
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </button>
@@ -885,7 +976,9 @@ function SearchError({
           <dl className="grid gap-3 border-t border-slate-200 px-4 py-3 text-slate-700">
             <div>
               <dt className="font-medium text-slate-950">Request URL</dt>
-              <dd className="mt-0.5 break-all text-slate-600">{debug.requestUrl}</dd>
+              <dd className="mt-0.5 break-all text-slate-600">
+                {debug.requestUrl}
+              </dd>
             </div>
             {debug.status ? (
               <div>
@@ -937,7 +1030,10 @@ function SearchResults({
 }) {
   const { pagination, postings } = result;
   const rangeStart = (pagination.page - 1) * pagination.pageSize + 1;
-  const rangeEnd = Math.min(pagination.page * pagination.pageSize, pagination.total);
+  const rangeEnd = Math.min(
+    pagination.page * pagination.pageSize,
+    pagination.total,
+  );
 
   return (
     <>
@@ -951,7 +1047,8 @@ function SearchResults({
           </span>
         )}
         <span className="text-xs text-slate-400">
-          via {result.source} - page {pagination.page} of {pagination.totalPages || 1}
+          via {result.source} - page {pagination.page} of{" "}
+          {pagination.totalPages || 1}
         </span>
       </div>
 
@@ -963,12 +1060,16 @@ function SearchResults({
         <div className="mt-5 space-y-4">
           {postings.map((posting) => {
             const publishedDate = formatPublishedDate(posting.publishedAt);
-            const previewImageUrl = [posting.primaryThumbnailUrl, posting.primaryPhotoUrl].find(
-              isRenderablePreviewImageUrl,
-            );
+            const previewImageUrl = [
+              posting.primaryThumbnailUrl,
+              posting.primaryPhotoUrl,
+            ].find(isRenderablePreviewImageUrl);
 
             return (
-              <article key={posting.id} className={theme.marketplace.resultCard}>
+              <article
+                key={posting.id}
+                className={theme.marketplace.resultCard}
+              >
                 <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="relative min-h-48 border-b border-slate-200 bg-slate-100 md:min-h-full md:border-b-0 md:border-r">
                     {previewImageUrl ? (
@@ -980,7 +1081,9 @@ function SearchResults({
                         className="absolute inset-0 h-full w-full object-cover"
                       />
                     ) : (
-                      <div className={theme.marketplace.resultFallback}>No Image</div>
+                      <div className={theme.marketplace.resultFallback}>
+                        No Image
+                      </div>
                     )}
                   </div>
 
@@ -1002,10 +1105,18 @@ function SearchResults({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
-                        <AvailabilityBadge status={posting.availabilityStatus} />
+                        <AvailabilityBadge
+                          status={posting.availabilityStatus}
+                        />
                         <span className="text-lg font-semibold text-slate-950">
-                          {formatPostingPrice(posting.pricing.daily.amount, posting.pricing.currency)}
-                          <span className="text-xs font-normal text-slate-500"> / day</span>
+                          {formatPostingPrice(
+                            posting.pricing.daily.amount,
+                            posting.pricing.currency,
+                          )}
+                          <span className="text-xs font-normal text-slate-500">
+                            {" "}
+                            / day
+                          </span>
                         </span>
                       </div>
                     </div>
@@ -1016,18 +1127,26 @@ function SearchResults({
 
                     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
                       <span className={theme.marketplace.metaBadge}>
-                        {posting.location.city}, {posting.location.region}, {posting.location.country}
+                        {posting.location.city}, {posting.location.region},{" "}
+                        {posting.location.country}
                       </span>
                       {publishedDate ? (
-                        <span className={theme.marketplace.metaBadge}>Published {publishedDate}</span>
+                        <span className={theme.marketplace.metaBadge}>
+                          Published {publishedDate}
+                        </span>
                       ) : null}
-                      <span className={theme.marketplace.metaBadge}>ID: {posting.id}</span>
+                      <span className={theme.marketplace.metaBadge}>
+                        ID: {posting.id}
+                      </span>
                     </div>
 
                     {posting.tags.length > 0 ? (
                       <div className="mt-4 flex flex-wrap gap-2">
                         {posting.tags.map((tag) => (
-                          <span key={tag} className={theme.marketplace.summaryPill}>
+                          <span
+                            key={tag}
+                            className={theme.marketplace.summaryPill}
+                          >
                             {tag}
                           </span>
                         ))}
@@ -1056,24 +1175,36 @@ function SearchResults({
       <div className="mt-6 flex items-center gap-2">
         {pagination.hasPreviousPage ? (
           <Link
-            href={buildSearchHref({ ...paginationProps, page: pagination.page - 1, pageSize })}
+            href={buildSearchHref({
+              ...paginationProps,
+              page: pagination.page - 1,
+              pageSize,
+            })}
             className={theme.marketplace.paginationButton}
           >
             Previous
           </Link>
         ) : (
-          <span className={theme.marketplace.paginationButtonDisabled}>Previous</span>
+          <span className={theme.marketplace.paginationButtonDisabled}>
+            Previous
+          </span>
         )}
 
         {pagination.hasNextPage ? (
           <Link
-            href={buildSearchHref({ ...paginationProps, page: pagination.page + 1, pageSize })}
+            href={buildSearchHref({
+              ...paginationProps,
+              page: pagination.page + 1,
+              pageSize,
+            })}
             className={theme.marketplace.paginationButton}
           >
             Next
           </Link>
         ) : (
-          <span className={theme.marketplace.paginationButtonDisabled}>Next</span>
+          <span className={theme.marketplace.paginationButtonDisabled}>
+            Next
+          </span>
         )}
       </div>
     </>

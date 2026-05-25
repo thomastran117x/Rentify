@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 
-const {
-  PublicPostingAutocompleteError,
-  fetchPublicPostingAutocomplete,
-} = await import(new URL("./search.ts", import.meta.url).href);
+const { PublicPostingAutocompleteError, fetchPublicPostingAutocomplete } =
+  await import(new URL("./search.ts", import.meta.url).href);
 
 const originalFetch = globalThis.fetch;
 
@@ -82,7 +80,9 @@ try {
         return false;
       }
 
-      const autocompleteError = error as InstanceType<typeof PublicPostingAutocompleteError>;
+      const autocompleteError = error as InstanceType<
+        typeof PublicPostingAutocompleteError
+      >;
 
       return (
         autocompleteError.debug.status === 400 &&
@@ -91,7 +91,10 @@ try {
     },
   );
 
-  const abortError = new DOMException("The user aborted a request.", "AbortError");
+  const abortError = new DOMException(
+    "The user aborted a request.",
+    "AbortError",
+  );
   globalThis.fetch = async () => {
     throw abortError;
   };

@@ -77,7 +77,9 @@ export function MarketingPageShell({
 
             {quickLinks.length ? (
               <div className="mt-5 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-500">Quick links:</span>
+                <span className="text-sm font-medium text-slate-500">
+                  Quick links:
+                </span>
                 {quickLinks.map((link) => (
                   <Link
                     key={link.href}

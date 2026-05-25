@@ -45,17 +45,20 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
       {
         icon: LayoutDashboard,
         title: "Fast dashboard access",
-        description: "Jump straight into bookings, listings, and account activity.",
+        description:
+          "Jump straight into bookings, listings, and account activity.",
       },
       {
         icon: ShieldCheck,
         title: "Protected sign-in",
-        description: "Verification and recovery steps stay visible when you need them.",
+        description:
+          "Verification and recovery steps stay visible when you need them.",
       },
       {
         icon: Sparkles,
         title: "Shared visual language",
-        description: "The same surfaces, spacing, and accent color as the home experience.",
+        description:
+          "The same surfaces, spacing, and accent color as the home experience.",
       },
     ],
     spotlightLabel: "What you can do next",
@@ -70,14 +73,16 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
   },
   signup: {
     eyebrow: "Create your workspace",
-    title: "Start a Rentify account that feels connected to the rest of the platform.",
+    title:
+      "Start a Rentify account that feels connected to the rest of the platform.",
     description:
       "The sign-up flow now leans on the same tone as the homepage and header so account creation feels like the next step in the product, not a detour into a different UI.",
     features: [
       {
         icon: Sparkles,
         title: "Cleaner onboarding",
-        description: "Create an account in a calmer layout with clearer sections.",
+        description:
+          "Create an account in a calmer layout with clearer sections.",
       },
       {
         icon: Mail,
@@ -87,7 +92,8 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
       {
         icon: House,
         title: "Ready for renting",
-        description: "Continue into search, bookings, or listing creation with less friction.",
+        description:
+          "Continue into search, bookings, or listing creation with less friction.",
       },
     ],
     spotlightLabel: "Why this flow feels familiar",
@@ -109,17 +115,20 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
       {
         icon: KeyRound,
         title: "Guided recovery",
-        description: "Request a code, reset your password, and continue without guesswork.",
+        description:
+          "Request a code, reset your password, and continue without guesswork.",
       },
       {
         icon: ShieldCheck,
         title: "Secure by default",
-        description: "Verification steps stay explicit while keeping the page approachable.",
+        description:
+          "Verification steps stay explicit while keeping the page approachable.",
       },
       {
         icon: LayoutDashboard,
         title: "Back to work quickly",
-        description: "Recover access and return to your listings or bookings with less friction.",
+        description:
+          "Recover access and return to your listings or bookings with less friction.",
       },
     ],
     spotlightLabel: "A steadier fallback",
@@ -170,21 +179,32 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <h2 className={theme.auth.featureTitle}>{feature.title}</h2>
-                  <p className={theme.auth.featureDescription}>{feature.description}</p>
+                  <p className={theme.auth.featureDescription}>
+                    {feature.description}
+                  </p>
                 </article>
               );
             })}
           </div>
 
           <section className={theme.auth.spotlight}>
-            <p className={theme.auth.spotlightLabel}>{content.spotlightLabel}</p>
-            <h2 className={theme.auth.spotlightTitle}>{content.spotlightTitle}</h2>
-            <p className={theme.auth.spotlightDescription}>{content.spotlightDescription}</p>
+            <p className={theme.auth.spotlightLabel}>
+              {content.spotlightLabel}
+            </p>
+            <h2 className={theme.auth.spotlightTitle}>
+              {content.spotlightTitle}
+            </h2>
+            <p className={theme.auth.spotlightDescription}>
+              {content.spotlightDescription}
+            </p>
 
             <div className={theme.auth.spotlightList}>
               {content.spotlightItems.map((item) => (
                 <div key={item} className={theme.auth.spotlightItem}>
-                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" aria-hidden="true" />
+                  <Sparkles
+                    className="mt-0.5 h-4 w-4 shrink-0 text-violet-600"
+                    aria-hidden="true"
+                  />
                   <p>{item}</p>
                 </div>
               ))}

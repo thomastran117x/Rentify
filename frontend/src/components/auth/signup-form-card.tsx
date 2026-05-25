@@ -10,9 +10,7 @@ export function SignupFormCard({ children }: SignupFormCardProps) {
   return (
     <div className={theme.auth.card}>
       <div className="mb-5 space-y-3">
-        <div className={theme.auth.eyebrow}>
-          Start in minutes
-        </div>
+        <div className={theme.auth.eyebrow}>Start in minutes</div>
 
         <div>
           <p className={theme.auth.cardEyebrow}>Create your account</p>

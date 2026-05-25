@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
-import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, ClipboardList, ReceiptText, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardList,
+  ReceiptText,
+  XCircle,
+} from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { ApiError } from "@/lib/auth/types";
 import { bookingsApi } from "@/lib/bookings/api";
@@ -45,7 +53,10 @@ const SORT_OPTIONS: Array<{ label: string; value: BookingDashboardSort }> = [
   { label: "Start date", value: "start_at" },
 ];
 
-const RENTER_BUCKET_OPTIONS: Array<{ label: string; value?: RenterBookingDashboardBucket }> = [
+const RENTER_BUCKET_OPTIONS: Array<{
+  label: string;
+  value?: RenterBookingDashboardBucket;
+}> = [
   { label: "All buckets" },
   { label: "Action needed", value: "action_needed" },
   { label: "Upcoming", value: "upcoming" },
@@ -120,7 +131,9 @@ function humanizeActionNeeded(value?: string): string | null {
 function canReviewCancellation(item: BookingDashboardItem): boolean {
   return (
     item.kind === "booking_request" &&
-    !["declined", "expired", "cancelled", "refunded"].includes(item.sourceStatus)
+    !["declined", "expired", "cancelled", "refunded"].includes(
+      item.sourceStatus,
+    )
   );
 }
 
@@ -130,7 +143,9 @@ function bannerClasses(tone: BannerTone): string {
     : "border-emerald-200 bg-emerald-50 text-emerald-900";
 }
 
-function urgencyClasses(level: BookingDashboardItem["urgency"]["level"]): string {
+function urgencyClasses(
+  level: BookingDashboardItem["urgency"]["level"],
+): string {
   if (level === "high") {
     return "bg-rose-100 text-rose-700";
   }
@@ -147,7 +162,11 @@ function urgencyClasses(level: BookingDashboardItem["urgency"]["level"]): string
 }
 
 function statusClasses(status: BookingDashboardItem["status"]): string {
-  if (["payment_failed", "declined", "expired", "cancelled", "refunded"].includes(status)) {
+  if (
+    ["payment_failed", "declined", "expired", "cancelled", "refunded"].includes(
+      status,
+    )
+  ) {
     return "bg-rose-100 text-rose-700";
   }
 
@@ -155,7 +174,11 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
     return "bg-rose-100 text-rose-700";
   }
 
-  if (["pending", "approved", "awaiting_payment", "payment_processing"].includes(status)) {
+  if (
+    ["pending", "approved", "awaiting_payment", "payment_processing"].includes(
+      status,
+    )
+  ) {
     return "bg-amber-100 text-amber-800";
   }
 
@@ -163,7 +186,11 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
     return "bg-emerald-100 text-emerald-700";
   }
 
-  if (status === "check_in_ready" || status === "active" || status === "return_due") {
+  if (
+    status === "check_in_ready" ||
+    status === "active" ||
+    status === "return_due"
+  ) {
     return "bg-sky-100 text-sky-700";
   }
 
@@ -192,8 +219,14 @@ interface BookingItemCardProps {
   view: DashboardView;
   quoteByBookingId: Record<string, BookingCancellationQuoteResult | undefined>;
   reasonByBookingId: Record<string, string>;
-  instructionDraftByRentingId: Record<string, { pickupInstructions: string; returnInstructions: string } | undefined>;
-  disputeDraftByRentingId: Record<string, { reason: string; details: string } | undefined>;
+  instructionDraftByRentingId: Record<
+    string,
+    { pickupInstructions: string; returnInstructions: string } | undefined
+  >;
+  disputeDraftByRentingId: Record<
+    string,
+    { reason: string; details: string } | undefined
+  >;
   quotePendingId: string | null;
   cancelPendingId: string | null;
   rentingMutationPendingKey: string | null;
@@ -209,7 +242,11 @@ interface BookingItemCardProps {
   onMarkCheckInReady: (rentingId: string) => Promise<void>;
   onMarkCheckInComplete: (rentingId: string) => Promise<void>;
   onCompleteReturn: (rentingId: string) => Promise<void>;
-  onDisputeChange: (rentingId: string, field: "reason" | "details", value: string) => void;
+  onDisputeChange: (
+    rentingId: string,
+    field: "reason" | "details",
+    value: string,
+  ) => void;
   onCreateDispute: (rentingId: string) => Promise<void>;
 }
 
@@ -234,9 +271,13 @@ function BookingItemCard({
   onDisputeChange,
   onCreateDispute,
 }: BookingItemCardProps) {
-  const quote = item.bookingRequestId ? quoteByBookingId[item.bookingRequestId] : undefined;
+  const quote = item.bookingRequestId
+    ? quoteByBookingId[item.bookingRequestId]
+    : undefined;
   const cancellationTimestamp = formatDateTime(
-    item.kind === "booking_request" && item.sourceStatus === "cancelled" ? item.updatedAt : undefined,
+    item.kind === "booking_request" && item.sourceStatus === "cancelled"
+      ? item.updatedAt
+      : undefined,
   );
   const actionNeededLabel = humanizeActionNeeded(item.actionNeededCategory);
   const holdExpiresAt = formatDateTime(item.holdExpiresAt);
@@ -246,16 +287,20 @@ function BookingItemCard({
   const returnDueAt = formatDateTime(item.returnDueAt);
   const completedAt = formatDateTime(item.completedAt);
   const disputedAt = formatDateTime(item.disputedAt);
-  const rentingInstructions = item.kind === "renting"
-    ? instructionDraftByRentingId[item.rentingId ?? ""]
-      ?? {
-        pickupInstructions: item.pickupInstructions ?? "",
-        returnInstructions: item.returnInstructions ?? "",
-      }
-    : undefined;
-  const disputeDraft = item.kind === "renting"
-    ? disputeDraftByRentingId[item.rentingId ?? ""] ?? { reason: "", details: "" }
-    : undefined;
+  const rentingInstructions =
+    item.kind === "renting"
+      ? (instructionDraftByRentingId[item.rentingId ?? ""] ?? {
+          pickupInstructions: item.pickupInstructions ?? "",
+          returnInstructions: item.returnInstructions ?? "",
+        })
+      : undefined;
+  const disputeDraft =
+    item.kind === "renting"
+      ? (disputeDraftByRentingId[item.rentingId ?? ""] ?? {
+          reason: "",
+          details: "",
+        })
+      : undefined;
   const canEditInstructions = item.kind === "renting" && view === "owner";
   const isRentingActionPending = (action: string) =>
     rentingMutationPendingKey === `${action}:${item.rentingId}`;
@@ -302,9 +347,15 @@ function BookingItemCard({
 
               <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
                 <p>{formatDateRange(item.startAt, item.endAt)}</p>
-                <p>{formatMoney(item.estimatedTotal, item.pricingCurrency)} total</p>
-                <p>{item.durationDays} day{item.durationDays === 1 ? "" : "s"}</p>
-                <p>{item.guestCount} guest{item.guestCount === 1 ? "" : "s"}</p>
+                <p>
+                  {formatMoney(item.estimatedTotal, item.pricingCurrency)} total
+                </p>
+                <p>
+                  {item.durationDays} day{item.durationDays === 1 ? "" : "s"}
+                </p>
+                <p>
+                  {item.guestCount} guest{item.guestCount === 1 ? "" : "s"}
+                </p>
                 <p>Created {formatDateTime(item.createdAt)}</p>
                 {confirmedAt ? <p>Confirmed {confirmedAt}</p> : null}
               </div>
@@ -319,7 +370,9 @@ function BookingItemCard({
                     disabled={isRentingActionPending("save-instructions")}
                     className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRentingActionPending("save-instructions") ? "Saving..." : "Save instructions"}
+                    {isRentingActionPending("save-instructions")
+                      ? "Saving..."
+                      : "Save instructions"}
                   </button>
                 )}
                 {view === "owner" && item.sourceStatus === "confirmed" ? (
@@ -329,7 +382,9 @@ function BookingItemCard({
                     disabled={isRentingActionPending("check-in-ready")}
                     className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRentingActionPending("check-in-ready") ? "Updating..." : "Mark check-in ready"}
+                    {isRentingActionPending("check-in-ready")
+                      ? "Updating..."
+                      : "Mark check-in ready"}
                   </button>
                 ) : null}
                 {["confirmed", "check_in_ready"].includes(item.sourceStatus) ? (
@@ -339,7 +394,9 @@ function BookingItemCard({
                     disabled={isRentingActionPending("check-in-complete")}
                     className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRentingActionPending("check-in-complete") ? "Updating..." : "Confirm check-in"}
+                    {isRentingActionPending("check-in-complete")
+                      ? "Updating..."
+                      : "Confirm check-in"}
                   </button>
                 ) : null}
                 {["active", "return_due"].includes(item.sourceStatus) ? (
@@ -349,18 +406,27 @@ function BookingItemCard({
                     disabled={isRentingActionPending("complete-return")}
                     className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRentingActionPending("complete-return") ? "Updating..." : "Confirm return"}
+                    {isRentingActionPending("complete-return")
+                      ? "Updating..."
+                      : "Confirm return"}
                   </button>
                 ) : null}
               </div>
             ) : canReviewCancellation(item) && item.bookingRequestId ? (
               <button
                 type="button"
-                onClick={() => void onReviewCancellation(item.bookingRequestId!)}
-                disabled={quotePendingId === item.bookingRequestId || cancelPendingId === item.bookingRequestId}
+                onClick={() =>
+                  void onReviewCancellation(item.bookingRequestId!)
+                }
+                disabled={
+                  quotePendingId === item.bookingRequestId ||
+                  cancelPendingId === item.bookingRequestId
+                }
                 className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {quotePendingId === item.bookingRequestId ? "Checking..." : "Review cancellation"}
+                {quotePendingId === item.bookingRequestId
+                  ? "Checking..."
+                  : "Review cancellation"}
               </button>
             ) : null}
           </div>
@@ -370,7 +436,9 @@ function BookingItemCard({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                 Next action
               </p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">{item.nextAction.label}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {item.nextAction.label}
+              </p>
               {holdExpiresAt ? (
                 <p className="mt-2 text-sm text-slate-600">
                   Hold expires {holdExpiresAt}
@@ -390,14 +458,64 @@ function BookingItemCard({
                 Snapshot
               </p>
               <div className="mt-3 grid gap-2 text-sm text-slate-600">
-                <p>Status: <span className="font-medium text-slate-900">{humanizeStatus(item.sourceStatus)}</span></p>
-                <p>Urgency: <span className="font-medium text-slate-900">{item.urgency.label}</span></p>
-                <p>Kind: <span className="font-medium text-slate-900">{item.kind === "renting" ? "Renting" : "Booking request"}</span></p>
-                {checkInReadyAt ? <p>Check-in ready: <span className="font-medium text-slate-900">{checkInReadyAt}</span></p> : null}
-                {checkInCompletedAt ? <p>Check-in completed: <span className="font-medium text-slate-900">{checkInCompletedAt}</span></p> : null}
-                {returnDueAt ? <p>Return due: <span className="font-medium text-slate-900">{returnDueAt}</span></p> : null}
-                {completedAt ? <p>Completed: <span className="font-medium text-slate-900">{completedAt}</span></p> : null}
-                {disputedAt ? <p>Disputed: <span className="font-medium text-slate-900">{disputedAt}</span></p> : null}
+                <p>
+                  Status:{" "}
+                  <span className="font-medium text-slate-900">
+                    {humanizeStatus(item.sourceStatus)}
+                  </span>
+                </p>
+                <p>
+                  Urgency:{" "}
+                  <span className="font-medium text-slate-900">
+                    {item.urgency.label}
+                  </span>
+                </p>
+                <p>
+                  Kind:{" "}
+                  <span className="font-medium text-slate-900">
+                    {item.kind === "renting" ? "Renting" : "Booking request"}
+                  </span>
+                </p>
+                {checkInReadyAt ? (
+                  <p>
+                    Check-in ready:{" "}
+                    <span className="font-medium text-slate-900">
+                      {checkInReadyAt}
+                    </span>
+                  </p>
+                ) : null}
+                {checkInCompletedAt ? (
+                  <p>
+                    Check-in completed:{" "}
+                    <span className="font-medium text-slate-900">
+                      {checkInCompletedAt}
+                    </span>
+                  </p>
+                ) : null}
+                {returnDueAt ? (
+                  <p>
+                    Return due:{" "}
+                    <span className="font-medium text-slate-900">
+                      {returnDueAt}
+                    </span>
+                  </p>
+                ) : null}
+                {completedAt ? (
+                  <p>
+                    Completed:{" "}
+                    <span className="font-medium text-slate-900">
+                      {completedAt}
+                    </span>
+                  </p>
+                ) : null}
+                {disputedAt ? (
+                  <p>
+                    Disputed:{" "}
+                    <span className="font-medium text-slate-900">
+                      {disputedAt}
+                    </span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -410,7 +528,9 @@ function BookingItemCard({
                     <ClipboardList className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-950">Rental instructions</p>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Rental instructions
+                    </p>
                     {canEditInstructions && rentingInstructions ? (
                       <div className="mt-3 grid gap-3">
                         <label className="grid gap-2 text-sm text-slate-700">
@@ -418,7 +538,11 @@ function BookingItemCard({
                           <textarea
                             value={rentingInstructions.pickupInstructions}
                             onChange={(event) =>
-                              onInstructionChange(item.rentingId!, "pickupInstructions", event.target.value)
+                              onInstructionChange(
+                                item.rentingId!,
+                                "pickupInstructions",
+                                event.target.value,
+                              )
                             }
                             rows={3}
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
@@ -426,11 +550,17 @@ function BookingItemCard({
                           />
                         </label>
                         <label className="grid gap-2 text-sm text-slate-700">
-                          <span className="font-medium">Return / check-out</span>
+                          <span className="font-medium">
+                            Return / check-out
+                          </span>
                           <textarea
                             value={rentingInstructions.returnInstructions}
                             onChange={(event) =>
-                              onInstructionChange(item.rentingId!, "returnInstructions", event.target.value)
+                              onInstructionChange(
+                                item.rentingId!,
+                                "returnInstructions",
+                                event.target.value,
+                              )
                             }
                             rows={3}
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
@@ -441,12 +571,22 @@ function BookingItemCard({
                     ) : (
                       <div className="mt-3 grid gap-3 text-sm text-slate-700">
                         <div>
-                          <p className="font-medium text-slate-900">Pickup / check-in</p>
-                          <p className="mt-1 leading-6">{item.pickupInstructions ?? "Instructions will appear here once the owner adds them."}</p>
+                          <p className="font-medium text-slate-900">
+                            Pickup / check-in
+                          </p>
+                          <p className="mt-1 leading-6">
+                            {item.pickupInstructions ??
+                              "Instructions will appear here once the owner adds them."}
+                          </p>
                         </div>
                         <div>
-                          <p className="font-medium text-slate-900">Return / check-out</p>
-                          <p className="mt-1 leading-6">{item.returnInstructions ?? "Return instructions will appear here once the owner adds them."}</p>
+                          <p className="font-medium text-slate-900">
+                            Return / check-out
+                          </p>
+                          <p className="mt-1 leading-6">
+                            {item.returnInstructions ??
+                              "Return instructions will appear here once the owner adds them."}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -460,18 +600,61 @@ function BookingItemCard({
                     <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-950">Lifecycle timeline</p>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Lifecycle timeline
+                    </p>
                     <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                      <p>Confirmed: <span className="font-medium text-slate-900">{confirmedAt ?? "Not recorded"}</span></p>
-                      {checkInReadyAt ? <p>Check-in ready: <span className="font-medium text-slate-900">{checkInReadyAt}</span></p> : null}
-                      {checkInCompletedAt ? <p>Check-in completed: <span className="font-medium text-slate-900">{checkInCompletedAt}</span></p> : null}
-                      {returnDueAt ? <p>Return due: <span className="font-medium text-slate-900">{returnDueAt}</span></p> : null}
-                      {completedAt ? <p>Completed: <span className="font-medium text-slate-900">{completedAt}</span></p> : null}
+                      <p>
+                        Confirmed:{" "}
+                        <span className="font-medium text-slate-900">
+                          {confirmedAt ?? "Not recorded"}
+                        </span>
+                      </p>
+                      {checkInReadyAt ? (
+                        <p>
+                          Check-in ready:{" "}
+                          <span className="font-medium text-slate-900">
+                            {checkInReadyAt}
+                          </span>
+                        </p>
+                      ) : null}
+                      {checkInCompletedAt ? (
+                        <p>
+                          Check-in completed:{" "}
+                          <span className="font-medium text-slate-900">
+                            {checkInCompletedAt}
+                          </span>
+                        </p>
+                      ) : null}
+                      {returnDueAt ? (
+                        <p>
+                          Return due:{" "}
+                          <span className="font-medium text-slate-900">
+                            {returnDueAt}
+                          </span>
+                        </p>
+                      ) : null}
+                      {completedAt ? (
+                        <p>
+                          Completed:{" "}
+                          <span className="font-medium text-slate-900">
+                            {completedAt}
+                          </span>
+                        </p>
+                      ) : null}
                       {item.dispute ? (
                         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3">
-                          <p className="font-medium text-rose-900">Dispute open</p>
-                          <p className="mt-1 text-rose-900">{item.dispute.reason}</p>
-                          {item.dispute.details ? <p className="mt-1 text-rose-800">{item.dispute.details}</p> : null}
+                          <p className="font-medium text-rose-900">
+                            Dispute open
+                          </p>
+                          <p className="mt-1 text-rose-900">
+                            {item.dispute.reason}
+                          </p>
+                          {item.dispute.details ? (
+                            <p className="mt-1 text-rose-800">
+                              {item.dispute.details}
+                            </p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -488,14 +671,20 @@ function BookingItemCard({
                   <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-rose-950">Open a dispute</p>
+                  <p className="text-sm font-semibold text-rose-950">
+                    Open a dispute
+                  </p>
                   <div className="mt-3 grid gap-3">
                     <label className="grid gap-2 text-sm text-rose-950">
                       <span className="font-medium">Reason</span>
                       <input
                         value={disputeDraft?.reason ?? ""}
                         onChange={(event) =>
-                          onDisputeChange(item.rentingId!, "reason", event.target.value)
+                          onDisputeChange(
+                            item.rentingId!,
+                            "reason",
+                            event.target.value,
+                          )
                         }
                         className="h-11 rounded-xl border border-rose-200 bg-white px-3 text-slate-900 outline-none transition focus:border-rose-500"
                         placeholder="Summarize the issue."
@@ -506,7 +695,11 @@ function BookingItemCard({
                       <textarea
                         value={disputeDraft?.details ?? ""}
                         onChange={(event) =>
-                          onDisputeChange(item.rentingId!, "details", event.target.value)
+                          onDisputeChange(
+                            item.rentingId!,
+                            "details",
+                            event.target.value,
+                          )
                         }
                         rows={3}
                         className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-rose-500"
@@ -521,7 +714,9 @@ function BookingItemCard({
                         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-700 px-5 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                        {isRentingActionPending("open-dispute") ? "Opening..." : "Open dispute"}
+                        {isRentingActionPending("open-dispute")
+                          ? "Opening..."
+                          : "Open dispute"}
                       </button>
                     </div>
                   </div>
@@ -534,8 +729,12 @@ function BookingItemCard({
           ["cancelled", "refunded"].includes(item.sourceStatus) ? (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
               <p className="font-medium text-slate-900">
-                {item.sourceStatus === "refunded" ? "Refunded booking" : "Cancelled booking"}
-                {cancellationTimestamp ? ` updated ${cancellationTimestamp}` : ""}
+                {item.sourceStatus === "refunded"
+                  ? "Refunded booking"
+                  : "Cancelled booking"}
+                {cancellationTimestamp
+                  ? ` updated ${cancellationTimestamp}`
+                  : ""}
               </p>
             </div>
           ) : null}
@@ -547,7 +746,9 @@ function BookingItemCard({
                   <ReceiptText className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-amber-900">Cancellation review</p>
+                  <p className="text-sm font-semibold text-amber-900">
+                    Cancellation review
+                  </p>
                   {quote.cancellable ? (
                     <div className="mt-2 space-y-2 text-sm text-amber-900">
                       <p>
@@ -570,11 +771,18 @@ function BookingItemCard({
                       </p>
                       {quote.reasonRequired ? (
                         <label className="mt-3 grid gap-2 text-sm text-amber-950">
-                          <span className="font-medium">Owner cancellation reason</span>
+                          <span className="font-medium">
+                            Owner cancellation reason
+                          </span>
                           <textarea
-                            value={reasonByBookingId[item.bookingRequestId] ?? ""}
+                            value={
+                              reasonByBookingId[item.bookingRequestId] ?? ""
+                            }
                             onChange={(event) =>
-                              onReasonChange(item.bookingRequestId!, event.target.value)
+                              onReasonChange(
+                                item.bookingRequestId!,
+                                event.target.value,
+                              )
                             }
                             rows={3}
                             className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-amber-500"
@@ -585,11 +793,16 @@ function BookingItemCard({
                       <div className="mt-3 flex flex-wrap gap-3">
                         <button
                           type="button"
-                          onClick={() => void onCancelBooking(item.bookingRequestId!)}
+                          onClick={() =>
+                            void onCancelBooking(item.bookingRequestId!)
+                          }
                           disabled={cancelPendingId === item.bookingRequestId}
                           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+                          <CircleDollarSign
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
                           {cancelPendingId === item.bookingRequestId
                             ? "Cancelling..."
                             : "Confirm cancellation"}
@@ -599,8 +812,14 @@ function BookingItemCard({
                   ) : (
                     <div className="mt-2 space-y-2 text-sm text-amber-900">
                       <div className="flex items-start gap-2">
-                        <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                        <p>{quote.failureReasons[0]?.message ?? "This booking cannot be cancelled."}</p>
+                        <XCircle
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <p>
+                          {quote.failureReasons[0]?.message ??
+                            "This booking cannot be cancelled."}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -618,8 +837,10 @@ export function BookingsDashboard() {
   const router = useRouter();
   const { status, session } = useAuth();
   const [activeView, setActiveView] = useState<DashboardView>("renter");
-  const [renterDashboard, setRenterDashboard] = useState<RenterBookingDashboardResult | null>(null);
-  const [ownerDashboard, setOwnerDashboard] = useState<OwnerBookingDashboardResult | null>(null);
+  const [renterDashboard, setRenterDashboard] =
+    useState<RenterBookingDashboardResult | null>(null);
+  const [ownerDashboard, setOwnerDashboard] =
+    useState<OwnerBookingDashboardResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<DashboardBanner | null>(null);
   const [renterFilters, setRenterFilters] = useState<{
@@ -650,16 +871,25 @@ export function BookingsDashboard() {
   const [quoteByBookingId, setQuoteByBookingId] = useState<
     Record<string, BookingCancellationQuoteResult | undefined>
   >({});
-  const [reasonByBookingId, setReasonByBookingId] = useState<Record<string, string>>({});
-  const [instructionDraftByRentingId, setInstructionDraftByRentingId] = useState<
-    Record<string, { pickupInstructions: string; returnInstructions: string } | undefined>
+  const [reasonByBookingId, setReasonByBookingId] = useState<
+    Record<string, string>
   >({});
+  const [instructionDraftByRentingId, setInstructionDraftByRentingId] =
+    useState<
+      Record<
+        string,
+        { pickupInstructions: string; returnInstructions: string } | undefined
+      >
+    >({});
   const [disputeDraftByRentingId, setDisputeDraftByRentingId] = useState<
     Record<string, { reason: string; details: string } | undefined>
   >({});
-  const [rentingMutationPendingKey, setRentingMutationPendingKey] = useState<string | null>(null);
+  const [rentingMutationPendingKey, setRentingMutationPendingKey] = useState<
+    string | null
+  >(null);
 
-  const showOwnerView = session?.user.role === "owner" || session?.user.role === "admin";
+  const showOwnerView =
+    session?.user.role === "owner" || session?.user.role === "admin";
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -709,7 +939,9 @@ export function BookingsDashboard() {
         }
 
         if (active) {
-          setBanner((current) => (current?.tone === "success" ? current : null));
+          setBanner((current) =>
+            current?.tone === "success" ? current : null,
+          );
         }
       } catch (error) {
         if (active) {
@@ -830,10 +1062,7 @@ export function BookingsDashboard() {
     } catch (error) {
       setBanner({
         tone: "error",
-        text:
-          error instanceof ApiError
-            ? error.message
-            : fallbackErrorText,
+        text: error instanceof ApiError ? error.message : fallbackErrorText,
       });
     } finally {
       setRentingMutationPendingKey(null);
@@ -925,7 +1154,8 @@ export function BookingsDashboard() {
         <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8">
           <h1 className="text-3xl font-semibold text-slate-950">Bookings</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Sign in to track booking requests, payment work, and upcoming rentings.
+            Sign in to track booking requests, payment work, and upcoming
+            rentings.
           </p>
           <Link
             href="/login"
@@ -938,7 +1168,8 @@ export function BookingsDashboard() {
     );
   }
 
-  const activeDashboard = activeView === "owner" && showOwnerView ? ownerDashboard : renterDashboard;
+  const activeDashboard =
+    activeView === "owner" && showOwnerView ? ownerDashboard : renterDashboard;
   const items = activeDashboard?.items ?? [];
   const pagination = activeDashboard?.pagination;
 
@@ -953,10 +1184,13 @@ export function BookingsDashboard() {
                   Booking workspace
                 </p>
                 <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
-                  Keep every booking decision, payment, and upcoming rental in view
+                  Keep every booking decision, payment, and upcoming rental in
+                  view
                 </h1>
                 <p className="mt-3 text-sm leading-7 text-slate-600">
-                  This workspace brings renter timelines and owner action queues together, highlights expiring holds, and keeps the next step obvious for each booking.
+                  This workspace brings renter timelines and owner action queues
+                  together, highlights expiring holds, and keeps the next step
+                  obvious for each booking.
                 </p>
               </div>
 
@@ -991,7 +1225,9 @@ export function BookingsDashboard() {
         </section>
 
         {banner ? (
-          <div className={`mt-6 rounded-2xl border px-5 py-4 text-sm ${bannerClasses(banner.tone)}`}>
+          <div
+            className={`mt-6 rounded-2xl border px-5 py-4 text-sm ${bannerClasses(banner.tone)}`}
+          >
             {banner.text}
           </div>
         ) : null}
@@ -999,18 +1235,45 @@ export function BookingsDashboard() {
         {activeView === "owner" && showOwnerView ? (
           <>
             <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <SummaryCard label="Approval" value={ownerDashboard?.summary.approval ?? 0} />
-              <SummaryCard label="Payment" value={ownerDashboard?.summary.payment ?? 0} />
-              <SummaryCard label="Expiring holds" value={ownerDashboard?.summary.expiringHold ?? 0} />
-              <SummaryCard label="Payment failures" value={ownerDashboard?.summary.paymentFailure ?? 0} />
-              <SummaryCard label="Convert to renting" value={ownerDashboard?.summary.conversion ?? 0} />
-              <SummaryCard label="Total open" value={ownerDashboard?.summary.totalOpen ?? 0} />
+              <SummaryCard
+                label="Approval"
+                value={ownerDashboard?.summary.approval ?? 0}
+              />
+              <SummaryCard
+                label="Payment"
+                value={ownerDashboard?.summary.payment ?? 0}
+              />
+              <SummaryCard
+                label="Expiring holds"
+                value={ownerDashboard?.summary.expiringHold ?? 0}
+              />
+              <SummaryCard
+                label="Payment failures"
+                value={ownerDashboard?.summary.paymentFailure ?? 0}
+              />
+              <SummaryCard
+                label="Convert to renting"
+                value={ownerDashboard?.summary.conversion ?? 0}
+              />
+              <SummaryCard
+                label="Total open"
+                value={ownerDashboard?.summary.totalOpen ?? 0}
+              />
             </section>
 
             <section className="mt-4 grid gap-4 md:grid-cols-3">
-              <SummaryCard label="Upcoming rentals" value={ownerDashboard?.summary.upcomingRentings ?? 0} />
-              <SummaryCard label="Active rentals" value={ownerDashboard?.summary.activeRentings ?? 0} />
-              <SummaryCard label="Past rentals" value={ownerDashboard?.summary.pastRentings ?? 0} />
+              <SummaryCard
+                label="Upcoming rentals"
+                value={ownerDashboard?.summary.upcomingRentings ?? 0}
+              />
+              <SummaryCard
+                label="Active rentals"
+                value={ownerDashboard?.summary.activeRentings ?? 0}
+              />
+              <SummaryCard
+                label="Past rentals"
+                value={ownerDashboard?.summary.pastRentings ?? 0}
+              />
             </section>
 
             <section className="mt-6 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
@@ -1022,14 +1285,18 @@ export function BookingsDashboard() {
                       setOwnerFilters((current) => ({
                         ...current,
                         page: 1,
-                        actionNeeded:
-                          (event.target.value || undefined) as OwnerBookingDashboardActionNeeded | undefined,
+                        actionNeeded: (event.target.value || undefined) as
+                          | OwnerBookingDashboardActionNeeded
+                          | undefined,
                       }))
                     }
                     className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   >
                     {OWNER_ACTION_OPTIONS.map((option) => (
-                      <option key={option.value ?? "all"} value={option.value ?? ""}>
+                      <option
+                        key={option.value ?? "all"}
+                        value={option.value ?? ""}
+                      >
                         {option.label}
                       </option>
                     ))}
@@ -1043,13 +1310,18 @@ export function BookingsDashboard() {
                       setOwnerFilters((current) => ({
                         ...current,
                         page: 1,
-                        status: (event.target.value || undefined) as BookingRequestStatus | undefined,
+                        status: (event.target.value || undefined) as
+                          | BookingRequestStatus
+                          | undefined,
                       }))
                     }
                     className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   >
                     {STATUS_OPTIONS.map((option) => (
-                      <option key={option.value ?? "all"} value={option.value ?? ""}>
+                      <option
+                        key={option.value ?? "all"}
+                        value={option.value ?? ""}
+                      >
                         {option.label}
                       </option>
                     ))}
@@ -1102,12 +1374,30 @@ export function BookingsDashboard() {
         ) : (
           <>
             <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <SummaryCard label="Upcoming" value={renterDashboard?.summary.upcoming ?? 0} />
-              <SummaryCard label="Active" value={renterDashboard?.summary.active ?? 0} />
-              <SummaryCard label="Pending" value={renterDashboard?.summary.pending ?? 0} />
-              <SummaryCard label="Action needed" value={renterDashboard?.summary.actionNeeded ?? 0} />
-              <SummaryCard label="Past" value={renterDashboard?.summary.past ?? 0} />
-              <SummaryCard label="Cancelled / refunded" value={renterDashboard?.summary.cancelled ?? 0} />
+              <SummaryCard
+                label="Upcoming"
+                value={renterDashboard?.summary.upcoming ?? 0}
+              />
+              <SummaryCard
+                label="Active"
+                value={renterDashboard?.summary.active ?? 0}
+              />
+              <SummaryCard
+                label="Pending"
+                value={renterDashboard?.summary.pending ?? 0}
+              />
+              <SummaryCard
+                label="Action needed"
+                value={renterDashboard?.summary.actionNeeded ?? 0}
+              />
+              <SummaryCard
+                label="Past"
+                value={renterDashboard?.summary.past ?? 0}
+              />
+              <SummaryCard
+                label="Cancelled / refunded"
+                value={renterDashboard?.summary.cancelled ?? 0}
+              />
             </section>
 
             <section className="mt-6 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
@@ -1119,13 +1409,18 @@ export function BookingsDashboard() {
                       setRenterFilters((current) => ({
                         ...current,
                         page: 1,
-                        bucket: (event.target.value || undefined) as RenterBookingDashboardBucket | undefined,
+                        bucket: (event.target.value || undefined) as
+                          | RenterBookingDashboardBucket
+                          | undefined,
                       }))
                     }
                     className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   >
                     {RENTER_BUCKET_OPTIONS.map((option) => (
-                      <option key={option.value ?? "all"} value={option.value ?? ""}>
+                      <option
+                        key={option.value ?? "all"}
+                        value={option.value ?? ""}
+                      >
                         {option.label}
                       </option>
                     ))}
@@ -1139,13 +1434,18 @@ export function BookingsDashboard() {
                       setRenterFilters((current) => ({
                         ...current,
                         page: 1,
-                        status: (event.target.value || undefined) as BookingRequestStatus | undefined,
+                        status: (event.target.value || undefined) as
+                          | BookingRequestStatus
+                          | undefined,
                       }))
                     }
                     className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   >
                     {STATUS_OPTIONS.map((option) => (
-                      <option key={option.value ?? "all"} value={option.value ?? ""}>
+                      <option
+                        key={option.value ?? "all"}
+                        value={option.value ?? ""}
+                      >
                         {option.label}
                       </option>
                     ))}
@@ -1184,9 +1484,13 @@ export function BookingsDashboard() {
                   <CalendarDays className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-950">No bookings match these filters</p>
+                  <p className="font-semibold text-slate-950">
+                    No bookings match these filters
+                  </p>
                   <p className="mt-2 max-w-2xl leading-6">
-                    Try clearing a filter or switching views. This workspace keeps booking work, upcoming handoffs, active rentals, and completed outcomes grouped in one place as activity lands.
+                    Try clearing a filter or switching views. This workspace
+                    keeps booking work, upcoming handoffs, active rentals, and
+                    completed outcomes grouped in one place as activity lands.
                   </p>
                 </div>
               </div>
@@ -1219,11 +1523,11 @@ export function BookingsDashboard() {
                       pickupInstructions:
                         field === "pickupInstructions"
                           ? value
-                          : current[rentingId]?.pickupInstructions ?? "",
+                          : (current[rentingId]?.pickupInstructions ?? ""),
                       returnInstructions:
                         field === "returnInstructions"
                           ? value
-                          : current[rentingId]?.returnInstructions ?? "",
+                          : (current[rentingId]?.returnInstructions ?? ""),
                     },
                   }))
                 }
@@ -1235,8 +1539,14 @@ export function BookingsDashboard() {
                   setDisputeDraftByRentingId((current) => ({
                     ...current,
                     [rentingId]: {
-                      reason: field === "reason" ? value : current[rentingId]?.reason ?? "",
-                      details: field === "details" ? value : current[rentingId]?.details ?? "",
+                      reason:
+                        field === "reason"
+                          ? value
+                          : (current[rentingId]?.reason ?? ""),
+                      details:
+                        field === "details"
+                          ? value
+                          : (current[rentingId]?.details ?? ""),
                     },
                   }))
                 }
@@ -1279,14 +1589,18 @@ export function BookingsDashboard() {
                   if (activeView === "owner" && showOwnerView) {
                     setOwnerFilters((current) => ({
                       ...current,
-                      page: pagination.hasNextPage ? current.page + 1 : current.page,
+                      page: pagination.hasNextPage
+                        ? current.page + 1
+                        : current.page,
                     }));
                     return;
                   }
 
                   setRenterFilters((current) => ({
                     ...current,
-                    page: pagination.hasNextPage ? current.page + 1 : current.page,
+                    page: pagination.hasNextPage
+                      ? current.page + 1
+                      : current.page,
                   }));
                 }}
                 disabled={!pagination.hasNextPage}
@@ -1305,8 +1619,12 @@ export function BookingsDashboard() {
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-[1.6rem] border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+        {value}
+      </p>
     </div>
   );
 }

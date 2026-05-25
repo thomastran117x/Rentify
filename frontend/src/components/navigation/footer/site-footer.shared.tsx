@@ -21,13 +21,7 @@ function InstagramIcon({ size = 17 }: { size?: number }) {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="12" r="4.25" />
-      <circle
-        cx="17.25"
-        cy="6.75"
-        r="0.75"
-        fill="currentColor"
-        stroke="none"
-      />
+      <circle cx="17.25" cy="6.75" r="0.75" fill="currentColor" stroke="none" />
     </svg>
   );
 }

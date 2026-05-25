@@ -1,7 +1,11 @@
 import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
 import { publicEnv } from "@/lib/env";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
-import { clearStoredSession, readStoredSession, writeStoredSession } from "@/lib/auth/storage";
+import {
+  clearStoredSession,
+  readStoredSession,
+  writeStoredSession,
+} from "@/lib/auth/storage";
 import {
   type AuthEmailAcceptedResult,
   type AuthResponseBody,
@@ -147,15 +151,22 @@ async function postAuthenticatedJson<TResponse, TBody extends object = object>(
   return authenticatedJsonWithRetry(path, "POST", body, true);
 }
 
-async function getAuthenticatedJson<TResponse>(path: string): Promise<TResponse> {
+async function getAuthenticatedJson<TResponse>(
+  path: string,
+): Promise<TResponse> {
   return authenticatedJsonWithRetry<TResponse>(path, "GET", undefined, true);
 }
 
-async function deleteAuthenticatedJson<TResponse>(path: string): Promise<TResponse> {
+async function deleteAuthenticatedJson<TResponse>(
+  path: string,
+): Promise<TResponse> {
   return authenticatedJsonWithRetry<TResponse>(path, "DELETE", undefined, true);
 }
 
-async function authenticatedJsonWithRetry<TResponse, TBody extends object = object>(
+async function authenticatedJsonWithRetry<
+  TResponse,
+  TBody extends object = object,
+>(
   path: string,
   method: "GET" | "POST" | "DELETE",
   body: TBody | undefined,
@@ -170,8 +181,12 @@ async function authenticatedJsonWithRetry<TResponse, TBody extends object = obje
     headers: {
       ...(body ? { "content-type": "application/json" } : {}),
       accept: "application/json",
-      ...(session?.accessToken ? { authorization: `Bearer ${session.accessToken}` } : {}),
-      ...(csrfToken && method !== "GET" ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+      ...(session?.accessToken
+        ? { authorization: `Bearer ${session.accessToken}` }
+        : {}),
+      ...(csrfToken && method !== "GET"
+        ? { [CSRF_HEADER_NAME]: csrfToken }
+        : {}),
       ...(deviceId ? { "x-device-id": deviceId } : {}),
       ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
     },
@@ -217,7 +232,9 @@ async function refreshStoredSession(): Promise<AuthResponseBody | null> {
       },
       credentials: "include",
       body: JSON.stringify({
-        ...(session?.refreshToken ? { refreshToken: session.refreshToken } : {}),
+        ...(session?.refreshToken
+          ? { refreshToken: session.refreshToken }
+          : {}),
       }),
     });
 
@@ -256,13 +273,17 @@ export const authApi = {
   refresh(): Promise<AuthResponseBody | null> {
     return refreshStoredSession();
   },
-  authenticateWithGoogle(input: OAuthAuthenticateInput): Promise<AuthResponseBody> {
+  authenticateWithGoogle(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthResponseBody> {
     return postJson<AuthResponseBody>("/auth/oauth/google", {
       ...input,
       deviceId: input.deviceId ?? getDeviceId(),
     });
   },
-  authenticateWithMicrosoft(input: OAuthAuthenticateInput): Promise<AuthResponseBody> {
+  authenticateWithMicrosoft(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthResponseBody> {
     return postJson<AuthResponseBody>("/auth/oauth/microsoft", {
       ...input,
       deviceId: input.deviceId ?? getDeviceId(),
@@ -272,16 +293,25 @@ export const authApi = {
     provider: Exclude<OAuthProvider, "apple">,
     input: OAuthAuthenticateInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    return postAuthenticatedJson<LinkedOAuthProvidersResult>(`/auth/oauth/${provider}/link`, {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return postAuthenticatedJson<LinkedOAuthProvidersResult>(
+      `/auth/oauth/${provider}/link`,
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   linkedOAuthProviders(): Promise<LinkedOAuthProvidersResult> {
-    return getAuthenticatedJson<LinkedOAuthProvidersResult>("/auth/oauth/providers");
+    return getAuthenticatedJson<LinkedOAuthProvidersResult>(
+      "/auth/oauth/providers",
+    );
   },
-  unlinkOAuthProvider(provider: OAuthProvider): Promise<LinkedOAuthProvidersResult> {
-    return deleteAuthenticatedJson<LinkedOAuthProvidersResult>(`/auth/oauth/${provider}`);
+  unlinkOAuthProvider(
+    provider: OAuthProvider,
+  ): Promise<LinkedOAuthProvidersResult> {
+    return deleteAuthenticatedJson<LinkedOAuthProvidersResult>(
+      `/auth/oauth/${provider}`,
+    );
   },
   signup(input: SignupInput): Promise<SignupVerificationPendingResult> {
     return postJson<SignupVerificationPendingResult>("/auth/local/signup", {
@@ -300,13 +330,21 @@ export const authApi = {
   ): Promise<AuthEmailAcceptedResult> {
     return postJson<AuthEmailAcceptedResult>("/auth/local/email/resend", input);
   },
-  forgotPassword(input: ForgotPasswordInput): Promise<ForgotPasswordAcceptedResult> {
-    return postJson<ForgotPasswordAcceptedResult>("/auth/local/password/forgot", input);
+  forgotPassword(
+    input: ForgotPasswordInput,
+  ): Promise<ForgotPasswordAcceptedResult> {
+    return postJson<ForgotPasswordAcceptedResult>(
+      "/auth/local/password/forgot",
+      input,
+    );
   },
   resendForgotPassword(
     input: ResendForgotPasswordInput,
   ): Promise<ForgotPasswordAcceptedResult> {
-    return postJson<ForgotPasswordAcceptedResult>("/auth/local/password/forgot/resend", input);
+    return postJson<ForgotPasswordAcceptedResult>(
+      "/auth/local/password/forgot/resend",
+      input,
+    );
   },
   resetPassword(input: ResetPasswordInput): Promise<AuthResponseBody> {
     return postJson<AuthResponseBody>("/auth/local/password/reset", {
@@ -314,7 +352,9 @@ export const authApi = {
       deviceId: input.deviceId ?? getDeviceId(),
     });
   },
-  unlockLocalLogin(input: UnlockLocalLoginInput): Promise<{ unlocked: true; email: string }> {
+  unlockLocalLogin(
+    input: UnlockLocalLoginInput,
+  ): Promise<{ unlocked: true; email: string }> {
     return postJson<{ unlocked: true; email: string }>("/auth/local/unlock", {
       ...input,
       deviceId: getDeviceId(),
@@ -323,27 +363,40 @@ export const authApi = {
   resendUnlockLocalLogin(
     input: ResendUnlockLocalLoginInput,
   ): Promise<AuthEmailAcceptedResult> {
-    return postJson<AuthEmailAcceptedResult>("/auth/local/unlock/resend", input);
+    return postJson<AuthEmailAcceptedResult>(
+      "/auth/local/unlock/resend",
+      input,
+    );
   },
   changePassword(input: ChangePasswordInput): Promise<AuthResponseBody> {
-    return postAuthenticatedJson<AuthResponseBody>("/auth/local/password/change", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return postAuthenticatedJson<AuthResponseBody>(
+      "/auth/local/password/change",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   listPersonalAccessTokens(): Promise<PersonalAccessTokenListResult> {
-    return getAuthenticatedJson<PersonalAccessTokenListResult>("/auth/personal-access-tokens");
+    return getAuthenticatedJson<PersonalAccessTokenListResult>(
+      "/auth/personal-access-tokens",
+    );
   },
   createPersonalAccessToken(
     input: CreatePersonalAccessTokenInput,
   ): Promise<CreatePersonalAccessTokenResult> {
-    return postAuthenticatedJson<CreatePersonalAccessTokenResult>("/auth/personal-access-tokens", {
-      name: input.name,
-      scopes: input.scopes,
-      expiresInDays: input.expiresInDays,
-    });
+    return postAuthenticatedJson<CreatePersonalAccessTokenResult>(
+      "/auth/personal-access-tokens",
+      {
+        name: input.name,
+        scopes: input.scopes,
+        expiresInDays: input.expiresInDays,
+      },
+    );
   },
-  revokePersonalAccessToken(tokenId: string): Promise<RevokePersonalAccessTokenResult> {
+  revokePersonalAccessToken(
+    tokenId: string,
+  ): Promise<RevokePersonalAccessTokenResult> {
     return deleteAuthenticatedJson<RevokePersonalAccessTokenResult>(
       `/auth/personal-access-tokens/${tokenId}`,
     );

@@ -105,7 +105,9 @@ export class PublicPostingDetailError extends Error {
   }
 }
 
-export async function fetchPublicPostingDetail(postingId: string): Promise<PublicPostingDetail> {
+export async function fetchPublicPostingDetail(
+  postingId: string,
+): Promise<PublicPostingDetail> {
   const requestUrl = `${resolveApiBaseUrl()}/postings/${encodeURIComponent(postingId)}`;
 
   try {
@@ -123,7 +125,8 @@ export async function fetchPublicPostingDetail(postingId: string): Promise<Publi
 
     if (!response.ok) {
       throw new PublicPostingDetailError(
-        (payload && "message" in payload && payload.message) || "Unable to load posting.",
+        (payload && "message" in payload && payload.message) ||
+          "Unable to load posting.",
         {
           requestUrl,
           postingId,
@@ -143,7 +146,8 @@ export async function fetchPublicPostingDetail(postingId: string): Promise<Publi
     throw new PublicPostingDetailError("Unable to load posting.", {
       requestUrl,
       postingId,
-      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
+      causeMessage:
+        error instanceof Error ? error.message : "Unknown fetch failure.",
     });
   }
 }
@@ -151,5 +155,7 @@ export async function fetchPublicPostingDetail(postingId: string): Promise<Publi
 export const getPublicPostingDetail = cache(fetchPublicPostingDetail);
 
 export function isPublicPostingDetailNotFoundError(error: unknown): boolean {
-  return error instanceof PublicPostingDetailError && error.debug.status === 404;
+  return (
+    error instanceof PublicPostingDetailError && error.debug.status === 404
+  );
 }

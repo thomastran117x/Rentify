@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { StoredAuthSession } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
-import {
-  SiteHeaderMobileAccountSection,
-} from "./site-header-account-panels";
+import { SiteHeaderMobileAccountSection } from "./site-header-account-panels";
 import { SiteHeaderMobileNavGrid } from "./site-header-navigation";
 import {
   type HeaderAccountLink,
@@ -36,10 +34,7 @@ export function SiteHeaderMobileMenu({
 }: SiteHeaderMobileMenuProps) {
   return (
     <details className="group relative md:hidden">
-      <summary
-        className={theme.header.iconButton}
-        aria-label="Open menu"
-      >
+      <summary className={theme.header.iconButton} aria-label="Open menu">
         <MenuIcon />
       </summary>
 

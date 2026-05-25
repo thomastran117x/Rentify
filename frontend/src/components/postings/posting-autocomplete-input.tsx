@@ -68,7 +68,9 @@ export function PostingAutocompleteInput({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(initialValue);
-  const [suggestions, setSuggestions] = useState<PostingAutocompleteSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<
+    PostingAutocompleteSuggestion[]
+  >([]);
   const [isFocused, setIsFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -189,7 +191,9 @@ export function PostingAutocompleteInput({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setHighlightedIndex((currentIndex) => (currentIndex + 1) % suggestions.length);
+      setHighlightedIndex(
+        (currentIndex) => (currentIndex + 1) % suggestions.length,
+      );
       return;
     }
 

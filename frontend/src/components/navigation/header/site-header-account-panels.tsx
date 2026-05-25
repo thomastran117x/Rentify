@@ -17,10 +17,7 @@ function AccountIdentity({ session, displayName }: AccountIdentityProps) {
 
   return (
     <>
-      <UserAvatar
-        name={avatarName}
-        imageUrl={session.user.avatarUrl ?? null}
-      />
+      <UserAvatar name={avatarName} imageUrl={session.user.avatarUrl ?? null} />
 
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-slate-950">

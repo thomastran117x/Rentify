@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
 import { ApiError } from "@/lib/auth/types";
@@ -146,7 +141,11 @@ export function SiteHeader() {
             aria-label={mobileSearchOpen ? "Close search" : "Open search"}
             aria-expanded={mobileSearchOpen}
           >
-            {mobileSearchOpen ? <CloseIcon /> : <SearchIcon className="h-5 w-5" />}
+            {mobileSearchOpen ? (
+              <CloseIcon />
+            ) : (
+              <SearchIcon className="h-5 w-5" />
+            )}
           </button>
 
           <SiteHeaderDesktopAccount

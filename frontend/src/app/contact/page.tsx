@@ -4,7 +4,8 @@ import { ContactInquiryForm } from "@/components/marketing/contact-inquiry-form"
 
 export const metadata: Metadata = {
   title: "Contact | Rentify",
-  description: "Contact Rentify for renter support, owner questions, partnerships, or trust and safety issues.",
+  description:
+    "Contact Rentify for renter support, owner questions, partnerships, or trust and safety issues.",
 };
 
 const contactChannels = [
@@ -43,8 +44,8 @@ export default function ContactPage() {
             1 business day
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Best for booking questions, owner setup, partnerships, and any issue where
-            you need a real answer from the team.
+            Best for booking questions, owner setup, partnerships, and any issue
+            where you need a real answer from the team.
           </p>
         </div>
       }

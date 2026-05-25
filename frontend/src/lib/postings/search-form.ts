@@ -33,7 +33,9 @@ export function toUtcIsoDateTime(value?: string): string | null {
   return date.toISOString();
 }
 
-export function buildSearchFormQuery(entries: Iterable<[string, FormDataEntryValue]>): URLSearchParams {
+export function buildSearchFormQuery(
+  entries: Iterable<[string, FormDataEntryValue]>,
+): URLSearchParams {
   const searchParams = new URLSearchParams();
 
   for (const [key, rawValue] of entries) {

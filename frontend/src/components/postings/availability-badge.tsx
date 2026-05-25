@@ -12,7 +12,11 @@ const availabilityLabels: Record<PublicPostingAvailabilityStatus, string> = {
   unavailable: "Unavailable",
 };
 
-export function AvailabilityBadge({ status }: { status: PublicPostingAvailabilityStatus }) {
+export function AvailabilityBadge({
+  status,
+}: {
+  status: PublicPostingAvailabilityStatus;
+}) {
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${availabilityStyles[status]}`}

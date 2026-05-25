@@ -1,4 +1,7 @@
-export type PublicPostingAvailabilityStatus = "available" | "limited" | "unavailable";
+export type PublicPostingAvailabilityStatus =
+  | "available"
+  | "limited"
+  | "unavailable";
 
 const ATTRIBUTE_LABEL_OVERRIDES: Record<string, string> = {
   guest_capacity: "Guest capacity",
@@ -13,7 +16,9 @@ const VALUE_TOKEN_OVERRIDES: Record<string, string> = {
 };
 
 export function humanizePostingValue(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export function formatPostingPrice(amount: number, currency: string): string {
@@ -55,7 +60,9 @@ export function formatPostingAttributeLabel(key: string): string {
   return ATTRIBUTE_LABEL_OVERRIDES[key] ?? humanizePostingValue(key);
 }
 
-export function formatPostingAttributeValue(value: string | number | boolean | string[]): string {
+export function formatPostingAttributeValue(
+  value: string | number | boolean | string[],
+): string {
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";
   }

@@ -15,7 +15,8 @@
   --font-sans-stack:
     "Avenir Next", "Segoe UI", "Helvetica Neue", "Arial Nova", sans-serif;
   --font-serif-display-stack:
-    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman",
+    serif;
 }
 
 @theme inline {

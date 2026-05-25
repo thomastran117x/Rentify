@@ -1,17 +1,12 @@
 import Link from "next/link";
 import { theme } from "@/styles/theme";
-import {
-  isRouteActive,
-  navigationLinks,
-} from "./site-header.shared";
+import { isRouteActive, navigationLinks } from "./site-header.shared";
 
 interface SiteHeaderDesktopNavProps {
   pathname: string;
 }
 
-export function SiteHeaderDesktopNav({
-  pathname,
-}: SiteHeaderDesktopNavProps) {
+export function SiteHeaderDesktopNav({ pathname }: SiteHeaderDesktopNavProps) {
   return (
     <nav className={theme.header.desktopNav}>
       {navigationLinks.map((link) => {
@@ -21,7 +16,9 @@ export function SiteHeaderDesktopNav({
           <Link
             key={link.href}
             href={link.href}
-            className={active ? theme.header.navLinkActive : theme.header.navLink}
+            className={
+              active ? theme.header.navLinkActive : theme.header.navLink
+            }
           >
             {link.label}
           </Link>

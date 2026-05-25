@@ -133,12 +133,18 @@ function toQueryString(params: PublicPostingSearchParams): string {
   if (params.tags) {
     for (const tag of params.tags) searchParams.append("tags", tag);
   }
-  if (params.availabilityStatus) searchParams.set("availabilityStatus", params.availabilityStatus);
-  if (params.minDailyPrice !== undefined) searchParams.set("minDailyPrice", String(params.minDailyPrice));
-  if (params.maxDailyPrice !== undefined) searchParams.set("maxDailyPrice", String(params.maxDailyPrice));
-  if (params.latitude !== undefined) searchParams.set("latitude", String(params.latitude));
-  if (params.longitude !== undefined) searchParams.set("longitude", String(params.longitude));
-  if (params.radiusKm !== undefined) searchParams.set("radiusKm", String(params.radiusKm));
+  if (params.availabilityStatus)
+    searchParams.set("availabilityStatus", params.availabilityStatus);
+  if (params.minDailyPrice !== undefined)
+    searchParams.set("minDailyPrice", String(params.minDailyPrice));
+  if (params.maxDailyPrice !== undefined)
+    searchParams.set("maxDailyPrice", String(params.maxDailyPrice));
+  if (params.latitude !== undefined)
+    searchParams.set("latitude", String(params.latitude));
+  if (params.longitude !== undefined)
+    searchParams.set("longitude", String(params.longitude));
+  if (params.radiusKm !== undefined)
+    searchParams.set("radiusKm", String(params.radiusKm));
   if (params.startAt) searchParams.set("startAt", params.startAt);
   if (params.endAt) searchParams.set("endAt", params.endAt);
 
@@ -146,13 +152,16 @@ function toQueryString(params: PublicPostingSearchParams): string {
   return query ? `?${query}` : "";
 }
 
-function toAutocompleteQueryString(params: PublicPostingAutocompleteParams): string {
+function toAutocompleteQueryString(
+  params: PublicPostingAutocompleteParams,
+): string {
   const searchParams = new URLSearchParams();
 
   if (params.q) searchParams.set("q", params.q);
   if (params.family) searchParams.set("family", params.family);
   if (params.subtype) searchParams.set("subtype", params.subtype);
-  if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
+  if (params.limit !== undefined)
+    searchParams.set("limit", String(params.limit));
 
   const query = searchParams.toString();
   return query ? `?${query}` : "";
@@ -209,7 +218,8 @@ export async function searchPublicPostings(
 
     if (!response.ok) {
       const error = new PublicPostingSearchError(
-        (payload && "message" in payload && payload.message) || "Unable to load postings.",
+        (payload && "message" in payload && payload.message) ||
+          "Unable to load postings.",
         {
           requestUrl,
           params,
@@ -232,9 +242,13 @@ export async function searchPublicPostings(
     const debug = {
       requestUrl,
       params,
-      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
+      causeMessage:
+        error instanceof Error ? error.message : "Unknown fetch failure.",
     };
-    console.error("Public postings search fetch threw before a response was received", debug);
+    console.error(
+      "Public postings search fetch threw before a response was received",
+      debug,
+    );
 
     throw new PublicPostingSearchError("Unable to load postings.", debug);
   }
@@ -286,10 +300,14 @@ export async function fetchPublicPostingAutocomplete(
       throw error;
     }
 
-    throw new PublicPostingAutocompleteError("Unable to load posting suggestions.", {
-      requestUrl,
-      params,
-      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
-    });
+    throw new PublicPostingAutocompleteError(
+      "Unable to load posting suggestions.",
+      {
+        requestUrl,
+        params,
+        causeMessage:
+          error instanceof Error ? error.message : "Unknown fetch failure.",
+      },
+    );
   }
 }

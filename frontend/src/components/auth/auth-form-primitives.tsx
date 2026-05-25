@@ -6,12 +6,21 @@ interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export function Field({ label, hint, error, className, id, ...props }: FieldProps) {
+export function Field({
+  label,
+  hint,
+  error,
+  className,
+  id,
+  ...props
+}: FieldProps) {
   const resolvedId = id ?? props.name;
 
   return (
     <label htmlFor={resolvedId} className="block space-y-2.5">
-      <span className="text-sm font-medium tracking-[-0.01em] text-slate-800">{label}</span>
+      <span className="text-sm font-medium tracking-[-0.01em] text-slate-800">
+        {label}
+      </span>
       <input
         {...props}
         id={resolvedId}

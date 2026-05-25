@@ -35,7 +35,11 @@ export type OwnerBookingDashboardActionNeeded =
   | "conversion";
 export type BookingDashboardUrgencyLevel = "high" | "medium" | "low" | "none";
 export type BookingCancellationActor = "renter" | "owner";
-export type BookingCancellationRefundType = "full" | "partial" | "none" | "unsupported";
+export type BookingCancellationRefundType =
+  | "full"
+  | "partial"
+  | "none"
+  | "unsupported";
 
 export interface BookingRequestPostingSummary {
   id: string;

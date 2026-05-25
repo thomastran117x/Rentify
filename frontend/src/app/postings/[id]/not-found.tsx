@@ -18,8 +18,8 @@ export default function PostingNotFound() {
             This posting is no longer available.
           </h1>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            It may have been removed or is no longer public. You can head back to browse the
-            current marketplace instead.
+            It may have been removed or is no longer public. You can head back
+            to browse the current marketplace instead.
           </p>
           <div className="mt-7 flex justify-center">
             <Link href="/postings" className={theme.marketplace.primaryButton}>

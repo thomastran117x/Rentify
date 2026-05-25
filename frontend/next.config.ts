@@ -5,9 +5,9 @@ import type { NextConfig } from "next";
 // Load shared repo-root env values before Next applies frontend-local overrides.
 const sharedEnvPath = path.resolve(process.cwd(), "../.env");
 if (existsSync(sharedEnvPath)) {
-  (process as typeof process & { loadEnvFile?: (path?: string) => void }).loadEnvFile?.(
-    sharedEnvPath,
-  );
+  (
+    process as typeof process & { loadEnvFile?: (path?: string) => void }
+  ).loadEnvFile?.(sharedEnvPath);
 }
 
 const nextConfig: NextConfig = {

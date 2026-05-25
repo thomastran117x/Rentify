@@ -12,7 +12,9 @@ function createDeviceId(): string {
   const bytes = new Uint8Array(16);
   webCrypto.getRandomValues(bytes);
 
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 export function getDeviceId(): string | undefined {
@@ -20,7 +22,9 @@ export function getDeviceId(): string | undefined {
     return undefined;
   }
 
-  const existingDeviceId = window.localStorage.getItem(DEVICE_STORAGE_KEY)?.trim();
+  const existingDeviceId = window.localStorage
+    .getItem(DEVICE_STORAGE_KEY)
+    ?.trim();
 
   if (existingDeviceId) {
     return existingDeviceId;
@@ -36,7 +40,8 @@ export function getDevicePlatform(): string | undefined {
     return undefined;
   }
 
-  const userAgentData = (navigator as Navigator & { userAgentData?: { platform?: string } })
-    .userAgentData;
+  const userAgentData = (
+    navigator as Navigator & { userAgentData?: { platform?: string } }
+  ).userAgentData;
   return userAgentData?.platform || navigator.platform || undefined;
 }

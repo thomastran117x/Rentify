@@ -3,7 +3,8 @@ import { PostingDashboardDetail } from "@/components/dashboard/posting-dashboard
 
 export const metadata: Metadata = {
   title: "Posting Analytics | Rentify",
-  description: "Inspect live trend, outcomes, and conversion detail for a single posting.",
+  description:
+    "Inspect live trend, outcomes, and conversion detail for a single posting.",
 };
 
 export default async function DashboardPostingDetailPage({
