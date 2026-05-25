@@ -301,9 +301,7 @@ export class PostingsSearchIndexService {
     };
   }
 
-  async swapAliases(
-    newIndexName: string,
-  ): Promise<{
+  async swapAliases(newIndexName: string): Promise<{
     previousReadTargets: string[];
     previousWriteTargets: string[];
   }> {
