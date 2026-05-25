@@ -31,7 +31,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function resolveRequestId(context: Context<AppBindings>): string {
   const requestId = context.get("requestId");
-  return typeof requestId === "string" && requestId.length > 0 ? requestId : "unknown";
+  return typeof requestId === "string" && requestId.length > 0
+    ? requestId
+    : "unknown";
 }
 
 function defaultSuccessMessage(status: 200 | 201 | 202): string {
@@ -49,11 +51,16 @@ function defaultSuccessMessage(status: 200 | 201 | 202): string {
 export function mergeResponseMeta(
   ...sources: Array<Record<string, unknown> | undefined>
 ): Record<string, unknown> | undefined {
-  const merged = Object.assign({}, ...sources.filter((source) => source !== undefined));
+  const merged = Object.assign(
+    {},
+    ...sources.filter((source) => source !== undefined),
+  );
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
-export function paginationMeta(value: unknown): Record<string, unknown> | undefined {
+export function paginationMeta(
+  value: unknown,
+): Record<string, unknown> | undefined {
   if (!isRecord(value) || !("pagination" in value)) {
     return undefined;
   }
@@ -134,7 +141,10 @@ function jsonResponse<TData>(
   data: TData,
   options?: ResponseOptions,
 ): Response {
-  return context.json(buildSuccessResponse(context, data, status, options), status);
+  return context.json(
+    buildSuccessResponse(context, data, status, options),
+    status,
+  );
 }
 
 export function ok<TData>(

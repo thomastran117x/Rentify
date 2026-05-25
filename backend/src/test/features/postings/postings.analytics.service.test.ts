@@ -18,16 +18,18 @@ function createPublicPosting(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createClient(overrides?: Partial<{
-  ip: string;
-  device: {
-    id?: string;
-    type: string;
-    isMobile: boolean;
-    userAgent?: string;
-    platform?: string;
-  };
-}>) {
+function createClient(
+  overrides?: Partial<{
+    ip: string;
+    device: {
+      id?: string;
+      type: string;
+      isMobile: boolean;
+      userAgent?: string;
+      platform?: string;
+    };
+  }>,
+) {
   return {
     ip: "203.0.113.10",
     device: {
@@ -55,7 +57,10 @@ describe("PostingsAnalyticsService", () => {
     const analyticsRepository = {
       enqueuePostingViewedEvent: jest.fn(async () => undefined),
     };
-    const service = new PostingsAnalyticsService(analyticsRepository as never, {} as never);
+    const service = new PostingsAnalyticsService(
+      analyticsRepository as never,
+      {} as never,
+    );
     const client = createClient();
 
     await service.trackPublicView(createPublicPosting(), client);
@@ -78,9 +83,16 @@ describe("PostingsAnalyticsService", () => {
     const analyticsRepository = {
       enqueuePostingViewedEvent: jest.fn(async () => undefined),
     };
-    const service = new PostingsAnalyticsService(analyticsRepository as never, {} as never);
+    const service = new PostingsAnalyticsService(
+      analyticsRepository as never,
+      {} as never,
+    );
 
-    await service.trackPublicView(createPublicPosting(), createClient(), "owner-1");
+    await service.trackPublicView(
+      createPublicPosting(),
+      createClient(),
+      "owner-1",
+    );
     await service.trackPublicView(
       createPublicPosting(),
       createClient({
@@ -97,14 +109,19 @@ describe("PostingsAnalyticsService", () => {
       createClient(),
     );
 
-    expect(analyticsRepository.enqueuePostingViewedEvent).not.toHaveBeenCalled();
+    expect(
+      analyticsRepository.enqueuePostingViewedEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it("tracks search impressions only when postings are present", async () => {
     const analyticsRepository = {
       enqueueSearchImpressionEvent: jest.fn(async () => undefined),
     };
-    const service = new PostingsAnalyticsService(analyticsRepository as never, {} as never);
+    const service = new PostingsAnalyticsService(
+      analyticsRepository as never,
+      {} as never,
+    );
 
     await service.trackSearchImpressions([]);
     await service.trackSearchImpressions([
@@ -114,8 +131,12 @@ describe("PostingsAnalyticsService", () => {
       }),
     ] as never);
 
-    expect(analyticsRepository.enqueueSearchImpressionEvent).toHaveBeenCalledTimes(2);
-    expect(analyticsRepository.enqueueSearchImpressionEvent).toHaveBeenNthCalledWith(1, {
+    expect(
+      analyticsRepository.enqueueSearchImpressionEvent,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      analyticsRepository.enqueueSearchImpressionEvent,
+    ).toHaveBeenNthCalledWith(1, {
       postingId: "posting-1",
       ownerId: "owner-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
@@ -144,8 +165,12 @@ describe("PostingsAnalyticsService", () => {
     await service.trackSearchClick("posting-1");
     await service.trackSearchClick("posting-2");
 
-    expect(postingsRepository.findPublicReadMetadataById).toHaveBeenCalledTimes(2);
-    expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledTimes(1);
+    expect(postingsRepository.findPublicReadMetadataById).toHaveBeenCalledTimes(
+      2,
+    );
+    expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledTimes(
+      1,
+    );
     expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledWith({
       postingId: "posting-1",
       ownerId: "owner-1",
@@ -158,7 +183,10 @@ describe("PostingsAnalyticsService", () => {
       getOwnerSummary: jest.fn(async () => ({ window: "30d" })),
       listOwnerPostingsAnalytics: jest.fn(async () => ({ postings: [] })),
     };
-    const service = new PostingsAnalyticsService(analyticsRepository as never, {} as never);
+    const service = new PostingsAnalyticsService(
+      analyticsRepository as never,
+      {} as never,
+    );
 
     await expect(service.getOwnerSummary("owner-1", "30d")).resolves.toEqual({
       window: "30d",

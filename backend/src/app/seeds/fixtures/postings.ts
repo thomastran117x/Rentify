@@ -1,4 +1,9 @@
-import { createFixtureId, type SeedAvailabilityBlockFixture, type SeedPostingFixture, type SeedPostingPhotoFixture } from "@/seeds/types";
+import {
+  createFixtureId,
+  type SeedAvailabilityBlockFixture,
+  type SeedPostingFixture,
+  type SeedPostingPhotoFixture,
+} from "@/seeds/types";
 
 function createPhoto(index: number, slug: string): SeedPostingPhotoFixture {
   return {
@@ -34,9 +39,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Downtown Toronto Loft",
-    description: "A bright furnished loft set up for short stays and local photo shoots.",
+    description:
+      "A bright furnished loft set up for short stays and local photo shoots.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 180 }, weekly: { amount: 1050 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 180 },
+      weekly: { amount: 1050 },
+    },
     tags: ["toronto", "loft", "photoshoot"],
     details: {
       guest_capacity: 4,
@@ -58,7 +68,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "M5V1K4",
     photos: [createPhoto(1, "toronto-loft")],
     availabilityBlocks: [
-      createOwnerBlock(1, "2026-06-15T14:00:00.000Z", "2026-06-18T14:00:00.000Z", "Owner blocked for maintenance."),
+      createOwnerBlock(
+        1,
+        "2026-06-15T14:00:00.000Z",
+        "2026-06-18T14:00:00.000Z",
+        "Owner blocked for maintenance.",
+      ),
     ],
   },
   {
@@ -68,7 +83,8 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "Sony Mirrorless Creator Kit",
-    description: "Mirrorless camera package with two lenses, battery grip, and travel case.",
+    description:
+      "Mirrorless camera package with two lenses, battery grip, and travel case.",
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 65 } },
     tags: ["camera", "video", "creator"],
@@ -98,7 +114,8 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "private_room",
     name: "Annex Guest Room",
-    description: "A quiet private room near transit with desk space for short city stays.",
+    description:
+      "A quiet private room near transit with desk space for short city stays.",
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 85 } },
     tags: ["room", "annex", "shortstay"],
@@ -130,9 +147,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "tool",
     name: "Contractor Tool Pack",
-    description: "Rotating set of contractor-grade power tools for weekend renovation work.",
+    description:
+      "Rotating set of contractor-grade power tools for weekend renovation work.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 55 }, weekly: { amount: 300 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 55 },
+      weekly: { amount: 300 },
+    },
     tags: ["tools", "contractor", "renovation"],
     details: {
       brand: "Milwaukee",
@@ -153,7 +175,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "M4N2L3",
     photos: [createPhoto(4, "tool-pack")],
     availabilityBlocks: [
-      createOwnerBlock(4, "2026-07-04T12:00:00.000Z", "2026-07-06T12:00:00.000Z", "Already reserved for a personal project."),
+      createOwnerBlock(
+        4,
+        "2026-07-04T12:00:00.000Z",
+        "2026-07-06T12:00:00.000Z",
+        "Already reserved for a personal project.",
+      ),
     ],
   },
   {
@@ -163,9 +190,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "storage_space",
     name: "Climate-Controlled Storage Bay",
-    description: "Small storage bay for seasonal inventory and short term overflow storage.",
+    description:
+      "Small storage bay for seasonal inventory and short term overflow storage.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 35 }, monthly: { amount: 650 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 35 },
+      monthly: { amount: 650 },
+    },
     tags: ["storage", "inventory", "secure"],
     details: {
       guest_capacity: 1,
@@ -195,9 +227,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Weekend Trail E-Bike",
-    description: "Trail-ready e-bike with helmet, repair kit, and phone mount for day trips.",
+    description:
+      "Trail-ready e-bike with helmet, repair kit, and phone mount for day trips.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 58 }, weekly: { amount: 320 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 58 },
+      weekly: { amount: 320 },
+    },
     tags: ["bike", "trail", "weekend"],
     details: {
       make: "Specialized",
@@ -227,9 +264,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "audio",
     name: "Live Event PA Rack",
-    description: "Portable PA rack with mixer, powered speakers, stands, and cable bundle.",
+    description:
+      "Portable PA rack with mixer, powered speakers, stands, and cable bundle.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 110 }, weekend: { amount: 260 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 110 },
+      weekend: { amount: 260 },
+    },
     tags: ["audio", "event", "pa"],
     details: {
       brand: "Yamaha",
@@ -258,9 +300,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Junction Team Offsite Loft",
-    description: "Open loft space for planning sessions, interviews, and creative workshops.",
+    description:
+      "Open loft space for planning sessions, interviews, and creative workshops.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 145 }, hourly: { amount: 28 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 145 },
+      hourly: { amount: 28 },
+    },
     tags: ["workspace", "team", "offsite"],
     details: {
       guest_capacity: 12,
@@ -282,7 +329,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "M6P1N4",
     photos: [createPhoto(8, "junction-offsite-loft")],
     availabilityBlocks: [
-      createOwnerBlock(8, "2026-08-03T13:00:00.000Z", "2026-08-03T23:00:00.000Z", "Owner workshop day."),
+      createOwnerBlock(
+        8,
+        "2026-08-03T13:00:00.000Z",
+        "2026-08-03T23:00:00.000Z",
+        "Owner workshop day.",
+      ),
     ],
   },
   {
@@ -292,9 +344,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Market Stall Display Set",
-    description: "Folding shelving, branded backdrops, table covers, and lighting for pop-ups.",
+    description:
+      "Folding shelving, branded backdrops, table covers, and lighting for pop-ups.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 410 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 82 },
+      weekly: { amount: 410 },
+    },
     tags: ["market", "display", "popup"],
     details: {
       brand: "FixtureLab",
@@ -323,9 +380,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Neighbourhood Cargo Van",
-    description: "Compact cargo van for furniture pickups, vendor deliveries, and weekend moves.",
+    description:
+      "Compact cargo van for furniture pickups, vendor deliveries, and weekend moves.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 118 }, weekly: { amount: 640 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 118 },
+      weekly: { amount: 640 },
+    },
     tags: ["van", "cargo", "moving"],
     details: {
       make: "Ford",
@@ -355,9 +417,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Riverside Workshop Studio",
-    description: "A rentable workspace for maker sessions, product shoots, and small team planning.",
+    description:
+      "A rentable workspace for maker sessions, product shoots, and small team planning.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 120 }, hourly: { amount: 24 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 120 },
+      hourly: { amount: 24 },
+    },
     tags: ["workspace", "studio", "maker"],
     details: {
       guest_capacity: 10,
@@ -379,7 +446,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "K1P1J1",
     photos: [createPhoto(11, "workshop-studio")],
     availabilityBlocks: [
-      createOwnerBlock(11, "2026-06-21T13:00:00.000Z", "2026-06-22T01:00:00.000Z", "Reserved for owner event setup."),
+      createOwnerBlock(
+        11,
+        "2026-06-21T13:00:00.000Z",
+        "2026-06-22T01:00:00.000Z",
+        "Reserved for owner event setup.",
+      ),
     ],
   },
   {
@@ -389,7 +461,8 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "City Commuter E-Bike",
-    description: "Electric commuter bike with helmet, lock, and rear cargo rack included.",
+    description:
+      "Electric commuter bike with helmet, lock, and rear cargo rack included.",
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 45 } },
     tags: ["bike", "ebike", "commuter"],
@@ -421,9 +494,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Compact Hybrid Hatchback",
-    description: "Fuel-efficient hatchback for weekend escapes and city errands.",
+    description:
+      "Fuel-efficient hatchback for weekend escapes and city errands.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 78 }, weekly: { amount: 430 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 78 },
+      weekly: { amount: 430 },
+    },
     tags: ["car", "hybrid", "weekend"],
     details: {
       make: "Toyota",
@@ -453,7 +531,8 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "audio",
     name: "Podcast Audio Bundle",
-    description: "Mobile podcast bundle with mixer, microphones, headphones, and cases.",
+    description:
+      "Mobile podcast bundle with mixer, microphones, headphones, and cases.",
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 70 } },
     tags: ["audio", "podcast", "recording"],
@@ -484,9 +563,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Pop-Up Event Kit",
-    description: "Portable event kit with folding tables, tents, signage stands, and lighting.",
+    description:
+      "Portable event kit with folding tables, tents, signage stands, and lighting.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 95 }, weekly: { amount: 520 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 95 },
+      weekly: { amount: 520 },
+    },
     tags: ["event", "popup", "portable"],
     details: {
       brand: "Generic",
@@ -507,7 +591,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "K1S3W7",
     photos: [createPhoto(15, "popup-event-kit")],
     availabilityBlocks: [
-      createOwnerBlock(15, "2026-07-11T12:00:00.000Z", "2026-07-13T12:00:00.000Z", "Held for a vendor market weekend."),
+      createOwnerBlock(
+        15,
+        "2026-07-11T12:00:00.000Z",
+        "2026-07-13T12:00:00.000Z",
+        "Held for a vendor market weekend.",
+      ),
     ],
   },
   {
@@ -517,9 +606,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Canal View Heritage Flat",
-    description: "Historic flat overlooking the canal, suited for quiet stays and content shoots.",
+    description:
+      "Historic flat overlooking the canal, suited for quiet stays and content shoots.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 165 }, weekly: { amount: 960 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 165 },
+      weekly: { amount: 960 },
+    },
     tags: ["heritage", "canal", "flat"],
     details: {
       guest_capacity: 4,
@@ -549,9 +643,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "storage_space",
     name: "Retail Overflow Storage Locker",
-    description: "Secure storage locker for seasonal inventory, booth kits, and archive bins.",
+    description:
+      "Secure storage locker for seasonal inventory, booth kits, and archive bins.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 28 }, monthly: { amount: 520 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 28 },
+      monthly: { amount: 520 },
+    },
     tags: ["storage", "retail", "overflow"],
     details: {
       guest_capacity: 1,
@@ -581,9 +680,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "Documentary Camera Backpack",
-    description: "Run-and-gun camera kit with compact lenses, filters, batteries, and support rig.",
+    description:
+      "Run-and-gun camera kit with compact lenses, filters, batteries, and support rig.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 72 }, weekly: { amount: 390 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 72 },
+      weekly: { amount: 390 },
+    },
     tags: ["camera", "documentary", "field"],
     details: {
       brand: "Canon",
@@ -603,7 +707,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "K1M1M4",
     photos: [createPhoto(18, "documentary-camera")],
     availabilityBlocks: [
-      createOwnerBlock(18, "2026-08-12T12:00:00.000Z", "2026-08-15T12:00:00.000Z", "Blocked for owner production use."),
+      createOwnerBlock(
+        18,
+        "2026-08-12T12:00:00.000Z",
+        "2026-08-15T12:00:00.000Z",
+        "Blocked for owner production use.",
+      ),
     ],
   },
   {
@@ -613,7 +722,8 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "tool",
     name: "Landscaping Weekend Tool Set",
-    description: "Tool set for cleanup and light landscaping, including trimmer and blower.",
+    description:
+      "Tool set for cleanup and light landscaping, including trimmer and blower.",
     pricingCurrency: "CAD",
     pricing: { currency: "CAD", daily: { amount: 62 } },
     tags: ["tools", "landscaping", "yard"],
@@ -644,9 +754,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Family Cargo Bike",
-    description: "Long-tail cargo bike for school runs, errands, and family outings around the city.",
+    description:
+      "Long-tail cargo bike for school runs, errands, and family outings around the city.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 52 }, weekly: { amount: 285 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 52 },
+      weekly: { amount: 285 },
+    },
     tags: ["bike", "cargo", "family"],
     details: {
       make: "Tern",
@@ -676,9 +791,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Gastown Production Loft",
-    description: "Industrial loft with daylight, freight elevator access, and flexible furniture.",
+    description:
+      "Industrial loft with daylight, freight elevator access, and flexible furniture.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 210 }, hourly: { amount: 34 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 210 },
+      hourly: { amount: 34 },
+    },
     tags: ["vancouver", "loft", "production"],
     details: {
       guest_capacity: 14,
@@ -708,9 +828,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "Cinema Interview Kit",
-    description: "Two-camera interview package with lights, audio, and wireless monitoring.",
+    description:
+      "Two-camera interview package with lights, audio, and wireless monitoring.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 145 }, weekend: { amount: 360 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 145 },
+      weekend: { amount: 360 },
+    },
     tags: ["cinema", "interview", "video"],
     details: {
       brand: "Blackmagic",
@@ -731,7 +856,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "V6C2T7",
     photos: [createPhoto(22, "cinema-interview-kit")],
     availabilityBlocks: [
-      createOwnerBlock(22, "2026-06-09T16:00:00.000Z", "2026-06-10T18:00:00.000Z", "Prep and cleanup buffer."),
+      createOwnerBlock(
+        22,
+        "2026-06-09T16:00:00.000Z",
+        "2026-06-10T18:00:00.000Z",
+        "Prep and cleanup buffer.",
+      ),
     ],
   },
   {
@@ -741,9 +871,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Electric City Runabout",
-    description: "Compact EV with easy downtown pickup and included charging card.",
+    description:
+      "Compact EV with easy downtown pickup and included charging card.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 96 }, weekly: { amount: 540 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 96 },
+      weekly: { amount: 540 },
+    },
     tags: ["ev", "city", "vancouver"],
     details: {
       make: "Nissan",
@@ -773,9 +908,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "private_room",
     name: "Mount Pleasant Guest Suite",
-    description: "Private guest suite with a dedicated desk and easy SkyTrain access.",
+    description:
+      "Private guest suite with a dedicated desk and easy SkyTrain access.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 540 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 92 },
+      weekly: { amount: 540 },
+    },
     tags: ["suite", "guest", "mountpleasant"],
     details: {
       guest_capacity: 2,
@@ -805,9 +945,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "tool",
     name: "Woodworking Weekend Bench Kit",
-    description: "Portable workshop kit with bench, clamps, routers, and finish tools.",
+    description:
+      "Portable workshop kit with bench, clamps, routers, and finish tools.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 88 }, weekly: { amount: 475 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 88 },
+      weekly: { amount: 475 },
+    },
     tags: ["woodworking", "tools", "maker"],
     details: {
       brand: "Festool",
@@ -836,9 +981,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Trade Show Display Walls",
-    description: "Modular display walls and plinths for brand activations and convention booths.",
+    description:
+      "Modular display walls and plinths for brand activations and convention booths.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 135 }, weekly: { amount: 690 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 135 },
+      weekly: { amount: 690 },
+    },
     tags: ["trade-show", "display", "activation"],
     details: {
       brand: "ExpoForm",
@@ -867,9 +1017,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Seawall Adventure Bikes",
-    description: "Pair of hybrid bikes with locks, lights, and waterproof panniers.",
+    description:
+      "Pair of hybrid bikes with locks, lights, and waterproof panniers.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 54 }, weekend: { amount: 126 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 54 },
+      weekend: { amount: 126 },
+    },
     tags: ["bike", "seawall", "pair"],
     details: {
       make: "Trek",
@@ -899,9 +1054,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "storage_space",
     name: "Commercial Loading Bay Storage",
-    description: "Short-term inventory storage with pallet jack access and loading bay entry.",
+    description:
+      "Short-term inventory storage with pallet jack access and loading bay entry.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 46 }, monthly: { amount: 790 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 46 },
+      monthly: { amount: 790 },
+    },
     tags: ["storage", "loading-bay", "commercial"],
     details: {
       guest_capacity: 2,
@@ -923,7 +1083,12 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     postalCode: "V5K1A1",
     photos: [createPhoto(28, "loading-bay-storage")],
     availabilityBlocks: [
-      createOwnerBlock(28, "2026-09-02T14:00:00.000Z", "2026-09-05T02:00:00.000Z", "Inventory turnover window."),
+      createOwnerBlock(
+        28,
+        "2026-09-02T14:00:00.000Z",
+        "2026-09-05T02:00:00.000Z",
+        "Inventory turnover window.",
+      ),
     ],
   },
   {
@@ -933,9 +1098,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Plateau Content Apartment",
-    description: "Styled apartment with natural light, suited for still photography and short stays.",
+    description:
+      "Styled apartment with natural light, suited for still photography and short stays.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 172 }, weekly: { amount: 980 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 172 },
+      weekly: { amount: 980 },
+    },
     tags: ["montreal", "plateau", "content"],
     details: {
       guest_capacity: 4,
@@ -965,9 +1135,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "audio",
     name: "Live Recording Session Pack",
-    description: "Podcast and live session bundle with interface, mics, and portable acoustic treatment.",
+    description:
+      "Podcast and live session bundle with interface, mics, and portable acoustic treatment.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 84 }, weekend: { amount: 190 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 84 },
+      weekend: { amount: 190 },
+    },
     tags: ["audio", "recording", "session"],
     details: {
       brand: "Universal Audio",
@@ -996,9 +1171,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Canal Cruiser Bike Pair",
-    description: "Relaxed city bikes with baskets and locks for exploring the Lachine Canal.",
+    description:
+      "Relaxed city bikes with baskets and locks for exploring the Lachine Canal.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 44 }, weekend: { amount: 104 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 44 },
+      weekend: { amount: 104 },
+    },
     tags: ["bike", "montreal", "canal"],
     details: {
       make: "Linus",
@@ -1028,9 +1208,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Festival Vendor Pop-Up Buildout",
-    description: "Tent, counters, menu boards, battery lights, and queue barriers for food events.",
+    description:
+      "Tent, counters, menu boards, battery lights, and queue barriers for food events.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 128 }, weekly: { amount: 710 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 128 },
+      weekly: { amount: 710 },
+    },
     tags: ["festival", "vendor", "popup"],
     details: {
       brand: "EventGrid",
@@ -1059,9 +1244,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Queen West Editing Suite",
-    description: "Compact editing studio with acoustic treatment, desk seating, and strong upload speeds.",
+    description:
+      "Compact editing studio with acoustic treatment, desk seating, and strong upload speeds.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 132 }, hourly: { amount: 26 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 132 },
+      hourly: { amount: 26 },
+    },
     tags: ["toronto", "editing", "studio"],
     details: {
       guest_capacity: 4,
@@ -1091,9 +1281,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "Product Shoot Tabletop Kit",
-    description: "Tabletop camera kit with macro lens, light dome, and sweep backgrounds for product work.",
+    description:
+      "Tabletop camera kit with macro lens, light dome, and sweep backgrounds for product work.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 76 }, weekend: { amount: 180 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 76 },
+      weekend: { amount: 180 },
+    },
     tags: ["camera", "product", "tabletop"],
     details: {
       brand: "Fujifilm",
@@ -1121,9 +1316,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Urban Errand E-Bike",
-    description: "Step-through e-bike with baskets, charger, and rain cover for downtown errands.",
+    description:
+      "Step-through e-bike with baskets, charger, and rain cover for downtown errands.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 49 }, weekly: { amount: 260 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 49 },
+      weekly: { amount: 260 },
+    },
     tags: ["bike", "ebike", "urban"],
     details: {
       make: "Gazelle",
@@ -1153,9 +1353,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "storage_space",
     name: "Liberty Village Sample Storage",
-    description: "Secure sample and wardrobe storage with elevator access for short production holds.",
+    description:
+      "Secure sample and wardrobe storage with elevator access for short production holds.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 38 }, weekly: { amount: 210 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 38 },
+      weekly: { amount: 210 },
+    },
     tags: ["storage", "wardrobe", "sample"],
     details: {
       guest_capacity: 2,
@@ -1185,9 +1390,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "ByWard Brand Workshop",
-    description: "Brick-lined workshop space for tastings, prototypes, and intimate brand sessions.",
+    description:
+      "Brick-lined workshop space for tastings, prototypes, and intimate brand sessions.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 138 }, hourly: { amount: 27 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 138 },
+      hourly: { amount: 27 },
+    },
     tags: ["ottawa", "brand", "workshop"],
     details: {
       guest_capacity: 16,
@@ -1217,9 +1427,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Mobile Merch Booth Bundle",
-    description: "Portable booth package with peg walls, shelving, lights, and branded counter skins.",
+    description:
+      "Portable booth package with peg walls, shelving, lights, and branded counter skins.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 465 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 92 },
+      weekly: { amount: 465 },
+    },
     tags: ["merch", "booth", "retail"],
     details: {
       brand: "DisplayLab",
@@ -1248,9 +1463,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Snow-Ready Crossover",
-    description: "Compact crossover with winter tires and roof rails for cottage or ski weekends.",
+    description:
+      "Compact crossover with winter tires and roof rails for cottage or ski weekends.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 112 }, weekly: { amount: 610 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 112 },
+      weekly: { amount: 610 },
+    },
     tags: ["crossover", "winter", "trip"],
     details: {
       make: "Subaru",
@@ -1280,9 +1500,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "audio",
     name: "Workshop Podcast Corner",
-    description: "Simple podcast recording corner with two mics, headphones, and acoustic blankets.",
+    description:
+      "Simple podcast recording corner with two mics, headphones, and acoustic blankets.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 64 }, weekend: { amount: 150 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 64 },
+      weekend: { amount: 150 },
+    },
     tags: ["podcast", "audio", "interview"],
     details: {
       brand: "Shure",
@@ -1311,9 +1536,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Kitsilano Daylight Apartment",
-    description: "Soft daylight apartment with neutral decor and a generous living room setup.",
+    description:
+      "Soft daylight apartment with neutral decor and a generous living room setup.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 188 }, weekly: { amount: 1040 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 188 },
+      weekly: { amount: 1040 },
+    },
     tags: ["vancouver", "daylight", "apartment"],
     details: {
       guest_capacity: 4,
@@ -1343,9 +1573,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "North Shore Adventure Bike",
-    description: "Trail-capable hardtail mountain bike with helmet, pump, and rack mount included.",
+    description:
+      "Trail-capable hardtail mountain bike with helmet, pump, and rack mount included.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 63 }, weekend: { amount: 150 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 63 },
+      weekend: { amount: 150 },
+    },
     tags: ["bike", "mountain", "northshore"],
     details: {
       make: "Norco",
@@ -1375,9 +1610,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "tool",
     name: "Cabinet Install Tool Crate",
-    description: "Install-focused tool crate with laser level, drivers, clamps, and finishing gear.",
+    description:
+      "Install-focused tool crate with laser level, drivers, clamps, and finishing gear.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 71 }, weekly: { amount: 355 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 71 },
+      weekly: { amount: 355 },
+    },
     tags: ["cabinet", "install", "tools"],
     details: {
       brand: "Makita",
@@ -1406,9 +1646,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "storage_space",
     name: "Gastown Sample Lockup",
-    description: "Fashion and prop lockup with keypad entry, shelving, and quick courier access.",
+    description:
+      "Fashion and prop lockup with keypad entry, shelving, and quick courier access.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 41 }, weekly: { amount: 215 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 41 },
+      weekly: { amount: 215 },
+    },
     tags: ["storage", "sample", "props"],
     details: {
       guest_capacity: 2,
@@ -1438,9 +1683,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Old Port Client Lounge",
-    description: "Refined lounge with presentation screen, espresso station, and polished stone table.",
+    description:
+      "Refined lounge with presentation screen, espresso station, and polished stone table.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 154 }, hourly: { amount: 31 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 154 },
+      hourly: { amount: 31 },
+    },
     tags: ["montreal", "oldport", "client"],
     details: {
       guest_capacity: 10,
@@ -1470,9 +1720,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "French Editorial Camera Set",
-    description: "Editorial-ready full-frame kit with primes, flash triggers, and compact modifiers.",
+    description:
+      "Editorial-ready full-frame kit with primes, flash triggers, and compact modifiers.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 89 }, weekend: { amount: 210 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 89 },
+      weekend: { amount: 210 },
+    },
     tags: ["editorial", "camera", "portrait"],
     details: {
       brand: "Nikon",
@@ -1500,9 +1755,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Weekend Hatch Utility Car",
-    description: "Compact hatchback with fold-flat seats for city pickups and light gear runs.",
+    description:
+      "Compact hatchback with fold-flat seats for city pickups and light gear runs.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 435 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 82 },
+      weekly: { amount: 435 },
+    },
     tags: ["hatchback", "utility", "city"],
     details: {
       make: "Honda",
@@ -1532,9 +1792,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Cafe Pop-Up Service Set",
-    description: "Compact cafe pop-up kit with folding bar, menu frames, and bussing setup.",
+    description:
+      "Compact cafe pop-up kit with folding bar, menu frames, and bussing setup.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 108 }, weekly: { amount: 560 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 108 },
+      weekly: { amount: 560 },
+    },
     tags: ["cafe", "popup", "service"],
     details: {
       brand: "ServiceForm",
@@ -1563,9 +1828,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Beltline Designer Flat",
-    description: "Design-forward one-bedroom with concrete textures and big windows for content work.",
+    description:
+      "Design-forward one-bedroom with concrete textures and big windows for content work.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 162 }, weekly: { amount: 920 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 162 },
+      weekly: { amount: 920 },
+    },
     tags: ["calgary", "designer", "flat"],
     details: {
       guest_capacity: 3,
@@ -1595,9 +1865,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "audio",
     name: "Panel Event Audio Rack",
-    description: "Four-mic panel rig with compact speakers, recorder, and wireless handhelds.",
+    description:
+      "Four-mic panel rig with compact speakers, recorder, and wireless handhelds.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 118 }, weekend: { amount: 275 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 118 },
+      weekend: { amount: 275 },
+    },
     tags: ["panel", "audio", "event"],
     details: {
       brand: "Allen & Heath",
@@ -1626,9 +1901,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "River Path Cargo Bike",
-    description: "Utility cargo bike with front rack, rain cover, and child-seat mounting points.",
+    description:
+      "Utility cargo bike with front rack, rain cover, and child-seat mounting points.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 57 }, weekly: { amount: 295 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 57 },
+      weekly: { amount: 295 },
+    },
     tags: ["bike", "cargo", "calgary"],
     details: {
       make: "Yuba",
@@ -1658,9 +1938,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Inglewood Maker Room",
-    description: "Warm maker room with worktables, sink, and project shelving for small creative teams.",
+    description:
+      "Warm maker room with worktables, sink, and project shelving for small creative teams.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 126 }, hourly: { amount: 24 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 126 },
+      hourly: { amount: 24 },
+    },
     tags: ["maker", "workspace", "inglewood"],
     details: {
       guest_capacity: 8,
@@ -1690,9 +1975,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Harbourfront Styled Condo",
-    description: "Minimal condo with city and water views, tuned for clean lifestyle shoots.",
+    description:
+      "Minimal condo with city and water views, tuned for clean lifestyle shoots.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 176 }, weekly: { amount: 995 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 176 },
+      weekly: { amount: 995 },
+    },
     tags: ["halifax", "harbour", "styled"],
     details: {
       guest_capacity: 4,
@@ -1722,9 +2012,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "camera",
     name: "Documentary Travel Camera Set",
-    description: "Compact travel camera set with weather-sealed body, zoom, audio, and spare batteries.",
+    description:
+      "Compact travel camera set with weather-sealed body, zoom, audio, and spare batteries.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 74 }, weekend: { amount: 176 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 74 },
+      weekend: { amount: 176 },
+    },
     tags: ["documentary", "travel", "camera"],
     details: {
       brand: "Sony",
@@ -1752,9 +2047,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "car",
     name: "Coastal Roadtrip Wagon",
-    description: "Comfortable wagon with fold-flat cargo space for roadtrips, surf gear, or market runs.",
+    description:
+      "Comfortable wagon with fold-flat cargo space for roadtrips, surf gear, or market runs.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 106 }, weekly: { amount: 585 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 106 },
+      weekly: { amount: 585 },
+    },
     tags: ["wagon", "roadtrip", "coastal"],
     details: {
       make: "Volkswagen",
@@ -1784,9 +2084,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "North End Test Kitchen Loft",
-    description: "Open kitchen loft with prep surfaces, movable tables, and room for tasting sessions.",
+    description:
+      "Open kitchen loft with prep surfaces, movable tables, and room for tasting sessions.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 168 }, hourly: { amount: 33 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 168 },
+      hourly: { amount: 33 },
+    },
     tags: ["kitchen", "loft", "tasting"],
     details: {
       guest_capacity: 12,
@@ -1816,9 +2121,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "James Bay Heritage Suite",
-    description: "Heritage suite with ocean-adjacent walks, bright walls, and classic trim details.",
+    description:
+      "Heritage suite with ocean-adjacent walks, bright walls, and classic trim details.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 169 }, weekly: { amount: 950 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 169 },
+      weekly: { amount: 950 },
+    },
     tags: ["victoria", "heritage", "suite"],
     details: {
       guest_capacity: 4,
@@ -1848,9 +2158,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "general_equipment",
     name: "Farmers Market Display Crate",
-    description: "Portable display crate system with shelves, produce bins, chalkboard signs, and lights.",
+    description:
+      "Portable display crate system with shelves, produce bins, chalkboard signs, and lights.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 86 }, weekly: { amount: 425 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 86 },
+      weekly: { amount: 425 },
+    },
     tags: ["market", "display", "crate"],
     details: {
       brand: "MarketForm",
@@ -1879,9 +2194,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "vehicle",
     subtype: "bike",
     name: "Harbour Cruiser E-Bike",
-    description: "Comfortable cruiser e-bike with upright geometry, lights, and removable front basket.",
+    description:
+      "Comfortable cruiser e-bike with upright geometry, lights, and removable front basket.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 53 }, weekly: { amount: 278 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 53 },
+      weekly: { amount: 278 },
+    },
     tags: ["ebike", "cruiser", "victoria"],
     details: {
       make: "Electra",
@@ -1911,9 +2231,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "workspace",
     name: "Bricktown Team Studio",
-    description: "Lofted team studio with moveable desks, projector wall, and breakout seating.",
+    description:
+      "Lofted team studio with moveable desks, projector wall, and breakout seating.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 134 }, hourly: { amount: 25 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 134 },
+      hourly: { amount: 25 },
+    },
     tags: ["edmonton", "team", "studio"],
     details: {
       guest_capacity: 10,
@@ -1943,9 +2268,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "equipment",
     subtype: "tool",
     name: "Finish Carpentry Weekender",
-    description: "Finish carpentry setup with brad nailer, saws, sanders, and measuring kit.",
+    description:
+      "Finish carpentry setup with brad nailer, saws, sanders, and measuring kit.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 68 }, weekly: { amount: 348 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 68 },
+      weekly: { amount: 348 },
+    },
     tags: ["carpentry", "finish", "tools"],
     details: {
       brand: "DeWalt",
@@ -1974,9 +2304,14 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     family: "place",
     subtype: "entire_place",
     name: "Saint-Roch Production Flat",
-    description: "Sunny flat with modern styling and open-plan living for quick content or short stays.",
+    description:
+      "Sunny flat with modern styling and open-plan living for quick content or short stays.",
     pricingCurrency: "CAD",
-    pricing: { currency: "CAD", daily: { amount: 158 }, weekly: { amount: 900 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 158 },
+      weekly: { amount: 900 },
+    },
     tags: ["quebec-city", "flat", "production"],
     details: {
       guest_capacity: 4,

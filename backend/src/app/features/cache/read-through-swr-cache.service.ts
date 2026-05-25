@@ -29,7 +29,10 @@ interface ReadThroughSwrCacheServiceOptions {
 }
 
 export class ReadThroughSwrCacheService {
-  private readonly pendingLoads = new Map<string, Promise<ReadThroughCacheEnvelope<unknown>>>();
+  private readonly pendingLoads = new Map<
+    string,
+    Promise<ReadThroughCacheEnvelope<unknown>>
+  >();
   private readonly onBackgroundRefreshError?: ReadThroughSwrCacheServiceOptions["onBackgroundRefreshError"];
 
   constructor(
@@ -56,8 +59,15 @@ export class ReadThroughSwrCacheService {
     }
 
     const normalizedNamespace = this.normalizeNamespace(namespace);
-    const generation = await this.readGeneration(normalizedNamespace, normalizedKey);
-    const entry = await this.readEntry<T>(normalizedNamespace, normalizedKey, generation);
+    const generation = await this.readGeneration(
+      normalizedNamespace,
+      normalizedKey,
+    );
+    const entry = await this.readEntry<T>(
+      normalizedNamespace,
+      normalizedKey,
+      generation,
+    );
     const now = Date.now();
 
     if (entry) {
@@ -66,12 +76,23 @@ export class ReadThroughSwrCacheService {
       }
 
       if (Date.parse(entry.staleUntil) > now) {
-        this.refreshInBackground(normalizedNamespace, normalizedKey, generation, loader, policy);
+        this.refreshInBackground(
+          normalizedNamespace,
+          normalizedKey,
+          generation,
+          loader,
+          policy,
+        );
         return this.toValue(entry);
       }
     }
 
-    return this.rebuildWithSingleFlight(normalizedNamespace, normalizedKey, loader, policy);
+    return this.rebuildWithSingleFlight(
+      normalizedNamespace,
+      normalizedKey,
+      loader,
+      policy,
+    );
   }
 
   async invalidate(namespace: string, key: string): Promise<number> {
@@ -93,7 +114,13 @@ export class ReadThroughSwrCacheService {
     loader: () => Promise<T | null>,
     policy: ReadThroughCachePolicy,
   ): void {
-    void this.refreshIfLeader(namespace, key, expectedGeneration, loader, policy).catch((error) => {
+    void this.refreshIfLeader(
+      namespace,
+      key,
+      expectedGeneration,
+      loader,
+      policy,
+    ).catch((error) => {
       this.onBackgroundRefreshError?.({
         namespace,
         key,
@@ -109,7 +136,12 @@ export class ReadThroughSwrCacheService {
     loader: () => Promise<T | null>,
     policy: ReadThroughCachePolicy,
   ): Promise<void> {
-    if (this.findPendingPromise<T>(namespace, key, expectedGeneration, ["refresh", "rebuild"])) {
+    if (
+      this.findPendingPromise<T>(namespace, key, expectedGeneration, [
+        "refresh",
+        "rebuild",
+      ])
+    ) {
       return;
     }
 
@@ -135,8 +167,19 @@ export class ReadThroughSwrCacheService {
         return;
       }
 
-      await this.withPendingLoad(namespace, key, expectedGeneration, "refresh", () =>
-        this.fetchAndCacheValue(namespace, key, expectedGeneration, loader, policy),
+      await this.withPendingLoad(
+        namespace,
+        key,
+        expectedGeneration,
+        "refresh",
+        () =>
+          this.fetchAndCacheValue(
+            namespace,
+            key,
+            expectedGeneration,
+            loader,
+            policy,
+          ),
       );
     } finally {
       await lock.release();
@@ -175,8 +218,19 @@ export class ReadThroughSwrCacheService {
           return this.toValue(entry);
         }
 
-        const rebuilt = await this.withPendingLoad(namespace, key, lockedGeneration, "rebuild", () =>
-          this.fetchAndCacheValue(namespace, key, lockedGeneration, loader, policy),
+        const rebuilt = await this.withPendingLoad(
+          namespace,
+          key,
+          lockedGeneration,
+          "rebuild",
+          () =>
+            this.fetchAndCacheValue(
+              namespace,
+              key,
+              lockedGeneration,
+              loader,
+              policy,
+            ),
         );
 
         return this.toValue(rebuilt);
@@ -202,7 +256,10 @@ export class ReadThroughSwrCacheService {
       await this.sleep(policy.followerPollIntervalMs);
 
       const generation = await this.readGeneration(namespace, key);
-      const pending = this.findPendingPromise<T>(namespace, key, generation, ["rebuild", "refresh"]);
+      const pending = this.findPendingPromise<T>(namespace, key, generation, [
+        "rebuild",
+        "refresh",
+      ]);
 
       if (pending) {
         return this.toValue(await pending);
@@ -214,14 +271,21 @@ export class ReadThroughSwrCacheService {
         continue;
       }
 
-      if (Date.parse(entry.freshUntil) > Date.now() || Date.parse(entry.staleUntil) > Date.now()) {
+      if (
+        Date.parse(entry.freshUntil) > Date.now() ||
+        Date.parse(entry.staleUntil) > Date.now()
+      ) {
         return this.toValue(entry);
       }
     }
 
     const timedOutGeneration = await this.readGeneration(namespace, key);
-    const rebuilt = await this.withPendingLoad(namespace, key, timedOutGeneration, "rebuild", () =>
-      this.loadDirectAndCacheIfMissing(namespace, key, loader, policy),
+    const rebuilt = await this.withPendingLoad(
+      namespace,
+      key,
+      timedOutGeneration,
+      "rebuild",
+      () => this.loadDirectAndCacheIfMissing(namespace, key, loader, policy),
     );
 
     return this.toValue(rebuilt);
@@ -263,14 +327,19 @@ export class ReadThroughSwrCacheService {
     factory: () => Promise<ReadThroughCacheEnvelope<T>>,
   ): Promise<ReadThroughCacheEnvelope<T>> {
     const pendingKey = this.getPendingLoadKey(namespace, key, generation, mode);
-    const existing = this.pendingLoads.get(pendingKey) as Promise<ReadThroughCacheEnvelope<T>> | undefined;
+    const existing = this.pendingLoads.get(pendingKey) as
+      | Promise<ReadThroughCacheEnvelope<T>>
+      | undefined;
 
     if (existing) {
       return existing;
     }
 
     const promise = Promise.resolve().then(factory);
-    this.pendingLoads.set(pendingKey, promise as Promise<ReadThroughCacheEnvelope<unknown>>);
+    this.pendingLoads.set(
+      pendingKey,
+      promise as Promise<ReadThroughCacheEnvelope<unknown>>,
+    );
 
     try {
       return await promise;
@@ -288,7 +357,9 @@ export class ReadThroughSwrCacheService {
     modes: PendingLoadMode[],
   ): Promise<ReadThroughCacheEnvelope<T>> | null {
     for (const mode of modes) {
-      const pending = this.pendingLoads.get(this.getPendingLoadKey(namespace, key, generation, mode));
+      const pending = this.pendingLoads.get(
+        this.getPendingLoadKey(namespace, key, generation, mode),
+      );
 
       if (pending) {
         return pending as Promise<ReadThroughCacheEnvelope<T>>;
@@ -306,13 +377,19 @@ export class ReadThroughSwrCacheService {
     policy: ReadThroughCachePolicy,
   ): Promise<ReadThroughCacheEnvelope<T>> {
     const now = Date.now();
-    const ttlFactor = value === null ? 1 : this.getTtlFactor(policy.ttlJitterRatio);
-    const freshTtlMs = value === null
-      ? policy.negativeTtlSeconds * 1000
-      : Math.max(1, Math.round(policy.freshTtlSeconds * 1000 * ttlFactor));
-    const staleTtlMs = value === null
-      ? policy.negativeTtlSeconds * 1000
-      : Math.max(freshTtlMs, Math.round(policy.staleTtlSeconds * 1000 * ttlFactor));
+    const ttlFactor =
+      value === null ? 1 : this.getTtlFactor(policy.ttlJitterRatio);
+    const freshTtlMs =
+      value === null
+        ? policy.negativeTtlSeconds * 1000
+        : Math.max(1, Math.round(policy.freshTtlSeconds * 1000 * ttlFactor));
+    const staleTtlMs =
+      value === null
+        ? policy.negativeTtlSeconds * 1000
+        : Math.max(
+            freshTtlMs,
+            Math.round(policy.staleTtlSeconds * 1000 * ttlFactor),
+          );
     const envelope: ReadThroughCacheEnvelope<T> = {
       kind: value === null ? "miss" : "hit",
       ...(value === null ? {} : { value }),
@@ -330,8 +407,13 @@ export class ReadThroughSwrCacheService {
     return envelope;
   }
 
-  private async readGeneration(namespace: string, key: string): Promise<number> {
-    const raw = await this.cacheService.get(this.getGenerationKey(namespace, key));
+  private async readGeneration(
+    namespace: string,
+    key: string,
+  ): Promise<number> {
+    const raw = await this.cacheService.get(
+      this.getGenerationKey(namespace, key),
+    );
 
     if (!raw) {
       return 0;
@@ -352,7 +434,7 @@ export class ReadThroughSwrCacheService {
   }
 
   private toValue<T>(entry: ReadThroughCacheEnvelope<T>): T | null {
-    return entry.kind === "hit" ? entry.value ?? null : null;
+    return entry.kind === "hit" ? (entry.value ?? null) : null;
   }
 
   private getTtlFactor(ttlJitterRatio: number): number {
@@ -368,7 +450,11 @@ export class ReadThroughSwrCacheService {
     return `${namespace}:gen:${key}`;
   }
 
-  private getDataKey(namespace: string, key: string, generation: number): string {
+  private getDataKey(
+    namespace: string,
+    key: string,
+    generation: number,
+  ): string {
     return `${namespace}:data:${key}:${generation}`;
   }
 

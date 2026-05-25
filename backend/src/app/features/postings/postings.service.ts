@@ -77,7 +77,8 @@ export class PostingsService {
 
   async duplicate(id: string, ownerId: string): Promise<PostingRecord> {
     const posting = await this.requireOwnerPosting(id, ownerId);
-    const availabilityBlocks = await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
+    const availabilityBlocks =
+      await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
     const duplicateInput = this.normalizeUpsertInput(
       this.toDuplicateInput(posting, availabilityBlocks),
     );
@@ -96,7 +97,10 @@ export class PostingsService {
     this.assertSafeTextContent(normalizedInput);
     this.assertPublishableDraftShape(normalizedInput);
 
-    const updated = await this.postingsRepository.update(existing.id, normalizedInput);
+    const updated = await this.postingsRepository.update(
+      existing.id,
+      normalizedInput,
+    );
 
     if (!updated) {
       throw new ResourceNotFoundError("Posting could not be found.");
@@ -112,9 +116,8 @@ export class PostingsService {
     ownerId: string,
   ): Promise<{ availabilityBlocks: PostingAvailabilityBlockRecord[] }> {
     const posting = await this.requireOwnerPostingForAvailability(id, ownerId);
-    const availabilityBlocks = await this.postingsRepository.listOwnerAvailabilityBlocks(
-      posting.id,
-    );
+    const availabilityBlocks =
+      await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
 
     return {
       availabilityBlocks,
@@ -135,10 +138,11 @@ export class PostingsService {
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
         await this.assertAvailabilityBlockCanBeWritten(posting.id, normalized);
-        const created = await this.postingsRepository.createOwnerAvailabilityBlock(
-          posting.id,
-          normalized,
-        );
+        const created =
+          await this.postingsRepository.createOwnerAvailabilityBlock(
+            posting.id,
+            normalized,
+          );
         await this.invalidatePublicProjection(posting.id);
         return created;
       },
@@ -161,13 +165,18 @@ export class PostingsService {
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
         await this.assertExistingOwnerAvailabilityBlock(posting.id, blockId);
-        await this.assertAvailabilityBlockCanBeWritten(posting.id, normalized, blockId);
-
-        const updated = await this.postingsRepository.updateOwnerAvailabilityBlock(
+        await this.assertAvailabilityBlockCanBeWritten(
           posting.id,
-          blockId,
           normalized,
+          blockId,
         );
+
+        const updated =
+          await this.postingsRepository.updateOwnerAvailabilityBlock(
+            posting.id,
+            blockId,
+            normalized,
+          );
 
         if (!updated) {
           throw new ConflictError(
@@ -193,13 +202,16 @@ export class PostingsService {
       this.cacheService,
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
-        const deleted = await this.postingsRepository.deleteOwnerAvailabilityBlock(
-          posting.id,
-          blockId,
-        );
+        const deleted =
+          await this.postingsRepository.deleteOwnerAvailabilityBlock(
+            posting.id,
+            blockId,
+          );
 
         if (!deleted) {
-          throw new ResourceNotFoundError("Availability block could not be found.");
+          throw new ResourceNotFoundError(
+            "Availability block could not be found.",
+          );
         }
 
         await this.invalidatePublicProjection(posting.id);
@@ -283,9 +295,13 @@ export class PostingsService {
     return archived;
   }
 
-  async getById(id: string, viewerId?: string): Promise<PostingRecord | PublicPostingRecord> {
+  async getById(
+    id: string,
+    viewerId?: string,
+  ): Promise<PostingRecord | PublicPostingRecord> {
     if (viewerId) {
-      const metadata = await this.postingsRepository.findPublicReadMetadataById(id);
+      const metadata =
+        await this.postingsRepository.findPublicReadMetadataById(id);
 
       if (!metadata) {
         throw new ResourceNotFoundError("Posting could not be found.");
@@ -306,7 +322,8 @@ export class PostingsService {
       }
     }
 
-    const publicPosting = await this.postingsPublicCacheService.getPublicById(id);
+    const publicPosting =
+      await this.postingsPublicCacheService.getPublicById(id);
 
     if (!publicPosting) {
       throw new ResourceNotFoundError("Posting could not be found.");
@@ -334,11 +351,16 @@ export class PostingsService {
     };
   }
 
-  async listByOwner(input: ListOwnerPostingsInput): Promise<ListOwnerPostingsResult> {
+  async listByOwner(
+    input: ListOwnerPostingsInput,
+  ): Promise<ListOwnerPostingsResult> {
     return this.postingsRepository.listByOwner(input);
   }
 
-  async batchByOwner(ownerId: string, ids: string[]): Promise<BatchPostingsResult<PostingRecord>> {
+  async batchByOwner(
+    ownerId: string,
+    ids: string[],
+  ): Promise<BatchPostingsResult<PostingRecord>> {
     const normalizedIds = this.normalizeBatchIds(ids);
 
     return this.postingsRepository.batchFindByOwner({
@@ -347,12 +369,16 @@ export class PostingsService {
     });
   }
 
-  async batchPublic(ids: string[]): Promise<BatchPostingsResult<PublicPostingRecord>> {
+  async batchPublic(
+    ids: string[],
+  ): Promise<BatchPostingsResult<PublicPostingRecord>> {
     const normalizedIds = this.normalizeBatchIds(ids);
     return this.postingsPublicCacheService.getPublicByIds(normalizedIds);
   }
 
-  async searchPublic(input: SearchPostingsInput): Promise<SearchPostingsResult> {
+  async searchPublic(
+    input: SearchPostingsInput,
+  ): Promise<SearchPostingsResult> {
     this.assertValidSearchInput(input);
     return this.postingsPublicSearchService.searchPublic({
       ...input,
@@ -368,7 +394,9 @@ export class PostingsService {
 
   private normalizeUpsertInput(input: UpsertPostingInput): UpsertPostingInput {
     const normalizedPhotos = this.normalizePhotos(input.photos);
-    const normalizedBlocks = this.normalizeAvailabilityBlocks(input.availabilityBlocks);
+    const normalizedBlocks = this.normalizeAvailabilityBlocks(
+      input.availabilityBlocks,
+    );
     const normalizedTags = Array.from(
       new Set(
         input.tags
@@ -377,7 +405,10 @@ export class PostingsService {
       ),
     );
     const normalizedPricing = this.normalizePricing(input.pricing);
-    this.assertValidVariantSelection(input.variant.family, input.variant.subtype);
+    this.assertValidVariantSelection(
+      input.variant.family,
+      input.variant.subtype,
+    );
 
     return {
       ...input,
@@ -405,13 +436,17 @@ export class PostingsService {
     };
   }
 
-  private normalizePhotos(photos: ManagedPostingPhotoInput[]): ManagedPostingPhotoInput[] {
+  private normalizePhotos(
+    photos: ManagedPostingPhotoInput[],
+  ): ManagedPostingPhotoInput[] {
     if (photos.length === 0) {
       throw new BadRequestError("At least one photo is required.");
     }
 
     if (photos.length > MAX_POSTING_PHOTOS) {
-      throw new BadRequestError(`A posting can include at most ${MAX_POSTING_PHOTOS} photos.`);
+      throw new BadRequestError(
+        `A posting can include at most ${MAX_POSTING_PHOTOS} photos.`,
+      );
     }
 
     const uniquePositions = new Set<number>();
@@ -451,14 +486,23 @@ export class PostingsService {
         ...block,
         note: block.note?.trim() || undefined,
       }))
-      .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime());
+      .sort(
+        (left, right) =>
+          new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
+      );
 
     for (const block of normalized) {
       const startAt = new Date(block.startAt);
       const endAt = new Date(block.endAt);
 
-      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || startAt >= endAt) {
-        throw new BadRequestError("Availability block dates must define a valid, non-empty range.");
+      if (
+        Number.isNaN(startAt.getTime()) ||
+        Number.isNaN(endAt.getTime()) ||
+        startAt >= endAt
+      ) {
+        throw new BadRequestError(
+          "Availability block dates must define a valid, non-empty range.",
+        );
       }
     }
 
@@ -488,7 +532,9 @@ export class PostingsService {
       },
       ...(pricing.hourly ? { hourly: { amount: pricing.hourly.amount } } : {}),
       ...(pricing.weekly ? { weekly: { amount: pricing.weekly.amount } } : {}),
-      ...(pricing.monthly ? { monthly: { amount: pricing.monthly.amount } } : {}),
+      ...(pricing.monthly
+        ? { monthly: { amount: pricing.monthly.amount } }
+        : {}),
     };
   }
 
@@ -513,7 +559,10 @@ export class PostingsService {
         throw new BadRequestError(
           "Request body validation failed.",
           error.issues.map((issue) => ({
-            path: issue.path.length > 0 ? `details.${issue.path.join(".")}` : "details",
+            path:
+              issue.path.length > 0
+                ? `details.${issue.path.join(".")}`
+                : "details",
             message: issue.message,
           })),
         );
@@ -558,7 +607,9 @@ export class PostingsService {
     };
   }
 
-  private assertSafeAvailabilityBlockContent(input: PostingAvailabilityBlockInput): void {
+  private assertSafeAvailabilityBlockContent(
+    input: PostingAvailabilityBlockInput,
+  ): void {
     if (!input.note) {
       return;
     }
@@ -584,7 +635,10 @@ export class PostingsService {
     postingId: string,
     blockId: string,
   ): Promise<void> {
-    const block = await this.postingsRepository.findOwnerAvailabilityBlock(postingId, blockId);
+    const block = await this.postingsRepository.findOwnerAvailabilityBlock(
+      postingId,
+      blockId,
+    );
 
     if (!block) {
       throw new ResourceNotFoundError("Availability block could not be found.");
@@ -599,22 +653,24 @@ export class PostingsService {
     const startAt = new Date(block.startAt);
     const endAt = new Date(block.endAt);
 
-    const ownerOverlap = await this.postingsRepository.hasOwnerAvailabilityBlockOverlap({
-      postingId,
-      startAt,
-      endAt,
-      excludeBlockId,
-    });
+    const ownerOverlap =
+      await this.postingsRepository.hasOwnerAvailabilityBlockOverlap({
+        postingId,
+        startAt,
+        endAt,
+        excludeBlockId,
+      });
 
     if (ownerOverlap) {
       throw new BadRequestError("Availability blocks may not overlap.");
     }
 
-    const bookingConflict = await this.postingsRepository.hasActiveBookingAvailabilityConflict({
-      postingId,
-      startAt,
-      endAt,
-    });
+    const bookingConflict =
+      await this.postingsRepository.hasActiveBookingAvailabilityConflict({
+        postingId,
+        startAt,
+        endAt,
+      });
 
     if (bookingConflict) {
       throw new ConflictError(
@@ -622,18 +678,23 @@ export class PostingsService {
       );
     }
 
-    const rentingConflict = await this.postingsRepository.hasRentingAvailabilityConflict({
-      postingId,
-      startAt,
-      endAt,
-    });
+    const rentingConflict =
+      await this.postingsRepository.hasRentingAvailabilityConflict({
+        postingId,
+        startAt,
+        endAt,
+      });
 
     if (rentingConflict) {
-      throw new ConflictError("Availability block conflicts with a confirmed renting.");
+      throw new ConflictError(
+        "Availability block conflicts with a confirmed renting.",
+      );
     }
   }
 
-  private collectTextInputs(input: UpsertPostingInput): Array<{ path: string; value: string }> {
+  private collectTextInputs(
+    input: UpsertPostingInput,
+  ): Array<{ path: string; value: string }> {
     const textInputs: Array<{ path: string; value: string }> = [
       {
         path: "name",
@@ -687,24 +748,26 @@ export class PostingsService {
       }
     });
 
-    Object.entries(toPostingAttributes(input.details)).forEach(([key, value]) => {
-      if (typeof value === "string") {
-        textInputs.push({
-          path: `details.${key}`,
-          value,
-        });
-        return;
-      }
-
-      if (Array.isArray(value)) {
-        value.forEach((entry, index) => {
+    Object.entries(toPostingAttributes(input.details)).forEach(
+      ([key, value]) => {
+        if (typeof value === "string") {
           textInputs.push({
-            path: `details.${key}.${index}`,
-            value: entry,
+            path: `details.${key}`,
+            value,
           });
-        });
-      }
-    });
+          return;
+        }
+
+        if (Array.isArray(value)) {
+          value.forEach((entry, index) => {
+            textInputs.push({
+              path: `details.${key}.${index}`,
+              value: entry,
+            });
+          });
+        }
+      },
+    );
 
     return textInputs;
   }
@@ -714,20 +777,31 @@ export class PostingsService {
       throw new BadRequestError("Only draft postings can be published.");
     }
 
-    if (posting.photos.length < 1 || posting.photos.length > MAX_POSTING_PHOTOS) {
-      throw new BadRequestError("Published postings must include between 1 and 10 photos.");
+    if (
+      posting.photos.length < 1 ||
+      posting.photos.length > MAX_POSTING_PHOTOS
+    ) {
+      throw new BadRequestError(
+        "Published postings must include between 1 and 10 photos.",
+      );
     }
 
     if (!posting.pricing.daily?.amount || posting.pricing.daily.amount <= 0) {
-      throw new BadRequestError("Published postings must include a valid daily price.");
+      throw new BadRequestError(
+        "Published postings must include a valid daily price.",
+      );
     }
 
     if (!this.isValidCoordinate(posting.location.latitude, -90, 90)) {
-      throw new BadRequestError("Published postings must include a valid latitude.");
+      throw new BadRequestError(
+        "Published postings must include a valid latitude.",
+      );
     }
 
     if (!this.isValidCoordinate(posting.location.longitude, -180, 180)) {
-      throw new BadRequestError("Published postings must include a valid longitude.");
+      throw new BadRequestError(
+        "Published postings must include a valid longitude.",
+      );
     }
   }
 
@@ -802,7 +876,11 @@ export class PostingsService {
       this.assertValidVariantSelection(input.family, input.subtype);
     }
 
-    if (input.attributeFilters && input.attributeFilters.length > 0 && (!input.family || !input.subtype)) {
+    if (
+      input.attributeFilters &&
+      input.attributeFilters.length > 0 &&
+      (!input.family || !input.subtype)
+    ) {
       throw new RequestValidationError("Request query validation failed.", [
         {
           path: "attr",
@@ -816,11 +894,15 @@ export class PostingsService {
       input.maxDailyPrice !== undefined &&
       input.minDailyPrice > input.maxDailyPrice
     ) {
-      throw new BadRequestError("Minimum daily price cannot exceed maximum daily price.");
+      throw new BadRequestError(
+        "Minimum daily price cannot exceed maximum daily price.",
+      );
     }
 
     if (input.sort === "nearest" && !input.geo) {
-      throw new BadRequestError("Nearest sorting requires latitude and longitude.");
+      throw new BadRequestError(
+        "Nearest sorting requires latitude and longitude.",
+      );
     }
 
     const resultWindowEnd = (input.page - 1) * input.pageSize + input.pageSize;
@@ -838,8 +920,14 @@ export class PostingsService {
       const startAt = new Date(input.availabilityWindow.startAt);
       const endAt = new Date(input.availabilityWindow.endAt);
 
-      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || startAt >= endAt) {
-        throw new BadRequestError("Availability window must define a valid, non-empty range.");
+      if (
+        Number.isNaN(startAt.getTime()) ||
+        Number.isNaN(endAt.getTime()) ||
+        startAt >= endAt
+      ) {
+        throw new BadRequestError(
+          "Availability window must define a valid, non-empty range.",
+        );
       }
     }
   }
@@ -857,7 +945,10 @@ export class PostingsService {
       return undefined;
     }
 
-    const definitions = getPostingSearchableAttributeDefinitions(family, subtype);
+    const definitions = getPostingSearchableAttributeDefinitions(
+      family,
+      subtype,
+    );
 
     if (!definitions) {
       throw new RequestValidationError("Request query validation failed.", [
@@ -875,7 +966,8 @@ export class PostingsService {
         throw new RequestValidationError("Request query validation failed.", [
           {
             path: `attr.${filter.key}`,
-            message: "Attribute is not valid for the selected family and subtype.",
+            message:
+              "Attribute is not valid for the selected family and subtype.",
           },
         ]);
       }
@@ -896,7 +988,8 @@ export class PostingsService {
       throw new RequestValidationError("Request query validation failed.", [
         {
           path,
-          message: "Exact attribute filters cannot be combined with min/max range filters.",
+          message:
+            "Exact attribute filters cannot be combined with min/max range filters.",
         },
       ]);
     }
@@ -951,7 +1044,9 @@ export class PostingsService {
           ]);
         }
 
-        const values = Array.isArray(filter.value) ? filter.value : [filter.value];
+        const values = Array.isArray(filter.value)
+          ? filter.value
+          : [filter.value];
 
         if (!values.every((value) => typeof value === "string")) {
           throw new RequestValidationError("Request query validation failed.", [
@@ -965,7 +1060,9 @@ export class PostingsService {
         return {
           key: filter.key,
           value: Array.from(
-            new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean)),
+            new Set(
+              values.map((value) => value.trim().toLowerCase()).filter(Boolean),
+            ),
           ),
         };
       }
@@ -974,7 +1071,8 @@ export class PostingsService {
           throw new RequestValidationError("Request query validation failed.", [
             {
               path,
-              message: "Boolean attributes support an exact true/false value only.",
+              message:
+                "Boolean attributes support an exact true/false value only.",
             },
           ]);
         }
@@ -990,29 +1088,47 @@ export class PostingsService {
           throw new RequestValidationError("Request query validation failed.", [
             {
               path,
-              message: "Numeric attributes support a single exact value or a min/max range.",
+              message:
+                "Numeric attributes support a single exact value or a min/max range.",
             },
           ]);
         }
 
         const exactValue =
           filter.value !== undefined
-            ? this.parseNumericSearchAttributeValue(filter.value, path, definition.kind === "integer")
+            ? this.parseNumericSearchAttributeValue(
+                filter.value,
+                path,
+                definition.kind === "integer",
+              )
             : undefined;
         const min =
           filter.min !== undefined
-            ? this.parseNumericSearchAttributeValue(filter.min, `${path}.min`, definition.kind === "integer")
+            ? this.parseNumericSearchAttributeValue(
+                filter.min,
+                `${path}.min`,
+                definition.kind === "integer",
+              )
             : undefined;
         const max =
           filter.max !== undefined
-            ? this.parseNumericSearchAttributeValue(filter.max, `${path}.max`, definition.kind === "integer")
+            ? this.parseNumericSearchAttributeValue(
+                filter.max,
+                `${path}.max`,
+                definition.kind === "integer",
+              )
             : undefined;
 
-        if (exactValue === undefined && min === undefined && max === undefined) {
+        if (
+          exactValue === undefined &&
+          min === undefined &&
+          max === undefined
+        ) {
           throw new RequestValidationError("Request query validation failed.", [
             {
               path,
-              message: "Numeric attributes require an exact value or a min/max range.",
+              message:
+                "Numeric attributes require an exact value or a min/max range.",
             },
           ]);
         }
@@ -1073,7 +1189,10 @@ export class PostingsService {
 
     const parsed = typeof value === "number" ? value : Number(value.trim());
 
-    if (!Number.isFinite(parsed) || (integerOnly && !Number.isInteger(parsed))) {
+    if (
+      !Number.isFinite(parsed) ||
+      (integerOnly && !Number.isInteger(parsed))
+    ) {
       throw new RequestValidationError("Request query validation failed.", [
         {
           path,
@@ -1087,7 +1206,10 @@ export class PostingsService {
     return parsed;
   }
 
-  private async requireOwnerPosting(id: string, ownerId: string): Promise<PostingRecord> {
+  private async requireOwnerPosting(
+    id: string,
+    ownerId: string,
+  ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(id);
 
     if (!posting) {
@@ -1102,7 +1224,10 @@ export class PostingsService {
   }
 
   private async invalidatePublicProjection(postingId?: string): Promise<void> {
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      postingId,
+    );
   }
 
   private async requireOwnerPostingForAvailability(
@@ -1119,14 +1244,18 @@ export class PostingsService {
   }
 
   private normalizeBatchIds(ids: string[]): string[] {
-    const normalized = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const normalized = Array.from(
+      new Set(ids.map((id) => id.trim()).filter(Boolean)),
+    );
 
     if (normalized.length === 0) {
       throw new BadRequestError("At least one posting id is required.");
     }
 
     if (normalized.length > MAX_BATCH_IDS) {
-      throw new BadRequestError(`At most ${MAX_BATCH_IDS} posting ids may be requested at once.`);
+      throw new BadRequestError(
+        `At most ${MAX_BATCH_IDS} posting ids may be requested at once.`,
+      );
     }
 
     return normalized;
@@ -1134,11 +1263,17 @@ export class PostingsService {
 
   private async enqueueThumbnailGeneration(postingId: string): Promise<void> {
     try {
-      await this.postingThumbnailQueueService.enqueuePostingThumbnailJob(postingId);
-    } catch (error) {
-      this.logger.error("Failed to enqueue posting thumbnail job.", {
+      await this.postingThumbnailQueueService.enqueuePostingThumbnailJob(
         postingId,
-      }, error);
+      );
+    } catch (error) {
+      this.logger.error(
+        "Failed to enqueue posting thumbnail job.",
+        {
+          postingId,
+        },
+        error,
+      );
     }
   }
 
@@ -1146,14 +1281,20 @@ export class PostingsService {
     return Number.isFinite(value) && value >= min && value <= max;
   }
 
-  private assertValidVariantSelection(family: PostingFamily, subtype: PostingSubtype): void {
+  private assertValidVariantSelection(
+    family: PostingFamily,
+    subtype: PostingSubtype,
+  ): void {
     if (!getPostingVariantDefinition(family, subtype)) {
-      throw new BadRequestError("Posting subtype does not belong to the selected family.", [
-        {
-          path: "variant.subtype",
-          message: "Posting subtype does not belong to the selected family.",
-        },
-      ]);
+      throw new BadRequestError(
+        "Posting subtype does not belong to the selected family.",
+        [
+          {
+            path: "variant.subtype",
+            message: "Posting subtype does not belong to the selected family.",
+          },
+        ],
+      );
     }
   }
 
@@ -1191,7 +1332,9 @@ export class PostingsService {
           ]);
         }
 
-        return Array.from(new Set(value.map((entry) => entry.trim()).filter(Boolean)));
+        return Array.from(
+          new Set(value.map((entry) => entry.trim()).filter(Boolean)),
+        );
       }
       case "boolean": {
         if (typeof value !== "boolean") {

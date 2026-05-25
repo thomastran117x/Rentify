@@ -46,28 +46,37 @@ export class RecommendationQueryService {
     auth: AuthPrincipal | null,
   ): Promise<RecommendationQueryResult> {
     const snapshotSelection = await this.selectSnapshot(input, auth);
-    const excludedPostingIds =
-      auth?.sub ? await this.repository.listExcludedPostingIdsForUser(auth.sub) : new Set<string>();
+    const excludedPostingIds = auth?.sub
+      ? await this.repository.listExcludedPostingIdsForUser(auth.sub)
+      : new Set<string>();
 
     let candidateRecords = snapshotSelection.snapshot.candidates.filter(
       (candidate) => !excludedPostingIds.has(candidate.postingId),
     );
 
     if (input.availabilityWindow) {
-      const eligibleIds = await this.repository.filterCandidateIdsByAvailabilityWindow({
-        candidateIds: candidateRecords.map((candidate) => candidate.postingId),
-        startAt: new Date(input.availabilityWindow.startAt),
-        endAt: new Date(input.availabilityWindow.endAt),
-      });
+      const eligibleIds =
+        await this.repository.filterCandidateIdsByAvailabilityWindow({
+          candidateIds: candidateRecords.map(
+            (candidate) => candidate.postingId,
+          ),
+          startAt: new Date(input.availabilityWindow.startAt),
+          endAt: new Date(input.availabilityWindow.endAt),
+        });
       const eligibleIdSet = new Set(eligibleIds);
-      candidateRecords = candidateRecords.filter((candidate) => eligibleIdSet.has(candidate.postingId));
+      candidateRecords = candidateRecords.filter((candidate) =>
+        eligibleIdSet.has(candidate.postingId),
+      );
     }
 
     const batch = await this.postingsPublicCacheService.getPublicByIds(
       candidateRecords.map((candidate) => candidate.postingId),
     );
     const reasonCodesByPostingId = new Map(
-      candidateRecords.map((candidate) => [candidate.postingId, candidate.reasonCodes]),
+      candidateRecords.map((candidate) => [
+        candidate.postingId,
+        candidate.reasonCodes,
+      ]),
     );
     const filteredItems = batch.postings
       .filter((posting) => this.matchesFilters(posting, input))
@@ -76,9 +85,16 @@ export class RecommendationQueryService {
         reasonCodes: reasonCodesByPostingId.get(posting.id) ?? [],
       }));
 
-    const pagination = this.createPagination(input.page, input.pageSize, filteredItems.length);
+    const pagination = this.createPagination(
+      input.page,
+      input.pageSize,
+      filteredItems.length,
+    );
     const startIndex = (input.page - 1) * input.pageSize;
-    const pagedItems = filteredItems.slice(startIndex, startIndex + input.pageSize);
+    const pagedItems = filteredItems.slice(
+      startIndex,
+      startIndex + input.pageSize,
+    );
 
     return {
       items: pagedItems,
@@ -95,7 +111,9 @@ export class RecommendationQueryService {
     auth: AuthPrincipal | null,
   ): Promise<SnapshotSelection> {
     if (auth?.authMethod === "jwt") {
-      const personalization = await this.repository.getPersonalizationContext(auth.sub);
+      const personalization = await this.repository.getPersonalizationContext(
+        auth.sub,
+      );
 
       if (!personalization.recommendationPersonalizationEnabled) {
         return this.selectPopularSnapshot(input);
@@ -112,7 +130,10 @@ export class RecommendationQueryService {
 
       return this.selectPopularSnapshot(
         input,
-        this.readPersonalizedFallbackReason(personalization.profile, personalization.snapshot),
+        this.readPersonalizedFallbackReason(
+          personalization.profile,
+          personalization.snapshot,
+        ),
       );
     }
 
@@ -131,7 +152,10 @@ export class RecommendationQueryService {
       return null;
     }
 
-    const personalizedFresh = this.isFresh(snapshot.generatedAt, PERSONALIZED_RECOMMENDATION_STALE_HOURS);
+    const personalizedFresh = this.isFresh(
+      snapshot.generatedAt,
+      PERSONALIZED_RECOMMENDATION_STALE_HOURS,
+    );
 
     if (!personalizedFresh) {
       return null;
@@ -151,19 +175,31 @@ export class RecommendationQueryService {
     input: RecommendationQueryInput,
     fallbackReason?: RecommendationFallbackReason,
   ): Promise<SnapshotSelection> {
-    const preferred = this.readPreferredPopularSegment(input.family, input.subtype);
+    const preferred = this.readPreferredPopularSegment(
+      input.family,
+      input.subtype,
+    );
     const [preferredSnapshot, globalSnapshot] = await Promise.all([
-      this.repository.getPopularSnapshot(preferred.segmentType, preferred.segmentValue),
+      this.repository.getPopularSnapshot(
+        preferred.segmentType,
+        preferred.segmentValue,
+      ),
       preferred.segmentType === "global"
         ? Promise.resolve<PopularRecommendationSnapshotRecord | null>(null)
         : this.repository.getPopularSnapshot("global", "global"),
     ]);
 
     const preferredIsFresh = preferredSnapshot
-      ? this.isFresh(preferredSnapshot.generatedAt, POPULAR_RECOMMENDATION_STALE_HOURS)
+      ? this.isFresh(
+          preferredSnapshot.generatedAt,
+          POPULAR_RECOMMENDATION_STALE_HOURS,
+        )
       : false;
     const globalIsFresh = globalSnapshot
-      ? this.isFresh(globalSnapshot.generatedAt, POPULAR_RECOMMENDATION_STALE_HOURS)
+      ? this.isFresh(
+          globalSnapshot.generatedAt,
+          POPULAR_RECOMMENDATION_STALE_HOURS,
+        )
       : false;
 
     let selectedSnapshot: PopularRecommendationSnapshotRecord | null = null;
@@ -208,14 +244,24 @@ export class RecommendationQueryService {
       return "unqualified_profile";
     }
 
-    if (profile && snapshot && !this.isFresh(snapshot.generatedAt, PERSONALIZED_RECOMMENDATION_STALE_HOURS)) {
+    if (
+      profile &&
+      snapshot &&
+      !this.isFresh(
+        snapshot.generatedAt,
+        PERSONALIZED_RECOMMENDATION_STALE_HOURS,
+      )
+    ) {
       return "stale_snapshot";
     }
 
     return "missing_snapshot";
   }
 
-  private matchesFilters(posting: PublicPostingRecord, input: RecommendationQueryInput): boolean {
+  private matchesFilters(
+    posting: PublicPostingRecord,
+    input: RecommendationQueryInput,
+  ): boolean {
     if (input.family && posting.variant.family !== input.family) {
       return false;
     }
@@ -240,7 +286,10 @@ export class RecommendationQueryService {
     return true;
   }
 
-  private readPreferredPopularSegment(family?: PostingFamily, subtype?: PostingSubtype) {
+  private readPreferredPopularSegment(
+    family?: PostingFamily,
+    subtype?: PostingSubtype,
+  ) {
     if (family && subtype) {
       return {
         segmentType: "family_subtype" as const,
@@ -268,7 +317,11 @@ export class RecommendationQueryService {
     return Date.now() - generatedAtMs <= staleThresholdMs;
   }
 
-  private createPagination(page: number, pageSize: number, total: number): PostingPagination {
+  private createPagination(
+    page: number,
+    pageSize: number,
+    total: number,
+  ): PostingPagination {
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     return {

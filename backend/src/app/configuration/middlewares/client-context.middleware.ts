@@ -1,6 +1,9 @@
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { createMiddleware } from "hono/factory";
-import type { AppBindings, ClientDeviceContext } from "@/configuration/http/bindings";
+import type {
+  AppBindings,
+  ClientDeviceContext,
+} from "@/configuration/http/bindings";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 
 function isTrustedProxyHeaderEnabled(): boolean {
@@ -38,7 +41,10 @@ function readProxyIpAddress(headers: Headers): string | undefined {
   return undefined;
 }
 
-function readIpAddress(headers: Headers, remoteAddress?: string): string | undefined {
+function readIpAddress(
+  headers: Headers,
+  remoteAddress?: string,
+): string | undefined {
   if (isTrustedProxyHeaderEnabled()) {
     return readProxyIpAddress(headers) ?? remoteAddress;
   }
@@ -46,7 +52,9 @@ function readIpAddress(headers: Headers, remoteAddress?: string): string | undef
   return remoteAddress;
 }
 
-function readRemoteAddress(context: Parameters<typeof clientContextMiddleware>[0]): string | undefined {
+function readRemoteAddress(
+  context: Parameters<typeof clientContextMiddleware>[0],
+): string | undefined {
   try {
     return getConnInfo(context).remote.address;
   } catch {
@@ -55,13 +63,14 @@ function readRemoteAddress(context: Parameters<typeof clientContextMiddleware>[0
 }
 
 function readPlatform(headers: Headers): string | undefined {
-  const value = headers.get("sec-ch-ua-platform") ?? headers.get("x-device-platform");
+  const value =
+    headers.get("sec-ch-ua-platform") ?? headers.get("x-device-platform");
 
   if (!value) {
     return undefined;
   }
 
-  return value.replaceAll("\"", "").trim() || undefined;
+  return value.replaceAll('"', "").trim() || undefined;
 }
 
 function inferDeviceType(userAgent?: string): ClientDeviceContext["type"] {
@@ -71,7 +80,11 @@ function inferDeviceType(userAgent?: string): ClientDeviceContext["type"] {
 
   const normalized = userAgent.toLowerCase();
 
-  if (/bot|crawler|spider|slurp|curl|wget|postmanruntime|insomnia/.test(normalized)) {
+  if (
+    /bot|crawler|spider|slurp|curl|wget|postmanruntime|insomnia/.test(
+      normalized,
+    )
+  ) {
     return "bot";
   }
 
@@ -108,14 +121,16 @@ function readDevice(headers: Headers): ClientDeviceContext {
   };
 }
 
-export const clientContextMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const headers = context.req.raw.headers;
-  const remoteAddress = readRemoteAddress(context);
+export const clientContextMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const headers = context.req.raw.headers;
+    const remoteAddress = readRemoteAddress(context);
 
-  context.set("client", {
-    ip: readIpAddress(headers, remoteAddress),
-    device: readDevice(headers),
-  });
+    context.set("client", {
+      ip: readIpAddress(headers, remoteAddress),
+      device: readDevice(headers),
+    });
 
-  await next();
-});
+    await next();
+  },
+);

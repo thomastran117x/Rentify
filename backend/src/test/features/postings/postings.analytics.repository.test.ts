@@ -161,7 +161,9 @@ describe("PostingsAnalyticsRepository", () => {
       },
     };
     const repository = new PostingsAnalyticsRepository({
-      $transaction: async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction),
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<void>,
+      ) => callback(transaction),
     } as never);
 
     await repository.processPostingViewedEvent({
@@ -186,7 +188,9 @@ describe("PostingsAnalyticsRepository", () => {
         }),
       }),
     );
-    expect(transaction.postingAnalyticsUniqueView.createMany).toHaveBeenCalledWith({
+    expect(
+      transaction.postingAnalyticsUniqueView.createMany,
+    ).toHaveBeenCalledWith({
       data: [
         {
           postingId: "posting-1",

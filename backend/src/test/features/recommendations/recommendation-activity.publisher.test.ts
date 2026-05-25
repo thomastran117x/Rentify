@@ -1,7 +1,9 @@
 import { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 
-function createClient(overrides: Partial<ClientRequestContext> = {}): ClientRequestContext {
+function createClient(
+  overrides: Partial<ClientRequestContext> = {},
+): ClientRequestContext {
   return {
     ip: "127.0.0.1",
     device: {
@@ -23,7 +25,9 @@ describe("RecommendationActivityPublisher", () => {
         publishActivityEvent,
       } as never,
       {
-        findRecommendationPersonalizationEnabledByUserId: jest.fn(async () => true),
+        findRecommendationPersonalizationEnabledByUserId: jest.fn(
+          async () => true,
+        ),
       } as never,
     );
 
@@ -56,7 +60,9 @@ describe("RecommendationActivityPublisher", () => {
         publishActivityEvent,
       } as never,
       {
-        findRecommendationPersonalizationEnabledByUserId: jest.fn(async () => false),
+        findRecommendationPersonalizationEnabledByUserId: jest.fn(
+          async () => false,
+        ),
       } as never,
     );
 
@@ -91,7 +97,9 @@ describe("RecommendationActivityPublisher", () => {
         }),
       } as never,
       {
-        findRecommendationPersonalizationEnabledByUserId: jest.fn(async () => true),
+        findRecommendationPersonalizationEnabledByUserId: jest.fn(
+          async () => true,
+        ),
       } as never,
     );
 

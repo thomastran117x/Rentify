@@ -8,7 +8,10 @@ describe("RentingsRepository", () => {
       code: "P2002",
       clientVersion: "test",
     });
-    Object.setPrototypeOf(error, Prisma.PrismaClientKnownRequestError.prototype);
+    Object.setPrototypeOf(
+      error,
+      Prisma.PrismaClientKnownRequestError.prototype,
+    );
 
     const database = {
       $transaction: async () => {

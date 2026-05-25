@@ -19,11 +19,12 @@ describe("SearchService", () => {
       createdAt: "2026-04-27T00:00:00.000Z",
       updatedAt: "2026-04-27T00:00:00.000Z",
     }));
-    const withSearchReindexStartLock = jest.fn(async (operation: (helpers: unknown) => Promise<unknown>) =>
-      operation({
-        findActiveSearchReindexRun: async () => null,
-        createSearchReindexRun,
-      }),
+    const withSearchReindexStartLock = jest.fn(
+      async (operation: (helpers: unknown) => Promise<unknown>) =>
+        operation({
+          findActiveSearchReindexRun: async () => null,
+          createSearchReindexRun,
+        }),
     );
     const postingsRepository = {
       withSearchReindexStartLock,
@@ -32,7 +33,11 @@ describe("SearchService", () => {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      {} as never,
+    );
 
     const result = await service.startReindex();
 
@@ -50,7 +55,11 @@ describe("SearchService", () => {
     const postingsRepository = {
       withSearchReindexStartLock: jest.fn(async () => null),
     } as never;
-    const service = new SearchService(postingsRepository, {} as never, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      {} as never,
+      {} as never,
+    );
 
     await expect(service.startReindex()).rejects.toBeInstanceOf(ConflictError);
   });
@@ -68,7 +77,8 @@ describe("SearchService", () => {
         indexedPostings: 25,
         failedPostings: 0,
         failedAt: "2026-04-27T00:10:00.000Z",
-        lastError: "Search reindex barrier could not complete: broker publish retries exhausted.",
+        lastError:
+          "Search reindex barrier could not complete: broker publish retries exhausted.",
         createdAt: "2026-04-27T00:00:00.000Z",
         updatedAt: "2026-04-27T00:10:00.000Z",
       })),
@@ -107,7 +117,11 @@ describe("SearchService", () => {
         throw new Error("broker unavailable");
       }),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     const status = await service.getStatus();
 
@@ -119,7 +133,8 @@ describe("SearchService", () => {
     expect(status.latestReindexRun).toMatchObject({
       id: "run-9",
       status: "failed",
-      lastError: "Search reindex barrier could not complete: broker publish retries exhausted.",
+      lastError:
+        "Search reindex barrier could not complete: broker publish retries exhausted.",
     });
     expect(status.pendingOutboxCount).toBe(3);
     expect(status.pendingOutboxOldestAgeMs).toBe(1_500);
@@ -176,7 +191,11 @@ describe("SearchService", () => {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     const processed = await service.processOutboxRelayBatch(10, 3);
 
@@ -188,7 +207,11 @@ describe("SearchService", () => {
         operation: "delete",
       }),
     );
-    expect(markSearchOutboxRelayed).toHaveBeenCalledWith("outbox-2", ["outbox-1"], "outbox-2");
+    expect(markSearchOutboxRelayed).toHaveBeenCalledWith(
+      "outbox-2",
+      ["outbox-1"],
+      "outbox-2",
+    );
     expect(releaseSearchOutboxClaims).not.toHaveBeenCalled();
   });
 
@@ -225,14 +248,25 @@ describe("SearchService", () => {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     const processed = await service.processOutboxRelayBatch(10, 3);
 
     expect(processed).toBe(1);
     expect(searchQueueService.publishIndexJob).toHaveBeenCalledTimes(1);
-    expect(markSearchOutboxRelayed).toHaveBeenCalledWith("outbox-2", [], "outbox-2");
-    expect(releaseSearchOutboxClaims).toHaveBeenCalledWith(["outbox-2"], "database unavailable");
+    expect(markSearchOutboxRelayed).toHaveBeenCalledWith(
+      "outbox-2",
+      [],
+      "outbox-2",
+    );
+    expect(releaseSearchOutboxClaims).toHaveBeenCalledWith(
+      ["outbox-2"],
+      "database unavailable",
+    );
     expect(markSearchOutboxDeadLettered).not.toHaveBeenCalled();
     expect(markSearchOutboxPublishRetry).not.toHaveBeenCalled();
   });
@@ -258,7 +292,11 @@ describe("SearchService", () => {
     const postingsSearchService = {
       deleteDocument: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      {} as never,
+    );
 
     await service.processIndexJob(
       {
@@ -338,19 +376,21 @@ describe("SearchService", () => {
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     await service.processReindexRuns(200);
     await service.processReindexRuns(200);
 
-    expect(postingsRepository.countPublishedPostingsForIndexing).toHaveBeenCalledWith(
-      "2026-04-27T00:00:00.000Z",
-    );
-    expect(postingsRepository.listPublishedForIndexingBatch).toHaveBeenCalledWith(
-      200,
-      undefined,
-      "2026-04-27T00:00:00.000Z",
-    );
+    expect(
+      postingsRepository.countPublishedPostingsForIndexing,
+    ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
+    expect(
+      postingsRepository.listPublishedForIndexingBatch,
+    ).toHaveBeenCalledWith(200, undefined, "2026-04-27T00:00:00.000Z");
     expect(touchSearchReindexRunProcessing).toHaveBeenCalled();
     expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
   });
@@ -374,7 +414,8 @@ describe("SearchService", () => {
       })),
       getSearchReindexCatchUpState: jest.fn(async () => ({
         state: "failed" as const,
-        errorMessage: "Search reindex barrier could not complete: broker publish retries exhausted.",
+        errorMessage:
+          "Search reindex barrier could not complete: broker publish retries exhausted.",
       })),
       markSearchReindexRunFailed,
       clearSearchReindexRunProcessing,
@@ -385,7 +426,11 @@ describe("SearchService", () => {
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     const processed = await service.processReindexRuns(100);
 
@@ -436,7 +481,11 @@ describe("SearchService", () => {
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, searchQueueService);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
 
     const processed = await service.processReindexRuns(100);
 
@@ -493,7 +542,11 @@ describe("SearchService", () => {
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      {} as never,
+    );
 
     await service.processIndexJobsBatch(
       [
@@ -568,7 +621,11 @@ describe("SearchService", () => {
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      {} as never,
+    );
 
     const processed = await service.processReconciliationBatch(25);
 
@@ -587,16 +644,24 @@ describe("SearchService", () => {
     const postingsRepository = {
       reviveDeadLetteredSearchOutbox: jest.fn(async () => 7),
     } as never;
-    const service = new SearchService(postingsRepository, {} as never, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      {} as never,
+      {} as never,
+    );
 
     await expect(service.replayDeadLetteredOutbox(25)).resolves.toEqual({
       revived: 7,
     });
-    expect(postingsRepository.reviveDeadLetteredSearchOutbox).toHaveBeenCalledWith(25);
+    expect(
+      postingsRepository.reviveDeadLetteredSearchOutbox,
+    ).toHaveBeenCalledWith(25);
   });
 
   it("cleans up retained concrete indices that are no longer active", async () => {
-    const clearSearchReindexRunRetainedIndexName = jest.fn(async () => undefined);
+    const clearSearchReindexRunRetainedIndexName = jest.fn(
+      async () => undefined,
+    );
     const postingsRepository = {
       listCompletedSearchReindexRunsWithRetainedIndices: jest.fn(async () => [
         {
@@ -639,14 +704,26 @@ describe("SearchService", () => {
       })),
       deleteConcreteIndex: jest.fn(async () => undefined),
     } as never;
-    const service = new SearchService(postingsRepository, postingsSearchService, {} as never);
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      {} as never,
+    );
 
     await expect(service.cleanupRetainedIndices()).resolves.toEqual({
       deleted: 2,
     });
-    expect(postingsSearchService.deleteConcreteIndex).toHaveBeenCalledWith("postings_v0");
-    expect(postingsSearchService.deleteConcreteIndex).toHaveBeenCalledWith("postings_v2");
-    expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith("run-1");
-    expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith("run-2");
+    expect(postingsSearchService.deleteConcreteIndex).toHaveBeenCalledWith(
+      "postings_v0",
+    );
+    expect(postingsSearchService.deleteConcreteIndex).toHaveBeenCalledWith(
+      "postings_v2",
+    );
+    expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
+      "run-1",
+    );
+    expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
+      "run-2",
+    );
   });
 });

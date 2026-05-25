@@ -25,7 +25,11 @@ import {
 } from "@/configuration/bootstrap/routes/modules/postings.routes";
 import { rentingsRouteModule } from "@/configuration/bootstrap/routes/modules/rentings.routes";
 import { systemRouteModule } from "@/configuration/bootstrap/routes/modules/system.routes";
-import type { RouteModule, RouteModuleHelpers, RouteModuleId } from "@/configuration/bootstrap/routes/types";
+import type {
+  RouteModule,
+  RouteModuleHelpers,
+  RouteModuleId,
+} from "@/configuration/bootstrap/routes/types";
 
 const routesLogger = loggerFactory.forComponent("routes", "app");
 
@@ -60,7 +64,9 @@ export function getDisabledRouteModuleIds(): Set<RouteModuleId> {
 export function getEnabledRouteModules(): RouteModule[] {
   const disabledRouteModuleIds = getDisabledRouteModuleIds();
 
-  return routeModuleRegistry.filter((routeModule) => !disabledRouteModuleIds.has(routeModule.id));
+  return routeModuleRegistry.filter(
+    (routeModule) => !disabledRouteModuleIds.has(routeModule.id),
+  );
 }
 
 export function logRouteComposition(): void {
@@ -76,6 +82,9 @@ export function logRouteComposition(): void {
   });
 }
 
-export function registerRouteModule(routeModule: RouteModule, app: Parameters<RouteModule["register"]>[0]): void {
+export function registerRouteModule(
+  routeModule: RouteModule,
+  app: Parameters<RouteModule["register"]>[0],
+): void {
   routeModule.register(app, routeModuleHelpers);
 }

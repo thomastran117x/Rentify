@@ -45,47 +45,70 @@ export class PostingsPublicSearchService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly elasticsearch: ElasticsearchClient = getElasticsearchClient(),
   ) {
-    this.logger = loggerFactory.forClass(PostingsPublicSearchService, "service");
+    this.logger = loggerFactory.forClass(
+      PostingsPublicSearchService,
+      "service",
+    );
   }
 
-  async searchPublic(input: SearchPostingsInput): Promise<SearchPostingsResult> {
+  async searchPublic(
+    input: SearchPostingsInput,
+  ): Promise<SearchPostingsResult> {
     let searchIds = await this.searchIdsWithFallback(input);
     let batch = await this.hydratePublicPostings(searchIds.ids);
 
     if (searchIds.source === "elasticsearch" && batch.missingIds.length > 0) {
-      this.logger.warn("Postings search falling back to database because Elasticsearch returned stale ids.", {
-        missingIds: batch.missingIds,
-      });
+      this.logger.warn(
+        "Postings search falling back to database because Elasticsearch returned stale ids.",
+        {
+          missingIds: batch.missingIds,
+        },
+      );
       searchIds = await this.searchIdsFromDatabase(input, "index-drift");
       batch = await this.hydratePublicPostings(searchIds.ids);
     }
 
     if (batch.missingIds.length > 0) {
-      this.logger.warn("Postings search returned unresolved public posting ids after hydration.", {
-        source: searchIds.source,
-        missingIds: batch.missingIds,
-      });
+      this.logger.warn(
+        "Postings search returned unresolved public posting ids after hydration.",
+        {
+          source: searchIds.source,
+          missingIds: batch.missingIds,
+        },
+      );
     }
 
     return {
       postings: batch.postings,
-      pagination: this.createPagination(input.page, input.pageSize, searchIds.total),
+      pagination: this.createPagination(
+        input.page,
+        input.pageSize,
+        searchIds.total,
+      ),
       source: searchIds.source,
       ...(input.query ? { query: input.query } : {}),
     };
   }
 
-  private async searchIdsWithFallback(input: SearchPostingsInput): Promise<SearchIdsResult> {
+  private async searchIdsWithFallback(
+    input: SearchPostingsInput,
+  ): Promise<SearchIdsResult> {
     if (this.elasticsearch.isEnabled()) {
       try {
         return await this.searchIdsInElasticsearch(input);
       } catch (error) {
         if (error instanceof ElasticsearchCircuitOpenError) {
-          this.logger.info("Postings search using database fallback because Elasticsearch circuit is open.");
+          this.logger.info(
+            "Postings search using database fallback because Elasticsearch circuit is open.",
+          );
           return this.searchIdsFromDatabase(input, "circuit-open");
         }
 
-        this.logger.warn("Postings search falling back to database.", undefined, error);
+        this.logger.warn(
+          "Postings search falling back to database.",
+          undefined,
+          error,
+        );
         return this.searchIdsFromDatabase(input, "es-unavailable");
       }
     }
@@ -93,16 +116,19 @@ export class PostingsPublicSearchService {
     return this.searchIdsFromDatabase(input, "es-unavailable");
   }
 
-  private async searchIdsInElasticsearch(input: SearchPostingsInput): Promise<SearchIdsResult> {
+  private async searchIdsInElasticsearch(
+    input: SearchPostingsInput,
+  ): Promise<SearchIdsResult> {
     const indexName = `${this.elasticsearch.getPostingsIndexName()}-read`;
     const from = (input.page - 1) * input.pageSize;
-    const response = await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
-      `/${encodeURIComponent(indexName)}/_search`,
-      {
-        method: "POST",
-        body: JSON.stringify(this.buildSearchRequest(input, from)),
-      },
-    );
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
+        `/${encodeURIComponent(indexName)}/_search`,
+        {
+          method: "POST",
+          body: JSON.stringify(this.buildSearchRequest(input, from)),
+        },
+      );
     const hits = response.hits?.hits ?? [];
 
     return {
@@ -112,7 +138,10 @@ export class PostingsPublicSearchService {
     };
   }
 
-  private buildSearchRequest(input: SearchPostingsInput, from: number): Record<string, unknown> {
+  private buildSearchRequest(
+    input: SearchPostingsInput,
+    from: number,
+  ): Record<string, unknown> {
     const must: Array<Record<string, unknown>> = [];
     const filter: Array<Record<string, unknown>> = [
       {
@@ -228,12 +257,19 @@ export class PostingsPublicSearchService {
       filter.push(...this.buildAttributeFilters(attributeFilter));
     }
 
-    if (input.minDailyPrice !== undefined || input.maxDailyPrice !== undefined) {
+    if (
+      input.minDailyPrice !== undefined ||
+      input.maxDailyPrice !== undefined
+    ) {
       filter.push({
         range: {
           dailyPriceAmount: {
-            ...(input.minDailyPrice !== undefined ? { gte: input.minDailyPrice } : {}),
-            ...(input.maxDailyPrice !== undefined ? { lte: input.maxDailyPrice } : {}),
+            ...(input.minDailyPrice !== undefined
+              ? { gte: input.minDailyPrice }
+              : {}),
+            ...(input.maxDailyPrice !== undefined
+              ? { lte: input.maxDailyPrice }
+              : {}),
           },
         },
       });
@@ -295,10 +331,14 @@ export class PostingsPublicSearchService {
   }
 
   private countQueryTerms(query: string): number {
-    return query.match(PostingsPublicSearchService.queryTokenPattern)?.length ?? 0;
+    return (
+      query.match(PostingsPublicSearchService.queryTokenPattern)?.length ?? 0
+    );
   }
 
-  private buildSort(input: SearchPostingsInput): Array<Record<string, unknown>> {
+  private buildSort(
+    input: SearchPostingsInput,
+  ): Array<Record<string, unknown>> {
     switch (input.sort) {
       case "dailyPrice":
         return [
@@ -364,7 +404,9 @@ export class PostingsPublicSearchService {
     }
   }
 
-  private buildStableRecencySort(direction: "asc" | "desc"): Array<Record<string, unknown>> {
+  private buildStableRecencySort(
+    direction: "asc" | "desc",
+  ): Array<Record<string, unknown>> {
     return [
       {
         publishedAt: {
@@ -415,7 +457,8 @@ export class PostingsPublicSearchService {
   private async hydratePublicPostings(
     ids: string[],
   ): Promise<BatchPostingsResult<PublicPostingRecord>> {
-    const cachedBatch = await this.postingsPublicCacheService.getPublicByIds(ids);
+    const cachedBatch =
+      await this.postingsPublicCacheService.getPublicByIds(ids);
 
     if (cachedBatch.missingIds.length === 0) {
       return cachedBatch;
@@ -454,7 +497,9 @@ export class PostingsPublicSearchService {
     };
   }
 
-  private buildAttributeFilters(filter: SearchAttributeFilterInput): Array<Record<string, unknown>> {
+  private buildAttributeFilters(
+    filter: SearchAttributeFilterInput,
+  ): Array<Record<string, unknown>> {
     const field = `searchableAttributes.${filter.key}`;
     const clauses: Array<Record<string, unknown>> = [];
 

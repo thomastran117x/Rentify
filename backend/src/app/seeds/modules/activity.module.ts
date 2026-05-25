@@ -1,11 +1,17 @@
 import { createFixtureId } from "@/seeds/types";
-import { SEED_ANALYTICS_OUTBOX_EVENTS, SEED_POSTING_REVIEWS, SEED_POSTING_VIEW_EVENTS } from "@/seeds/fixtures/activity";
+import {
+  SEED_ANALYTICS_OUTBOX_EVENTS,
+  SEED_POSTING_REVIEWS,
+  SEED_POSTING_VIEW_EVENTS,
+} from "@/seeds/fixtures/activity";
 import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import type { SeedModule } from "@/seeds/types";
 
 function startOfDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 }
 
 function startOfHour(date: Date): Date {
@@ -109,7 +115,9 @@ export const activitySeedModule: SeedModule = {
 
     for (const viewEvent of SEED_POSTING_VIEW_EVENTS) {
       const ownerId = state.postingOwnerIdsByPostingId.get(viewEvent.postingId);
-      const userId = viewEvent.userEmail ? state.userIdsByEmail.get(viewEvent.userEmail) : undefined;
+      const userId = viewEvent.userEmail
+        ? state.userIdsByEmail.get(viewEvent.userEmail)
+        : undefined;
 
       if (!ownerId) {
         throw new Error(`Missing owner for seeded view event ${viewEvent.id}.`);
@@ -197,14 +205,16 @@ export const activitySeedModule: SeedModule = {
       if (["paid", "refunded"].includes(booking.status)) {
         confirmedRevenueByPostingId.set(
           booking.postingId,
-          (confirmedRevenueByPostingId.get(booking.postingId) ?? 0) + booking.estimatedTotal,
+          (confirmedRevenueByPostingId.get(booking.postingId) ?? 0) +
+            booking.estimatedTotal,
         );
       }
 
       if (booking.status === "refunded") {
         refundedRevenueByPostingId.set(
           booking.postingId,
-          (refundedRevenueByPostingId.get(booking.postingId) ?? 0) + booking.estimatedTotal,
+          (refundedRevenueByPostingId.get(booking.postingId) ?? 0) +
+            booking.estimatedTotal,
         );
       }
     }
@@ -221,16 +231,19 @@ export const activitySeedModule: SeedModule = {
           searchClicks: 0,
           views: aggregate.views,
           uniqueViews: aggregate.uniqueViews.size,
-          bookingRequests: bookingCountByPostingId.get(aggregate.postingId) ?? 0,
+          bookingRequests:
+            bookingCountByPostingId.get(aggregate.postingId) ?? 0,
           approvedRequests: 0,
           declinedRequests: 0,
           expiredRequests: 0,
           cancelledRequests: 0,
           paymentFailedRequests: 0,
-          confirmedBookings: confirmedCountByPostingId.get(aggregate.postingId) ?? 0,
+          confirmedBookings:
+            confirmedCountByPostingId.get(aggregate.postingId) ?? 0,
           estimatedConfirmedRevenue:
             confirmedRevenueByPostingId.get(aggregate.postingId) ?? 0,
-          refundedRevenue: refundedRevenueByPostingId.get(aggregate.postingId) ?? 0,
+          refundedRevenue:
+            refundedRevenueByPostingId.get(aggregate.postingId) ?? 0,
         },
       });
       hourlyIndex += 1;
@@ -248,16 +261,19 @@ export const activitySeedModule: SeedModule = {
           searchClicks: 0,
           views: aggregate.views,
           uniqueViews: aggregate.uniqueViews.size,
-          bookingRequests: bookingCountByPostingId.get(aggregate.postingId) ?? 0,
+          bookingRequests:
+            bookingCountByPostingId.get(aggregate.postingId) ?? 0,
           approvedRequests: 0,
           declinedRequests: 0,
           expiredRequests: 0,
           cancelledRequests: 0,
           paymentFailedRequests: 0,
-          confirmedBookings: confirmedCountByPostingId.get(aggregate.postingId) ?? 0,
+          confirmedBookings:
+            confirmedCountByPostingId.get(aggregate.postingId) ?? 0,
           estimatedConfirmedRevenue:
             confirmedRevenueByPostingId.get(aggregate.postingId) ?? 0,
-          refundedRevenue: refundedRevenueByPostingId.get(aggregate.postingId) ?? 0,
+          refundedRevenue:
+            refundedRevenueByPostingId.get(aggregate.postingId) ?? 0,
         },
       });
       dailyIndex += 1;
@@ -267,7 +283,9 @@ export const activitySeedModule: SeedModule = {
       const ownerId = state.postingOwnerIdsByPostingId.get(event.postingId);
 
       if (!ownerId) {
-        throw new Error(`Missing owner for analytics outbox event ${event.id}.`);
+        throw new Error(
+          `Missing owner for analytics outbox event ${event.id}.`,
+        );
       }
 
       await prisma.postingAnalyticsOutbox.create({
@@ -292,7 +310,9 @@ export const activitySeedModule: SeedModule = {
           postingId: posting.id,
           operation: posting.status === "published" ? "upsert" : "delete",
           dedupeKey: `seed-search:${posting.id}`,
-          availableAt: new Date(`2026-04-25T${String(8 + (index % 10)).padStart(2, "0")}:00:00.000Z`),
+          availableAt: new Date(
+            `2026-04-25T${String(8 + (index % 10)).padStart(2, "0")}:00:00.000Z`,
+          ),
         },
       });
     }

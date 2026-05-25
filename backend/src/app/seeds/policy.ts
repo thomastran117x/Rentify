@@ -11,7 +11,9 @@ export interface AutoSeedPolicy {
   shouldRun: boolean;
 }
 
-export function resolveAutoSeedPolicy(input: AutoSeedPolicyInput): AutoSeedPolicy {
+export function resolveAutoSeedPolicy(
+  input: AutoSeedPolicyInput,
+): AutoSeedPolicy {
   if (input.nodeEnv === "production") {
     return {
       shouldRun: false,

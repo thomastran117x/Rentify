@@ -164,19 +164,21 @@ describe("PostingsPublicAutocompleteService", () => {
   });
 
   it("falls back to the database when Elasticsearch is unavailable", async () => {
-    const autocompletePublicFallback = jest.fn(async (input: PostingAutocompleteInput) => [
-      {
-        name: "Toronto Loft",
-        tags: ["toronto", "loft"],
-        location: {
-          city: "Toronto",
-          region: "Ontario",
-          country: "Canada",
+    const autocompletePublicFallback = jest.fn(
+      async (input: PostingAutocompleteInput) => [
+        {
+          name: "Toronto Loft",
+          tags: ["toronto", "loft"],
+          location: {
+            city: "Toronto",
+            region: "Ontario",
+            country: "Canada",
+          },
+          publishedAt: "2026-05-01T00:00:00.000Z",
+          createdAt: "2026-05-01T00:00:00.000Z",
         },
-        publishedAt: "2026-05-01T00:00:00.000Z",
-        createdAt: "2026-05-01T00:00:00.000Z",
-      },
-    ]);
+      ],
+    );
     const service = new PostingsPublicAutocompleteService(
       {
         autocompletePublicFallback,
@@ -184,7 +186,9 @@ describe("PostingsPublicAutocompleteService", () => {
       {
         getPostingsIndexName: () => "postings-test",
         requestJson: jest.fn(async () => {
-          throw new ElasticsearchUnavailableError("Elasticsearch is unavailable.");
+          throw new ElasticsearchUnavailableError(
+            "Elasticsearch is unavailable.",
+          );
         }),
         isEnabled: () => true,
       } as never,

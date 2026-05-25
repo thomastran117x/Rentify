@@ -9,39 +9,66 @@ export const postingsOwnerRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/postings",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "create"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "create",
+      ),
     );
     app.get(
       "/postings/me",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "listMine"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listMine",
+      ),
     );
     app.get(
       "/postings/me/batch",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "batchMine"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "batchMine",
+      ),
     );
     app.put(
       "/postings/:id",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "update"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "update",
+      ),
     );
     app.post(
       "/postings/:id/duplicate",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "duplicate"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "duplicate",
+      ),
     );
     app.post(
       "/postings/:id/publish",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "publish"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "publish",
+      ),
     );
     app.post(
       "/postings/:id/pause",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "pause"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "pause",
+      ),
     );
     app.post(
       "/postings/:id/unpause",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "unpause"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "unpause",
+      ),
     );
     app.post(
       "/postings/:id/archive",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "archive"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "archive",
+      ),
     );
   },
 };
@@ -51,15 +78,24 @@ export const postingsAnalyticsRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.get(
       "/postings/analytics/summary",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "analyticsSummary"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "analyticsSummary",
+      ),
     );
     app.get(
       "/postings/analytics/postings",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "analyticsPostings"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "analyticsPostings",
+      ),
     );
     app.get(
       "/postings/:id/analytics",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "analyticsById"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "analyticsById",
+      ),
     );
   },
 };
@@ -69,15 +105,24 @@ export const postingsReviewsRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.get(
       "/postings/:id/reviews",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "listReviews"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listReviews",
+      ),
     );
     app.post(
       "/postings/:id/reviews",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "createReview"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "createReview",
+      ),
     );
     app.put(
       "/postings/:id/reviews/me",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "updateOwnReview"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "updateOwnReview",
+      ),
     );
   },
 };
@@ -87,19 +132,31 @@ export const postingsAvailabilityRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.get(
       "/postings/:id/availability-blocks",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "listAvailabilityBlocks"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listAvailabilityBlocks",
+      ),
     );
     app.post(
       "/postings/:id/availability-blocks",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "createAvailabilityBlock"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "createAvailabilityBlock",
+      ),
     );
     app.put(
       "/postings/:id/availability-blocks/:blockId",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "updateAvailabilityBlock"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "updateAvailabilityBlock",
+      ),
     );
     app.delete(
       "/postings/:id/availability-blocks/:blockId",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "deleteAvailabilityBlock"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "deleteAvailabilityBlock",
+      ),
     );
   },
 };
@@ -109,7 +166,10 @@ export const postingsActivityRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/postings/:id/activity/search-click",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "trackSearchClick"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "trackSearchClick",
+      ),
     );
   },
 };
@@ -119,23 +179,38 @@ export const postingsPublicRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.get(
       "/postings",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "search"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "search",
+      ),
     );
     app.get(
       "/postings/autocomplete",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "autocomplete"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "autocomplete",
+      ),
     );
     app.get(
       "/postings/recommendations",
-      resolveHandler<RecommendationsController>(containerTokens.recommendationsController, "list"),
+      resolveHandler<RecommendationsController>(
+        containerTokens.recommendationsController,
+        "list",
+      ),
     );
     app.get(
       "/postings/batch",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "batchPublic"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "batchPublic",
+      ),
     );
     app.get(
       "/postings/:id",
-      resolveHandler<PostingsController>(containerTokens.postingsController, "getById"),
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "getById",
+      ),
     );
   },
 };

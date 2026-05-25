@@ -5,7 +5,8 @@ jest.mock("@/configuration/environment", () => {
 
   return {
     ...actual,
-    getOptionalEnvironmentVariable: (name: string) => mockGetOptionalEnvironmentVariable(name),
+    getOptionalEnvironmentVariable: (name: string) =>
+      mockGetOptionalEnvironmentVariable(name),
   };
 });
 
@@ -14,7 +15,9 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 
 function setEnvironment(values: Record<string, string | undefined>) {
-  mockGetOptionalEnvironmentVariable.mockImplementation((name: string) => values[name]);
+  mockGetOptionalEnvironmentVariable.mockImplementation(
+    (name: string) => values[name],
+  );
 }
 
 describe("MicrosoftOAuthService", () => {
@@ -61,21 +64,26 @@ describe("MicrosoftOAuthService", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toBe("https://login.microsoftonline.com/common/oauth2/v2.0/token");
+    expect(String(url)).toBe(
+      "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    );
     expect((init?.body as URLSearchParams).toString()).toBe(
       "code=auth-code&client_id=microsoft-client-id&redirect_uri=https%3A%2F%2Frent.example.com%2Fauth%2Fmicrosoft&grant_type=authorization_code&code_verifier=pkce-verifier&scope=openid+email+profile&client_secret=microsoft-client-secret",
     );
-    expect(tokenVerifier.verifyIdToken).toHaveBeenCalledWith("microsoft-id-token", {
-      issuer: [
-        "https://login.microsoftonline.com/common/v2.0",
-        "https://login.microsoftonline.com/consumers/v2.0",
-        "https://login.microsoftonline.com/organizations/v2.0",
-      ],
-      audience: ["microsoft-client-id"],
-      jwksUrl: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
-      allowedHosts: ["login.microsoftonline.com"],
-      nonce: "nonce-1",
-    });
+    expect(tokenVerifier.verifyIdToken).toHaveBeenCalledWith(
+      "microsoft-id-token",
+      {
+        issuer: [
+          "https://login.microsoftonline.com/common/v2.0",
+          "https://login.microsoftonline.com/consumers/v2.0",
+          "https://login.microsoftonline.com/organizations/v2.0",
+        ],
+        audience: ["microsoft-client-id"],
+        jwksUrl: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
+        allowedHosts: ["login.microsoftonline.com"],
+        nonce: "nonce-1",
+      },
+    );
     expect(profile).toEqual({
       provider: "microsoft",
       providerUserId: "microsoft-user-1",

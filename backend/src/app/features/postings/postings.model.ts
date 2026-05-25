@@ -16,7 +16,12 @@ export const MAX_SEARCH_RESULT_WINDOW = 10_000;
 export const DEFAULT_MAX_BOOKING_DURATION_DAYS = 30;
 export const MAX_BOOKING_DURATION_DAYS_LIMIT = 365;
 
-export const postingStatusSchema = z.enum(["draft", "published", "paused", "archived"]);
+export const postingStatusSchema = z.enum([
+  "draft",
+  "published",
+  "paused",
+  "archived",
+]);
 export const postingAvailabilityStatusSchema = z.enum([
   "available",
   "limited",
@@ -25,7 +30,11 @@ export const postingAvailabilityStatusSchema = z.enum([
 export const postingFamilySchema = z.enum(POSTING_FAMILY_VALUES);
 export const postingSubtypeSchema = z.enum(POSTING_SUBTYPE_VALUES);
 export const postingSearchSourceSchema = z.enum(["elasticsearch", "database"]);
-export const postingAutocompleteSuggestionKindSchema = z.enum(["name", "tag", "location"]);
+export const postingAutocompleteSuggestionKindSchema = z.enum([
+  "name",
+  "tag",
+  "location",
+]);
 export const postingSortSchema = z.enum([
   "relevance",
   "newest",
@@ -116,8 +125,12 @@ function validateDetailKeys(
 }
 
 export const placePostingSubtypeSchema = z.enum(PLACE_POSTING_SUBTYPE_VALUES);
-export const equipmentPostingSubtypeSchema = z.enum(EQUIPMENT_POSTING_SUBTYPE_VALUES);
-export const vehiclePostingSubtypeSchema = z.enum(VEHICLE_POSTING_SUBTYPE_VALUES);
+export const equipmentPostingSubtypeSchema = z.enum(
+  EQUIPMENT_POSTING_SUBTYPE_VALUES,
+);
+export const vehiclePostingSubtypeSchema = z.enum(
+  VEHICLE_POSTING_SUBTYPE_VALUES,
+);
 
 export const placePostingVariantSchema = z.object({
   family: z.literal("place"),
@@ -232,7 +245,9 @@ export const searchAttributeFilterSchema = z
     }
   });
 
-export const searchAttributeFiltersSchema = z.array(searchAttributeFilterSchema).max(20);
+export const searchAttributeFiltersSchema = z
+  .array(searchAttributeFilterSchema)
+  .max(20);
 
 export const postingBatchIdsQuerySchema = z
   .array(postingResourceIdSchema)
@@ -243,13 +258,23 @@ export const postingBatchIdsQuerySchema = z
 export const postingPhotoSchema = z.object({
   blobUrl: z.url("Photo URL must be a valid URL."),
   blobName: trimmedStringSchema.max(1024),
-  position: z.number().int().min(0).max(MAX_POSTING_PHOTOS - 1),
+  position: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_POSTING_PHOTOS - 1),
 });
 
 export const postingAvailabilityBlockSchema = z.object({
-  startAt: z.string().datetime("Availability block start time must be an ISO datetime."),
-  endAt: z.string().datetime("Availability block end time must be an ISO datetime."),
-  note: nullableTrimmedStringSchema.pipe(z.string().trim().max(255).nullable().optional()),
+  startAt: z
+    .string()
+    .datetime("Availability block start time must be an ISO datetime."),
+  endAt: z
+    .string()
+    .datetime("Availability block end time must be an ISO datetime."),
+  note: nullableTrimmedStringSchema.pipe(
+    z.string().trim().max(255).nullable().optional(),
+  ),
 });
 
 const sharedUpsertPostingRequestShape = {
@@ -286,7 +311,10 @@ export const placeUpsertPostingRequestSchema = z
     ...sharedUpsertPostingRequestShape,
     variant: placePostingVariantSchema,
     details: placePostingDetailsSchema,
-    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
+    availabilityBlocks: z
+      .array(postingAvailabilityBlockSchema)
+      .max(200)
+      .default([]),
   })
   .strict();
 
@@ -295,7 +323,10 @@ export const equipmentUpsertPostingRequestSchema = z
     ...sharedUpsertPostingRequestShape,
     variant: equipmentPostingVariantSchema,
     details: equipmentPostingDetailsSchema,
-    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
+    availabilityBlocks: z
+      .array(postingAvailabilityBlockSchema)
+      .max(200)
+      .default([]),
   })
   .strict();
 
@@ -304,7 +335,10 @@ export const vehicleUpsertPostingRequestSchema = z
     ...sharedUpsertPostingRequestShape,
     variant: vehiclePostingVariantSchema,
     details: vehiclePostingDetailsSchema,
-    availabilityBlocks: z.array(postingAvailabilityBlockSchema).max(200).default([]),
+    availabilityBlocks: z
+      .array(postingAvailabilityBlockSchema)
+      .max(200)
+      .default([]),
   })
   .strict();
 
@@ -344,12 +378,18 @@ export const updatePostingRequestSchema = z.union([
   vehicleUpdatePostingRequestSchema,
 ]);
 
-export const ownerAvailabilityBlockRequestSchema = postingAvailabilityBlockSchema;
+export const ownerAvailabilityBlockRequestSchema =
+  postingAvailabilityBlockSchema;
 
 export const listOwnerPostingsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PAGE_SIZE)
+      .default(DEFAULT_PAGE_SIZE),
     status: postingStatusSchema.optional(),
   })
   .strict();
@@ -357,7 +397,12 @@ export const listOwnerPostingsQuerySchema = z
 export const publicSearchPostingsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PAGE_SIZE)
+      .default(DEFAULT_PAGE_SIZE),
     q: z.string().trim().min(1).max(120).optional(),
     family: postingFamilySchema.optional(),
     subtype: postingSubtypeSchema.optional(),
@@ -368,8 +413,14 @@ export const publicSearchPostingsQuerySchema = z
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     radiusKm: z.coerce.number().positive().max(20_000).optional(),
-    startAt: z.string().datetime("Search start time must be an ISO datetime.").optional(),
-    endAt: z.string().datetime("Search end time must be an ISO datetime.").optional(),
+    startAt: z
+      .string()
+      .datetime("Search start time must be an ISO datetime.")
+      .optional(),
+    endAt: z
+      .string()
+      .datetime("Search end time must be an ISO datetime.")
+      .optional(),
     sort: postingSortSchema.default("relevance"),
   })
   .strict()
@@ -417,7 +468,9 @@ export const publicAutocompletePostingsQuerySchema = z
   .strict();
 
 export type PostingStatus = z.infer<typeof postingStatusSchema>;
-export type PostingAvailabilityStatus = z.infer<typeof postingAvailabilityStatusSchema>;
+export type PostingAvailabilityStatus = z.infer<
+  typeof postingAvailabilityStatusSchema
+>;
 export type PostingFamily = z.infer<typeof postingFamilySchema>;
 export type PostingSubtype = z.infer<typeof postingSubtypeSchema>;
 export type PostingSearchSource = z.infer<typeof postingSearchSourceSchema>;
@@ -432,7 +485,9 @@ export interface PostingVariant {
 }
 export type PostingAttributeValue = VariantPostingAttributeValue;
 export type PlacePostingDetails = z.infer<typeof placePostingDetailsSchema>;
-export type EquipmentPostingDetails = z.infer<typeof equipmentPostingDetailsSchema>;
+export type EquipmentPostingDetails = z.infer<
+  typeof equipmentPostingDetailsSchema
+>;
 export type VehiclePostingDetails = z.infer<typeof vehiclePostingDetailsSchema>;
 export type PostingDetails =
   | PlacePostingDetails
@@ -443,14 +498,24 @@ export interface ManagedPostingPhotoInput extends PostingPhotoInput {
   thumbnailBlobUrl?: string;
   thumbnailBlobName?: string;
 }
-export type PostingAvailabilityBlockInput = z.infer<typeof postingAvailabilityBlockSchema>;
-export type UpsertPostingRequestBody = z.infer<typeof upsertPostingRequestSchema>;
-export type UpdatePostingRequestBody = z.infer<typeof updatePostingRequestSchema>;
+export type PostingAvailabilityBlockInput = z.infer<
+  typeof postingAvailabilityBlockSchema
+>;
+export type UpsertPostingRequestBody = z.infer<
+  typeof upsertPostingRequestSchema
+>;
+export type UpdatePostingRequestBody = z.infer<
+  typeof updatePostingRequestSchema
+>;
 export type OwnerAvailabilityBlockRequestBody = z.infer<
   typeof ownerAvailabilityBlockRequestSchema
 >;
-export type ListOwnerPostingsQuery = z.infer<typeof listOwnerPostingsQuerySchema>;
-export type PublicSearchPostingsQuery = z.infer<typeof publicSearchPostingsQuerySchema>;
+export type ListOwnerPostingsQuery = z.infer<
+  typeof listOwnerPostingsQuerySchema
+>;
+export type PublicSearchPostingsQuery = z.infer<
+  typeof publicSearchPostingsQuerySchema
+>;
 export type PublicAutocompletePostingsQuery = z.infer<
   typeof publicAutocompletePostingsQuerySchema
 >;
@@ -698,7 +763,9 @@ export function parsePostingDetailsForVariant(
   }
 }
 
-export function toPostingAttributes(details: PostingDetails): Record<string, PostingAttributeValue> {
+export function toPostingAttributes(
+  details: PostingDetails,
+): Record<string, PostingAttributeValue> {
   return details as Record<string, PostingAttributeValue>;
 }
 
@@ -716,7 +783,8 @@ export function isPostingSearchIndexable(status: PostingStatus): boolean {
 export function toPublicPostingRecord(
   posting: PostingRecord | PublicPostingRecord,
 ): PublicPostingRecord {
-  const primaryPhoto = posting.photos.find((photo) => photo.position === 0) ?? posting.photos[0];
+  const primaryPhoto =
+    posting.photos.find((photo) => photo.position === 0) ?? posting.photos[0];
 
   return {
     ...posting,
@@ -754,5 +822,3 @@ export interface PostingSearchOutboxRecord {
   createdAt: string;
   updatedAt: string;
 }
-
-

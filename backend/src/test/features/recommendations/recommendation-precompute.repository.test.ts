@@ -80,7 +80,9 @@ describe("RecommendationPrecomputeRepository", () => {
         upsert: snapshotUpsert,
       },
     });
-    const repository = new RecommendationPrecomputeRepository(database as never);
+    const repository = new RecommendationPrecomputeRepository(
+      database as never,
+    );
 
     await repository.upsertUserRecommendationArtifacts({
       profile: {
@@ -182,14 +184,17 @@ describe("RecommendationPrecomputeRepository", () => {
   });
 });
 
-function createDatabaseMock(delegates: Record<string, Record<string, unknown>>) {
+function createDatabaseMock(
+  delegates: Record<string, Record<string, unknown>>,
+) {
   const transactionClient = {
     ...delegates,
   };
 
   return {
     ...delegates,
-    $transaction: async (callback: (transaction: typeof transactionClient) => Promise<unknown>) =>
-      callback(transactionClient),
+    $transaction: async (
+      callback: (transaction: typeof transactionClient) => Promise<unknown>,
+    ) => callback(transactionClient),
   };
 }

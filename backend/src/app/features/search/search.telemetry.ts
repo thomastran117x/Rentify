@@ -79,7 +79,9 @@ export function recordReindexRunFailed(durationMs?: number): void {
   }
 }
 
-export function recordAliasAction(action: "created_index" | "repaired_read_alias" | "repaired_write_alias"): void {
+export function recordAliasAction(
+  action: "created_index" | "repaired_read_alias" | "repaired_write_alias",
+): void {
   telemetry.aliasActions.lastAction = action;
 
   switch (action) {

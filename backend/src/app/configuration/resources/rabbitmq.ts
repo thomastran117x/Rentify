@@ -1,8 +1,4 @@
-import {
-  connect,
-  type ChannelModel,
-  type ConfirmChannel,
-} from "amqplib";
+import { connect, type ChannelModel, type ConfirmChannel } from "amqplib";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 
@@ -13,7 +9,9 @@ function getRabbitMqUrl(): string {
   const { url } = environment.getRabbitMqConfig();
 
   if (!url) {
-    throw new Error("RabbitMQ has not been configured. Set RABBITMQ_URL first.");
+    throw new Error(
+      "RabbitMQ has not been configured. Set RABBITMQ_URL first.",
+    );
   }
 
   return url;
@@ -49,7 +47,9 @@ export async function createRabbitMqChannel(): Promise<ConfirmChannel> {
 
 export function getRabbitMqConnection(): ChannelModel {
   if (!rabbitMqConnection) {
-    throw new Error("RabbitMQ has not been initialized. Call connectRabbitMq() first.");
+    throw new Error(
+      "RabbitMQ has not been initialized. Call connectRabbitMq() first.",
+    );
   }
 
   return rabbitMqConnection;

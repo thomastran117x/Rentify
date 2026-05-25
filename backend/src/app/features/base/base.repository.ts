@@ -1,7 +1,4 @@
-import {
-  Prisma,
-  type PrismaClient,
-} from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   getDatabaseClient,
   type databaseClient,
@@ -59,7 +56,10 @@ export abstract class BaseRepository {
 
   constructor(database: DatabaseClient = getDatabaseClient()) {
     this.database = database;
-    this.logger = loggerFactory.forClass(this.constructor.name || "BaseRepository", "repository");
+    this.logger = loggerFactory.forClass(
+      this.constructor.name || "BaseRepository",
+      "repository",
+    );
   }
 
   protected async executeAsync<T>(
@@ -107,7 +107,13 @@ export abstract class BaseRepository {
         }
       }
     } finally {
-      this.logOperationDuration(operationName, startedAt, succeeded, attempt, lastError);
+      this.logOperationDuration(
+        operationName,
+        startedAt,
+        succeeded,
+        attempt,
+        lastError,
+      );
     }
 
     throw lastError;
@@ -171,19 +177,24 @@ export abstract class BaseRepository {
     const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
     const shouldLogOperation = config.operationLoggingEnabled;
     const shouldLogSlowOperation =
-      config.slowOperationThresholdMs > 0 && durationMs >= config.slowOperationThresholdMs;
+      config.slowOperationThresholdMs > 0 &&
+      durationMs >= config.slowOperationThresholdMs;
 
     if (!shouldLogOperation && !shouldLogSlowOperation && succeeded) {
       return;
     }
 
     const logMethod =
-      succeeded && !shouldLogSlowOperation ? this.logger.info.bind(this.logger) : this.logger.warn.bind(this.logger);
+      succeeded && !shouldLogSlowOperation
+        ? this.logger.info.bind(this.logger)
+        : this.logger.warn.bind(this.logger);
 
     logMethod("Database operation completed.", {
       attempts: attempts + 1,
       durationMs,
-      errorCode: succeeded ? undefined : this.readErrorCode(error) ?? "unknown",
+      errorCode: succeeded
+        ? undefined
+        : (this.readErrorCode(error) ?? "unknown"),
       errorName: succeeded ? undefined : this.readErrorName(error),
       message: succeeded ? undefined : this.readErrorMessage(error),
       operation: operationName,
@@ -238,7 +249,10 @@ export abstract class BaseRepository {
     return error instanceof Error ? error.message : "Unknown database error.";
   }
 
-  private calculateDelay(attempt: number, options: Required<RetryOptions>): number {
+  private calculateDelay(
+    attempt: number,
+    options: Required<RetryOptions>,
+  ): number {
     const exponentialDelay = Math.min(
       options.initialDelayMs * options.backoffMultiplier ** attempt,
       options.maxDelayMs,

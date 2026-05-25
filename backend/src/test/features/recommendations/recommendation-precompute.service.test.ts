@@ -35,12 +35,16 @@ describe("RecommendationPrecomputeService", () => {
         }),
       }),
     );
-    expect(repository.upsertUserRecommendationArtifacts).not.toHaveBeenCalledWith(
+    expect(
+      repository.upsertUserRecommendationArtifacts,
+    ).not.toHaveBeenCalledWith(
       expect.objectContaining({
         snapshot: expect.anything(),
       }),
     );
-    expect(repository.markRefreshJobProcessed).toHaveBeenCalledWith("job-user-1");
+    expect(repository.markRefreshJobProcessed).toHaveBeenCalledWith(
+      "job-user-1",
+    );
   });
 
   it("prefers stronger tag matches in personalized snapshots", async () => {
@@ -83,31 +87,34 @@ describe("RecommendationPrecomputeService", () => {
           tags: ["tripod"],
         }),
       ]),
-      listPublishedRecommendationCandidates: jest
-        .fn()
-        .mockResolvedValueOnce([
-          createCandidate({
-            id: "candidate-a",
-            family: "equipment",
-            subtype: "camera",
-            tags: ["dslr", "mirrorless"],
-          }),
-          createCandidate({
-            id: "candidate-b",
-            family: "equipment",
-            subtype: "camera",
-            tags: ["tripod"],
-          }),
-        ]),
+      listPublishedRecommendationCandidates: jest.fn().mockResolvedValueOnce([
+        createCandidate({
+          id: "candidate-a",
+          family: "equipment",
+          subtype: "camera",
+          tags: ["dslr", "mirrorless"],
+        }),
+        createCandidate({
+          id: "candidate-b",
+          family: "equipment",
+          subtype: "camera",
+          tags: ["tripod"],
+        }),
+      ]),
     });
     const service = new RecommendationPrecomputeService(repository as never);
 
     await service.processBatch(10);
 
-    const snapshotInput = repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
+    const snapshotInput =
+      repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
     expect(snapshotInput.candidates[0].postingId).toBe("candidate-a");
     expect(snapshotInput.candidates[0].reasonCodes).toEqual(
-      expect.arrayContaining(["matched_tag", "matched_subtype", "matched_family"]),
+      expect.arrayContaining([
+        "matched_tag",
+        "matched_subtype",
+        "matched_family",
+      ]),
     );
   });
 
@@ -217,11 +224,13 @@ describe("RecommendationPrecomputeService", () => {
 
     await service.processBatch(10);
 
-    const snapshotInput = repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
-    expect(snapshotInput.candidates.map((candidate: { postingId: string }) => candidate.postingId)).toEqual([
-      "fresh-candidate",
-      "viewed-candidate",
-    ]);
+    const snapshotInput =
+      repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
+    expect(
+      snapshotInput.candidates.map(
+        (candidate: { postingId: string }) => candidate.postingId,
+      ),
+    ).toEqual(["fresh-candidate", "viewed-candidate"]);
     expect(snapshotInput.candidates[1].reasonCodes).toEqual(
       expect.arrayContaining(["previously_viewed"]),
     );
@@ -264,7 +273,9 @@ describe("RecommendationPrecomputeService", () => {
 
     await service.processBatch(10);
 
-    expect(repository.listPublishedRecommendationCandidates).toHaveBeenCalledWith({
+    expect(
+      repository.listPublishedRecommendationCandidates,
+    ).toHaveBeenCalledWith({
       family: "place",
       subtype: "entire_place",
     });
@@ -357,7 +368,10 @@ function createUserRefreshJob(userId: string) {
   };
 }
 
-function createPopularRefreshJob(segmentType: "global" | "family" | "family_subtype", segmentValue: string) {
+function createPopularRefreshJob(
+  segmentType: "global" | "family" | "family_subtype",
+  segmentValue: string,
+) {
   return {
     id: `job-${segmentType}-${segmentValue}`,
     jobType: "popular_refresh" as const,
@@ -372,12 +386,13 @@ function createPopularRefreshJob(segmentType: "global" | "family" | "family_subt
 
 function createActivity(input: {
   postingId: string;
-  eventType: "posting_view" | "search_click" | "booking_request_created" | "renting_confirmed";
+  eventType:
+    | "posting_view"
+    | "search_click"
+    | "booking_request_created"
+    | "renting_confirmed";
   family: "place" | "equipment" | "vehicle";
-  subtype:
-    | "entire_place"
-    | "camera"
-    | "car";
+  subtype: "entire_place" | "camera" | "car";
   tags: string[];
 }) {
   return {
@@ -390,10 +405,7 @@ function createActivity(input: {
 function createCandidate(input: {
   id: string;
   family: "place" | "equipment" | "vehicle";
-  subtype:
-    | "entire_place"
-    | "camera"
-    | "car";
+  subtype: "entire_place" | "camera" | "car";
   tags: string[];
 }) {
   return {

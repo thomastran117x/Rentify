@@ -8,47 +8,80 @@ export const authLocalRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/local/login",
-      resolveHandler<AuthController>(containerTokens.authController, "localAuthenticate"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "localAuthenticate",
+      ),
     );
     app.post(
       "/auth/local/signup",
-      resolveHandler<AuthController>(containerTokens.authController, "localSignup"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "localSignup",
+      ),
     );
     app.post(
       "/auth/local/password/forgot",
-      resolveHandler<AuthController>(containerTokens.authController, "forgotPassword"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "forgotPassword",
+      ),
     );
     app.post(
       "/auth/local/password/forgot/resend",
-      resolveHandler<AuthController>(containerTokens.authController, "resendForgotPassword"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "resendForgotPassword",
+      ),
     );
     app.post(
       "/auth/local/password/reset",
-      resolveHandler<AuthController>(containerTokens.authController, "resetPassword"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "resetPassword",
+      ),
     );
     app.post(
       "/auth/local/email/verify",
-      resolveHandler<AuthController>(containerTokens.authController, "verifyEmail"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "verifyEmail",
+      ),
     );
     app.post(
       "/auth/local/email/resend",
-      resolveHandler<AuthController>(containerTokens.authController, "resendVerificationEmail"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "resendVerificationEmail",
+      ),
     );
     app.post(
       "/auth/local/unlock",
-      resolveHandler<AuthController>(containerTokens.authController, "unlockLocalLogin"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "unlockLocalLogin",
+      ),
     );
     app.post(
       "/auth/local/unlock/resend",
-      resolveHandler<AuthController>(containerTokens.authController, "resendUnlockLocalLogin"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "resendUnlockLocalLogin",
+      ),
     );
     app.post(
       "/auth/local/verify",
-      resolveHandler<AuthController>(containerTokens.authController, "localVerify"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "localVerify",
+      ),
     );
     app.post(
       "/auth/local/password/change",
-      resolveHandler<AuthController>(containerTokens.authController, "changePassword"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "changePassword",
+      ),
     );
     app.post(
       "/auth/refresh",
@@ -66,27 +99,45 @@ export const authOauthRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/oauth/google",
-      resolveHandler<AuthController>(containerTokens.authController, "googleAuthenticate"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "googleAuthenticate",
+      ),
     );
     app.post(
       "/auth/oauth/microsoft",
-      resolveHandler<AuthController>(containerTokens.authController, "microsoftAuthenticate"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "microsoftAuthenticate",
+      ),
     );
     app.post(
       "/auth/oauth/apple",
-      resolveHandler<AuthController>(containerTokens.authController, "appleAuthenticate"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "appleAuthenticate",
+      ),
     );
     app.get(
       "/auth/oauth/providers",
-      resolveHandler<AuthController>(containerTokens.authController, "linkedOAuthProviders"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "linkedOAuthProviders",
+      ),
     );
     app.post(
       "/auth/oauth/:provider/link",
-      resolveHandler<AuthController>(containerTokens.authController, "linkOAuthProvider"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "linkOAuthProvider",
+      ),
     );
     app.delete(
       "/auth/oauth/:provider",
-      resolveHandler<AuthController>(containerTokens.authController, "unlinkOAuthProvider"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "unlinkOAuthProvider",
+      ),
     );
   },
 };
@@ -96,7 +147,10 @@ export const authDevicesRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/device/verify",
-      resolveHandler<AuthController>(containerTokens.authController, "deviceVerify"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "deviceVerify",
+      ),
     );
     app.get(
       "/auth/devices",
@@ -104,7 +158,10 @@ export const authDevicesRouteModule: RouteModule = {
     );
     app.delete(
       "/auth/devices/remove",
-      resolveHandler<AuthController>(containerTokens.authController, "removeKnownDevice"),
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "removeKnownDevice",
+      ),
     );
   },
 };

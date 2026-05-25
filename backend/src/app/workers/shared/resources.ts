@@ -33,6 +33,8 @@ export const searchBrokerWorkerResources = [
   rabbitMqWorkerResource,
 ];
 
-export async function disconnectResources(resources: WorkerResource[]): Promise<void> {
+export async function disconnectResources(
+  resources: WorkerResource[],
+): Promise<void> {
   await Promise.allSettled(resources.map((resource) => resource.disconnect()));
 }

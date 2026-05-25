@@ -44,7 +44,9 @@ export class BookingsController {
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
   ) {}
 
-  createForPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  createForPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, createBookingRequestSchema);
     const result = await this.bookingsService.create(
@@ -60,7 +62,9 @@ export class BookingsController {
     });
   };
 
-  quoteForPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  quoteForPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, bookingQuoteSchema);
     const result = await this.bookingsService.quote(
@@ -93,7 +97,10 @@ export class BookingsController {
   dashboardMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.bookingsService.dashboardMine(
-      this.toDashboardMineInput(auth.sub, this.parseRenterDashboardQuery(context)),
+      this.toDashboardMineInput(
+        auth.sub,
+        this.parseRenterDashboardQuery(context),
+      ),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
@@ -104,18 +111,27 @@ export class BookingsController {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.dashboardOwned(
-      this.toDashboardOwnedInput(auth.sub, this.parseOwnerDashboardQuery(context)),
+      this.toDashboardOwnedInput(
+        auth.sub,
+        this.parseOwnerDashboardQuery(context),
+      ),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
     });
   };
 
-  listForOwnerPosting = async (context: Context<AppBindings>): Promise<Response> => {
+  listForOwnerPosting = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.listForOwnerPosting(
-      this.toListOwnerPostingInput(auth.sub, this.requirePostingId(context), this.parseListQuery(context)),
+      this.toListOwnerPostingInput(
+        auth.sub,
+        this.requirePostingId(context),
+        this.parseListQuery(context),
+      ),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
@@ -131,7 +147,9 @@ export class BookingsController {
     return ok(context, result);
   };
 
-  getCancellationQuote = async (context: Context<AppBindings>): Promise<Response> => {
+  getCancellationQuote = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.bookingsService.getCancellationQuote(
       this.requireBookingRequestId(context),
@@ -156,7 +174,11 @@ export class BookingsController {
     requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.approve(
-      this.toDecisionInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toDecisionInput(
+        this.requireBookingRequestId(context),
+        auth.sub,
+        body,
+      ),
     );
     return ok(context, result, {
       message: "Booking request approved successfully.",
@@ -168,7 +190,11 @@ export class BookingsController {
     requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.decline(
-      this.toDecisionInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toDecisionInput(
+        this.requireBookingRequestId(context),
+        auth.sub,
+        body,
+      ),
     );
     return ok(context, result, {
       message: "Booking request declined successfully.",
@@ -186,7 +212,9 @@ export class BookingsController {
     });
   };
 
-  private parseListQuery(context: Context<AppBindings>): ListBookingRequestsQuery {
+  private parseListQuery(
+    context: Context<AppBindings>,
+  ): ListBookingRequestsQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -200,7 +228,9 @@ export class BookingsController {
     }
   }
 
-  private parseRenterDashboardQuery(context: Context<AppBindings>): RenterBookingDashboardQuery {
+  private parseRenterDashboardQuery(
+    context: Context<AppBindings>,
+  ): RenterBookingDashboardQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -216,7 +246,9 @@ export class BookingsController {
     }
   }
 
-  private parseOwnerDashboardQuery(context: Context<AppBindings>): OwnerBookingDashboardQuery {
+  private parseOwnerDashboardQuery(
+    context: Context<AppBindings>,
+  ): OwnerBookingDashboardQuery {
     const url = new URL(context.req.url);
 
     try {
@@ -401,9 +433,14 @@ export class BookingsController {
     return context.get("requestId");
   }
 
-  private toValidationError(error: unknown, message: string): RequestValidationError {
+  private toValidationError(
+    error: unknown,
+    message: string,
+  ): RequestValidationError {
     if ("issues" in (error as object)) {
-      const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+      const issues = (
+        error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+      ).issues;
 
       return new RequestValidationError(
         message,

@@ -59,7 +59,12 @@ export const ownerBookingDashboardActionNeededSchema = z.enum([
   "payment_failure",
   "conversion",
 ]);
-export const bookingDashboardUrgencyLevelSchema = z.enum(["high", "medium", "low", "none"]);
+export const bookingDashboardUrgencyLevelSchema = z.enum([
+  "high",
+  "medium",
+  "low",
+  "none",
+]);
 export const bookingCancellationActorSchema = z.enum(["renter", "owner"]);
 export const bookingCancellationRefundTypeSchema = z.enum([
   "full",
@@ -69,13 +74,20 @@ export const bookingCancellationRefundTypeSchema = z.enum([
 ]);
 
 export const createBookingRequestSchema = z.object({
-  startAt: z.string().datetime("Booking request start time must be an ISO datetime."),
-  endAt: z.string().datetime("Booking request end time must be an ISO datetime."),
+  startAt: z
+    .string()
+    .datetime("Booking request start time must be an ISO datetime."),
+  endAt: z
+    .string()
+    .datetime("Booking request end time must be an ISO datetime."),
   guestCount: z.coerce
     .number()
     .int("Guest count must be an integer.")
     .min(1, "Guest count must be at least 1.")
-    .max(MAX_BOOKING_GUEST_COUNT, `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`)
+    .max(
+      MAX_BOOKING_GUEST_COUNT,
+      `Guest count must be at most ${MAX_BOOKING_GUEST_COUNT}.`,
+    )
     .optional(),
   note: nullableTrimmedStringSchema.pipe(
     z.string().trim().max(MAX_BOOKING_NOTE_LENGTH).nullable().optional(),
@@ -119,7 +131,12 @@ export const bookingQuoteSchema = createBookingRequestSchema.pick({
 
 export const decideBookingRequestSchema = z.object({
   note: nullableTrimmedStringSchema.pipe(
-    z.string().trim().max(MAX_BOOKING_DECISION_NOTE_LENGTH).nullable().optional(),
+    z
+      .string()
+      .trim()
+      .max(MAX_BOOKING_DECISION_NOTE_LENGTH)
+      .nullable()
+      .optional(),
   ),
 });
 
@@ -139,13 +156,23 @@ export const cancelBookingRequestSchema = z.object({
 
 export const listBookingRequestsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   status: bookingRequestStatusSchema.optional(),
 });
 
 export const renterBookingDashboardQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   sort: bookingDashboardSortSchema.default("urgency"),
   bucket: renterBookingDashboardBucketSchema.optional(),
   status: bookingRequestStatusSchema.optional(),
@@ -153,7 +180,12 @@ export const renterBookingDashboardQuerySchema = z.object({
 
 export const ownerBookingDashboardQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   sort: bookingDashboardSortSchema.default("urgency"),
   status: bookingRequestStatusSchema.optional(),
   actionNeeded: ownerBookingDashboardActionNeededSchema.optional(),
@@ -162,23 +194,43 @@ export const ownerBookingDashboardQuerySchema = z.object({
 
 export type BookingRequestStatus = z.infer<typeof bookingRequestStatusSchema>;
 export type BookingDashboardSort = z.infer<typeof bookingDashboardSortSchema>;
-export type RenterBookingDashboardBucket = z.infer<typeof renterBookingDashboardBucketSchema>;
+export type RenterBookingDashboardBucket = z.infer<
+  typeof renterBookingDashboardBucketSchema
+>;
 export type OwnerBookingDashboardActionNeeded = z.infer<
   typeof ownerBookingDashboardActionNeededSchema
 >;
-export type BookingDashboardUrgencyLevel = z.infer<typeof bookingDashboardUrgencyLevelSchema>;
-export type BookingCancellationActor = z.infer<typeof bookingCancellationActorSchema>;
+export type BookingDashboardUrgencyLevel = z.infer<
+  typeof bookingDashboardUrgencyLevelSchema
+>;
+export type BookingCancellationActor = z.infer<
+  typeof bookingCancellationActorSchema
+>;
 export type BookingCancellationRefundType = z.infer<
   typeof bookingCancellationRefundTypeSchema
 >;
-export type CreateBookingRequestBody = z.infer<typeof createBookingRequestSchema>;
+export type CreateBookingRequestBody = z.infer<
+  typeof createBookingRequestSchema
+>;
 export type BookingQuoteBody = z.infer<typeof bookingQuoteSchema>;
-export type UpdateBookingRequestBody = z.infer<typeof updateBookingRequestSchema>;
-export type DecideBookingRequestBody = z.infer<typeof decideBookingRequestSchema>;
-export type CancelBookingRequestBody = z.infer<typeof cancelBookingRequestSchema>;
-export type ListBookingRequestsQuery = z.infer<typeof listBookingRequestsQuerySchema>;
-export type RenterBookingDashboardQuery = z.infer<typeof renterBookingDashboardQuerySchema>;
-export type OwnerBookingDashboardQuery = z.infer<typeof ownerBookingDashboardQuerySchema>;
+export type UpdateBookingRequestBody = z.infer<
+  typeof updateBookingRequestSchema
+>;
+export type DecideBookingRequestBody = z.infer<
+  typeof decideBookingRequestSchema
+>;
+export type CancelBookingRequestBody = z.infer<
+  typeof cancelBookingRequestSchema
+>;
+export type ListBookingRequestsQuery = z.infer<
+  typeof listBookingRequestsQuerySchema
+>;
+export type RenterBookingDashboardQuery = z.infer<
+  typeof renterBookingDashboardQuerySchema
+>;
+export type OwnerBookingDashboardQuery = z.infer<
+  typeof ownerBookingDashboardQuerySchema
+>;
 
 export interface BookingRequestPostingSummary {
   id: string;

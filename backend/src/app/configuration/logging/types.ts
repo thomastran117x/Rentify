@@ -50,9 +50,21 @@ export interface LogContext {
 export interface Logger {
   debug(message: string, fields?: Record<string, unknown>): void;
   info(message: string, fields?: Record<string, unknown>): void;
-  warn(message: string, fields?: Record<string, unknown>, error?: unknown): void;
-  error(message: string, fields?: Record<string, unknown>, error?: unknown): void;
-  critical(message: string, fields?: Record<string, unknown>, error?: unknown): void;
+  warn(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void;
+  error(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void;
+  critical(
+    message: string,
+    fields?: Record<string, unknown>,
+    error?: unknown,
+  ): void;
   child(context: LogContext): Logger;
 }
 

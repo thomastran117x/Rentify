@@ -7,7 +7,8 @@ describe("ContentSanitizationService", () => {
     const violations = service.inspect([
       {
         path: "description",
-        value: "Bright two bedroom apartment with parking and in-suite laundry.",
+        value:
+          "Bright two bedroom apartment with parking and in-suite laundry.",
       },
       {
         path: "tags.0",

@@ -1,9 +1,6 @@
 import { jest } from "@jest/globals";
 
-async function waitFor(
-  assertion: () => void,
-  timeoutMs = 500,
-): Promise<void> {
+async function waitFor(assertion: () => void, timeoutMs = 500): Promise<void> {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
@@ -40,18 +37,22 @@ describe("logger failure handling", () => {
     process.env.RABBITMQ_URL = "";
     process.env.LOG_FALLBACK_DIRECTORY = "C:/tmp/logger-failure";
 
-    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const loggingModule = await import("@/configuration/logging");
-    const dispatcher = (loggingModule.loggerFactory as {
-      dispatcher: {
-        queueService: {
-          publishLogEvent: (event: unknown) => Promise<void>;
+    const dispatcher = (
+      loggingModule.loggerFactory as {
+        dispatcher: {
+          queueService: {
+            publishLogEvent: (event: unknown) => Promise<void>;
+          };
+          getFallbackFileWriter: (fallbackDirectory: string) => {
+            write: (event: unknown) => Promise<void>;
+          };
         };
-        getFallbackFileWriter: (fallbackDirectory: string) => {
-          write: (event: unknown) => Promise<void>;
-        };
-      };
-    }).dispatcher;
+      }
+    ).dispatcher;
     const originalPublishLogEvent = dispatcher.queueService.publishLogEvent;
     const originalGetFallbackFileWriter = dispatcher.getFallbackFileWriter;
 
@@ -60,11 +61,13 @@ describe("logger failure handling", () => {
     });
     dispatcher.getFallbackFileWriter = jest.fn(() => ({
       write: async () => {
-          throw new Error("mkdir failed");
+        throw new Error("mkdir failed");
       },
     }));
 
-    loggingModule.loggerFactory.forComponent("logger.test", "service").critical("Total logging failure.");
+    loggingModule.loggerFactory
+      .forComponent("logger.test", "service")
+      .critical("Total logging failure.");
 
     try {
       await waitFor(() => {

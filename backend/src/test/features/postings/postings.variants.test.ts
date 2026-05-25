@@ -35,7 +35,9 @@ describe("postings.variants", () => {
   });
 
   it("returns null searchable attributes for invalid family and subtype pairs", () => {
-    expect(getPostingSearchableAttributeDefinitions("equipment", "shared_room")).toBeNull();
+    expect(
+      getPostingSearchableAttributeDefinitions("equipment", "shared_room"),
+    ).toBeNull();
   });
 
   it("recognizes valid family and subtype values", () => {

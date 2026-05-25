@@ -2,7 +2,9 @@ import { RecommendationQueryService } from "@/features/recommendations/recommend
 
 describe("RecommendationQueryService", () => {
   beforeEach(() => {
-    jest.spyOn(Date, "now").mockReturnValue(new Date("2026-05-08T12:00:00.000Z").getTime());
+    jest
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date("2026-05-08T12:00:00.000Z").getTime());
   });
 
   afterEach(() => {
@@ -21,7 +23,10 @@ describe("RecommendationQueryService", () => {
       getPopularSnapshot: jest.fn(async () => null),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
     expect(result.mode).toBe("personalized");
     expect(result.fallback).toBe(false);
@@ -44,14 +49,20 @@ describe("RecommendationQueryService", () => {
       })),
       getPopularSnapshot: jest.fn(async (segmentType: string) =>
         segmentType === "global"
-          ? createPopularSnapshot("global", "global", "2026-05-08T09:00:00.000Z", [
-              createCandidate("posting-2", ["popular"]),
-            ])
+          ? createPopularSnapshot(
+              "global",
+              "global",
+              "2026-05-08T09:00:00.000Z",
+              [createCandidate("posting-2", ["popular"])],
+            )
           : null,
       ),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
     expect(result.mode).toBe("popular");
     expect(result.fallback).toBe(true);
@@ -70,16 +81,23 @@ describe("RecommendationQueryService", () => {
           createCandidate("posting-1", ["matched_family"]),
         ]),
       })),
-      getPopularSnapshot: jest.fn(async (_segmentType: string, segmentValue: string) =>
-        segmentValue === "global"
-          ? createPopularSnapshot("global", "global", "2026-05-08T08:00:00.000Z", [
-              createCandidate("posting-3", ["popular"]),
-            ])
-          : null,
+      getPopularSnapshot: jest.fn(
+        async (_segmentType: string, segmentValue: string) =>
+          segmentValue === "global"
+            ? createPopularSnapshot(
+                "global",
+                "global",
+                "2026-05-08T08:00:00.000Z",
+                [createCandidate("posting-3", ["popular"])],
+              )
+            : null,
       ),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
     expect(result.mode).toBe("popular");
     expect(result.fallbackReason).toBe("unqualified_profile");
@@ -95,16 +113,23 @@ describe("RecommendationQueryService", () => {
           createCandidate("posting-stale-personalized", ["matched_family"]),
         ]),
       })),
-      getPopularSnapshot: jest.fn(async (_segmentType: string, segmentValue: string) =>
-        segmentValue === "global"
-          ? createPopularSnapshot("global", "global", "2026-05-08T08:00:00.000Z", [
-              createCandidate("posting-fresh-popular", ["popular"]),
-            ])
-          : null,
+      getPopularSnapshot: jest.fn(
+        async (_segmentType: string, segmentValue: string) =>
+          segmentValue === "global"
+            ? createPopularSnapshot(
+                "global",
+                "global",
+                "2026-05-08T08:00:00.000Z",
+                [createCandidate("posting-fresh-popular", ["popular"])],
+              )
+            : null,
       ),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
     expect(result.mode).toBe("popular");
     expect(result.fallback).toBe(true);
@@ -128,7 +153,10 @@ describe("RecommendationQueryService", () => {
       ),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
     expect(result.mode).toBe("popular");
     expect(result.fallback).toBe(false);
@@ -146,8 +174,14 @@ describe("RecommendationQueryService", () => {
       getPopularSnapshot,
     });
 
-    const anonymousResult = await service.getRecommendations(createInput(), null);
-    const patResult = await service.getRecommendations(createInput(), createPatAuth());
+    const anonymousResult = await service.getRecommendations(
+      createInput(),
+      null,
+    );
+    const patResult = await service.getRecommendations(
+      createInput(),
+      createPatAuth(),
+    );
 
     expect(anonymousResult.mode).toBe("popular");
     expect(anonymousResult.fallback).toBe(false);
@@ -157,21 +191,32 @@ describe("RecommendationQueryService", () => {
   });
 
   it("prefers family_subtype, then family, then global popular snapshots", async () => {
-    const getPopularSnapshot = jest.fn(async (segmentType: string, segmentValue: string) => {
-      if (segmentType === "family_subtype" && segmentValue === "vehicle:car") {
-        return createPopularSnapshot(segmentType, segmentValue, "2026-05-08T10:00:00.000Z", [
-          createCandidate("posting-6", ["popular"]),
-        ]);
-      }
+    const getPopularSnapshot = jest.fn(
+      async (segmentType: string, segmentValue: string) => {
+        if (
+          segmentType === "family_subtype" &&
+          segmentValue === "vehicle:car"
+        ) {
+          return createPopularSnapshot(
+            segmentType,
+            segmentValue,
+            "2026-05-08T10:00:00.000Z",
+            [createCandidate("posting-6", ["popular"])],
+          );
+        }
 
-      if (segmentType === "global") {
-        return createPopularSnapshot("global", "global", "2026-05-08T09:00:00.000Z", [
-          createCandidate("posting-global", ["popular"]),
-        ]);
-      }
+        if (segmentType === "global") {
+          return createPopularSnapshot(
+            "global",
+            "global",
+            "2026-05-08T09:00:00.000Z",
+            [createCandidate("posting-global", ["popular"])],
+          );
+        }
 
-      return null;
-    });
+        return null;
+      },
+    );
     const service = createService({
       getPopularSnapshot,
     });
@@ -184,26 +229,37 @@ describe("RecommendationQueryService", () => {
       null,
     );
 
-    expect(getPopularSnapshot).toHaveBeenCalledWith("family_subtype", "vehicle:car");
+    expect(getPopularSnapshot).toHaveBeenCalledWith(
+      "family_subtype",
+      "vehicle:car",
+    );
     expect(result.items[0]?.posting.id).toBe("posting-6");
   });
 
   it("falls back to fresh global popular snapshots before stale preferred snapshots", async () => {
-    const getPopularSnapshot = jest.fn(async (segmentType: string, segmentValue: string) => {
-      if (segmentType === "family" && segmentValue === "vehicle") {
-        return createPopularSnapshot(segmentType, segmentValue, "2026-05-08T01:00:00.000Z", [
-          createCandidate("posting-stale-family", ["popular"]),
-        ]);
-      }
+    const getPopularSnapshot = jest.fn(
+      async (segmentType: string, segmentValue: string) => {
+        if (segmentType === "family" && segmentValue === "vehicle") {
+          return createPopularSnapshot(
+            segmentType,
+            segmentValue,
+            "2026-05-08T01:00:00.000Z",
+            [createCandidate("posting-stale-family", ["popular"])],
+          );
+        }
 
-      if (segmentType === "global") {
-        return createPopularSnapshot("global", "global", "2026-05-08T10:00:00.000Z", [
-          createCandidate("posting-fresh-global", ["popular"]),
-        ]);
-      }
+        if (segmentType === "global") {
+          return createPopularSnapshot(
+            "global",
+            "global",
+            "2026-05-08T10:00:00.000Z",
+            [createCandidate("posting-fresh-global", ["popular"])],
+          );
+        }
 
-      return null;
-    });
+        return null;
+      },
+    );
     const service = createService({
       getPopularSnapshot,
     });
@@ -230,19 +286,30 @@ describe("RecommendationQueryService", () => {
           createCandidate("eligible-posting", ["matched_tag"]),
         ]),
       })),
-      listExcludedPostingIdsForUser: jest.fn(async () =>
-        new Set(["own-posting", "active-booking-posting", "confirmed-renting-posting"]),
+      listExcludedPostingIdsForUser: jest.fn(
+        async () =>
+          new Set([
+            "own-posting",
+            "active-booking-posting",
+            "confirmed-renting-posting",
+          ]),
       ),
     });
 
-    const result = await service.getRecommendations(createInput(), createJwtAuth());
+    const result = await service.getRecommendations(
+      createInput(),
+      createJwtAuth(),
+    );
 
-    expect(result.items.map((item) => item.posting.id)).toEqual(["eligible-posting"]);
+    expect(result.items.map((item) => item.posting.id)).toEqual([
+      "eligible-posting",
+    ]);
   });
 
   it("applies availability, geo, and subtype filtering without re-ranking", async () => {
-    const filterCandidateIdsByAvailabilityWindow = jest.fn(async (input: { candidateIds: string[] }) =>
-      input.candidateIds.filter((id) => id !== "blocked-posting"),
+    const filterCandidateIdsByAvailabilityWindow = jest.fn(
+      async (input: { candidateIds: string[] }) =>
+        input.candidateIds.filter((id) => id !== "blocked-posting"),
     );
     const service = createService({
       getPopularSnapshot: jest.fn(async () =>
@@ -289,7 +356,9 @@ describe("RecommendationQueryService", () => {
     );
 
     expect(filterCandidateIdsByAvailabilityWindow).toHaveBeenCalledTimes(1);
-    expect(result.items.map((item) => item.posting.id)).toEqual(["eligible-posting"]);
+    expect(result.items.map((item) => item.posting.id)).toEqual([
+      "eligible-posting",
+    ]);
   });
 
   it("paginates after filtering while preserving stored candidate order", async () => {
@@ -336,7 +405,9 @@ function createService(overrides: Record<string, unknown>) {
     })),
     getPopularSnapshot: jest.fn(async () => null),
     listExcludedPostingIdsForUser: jest.fn(async () => new Set<string>()),
-    filterCandidateIdsByAvailabilityWindow: jest.fn(async (input: { candidateIds: string[] }) => input.candidateIds),
+    filterCandidateIdsByAvailabilityWindow: jest.fn(
+      async (input: { candidateIds: string[] }) => input.candidateIds,
+    ),
     ...overrides,
   };
   const postingsPublicCacheService = {
@@ -344,13 +415,22 @@ function createService(overrides: Record<string, unknown>) {
       postings: ids.map((id) => createPosting(id)),
       missingIds: [],
     })),
-    ...(overrides.getPublicByIds ? { getPublicByIds: overrides.getPublicByIds } : {}),
+    ...(overrides.getPublicByIds
+      ? { getPublicByIds: overrides.getPublicByIds }
+      : {}),
   };
 
-  return new RecommendationQueryService(repository as never, postingsPublicCacheService as never);
+  return new RecommendationQueryService(
+    repository as never,
+    postingsPublicCacheService as never,
+  );
 }
 
-function createInput(overrides: Partial<Parameters<RecommendationQueryService["getRecommendations"]>[0]> = {}) {
+function createInput(
+  overrides: Partial<
+    Parameters<RecommendationQueryService["getRecommendations"]>[0]
+  > = {},
+) {
   return {
     page: 1,
     pageSize: 20,
@@ -384,9 +464,11 @@ function createPatAuth() {
   };
 }
 
-function createProfile(overrides: Partial<{
-  qualified: boolean;
-}> = {}) {
+function createProfile(
+  overrides: Partial<{
+    qualified: boolean;
+  }> = {},
+) {
   return {
     userId: "user-1",
     qualified: overrides.qualified ?? true,
@@ -406,7 +488,10 @@ function createProfile(overrides: Partial<{
   };
 }
 
-function createUserSnapshot(generatedAt: string, candidates: Array<ReturnType<typeof createCandidate>>) {
+function createUserSnapshot(
+  generatedAt: string,
+  candidates: Array<ReturnType<typeof createCandidate>>,
+) {
   return {
     userId: "user-1",
     generatedAt,

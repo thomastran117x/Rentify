@@ -87,7 +87,10 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     return tokens.map((token) => this.mapToken(token));
   }
 
-  async findByIdForUser(tokenId: string, userId: string): Promise<PersonalAccessTokenRecord | null> {
+  async findByIdForUser(
+    tokenId: string,
+    userId: string,
+  ): Promise<PersonalAccessTokenRecord | null> {
     const token = await this.executeAsync(() =>
       this.prisma.personalAccessToken.findFirst({
         where: {
@@ -109,7 +112,9 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     return token ? this.mapToken(token) : null;
   }
 
-  async findByPublicId(publicId: string): Promise<PersonalAccessTokenRecord | null> {
+  async findByPublicId(
+    publicId: string,
+  ): Promise<PersonalAccessTokenRecord | null> {
     const token = await this.executeAsync(() =>
       this.prisma.personalAccessToken.findUnique({
         where: {
@@ -156,7 +161,9 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     );
   }
 
-  private mapToken(token: PersonalAccessTokenPersistence): PersonalAccessTokenRecord {
+  private mapToken(
+    token: PersonalAccessTokenPersistence,
+  ): PersonalAccessTokenRecord {
     return {
       id: token.id,
       userId: token.userId,
@@ -183,7 +190,9 @@ export class PersonalAccessTokenRepository extends BaseRepository {
       return [];
     }
 
-    return value.filter((entry): entry is PersonalAccessTokenScope => entry === "mcp:read" || entry === "mcp:write");
+    return value.filter(
+      (entry): entry is PersonalAccessTokenScope =>
+        entry === "mcp:read" || entry === "mcp:write",
+    );
   }
 }
-

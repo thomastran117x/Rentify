@@ -41,7 +41,12 @@ export class PostingsAnalyticsService {
     }
 
     const occurredAt = new Date();
-    const viewerHash = this.createViewerHash(posting.id, occurredAt, client, viewerUserId);
+    const viewerHash = this.createViewerHash(
+      posting.id,
+      occurredAt,
+      client,
+      viewerUserId,
+    );
 
     await this.analyticsRepository.enqueuePostingViewedEvent({
       postingId: posting.id,
@@ -76,7 +81,8 @@ export class PostingsAnalyticsService {
   }
 
   async trackSearchClick(postingId: string): Promise<void> {
-    const metadata = await this.postingsRepository.findPublicReadMetadataById(postingId);
+    const metadata =
+      await this.postingsRepository.findPublicReadMetadataById(postingId);
 
     if (!metadata || !isPostingPubliclyVisible(metadata)) {
       return;
@@ -89,7 +95,10 @@ export class PostingsAnalyticsService {
     });
   }
 
-  async getOwnerSummary(ownerId: string, window: "7d" | "30d" | "all"): Promise<OwnerPostingsAnalyticsSummary> {
+  async getOwnerSummary(
+    ownerId: string,
+    window: "7d" | "30d" | "all",
+  ): Promise<OwnerPostingsAnalyticsSummary> {
     return this.analyticsRepository.getOwnerSummary({
       ownerId,
       window,
@@ -100,7 +109,9 @@ export class PostingsAnalyticsService {
     return this.analyticsRepository.listOwnerPostingsAnalytics(input);
   }
 
-  async getPostingAnalyticsDetail(input: PostingAnalyticsDetailInput): Promise<PostingAnalyticsDetail> {
+  async getPostingAnalyticsDetail(
+    input: PostingAnalyticsDetailInput,
+  ): Promise<PostingAnalyticsDetail> {
     const posting = await this.postingsRepository.findById(input.postingId);
 
     if (!posting) {
@@ -108,14 +119,19 @@ export class PostingsAnalyticsService {
     }
 
     if (posting.ownerId !== input.ownerId) {
-      throw new ForbiddenError("You do not have access to this posting analytics.");
+      throw new ForbiddenError(
+        "You do not have access to this posting analytics.",
+      );
     }
 
     if (input.window !== "7d" && input.granularity === "hour") {
-      throw new BadRequestError("Hourly analytics are only supported for the 7d window.");
+      throw new BadRequestError(
+        "Hourly analytics are only supported for the 7d window.",
+      );
     }
 
-    const detail = await this.analyticsRepository.getPostingAnalyticsDetail(input);
+    const detail =
+      await this.analyticsRepository.getPostingAnalyticsDetail(input);
 
     if (!detail) {
       throw new ResourceNotFoundError("Posting analytics could not be found.");
@@ -133,7 +149,9 @@ export class PostingsAnalyticsService {
     const dayBucket = occurredAt.toISOString().slice(0, 10);
 
     if (viewerUserId) {
-      return this.hashValue(`posting:${postingId}:day:${dayBucket}:user:${viewerUserId}`);
+      return this.hashValue(
+        `posting:${postingId}:day:${dayBucket}:user:${viewerUserId}`,
+      );
     }
 
     const fingerprintComponents = [
@@ -151,5 +169,3 @@ export class PostingsAnalyticsService {
     return createHash("sha256").update(value).digest("hex");
   }
 }
-
-

@@ -110,7 +110,12 @@ export interface SeedPostingFixture {
 export interface SeedPaymentAttemptFixture {
   id: string;
   idempotencyKey: string;
-  status: "pending" | "processing" | "succeeded" | "failed_retryable" | "failed_final";
+  status:
+    | "pending"
+    | "processing"
+    | "succeeded"
+    | "failed_retryable"
+    | "failed_final";
   retryCount?: number;
   failureCategory?: "transient" | "permanent" | "unknown";
   failureCode?: string;

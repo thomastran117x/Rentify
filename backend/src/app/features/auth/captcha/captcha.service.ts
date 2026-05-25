@@ -1,7 +1,11 @@
-import { environment, getOptionalEnvironmentVariable } from "@/configuration/environment";
+import {
+  environment,
+  getOptionalEnvironmentVariable,
+} from "@/configuration/environment";
 import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-guard";
 
-const TURNSTILE_SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TURNSTILE_SITEVERIFY_URL =
+  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 const DEFAULTS = {
   maxRetries: 3,
@@ -80,14 +84,17 @@ export class CaptchaService {
   private readonly requestTimeoutMs: number;
 
   constructor(options: CaptchaServiceOptions = {}) {
-    this.secretKey = options.secretKey ?? environment.getCaptchaConfig().secretKey;
+    this.secretKey =
+      options.secretKey ?? environment.getCaptchaConfig().secretKey;
     this.verificationUrl = options.verificationUrl ?? TURNSTILE_SITEVERIFY_URL;
     this.allowedHosts = options.allowedHosts ?? this.readAllowedHosts();
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULTS.initialDelayMs;
     this.maxDelayMs = options.maxDelayMs ?? DEFAULTS.maxDelayMs;
-    this.backoffMultiplier = options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
+    this.backoffMultiplier =
+      options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
+    this.requestTimeoutMs =
+      options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
   }
   async verify(input: VerifyCaptchaInput): Promise<CaptchaVerificationResult> {
     if (!this.secretKey) {
@@ -115,17 +122,25 @@ export class CaptchaService {
         transientFailureCount += 1;
 
         if (attempt === this.maxRetries) {
-          return this.buildFailOpenResult([normalized.code], transientFailureCount);
+          return this.buildFailOpenResult(
+            [normalized.code],
+            transientFailureCount,
+          );
         }
 
         await this.sleep(this.calculateDelayMs(attempt));
       }
     }
 
-    return this.buildFailOpenResult(["turnstile-unreachable"], transientFailureCount);
+    return this.buildFailOpenResult(
+      ["turnstile-unreachable"],
+      transientFailureCount,
+    );
   }
 
-  private toVerificationPayload(input: VerifyCaptchaInput): VerificationPayload | null {
+  private toVerificationPayload(
+    input: VerifyCaptchaInput,
+  ): VerificationPayload | null {
     const token = input.token?.trim();
     if (!token) {
       return null;
@@ -138,7 +153,9 @@ export class CaptchaService {
     };
   }
 
-  private async submitVerification(input: VerificationPayload): Promise<TurnstileSiteverifyResponse> {
+  private async submitVerification(
+    input: VerificationPayload,
+  ): Promise<TurnstileSiteverifyResponse> {
     const verificationUrl = assertTrustedOutboundUrl(this.verificationUrl, {
       allowedHosts: this.allowedHosts,
     }).toString();
@@ -157,7 +174,10 @@ export class CaptchaService {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      this.requestTimeoutMs,
+    );
 
     try {
       const response = await fetch(verificationUrl, {
@@ -170,9 +190,12 @@ export class CaptchaService {
       });
 
       if (response.status >= 500) {
-        throw new CaptchaTransientError(`Turnstile responded with ${response.status}.`, {
-          code: `turnstile-http-${response.status}`,
-        });
+        throw new CaptchaTransientError(
+          `Turnstile responded with ${response.status}.`,
+          {
+            code: `turnstile-http-${response.status}`,
+          },
+        );
       }
 
       if (!response.ok) {
@@ -200,7 +223,9 @@ export class CaptchaService {
       });
     }
 
-    return error instanceof Error ? error : new Error("turnstile-verification-failed");
+    return error instanceof Error
+      ? error
+      : new Error("turnstile-verification-failed");
   }
 
   private normalizeError(error: unknown): NormalizedError {
@@ -232,7 +257,9 @@ export class CaptchaService {
     };
   }
 
-  private buildSuccessResult(response: TurnstileSiteverifyResponse): CaptchaVerificationResult {
+  private buildSuccessResult(
+    response: TurnstileSiteverifyResponse,
+  ): CaptchaVerificationResult {
     return {
       success: response.success,
       failOpen: false,
@@ -262,7 +289,10 @@ export class CaptchaService {
     };
   }
 
-  private withTransientFailureCount(errors: string[], count?: number): string[] {
+  private withTransientFailureCount(
+    errors: string[],
+    count?: number,
+  ): string[] {
     if (typeof count !== "number") {
       return [...errors];
     }
@@ -275,7 +305,9 @@ export class CaptchaService {
       this.initialDelayMs * this.backoffMultiplier ** attempt,
       this.maxDelayMs,
     );
-    const jitterMs = Math.floor(Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)));
+    const jitterMs = Math.floor(
+      Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)),
+    );
 
     return exponentialDelay + jitterMs;
   }
@@ -289,7 +321,10 @@ export class CaptchaService {
       return false;
     }
 
-    return this.readNodeErrorCode(error) !== undefined || /fetch failed/i.test(error.message);
+    return (
+      this.readNodeErrorCode(error) !== undefined ||
+      /fetch failed/i.test(error.message)
+    );
   }
 
   private readNodeErrorCode(error: unknown): string | undefined {
@@ -323,13 +358,18 @@ export class CaptchaService {
   }
 
   private readAllowedHosts(): string[] {
-    const configuredHosts = getOptionalEnvironmentVariable("CAPTCHA_ALLOWED_HOSTS");
+    const configuredHosts = getOptionalEnvironmentVariable(
+      "CAPTCHA_ALLOWED_HOSTS",
+    );
 
     if (!configuredHosts) {
       return environment.getCaptchaConfig().allowedHosts;
     }
 
-    return configuredHosts.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+    return configuredHosts
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean);
   }
 }
 

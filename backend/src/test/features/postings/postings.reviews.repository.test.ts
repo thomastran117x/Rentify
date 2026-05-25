@@ -68,7 +68,10 @@ describe("PostingsReviewsRepository", () => {
       code: "P2025",
       clientVersion: "test",
     });
-    Object.setPrototypeOf(error, Prisma.PrismaClientKnownRequestError.prototype);
+    Object.setPrototypeOf(
+      error,
+      Prisma.PrismaClientKnownRequestError.prototype,
+    );
     const update = jest.fn(async () => {
       throw error;
     });
@@ -103,7 +106,9 @@ describe("PostingsReviewsRepository", () => {
       },
     } as never);
 
-    await expect(repository.findOwnReview("posting-1", "reviewer-1")).resolves.toEqual({
+    await expect(
+      repository.findOwnReview("posting-1", "reviewer-1"),
+    ).resolves.toEqual({
       id: "review-1",
       postingId: "posting-1",
       reviewerId: "reviewer-1",

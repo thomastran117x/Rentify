@@ -37,7 +37,9 @@ export class ProfileService {
     this.assertPostingCounts(input);
     this.assertAvatarFields(input);
 
-    const existingProfile = await this.profileRepository.findByUserId(input.userId);
+    const existingProfile = await this.profileRepository.findByUserId(
+      input.userId,
+    );
 
     if (!existingProfile) {
       throw new ResourceNotFoundError("Profile could not be found.");
@@ -83,7 +85,9 @@ export class ProfileService {
     }
 
     if (!input.avatarUrl || !input.avatarBlobName) {
-      throw new BadRequestError("Avatar URL and avatar blob name must both be set or both be null.");
+      throw new BadRequestError(
+        "Avatar URL and avatar blob name must both be set or both be null.",
+      );
     }
 
     if (!this.blobService.isConfigured()) {
@@ -92,7 +96,9 @@ export class ProfileService {
       );
     }
 
-    if (!this.blobService.isManagedBlobUrl(input.avatarUrl, input.avatarBlobName)) {
+    if (
+      !this.blobService.isManagedBlobUrl(input.avatarUrl, input.avatarBlobName)
+    ) {
       throw new BadRequestError(
         "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
       );

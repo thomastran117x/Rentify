@@ -5,7 +5,9 @@ import {
 
 describe("postings.reviews.model", () => {
   it("coerces review listing pagination and applies defaults", () => {
-    expect(listPostingReviewsQuerySchema.parse({ page: "2", pageSize: "10" })).toEqual({
+    expect(
+      listPostingReviewsQuerySchema.parse({ page: "2", pageSize: "10" }),
+    ).toEqual({
       page: 2,
       pageSize: 10,
     });

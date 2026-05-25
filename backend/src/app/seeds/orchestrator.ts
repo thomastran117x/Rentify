@@ -6,9 +6,17 @@ import { bookingsSeedModule } from "@/seeds/modules/bookings.module";
 import { postingsSeedModule } from "@/seeds/modules/postings.module";
 import { usersSeedModule } from "@/seeds/modules/users.module";
 import { resolveAutoSeedPolicy } from "@/seeds/policy";
-import type { RunSeedOrchestratorOptions, SeedLogger, SeedModule, SeedSummary } from "@/seeds/types";
+import type {
+  RunSeedOrchestratorOptions,
+  SeedLogger,
+  SeedModule,
+  SeedSummary,
+} from "@/seeds/types";
 
-const seedRuntimeLogger = loggerFactory.forComponent("seed-orchestrator", "seed");
+const seedRuntimeLogger = loggerFactory.forComponent(
+  "seed-orchestrator",
+  "seed",
+);
 
 function createSeedLoggerAdapter(sourceLogger: Logger): SeedLogger {
   return {
@@ -43,7 +51,9 @@ export async function runSeedOrchestrator(
     const userCount = await prisma.user.count();
 
     if (userCount > 0) {
-      logger.info("[SEEDS] Skipping seed run because the database is not empty.");
+      logger.info(
+        "[SEEDS] Skipping seed run because the database is not empty.",
+      );
       return {
         executed: false,
         moduleNames: modules.map((module) => module.name),
@@ -84,7 +94,10 @@ export async function runSeedOrchestrator(
 }
 
 export async function runAutoSeedsIfNeeded(
-  overrides: Pick<RunSeedOrchestratorOptions, "logger" | "modules" | "prisma"> = {},
+  overrides: Pick<
+    RunSeedOrchestratorOptions,
+    "logger" | "modules" | "prisma"
+  > = {},
 ): Promise<SeedSummary> {
   const prisma = overrides.prisma ?? getDatabaseClient();
   const logger = overrides.logger ?? defaultLogger;
@@ -101,7 +114,9 @@ export async function runAutoSeedsIfNeeded(
     logger.info(`[SEEDS] Auto-seed skipped reason=${policy.reason}.`);
     return {
       executed: false,
-      moduleNames: (overrides.modules ?? defaultSeedModules).map((module) => module.name),
+      moduleNames: (overrides.modules ?? defaultSeedModules).map(
+        (module) => module.name,
+      ),
       reason: policy.reason,
       refresh: policy.refresh,
       source: "startup",

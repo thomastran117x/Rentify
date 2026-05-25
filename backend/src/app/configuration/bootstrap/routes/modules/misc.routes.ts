@@ -9,7 +9,10 @@ export const blobRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/blob/upload-url",
-      resolveHandler<BlobController>(containerTokens.blobController, "createUploadUrl"),
+      resolveHandler<BlobController>(
+        containerTokens.blobController,
+        "createUploadUrl",
+      ),
     );
   },
 };
@@ -19,15 +22,24 @@ export const profilesRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.get(
       "/profiles",
-      resolveHandler<ProfileController>(containerTokens.profileController, "list"),
+      resolveHandler<ProfileController>(
+        containerTokens.profileController,
+        "list",
+      ),
     );
     app.get(
       "/profile/me",
-      resolveHandler<ProfileController>(containerTokens.profileController, "getMe"),
+      resolveHandler<ProfileController>(
+        containerTokens.profileController,
+        "getMe",
+      ),
     );
     app.put(
       "/profile/me",
-      resolveHandler<ProfileController>(containerTokens.profileController, "updateMe"),
+      resolveHandler<ProfileController>(
+        containerTokens.profileController,
+        "updateMe",
+      ),
     );
   },
 };
@@ -37,23 +49,38 @@ export const searchAdminRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/admin/search/reindex",
-      resolveHandler<SearchController>(containerTokens.searchController, "startReindex"),
+      resolveHandler<SearchController>(
+        containerTokens.searchController,
+        "startReindex",
+      ),
     );
     app.get(
       "/admin/search/reindex-runs/:id",
-      resolveHandler<SearchController>(containerTokens.searchController, "getReindexRun"),
+      resolveHandler<SearchController>(
+        containerTokens.searchController,
+        "getReindexRun",
+      ),
     );
     app.get(
       "/admin/search/status",
-      resolveHandler<SearchController>(containerTokens.searchController, "getStatus"),
+      resolveHandler<SearchController>(
+        containerTokens.searchController,
+        "getStatus",
+      ),
     );
     app.post(
       "/admin/search/outbox/replay-dead-lettered",
-      resolveHandler<SearchController>(containerTokens.searchController, "replayDeadLettered"),
+      resolveHandler<SearchController>(
+        containerTokens.searchController,
+        "replayDeadLettered",
+      ),
     );
     app.post(
       "/admin/search/cleanup-retained-indices",
-      resolveHandler<SearchController>(containerTokens.searchController, "cleanupRetainedIndices"),
+      resolveHandler<SearchController>(
+        containerTokens.searchController,
+        "cleanupRetainedIndices",
+      ),
     );
   },
 };

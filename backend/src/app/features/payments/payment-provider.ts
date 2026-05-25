@@ -25,6 +25,9 @@ export interface PaymentProviderAdapter {
     currency: string;
     reason?: string | null;
   }): Promise<ProviderRefundResult>;
-  verifyWebhookSignature(rawBody: string, signatureHeader: string | undefined): SquareWebhookVerificationResult;
+  verifyWebhookSignature(
+    rawBody: string,
+    signatureHeader: string | undefined,
+  ): SquareWebhookVerificationResult;
   classifyError(error: unknown): ProviderErrorInfo;
 }

@@ -193,7 +193,9 @@ export class PostingsRepository extends BaseRepository {
         await this.enqueueOutbox(
           transaction,
           created.id,
-          isPostingSearchIndexable(created.status as PostingStatus) ? "upsert" : "delete",
+          isPostingSearchIndexable(created.status as PostingStatus)
+            ? "upsert"
+            : "delete",
         );
         await this.syncOwnerPostingCounts(transaction, input.ownerId);
 
@@ -204,7 +206,10 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async update(id: string, input: UpsertPostingInput): Promise<PostingRecord | null> {
+  async update(
+    id: string,
+    input: UpsertPostingInput,
+  ): Promise<PostingRecord | null> {
     return this.executeAsync(async () => {
       try {
         const posting = await this.prisma.$transaction(async (transaction) => {
@@ -242,7 +247,9 @@ export class PostingsRepository extends BaseRepository {
           await this.enqueueOutbox(
             transaction,
             updated.id,
-            isPostingSearchIndexable(updated.status as PostingStatus) ? "upsert" : "delete",
+            isPostingSearchIndexable(updated.status as PostingStatus)
+              ? "upsert"
+              : "delete",
           );
           await this.syncOwnerPostingCounts(transaction, input.ownerId);
 
@@ -251,7 +258,10 @@ export class PostingsRepository extends BaseRepository {
 
         return this.mapPosting(posting);
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -260,7 +270,9 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async listOwnerAvailabilityBlocks(postingId: string): Promise<PostingAvailabilityBlockRecord[]> {
+  async listOwnerAvailabilityBlocks(
+    postingId: string,
+  ): Promise<PostingAvailabilityBlockRecord[]> {
     const blocks = await this.executeAsync(() =>
       this.prisma.postingAvailabilityBlock.findMany({
         where: {
@@ -343,11 +355,12 @@ export class PostingsRepository extends BaseRepository {
           return null;
         }
 
-        const updated = await transaction.postingAvailabilityBlock.findUniqueOrThrow({
-          where: {
-            id: blockId,
-          },
-        });
+        const updated =
+          await transaction.postingAvailabilityBlock.findUniqueOrThrow({
+            where: {
+              id: blockId,
+            },
+          });
 
         await this.enqueueOutbox(transaction, postingId, "upsert");
 
@@ -356,7 +369,10 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async deleteOwnerAvailabilityBlock(postingId: string, blockId: string): Promise<boolean> {
+  async deleteOwnerAvailabilityBlock(
+    postingId: string,
+    blockId: string,
+  ): Promise<boolean> {
     return this.executeAsync(async () =>
       this.prisma.$transaction(async (transaction) => {
         const result = await transaction.postingAvailabilityBlock.deleteMany({
@@ -505,7 +521,10 @@ export class PostingsRepository extends BaseRepository {
 
         return this.mapPosting(posting);
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -538,7 +557,10 @@ export class PostingsRepository extends BaseRepository {
 
         return this.mapPosting(posting);
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -571,7 +593,10 @@ export class PostingsRepository extends BaseRepository {
 
         return this.mapPosting(posting);
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -604,7 +629,10 @@ export class PostingsRepository extends BaseRepository {
 
         return this.mapPosting(posting);
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
           return null;
         }
 
@@ -656,7 +684,9 @@ export class PostingsRepository extends BaseRepository {
       : null;
   }
 
-  async listByOwner(input: ListOwnerPostingsInput): Promise<ListOwnerPostingsResult> {
+  async listByOwner(
+    input: ListOwnerPostingsInput,
+  ): Promise<ListOwnerPostingsResult> {
     const where: Prisma.PostingWhereInput = {
       ownerId: input.ownerId,
       ...(input.status ? { status: input.status } : {}),
@@ -764,11 +794,15 @@ export class PostingsRepository extends BaseRepository {
     }
 
     for (const tag of input.tags ?? []) {
-      whereClauses.push(Prisma.sql`JSON_SEARCH(tags, 'one', ${tag}) IS NOT NULL`);
+      whereClauses.push(
+        Prisma.sql`JSON_SEARCH(tags, 'one', ${tag}) IS NOT NULL`,
+      );
     }
 
     if (input.availabilityStatus) {
-      whereClauses.push(Prisma.sql`availability_status = ${input.availabilityStatus}`);
+      whereClauses.push(
+        Prisma.sql`availability_status = ${input.availabilityStatus}`,
+      );
     }
 
     if (input.minDailyPrice !== undefined) {
@@ -783,7 +817,9 @@ export class PostingsRepository extends BaseRepository {
       );
     }
 
-    const detailsColumn = input.family ? Prisma.raw(this.resolveDetailsColumnName(input.family)) : null;
+    const detailsColumn = input.family
+      ? Prisma.raw(this.resolveDetailsColumnName(input.family))
+      : null;
 
     for (const filter of input.attributeFilters ?? []) {
       if (!detailsColumn) {
@@ -797,7 +833,9 @@ export class PostingsRepository extends BaseRepository {
           Prisma.sql`LOWER(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath}))) = ${filter.value}`,
         );
       } else if (typeof filter.value === "boolean") {
-        whereClauses.push(Prisma.sql`JSON_EXTRACT(${detailsColumn}, ${attributePath}) = ${filter.value}`);
+        whereClauses.push(
+          Prisma.sql`JSON_EXTRACT(${detailsColumn}, ${attributePath}) = ${filter.value}`,
+        );
       } else if (typeof filter.value === "number") {
         whereClauses.push(
           Prisma.sql`CAST(JSON_UNQUOTE(JSON_EXTRACT(${detailsColumn}, ${attributePath})) AS DECIMAL(18, 6)) = ${filter.value}`,
@@ -904,7 +942,9 @@ export class PostingsRepository extends BaseRepository {
       : null;
 
     if (distanceExpression && input.geo?.radiusKm !== undefined) {
-      whereClauses.push(Prisma.sql`${distanceExpression} <= ${input.geo.radiusKm}`);
+      whereClauses.push(
+        Prisma.sql`${distanceExpression} <= ${input.geo.radiusKm}`,
+      );
     }
 
     const orderBy = this.createFallbackOrderBy(input, distanceExpression);
@@ -1014,7 +1054,9 @@ export class PostingsRepository extends BaseRepository {
         region: row.region ?? undefined,
         country: row.country ?? undefined,
       },
-      publishedAt: row.publishedAt ? new Date(row.publishedAt).toISOString() : undefined,
+      publishedAt: row.publishedAt
+        ? new Date(row.publishedAt).toISOString()
+        : undefined,
       createdAt: new Date(row.createdAt).toISOString(),
     }));
   }
@@ -1038,7 +1080,9 @@ export class PostingsRepository extends BaseRepository {
     return postings.map((posting) => this.mapSearchDocument(posting));
   }
 
-  async listRecentForIndexReconciliation(limit: number): Promise<PostingSearchDocument[]> {
+  async listRecentForIndexReconciliation(
+    limit: number,
+  ): Promise<PostingSearchDocument[]> {
     const postings = await this.executeAsync(() =>
       this.prisma.posting.findMany({
         orderBy: [
@@ -1057,13 +1101,16 @@ export class PostingsRepository extends BaseRepository {
     return postings.map((posting) => this.mapSearchDocument(posting));
   }
 
-  async claimSearchOutboxBatch(limit: number): Promise<PostingSearchOutboxRecord[]> {
+  async claimSearchOutboxBatch(
+    limit: number,
+  ): Promise<PostingSearchOutboxRecord[]> {
     return this.executeAsync(async () => {
       const now = new Date();
       const staleProcessingThreshold = new Date(now.getTime() - 5 * 60 * 1000);
-      const claimedRows = await this.prisma.$transaction(async (transaction) => {
-        const idRows = await transaction.$queryRaw<SearchOutboxIdRow[]>(
-          Prisma.sql`
+      const claimedRows = await this.prisma.$transaction(
+        async (transaction) => {
+          const idRows = await transaction.$queryRaw<SearchOutboxIdRow[]>(
+            Prisma.sql`
             SELECT id
             FROM posting_search_outbox
             WHERE processed_at IS NULL
@@ -1074,43 +1121,47 @@ export class PostingsRepository extends BaseRepository {
             LIMIT ${limit}
             FOR UPDATE SKIP LOCKED
           `,
-        );
-        const ids = idRows.map((row) => row.id);
+          );
+          const ids = idRows.map((row) => row.id);
 
-        if (ids.length === 0) {
-          return [];
-        }
+          if (ids.length === 0) {
+            return [];
+          }
 
-        await transaction.postingSearchOutbox.updateMany({
-          where: {
-            id: {
-              in: ids,
+          await transaction.postingSearchOutbox.updateMany({
+            where: {
+              id: {
+                in: ids,
+              },
             },
-          },
-          data: {
-            processingAt: now,
-          },
-        });
-
-        const rows = await transaction.postingSearchOutbox.findMany({
-          where: {
-            id: {
-              in: ids,
+            data: {
+              processingAt: now,
             },
-          },
-        });
-        const byId = new Map(rows.map((row) => [row.id, row]));
+          });
 
-        return ids
-          .map((id) => byId.get(id))
-          .filter((row): row is NonNullable<typeof row> => Boolean(row));
-      });
+          const rows = await transaction.postingSearchOutbox.findMany({
+            where: {
+              id: {
+                in: ids,
+              },
+            },
+          });
+          const byId = new Map(rows.map((row) => [row.id, row]));
+
+          return ids
+            .map((id) => byId.get(id))
+            .filter((row): row is NonNullable<typeof row> => Boolean(row));
+        },
+      );
 
       return claimedRows.map((row) => this.mapOutbox(row, now));
     });
   }
 
-  async markSearchOutboxPublished(id: string, brokerMessageId?: string): Promise<void> {
+  async markSearchOutboxPublished(
+    id: string,
+    brokerMessageId?: string,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.postingSearchOutbox.update({
         where: {
@@ -1126,7 +1177,11 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async markSearchOutboxPublishRetry(id: string, attempts: number, errorMessage: string): Promise<void> {
+  async markSearchOutboxPublishRetry(
+    id: string,
+    attempts: number,
+    errorMessage: string,
+  ): Promise<void> {
     const backoffSeconds = Math.min(300, 2 ** Math.min(attempts, 8));
     await this.executeAsync(() =>
       this.prisma.postingSearchOutbox.update({
@@ -1159,7 +1214,10 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async incrementSearchOutboxAttempt(id: string, errorMessage: string): Promise<number> {
+  async incrementSearchOutboxAttempt(
+    id: string,
+    errorMessage: string,
+  ): Promise<number> {
     const updated = await this.executeAsync(() =>
       this.prisma.postingSearchOutbox.update({
         where: {
@@ -1177,7 +1235,10 @@ export class PostingsRepository extends BaseRepository {
     return updated.attempts;
   }
 
-  async markSearchOutboxDeadLettered(id: string, errorMessage: string): Promise<void> {
+  async markSearchOutboxDeadLettered(
+    id: string,
+    errorMessage: string,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.postingSearchOutbox.update({
         where: {
@@ -1192,7 +1253,9 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async getSearchOutboxById(id: string): Promise<PostingSearchOutboxRecord | null> {
+  async getSearchOutboxById(
+    id: string,
+  ): Promise<PostingSearchOutboxRecord | null> {
     const outbox = await this.executeAsync(() =>
       this.prisma.postingSearchOutbox.findUnique({
         where: {
@@ -1204,7 +1267,9 @@ export class PostingsRepository extends BaseRepository {
     return outbox ? this.mapOutbox(outbox) : null;
   }
 
-  async getSearchOutboxesByIds(ids: string[]): Promise<PostingSearchOutboxRecord[]> {
+  async getSearchOutboxesByIds(
+    ids: string[],
+  ): Promise<PostingSearchOutboxRecord[]> {
     if (ids.length === 0) {
       return [];
     }
@@ -1226,7 +1291,10 @@ export class PostingsRepository extends BaseRepository {
   }
 
   async hasNewerSearchOutboxJob(
-    job: Pick<PostingSearchOutboxRecord, "id" | "postingId" | "reindexRunId" | "targetIndexName" | "createdAt">,
+    job: Pick<
+      PostingSearchOutboxRecord,
+      "id" | "postingId" | "reindexRunId" | "targetIndexName" | "createdAt"
+    >,
   ): Promise<boolean> {
     if (!job.postingId) {
       return false;
@@ -1252,7 +1320,10 @@ export class PostingsRepository extends BaseRepository {
     return count > 0;
   }
 
-  async enqueueSearchSync(postingId: string, operation: "upsert" | "delete" = "upsert"): Promise<void> {
+  async enqueueSearchSync(
+    postingId: string,
+    operation: "upsert" | "delete" = "upsert",
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         await this.enqueueOutbox(transaction, postingId, operation);
@@ -1260,7 +1331,9 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async findPrimaryPhotoForThumbnailing(postingId: string): Promise<PostingPhotoRecord | null> {
+  async findPrimaryPhotoForThumbnailing(
+    postingId: string,
+  ): Promise<PostingPhotoRecord | null> {
     const photo = await this.executeAsync(() =>
       this.prisma.postingPhoto.findFirst({
         where: {
@@ -1307,7 +1380,9 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async createSearchReindexRun(targetIndexName: string): Promise<SearchReindexRunRecord> {
+  async createSearchReindexRun(
+    targetIndexName: string,
+  ): Promise<SearchReindexRunRecord> {
     const run = await this.executeAsync(() =>
       this.prisma.searchReindexRun.create({
         data: {
@@ -1322,7 +1397,9 @@ export class PostingsRepository extends BaseRepository {
     return this.mapSearchReindexRun(run);
   }
 
-  async findSearchReindexRunById(id: string): Promise<SearchReindexRunRecord | null> {
+  async findSearchReindexRunById(
+    id: string,
+  ): Promise<SearchReindexRunRecord | null> {
     const run = await this.executeAsync(() =>
       this.prisma.searchReindexRun.findUnique({
         where: {
@@ -1387,7 +1464,9 @@ export class PostingsRepository extends BaseRepository {
     return run ? this.mapSearchReindexRun(run) : null;
   }
 
-  async listCompletedSearchReindexRunsWithRetainedIndices(): Promise<SearchReindexRunRecord[]> {
+  async listCompletedSearchReindexRunsWithRetainedIndices(): Promise<
+    SearchReindexRunRecord[]
+  > {
     const runs = await this.executeAsync(() =>
       this.prisma.searchReindexRun.findMany({
         where: {
@@ -1471,7 +1550,10 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async markSearchReindexRunRunning(id: string, totalPostings: number): Promise<SearchReindexRunRecord> {
+  async markSearchReindexRunRunning(
+    id: string,
+    totalPostings: number,
+  ): Promise<SearchReindexRunRecord> {
     const run = await this.executeAsync(() =>
       this.prisma.searchReindexRun.update({
         where: {
@@ -1548,7 +1630,9 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async getSearchReindexCatchUpState(id: string): Promise<SearchReindexCatchUpState> {
+  async getSearchReindexCatchUpState(
+    id: string,
+  ): Promise<SearchReindexCatchUpState> {
     return this.executeAsync(async () => {
       const run = await this.prisma.searchReindexRun.findUnique({
         where: {
@@ -1562,7 +1646,8 @@ export class PostingsRepository extends BaseRepository {
       if (!run?.barrierOutboxId) {
         return {
           state: "failed",
-          errorMessage: "Search reindex run is missing its barrier outbox reference.",
+          errorMessage:
+            "Search reindex run is missing its barrier outbox reference.",
         };
       }
 
@@ -1581,7 +1666,8 @@ export class PostingsRepository extends BaseRepository {
       if (!barrier) {
         return {
           state: "failed",
-          errorMessage: "Search reindex barrier outbox entry could not be found.",
+          errorMessage:
+            "Search reindex barrier outbox entry could not be found.",
         };
       }
 
@@ -1643,7 +1729,10 @@ export class PostingsRepository extends BaseRepository {
     return this.mapSearchReindexRun(run);
   }
 
-  async markSearchReindexRunFailed(id: string, errorMessage: string): Promise<SearchReindexRunRecord> {
+  async markSearchReindexRunFailed(
+    id: string,
+    errorMessage: string,
+  ): Promise<SearchReindexRunRecord> {
     const run = await this.executeAsync(() =>
       this.prisma.searchReindexRun.update({
         where: {
@@ -1661,8 +1750,12 @@ export class PostingsRepository extends BaseRepository {
     return this.mapSearchReindexRun(run);
   }
 
-  async countPublishedPostingsForIndexing(sourceSnapshotAt?: string): Promise<number> {
-    const snapshotAt = sourceSnapshotAt ? new Date(sourceSnapshotAt) : undefined;
+  async countPublishedPostingsForIndexing(
+    sourceSnapshotAt?: string,
+  ): Promise<number> {
+    const snapshotAt = sourceSnapshotAt
+      ? new Date(sourceSnapshotAt)
+      : undefined;
 
     return this.executeAsync(() =>
       this.prisma.posting.count({
@@ -1686,7 +1779,9 @@ export class PostingsRepository extends BaseRepository {
     cursorId?: string,
     sourceSnapshotAt?: string,
   ): Promise<PostingSearchDocument[]> {
-    const snapshotAt = sourceSnapshotAt ? new Date(sourceSnapshotAt) : undefined;
+    const snapshotAt = sourceSnapshotAt
+      ? new Date(sourceSnapshotAt)
+      : undefined;
 
     const postings = await this.executeAsync(() =>
       this.prisma.posting.findMany({
@@ -1831,7 +1926,10 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async markSearchOutboxSuperseded(ids: string[], brokerMessageId?: string): Promise<void> {
+  async markSearchOutboxSuperseded(
+    ids: string[],
+    brokerMessageId?: string,
+  ): Promise<void> {
     if (ids.length === 0) {
       return;
     }
@@ -1855,7 +1953,10 @@ export class PostingsRepository extends BaseRepository {
     );
   }
 
-  async releaseSearchOutboxClaims(ids: string[], errorMessage?: string): Promise<void> {
+  async releaseSearchOutboxClaims(
+    ids: string[],
+    errorMessage?: string,
+  ): Promise<void> {
     if (ids.length === 0) {
       return;
     }
@@ -1955,7 +2056,9 @@ export class PostingsRepository extends BaseRepository {
 
   async getSearchOutboxLagMetrics(): Promise<SearchOutboxLagMetrics> {
     return this.executeAsync(async () => {
-      const [row] = await this.prisma.$queryRaw<SearchOutboxLagRow[]>(Prisma.sql`
+      const [row] = await this.prisma.$queryRaw<
+        SearchOutboxLagRow[]
+      >(Prisma.sql`
         SELECT
           SUM(CASE WHEN processed_at IS NULL AND dead_lettered_at IS NULL THEN 1 ELSE 0 END) AS unpublishedCount,
           MIN(CASE WHEN processed_at IS NULL AND dead_lettered_at IS NULL THEN created_at ELSE NULL END) AS unpublishedOldestCreatedAt,
@@ -1977,7 +2080,9 @@ export class PostingsRepository extends BaseRepository {
               ),
             }
           : {}),
-        publishedNotIndexedCount: this.readNumberLike(row?.publishedNotIndexedCount),
+        publishedNotIndexedCount: this.readNumberLike(
+          row?.publishedNotIndexedCount,
+        ),
         ...(row?.publishedNotIndexedOldestProcessedAt
           ? {
               publishedNotIndexedOldestAgeMs: Math.max(
@@ -1998,7 +2103,9 @@ export class PostingsRepository extends BaseRepository {
   async withSearchReindexStartLock<T>(
     operation: (helpers: {
       findActiveSearchReindexRun: () => Promise<SearchReindexRunRecord | null>;
-      createSearchReindexRun: (targetIndexName: string) => Promise<SearchReindexRunRecord>;
+      createSearchReindexRun: (
+        targetIndexName: string,
+      ) => Promise<SearchReindexRunRecord>;
     }) => Promise<T>,
   ): Promise<T | null> {
     return this.executeAsync(
@@ -2309,7 +2416,9 @@ export class PostingsRepository extends BaseRepository {
         return photo;
       }
 
-      const existing = existingByBlobKey.get(this.createPhotoBlobKey(photo.blobUrl, photo.blobName));
+      const existing = existingByBlobKey.get(
+        this.createPhotoBlobKey(photo.blobUrl, photo.blobName),
+      );
 
       if (!existing?.thumbnailBlobName || !existing.thumbnailBlobUrl) {
         return photo;
@@ -2364,7 +2473,10 @@ export class PostingsRepository extends BaseRepository {
           block.bookingRequestHold.holdExpiresAt.getTime() > now
         );
       })
-      .map((block): PostingAvailabilityBlockRecord => this.mapAvailabilityBlock(block));
+      .map(
+        (block): PostingAvailabilityBlockRecord =>
+          this.mapAvailabilityBlock(block),
+      );
 
     return {
       id: posting.id,
@@ -2378,19 +2490,22 @@ export class PostingsRepository extends BaseRepository {
       description: posting.description,
       pricing,
       pricingCurrency: posting.pricingCurrency,
-      photos: posting.photos.map((photo): PostingPhotoRecord => ({
-        id: photo.id,
-        blobUrl: photo.blobUrl,
-        blobName: photo.blobName,
-        thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
-        thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
-        position: photo.position,
-        createdAt: photo.createdAt.toISOString(),
-        updatedAt: photo.updatedAt.toISOString(),
-      })),
+      photos: posting.photos.map(
+        (photo): PostingPhotoRecord => ({
+          id: photo.id,
+          blobUrl: photo.blobUrl,
+          blobName: photo.blobName,
+          thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
+          thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
+          position: photo.position,
+          createdAt: photo.createdAt.toISOString(),
+          updatedAt: photo.updatedAt.toISOString(),
+        }),
+      ),
       tags,
       details,
-      availabilityStatus: posting.availabilityStatus as PostingAvailabilityStatus,
+      availabilityStatus:
+        posting.availabilityStatus as PostingAvailabilityStatus,
       availabilityNotes: posting.availabilityNotes ?? undefined,
       maxBookingDurationDays: posting.maxBookingDurationDays ?? undefined,
       effectiveMaxBookingDurationDays:
@@ -2416,7 +2531,9 @@ export class PostingsRepository extends BaseRepository {
     return toPublicPostingRecord(this.mapPosting(posting));
   }
 
-  private mapSearchDocument(posting: PostingPersistence): PostingSearchDocument {
+  private mapSearchDocument(
+    posting: PostingPersistence,
+  ): PostingSearchDocument {
     const details = this.readPostingDetails(posting);
 
     return {
@@ -2430,7 +2547,8 @@ export class PostingsRepository extends BaseRepository {
       name: posting.name,
       description: posting.description,
       tags: Array.isArray(posting.tags) ? (posting.tags as string[]) : [],
-      availabilityStatus: posting.availabilityStatus as PostingAvailabilityStatus,
+      availabilityStatus:
+        posting.availabilityStatus as PostingAvailabilityStatus,
       searchableAttributes: this.extractSearchableAttributes(
         posting.family,
         posting.subtype as PostingSubtype,
@@ -2457,7 +2575,9 @@ export class PostingsRepository extends BaseRepository {
     };
   }
 
-  private collectBlockedRanges(posting: PostingPersistence): PostingSearchDocument["blockedRanges"] {
+  private collectBlockedRanges(
+    posting: PostingPersistence,
+  ): PostingSearchDocument["blockedRanges"] {
     const now = Date.now();
 
     const availabilityBlockRanges = posting.availabilityBlocks
@@ -2482,7 +2602,14 @@ export class PostingsRepository extends BaseRepository {
 
     const bookingRequestRanges = posting.bookingRequests
       .filter((bookingRequest) => {
-        if (!["pending", "awaiting_payment", "payment_processing", "paid"].includes(bookingRequest.status)) {
+        if (
+          ![
+            "pending",
+            "awaiting_payment",
+            "payment_processing",
+            "paid",
+          ].includes(bookingRequest.status)
+        ) {
           return false;
         }
 
@@ -2511,7 +2638,11 @@ export class PostingsRepository extends BaseRepository {
       source: "renting" as const,
     }));
 
-    return [...availabilityBlockRanges, ...bookingRequestRanges, ...rentingRanges];
+    return [
+      ...availabilityBlockRanges,
+      ...bookingRequestRanges,
+      ...rentingRanges,
+    ];
   }
 
   private extractSearchableAttributes(
@@ -2519,14 +2650,19 @@ export class PostingsRepository extends BaseRepository {
     subtype: PostingRecord["variant"]["subtype"],
     attributes: Record<string, PostingAttributeValue>,
   ): Record<string, PostingAttributeValue> {
-    const definitions = getPostingSearchableAttributeDefinitions(family, subtype);
+    const definitions = getPostingSearchableAttributeDefinitions(
+      family,
+      subtype,
+    );
 
     if (!definitions) {
       return {};
     }
 
     return Object.fromEntries(
-      Object.entries(attributes).filter(([key]) => definitions[key] !== undefined),
+      Object.entries(attributes).filter(
+        ([key]) => definitions[key] !== undefined,
+      ),
     );
   }
 
@@ -2576,15 +2712,26 @@ export class PostingsRepository extends BaseRepository {
 
     switch (posting.family) {
       case "place":
-        return parsePostingDetailsForVariant(variant, posting.placeDetails ?? {});
+        return parsePostingDetailsForVariant(
+          variant,
+          posting.placeDetails ?? {},
+        );
       case "equipment":
-        return parsePostingDetailsForVariant(variant, posting.equipmentDetails ?? {});
+        return parsePostingDetailsForVariant(
+          variant,
+          posting.equipmentDetails ?? {},
+        );
       case "vehicle":
-        return parsePostingDetailsForVariant(variant, posting.vehicleDetails ?? {});
+        return parsePostingDetailsForVariant(
+          variant,
+          posting.vehicleDetails ?? {},
+        );
     }
   }
 
-  private resolveDetailsColumnName(family: SearchPostingsInput["family"]): string {
+  private resolveDetailsColumnName(
+    family: SearchPostingsInput["family"],
+  ): string {
     switch (family) {
       case "place":
         return "place_details";
@@ -2611,7 +2758,11 @@ export class PostingsRepository extends BaseRepository {
       attempts: outbox.attempts,
       publishAttempts: outbox.publishAttempts,
       availableAt: outbox.availableAt.toISOString(),
-      processingAt: (processingAt ?? outbox.processingAt ?? undefined)?.toISOString(),
+      processingAt: (
+        processingAt ??
+        outbox.processingAt ??
+        undefined
+      )?.toISOString(),
       publishedAt: outbox.processedAt?.toISOString(),
       indexedAt: outbox.indexedAt?.toISOString(),
       deadLetteredAt: outbox.deadLetteredAt?.toISOString(),
@@ -2683,7 +2834,9 @@ export class PostingsRepository extends BaseRepository {
     };
   }
 
-  private readMysqlLockResult(value: bigint | number | boolean | null | undefined): boolean {
+  private readMysqlLockResult(
+    value: bigint | number | boolean | null | undefined,
+  ): boolean {
     if (typeof value === "bigint") {
       return value === 1n;
     }
@@ -2707,4 +2860,3 @@ export class PostingsRepository extends BaseRepository {
     return 0;
   }
 }
-

@@ -16,12 +16,17 @@ function createChannel() {
     waitForConfirms: jest.fn(async () => undefined),
     close: jest.fn(async () => undefined),
     prefetch: jest.fn(async () => undefined),
-    consume: jest.fn(async (_queue: string, handler: (message: ConsumeMessage | null) => Promise<void>) => {
-      createChannel.lastHandler = handler;
-      return {
-        consumerTag: "consumer-1",
-      };
-    }),
+    consume: jest.fn(
+      async (
+        _queue: string,
+        handler: (message: ConsumeMessage | null) => Promise<void>,
+      ) => {
+        createChannel.lastHandler = handler;
+        return {
+          consumerTag: "consumer-1",
+        };
+      },
+    ),
     nack: jest.fn(),
     cancel: jest.fn(async () => undefined),
   } as unknown as Channel;
@@ -48,12 +53,19 @@ describe("PostingThumbnailQueueService", () => {
 
     await service.enqueuePostingThumbnailJob("posting-1");
 
-    expect(channel.assertExchange).toHaveBeenCalledWith("postings.thumbnail.exchange", "direct", {
-      durable: true,
-    });
-    expect(channel.assertQueue).toHaveBeenCalledWith("postings.thumbnail.main", {
-      durable: true,
-    });
+    expect(channel.assertExchange).toHaveBeenCalledWith(
+      "postings.thumbnail.exchange",
+      "direct",
+      {
+        durable: true,
+      },
+    );
+    expect(channel.assertQueue).toHaveBeenCalledWith(
+      "postings.thumbnail.main",
+      {
+        durable: true,
+      },
+    );
     expect(channel.bindQueue).toHaveBeenCalledWith(
       "postings.thumbnail.main",
       "postings.thumbnail.exchange",
@@ -76,7 +88,8 @@ describe("PostingThumbnailQueueService", () => {
       attempt: number;
       occurredAt: string;
     };
-    const publishOptions = (channel.publish as jest.Mock).mock.calls[0]?.[3] as {
+    const publishOptions = (channel.publish as jest.Mock).mock
+      .calls[0]?.[3] as {
       messageId: string;
     };
 
@@ -117,7 +130,11 @@ describe("PostingThumbnailQueueService", () => {
       expect.any(Buffer),
       expect.any(Object),
     );
-    expect(JSON.parse((channel.publish as jest.Mock).mock.calls[0]?.[2].toString("utf8"))).toEqual({
+    expect(
+      JSON.parse(
+        (channel.publish as jest.Mock).mock.calls[0]?.[2].toString("utf8"),
+      ),
+    ).toEqual({
       ...payload,
       attempt: 2,
     });
@@ -166,7 +183,10 @@ describe("PostingThumbnailQueueService", () => {
     mockCreateRabbitMqChannel.mockResolvedValue(channel);
     const service = new PostingThumbnailQueueService();
 
-    await service.consumePostingThumbnailJobs(1, jest.fn(async () => undefined));
+    await service.consumePostingThumbnailJobs(
+      1,
+      jest.fn(async () => undefined),
+    );
     const message = {
       content: Buffer.from("{bad json", "utf8"),
     } as ConsumeMessage;

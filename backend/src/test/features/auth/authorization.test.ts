@@ -10,7 +10,10 @@ import { PaymentsController } from "@/features/payments/payments.controller";
 import { PostingsController } from "@/features/postings/postings.controller";
 import { SearchController } from "@/features/search/search.controller";
 import type { Context } from "hono";
-import type { AppBindings, ClientRequestContext } from "@/configuration/http/bindings";
+import type {
+  AppBindings,
+  ClientRequestContext,
+} from "@/configuration/http/bindings";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
@@ -26,7 +29,8 @@ class FakeTokenService {
 }
 
 class FakeContainer implements ServiceContainer {
-  private readonly contentSanitizationService = new ContentSanitizationService();
+  private readonly contentSanitizationService =
+    new ContentSanitizationService();
 
   constructor(private readonly tokenService: FakeTokenService) {}
 
@@ -81,7 +85,9 @@ function createContext(options?: {
 
   variables.set(
     "container",
-    new FakeContainer(options?.tokenService ?? new FakeTokenService(() => createClaims())),
+    new FakeContainer(
+      options?.tokenService ?? new FakeTokenService(() => createClaims()),
+    ),
   );
   variables.set("client", createClientContext());
 
@@ -89,7 +95,9 @@ function createContext(options?: {
     req: {
       url: options?.url ?? "https://example.test/resource",
       header: (name: string) =>
-        name.toLowerCase() === "authorization" ? options?.authorization : undefined,
+        name.toLowerCase() === "authorization"
+          ? options?.authorization
+          : undefined,
       param: (name: string) => options?.params?.[name],
       json: async () => options?.body ?? {},
       text: async () => "",
@@ -117,15 +125,19 @@ describe("authorization", () => {
   });
 
   it("allows owner routes for owner and admin roles", () => {
-    expect(requireMinimumRole(createClaims({ role: "owner" }), "owner")).toBe("owner");
-    expect(requireMinimumRole(createClaims({ role: "admin" }), "owner")).toBe("admin");
+    expect(requireMinimumRole(createClaims({ role: "owner" }), "owner")).toBe(
+      "owner",
+    );
+    expect(requireMinimumRole(createClaims({ role: "admin" }), "owner")).toBe(
+      "admin",
+    );
     expect(hasMinimumRole(createClaims({ role: "admin" }), "owner")).toBe(true);
   });
 
   it("rejects regular users from owner routes", () => {
-    expect(() => requireMinimumRole(createClaims({ role: "user" }), "owner")).toThrow(
-      ForbiddenError,
-    );
+    expect(() =>
+      requireMinimumRole(createClaims({ role: "user" }), "owner"),
+    ).toThrow(ForbiddenError);
   });
 
   it("rejects posting creation for regular users before calling the service", async () => {
@@ -171,7 +183,9 @@ describe("authorization", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(controller.create(context)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     expect(createDraftCalled).toBe(false);
   });
 
@@ -190,7 +204,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.repair(ownerContext)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(controller.repair(ownerContext)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     expect(repairCalled).toBe(false);
 
     const adminContext = createContext({
@@ -230,7 +246,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.startReindex(ownerContext)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(controller.startReindex(ownerContext)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     expect(reindexCalled).toBe(false);
 
     const adminContext = createContext({

@@ -1,6 +1,11 @@
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
-import { mergeResponseMeta, ok, paginationMeta, pickMeta } from "@/configuration/http/responses";
+import {
+  mergeResponseMeta,
+  ok,
+  paginationMeta,
+  pickMeta,
+} from "@/configuration/http/responses";
 import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { RequestValidationError } from "@/configuration/validation/request";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
@@ -12,7 +17,9 @@ import {
 } from "@/features/recommendations/recommendation-query.model";
 
 export class RecommendationsController {
-  constructor(private readonly recommendationQueryService: RecommendationQueryService) {}
+  constructor(
+    private readonly recommendationQueryService: RecommendationQueryService,
+  ) {}
 
   list = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.getOptionalAuth(context);
@@ -29,7 +36,9 @@ export class RecommendationsController {
     });
   };
 
-  private parseRecommendationQueryInput(context: Context<AppBindings>): RecommendationQueryInput {
+  private parseRecommendationQueryInput(
+    context: Context<AppBindings>,
+  ): RecommendationQueryInput {
     const url = new URL(context.req.url);
 
     try {
@@ -51,7 +60,9 @@ export class RecommendationsController {
     }
   }
 
-  private toRecommendationQueryInput(query: RecommendationQuery): RecommendationQueryInput {
+  private toRecommendationQueryInput(
+    query: RecommendationQuery,
+  ): RecommendationQueryInput {
     if ((query.startAt === undefined) !== (query.endAt === undefined)) {
       throw new RequestValidationError("Request query validation failed.", [
         {
@@ -93,13 +104,20 @@ export class RecommendationsController {
     };
   }
 
-  private async getOptionalAuth(context: Context<AppBindings>): Promise<AuthPrincipal | null> {
+  private async getOptionalAuth(
+    context: Context<AppBindings>,
+  ): Promise<AuthPrincipal | null> {
     return getOptionalJwtAuth(context);
   }
 
-  private toValidationError(error: unknown, message: string): RequestValidationError {
+  private toValidationError(
+    error: unknown,
+    message: string,
+  ): RequestValidationError {
     if ("issues" in (error as object)) {
-      const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+      const issues = (
+        error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+      ).issues;
 
       return new RequestValidationError(
         message,

@@ -5,16 +5,15 @@ import {
   disconnectResources,
   searchBrokerWorkerResources,
 } from "@/workers/shared/resources";
-import {
-  bootstrapWorker,
-  startWorker,
-} from "@/workers/shared/worker-runtime";
+import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
 
 const workerName = "Search indexer worker";
 const workerResources = searchBrokerWorkerResources;
-const workerLogger = loggerFactory.forComponent("search-indexer.worker", "worker").child({
-  workerName,
-});
+const workerLogger = loggerFactory
+  .forComponent("search-indexer.worker", "worker")
+  .child({
+    workerName,
+  });
 
 export async function bootstrapSearchIndexerWorker(): Promise<void> {
   await bootstrapWorker({
@@ -22,7 +21,9 @@ export async function bootstrapSearchIndexerWorker(): Promise<void> {
     resources: workerResources,
     run: async ({ container }, lifecycle) => {
       const scope = container.createScope();
-      const searchQueueService = scope.resolve(containerTokens.searchQueueService);
+      const searchQueueService = scope.resolve(
+        containerTokens.searchQueueService,
+      );
       const searchService = scope.resolve(containerTokens.searchService);
       const { prefetch, batchSize, flushIntervalMs, concurrency, maxAttempts } =
         environment.getSearchIndexerWorkerConfig();
@@ -43,10 +44,14 @@ export async function bootstrapSearchIndexerWorker(): Promise<void> {
               channel.ack(entry.message);
             }
           } catch (error) {
-            workerLogger.error("Failed to process search index job batch.", {
-              outboxIds: entries.map((entry) => entry.payload.outboxId),
-              postingIds: entries.map((entry) => entry.payload.postingId),
-            }, error);
+            workerLogger.error(
+              "Failed to process search index job batch.",
+              {
+                outboxIds: entries.map((entry) => entry.payload.outboxId),
+                postingIds: entries.map((entry) => entry.payload.postingId),
+              },
+              error,
+            );
             for (const entry of entries) {
               channel.nack(entry.message, false, true);
             }

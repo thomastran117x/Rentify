@@ -16,7 +16,9 @@ describe("api-path", () => {
 
   it("strips the API route prefix for policy-level path matching", () => {
     expect(stripApiRoutePrefix("/api/v1")).toBe("/");
-    expect(stripApiRoutePrefix("/api/v1/postings/post-1")).toBe("/postings/post-1");
+    expect(stripApiRoutePrefix("/api/v1/postings/post-1")).toBe(
+      "/postings/post-1",
+    );
     expect(stripApiRoutePrefix("/postings/post-1")).toBe("/postings/post-1");
   });
 });

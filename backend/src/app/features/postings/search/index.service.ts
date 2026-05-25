@@ -71,11 +71,18 @@ export class PostingsSearchIndexService {
         return;
       }
       case "missing_read_alias":
-        await this.addAlias(aliasStatus.writeTargets[0]!, this.getReadAliasName());
+        await this.addAlias(
+          aliasStatus.writeTargets[0]!,
+          this.getReadAliasName(),
+        );
         recordAliasAction("repaired_read_alias");
         return;
       case "missing_write_alias":
-        await this.addAlias(aliasStatus.readTargets[0]!, this.getWriteAliasName(), true);
+        await this.addAlias(
+          aliasStatus.readTargets[0]!,
+          this.getWriteAliasName(),
+          true,
+        );
         recordAliasAction("repaired_write_alias");
         return;
       case "inconsistent":
@@ -105,7 +112,10 @@ export class PostingsSearchIndexService {
     );
   }
 
-  async upsertDocument(document: PostingSearchDocument, targetIndexName?: string): Promise<void> {
+  async upsertDocument(
+    document: PostingSearchDocument,
+    targetIndexName?: string,
+  ): Promise<void> {
     const indexName = await this.resolveWriteTarget(targetIndexName);
 
     await this.elasticsearch.requestJson(
@@ -138,21 +148,25 @@ export class PostingsSearchIndexService {
       .join("\n")
       .concat("\n");
 
-    const response = await this.elasticsearch.requestJson<ElasticsearchBulkResponse>(
-      "/_bulk",
-      {
-        method: "POST",
-        body: payload,
-      },
-      {
-        contentType: "application/x-ndjson",
-      },
-    );
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchBulkResponse>(
+        "/_bulk",
+        {
+          method: "POST",
+          body: payload,
+        },
+        {
+          contentType: "application/x-ndjson",
+        },
+      );
 
     this.throwOnBulkErrors(response, "index");
   }
 
-  async bulkDeleteDocuments(ids: string[], targetIndexName: string): Promise<void> {
+  async bulkDeleteDocuments(
+    ids: string[],
+    targetIndexName: string,
+  ): Promise<void> {
     if (ids.length === 0) {
       return;
     }
@@ -169,16 +183,17 @@ export class PostingsSearchIndexService {
       .join("\n")
       .concat("\n");
 
-    const response = await this.elasticsearch.requestJson<ElasticsearchBulkResponse>(
-      "/_bulk",
-      {
-        method: "POST",
-        body: payload,
-      },
-      {
-        contentType: "application/x-ndjson",
-      },
-    );
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchBulkResponse>(
+        "/_bulk",
+        {
+          method: "POST",
+          body: payload,
+        },
+        {
+          contentType: "application/x-ndjson",
+        },
+      );
 
     this.throwOnBulkErrors(response, "delete");
   }
@@ -198,15 +213,16 @@ export class PostingsSearchIndexService {
   }
 
   async getAliasTargets(aliasName: string): Promise<string[]> {
-    const response = await this.elasticsearch.requestJson<ElasticsearchAliasResponse>(
-      `/_alias/${encodeURIComponent(aliasName)}`,
-      {
-        method: "GET",
-      },
-      {
-        allowNotFound: true,
-      },
-    );
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchAliasResponse>(
+        `/_alias/${encodeURIComponent(aliasName)}`,
+        {
+          method: "GET",
+        },
+        {
+          allowNotFound: true,
+        },
+      );
 
     return Object.keys(response);
   }
@@ -287,13 +303,20 @@ export class PostingsSearchIndexService {
 
   async swapAliases(
     newIndexName: string,
-  ): Promise<{ previousReadTargets: string[]; previousWriteTargets: string[] }> {
+  ): Promise<{
+    previousReadTargets: string[];
+    previousWriteTargets: string[];
+  }> {
     const [previousReadTargets, previousWriteTargets] = await Promise.all([
       this.getAliasTargets(this.getReadAliasName()),
       this.getAliasTargets(this.getWriteAliasName()),
     ]);
 
-    await this.setAliases(newIndexName, previousReadTargets, previousWriteTargets);
+    await this.setAliases(
+      newIndexName,
+      previousReadTargets,
+      previousWriteTargets,
+    );
 
     return {
       previousReadTargets,
@@ -321,8 +344,12 @@ export class PostingsSearchIndexService {
     return `${this.getBaseIndexName()}-write`;
   }
 
-  private toElasticsearchDocument(document: PostingSearchDocument): Record<string, unknown> {
-    const primaryPhoto = document.photos.find((photo) => photo.position === 0) ?? document.photos[0];
+  private toElasticsearchDocument(
+    document: PostingSearchDocument,
+  ): Record<string, unknown> {
+    const primaryPhoto =
+      document.photos.find((photo) => photo.position === 0) ??
+      document.photos[0];
 
     return {
       id: document.id,
@@ -371,13 +398,10 @@ export class PostingsSearchIndexService {
   }
 
   private async createConcreteIndex(indexName: string): Promise<void> {
-    await this.elasticsearch.requestJson(
-      `/${encodeURIComponent(indexName)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(this.buildIndexConfiguration()),
-      },
-    );
+    await this.elasticsearch.requestJson(`/${encodeURIComponent(indexName)}`, {
+      method: "PUT",
+      body: JSON.stringify(this.buildIndexConfiguration()),
+    });
   }
 
   private async setAliases(
@@ -421,7 +445,11 @@ export class PostingsSearchIndexService {
     });
   }
 
-  private async addAlias(indexName: string, aliasName: string, isWriteIndex = false): Promise<void> {
+  private async addAlias(
+    indexName: string,
+    aliasName: string,
+    isWriteIndex = false,
+  ): Promise<void> {
     await this.elasticsearch.requestJson("/_aliases", {
       method: "POST",
       body: JSON.stringify({
@@ -580,12 +608,16 @@ export class PostingsSearchIndexService {
     const mappings: Record<string, unknown> = {};
 
     for (const family of Object.values(postingVariantCatalog)) {
-      for (const [attributeKey, definition] of Object.entries(family.searchableAttributes)) {
+      for (const [attributeKey, definition] of Object.entries(
+        family.searchableAttributes,
+      )) {
         if (mappings[attributeKey]) {
           continue;
         }
 
-        mappings[attributeKey] = this.toSearchableAttributeMapping(definition.kind);
+        mappings[attributeKey] = this.toSearchableAttributeMapping(
+          definition.kind,
+        );
       }
     }
 
@@ -626,7 +658,8 @@ export class PostingsSearchIndexService {
 
       return !(operation === "delete" && result.status === 404);
     });
-    const firstError = operation === "index" ? firstFailure?.index : firstFailure?.delete;
+    const firstError =
+      operation === "index" ? firstFailure?.index : firstFailure?.delete;
 
     if (!firstError?.error) {
       return;

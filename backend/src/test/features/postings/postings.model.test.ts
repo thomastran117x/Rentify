@@ -11,7 +11,9 @@ import {
   type PostingRecord,
 } from "@/features/postings/postings.model";
 
-function createPostingRecord(overrides: Partial<PostingRecord> = {}): PostingRecord {
+function createPostingRecord(
+  overrides: Partial<PostingRecord> = {},
+): PostingRecord {
   return {
     id: "posting-1",
     ownerId: "owner-1",
@@ -34,7 +36,8 @@ function createPostingRecord(overrides: Partial<PostingRecord> = {}): PostingRec
         id: "photo-1",
         blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
         blobName: "postings/photo-1.jpg",
-        thumbnailBlobUrl: "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
+        thumbnailBlobUrl:
+          "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
         thumbnailBlobName: "postings/thumbnails/photo-1.webp",
         position: 0,
         createdAt: "2026-05-01T00:00:00.000Z",
@@ -203,10 +206,9 @@ describe("postings.model", () => {
       ]),
     );
 
-    expect(postingBatchIdsQuerySchema.parse(["posting-1", "posting-1", "posting_2"])).toEqual([
-      "posting-1",
-      "posting_2",
-    ]);
+    expect(
+      postingBatchIdsQuerySchema.parse(["posting-1", "posting-1", "posting_2"]),
+    ).toEqual(["posting-1", "posting_2"]);
 
     const invalidIds = postingBatchIdsQuerySchema.safeParse(["posting 1"]);
     expect(invalidIds.success).toBe(false);
@@ -234,9 +236,18 @@ describe("postings.model", () => {
   });
 
   it("reports public visibility and indexability from posting status", () => {
-    expect(isPostingPubliclyVisible({ status: "published", archivedAt: undefined })).toBe(true);
-    expect(isPostingPubliclyVisible({ status: "paused", archivedAt: undefined })).toBe(false);
-    expect(isPostingPubliclyVisible({ status: "published", archivedAt: "2026-05-01T00:00:00.000Z" })).toBe(false);
+    expect(
+      isPostingPubliclyVisible({ status: "published", archivedAt: undefined }),
+    ).toBe(true);
+    expect(
+      isPostingPubliclyVisible({ status: "paused", archivedAt: undefined }),
+    ).toBe(false);
+    expect(
+      isPostingPubliclyVisible({
+        status: "published",
+        archivedAt: "2026-05-01T00:00:00.000Z",
+      }),
+    ).toBe(false);
     expect(isPostingSearchIndexable("published")).toBe(true);
     expect(isPostingSearchIndexable("draft")).toBe(false);
   });

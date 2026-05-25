@@ -63,10 +63,15 @@ export class PostingsPublicAutocompleteService {
     private readonly postingsRepository: PostingsRepository,
     private readonly elasticsearch: ElasticsearchClient = getElasticsearchClient(),
   ) {
-    this.logger = loggerFactory.forClass(PostingsPublicAutocompleteService, "service");
+    this.logger = loggerFactory.forClass(
+      PostingsPublicAutocompleteService,
+      "service",
+    );
   }
 
-  async autocompletePublic(input: PostingAutocompleteInput): Promise<PostingAutocompleteResult> {
+  async autocompletePublic(
+    input: PostingAutocompleteInput,
+  ): Promise<PostingAutocompleteResult> {
     const normalizedInput = {
       ...input,
       query: input.query.trim(),
@@ -74,7 +79,8 @@ export class PostingsPublicAutocompleteService {
 
     if (this.elasticsearch.isEnabled()) {
       try {
-        const suggestions = await this.autocompleteInElasticsearch(normalizedInput);
+        const suggestions =
+          await this.autocompleteInElasticsearch(normalizedInput);
 
         return {
           query: normalizedInput.query,
@@ -87,7 +93,11 @@ export class PostingsPublicAutocompleteService {
             "Posting autocomplete using database fallback because Elasticsearch circuit is open.",
           );
         } else {
-          this.logger.warn("Posting autocomplete falling back to database.", undefined, error);
+          this.logger.warn(
+            "Posting autocomplete falling back to database.",
+            undefined,
+            error,
+          );
         }
       }
     }
@@ -105,15 +115,18 @@ export class PostingsPublicAutocompleteService {
     input: PostingAutocompleteInput,
   ): Promise<PostingAutocompleteSuggestion[]> {
     const indexName = `${this.elasticsearch.getPostingsIndexName()}-read`;
-    const response = await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
-      `/${encodeURIComponent(indexName)}/_search`,
-      {
-        method: "POST",
-        body: JSON.stringify(this.buildSearchRequest(input)),
-      },
-    );
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
+        `/${encodeURIComponent(indexName)}/_search`,
+        {
+          method: "POST",
+          body: JSON.stringify(this.buildSearchRequest(input)),
+        },
+      );
 
-    const documents = (response.hits?.hits ?? []).map<AutocompleteCandidateDocument>((hit) => ({
+    const documents = (
+      response.hits?.hits ?? []
+    ).map<AutocompleteCandidateDocument>((hit) => ({
       name: hit._source?.name,
       tags: hit._source?.tags ?? [],
       location: {
@@ -131,11 +144,14 @@ export class PostingsPublicAutocompleteService {
   private async autocompleteInDatabase(
     input: PostingAutocompleteInput,
   ): Promise<PostingAutocompleteSuggestion[]> {
-    const documents = await this.postingsRepository.autocompletePublicFallback(input);
+    const documents =
+      await this.postingsRepository.autocompletePublicFallback(input);
     return this.rankSuggestions(documents, input.query, input.limit);
   }
 
-  private buildSearchRequest(input: PostingAutocompleteInput): Record<string, unknown> {
+  private buildSearchRequest(
+    input: PostingAutocompleteInput,
+  ): Record<string, unknown> {
     const filter: Array<Record<string, unknown>> = [
       {
         term: {
@@ -247,7 +263,9 @@ export class PostingsPublicAutocompleteService {
     const ranked = new Map<string, RankedSuggestion>();
 
     documents.forEach((document, documentRank) => {
-      const publishedAtMs = this.toTimestamp(document.publishedAt ?? document.createdAt);
+      const publishedAtMs = this.toTimestamp(
+        document.publishedAt ?? document.createdAt,
+      );
 
       this.considerSuggestion(
         ranked,
@@ -344,7 +362,9 @@ export class PostingsPublicAutocompleteService {
     });
   }
 
-  private formatLocationSuggestion(location: AutocompleteCandidateDocument["location"]): string {
+  private formatLocationSuggestion(
+    location: AutocompleteCandidateDocument["location"],
+  ): string {
     const city = location.city?.trim();
     const region = location.region?.trim();
     const country = location.country?.trim();
@@ -372,7 +392,10 @@ export class PostingsPublicAutocompleteService {
       .replace(/[\u0300-\u036f]/g, "");
   }
 
-  private matchesNormalizedQuery(normalizedValue: string, normalizedQuery: string): boolean {
+  private matchesNormalizedQuery(
+    normalizedValue: string,
+    normalizedQuery: string,
+  ): boolean {
     if (normalizedValue.startsWith(normalizedQuery)) {
       return true;
     }
@@ -385,7 +408,10 @@ export class PostingsPublicAutocompleteService {
 
   private resolveCandidateLimit(limit: number): number {
     return Math.min(
-      Math.max(limit * AUTOCOMPLETE_CANDIDATE_LIMIT_MULTIPLIER, AUTOCOMPLETE_MIN_CANDIDATES),
+      Math.max(
+        limit * AUTOCOMPLETE_CANDIDATE_LIMIT_MULTIPLIER,
+        AUTOCOMPLETE_MIN_CANDIDATES,
+      ),
       AUTOCOMPLETE_MAX_CANDIDATES,
     );
   }

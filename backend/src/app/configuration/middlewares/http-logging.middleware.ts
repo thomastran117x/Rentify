@@ -147,11 +147,16 @@ function formatHttpLogLine(input: {
 }): string {
   const method = colorize(input.method.padEnd(6), getMethodColor(input.method));
   const status = colorize(String(input.status), getStatusColor(input.status));
-  const duration = colorize(`${input.durationMs}ms`, getDurationColor(input.durationMs));
+  const duration = colorize(
+    `${input.durationMs}ms`,
+    getDurationColor(input.durationMs),
+  );
 
   const requestId = colorize(`req=${input.requestId}`, colors.gray);
   const ip = colorize(`ip=${input.ip}`, colors.gray);
-  const format = input.format ? colorize(`format=${input.format}`, colors.gray) : undefined;
+  const format = input.format
+    ? colorize(`format=${input.format}`, colors.gray)
+    : undefined;
 
   return [
     "HTTP",
@@ -168,43 +173,45 @@ function formatHttpLogLine(input: {
     .join(" ");
 }
 
-export const httpLoggingMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const startedAt = performance.now();
+export const httpLoggingMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const startedAt = performance.now();
 
-  try {
-    await next();
-  } finally {
-    const durationMs = roundDurationMs(startedAt);
+    try {
+      await next();
+    } finally {
+      const durationMs = roundDurationMs(startedAt);
 
-    const logger = context.get("logger");
-    const client = context.get("client");
-    const outputFormat = context.get("outputFormat");
-    const requestId = context.get("requestId");
+      const logger = context.get("logger");
+      const client = context.get("client");
+      const outputFormat = context.get("outputFormat");
+      const requestId = context.get("requestId");
 
-    const method = context.req.method;
-    const path = getSanitizedPathWithQuery(context.req.raw);
-    const status = context.res.status;
+      const method = context.req.method;
+      const path = getSanitizedPathWithQuery(context.req.raw);
+      const status = context.res.status;
 
-    const logLevel = getLogLevel(status);
+      const logLevel = getLogLevel(status);
 
-    const logLine = formatHttpLogLine({
-      method,
-      path,
-      status,
-      durationMs,
-      requestId: requestId ?? "unknown",
-      ip: client?.ip ?? "unknown",
-      format: outputFormat,
-    });
+      const logLine = formatHttpLogLine({
+        method,
+        path,
+        status,
+        durationMs,
+        requestId: requestId ?? "unknown",
+        ip: client?.ip ?? "unknown",
+        format: outputFormat,
+      });
 
-    logger[logLevel](logLine, {
-      durationMs,
-      format: outputFormat,
-      ip: client?.ip ?? "unknown",
-      method,
-      path,
-      requestId: requestId ?? "unknown",
-      status,
-    });
-  }
-});
+      logger[logLevel](logLine, {
+        durationMs,
+        format: outputFormat,
+        ip: client?.ip ?? "unknown",
+        method,
+        path,
+        requestId: requestId ?? "unknown",
+        status,
+      });
+    }
+  },
+);

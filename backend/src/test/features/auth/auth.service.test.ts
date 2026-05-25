@@ -63,7 +63,10 @@ function createService(overrides?: {
     firstName?: string;
     lastName?: string;
   }) => Promise<AuthUserRecord>;
-  findUserByOAuthIdentity?: (provider: string, providerUserId: string) => Promise<AuthUserRecord | null>;
+  findUserByOAuthIdentity?: (
+    provider: string,
+    providerUserId: string,
+  ) => Promise<AuthUserRecord | null>;
   linkOAuthIdentity?: (
     userId: string,
     profile: {
@@ -86,8 +89,13 @@ function createService(overrides?: {
     createdAt: string;
     updatedAt: string;
   }>;
-  listOAuthIdentitiesByUserId?: (userId: string) => Promise<AuthUserRecord["oauthIdentities"]>;
-  unlinkOAuthIdentity?: (userId: string, provider: "google" | "microsoft" | "apple") => Promise<boolean>;
+  listOAuthIdentitiesByUserId?: (
+    userId: string,
+  ) => Promise<AuthUserRecord["oauthIdentities"]>;
+  unlinkOAuthIdentity?: (
+    userId: string,
+    provider: "google" | "microsoft" | "apple",
+  ) => Promise<boolean>;
   markEmailVerified?: (userId: string) => Promise<void>;
   activatePendingLocalUser?: (
     userId: string,
@@ -95,32 +103,57 @@ function createService(overrides?: {
   ) => Promise<AuthUserRecord>;
   updatePasswordHash?: (userId: string, passwordHash: string) => Promise<void>;
   rotateTokenVersion?: (userId: string) => Promise<number>;
-  verifyRefreshToken?: (token: string) => Promise<{ sub: string; deviceId?: string; rememberMe?: boolean }>;
-  createRefreshToken?: (payload: Record<string, unknown>, options?: { expiresInSeconds?: number }) => Promise<string>;
+  verifyRefreshToken?: (
+    token: string,
+  ) => Promise<{ sub: string; deviceId?: string; rememberMe?: boolean }>;
+  createRefreshToken?: (
+    payload: Record<string, unknown>,
+    options?: { expiresInSeconds?: number },
+  ) => Promise<string>;
   getRefreshTokenExpiresInSeconds?: (rememberMe?: boolean) => number;
   revokeRefreshToken?: (token: string) => Promise<boolean>;
-  evaluateSuccessfulAuthentication?: () => Promise<{ deviceId?: string; known: boolean; knownByIp: boolean }>;
-  evaluateExistingSessionDevice?: () => Promise<{ deviceId?: string; known: boolean; knownByIp: boolean }>;
-  listKnownDevices?: (userId: string, currentDeviceId?: string) => Promise<Array<{
-    id: string;
-    current: boolean;
-    deviceId: string;
-    type: string;
-    platform?: string;
-    userAgent?: string;
-    lastIpAddress?: string;
-    firstSeenAt: string;
-    lastSeenAt: string;
-    verifiedAt: string;
-  }>>;
+  evaluateSuccessfulAuthentication?: () => Promise<{
+    deviceId?: string;
+    known: boolean;
+    knownByIp: boolean;
+  }>;
+  evaluateExistingSessionDevice?: () => Promise<{
+    deviceId?: string;
+    known: boolean;
+    knownByIp: boolean;
+  }>;
+  listKnownDevices?: (
+    userId: string,
+    currentDeviceId?: string,
+  ) => Promise<
+    Array<{
+      id: string;
+      current: boolean;
+      deviceId: string;
+      type: string;
+      platform?: string;
+      userAgent?: string;
+      lastIpAddress?: string;
+      firstSeenAt: string;
+      lastSeenAt: string;
+      verifiedAt: string;
+    }>
+  >;
   removeKnownDevice?: (userId: string, deviceId: string) => Promise<void>;
   registerKnownDevice?: (
     user: AuthUserRecord,
     client: ReturnType<typeof createClient>,
     deviceId?: string,
   ) => Promise<{ deviceId?: string; known: boolean; knownByIp: boolean }>;
-  issueOtp?: (input: { purpose: string; subject: string }) => Promise<{ code: string }>;
-  verifyOtp?: (input: { purpose: string; subject: string; code: string }) => Promise<void>;
+  issueOtp?: (input: {
+    purpose: string;
+    subject: string;
+  }) => Promise<{ code: string }>;
+  verifyOtp?: (input: {
+    purpose: string;
+    subject: string;
+    code: string;
+  }) => Promise<void>;
   otpTtlInSeconds?: number;
   sendVerificationEmail?: (input: {
     to: string;
@@ -147,17 +180,25 @@ function createService(overrides?: {
   }>;
   cacheGetJson?: (key: string) => Promise<unknown | null>;
   cacheDelete?: (key: string) => Promise<boolean>;
-  cacheSetJson?: (key: string, value: unknown, ttlSeconds?: number) => Promise<void>;
+  cacheSetJson?: (
+    key: string,
+    value: unknown,
+    ttlSeconds?: number,
+  ) => Promise<void>;
   acquireLock?: (
     key: string,
     ttlInMs: number,
   ) => Promise<{ release: () => Promise<boolean> } | null>;
 }) {
-  const cacheJsonStore = new Map<string, { value: unknown; ttlSeconds?: number }>();
+  const cacheJsonStore = new Map<
+    string,
+    { value: unknown; ttlSeconds?: number }
+  >();
   const authRepository = {
     findUserByEmail: overrides?.findUserByEmail ?? (async () => null),
     findUserById: overrides?.findUserById ?? (async () => null),
-    findUserByOAuthIdentity: overrides?.findUserByOAuthIdentity ?? (async () => null),
+    findUserByOAuthIdentity:
+      overrides?.findUserByOAuthIdentity ?? (async () => null),
     createLocalUser:
       overrides?.createLocalUser ??
       (async (input) => ({
@@ -221,7 +262,8 @@ function createService(overrides?: {
   };
   const tokenService = {
     createAccessToken: () => "access-token",
-    createRefreshToken: overrides?.createRefreshToken ?? (async () => "refresh-token"),
+    createRefreshToken:
+      overrides?.createRefreshToken ?? (async () => "refresh-token"),
     getRefreshTokenExpiresInSeconds:
       overrides?.getRefreshTokenExpiresInSeconds ??
       ((rememberMe = false) => (rememberMe ? 777 : 333)),
@@ -285,7 +327,8 @@ function createService(overrides?: {
   };
   const emailService = {
     sendVerificationEmail: overrides?.sendVerificationEmail ?? (async () => {}),
-    sendPasswordResetEmail: overrides?.sendPasswordResetEmail ?? (async () => {}),
+    sendPasswordResetEmail:
+      overrides?.sendPasswordResetEmail ?? (async () => {}),
     sendLoginUnlockEmail: overrides?.sendLoginUnlockEmail ?? (async () => {}),
   };
   const googleOAuthService = {
@@ -315,17 +358,19 @@ function createService(overrides?: {
 
       return cacheJsonStore.delete(key);
     }),
-    setJson: jest.fn(async (key: string, value: unknown, ttlSeconds?: number) => {
-      if (overrides?.cacheSetJson) {
-        await overrides.cacheSetJson(key, value, ttlSeconds);
-        return;
-      }
+    setJson: jest.fn(
+      async (key: string, value: unknown, ttlSeconds?: number) => {
+        if (overrides?.cacheSetJson) {
+          await overrides.cacheSetJson(key, value, ttlSeconds);
+          return;
+        }
 
-      cacheJsonStore.set(key, {
-        value,
-        ttlSeconds,
-      });
-    }),
+        cacheJsonStore.set(key, {
+          value,
+          ttlSeconds,
+        });
+      },
+    ),
     acquireLock: jest.fn(async (key: string, ttlInMs: number) => {
       if (overrides?.acquireLock) {
         return overrides.acquireLock(key, ttlInMs);
@@ -490,9 +535,12 @@ describe("AuthService", () => {
         emailVerified: false,
       }),
       issueOtp: async () => {
-        throw new TooManyRequestError("A verification code was sent recently.", {
-          retryAfterSeconds: 60,
-        });
+        throw new TooManyRequestError(
+          "A verification code was sent recently.",
+          {
+            retryAfterSeconds: 60,
+          },
+        );
       },
       sendVerificationEmail: async () => {
         verificationEmailSent = true;
@@ -985,7 +1033,9 @@ describe("AuthService", () => {
     const service = createService({
       findUserByOAuthIdentity: async () => linkedUser,
       findUserByEmail: async () => {
-        throw new Error("Email lookup should not be needed for linked providers.");
+        throw new Error(
+          "Email lookup should not be needed for linked providers.",
+        );
       },
       verifyGoogle: async () => ({
         email: "provider-email@example.com",
@@ -1207,7 +1257,10 @@ describe("AuthService", () => {
   });
 
   it("creates a real user from pending signup state during email verification", async () => {
-    const pendingPasswordHash = await bcrypt.hash("CorrectHorseBatteryStaple1!", 4);
+    const pendingPasswordHash = await bcrypt.hash(
+      "CorrectHorseBatteryStaple1!",
+      4,
+    );
     const createdUser = {
       ...createUser(),
       email: "pending@example.com",
@@ -1215,9 +1268,12 @@ describe("AuthService", () => {
       lastName: "User",
       emailVerified: false,
     };
-    let createdInput:
-      | { email: string; firstName?: string; lastName?: string; passwordHash: string }
-      | null = null;
+    let createdInput: {
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      passwordHash: string;
+    } | null = null;
     let markedVerifiedUserId: string | undefined;
     let deletedPendingKey: string | undefined;
     const service = createService({

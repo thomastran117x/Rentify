@@ -10,7 +10,8 @@ import { containerTokens } from "@/configuration/container/tokens";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
 class FakeContainer implements ServiceContainer {
-  private readonly contentSanitizationService = new ContentSanitizationService();
+  private readonly contentSanitizationService =
+    new ContentSanitizationService();
 
   resolve<TValue>(token: unknown): TValue {
     if (token === containerTokens.contentSanitizationService) {
@@ -39,7 +40,9 @@ function createApp() {
   app.onError(handleApplicationError);
 
   app.get("/search", (context) => context.json({ ok: true }));
-  app.get("/postings/:id", (context) => context.json({ id: requireSafeRouteParam(context, "id") }));
+  app.get("/postings/:id", (context) =>
+    context.json({ id: requireSafeRouteParam(context, "id") }),
+  );
   app.post("/profiles", async (context) => {
     const body = await parseRequestBody(
       context,
@@ -62,7 +65,9 @@ function createApp() {
 describe("requestSanitizationMiddleware", () => {
   it("rejects unsafe query string content before the controller runs", async () => {
     const app = createApp();
-    const response = await app.request("http://rent.test/search?q=%3Cscript%3Ealert(1)%3C/script%3E");
+    const response = await app.request(
+      "http://rent.test/search?q=%3Cscript%3Ealert(1)%3C/script%3E",
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -83,7 +88,9 @@ describe("requestSanitizationMiddleware", () => {
 
   it("rejects unsafe route params before the controller runs", async () => {
     const app = createApp();
-    const response = await app.request("http://rent.test/postings/%3Cimg%20src=x%20onerror=alert(1)%3E");
+    const response = await app.request(
+      "http://rent.test/postings/%3Cimg%20src=x%20onerror=alert(1)%3E",
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -154,19 +161,22 @@ describe("requestSanitizationMiddleware", () => {
 
   it("leaves raw-body webhook routes readable", async () => {
     const app = createApp();
-    const response = await app.request("http://rent.test/payments/webhooks/square", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
+    const response = await app.request(
+      "http://rent.test/payments/webhooks/square",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          html: "<script>alert('xss')</script>",
+        }),
       },
-      body: JSON.stringify({
-        html: "<script>alert('xss')</script>",
-      }),
-    });
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      body: "{\"html\":\"<script>alert('xss')</script>\"}",
+      body: '{"html":"<script>alert(\'xss\')</script>"}',
     });
   });
 });

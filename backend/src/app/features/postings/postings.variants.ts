@@ -6,7 +6,7 @@ export const PLACE_POSTING_SUBTYPE_VALUES = [
   "shared_room",
   "workspace",
   "storage_space",
- ] as const;
+] as const;
 
 export const EQUIPMENT_POSTING_SUBTYPE_VALUES = [
   "tool",
@@ -15,7 +15,7 @@ export const EQUIPMENT_POSTING_SUBTYPE_VALUES = [
   "event_equipment",
   "sports_outdoor",
   "general_equipment",
- ] as const;
+] as const;
 
 export const VEHICLE_POSTING_SUBTYPE_VALUES = [
   "car",
@@ -54,7 +54,9 @@ export interface PostingSubtypeDefinition {
 
 export interface PostingFamilyDefinition {
   label: string;
-  subtypes: Record<PostingSubtypeValue, PostingSubtypeDefinition> | Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>;
+  subtypes:
+    | Record<PostingSubtypeValue, PostingSubtypeDefinition>
+    | Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>;
   searchableAttributes: Record<string, SearchablePostingAttributeDefinition>;
 }
 
@@ -122,10 +124,15 @@ export const postingVariantCatalog = {
 export function getPostingVariantDefinition(
   family: PostingFamilyValue,
   subtype: PostingSubtypeValue,
-): { family: PostingFamilyDefinition; subtype: PostingSubtypeDefinition } | null {
+): {
+  family: PostingFamilyDefinition;
+  subtype: PostingSubtypeDefinition;
+} | null {
   const familyDefinition = postingVariantCatalog[family];
   const subtypeDefinition = (
-    familyDefinition.subtypes as Partial<Record<PostingSubtypeValue, PostingSubtypeDefinition>>
+    familyDefinition.subtypes as Partial<
+      Record<PostingSubtypeValue, PostingSubtypeDefinition>
+    >
   )[subtype];
 
   if (!subtypeDefinition) {
@@ -151,10 +158,14 @@ export function getPostingSearchableAttributeDefinitions(
   return variant.family.searchableAttributes;
 }
 
-export function isPostingFamilyValue(value: string): value is PostingFamilyValue {
+export function isPostingFamilyValue(
+  value: string,
+): value is PostingFamilyValue {
   return POSTING_FAMILY_VALUES.includes(value as PostingFamilyValue);
 }
 
-export function isPostingSubtypeValue(value: string): value is PostingSubtypeValue {
+export function isPostingSubtypeValue(
+  value: string,
+): value is PostingSubtypeValue {
   return POSTING_SUBTYPE_VALUES.includes(value as PostingSubtypeValue);
 }

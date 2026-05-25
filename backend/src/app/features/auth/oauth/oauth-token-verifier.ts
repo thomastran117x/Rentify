@@ -85,7 +85,9 @@ function toBase64Url(input: Buffer | string): string {
 
 function fromBase64UrlJson<TValue>(input: string, label: string): TValue {
   try {
-    return JSON.parse(Buffer.from(input, "base64url").toString("utf8")) as TValue;
+    return JSON.parse(
+      Buffer.from(input, "base64url").toString("utf8"),
+    ) as TValue;
   } catch {
     throw new BadRequestError(`OAuth token ${label} is malformed.`);
   }
@@ -109,7 +111,10 @@ function matchesAudience(
   return actual.some((value) => expected.includes(value));
 }
 
-function matchesIssuer(expectedIssuer: string | string[], actualIssuer: string | undefined): boolean {
+function matchesIssuer(
+  expectedIssuer: string | string[],
+  actualIssuer: string | undefined,
+): boolean {
   if (!actualIssuer) {
     return false;
   }
@@ -161,11 +166,16 @@ export class OAuthTokenVerifier {
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULTS.initialDelayMs;
     this.maxDelayMs = options.maxDelayMs ?? DEFAULTS.maxDelayMs;
-    this.backoffMultiplier = options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
+    this.backoffMultiplier =
+      options.backoffMultiplier ?? DEFAULTS.backoffMultiplier;
+    this.requestTimeoutMs =
+      options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
   }
 
-  async verifyIdToken(token: string, options: VerifyJwtOptions): Promise<JwtPayload> {
+  async verifyIdToken(
+    token: string,
+    options: VerifyJwtOptions,
+  ): Promise<JwtPayload> {
     const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
 
     if (!encodedHeader || !encodedPayload || !encodedSignature) {
@@ -251,7 +261,10 @@ export class OAuthTokenVerifier {
     throw new UnauthorizedError("OAuth signing key was not found.");
   }
 
-  private async fetchJwks(jwksUrl: string, allowedHosts?: string[]): Promise<JsonWebKey[]> {
+  private async fetchJwks(
+    jwksUrl: string,
+    allowedHosts?: string[],
+  ): Promise<JsonWebKey[]> {
     const cached = OAuthTokenVerifier.jwksCache.get(jwksUrl);
 
     if (cached && cached.expiresAt > Date.now()) {
@@ -272,20 +285,26 @@ export class OAuthTokenVerifier {
         const normalized = this.normalizeError(error);
 
         if (!normalized.transient || attempt === this.maxRetries) {
-          throw new UnauthorizedError("OAuth provider verification is currently unavailable.", {
-            reason: normalized.code,
-            failClosed: true,
-          });
+          throw new UnauthorizedError(
+            "OAuth provider verification is currently unavailable.",
+            {
+              reason: normalized.code,
+              failClosed: true,
+            },
+          );
         }
 
         await this.sleep(this.calculateDelayMs(attempt));
       }
     }
 
-    throw new UnauthorizedError("OAuth provider verification is currently unavailable.", {
-      reason: "oauth-jwks-unavailable",
-      failClosed: true,
-    });
+    throw new UnauthorizedError(
+      "OAuth provider verification is currently unavailable.",
+      {
+        reason: "oauth-jwks-unavailable",
+        failClosed: true,
+      },
+    );
   }
 
   private async fetchJwksOnce(
@@ -293,7 +312,10 @@ export class OAuthTokenVerifier {
     allowedHosts?: string[],
   ): Promise<JsonWebKey[]> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      this.requestTimeoutMs,
+    );
     const trustedJwksUrl = assertTrustedOutboundUrl(jwksUrl, {
       allowedHosts,
     }).toString();
@@ -304,9 +326,12 @@ export class OAuthTokenVerifier {
       });
 
       if (response.status >= 500) {
-        throw new OAuthVerifierTransientError(`OAuth JWKS responded with ${response.status}.`, {
-          code: `oauth-jwks-http-${response.status}`,
-        });
+        throw new OAuthVerifierTransientError(
+          `OAuth JWKS responded with ${response.status}.`,
+          {
+            code: `oauth-jwks-http-${response.status}`,
+          },
+        );
       }
 
       if (!response.ok) {
@@ -341,7 +366,9 @@ export class OAuthTokenVerifier {
       });
     }
 
-    return error instanceof Error ? error : new Error("oauth-jwks-fetch-failed");
+    return error instanceof Error
+      ? error
+      : new Error("oauth-jwks-fetch-failed");
   }
 
   private normalizeError(error: unknown): NormalizedError {
@@ -379,7 +406,9 @@ export class OAuthTokenVerifier {
       this.initialDelayMs * this.backoffMultiplier ** attempt,
       this.maxDelayMs,
     );
-    const jitterMs = Math.floor(Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)));
+    const jitterMs = Math.floor(
+      Math.random() * Math.max(25, Math.floor(this.initialDelayMs / 2)),
+    );
 
     return exponentialDelay + jitterMs;
   }
@@ -393,7 +422,10 @@ export class OAuthTokenVerifier {
       return false;
     }
 
-    return this.readNodeErrorCode(error) !== undefined || /fetch failed/i.test(error.message);
+    return (
+      this.readNodeErrorCode(error) !== undefined ||
+      /fetch failed/i.test(error.message)
+    );
   }
 
   private readNodeErrorCode(error: unknown): string | undefined {

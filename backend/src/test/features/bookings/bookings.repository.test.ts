@@ -11,8 +11,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -60,8 +61,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -107,8 +109,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -136,8 +139,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);
@@ -163,8 +167,9 @@ describe("BookingsRepository", () => {
       },
     };
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new BookingsRepository(database as never);

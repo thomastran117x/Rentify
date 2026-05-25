@@ -1,6 +1,4 @@
-import {
-  getOptionalEnvironmentVariable,
-} from "@/configuration/environment/index";
+import { getOptionalEnvironmentVariable } from "@/configuration/environment/index";
 import {
   recordCircuitBreakerOpened,
   recordCircuitBreakerShortCircuit,
@@ -11,7 +9,10 @@ import {
 } from "@/features/search/search.telemetry";
 import { loggerFactory } from "@/configuration/logging";
 
-const elasticsearchLogger = loggerFactory.forComponent("elasticsearch", "resource");
+const elasticsearchLogger = loggerFactory.forComponent(
+  "elasticsearch",
+  "resource",
+);
 
 export interface ElasticsearchConfig {
   enabled: boolean;
@@ -51,7 +52,9 @@ export class ElasticsearchRequestError extends Error {
 
 export class ElasticsearchCircuitOpenError extends ElasticsearchUnavailableError {
   constructor(openedUntil: Date) {
-    super(`Elasticsearch circuit breaker is open until ${openedUntil.toISOString()}.`);
+    super(
+      `Elasticsearch circuit breaker is open until ${openedUntil.toISOString()}.`,
+    );
     this.name = "ElasticsearchCircuitOpenError";
   }
 }
@@ -82,7 +85,9 @@ export class ElasticsearchClient {
       consecutiveFailures: this.consecutiveFailures,
       failureThreshold: this.config.circuitBreakerFailureThreshold,
       cooldownMs: this.config.circuitBreakerCooldownMs,
-      ...(this.openedUntil ? { openedUntil: this.openedUntil.toISOString() } : {}),
+      ...(this.openedUntil
+        ? { openedUntil: this.openedUntil.toISOString() }
+        : {}),
     };
   }
 
@@ -139,12 +144,15 @@ export class ElasticsearchClient {
           recordElasticsearchServerError();
           this.recordFailure();
         } else {
-          elasticsearchLogger.error("Elasticsearch request returned a client error.", {
-            method: init.method ?? "GET",
-            path,
-            status: response.status,
-            body: text.slice(0, 500),
-          });
+          elasticsearchLogger.error(
+            "Elasticsearch request returned a client error.",
+            {
+              method: init.method ?? "GET",
+              path,
+              status: response.status,
+              body: text.slice(0, 500),
+            },
+          );
         }
         throw response.status >= 500
           ? new ElasticsearchUnavailableError(
@@ -177,14 +185,19 @@ export class ElasticsearchClient {
       }
 
       const wrappedError =
-        error instanceof ElasticsearchUnavailableError || error instanceof ElasticsearchRequestError
+        error instanceof ElasticsearchUnavailableError ||
+        error instanceof ElasticsearchRequestError
           ? error
           : new ElasticsearchUnavailableError(
-              error instanceof Error ? error.message : "Elasticsearch request failed.",
+              error instanceof Error
+                ? error.message
+                : "Elasticsearch request failed.",
             );
       throw wrappedError;
     } finally {
-      recordElasticsearchRequest(Math.round((performance.now() - startedAt) * 100) / 100);
+      recordElasticsearchRequest(
+        Math.round((performance.now() - startedAt) * 100) / 100,
+      );
       clearTimeout(timeout);
     }
   }
@@ -201,14 +214,18 @@ export class ElasticsearchClient {
       this.consecutiveFailures >= this.config.circuitBreakerFailureThreshold &&
       !this.isCircuitOpen()
     ) {
-      this.openedUntil = new Date(Date.now() + this.config.circuitBreakerCooldownMs);
+      this.openedUntil = new Date(
+        Date.now() + this.config.circuitBreakerCooldownMs,
+      );
       recordCircuitBreakerOpened();
     }
   }
 
   private requireConfig(): ElasticsearchConfig & { url: string } {
     if (!this.config.enabled || !this.config.url) {
-      throw new ElasticsearchUnavailableError("Elasticsearch is not configured.");
+      throw new ElasticsearchUnavailableError(
+        "Elasticsearch is not configured.",
+      );
     }
 
     return {
@@ -247,16 +264,24 @@ function readNumber(name: string, fallback: number): number {
 function createElasticsearchClient(): ElasticsearchClient {
   return new ElasticsearchClient({
     enabled: readBoolean("ELASTICSEARCH_ENABLED", false),
-    url: getOptionalEnvironmentVariable("ELASTICSEARCH_URL")?.replace(/\/+$/, ""),
+    url: getOptionalEnvironmentVariable("ELASTICSEARCH_URL")?.replace(
+      /\/+$/,
+      "",
+    ),
     username: getOptionalEnvironmentVariable("ELASTICSEARCH_USERNAME"),
     password: getOptionalEnvironmentVariable("ELASTICSEARCH_PASSWORD"),
-    postingsIndexName: getOptionalEnvironmentVariable("ELASTICSEARCH_POSTINGS_INDEX") ?? "postings",
+    postingsIndexName:
+      getOptionalEnvironmentVariable("ELASTICSEARCH_POSTINGS_INDEX") ??
+      "postings",
     timeoutMs: readNumber("ELASTICSEARCH_TIMEOUT_MS", 2_000),
     circuitBreakerFailureThreshold: readNumber(
       "ELASTICSEARCH_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
       3,
     ),
-    circuitBreakerCooldownMs: readNumber("ELASTICSEARCH_CIRCUIT_BREAKER_COOLDOWN_MS", 30_000),
+    circuitBreakerCooldownMs: readNumber(
+      "ELASTICSEARCH_CIRCUIT_BREAKER_COOLDOWN_MS",
+      30_000,
+    ),
   });
 }
 
@@ -275,7 +300,9 @@ export async function connectElasticsearch(): Promise<ElasticsearchClient> {
 
 export function getElasticsearchClient(): ElasticsearchClient {
   if (!elasticsearch) {
-    throw new Error("Elasticsearch has not been initialized. Call connectElasticsearch() first.");
+    throw new Error(
+      "Elasticsearch has not been initialized. Call connectElasticsearch() first.",
+    );
   }
 
   return elasticsearch;
@@ -285,4 +312,3 @@ export async function disconnectElasticsearch(): Promise<void> {
   elasticsearch = null;
   elasticsearchClient = null;
 }
-

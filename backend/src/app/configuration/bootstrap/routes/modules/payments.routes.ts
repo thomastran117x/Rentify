@@ -7,35 +7,59 @@ export const paymentsRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/booking-requests/:id/payment-session",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "createSessionForBooking"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "createSessionForBooking",
+      ),
     );
     app.post(
       "/payments/webhooks/square",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "webhook"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "webhook",
+      ),
     );
     app.get(
       "/payments/:id",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "getById"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "getById",
+      ),
     );
     app.post(
       "/payments/:id/retry",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "retry"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "retry",
+      ),
     );
     app.post(
       "/payments/:id/refunds",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "createRefund"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "createRefund",
+      ),
     );
     app.post(
       "/payments/:id/reconcile",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "reconcile"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "reconcile",
+      ),
     );
     app.post(
       "/payments/:id/repair",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "repair"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "repair",
+      ),
     );
     app.get(
       "/payouts/me",
-      resolveHandler<PaymentsController>(containerTokens.paymentsController, "listPayouts"),
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "listPayouts",
+      ),
     );
   },
 };

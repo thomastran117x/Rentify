@@ -9,10 +9,7 @@ import {
   connectDatabase,
   disconnectDatabase,
 } from "@/configuration/resources/database";
-import {
-  connectRedis,
-  disconnectRedis,
-} from "@/configuration/resources/redis";
+import { connectRedis, disconnectRedis } from "@/configuration/resources/redis";
 import {
   connectRabbitMq,
   disconnectRabbitMq,

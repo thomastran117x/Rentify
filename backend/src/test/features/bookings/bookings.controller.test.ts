@@ -31,7 +31,8 @@ function createContext(options?: {
     req: {
       json: async () => options?.body ?? {},
       url: options?.url ?? "https://example.test/booking-requests/me",
-      param: (name?: string) => (name ? options?.params?.[name] : options?.params ?? {}),
+      param: (name?: string) =>
+        name ? options?.params?.[name] : (options?.params ?? {}),
     },
     get: (name?: string) => {
       if (name === "requestId") {
@@ -75,7 +76,9 @@ describe("BookingsController", () => {
   });
 
   it("lists owned booking requests for owner accounts", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "owner-1", role: "owner" }));
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "owner-1", role: "owner" }),
+    );
     const listOwned = jest.fn(async () => ({
       bookingRequests: [],
       pagination: {
@@ -162,7 +165,9 @@ describe("BookingsController", () => {
   });
 
   it("maps owner dashboard query params into dashboardOwned inputs", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "owner-1", role: "owner" }));
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "owner-1", role: "owner" }),
+    );
     const dashboardOwned = jest.fn(async () => ({
       summary: {
         approval: 1,
@@ -253,7 +258,9 @@ describe("BookingsController", () => {
   });
 
   it("routes booking cancellation reason and actor user id", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "owner-1", role: "owner" }));
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "owner-1", role: "owner" }),
+    );
     const cancel = jest.fn(async () => ({
       id: "booking-1",
       status: "cancelled",

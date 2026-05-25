@@ -67,18 +67,25 @@ export class RentingsRepository extends BaseRepository {
           const now = new Date();
 
           if (bookingRequest.status !== "paid") {
-            throw new BadRequestError("Only paid booking requests can be converted into rentings.");
+            throw new BadRequestError(
+              "Only paid booking requests can be converted into rentings.",
+            );
           }
 
           if (bookingRequest.convertedAt || bookingRequest.renting) {
-            throw new BadRequestError("This booking request has already been converted into a renting.");
+            throw new BadRequestError(
+              "This booking request has already been converted into a renting.",
+            );
           }
 
           if (
             !bookingRequest.conversionReservationExpiresAt ||
-            bookingRequest.conversionReservationExpiresAt.getTime() <= now.getTime()
+            bookingRequest.conversionReservationExpiresAt.getTime() <=
+              now.getTime()
           ) {
-            throw new BadRequestError("This booking request is not currently reserved for conversion.");
+            throw new BadRequestError(
+              "This booking request is not currently reserved for conversion.",
+            );
           }
 
           const overlapWithRenting = await transaction.renting.findFirst({
@@ -97,7 +104,9 @@ export class RentingsRepository extends BaseRepository {
           });
 
           if (overlapWithRenting) {
-            throw new BadRequestError("The requested dates are no longer available.");
+            throw new BadRequestError(
+              "The requested dates are no longer available.",
+            );
           }
 
           if (bookingRequest.holdBlockId) {
@@ -132,7 +141,8 @@ export class RentingsRepository extends BaseRepository {
               durationDays: bookingRequest.durationDays,
               guestCount: bookingRequest.guestCount,
               pricingCurrency: bookingRequest.pricingCurrency,
-              pricingSnapshot: bookingRequest.pricingSnapshot as Prisma.InputJsonValue,
+              pricingSnapshot:
+                bookingRequest.pricingSnapshot as Prisma.InputJsonValue,
               dailyPriceAmount: bookingRequest.dailyPriceAmount,
               estimatedTotal: bookingRequest.estimatedTotal,
               confirmedAt: now,
@@ -166,8 +176,13 @@ export class RentingsRepository extends BaseRepository {
           return this.mapRenting(renting);
         });
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-          throw new ConflictError("This booking request has already been converted into a renting.");
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new ConflictError(
+            "This booking request has already been converted into a renting.",
+          );
         }
 
         throw error;
@@ -175,7 +190,10 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async promoteReturnDueForRenting(rentingId: string, now: Date): Promise<void> {
+  async promoteReturnDueForRenting(
+    rentingId: string,
+    now: Date,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {
@@ -211,7 +229,10 @@ export class RentingsRepository extends BaseRepository {
     );
   }
 
-  async promoteReturnDueForOwner(input: ListOwnerDashboardRentingsInput, now: Date): Promise<void> {
+  async promoteReturnDueForOwner(
+    input: ListOwnerDashboardRentingsInput,
+    now: Date,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {
@@ -317,7 +338,9 @@ export class RentingsRepository extends BaseRepository {
     return rentings.map((renting) => this.mapRenting(renting));
   }
 
-  async listByOwnerForDashboard(input: ListOwnerDashboardRentingsInput): Promise<RentingRecord[]> {
+  async listByOwnerForDashboard(
+    input: ListOwnerDashboardRentingsInput,
+  ): Promise<RentingRecord[]> {
     const rentings = await this.executeAsync(() =>
       this.prisma.renting.findMany({
         where: {
@@ -343,7 +366,9 @@ export class RentingsRepository extends BaseRepository {
     return rentings.map((renting) => this.mapRenting(renting));
   }
 
-  async updateInstructions(input: UpdateRentingInstructionsInput): Promise<RentingRecord | null> {
+  async updateInstructions(
+    input: UpdateRentingInstructionsInput,
+  ): Promise<RentingRecord | null> {
     const renting = await this.executeAsync(async () => {
       const updated = await this.prisma.renting.update({
         where: {
@@ -369,7 +394,10 @@ export class RentingsRepository extends BaseRepository {
 
       return updated;
     }).catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
         return null;
       }
 
@@ -379,7 +407,10 @@ export class RentingsRepository extends BaseRepository {
     return renting ? this.mapRenting(renting) : null;
   }
 
-  async markCheckInReady(rentingId: string, now: Date): Promise<RentingRecord | null> {
+  async markCheckInReady(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       const renting = await this.prisma.renting.findUnique({
         where: {
@@ -404,11 +435,15 @@ export class RentingsRepository extends BaseRepository {
       }
 
       if (renting.status !== "confirmed") {
-        throw new BadRequestError("Only confirmed rentings can be marked as check-in ready.");
+        throw new BadRequestError(
+          "Only confirmed rentings can be marked as check-in ready.",
+        );
       }
 
       if (!renting.pickupInstructions || !renting.returnInstructions) {
-        throw new BadRequestError("Pickup and return instructions are required before check-in is ready.");
+        throw new BadRequestError(
+          "Pickup and return instructions are required before check-in is ready.",
+        );
       }
 
       const updated = await this.prisma.renting.update({
@@ -437,7 +472,10 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async markCheckInComplete(rentingId: string, now: Date): Promise<RentingRecord | null> {
+  async markCheckInComplete(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       const renting = await this.prisma.renting.findUnique({
         where: {
@@ -493,7 +531,10 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async markCompleted(rentingId: string, now: Date): Promise<RentingRecord | null> {
+  async markCompleted(
+    rentingId: string,
+    now: Date,
+  ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       const renting = await this.prisma.renting.findUnique({
         where: {
@@ -518,7 +559,9 @@ export class RentingsRepository extends BaseRepository {
       }
 
       if (!["active", "return_due"].includes(renting.status)) {
-        throw new BadRequestError("Only active or return-due rentings can be completed.");
+        throw new BadRequestError(
+          "Only active or return-due rentings can be completed.",
+        );
       }
 
       const updated = await this.prisma.renting.update({
@@ -527,9 +570,10 @@ export class RentingsRepository extends BaseRepository {
         },
         data: {
           status: "completed",
-          returnDueAt: renting.status === "active" && renting.endAt <= now
-            ? renting.returnDueAt ?? now
-            : renting.returnDueAt,
+          returnDueAt:
+            renting.status === "active" && renting.endAt <= now
+              ? (renting.returnDueAt ?? now)
+              : renting.returnDueAt,
           completedAt: now,
         },
         include: {
@@ -550,7 +594,10 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async createDispute(input: CreateRentingDisputeInput, now: Date): Promise<RentingRecord | null> {
+  async createDispute(
+    input: CreateRentingDisputeInput,
+    now: Date,
+  ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       const renting = await this.prisma.renting.findUnique({
         where: {
@@ -575,7 +622,9 @@ export class RentingsRepository extends BaseRepository {
       }
 
       if (renting.dispute) {
-        throw new ConflictError("A dispute has already been opened for this renting.");
+        throw new ConflictError(
+          "A dispute has already been opened for this renting.",
+        );
       }
 
       const updated = await this.prisma.$transaction(async (transaction) => {
@@ -617,7 +666,12 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async hasOverlap(postingId: string, startAt: Date, endAt: Date, excludeRentingId?: string): Promise<boolean> {
+  async hasOverlap(
+    postingId: string,
+    startAt: Date,
+    endAt: Date,
+    excludeRentingId?: string,
+  ): Promise<boolean> {
     const match = await this.executeAsync(() =>
       this.prisma.renting.findFirst({
         where: {

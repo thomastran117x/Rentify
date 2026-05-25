@@ -23,13 +23,21 @@ export class PostingsPublicCacheService {
     private readonly config?: PostingsPublicCacheConfig,
   ) {
     this.logger = loggerFactory.forClass(PostingsPublicCacheService, "service");
-    this.readThroughCacheService = new ReadThroughSwrCacheService(cacheService, Math.random, {
-      onBackgroundRefreshError: ({ key, error }) => {
-        this.logger.warn("Failed to refresh stale public posting cache entry.", {
-          postingId: key,
-        }, error);
+    this.readThroughCacheService = new ReadThroughSwrCacheService(
+      cacheService,
+      Math.random,
+      {
+        onBackgroundRefreshError: ({ key, error }) => {
+          this.logger.warn(
+            "Failed to refresh stale public posting cache entry.",
+            {
+              postingId: key,
+            },
+            error,
+          );
+        },
       },
-    });
+    );
   }
 
   async getPublicById(postingId: string): Promise<PublicPostingRecord | null> {
@@ -47,8 +55,12 @@ export class PostingsPublicCacheService {
     );
   }
 
-  async getPublicByIds(ids: string[]): Promise<BatchPostingsResult<PublicPostingRecord>> {
-    const normalizedIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  async getPublicByIds(
+    ids: string[],
+  ): Promise<BatchPostingsResult<PublicPostingRecord>> {
+    const normalizedIds = Array.from(
+      new Set(ids.map((id) => id.trim()).filter(Boolean)),
+    );
     const byId = new Map<string, PublicPostingRecord>();
 
     await Promise.all(
@@ -95,7 +107,9 @@ export class PostingsPublicCacheService {
     );
   }
 
-  private async resolvePublicPosting(postingId: string): Promise<PublicPostingRecord | null> {
+  private async resolvePublicPosting(
+    postingId: string,
+  ): Promise<PublicPostingRecord | null> {
     const batch = await this.postingsRepository.batchFindPublic({
       ids: [postingId],
     });

@@ -13,7 +13,10 @@ export function getAuthRole(auth: Pick<AuthPrincipal, "role">): AppRole {
   return normalizeAppRole(auth.role);
 }
 
-export function hasMinimumRole(auth: Pick<AuthPrincipal, "role">, minimumRole: AppRole): boolean {
+export function hasMinimumRole(
+  auth: Pick<AuthPrincipal, "role">,
+  minimumRole: AppRole,
+): boolean {
   return APP_ROLE_RANK[getAuthRole(auth)] >= APP_ROLE_RANK[minimumRole];
 }
 

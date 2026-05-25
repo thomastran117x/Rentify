@@ -3,7 +3,9 @@ import { PaymentsRepository } from "@/features/payments/payments.repository";
 
 const FUTURE_HOLD_EXPIRES_AT = new Date("2099-04-21T00:00:00.000Z");
 
-function createBookingPersistence(overrides?: Partial<Record<string, unknown>>) {
+function createBookingPersistence(
+  overrides?: Partial<Record<string, unknown>>,
+) {
   return {
     id: "booking-1",
     postingId: "posting-1",
@@ -35,7 +37,9 @@ function createBookingPersistence(overrides?: Partial<Record<string, unknown>>) 
   };
 }
 
-function createPaymentPersistence(overrides?: Partial<Record<string, unknown>>) {
+function createPaymentPersistence(
+  overrides?: Partial<Record<string, unknown>>,
+) {
   return {
     id: "payment-1",
     bookingRequestId: "booking-1",
@@ -106,8 +110,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -118,9 +123,15 @@ describe("PaymentsRepository", () => {
     });
 
     expect(createdPayments).toHaveLength(1);
-    expect((createdPayments[0]?.rentalSubtotalAmount as Prisma.Decimal).toNumber()).toBe(100);
-    expect((createdPayments[0]?.platformFeeAmount as Prisma.Decimal).toNumber()).toBe(10);
-    expect((createdPayments[0]?.totalAmount as Prisma.Decimal).toNumber()).toBe(110);
+    expect(
+      (createdPayments[0]?.rentalSubtotalAmount as Prisma.Decimal).toNumber(),
+    ).toBe(100);
+    expect(
+      (createdPayments[0]?.platformFeeAmount as Prisma.Decimal).toNumber(),
+    ).toBe(10);
+    expect((createdPayments[0]?.totalAmount as Prisma.Decimal).toNumber()).toBe(
+      110,
+    );
     expect(createdLedgerEntries).toHaveLength(1);
     expect(result.amount).toBe(110);
   });
@@ -192,8 +203,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -273,8 +285,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -351,8 +364,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -447,8 +461,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -539,8 +554,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);
@@ -634,8 +650,9 @@ describe("PaymentsRepository", () => {
     };
 
     const database = {
-      $transaction: async <T>(callback: (client: typeof transaction) => Promise<T>) =>
-        callback(transaction),
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
     };
 
     const repository = new PaymentsRepository(database as never);

@@ -29,14 +29,18 @@ export class ProfileController {
 
   getMe = async (context: Context<AppBindings>): Promise<Response> => {
     await requireJwtAuth(context);
-    const result = await this.profileService.getByUserId(context.get("auth").sub);
+    const result = await this.profileService.getByUserId(
+      context.get("auth").sub,
+    );
     return ok(context, result);
   };
 
   updateMe = async (context: Context<AppBindings>): Promise<Response> => {
     await requireJwtAuth(context);
     const input = await parseRequestBody(context, updateProfileRequestSchema);
-    const result = await this.profileService.update(this.toUpdateProfileInput(context, input));
+    const result = await this.profileService.update(
+      this.toUpdateProfileInput(context, input),
+    );
     return ok(context, result, {
       message: "Profile updated successfully.",
     });
@@ -51,7 +55,8 @@ export class ProfileController {
       username: input.username,
       phoneNumber: input.phoneNumber,
       isPrivate: input.isPrivate,
-      recommendationPersonalizationEnabled: input.recommendationPersonalizationEnabled,
+      recommendationPersonalizationEnabled:
+        input.recommendationPersonalizationEnabled,
       avatarUrl: input.avatarUrl,
       avatarBlobName: input.avatarBlobName,
       trustworthinessScore: input.trustworthinessScore,
@@ -60,7 +65,9 @@ export class ProfileController {
     };
   }
 
-  private parseListProfilesInput(context: Context<AppBindings>): ListProfilesInput {
+  private parseListProfilesInput(
+    context: Context<AppBindings>,
+  ): ListProfilesInput {
     const url = new URL(context.req.url);
 
     try {
@@ -73,7 +80,9 @@ export class ProfileController {
       return this.toListProfilesInput(query);
     } catch (error) {
       if ("issues" in (error as object)) {
-        const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+        const issues = (
+          error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+        ).issues;
 
         throw new RequestValidationError(
           "Request query validation failed.",

@@ -7,13 +7,14 @@ import {
   StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
 } from "@azure/storage-blob";
-import {
-  getOptionalEnvironmentVariable,
-} from "@/configuration/environment/index";
+import { getOptionalEnvironmentVariable } from "@/configuration/environment/index";
 import BadRequestError from "@/errors/http/bad-request.error";
 import InternalServerError from "@/errors/http/internal-server.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
-import type { BlobUploadTarget, CreateBlobUploadUrlInput } from "@/features/blob/blob.model";
+import type {
+  BlobUploadTarget,
+  CreateBlobUploadUrlInput,
+} from "@/features/blob/blob.model";
 
 interface AzureBlobConfiguration {
   accountName: string;
@@ -39,10 +40,19 @@ export class BlobService {
   createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
     const config = this.requireConfiguration();
     const contentType = this.normalizeContentType(input.contentType);
-    const blobName = this.buildBlobName(input.userId, input.filename, input.scope);
-    const credential = new StorageSharedKeyCredential(config.accountName, config.accountKey);
+    const blobName = this.buildBlobName(
+      input.userId,
+      input.filename,
+      input.scope,
+    );
+    const credential = new StorageSharedKeyCredential(
+      config.accountName,
+      config.accountKey,
+    );
     const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    const blobClient = serviceClient.getContainerClient(config.containerName).getBlockBlobClient(blobName);
+    const blobClient = serviceClient
+      .getContainerClient(config.containerName)
+      .getBlockBlobClient(blobName);
 
     const startsOn = new Date(Date.now() - 5 * 60 * 1000);
     const expiresOn = new Date(Date.now() + config.sasTtlSeconds * 1000);
@@ -129,9 +139,14 @@ export class BlobService {
   }
 
   buildPostingPhotoThumbnailBlobName(blobName: string): string {
-    const normalizedBlobName = path.posix.normalize(blobName.trim()).replace(/^\/+/, "");
+    const normalizedBlobName = path.posix
+      .normalize(blobName.trim())
+      .replace(/^\/+/, "");
     const directory = path.posix.dirname(normalizedBlobName);
-    const baseName = path.posix.basename(normalizedBlobName, path.posix.extname(normalizedBlobName));
+    const baseName = path.posix.basename(
+      normalizedBlobName,
+      path.posix.extname(normalizedBlobName),
+    );
 
     if (!baseName) {
       throw new BadRequestError("Blob name is invalid.");
@@ -152,14 +167,23 @@ export class BlobService {
 
   private createBlobClient(blobName: string) {
     const config = this.requireConfiguration();
-    const credential = new StorageSharedKeyCredential(config.accountName, config.accountKey);
+    const credential = new StorageSharedKeyCredential(
+      config.accountName,
+      config.accountKey,
+    );
     const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    return serviceClient.getContainerClient(config.containerName).getBlockBlobClient(blobName);
+    return serviceClient
+      .getContainerClient(config.containerName)
+      .getBlockBlobClient(blobName);
   }
 
   private readConfiguration(): AzureBlobConfiguration | null {
-    const connectionString = getOptionalEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING");
-    const containerName = getOptionalEnvironmentVariable("AZURE_STORAGE_CONTAINER_NAME");
+    const connectionString = getOptionalEnvironmentVariable(
+      "AZURE_STORAGE_CONNECTION_STRING",
+    );
+    const containerName = getOptionalEnvironmentVariable(
+      "AZURE_STORAGE_CONTAINER_NAME",
+    );
 
     if (!connectionString && !containerName) {
       return null;
@@ -220,7 +244,8 @@ export class BlobService {
     const protocol = segments.DefaultEndpointsProtocol ?? "https";
     const endpointSuffix = segments.EndpointSuffix ?? "core.windows.net";
     const serviceUrl =
-      segments.BlobEndpoint ?? `${protocol}://${accountName}.blob.${endpointSuffix}`;
+      segments.BlobEndpoint ??
+      `${protocol}://${accountName}.blob.${endpointSuffix}`;
 
     return {
       accountName,
@@ -230,7 +255,9 @@ export class BlobService {
   }
 
   private readSasTtlSeconds(): number {
-    const rawValue = getOptionalEnvironmentVariable("AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS");
+    const rawValue = getOptionalEnvironmentVariable(
+      "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
+    );
 
     if (!rawValue) {
       return DEFAULT_SAS_TTL_SECONDS;
@@ -238,7 +265,11 @@ export class BlobService {
 
     const ttl = Number(rawValue);
 
-    if (!Number.isInteger(ttl) || ttl < MIN_SAS_TTL_SECONDS || ttl > MAX_SAS_TTL_SECONDS) {
+    if (
+      !Number.isInteger(ttl) ||
+      ttl < MIN_SAS_TTL_SECONDS ||
+      ttl > MAX_SAS_TTL_SECONDS
+    ) {
       throw new ServiceNotImplementedError(
         `AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS must be an integer between ${MIN_SAS_TTL_SECONDS} and ${MAX_SAS_TTL_SECONDS}.`,
       );
@@ -247,11 +278,17 @@ export class BlobService {
     return ttl;
   }
 
-  private buildBlobName(userId: string, filename: string, scope?: string): string {
+  private buildBlobName(
+    userId: string,
+    filename: string,
+    scope?: string,
+  ): string {
     const normalizedScope = this.normalizeScope(scope);
     const normalizedFilename = path.posix.basename(filename.trim());
     const extension = path.posix.extname(normalizedFilename).toLowerCase();
-    const safeExtension = /^[.][a-z0-9]{1,10}$/.test(extension) ? extension : "";
+    const safeExtension = /^[.][a-z0-9]{1,10}$/.test(extension)
+      ? extension
+      : "";
 
     return `${normalizedScope}/${userId}/${Date.now()}-${randomUUID()}${safeExtension}`;
   }

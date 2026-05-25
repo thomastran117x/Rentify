@@ -414,8 +414,12 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(renterDashboardContext)).resolves.toEqual(principal);
-    await expect(requireJwtAuth(ownerDashboardContext)).resolves.toEqual(principal);
+    await expect(requireJwtAuth(renterDashboardContext)).resolves.toEqual(
+      principal,
+    );
+    await expect(requireJwtAuth(ownerDashboardContext)).resolves.toEqual(
+      principal,
+    );
   });
 
   it("accepts PAT bearer auth on booking write routes with mcp:write scope", async () => {

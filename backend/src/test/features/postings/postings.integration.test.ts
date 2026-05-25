@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
 import { buildApiPath } from "@/configuration/http/api-path";
-import { containerTokens, type ServiceContainer } from "@/configuration/bootstrap/container";
+import {
+  containerTokens,
+  type ServiceContainer,
+} from "@/configuration/bootstrap/container";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
@@ -127,7 +130,8 @@ function createPublicSearchResult(overrides: Record<string, unknown> = {}) {
 }
 
 class FakeRequestContainer implements ServiceContainer {
-  private readonly contentSanitizationService = new ContentSanitizationService();
+  private readonly contentSanitizationService =
+    new ContentSanitizationService();
 
   constructor(
     private readonly postingsController: PostingsController,
@@ -166,23 +170,31 @@ function createApp() {
         status: "draft",
       }),
     })),
-    update: jest.fn(async () => createPosting({
-      name: "Updated name",
-    })),
-    duplicate: jest.fn(async () => createPosting({
-      id: "posting-2",
-      status: "draft",
-    })),
+    update: jest.fn(async () =>
+      createPosting({
+        name: "Updated name",
+      }),
+    ),
+    duplicate: jest.fn(async () =>
+      createPosting({
+        id: "posting-2",
+        status: "draft",
+      }),
+    ),
     publish: jest.fn(async () => createPosting()),
-    pause: jest.fn(async () => createPosting({
-      status: "paused",
-      pausedAt: "2026-05-02T00:00:00.000Z",
-    })),
+    pause: jest.fn(async () =>
+      createPosting({
+        status: "paused",
+        pausedAt: "2026-05-02T00:00:00.000Z",
+      }),
+    ),
     unpause: jest.fn(async () => createPosting()),
-    archive: jest.fn(async () => createPosting({
-      status: "archived",
-      archivedAt: "2026-05-03T00:00:00.000Z",
-    })),
+    archive: jest.fn(async () =>
+      createPosting({
+        status: "archived",
+        archivedAt: "2026-05-03T00:00:00.000Z",
+      }),
+    ),
     getById: jest.fn(async () => createPosting()),
     listByOwner: jest.fn(async () => createOwnerListingResult()),
     batchByOwner: jest.fn(async () => ({
@@ -209,11 +221,14 @@ function createApp() {
     listOwnerAvailabilityBlocks: jest.fn(async () => ({
       availabilityBlocks: [createAvailabilityBlock()],
     })),
-    createOwnerAvailabilityBlock: jest.fn(async () => createAvailabilityBlock()),
+    createOwnerAvailabilityBlock: jest.fn(async () =>
+      createAvailabilityBlock(),
+    ),
     updateOwnerAvailabilityBlock: jest.fn(async () =>
       createAvailabilityBlock({
         note: "Updated block",
-      })),
+      }),
+    ),
     deleteOwnerAvailabilityBlock: jest.fn(async () => undefined),
   };
 
@@ -250,32 +265,36 @@ function createApp() {
         endAt: "2026-05-20T00:00:00.000Z",
       },
     })),
-    getPostingAnalyticsDetail: jest.fn(async (input: { window: string; granularity: string }) => {
-      if (input.window !== "7d" && input.granularity === "hour") {
-        throw new BadRequestError("Hourly analytics are only supported for the 7d window.");
-      }
+    getPostingAnalyticsDetail: jest.fn(
+      async (input: { window: string; granularity: string }) => {
+        if (input.window !== "7d" && input.granularity === "hour") {
+          throw new BadRequestError(
+            "Hourly analytics are only supported for the 7d window.",
+          );
+        }
 
-      return {
-        postingId: "posting-1",
-        name: "Sunny loft",
-        status: "published",
-        window: input.window,
-        granularity: input.granularity,
-        totals: {
-          views: 10,
-        },
-        derivedMetrics: {
-          ctr: 0.2,
-        },
-        buckets: [],
-        dataAvailability: {
-          isPartial: false,
-        },
-        range: {
-          endAt: "2026-05-20T00:00:00.000Z",
-        },
-      };
-    }),
+        return {
+          postingId: "posting-1",
+          name: "Sunny loft",
+          status: "published",
+          window: input.window,
+          granularity: input.granularity,
+          totals: {
+            views: 10,
+          },
+          derivedMetrics: {
+            ctr: 0.2,
+          },
+          buckets: [],
+          dataAvailability: {
+            isPartial: false,
+          },
+          range: {
+            endAt: "2026-05-20T00:00:00.000Z",
+          },
+        };
+      },
+    ),
   };
 
   const postingsPublicAutocompleteService = {
@@ -311,7 +330,8 @@ function createApp() {
     updateOwn: jest.fn(async () =>
       createReview({
         comment: "Updated review",
-      })),
+      }),
+    ),
   };
 
   const recommendationActivityPublisher = {
@@ -428,8 +448,12 @@ function createUpdatePostingBody() {
 
 describe("Postings integration", () => {
   it("serves public search and detail flows with real route wiring", async () => {
-    const { app, postingsService, postingsAnalyticsService, recommendationActivityPublisher } =
-      createApp();
+    const {
+      app,
+      postingsService,
+      postingsAnalyticsService,
+      recommendationActivityPublisher,
+    } = createApp();
 
     const searchResponse = await app.request(
       `http://rent.test${buildApiPath("/postings?page=2&pageSize=5&q=loft&family=place&subtype=workspace")}`,
@@ -444,7 +468,9 @@ describe("Postings integration", () => {
         subtype: "workspace",
       }),
     );
-    expect(postingsAnalyticsService.trackSearchImpressions).toHaveBeenCalledWith([
+    expect(
+      postingsAnalyticsService.trackSearchImpressions,
+    ).toHaveBeenCalledWith([
       expect.objectContaining({
         id: "posting-1",
       }),
@@ -481,11 +507,18 @@ describe("Postings integration", () => {
       },
     });
 
-    const detailResponse = await app.request(`http://rent.test${buildApiPath("/postings/posting-1")}`);
+    const detailResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+    );
 
-    expect(postingsService.getById).toHaveBeenCalledWith("posting-1", undefined);
+    expect(postingsService.getById).toHaveBeenCalledWith(
+      "posting-1",
+      undefined,
+    );
     expect(postingsAnalyticsService.trackPublicView).toHaveBeenCalledTimes(1);
-    expect(recommendationActivityPublisher.publishPostingView).toHaveBeenCalledTimes(1);
+    expect(
+      recommendationActivityPublisher.publishPostingView,
+    ).toHaveBeenCalledTimes(1);
     expect(detailResponse.status).toBe(200);
   });
 
@@ -543,7 +576,9 @@ describe("Postings integration", () => {
         sort: "relevance",
       }),
     );
-    expect(postingsAnalyticsService.trackSearchImpressions).toHaveBeenCalledWith([
+    expect(
+      postingsAnalyticsService.trackSearchImpressions,
+    ).toHaveBeenCalledWith([
       expect.objectContaining({
         id: "posting-exact",
         name: "Saint-Roch Production Flat",
@@ -596,18 +631,25 @@ describe("Postings integration", () => {
   });
 
   it("handles owner lifecycle, owner listings, and batch endpoints", async () => {
-    const { app, postingsService, recommendationActivityPublisher } = createApp();
+    const { app, postingsService, recommendationActivityPublisher } =
+      createApp();
 
-    const createResponse = await app.request(`http://rent.test${buildApiPath("/postings")}`, {
-      method: "POST",
-      headers: ownerHeaders(),
-      body: JSON.stringify(createPostingBody()),
-    });
-    const updateResponse = await app.request(`http://rent.test${buildApiPath("/postings/posting-1")}`, {
-      method: "PUT",
-      headers: ownerHeaders(),
-      body: JSON.stringify(createUpdatePostingBody()),
-    });
+    const createResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
+      {
+        method: "POST",
+        headers: ownerHeaders(),
+        body: JSON.stringify(createPostingBody()),
+      },
+    );
+    const updateResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        method: "PUT",
+        headers: ownerHeaders(),
+        body: JSON.stringify(createUpdatePostingBody()),
+      },
+    );
     const duplicateResponse = await app.request(
       `http://rent.test${buildApiPath("/postings/posting-1/duplicate")}`,
       {
@@ -622,10 +664,13 @@ describe("Postings integration", () => {
         headers: ownerHeaders(),
       },
     );
-    const pauseResponse = await app.request(`http://rent.test${buildApiPath("/postings/posting-1/pause")}`, {
-      method: "POST",
-      headers: ownerHeaders(),
-    });
+    const pauseResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/pause")}`,
+      {
+        method: "POST",
+        headers: ownerHeaders(),
+      },
+    );
     const unpauseResponse = await app.request(
       `http://rent.test${buildApiPath("/postings/posting-1/unpause")}`,
       {
@@ -681,7 +726,9 @@ describe("Postings integration", () => {
       "posting-1",
       "posting-missing",
     ]);
-    expect(recommendationActivityPublisher.publishPostingLifecycle).toHaveBeenCalledTimes(4);
+    expect(
+      recommendationActivityPublisher.publishPostingLifecycle,
+    ).toHaveBeenCalledTimes(4);
   });
 
   it("handles availability, reviews, analytics, and search click flows", async () => {
@@ -805,8 +852,15 @@ describe("Postings integration", () => {
     expect(detailAnalyticsResponse.status).toBe(200);
     expect(searchClickResponse.status).toBe(202);
 
-    expect(postingsService.listOwnerAvailabilityBlocks).toHaveBeenCalledWith("posting-1", "owner-1");
-    expect(postingsReviewsService.list).toHaveBeenCalledWith("posting-1", 1, 20);
+    expect(postingsService.listOwnerAvailabilityBlocks).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+    );
+    expect(postingsReviewsService.list).toHaveBeenCalledWith(
+      "posting-1",
+      1,
+      20,
+    );
     expect(postingsReviewsService.create).toHaveBeenCalledWith(
       "posting-1",
       "user-1",
@@ -814,21 +868,32 @@ describe("Postings integration", () => {
         rating: 5,
       }),
     );
-    expect(postingsAnalyticsService.getOwnerSummary).toHaveBeenCalledWith("owner-1", "30d");
-    expect(postingsAnalyticsService.listOwnerPostingsAnalytics).toHaveBeenCalledWith({
+    expect(postingsAnalyticsService.getOwnerSummary).toHaveBeenCalledWith(
+      "owner-1",
+      "30d",
+    );
+    expect(
+      postingsAnalyticsService.listOwnerPostingsAnalytics,
+    ).toHaveBeenCalledWith({
       ownerId: "owner-1",
       window: "7d",
       page: 1,
       pageSize: 10,
     });
-    expect(postingsAnalyticsService.trackSearchClick).toHaveBeenCalledWith("posting-1");
-    expect(recommendationActivityPublisher.publishSearchClick).toHaveBeenCalledTimes(1);
+    expect(postingsAnalyticsService.trackSearchClick).toHaveBeenCalledWith(
+      "posting-1",
+    );
+    expect(
+      recommendationActivityPublisher.publishSearchClick,
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("returns structured failures for unauthorized access and invalid postings inputs", async () => {
     const { app } = createApp();
 
-    const unauthorizedResponse = await app.request(`http://rent.test${buildApiPath("/postings/me")}`);
+    const unauthorizedResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/me")}`,
+    );
     const invalidQueryResponse = await app.request(
       `http://rent.test${buildApiPath("/postings?latitude=43.6532&radiusKm=12")}`,
     );

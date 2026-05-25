@@ -18,18 +18,31 @@ export const recommendationFallbackReasonSchema = z.enum([
 
 export const recommendationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   family: postingFamilySchema.optional(),
   subtype: postingSubtypeSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   radiusKm: z.coerce.number().positive().max(20_000).optional(),
-  startAt: z.string().datetime("Recommendation start time must be an ISO datetime.").optional(),
-  endAt: z.string().datetime("Recommendation end time must be an ISO datetime.").optional(),
+  startAt: z
+    .string()
+    .datetime("Recommendation start time must be an ISO datetime.")
+    .optional(),
+  endAt: z
+    .string()
+    .datetime("Recommendation end time must be an ISO datetime.")
+    .optional(),
 });
 
 export type RecommendationMode = z.infer<typeof recommendationModeSchema>;
-export type RecommendationFallbackReason = z.infer<typeof recommendationFallbackReasonSchema>;
+export type RecommendationFallbackReason = z.infer<
+  typeof recommendationFallbackReasonSchema
+>;
 export type RecommendationQuery = z.infer<typeof recommendationQuerySchema>;
 
 export interface RecommendationQueryInput {

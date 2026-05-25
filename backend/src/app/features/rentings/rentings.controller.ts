@@ -31,7 +31,9 @@ export class RentingsController {
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
   ) {}
 
-  convertBookingRequest = async (context: Context<AppBindings>): Promise<Response> => {
+  convertBookingRequest = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     requireMinimumRole(auth, "owner");
     const result = await this.rentingsService.convertApprovedBookingRequest({
@@ -61,37 +63,61 @@ export class RentingsController {
   listMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const query = this.parseListQuery(context);
-    const result = await this.rentingsService.listMine(this.toListMineInput(auth.sub, query));
+    const result = await this.rentingsService.listMine(
+      this.toListMineInput(auth.sub, query),
+    );
     return ok(context, result, {
       meta: paginationMeta(result),
     });
   };
 
-  updateInstructions = async (context: Context<AppBindings>): Promise<Response> => {
+  updateInstructions = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, updateRentingInstructionsSchema);
+    const body = await parseRequestBody(
+      context,
+      updateRentingInstructionsSchema,
+    );
     const result = await this.rentingsService.updateInstructions(
-      this.toUpdateInstructionsInput(this.requireRentingId(context), auth.sub, getAuthRole(auth), body),
+      this.toUpdateInstructionsInput(
+        this.requireRentingId(context),
+        auth.sub,
+        getAuthRole(auth),
+        body,
+      ),
     );
     return ok(context, result, {
       message: "Renting instructions updated successfully.",
     });
   };
 
-  markCheckInReady = async (context: Context<AppBindings>): Promise<Response> => {
+  markCheckInReady = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.rentingsService.markCheckInReady(
-      this.toRentingActorInput(this.requireRentingId(context), auth.sub, getAuthRole(auth)),
+      this.toRentingActorInput(
+        this.requireRentingId(context),
+        auth.sub,
+        getAuthRole(auth),
+      ),
     );
     return ok(context, result, {
       message: "Renting marked as check-in ready successfully.",
     });
   };
 
-  markCheckInComplete = async (context: Context<AppBindings>): Promise<Response> => {
+  markCheckInComplete = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.rentingsService.markCheckInComplete(
-      this.toRentingActorInput(this.requireRentingId(context), auth.sub, getAuthRole(auth)),
+      this.toRentingActorInput(
+        this.requireRentingId(context),
+        auth.sub,
+        getAuthRole(auth),
+      ),
     );
     return ok(context, result, {
       message: "Renting check-in completed successfully.",
@@ -101,7 +127,11 @@ export class RentingsController {
   markCompleted = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.rentingsService.markCompleted(
-      this.toRentingActorInput(this.requireRentingId(context), auth.sub, getAuthRole(auth)),
+      this.toRentingActorInput(
+        this.requireRentingId(context),
+        auth.sub,
+        getAuthRole(auth),
+      ),
     );
     return ok(context, result, {
       message: "Renting return completed successfully.",
@@ -112,7 +142,12 @@ export class RentingsController {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, createRentingDisputeSchema);
     const result = await this.rentingsService.createDispute(
-      this.toCreateDisputeInput(this.requireRentingId(context), auth.sub, getAuthRole(auth), body),
+      this.toCreateDisputeInput(
+        this.requireRentingId(context),
+        auth.sub,
+        getAuthRole(auth),
+        body,
+      ),
     );
     return created(context, result, {
       message: "Renting dispute opened successfully.",
@@ -130,7 +165,9 @@ export class RentingsController {
       });
     } catch (error) {
       if ("issues" in (error as object)) {
-        const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+        const issues = (
+          error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+        ).issues;
 
         throw new RequestValidationError(
           "Request query validation failed.",
@@ -145,7 +182,10 @@ export class RentingsController {
     }
   }
 
-  private toListMineInput(userId: string, query: ListRentingsQuery): ListMyRentingsInput {
+  private toListMineInput(
+    userId: string,
+    query: ListRentingsQuery,
+  ): ListMyRentingsInput {
     return {
       userId,
       page: query.page,

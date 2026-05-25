@@ -14,22 +14,33 @@ import type {
   ProcessSearchClickEventInput,
   ProcessSearchImpressionEventInput,
 } from "@/features/postings/analytics/analytics.model";
-import { databaseWorkerResource, disconnectResources } from "@/workers/shared/resources";
-import { bootstrapPollingWorker, startWorker } from "@/workers/shared/worker-runtime";
+import {
+  databaseWorkerResource,
+  disconnectResources,
+} from "@/workers/shared/resources";
+import {
+  bootstrapPollingWorker,
+  startWorker,
+} from "@/workers/shared/worker-runtime";
 
 const workerName = "Postings analytics worker";
 const workerResources = [databaseWorkerResource];
-const workerLogger = loggerFactory.forComponent("postings-analytics.worker", "worker").child({
-  workerName,
-});
+const workerLogger = loggerFactory
+  .forComponent("postings-analytics.worker", "worker")
+  .child({
+    workerName,
+  });
 
 export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
   await bootstrapPollingWorker({
     name: workerName,
     resources: workerResources,
-    getPollIntervalMs: () => environment.getAnalyticsWorkerConfig().pollIntervalMs,
+    getPollIntervalMs: () =>
+      environment.getAnalyticsWorkerConfig().pollIntervalMs,
     runOnce: async ({ scope }) => {
-      const repository = scope.resolve(containerTokens.postingsAnalyticsRepository);
+      const repository = scope.resolve(
+        containerTokens.postingsAnalyticsRepository,
+      );
       const { batchSize } = environment.getAnalyticsWorkerConfig();
       const jobs = await repository.claimOutboxBatch(batchSize);
 
@@ -199,11 +210,15 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
 
           await repository.markOutboxProcessed(job.id);
         } catch (error) {
-          workerLogger.error("Failed to process postings analytics outbox job.", {
-            jobId: job.id,
-            postingId: job.postingId,
-            eventType: job.eventType,
-          }, error);
+          workerLogger.error(
+            "Failed to process postings analytics outbox job.",
+            {
+              jobId: job.id,
+              postingId: job.postingId,
+              eventType: job.eventType,
+            },
+            error,
+          );
           await repository.markOutboxRetry(
             job.id,
             job.attempts + 1,
@@ -238,11 +253,15 @@ function readString(value: unknown, fieldName: string): string {
 }
 
 function readOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
 }
 
 function readOptionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 startWorker({

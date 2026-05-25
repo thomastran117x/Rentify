@@ -65,72 +65,95 @@ export const containerTokens = {
   loggerFactory: createServiceToken<LoggerFactory>("LoggerFactory"),
   cacheService: createServiceToken<CacheService>("CacheService"),
   emailQueueService: createServiceToken<EmailQueueService>("EmailQueueService"),
-  emailDeliveryService: createServiceToken<EmailDeliveryService>("EmailDeliveryService"),
+  emailDeliveryService: createServiceToken<EmailDeliveryService>(
+    "EmailDeliveryService",
+  ),
   emailService: createServiceToken<EmailService>("EmailService"),
   captchaService: createServiceToken<CaptchaService>("CaptchaService"),
   otpService: createServiceToken<OtpService>("OtpService"),
-  oauthTokenVerifier: createServiceToken<OAuthTokenVerifier>("OAuthTokenVerifier"),
-  googleOAuthService: createServiceToken<GoogleOAuthService>("GoogleOAuthService"),
-  microsoftOAuthService: createServiceToken<MicrosoftOAuthService>("MicrosoftOAuthService"),
+  oauthTokenVerifier:
+    createServiceToken<OAuthTokenVerifier>("OAuthTokenVerifier"),
+  googleOAuthService:
+    createServiceToken<GoogleOAuthService>("GoogleOAuthService"),
+  microsoftOAuthService: createServiceToken<MicrosoftOAuthService>(
+    "MicrosoftOAuthService",
+  ),
   appleOAuthService: createServiceToken<AppleOAuthService>("AppleOAuthService"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
   tokenService: createServiceToken<TokenService>("TokenService"),
   authRepository: createServiceToken<AuthRepository>("AuthRepository"),
-  personalAccessTokenRepository: createServiceToken<PersonalAccessTokenRepository>(
-    "PersonalAccessTokenRepository",
-  ),
+  personalAccessTokenRepository:
+    createServiceToken<PersonalAccessTokenRepository>(
+      "PersonalAccessTokenRepository",
+    ),
   personalAccessTokenService: createServiceToken<PersonalAccessTokenService>(
     "PersonalAccessTokenService",
   ),
   authService: createServiceToken<AuthService>("AuthService"),
   authController: createServiceToken<AuthController>("AuthController"),
-  personalAccessTokenController: createServiceToken<PersonalAccessTokenController>(
-    "PersonalAccessTokenController",
-  ),
+  personalAccessTokenController:
+    createServiceToken<PersonalAccessTokenController>(
+      "PersonalAccessTokenController",
+    ),
   blobService: createServiceToken<BlobService>("BlobService"),
   blobController: createServiceToken<BlobController>("BlobController"),
-  bookingsRepository: createServiceToken<BookingsRepository>("BookingsRepository"),
+  bookingsRepository:
+    createServiceToken<BookingsRepository>("BookingsRepository"),
   bookingsService: createServiceToken<BookingsService>("BookingsService"),
-  bookingsController: createServiceToken<BookingsController>("BookingsController"),
-  paymentsRepository: createServiceToken<PaymentsRepository>("PaymentsRepository"),
-  paymentProvider: createServiceToken<PaymentProviderAdapter>("PaymentProvider"),
+  bookingsController:
+    createServiceToken<BookingsController>("BookingsController"),
+  paymentsRepository:
+    createServiceToken<PaymentsRepository>("PaymentsRepository"),
+  paymentProvider:
+    createServiceToken<PaymentProviderAdapter>("PaymentProvider"),
   paymentsService: createServiceToken<PaymentsService>("PaymentsService"),
-  paymentsController: createServiceToken<PaymentsController>("PaymentsController"),
+  paymentsController:
+    createServiceToken<PaymentsController>("PaymentsController"),
   profileRepository: createServiceToken<ProfileRepository>("ProfileRepository"),
   profileService: createServiceToken<ProfileService>("ProfileService"),
   profileController: createServiceToken<ProfileController>("ProfileController"),
-  recommendationActivityQueueService: createServiceToken<RecommendationActivityQueueService>(
-    "RecommendationActivityQueueService",
-  ),
-  recommendationActivityRepository: createServiceToken<RecommendationActivityRepository>(
-    "RecommendationActivityRepository",
-  ),
-  recommendationActivityProcessor: createServiceToken<RecommendationActivityProcessor>(
-    "RecommendationActivityProcessor",
-  ),
-  recommendationActivityPublisher: createServiceToken<RecommendationActivityPublisher>(
-    "RecommendationActivityPublisher",
-  ),
-  recommendationPrecomputeRepository: createServiceToken<RecommendationPrecomputeRepository>(
-    "RecommendationPrecomputeRepository",
-  ),
-  recommendationPrecomputeService: createServiceToken<RecommendationPrecomputeService>(
-    "RecommendationPrecomputeService",
-  ),
-  recommendationQueryRepository: createServiceToken<RecommendationQueryRepository>(
-    "RecommendationQueryRepository",
-  ),
+  recommendationActivityQueueService:
+    createServiceToken<RecommendationActivityQueueService>(
+      "RecommendationActivityQueueService",
+    ),
+  recommendationActivityRepository:
+    createServiceToken<RecommendationActivityRepository>(
+      "RecommendationActivityRepository",
+    ),
+  recommendationActivityProcessor:
+    createServiceToken<RecommendationActivityProcessor>(
+      "RecommendationActivityProcessor",
+    ),
+  recommendationActivityPublisher:
+    createServiceToken<RecommendationActivityPublisher>(
+      "RecommendationActivityPublisher",
+    ),
+  recommendationPrecomputeRepository:
+    createServiceToken<RecommendationPrecomputeRepository>(
+      "RecommendationPrecomputeRepository",
+    ),
+  recommendationPrecomputeService:
+    createServiceToken<RecommendationPrecomputeService>(
+      "RecommendationPrecomputeService",
+    ),
+  recommendationQueryRepository:
+    createServiceToken<RecommendationQueryRepository>(
+      "RecommendationQueryRepository",
+    ),
   recommendationQueryService: createServiceToken<RecommendationQueryService>(
     "RecommendationQueryService",
   ),
   recommendationsController: createServiceToken<RecommendationsController>(
     "RecommendationsController",
   ),
-  postingsRepository: createServiceToken<PostingsRepository>("PostingsRepository"),
-  rentingsRepository: createServiceToken<RentingsRepository>("RentingsRepository"),
+  postingsRepository:
+    createServiceToken<PostingsRepository>("PostingsRepository"),
+  rentingsRepository:
+    createServiceToken<RentingsRepository>("RentingsRepository"),
   rentingsService: createServiceToken<RentingsService>("RentingsService"),
-  rentingsController: createServiceToken<RentingsController>("RentingsController"),
+  rentingsController:
+    createServiceToken<RentingsController>("RentingsController"),
   postingsAnalyticsRepository: createServiceToken<PostingsAnalyticsRepository>(
     "PostingsAnalyticsRepository",
   ),
@@ -140,29 +163,37 @@ export const containerTokens = {
   postingsReviewsRepository: createServiceToken<PostingsReviewsRepository>(
     "PostingsReviewsRepository",
   ),
-  postingsReviewsService: createServiceToken<PostingsReviewsService>("PostingsReviewsService"),
+  postingsReviewsService: createServiceToken<PostingsReviewsService>(
+    "PostingsReviewsService",
+  ),
   postingsPublicCacheService: createServiceToken<PostingsPublicCacheService>(
     "PostingsPublicCacheService",
   ),
-  postingsPublicAutocompleteService: createServiceToken<PostingsPublicAutocompleteService>(
-    "PostingsPublicAutocompleteService",
-  ),
+  postingsPublicAutocompleteService:
+    createServiceToken<PostingsPublicAutocompleteService>(
+      "PostingsPublicAutocompleteService",
+    ),
   postingsPublicSearchService: createServiceToken<PostingsPublicSearchService>(
     "PostingsPublicSearchService",
   ),
   postingsSearchIndexService: createServiceToken<PostingsSearchIndexService>(
     "PostingsSearchIndexService",
   ),
-  postingThumbnailQueueService: createServiceToken<PostingThumbnailQueueService>(
-    "PostingThumbnailQueueService",
+  postingThumbnailQueueService:
+    createServiceToken<PostingThumbnailQueueService>(
+      "PostingThumbnailQueueService",
+    ),
+  postingThumbnailService: createServiceToken<PostingThumbnailService>(
+    "PostingThumbnailService",
   ),
-  postingThumbnailService: createServiceToken<PostingThumbnailService>("PostingThumbnailService"),
-  searchQueueService: createServiceToken<SearchQueueService>("SearchQueueService"),
+  searchQueueService:
+    createServiceToken<SearchQueueService>("SearchQueueService"),
   searchService: createServiceToken<SearchService>("SearchService"),
   searchController: createServiceToken<SearchController>("SearchController"),
   contentSanitizationService: createServiceToken<ContentSanitizationService>(
     "ContentSanitizationService",
   ),
   postingsService: createServiceToken<PostingsService>("PostingsService"),
-  postingsController: createServiceToken<PostingsController>("PostingsController"),
+  postingsController:
+    createServiceToken<PostingsController>("PostingsController"),
 } as const;

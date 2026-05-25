@@ -2,7 +2,10 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ConflictError from "@/errors/http/conflict.error";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
-import type { CreatePostingReviewRequestBody, PostingReviewRecord } from "@/features/postings/reviews/reviews.model";
+import type {
+  CreatePostingReviewRequestBody,
+  PostingReviewRecord,
+} from "@/features/postings/reviews/reviews.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
@@ -71,10 +74,12 @@ function createService(options?: {
   postingsReviewsRepository?: FakePostingsReviewsRepository;
   rentingsRepository?: FakeRentingsRepository;
 }) {
-  const postingsRepository = options?.postingsRepository ?? new FakePostingsRepository();
+  const postingsRepository =
+    options?.postingsRepository ?? new FakePostingsRepository();
   const postingsReviewsRepository =
     options?.postingsReviewsRepository ?? new FakePostingsReviewsRepository();
-  const rentingsRepository = options?.rentingsRepository ?? new FakeRentingsRepository();
+  const rentingsRepository =
+    options?.rentingsRepository ?? new FakeRentingsRepository();
 
   return new PostingsReviewsService(
     postingsReviewsRepository as unknown as PostingsReviewsRepository,
@@ -133,7 +138,11 @@ describe("PostingsReviewsService", () => {
       rentingsRepository,
     });
 
-    const review = await service.create("posting-1", "renter-1", buildReviewRequestBody());
+    const review = await service.create(
+      "posting-1",
+      "renter-1",
+      buildReviewRequestBody(),
+    );
 
     expect(review.id).toBe("review-1");
   });
@@ -163,7 +172,11 @@ describe("PostingsReviewsService", () => {
       rentingsRepository,
     });
 
-    const review = await service.updateOwn("posting-1", "renter-1", buildReviewRequestBody());
+    const review = await service.updateOwn(
+      "posting-1",
+      "renter-1",
+      buildReviewRequestBody(),
+    );
 
     expect(review.id).toBe("review-1");
   });
@@ -190,6 +203,8 @@ describe("PostingsReviewsService", () => {
       postingsRepository,
     });
 
-    await expect(service.list("posting-1", 1, 20)).rejects.toBeInstanceOf(ResourceNotFoundError);
+    await expect(service.list("posting-1", 1, 20)).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
   });
 });

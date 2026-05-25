@@ -21,7 +21,9 @@ export class SearchController {
   getReindexRun = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAdmin(context);
     void auth;
-    const result = await this.searchService.getReindexRun(this.requireRouteId(context));
+    const result = await this.searchService.getReindexRun(
+      this.requireRouteId(context),
+    );
     return ok(context, result ?? { run: null });
   };
 
@@ -32,7 +34,9 @@ export class SearchController {
     return ok(context, result);
   };
 
-  replayDeadLettered = async (context: Context<AppBindings>): Promise<Response> => {
+  replayDeadLettered = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAdmin(context);
     void auth;
     const url = new URL(context.req.url);
@@ -43,7 +47,9 @@ export class SearchController {
     });
   };
 
-  cleanupRetainedIndices = async (context: Context<AppBindings>): Promise<Response> => {
+  cleanupRetainedIndices = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await this.requireAdmin(context);
     void auth;
     const result = await this.searchService.cleanupRetainedIndices();
@@ -56,7 +62,11 @@ export class SearchController {
     return requireSafeRouteParam(context, "id");
   }
 
-  private readPositiveIntQuery(url: URL, key: string, fallback: number): number {
+  private readPositiveIntQuery(
+    url: URL,
+    key: string,
+    fallback: number,
+  ): number {
     const rawValue = url.searchParams.get(key)?.trim();
 
     if (!rawValue) {

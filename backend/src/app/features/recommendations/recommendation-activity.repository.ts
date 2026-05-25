@@ -8,7 +8,9 @@ import type {
 } from "@/features/recommendations/recommendation-activity.model";
 
 export class RecommendationActivityRepository extends BaseRepository {
-  async findPostingSummary(postingId: string): Promise<RecommendationPostingSummary | null> {
+  async findPostingSummary(
+    postingId: string,
+  ): Promise<RecommendationPostingSummary | null> {
     const prismaPosting = this.prisma.posting as unknown as {
       findUnique: (args: unknown) => Promise<{
         id: string;
@@ -49,12 +51,16 @@ export class RecommendationActivityRepository extends BaseRepository {
   ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
-        const recommendationActivity = (transaction as any).recommendationActivity as {
+        const recommendationActivity = (transaction as any)
+          .recommendationActivity as {
           upsert: (args: unknown) => Promise<unknown>;
         };
-        const recommendationRefreshJob = (transaction as any).recommendationRefreshJob as {
+        const recommendationRefreshJob = (transaction as any)
+          .recommendationRefreshJob as {
           create: (args: unknown) => Promise<unknown>;
-          findUnique: (args: unknown) => Promise<Record<string, unknown> | null>;
+          findUnique: (
+            args: unknown,
+          ) => Promise<Record<string, unknown> | null>;
           update: (args: unknown) => Promise<unknown>;
         };
 
@@ -71,7 +77,8 @@ export class RecommendationActivityRepository extends BaseRepository {
               lastOccurredAt: activity.lastOccurredAt,
               requestId: activity.requestId ?? null,
               searchSessionId: activity.searchSessionId ?? null,
-              metadata: (activity.metadata ?? null) as Prisma.InputJsonValue | null,
+              metadata: (activity.metadata ??
+                null) as Prisma.InputJsonValue | null,
               personalizationEligible: activity.personalizationEligible,
             },
             create: {
@@ -87,7 +94,8 @@ export class RecommendationActivityRepository extends BaseRepository {
               deviceType: activity.deviceType,
               requestId: activity.requestId ?? null,
               searchSessionId: activity.searchSessionId ?? null,
-              metadata: (activity.metadata ?? null) as Prisma.InputJsonValue | null,
+              metadata: (activity.metadata ??
+                null) as Prisma.InputJsonValue | null,
               count: activity.count,
               firstOccurredAt: activity.firstOccurredAt,
               lastOccurredAt: activity.lastOccurredAt,
@@ -103,7 +111,8 @@ export class RecommendationActivityRepository extends BaseRepository {
               occurredAt: activity.occurredAt,
               requestId: activity.requestId ?? null,
               searchSessionId: activity.searchSessionId ?? null,
-              metadata: (activity.metadata ?? null) as Prisma.InputJsonValue | null,
+              metadata: (activity.metadata ??
+                null) as Prisma.InputJsonValue | null,
               personalizationEligible: activity.personalizationEligible,
             },
             create: {
@@ -119,7 +128,8 @@ export class RecommendationActivityRepository extends BaseRepository {
               deviceType: activity.deviceType,
               requestId: activity.requestId ?? null,
               searchSessionId: activity.searchSessionId ?? null,
-              metadata: (activity.metadata ?? null) as Prisma.InputJsonValue | null,
+              metadata: (activity.metadata ??
+                null) as Prisma.InputJsonValue | null,
               count: activity.count,
               firstOccurredAt: activity.firstOccurredAt,
               lastOccurredAt: activity.lastOccurredAt,
@@ -150,8 +160,14 @@ export class RecommendationActivityRepository extends BaseRepository {
             continue;
           }
 
-          const existingProcessedAt = existing.processedAt as Date | null | undefined;
-          const existingAvailableAt = existing.availableAt as Date | null | undefined;
+          const existingProcessedAt = existing.processedAt as
+            | Date
+            | null
+            | undefined;
+          const existingAvailableAt = existing.availableAt as
+            | Date
+            | null
+            | undefined;
 
           if (!existingProcessedAt) {
             await recommendationRefreshJob.update({
@@ -160,7 +176,8 @@ export class RecommendationActivityRepository extends BaseRepository {
               },
               data: {
                 availableAt:
-                  existingAvailableAt && existingAvailableAt.getTime() < job.availableAt.getTime()
+                  existingAvailableAt &&
+                  existingAvailableAt.getTime() < job.availableAt.getTime()
                     ? existingAvailableAt
                     : job.availableAt,
                 lastError: null,

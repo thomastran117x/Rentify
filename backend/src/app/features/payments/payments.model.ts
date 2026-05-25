@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/features/postings/postings.model";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from "@/features/postings/postings.model";
 
 export const PAYMENT_PROVIDER = "square" as const;
 export const DEFAULT_PLATFORM_FEE_BPS = 1000;
@@ -26,7 +29,11 @@ export const paymentAttemptStatusSchema = z.enum([
   "failed_final",
 ]);
 
-export const paymentFailureCategorySchema = z.enum(["transient", "permanent", "unknown"]);
+export const paymentFailureCategorySchema = z.enum([
+  "transient",
+  "permanent",
+  "unknown",
+]);
 
 export const refundStatusSchema = z.enum(["pending", "succeeded", "failed"]);
 export const payoutStatusSchema = z.enum(["scheduled", "released", "failed"]);
@@ -47,16 +54,25 @@ export const createRefundSchema = z.object({
 
 export const listPayoutsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   status: payoutStatusSchema.optional(),
 });
 
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentAttemptStatus = z.infer<typeof paymentAttemptStatusSchema>;
-export type PaymentFailureCategory = z.infer<typeof paymentFailureCategorySchema>;
+export type PaymentFailureCategory = z.infer<
+  typeof paymentFailureCategorySchema
+>;
 export type RefundStatus = z.infer<typeof refundStatusSchema>;
 export type PayoutStatus = z.infer<typeof payoutStatusSchema>;
-export type CreatePaymentSessionBody = z.infer<typeof createPaymentSessionSchema>;
+export type CreatePaymentSessionBody = z.infer<
+  typeof createPaymentSessionSchema
+>;
 export type RetryPaymentBody = z.infer<typeof retryPaymentSchema>;
 export type CreateRefundBody = z.infer<typeof createRefundSchema>;
 export type ListPayoutsQuery = z.infer<typeof listPayoutsQuerySchema>;

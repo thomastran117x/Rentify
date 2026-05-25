@@ -62,7 +62,10 @@ export class DeviceRepository extends BaseRepository {
     return count > 0;
   }
 
-  async findKnownDevice(userId: string, deviceId: string): Promise<KnownDeviceRecord | null> {
+  async findKnownDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<KnownDeviceRecord | null> {
     const device = await this.executeAsync(() =>
       this.prisma.device.findUnique({
         where: {
@@ -77,7 +80,9 @@ export class DeviceRepository extends BaseRepository {
     return device ? this.mapDevice(device) : null;
   }
 
-  async registerKnownDevice(input: RegisterKnownDeviceInput): Promise<KnownDeviceRecord> {
+  async registerKnownDevice(
+    input: RegisterKnownDeviceInput,
+  ): Promise<KnownDeviceRecord> {
     const now = new Date();
     const device = await this.executeAsync(() =>
       this.prisma.device.upsert({
@@ -113,7 +118,11 @@ export class DeviceRepository extends BaseRepository {
     return this.mapDevice(device);
   }
 
-  async touchKnownDevice(userId: string, deviceId: string, ipAddress?: string): Promise<void> {
+  async touchKnownDevice(
+    userId: string,
+    deviceId: string,
+    ipAddress?: string,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.device.update({
         where: {

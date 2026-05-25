@@ -117,24 +117,33 @@ export class AuthService {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
 
-  async localAuthenticate(input: LocalAuthenticateInput): Promise<AuthSessionResult> {
+  async localAuthenticate(
+    input: LocalAuthenticateInput,
+  ): Promise<AuthSessionResult> {
     const user = await this.authRepository.findUserByEmail(input.email);
     const isPasswordValid = await this.verifyPassword(
       input.password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
-    const loginAttemptRecord = await this.getLocalLoginAttemptRecord(input.email);
+    const loginAttemptRecord = await this.getLocalLoginAttemptRecord(
+      input.email,
+    );
 
     if (loginAttemptRecord?.lockedAt && (!user || !isPasswordValid)) {
       await this.sendLocalLoginUnlockCode(user);
-      throw new LockedError("This sign-in is locked. Use the code we emailed you to unlock it.", {
-        email: input.email,
-        unlockRequired: true,
-      });
+      throw new LockedError(
+        "This sign-in is locked. Use the code we emailed you to unlock it.",
+        {
+          email: input.email,
+          unlockRequired: true,
+        },
+      );
     }
 
     if (!user || !isPasswordValid) {
-      const updatedAttemptRecord = await this.recordFailedLocalLoginAttempt(input.email);
+      const updatedAttemptRecord = await this.recordFailedLocalLoginAttempt(
+        input.email,
+      );
 
       if (updatedAttemptRecord.lockedAt) {
         await this.sendLocalLoginUnlockCode(user);
@@ -153,13 +162,17 @@ export class AuthService {
     await this.clearLocalLoginAttemptRecord(input.email);
 
     if (!user.emailVerified) {
-      throw new UnauthorizedError("Please verify your email address before signing in.");
+      throw new UnauthorizedError(
+        "Please verify your email address before signing in.",
+      );
     }
 
     return this.authenticateVerifiedUser(user, input);
   }
 
-  async localSignup(input: LocalSignupInput): Promise<SignupVerificationPendingResult> {
+  async localSignup(
+    input: LocalSignupInput,
+  ): Promise<SignupVerificationPendingResult> {
     const existingUser = await this.authRepository.findUserByEmail(input.email);
 
     if (existingUser?.emailVerified) {
@@ -266,9 +279,14 @@ export class AuthService {
     );
     const passwordHash = await this.hashPassword(input.newPassword);
 
-    await this.rejectIfPasswordMatchesCurrent(input.newPassword, eligibleUser.passwordHash);
+    await this.rejectIfPasswordMatchesCurrent(
+      input.newPassword,
+      eligibleUser.passwordHash,
+    );
     await this.authRepository.updatePasswordHash(eligibleUser.id, passwordHash);
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(eligibleUser.id);
+    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
+      eligibleUser.id,
+    );
     await this.clearLocalLoginAttemptRecord(eligibleUser.email);
 
     const updatedUser: AuthUserRecord = {
@@ -291,7 +309,8 @@ export class AuthService {
       subject: input.email,
       code: input.code,
     });
-    const verificationLock = await this.acquirePendingLocalSignupVerificationLock(input.email);
+    const verificationLock =
+      await this.acquirePendingLocalSignupVerificationLock(input.email);
 
     if (!verificationLock) {
       throw new BadRequestError("Verification code is invalid or has expired.");
@@ -301,10 +320,14 @@ export class AuthService {
       const pendingSignup = await this.readPendingLocalSignup(input.email);
 
       if (!pendingSignup) {
-        throw new BadRequestError("Verification code is invalid or has expired.");
+        throw new BadRequestError(
+          "Verification code is invalid or has expired.",
+        );
       }
 
-      const existingUser = await this.authRepository.findUserByEmail(input.email);
+      const existingUser = await this.authRepository.findUserByEmail(
+        input.email,
+      );
       let verifiedUser: AuthUserRecord;
 
       if (!existingUser) {
@@ -324,25 +347,35 @@ export class AuthService {
         };
       } else if (existingUser.emailVerified) {
         await this.deletePendingLocalSignup(input.email);
-        throw new BadRequestError("Verification code is invalid or has expired.");
+        throw new BadRequestError(
+          "Verification code is invalid or has expired.",
+        );
       } else {
-        verifiedUser = await this.authRepository.activatePendingLocalUser(existingUser.id, {
-          passwordHash: pendingSignup.passwordHash,
-          firstName: pendingSignup.firstName,
-          lastName: pendingSignup.lastName,
-        });
+        verifiedUser = await this.authRepository.activatePendingLocalUser(
+          existingUser.id,
+          {
+            passwordHash: pendingSignup.passwordHash,
+            firstName: pendingSignup.firstName,
+            lastName: pendingSignup.lastName,
+          },
+        );
       }
 
       await this.deletePendingLocalSignup(input.email);
 
       const resolvedDeviceId = input.deviceId ?? pendingSignup.deviceId;
-      const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
+      const deviceStatus =
+        await this.deviceService.evaluateExistingSessionDevice(
+          verifiedUser,
+          input.client,
+          resolvedDeviceId,
+        );
+
+      return this.issueTokensForUser(
         verifiedUser,
-        input.client,
+        deviceStatus,
         resolvedDeviceId,
       );
-
-      return this.issueTokensForUser(verifiedUser, deviceStatus, resolvedDeviceId);
     } finally {
       await verificationLock.release();
     }
@@ -397,17 +430,25 @@ export class AuthService {
       await this.authRepository.findUserById(input.userId),
       "This account cannot change a password.",
     );
-    const isPasswordValid = await this.verifyPassword(input.currentPassword, user.passwordHash);
+    const isPasswordValid = await this.verifyPassword(
+      input.currentPassword,
+      user.passwordHash,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedError("Current password is incorrect.");
     }
 
-    await this.rejectIfPasswordMatchesCurrent(input.newPassword, user.passwordHash);
+    await this.rejectIfPasswordMatchesCurrent(
+      input.newPassword,
+      user.passwordHash,
+    );
 
     const passwordHash = await this.hashPassword(input.newPassword);
     await this.authRepository.updatePasswordHash(user.id, passwordHash);
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(user.id);
+    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
+      user.id,
+    );
     await this.clearLocalLoginAttemptRecord(user.email);
 
     const updatedUser: AuthUserRecord = {
@@ -496,39 +537,52 @@ export class AuthService {
     };
   }
 
-  async googleAuthenticate(input: OAuthAuthenticateInput): Promise<AuthSessionResult> {
+  async googleAuthenticate(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthSessionResult> {
     const profile = await this.googleOAuthService.verify(input);
     return this.authenticateOAuthProfile(profile, input);
   }
 
-  async microsoftAuthenticate(input: OAuthAuthenticateInput): Promise<AuthSessionResult> {
+  async microsoftAuthenticate(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthSessionResult> {
     const profile = await this.microsoftOAuthService.verify(input);
     return this.authenticateOAuthProfile(profile, input);
   }
 
-  async appleAuthenticate(input: OAuthAuthenticateInput): Promise<AuthSessionResult> {
+  async appleAuthenticate(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthSessionResult> {
     const profile = await this.appleOAuthService.verify(input);
     return this.authenticateOAuthProfile(profile, input);
   }
 
-  async linkOAuthProvider(input: LinkOAuthProviderInput): Promise<LinkedOAuthProvidersResult> {
+  async linkOAuthProvider(
+    input: LinkOAuthProviderInput,
+  ): Promise<LinkedOAuthProvidersResult> {
     const user = await this.requireExistingUser(input.userId);
     const profile = await this.verifyOAuthInput(input.provider, input);
 
     this.requireVerifiedOAuthProfile(profile);
 
-    const existingProviderUser = await this.authRepository.findUserByOAuthIdentity(
-      profile.provider,
-      profile.providerUserId,
-    );
+    const existingProviderUser =
+      await this.authRepository.findUserByOAuthIdentity(
+        profile.provider,
+        profile.providerUserId,
+      );
 
     if (existingProviderUser && existingProviderUser.id !== user.id) {
-      throw new ConflictError("This OAuth provider is already linked to another account.");
+      throw new ConflictError(
+        "This OAuth provider is already linked to another account.",
+      );
     }
 
     if (
       existingProviderUser?.id === user.id ||
-      user.oauthIdentities.some((identity) => identity.provider === profile.provider)
+      user.oauthIdentities.some(
+        (identity) => identity.provider === profile.provider,
+      )
     ) {
       return this.listLinkedOAuthProvidersForUser(user);
     }
@@ -536,34 +590,54 @@ export class AuthService {
     await this.authRepository.linkOAuthIdentity(user.id, profile);
     return this.linkedOAuthProviders({
       ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(user.id),
+      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
+        user.id,
+      ),
     });
   }
 
-  async linkedOAuthProviders(context: { userId: string }): Promise<LinkedOAuthProvidersResult>;
-  async linkedOAuthProviders(user: AuthUserRecord): Promise<LinkedOAuthProvidersResult>;
+  async linkedOAuthProviders(context: {
+    userId: string;
+  }): Promise<LinkedOAuthProvidersResult>;
+  async linkedOAuthProviders(
+    user: AuthUserRecord,
+  ): Promise<LinkedOAuthProvidersResult>;
   async linkedOAuthProviders(
     input: { userId: string } | AuthUserRecord,
   ): Promise<LinkedOAuthProvidersResult> {
-    const user = "email" in input ? input : await this.requireExistingUser(input.userId);
+    const user =
+      "email" in input ? input : await this.requireExistingUser(input.userId);
     return this.listLinkedOAuthProvidersForUser(user);
   }
 
-  async unlinkOAuthProvider(input: UnlinkOAuthProviderInput): Promise<LinkedOAuthProvidersResult> {
+  async unlinkOAuthProvider(
+    input: UnlinkOAuthProviderInput,
+  ): Promise<LinkedOAuthProvidersResult> {
     const user = await this.requireExistingUser(input.userId);
 
-    if (!user.oauthIdentities.some((identity) => identity.provider === input.provider)) {
+    if (
+      !user.oauthIdentities.some(
+        (identity) => identity.provider === input.provider,
+      )
+    ) {
       return this.listLinkedOAuthProvidersForUser(user);
     }
 
-    if (!this.isLocalPasswordAccount(user) && user.oauthIdentities.length <= 1) {
-      throw new ConflictError("Add another sign-in method before unlinking this provider.");
+    if (
+      !this.isLocalPasswordAccount(user) &&
+      user.oauthIdentities.length <= 1
+    ) {
+      throw new ConflictError(
+        "Add another sign-in method before unlinking this provider.",
+      );
     }
 
     await this.authRepository.unlinkOAuthIdentity(user.id, input.provider);
     return this.linkedOAuthProviders({
       ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(user.id),
+      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
+        user.id,
+      ),
     });
   }
 
@@ -572,7 +646,9 @@ export class AuthService {
       throw new UnauthorizedError("Refresh token is required.");
     }
 
-    const claims = await this.tokenService.verifyRefreshToken(input.refreshToken);
+    const claims = await this.tokenService.verifyRefreshToken(
+      input.refreshToken,
+    );
     const user = await this.requireExistingUser(claims.sub);
     const deviceId = claims.deviceId ?? input.client.device.id;
     const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
@@ -583,7 +659,12 @@ export class AuthService {
 
     await this.tokenService.revokeRefreshToken(input.refreshToken);
 
-    return this.issueTokensForUser(user, deviceStatus, deviceId, Boolean(claims.rememberMe));
+    return this.issueTokensForUser(
+      user,
+      deviceStatus,
+      deviceId,
+      Boolean(claims.rememberMe),
+    );
   }
 
   async logout(context: AuthRequestContext): Promise<{
@@ -709,9 +790,8 @@ export class AuthService {
       tokenVersion: user.tokenVersion,
     });
 
-    const refreshTokenExpiresInSeconds = this.tokenService.getRefreshTokenExpiresInSeconds(
-      rememberMe,
-    );
+    const refreshTokenExpiresInSeconds =
+      this.tokenService.getRefreshTokenExpiresInSeconds(rememberMe);
     const refreshToken = await this.tokenService.createRefreshToken(
       {
         sub: user.id,
@@ -784,13 +864,18 @@ export class AuthService {
     return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
   }
 
-  private async verifyPassword(password: string, passwordHash: string): Promise<boolean> {
+  private async verifyPassword(
+    password: string,
+    passwordHash: string,
+  ): Promise<boolean> {
     return this.isBcryptHash(passwordHash)
       ? bcrypt.compare(password, passwordHash)
       : this.verifyPasswordAgainstFakeHash(password);
   }
 
-  private async verifyPasswordAgainstFakeHash(password: string): Promise<boolean> {
+  private async verifyPasswordAgainstFakeHash(
+    password: string,
+  ): Promise<boolean> {
     return bcrypt.compare(password, DUMMY_PASSWORD_HASH);
   }
 
@@ -798,10 +883,15 @@ export class AuthService {
     password: string,
     passwordHash: string,
   ): Promise<void> {
-    const matchesCurrentPassword = await this.verifyPassword(password, passwordHash);
+    const matchesCurrentPassword = await this.verifyPassword(
+      password,
+      passwordHash,
+    );
 
     if (matchesCurrentPassword) {
-      throw new ConflictError("New password must be different from the current password.");
+      throw new ConflictError(
+        "New password must be different from the current password.",
+      );
     }
   }
 
@@ -837,7 +927,9 @@ export class AuthService {
     };
   }
 
-  private async sendVerificationCode(recipient: VerificationRecipient): Promise<void> {
+  private async sendVerificationCode(
+    recipient: VerificationRecipient,
+  ): Promise<void> {
     const issuedOtp = await this.otpService.issue({
       purpose: EMAIL_VERIFICATION_OTP_PURPOSE,
       subject: recipient.email,
@@ -850,7 +942,9 @@ export class AuthService {
     });
   }
 
-  private async sendPublicVerificationCode(recipient: VerificationRecipient): Promise<void> {
+  private async sendPublicVerificationCode(
+    recipient: VerificationRecipient,
+  ): Promise<void> {
     try {
       await this.sendVerificationCode(recipient);
     } catch (error) {
@@ -899,15 +993,25 @@ export class AuthService {
 
   private async authenticateVerifiedUser(
     user: AuthUserRecord,
-    input: { deviceId?: string; client: ClientRequestContext; rememberMe?: boolean },
+    input: {
+      deviceId?: string;
+      client: ClientRequestContext;
+      rememberMe?: boolean;
+    },
   ): Promise<AuthSessionResult> {
-    const deviceStatus = await this.deviceService.evaluateSuccessfulAuthentication(
-      user,
-      input.client,
-      input.deviceId,
-    );
+    const deviceStatus =
+      await this.deviceService.evaluateSuccessfulAuthentication(
+        user,
+        input.client,
+        input.deviceId,
+      );
 
-    return this.issueTokensForUser(user, deviceStatus, input.deviceId, Boolean(input.rememberMe));
+    return this.issueTokensForUser(
+      user,
+      deviceStatus,
+      input.deviceId,
+      Boolean(input.rememberMe),
+    );
   }
 
   private getPendingLocalSignupKey(email: string): string {
@@ -922,11 +1026,19 @@ export class AuthService {
     signup: PendingLocalSignupRecord,
     ttlInSeconds: number,
   ): Promise<void> {
-    await this.cacheService.setJson(this.getPendingLocalSignupKey(signup.email), signup, ttlInSeconds);
+    await this.cacheService.setJson(
+      this.getPendingLocalSignupKey(signup.email),
+      signup,
+      ttlInSeconds,
+    );
   }
 
-  private async readPendingLocalSignup(email: string): Promise<PendingLocalSignupRecord | null> {
-    return this.cacheService.getJson<PendingLocalSignupRecord>(this.getPendingLocalSignupKey(email));
+  private async readPendingLocalSignup(
+    email: string,
+  ): Promise<PendingLocalSignupRecord | null> {
+    return this.cacheService.getJson<PendingLocalSignupRecord>(
+      this.getPendingLocalSignupKey(email),
+    );
   }
 
   private async deletePendingLocalSignup(email: string): Promise<void> {
@@ -947,10 +1059,14 @@ export class AuthService {
   private async getLocalLoginAttemptRecord(
     email: string,
   ): Promise<LocalLoginAttemptRecord | null> {
-    return this.cacheService.getJson<LocalLoginAttemptRecord>(this.getLocalLoginAttemptKey(email));
+    return this.cacheService.getJson<LocalLoginAttemptRecord>(
+      this.getLocalLoginAttemptKey(email),
+    );
   }
 
-  private async recordFailedLocalLoginAttempt(email: string): Promise<LocalLoginAttemptRecord> {
+  private async recordFailedLocalLoginAttempt(
+    email: string,
+  ): Promise<LocalLoginAttemptRecord> {
     const existingRecord = await this.getLocalLoginAttemptRecord(email);
     const nextFailedAttempts = (existingRecord?.failedAttempts ?? 0) + 1;
     const nextRecord: LocalLoginAttemptRecord =
@@ -1023,8 +1139,13 @@ export class AuthService {
         continue;
       }
 
-      const key = this.getPublicOtpRateLimitKey(input.purpose, check.scope, check.value);
-      const record = await this.cacheService.getJson<PublicOtpRateLimitRecord>(key);
+      const key = this.getPublicOtpRateLimitKey(
+        input.purpose,
+        check.scope,
+        check.value,
+      );
+      const record =
+        await this.cacheService.getJson<PublicOtpRateLimitRecord>(key);
       const count = record?.count ?? 0;
 
       if (count >= check.limit) {
@@ -1094,7 +1215,9 @@ export class AuthService {
     return `${localPart.slice(0, 1)}***@${domain}`;
   }
 
-  private async sendLocalLoginUnlockCode(user: AuthUserRecord | null): Promise<void> {
+  private async sendLocalLoginUnlockCode(
+    user: AuthUserRecord | null,
+  ): Promise<void> {
     if (!user) {
       return;
     }
@@ -1130,7 +1253,9 @@ export class AuthService {
     return user.emailVerified && this.isLocalPasswordAccount(user);
   }
 
-  private isLocalPasswordAccount(user: AuthUserRecord): user is LocalPasswordAuthUserRecord {
+  private isLocalPasswordAccount(
+    user: AuthUserRecord,
+  ): user is LocalPasswordAuthUserRecord {
     return Boolean(user.passwordHash && this.isBcryptHash(user.passwordHash));
   }
 
@@ -1149,13 +1274,17 @@ export class AuthService {
     }
 
     if (!user.emailVerified) {
-      throw new ConflictError("Please verify your email address before managing your password.");
+      throw new ConflictError(
+        "Please verify your email address before managing your password.",
+      );
     }
 
     return user;
   }
 
-  private listLinkedOAuthProvidersForUser(user: AuthUserRecord): LinkedOAuthProvidersResult {
+  private listLinkedOAuthProvidersForUser(
+    user: AuthUserRecord,
+  ): LinkedOAuthProvidersResult {
     return {
       hasPassword: this.isLocalPasswordAccount(user),
       providers: user.oauthIdentities.map((identity) => ({

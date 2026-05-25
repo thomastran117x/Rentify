@@ -18,9 +18,10 @@ async function bootstrapRecommendationActivityWorker(): Promise<void> {
     name: "recommendation-activity-worker",
     resources: workerResources,
     run: async ({ container }, lifecycle) => {
-      const queueService = container.resolve<RecommendationActivityQueueService>(
-        containerTokens.recommendationActivityQueueService,
-      );
+      const queueService =
+        container.resolve<RecommendationActivityQueueService>(
+          containerTokens.recommendationActivityQueueService,
+        );
       const processor = container.resolve<RecommendationActivityProcessor>(
         containerTokens.recommendationActivityProcessor,
       );
@@ -45,13 +46,17 @@ async function bootstrapRecommendationActivityWorker(): Promise<void> {
             await processor.process(parsed.data);
             channel.ack(message);
           } catch (error) {
-            const attempt = Number(message.properties.headers?.["x-retry-attempt"] ?? 0) + 1;
+            const attempt =
+              Number(message.properties.headers?.["x-retry-attempt"] ?? 0) + 1;
 
             if (attempt >= MAX_RETRY_ATTEMPTS) {
               await queueService.publishDeadLetterPayload(parsed.data, {
                 messageId: parsed.data.eventId,
                 reason: "processing_failed",
-                error: error instanceof Error ? error.message : "Unknown processing error.",
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Unknown processing error.",
                 headers: {
                   "x-retry-attempt": attempt,
                 },

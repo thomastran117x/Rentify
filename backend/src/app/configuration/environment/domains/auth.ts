@@ -40,10 +40,16 @@ export function buildAuthConfig(
   return {
     accessTokenSecret,
     refreshTokenSecret,
-    accessTokenTtlSeconds: parseNumber(raw, "ACCESS_TOKEN_TTL_SECONDS", 15 * 60, errors, {
-      integer: true,
-      min: 1,
-    }),
+    accessTokenTtlSeconds: parseNumber(
+      raw,
+      "ACCESS_TOKEN_TTL_SECONDS",
+      15 * 60,
+      errors,
+      {
+        integer: true,
+        min: 1,
+      },
+    ),
     refreshTokenTtlSeconds: parseNumber(
       raw,
       "REFRESH_TOKEN_TTL_SECONDS",
@@ -67,7 +73,8 @@ export function buildAuthConfig(
     issuer: raw.TOKEN_ISSUER,
     audience: raw.TOKEN_AUDIENCE,
     refreshTokenMode,
-    refreshTokenCachePrefix: raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
+    refreshTokenCachePrefix:
+      raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
     personalAccessTokenSecret,
   };
 }
@@ -90,32 +97,44 @@ export function buildEmailConfig(
   };
 }
 
-export function buildCaptchaConfig(raw: RawEnvironmentValues): AppEnvironment["captcha"] {
+export function buildCaptchaConfig(
+  raw: RawEnvironmentValues,
+): AppEnvironment["captcha"] {
   const allowedHosts = normalizeDelimitedList(raw.CAPTCHA_ALLOWED_HOSTS);
 
   return {
     secretKey: raw.CLOUDFLARE_TURNSTILE_SECRET_KEY,
-    allowedHosts: allowedHosts.length ? allowedHosts : [DEFAULT_CAPTCHA_ALLOWED_HOST],
+    allowedHosts: allowedHosts.length
+      ? allowedHosts
+      : [DEFAULT_CAPTCHA_ALLOWED_HOST],
   };
 }
 
-export function buildCorsConfig(raw: RawEnvironmentValues): AppEnvironment["cors"] {
+export function buildCorsConfig(
+  raw: RawEnvironmentValues,
+): AppEnvironment["cors"] {
   const allowedOrigins =
     normalizeDelimitedList(raw.CORS_ALLOWED_ORIGINS ?? raw.FRONTEND_URL) || [];
 
   return {
-    allowedOrigins: allowedOrigins.length ? allowedOrigins : [DEFAULT_FRONTEND_URL],
+    allowedOrigins: allowedOrigins.length
+      ? allowedOrigins
+      : [DEFAULT_FRONTEND_URL],
   };
 }
 
-export function buildCsrfConfig(raw: RawEnvironmentValues): AppEnvironment["csrf"] {
+export function buildCsrfConfig(
+  raw: RawEnvironmentValues,
+): AppEnvironment["csrf"] {
   const allowedOrigins =
     normalizeDelimitedList(
       raw.CSRF_ALLOWED_ORIGINS ?? raw.CORS_ALLOWED_ORIGINS ?? raw.FRONTEND_URL,
     ) || [];
 
   return {
-    allowedOrigins: allowedOrigins.length ? allowedOrigins : [DEFAULT_FRONTEND_URL],
+    allowedOrigins: allowedOrigins.length
+      ? allowedOrigins
+      : [DEFAULT_FRONTEND_URL],
   };
 }
 

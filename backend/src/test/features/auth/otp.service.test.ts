@@ -13,12 +13,14 @@ function createCache() {
       getJson: jest.fn(async <TValue>(key: string) => {
         return (jsonStore.get(key)?.value as TValue | undefined) ?? null;
       }),
-      setJson: jest.fn(async (key: string, value: unknown, ttlSeconds: number) => {
-        jsonStore.set(key, {
-          value,
-          ttlSeconds,
-        });
-      }),
+      setJson: jest.fn(
+        async (key: string, value: unknown, ttlSeconds: number) => {
+          jsonStore.set(key, {
+            value,
+            ttlSeconds,
+          });
+        },
+      ),
       set: jest.fn(async (key: string, value: string, ttlSeconds: number) => {
         valueStore.set(key, {
           value,
@@ -148,7 +150,9 @@ describe("OtpService", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(cache.service.delete).toHaveBeenCalledWith("test:otp:password-reset:user@example.com");
+    expect(cache.service.delete).toHaveBeenCalledWith(
+      "test:otp:password-reset:user@example.com",
+    );
     expect(cache.service.delete).toHaveBeenCalledWith(
       "test:otp:password-reset:user@example.com:cooldown",
     );
@@ -216,7 +220,9 @@ describe("OtpService", () => {
       },
     });
 
-    expect(cache.service.delete).toHaveBeenCalledWith("test:otp:unlock:user@example.com");
+    expect(cache.service.delete).toHaveBeenCalledWith(
+      "test:otp:unlock:user@example.com",
+    );
   });
 
   it("deletes the otp record when a failed verification finds no remaining ttl", async () => {
@@ -245,7 +251,9 @@ describe("OtpService", () => {
       },
     });
 
-    expect(cache.service.delete).toHaveBeenCalledWith("test:otp:unlock:user@example.com");
+    expect(cache.service.delete).toHaveBeenCalledWith(
+      "test:otp:unlock:user@example.com",
+    );
   });
 
   it("rejects verification when the code is missing or expired", async () => {

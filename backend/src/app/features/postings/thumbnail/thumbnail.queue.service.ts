@@ -6,7 +6,10 @@ import type { PostingThumbnailJobPayload } from "@/features/postings/thumbnail/t
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 const POSTING_THUMBNAIL_QUEUE_PREFIX = "postings.thumbnail";
-const postingThumbnailQueueLogger = loggerFactory.forComponent("postings.thumbnail.queue.service", "queue");
+const postingThumbnailQueueLogger = loggerFactory.forComponent(
+  "postings.thumbnail.queue.service",
+  "queue",
+);
 
 export class PostingThumbnailQueueService {
   private readonly exchangeName = `${POSTING_THUMBNAIL_QUEUE_PREFIX}.exchange`;
@@ -25,15 +28,23 @@ export class PostingThumbnailQueueService {
     });
   }
 
-  async publishRetryJob(payload: PostingThumbnailJobPayload, attempt: number): Promise<void> {
-    const retryIndex = Math.min(Math.max(attempt - 1, 0), this.retryQueueNames.length - 1);
+  async publishRetryJob(
+    payload: PostingThumbnailJobPayload,
+    attempt: number,
+  ): Promise<void> {
+    const retryIndex = Math.min(
+      Math.max(attempt - 1, 0),
+      this.retryQueueNames.length - 1,
+    );
     await this.publishWithRoutingKey(`retry.${retryIndex + 1}`, {
       ...payload,
       attempt,
     });
   }
 
-  async publishDeadLetterJob(payload: PostingThumbnailJobPayload): Promise<void> {
+  async publishDeadLetterJob(
+    payload: PostingThumbnailJobPayload,
+  ): Promise<void> {
     await this.publishWithRoutingKey("dead-letter", payload);
   }
 
@@ -49,19 +60,28 @@ export class PostingThumbnailQueueService {
     await this.assertTopology(channel);
     await channel.prefetch(prefetch);
 
-    const consumeResult = await channel.consume(this.mainQueueName, async (message) => {
-      if (!message) {
-        return;
-      }
+    const consumeResult = await channel.consume(
+      this.mainQueueName,
+      async (message) => {
+        if (!message) {
+          return;
+        }
 
-      try {
-        const payload = JSON.parse(message.content.toString("utf8")) as PostingThumbnailJobPayload;
-        await onMessage(payload, message, channel);
-      } catch (error) {
-        postingThumbnailQueueLogger.error("Posting thumbnail worker failed before ack/nack handling.", undefined, error);
-        channel.nack(message, false, true);
-      }
-    });
+        try {
+          const payload = JSON.parse(
+            message.content.toString("utf8"),
+          ) as PostingThumbnailJobPayload;
+          await onMessage(payload, message, channel);
+        } catch (error) {
+          postingThumbnailQueueLogger.error(
+            "Posting thumbnail worker failed before ack/nack handling.",
+            undefined,
+            error,
+          );
+          channel.nack(message, false, true);
+        }
+      },
+    );
 
     return async () => {
       await channel.cancel(consumeResult.consumerTag);
@@ -112,13 +132,20 @@ export class PostingThumbnailQueueService {
           "x-dead-letter-routing-key": "main",
         },
       });
-      await channel.bindQueue(queueName, this.exchangeName, `retry.${index + 1}`);
+      await channel.bindQueue(
+        queueName,
+        this.exchangeName,
+        `retry.${index + 1}`,
+      );
     }
 
     await channel.assertQueue(this.deadLetterQueueName, {
       durable: true,
     });
-    await channel.bindQueue(this.deadLetterQueueName, this.exchangeName, "dead-letter");
+    await channel.bindQueue(
+      this.deadLetterQueueName,
+      this.exchangeName,
+      "dead-letter",
+    );
   }
 }
-

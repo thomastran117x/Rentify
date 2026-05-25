@@ -223,7 +223,9 @@ export class AuthRepository extends BaseRepository {
     return identity ? this.mapUser(identity.user) : null;
   }
 
-  async listOAuthIdentitiesByUserId(userId: string): Promise<OAuthIdentityRecord[]> {
+  async listOAuthIdentitiesByUserId(
+    userId: string,
+  ): Promise<OAuthIdentityRecord[]> {
     const identities = await this.executeAsync(() =>
       this.prisma.oAuthIdentity.findMany({
         where: {
@@ -259,15 +261,23 @@ export class AuthRepository extends BaseRepository {
 
       return this.mapOAuthIdentity(identity);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        throw new ConflictError("This OAuth provider is already linked to an account.");
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictError(
+          "This OAuth provider is already linked to an account.",
+        );
       }
 
       throw error;
     }
   }
 
-  async unlinkOAuthIdentity(userId: string, provider: OAuthProvider): Promise<boolean> {
+  async unlinkOAuthIdentity(
+    userId: string,
+    provider: OAuthProvider,
+  ): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.oAuthIdentity.deleteMany({
         where: {
@@ -322,7 +332,10 @@ export class AuthRepository extends BaseRepository {
     return this.mapUser(user);
   }
 
-  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+  async updatePasswordHash(
+    userId: string,
+    passwordHash: string,
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({
         where: {
@@ -362,7 +375,9 @@ export class AuthRepository extends BaseRepository {
 
   private mapUser(user: AuthUserPersistence): AuthUserRecord {
     if (!user.profile) {
-      throw new ConflictError("User profile is missing for the authenticated account.");
+      throw new ConflictError(
+        "User profile is missing for the authenticated account.",
+      );
     }
 
     return {
@@ -375,13 +390,17 @@ export class AuthRepository extends BaseRepository {
       role: normalizeAppRole(user.role),
       emailVerified: user.emailVerified,
       profile: this.mapProfile(user.profile),
-      oauthIdentities: user.oauthIdentities.map((identity) => this.mapOAuthIdentity(identity)),
+      oauthIdentities: user.oauthIdentities.map((identity) =>
+        this.mapOAuthIdentity(identity),
+      ),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
   }
 
-  private mapOAuthIdentity(identity: OAuthIdentityPersistence): OAuthIdentityRecord {
+  private mapOAuthIdentity(
+    identity: OAuthIdentityPersistence,
+  ): OAuthIdentityRecord {
     return {
       id: identity.id,
       userId: identity.userId,
@@ -451,8 +470,13 @@ export class AuthRepository extends BaseRepository {
     return normalized.slice(0, 50) || "user";
   }
 
-  private createDisplayName(input: Pick<VerifiedOAuthProfile, "firstName" | "lastName">): string | null {
-    const displayName = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
+  private createDisplayName(
+    input: Pick<VerifiedOAuthProfile, "firstName" | "lastName">,
+  ): string | null {
+    const displayName = [input.firstName, input.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     return displayName || null;
   }
 }

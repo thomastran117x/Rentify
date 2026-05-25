@@ -5,7 +5,8 @@ jest.mock("@/configuration/environment", () => {
 
   return {
     ...actual,
-    getOptionalEnvironmentVariable: (name: string) => mockGetOptionalEnvironmentVariable(name),
+    getOptionalEnvironmentVariable: (name: string) =>
+      mockGetOptionalEnvironmentVariable(name),
   };
 });
 
@@ -14,7 +15,9 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 
 function setEnvironment(values: Record<string, string | undefined>) {
-  mockGetOptionalEnvironmentVariable.mockImplementation((name: string) => values[name]);
+  mockGetOptionalEnvironmentVariable.mockImplementation(
+    (name: string) => values[name],
+  );
 }
 
 describe("GoogleOAuthService", () => {
@@ -72,13 +75,16 @@ describe("GoogleOAuthService", () => {
     expect((init?.body as URLSearchParams).toString()).toBe(
       "code=auth-code&client_id=google-client-id&redirect_uri=https%3A%2F%2Frent.example.com%2Fauth%2Fgoogle&grant_type=authorization_code&code_verifier=pkce-verifier&client_secret=google-client-secret",
     );
-    expect(tokenVerifier.verifyIdToken).toHaveBeenCalledWith("google-id-token", {
-      issuer: ["https://accounts.google.com", "accounts.google.com"],
-      audience: ["google-client-id"],
-      jwksUrl: "https://www.googleapis.com/oauth2/v3/certs",
-      allowedHosts: ["www.googleapis.com"],
-      nonce: "nonce-1",
-    });
+    expect(tokenVerifier.verifyIdToken).toHaveBeenCalledWith(
+      "google-id-token",
+      {
+        issuer: ["https://accounts.google.com", "accounts.google.com"],
+        audience: ["google-client-id"],
+        jwksUrl: "https://www.googleapis.com/oauth2/v3/certs",
+        allowedHosts: ["www.googleapis.com"],
+        nonce: "nonce-1",
+      },
+    );
     expect(profile).toEqual({
       provider: "google",
       providerUserId: "google-user-1",

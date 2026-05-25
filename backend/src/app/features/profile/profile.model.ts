@@ -47,7 +47,9 @@ export const updateProfileRequestSchema = z.object({
 });
 
 export type ListProfilesQuery = z.infer<typeof listProfilesQuerySchema>;
-export type UpdateProfileRequestBody = z.infer<typeof updateProfileRequestSchema>;
+export type UpdateProfileRequestBody = z.infer<
+  typeof updateProfileRequestSchema
+>;
 
 export interface ProfileRecord {
   id: string;

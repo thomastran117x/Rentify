@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { AppRole } from "@/features/auth/auth.model";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, postingPricingSchema } from "@/features/postings/postings.model";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  postingPricingSchema,
+} from "@/features/postings/postings.model";
 
 export const MAX_RENTING_INSTRUCTION_LENGTH = 1000;
 export const MAX_RENTING_DISPUTE_REASON_LENGTH = 255;
@@ -8,7 +12,12 @@ export const MAX_RENTING_DISPUTE_DETAILS_LENGTH = 2000;
 export const RENTING_DISPUTE_WINDOW_DAYS = 7;
 
 const requiredTrimmedStringSchema = z.string().trim().min(1);
-const optionalTrimmedStringSchema = z.string().trim().min(1).nullable().optional();
+const optionalTrimmedStringSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .nullable()
+  .optional();
 
 export const rentingStatusSchema = z.enum([
   "confirmed",
@@ -22,7 +31,12 @@ export const rentingStatusSchema = z.enum([
 
 export const listRentingsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   status: rentingStatusSchema.optional(),
 });
 
@@ -57,8 +71,12 @@ export const createRentingDisputeSchema = z.object({
 
 export type RentingStatus = z.infer<typeof rentingStatusSchema>;
 export type ListRentingsQuery = z.infer<typeof listRentingsQuerySchema>;
-export type UpdateRentingInstructionsBody = z.infer<typeof updateRentingInstructionsSchema>;
-export type CreateRentingDisputeBody = z.infer<typeof createRentingDisputeSchema>;
+export type UpdateRentingInstructionsBody = z.infer<
+  typeof updateRentingInstructionsSchema
+>;
+export type CreateRentingDisputeBody = z.infer<
+  typeof createRentingDisputeSchema
+>;
 
 export interface RentingPostingSummary {
   id: string;

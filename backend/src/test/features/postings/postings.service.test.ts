@@ -137,7 +137,9 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async listOwnerAvailabilityBlocks(): Promise<PostingAvailabilityBlockRecord[]> {
+  async listOwnerAvailabilityBlocks(): Promise<
+    PostingAvailabilityBlockRecord[]
+  > {
     return this.ownerBlocks;
   }
 
@@ -167,7 +169,9 @@ class FakePostingsRepository {
     return this.deleteResult;
   }
 
-  async hasOwnerAvailabilityBlockOverlap(input: { excludeBlockId?: string }): Promise<boolean> {
+  async hasOwnerAvailabilityBlockOverlap(input: {
+    excludeBlockId?: string;
+  }): Promise<boolean> {
     if (input.excludeBlockId === "block-1") {
       return false;
     }
@@ -208,7 +212,9 @@ class FakePostingsPublicCacheService {
     return this.posting;
   }
 
-  async getPublicByIds(ids: string[]): Promise<{ postings: PublicPostingRecord[]; missingIds: string[] }> {
+  async getPublicByIds(
+    ids: string[],
+  ): Promise<{ postings: PublicPostingRecord[]; missingIds: string[] }> {
     if (!this.posting) {
       return {
         postings: [],
@@ -219,7 +225,9 @@ class FakePostingsPublicCacheService {
     const byId = new Map([[this.posting.id, this.posting]]);
 
     return {
-      postings: ids.map((id) => byId.get(id)).filter(Boolean) as PublicPostingRecord[],
+      postings: ids
+        .map((id) => byId.get(id))
+        .filter(Boolean) as PublicPostingRecord[],
       missingIds: ids.filter((id) => !byId.has(id)),
     };
   }
@@ -236,8 +244,12 @@ function createService(
   rentingsRepository = new FakeRentingsRepository(),
   searchService = {} as PostingsPublicSearchService,
 ): PostingsService {
-  return createServiceHarness(repository, postingsReviewsRepository, rentingsRepository, searchService)
-    .service;
+  return createServiceHarness(
+    repository,
+    postingsReviewsRepository,
+    rentingsRepository,
+    searchService,
+  ).service;
 }
 
 function createServiceHarness(
@@ -262,7 +274,9 @@ function createServiceHarness(
     enqueuePostingThumbnailJob: jest.fn(async () => undefined),
   };
   const postingsPublicCacheService = new FakePostingsPublicCacheService();
-  postingsPublicCacheService.posting = isPostingPubliclyVisible(repository.posting)
+  postingsPublicCacheService.posting = isPostingPubliclyVisible(
+    repository.posting,
+  )
     ? toPublicPostingRecord(repository.posting)
     : null;
 
@@ -291,7 +305,8 @@ function createValidInput(): UpsertPostingInput {
       subtype: "entire_place",
     },
     name: "Sunny loft near transit",
-    description: "Bright loft with large windows, private balcony, and storage locker.",
+    description:
+      "Bright loft with large windows, private balcony, and storage locker.",
     pricing: {
       currency: "cad",
       daily: {
@@ -391,10 +406,15 @@ function buildAvailabilityBlockRecord(
   };
 }
 
-function getValidationDetails(error: unknown): Array<{ path: string; message: string }> {
+function getValidationDetails(
+  error: unknown,
+): Array<{ path: string; message: string }> {
   expect(error).toBeInstanceOf(BadRequestError);
   expect(Array.isArray((error as BadRequestError).details)).toBe(true);
-  return (error as BadRequestError).details as Array<{ path: string; message: string }>;
+  return (error as BadRequestError).details as Array<{
+    path: string;
+    message: string;
+  }>;
 }
 
 describe("PostingsService", () => {
@@ -404,7 +424,9 @@ describe("PostingsService", () => {
     const input = createValidInput();
     input.description = "<script>alert('boom')</script>";
 
-    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+    const error = await service
+      .createDraft(input)
+      .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
@@ -417,11 +439,14 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
     const input = createValidInput();
-    (input.details as Record<string, string | number | boolean | string[]>).pet_policy =
-      "No shitty behavior";
+    (
+      input.details as Record<string, string | number | boolean | string[]>
+    ).pet_policy = "No shitty behavior";
     input.availabilityBlocks[0]!.note = "javascript:alert('x')";
 
-    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+    const error = await service
+      .createDraft(input)
+      .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
@@ -453,16 +478,23 @@ describe("PostingsService", () => {
 
   it("accepts clean content and persists normalized data", async () => {
     const repository = new FakePostingsRepository();
-    const { service, postingThumbnailQueueService, postingsPublicCacheService } =
-      createServiceHarness(repository);
+    const {
+      service,
+      postingThumbnailQueueService,
+      postingsPublicCacheService,
+    } = createServiceHarness(repository);
     const input = createValidInput();
     input.tags = ["  Loft  ", "loft", "Transit"];
 
     const created = await service.createDraft(input);
 
     expect(repository.createCalls).toBe(1);
-    expect(postingThumbnailQueueService.enqueuePostingThumbnailJob).toHaveBeenCalledWith("posting-1");
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    expect(
+      postingThumbnailQueueService.enqueuePostingThumbnailJob,
+    ).toHaveBeenCalledWith("posting-1");
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
+      "posting-1",
+    ]);
     expect(created.tags).toEqual(["loft", "transit"]);
   });
 
@@ -476,7 +508,8 @@ describe("PostingsService", () => {
       photos: repository.posting.photos.map((photo) => ({
         ...photo,
         thumbnailBlobName: "postings/thumbnails/photo-1.webp",
-        thumbnailBlobUrl: "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
+        thumbnailBlobUrl:
+          "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
       })),
       availabilityBlocks: [
         buildAvailabilityBlockRecord("hold-1", {
@@ -493,8 +526,11 @@ describe("PostingsService", () => {
         note: "Owner stay",
       }),
     ];
-    const { service, postingThumbnailQueueService, postingsPublicCacheService } =
-      createServiceHarness(repository);
+    const {
+      service,
+      postingThumbnailQueueService,
+      postingsPublicCacheService,
+    } = createServiceHarness(repository);
 
     const duplicated = await service.duplicate("posting-source", "owner-1");
 
@@ -532,10 +568,12 @@ describe("PostingsService", () => {
     expect(duplicated.status).toBe("draft");
     expect(duplicated.publishedAt).toBeUndefined();
     expect(duplicated.photos).toHaveLength(repository.posting.photos.length);
-    expect(postingThumbnailQueueService.enqueuePostingThumbnailJob).toHaveBeenCalledWith(
+    expect(
+      postingThumbnailQueueService.enqueuePostingThumbnailJob,
+    ).toHaveBeenCalledWith(duplicated.id);
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
       duplicated.id,
-    );
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([duplicated.id]);
+    ]);
     expect(duplicated.availabilityBlocks).toEqual([
       expect.objectContaining({
         startAt: "2026-07-01T00:00:00.000Z",
@@ -553,7 +591,9 @@ describe("PostingsService", () => {
     };
     const service = createService(repository);
 
-    await expect(service.duplicate("posting-1", "owner-1")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      service.duplicate("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repository.createCalls).toBe(0);
   });
 
@@ -565,7 +605,8 @@ describe("PostingsService", () => {
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
-    const { service, postingsPublicCacheService } = createServiceHarness(repository);
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
 
     const paused = await service.pause("posting-1", "owner-1");
 
@@ -573,7 +614,9 @@ describe("PostingsService", () => {
     expect(paused.publishedAt).toBe("2026-04-21T00:00:00.000Z");
     expect(paused.pausedAt).toBeDefined();
     expect(repository.pauseCalls).toBe(1);
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
+      "posting-1",
+    ]);
   });
 
   it("unpauses a paused posting without changing its original published timestamp", async () => {
@@ -585,8 +628,11 @@ describe("PostingsService", () => {
       publishedAt: "2026-04-21T00:00:00.000Z",
       pausedAt: "2026-04-23T00:00:00.000Z",
     };
-    const { service, postingThumbnailQueueService, postingsPublicCacheService } =
-      createServiceHarness(repository);
+    const {
+      service,
+      postingThumbnailQueueService,
+      postingsPublicCacheService,
+    } = createServiceHarness(repository);
 
     const unpaused = await service.unpause("posting-1", "owner-1");
 
@@ -594,10 +640,12 @@ describe("PostingsService", () => {
     expect(unpaused.publishedAt).toBe("2026-04-21T00:00:00.000Z");
     expect(unpaused.pausedAt).toBeUndefined();
     expect(repository.unpauseCalls).toBe(1);
-    expect(postingThumbnailQueueService.enqueuePostingThumbnailJob).toHaveBeenCalledWith(
+    expect(
+      postingThumbnailQueueService.enqueuePostingThumbnailJob,
+    ).toHaveBeenCalledWith("posting-1");
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
       "posting-1",
-    );
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    ]);
   });
 
   it("publishes a draft posting and enqueues thumbnail generation", async () => {
@@ -607,17 +655,22 @@ describe("PostingsService", () => {
       id: "posting-1",
       status: "draft",
     };
-    const { service, postingThumbnailQueueService, postingsPublicCacheService } =
-      createServiceHarness(repository);
+    const {
+      service,
+      postingThumbnailQueueService,
+      postingsPublicCacheService,
+    } = createServiceHarness(repository);
 
     const published = await service.publish("posting-1", "owner-1");
 
     expect(published.status).toBe("published");
     expect(repository.publishCalls).toBe(1);
-    expect(postingThumbnailQueueService.enqueuePostingThumbnailJob).toHaveBeenCalledWith(
+    expect(
+      postingThumbnailQueueService.enqueuePostingThumbnailJob,
+    ).toHaveBeenCalledWith("posting-1");
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
       "posting-1",
-    );
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    ]);
   });
 
   it("rejects invalid posting lifecycle transitions", async () => {
@@ -628,19 +681,25 @@ describe("PostingsService", () => {
       ...repository.posting,
       status: "paused",
     };
-    await expect(service.publish("posting-1", "owner-1")).rejects.toBeInstanceOf(BadRequestError);
+    await expect(
+      service.publish("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(BadRequestError);
 
     repository.posting = {
       ...repository.posting,
       status: "draft",
     };
-    await expect(service.pause("posting-1", "owner-1")).rejects.toBeInstanceOf(BadRequestError);
+    await expect(service.pause("posting-1", "owner-1")).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
 
     repository.posting = {
       ...repository.posting,
       status: "published",
     };
-    await expect(service.unpause("posting-1", "owner-1")).rejects.toBeInstanceOf(BadRequestError);
+    await expect(
+      service.unpause("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 
   it("hides paused postings from public getById while still allowing owners to view them", async () => {
@@ -655,9 +714,9 @@ describe("PostingsService", () => {
     };
     const service = createService(repository);
 
-    await expect(service.getById("posting-1", "renter-1")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.getById("posting-1", "renter-1"),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
 
     const ownerView = await service.getById("posting-1", "owner-1");
     expect(ownerView.status).toBe("paused");
@@ -671,7 +730,8 @@ describe("PostingsService", () => {
       status: "draft",
       ownerId: "owner-1",
     };
-    const { service, postingsPublicCacheService } = createServiceHarness(repository);
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
     postingsPublicCacheService.posting = null;
 
     const posting = await service.getById("posting-1", "owner-1");
@@ -689,7 +749,8 @@ describe("PostingsService", () => {
       ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
-    const { service, postingsPublicCacheService } = createServiceHarness(repository);
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
     postingsPublicCacheService.posting = {
       ...toPublicPostingRecord(repository.posting),
       name: "Cached name",
@@ -717,15 +778,21 @@ describe("PostingsService", () => {
     postingsReviewsRepository.ownReview = { id: "review-1" };
     const rentingsRepository = new FakeRentingsRepository();
     rentingsRepository.eligibleReviewRenting = true;
-    const service = createService(repository, postingsReviewsRepository, rentingsRepository);
+    const service = createService(
+      repository,
+      postingsReviewsRepository,
+      rentingsRepository,
+    );
 
     const posting = await service.getById("posting-1", "renter-1");
 
     expect("viewerReviewState" in posting).toBe(true);
-    expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual({
-      eligible: true,
-      hasOwnReview: true,
-    });
+    expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual(
+      {
+        eligible: true,
+        hasOwnReview: true,
+      },
+    );
   });
 
   it("omits viewer review state for anonymous public getById", async () => {
@@ -757,10 +824,12 @@ describe("PostingsService", () => {
 
     const posting = await service.getById("posting-1", "renter-1");
 
-    expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual({
-      eligible: false,
-      hasOwnReview: false,
-    });
+    expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual(
+      {
+        eligible: false,
+        hasOwnReview: false,
+      },
+    );
   });
 
   it("rejects subtypes that do not belong to the selected family", async () => {
@@ -772,7 +841,9 @@ describe("PostingsService", () => {
       subtype: "car",
     };
 
-    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+    const error = await service
+      .createDraft(input)
+      .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
@@ -786,7 +857,9 @@ describe("PostingsService", () => {
     const input = createValidInput();
     (input.details as Record<string, unknown>).guest_capacity = "four";
 
-    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+    const error = await service
+      .createDraft(input)
+      .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
@@ -802,7 +875,9 @@ describe("PostingsService", () => {
       constructor: "boom",
     });
 
-    const error = await service.createDraft(input).catch((caughtError: unknown) => caughtError);
+    const error = await service
+      .createDraft(input)
+      .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
     const details = getValidationDetails(error);
@@ -844,7 +919,9 @@ describe("PostingsService", () => {
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
-    expect((error as BadRequestError).message).toBe("Nearest sorting requires latitude and longitude.");
+    expect((error as BadRequestError).message).toBe(
+      "Nearest sorting requires latitude and longitude.",
+    );
   });
 
   it("trims the public search query and normalizes tags before delegating search", async () => {
@@ -1051,7 +1128,8 @@ describe("PostingsService", () => {
     expect((error as RequestValidationError).details).toEqual([
       {
         path: "page",
-        message: "Requested page exceeds the maximum search window of 10000 results.",
+        message:
+          "Requested page exceeds the maximum search window of 10000 results.",
       },
     ]);
   });
@@ -1060,7 +1138,10 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    const result = await service.listOwnerAvailabilityBlocks("posting-1", "owner-1");
+    const result = await service.listOwnerAvailabilityBlocks(
+      "posting-1",
+      "owner-1",
+    );
 
     expect(result.availabilityBlocks).toEqual(repository.ownerBlocks);
     expect(repository.findByIdCalls).toBe(1);
@@ -1068,20 +1149,27 @@ describe("PostingsService", () => {
 
   it("creates an owner availability block after validating conflicts", async () => {
     const repository = new FakePostingsRepository();
-    const { service, postingsPublicCacheService } = createServiceHarness(repository);
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
 
-    const created = await service.createOwnerAvailabilityBlock("posting-1", "owner-1", {
-      startAt: "2026-06-01T00:00:00.000Z",
-      endAt: "2026-06-03T00:00:00.000Z",
-      note: "  maintenance  ",
-    });
+    const created = await service.createOwnerAvailabilityBlock(
+      "posting-1",
+      "owner-1",
+      {
+        startAt: "2026-06-01T00:00:00.000Z",
+        endAt: "2026-06-03T00:00:00.000Z",
+        note: "  maintenance  ",
+      },
+    );
 
     expect(created).toMatchObject({
       id: "created-block",
       note: "maintenance",
     });
     expect(repository.createOwnerAvailabilityBlockCalls).toBe(1);
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
+      "posting-1",
+    ]);
   });
 
   it("rejects owner availability blocks that overlap another owner block", async () => {
@@ -1135,16 +1223,24 @@ describe("PostingsService", () => {
   it("updates an owner availability block while excluding itself from overlap checks", async () => {
     const repository = new FakePostingsRepository();
     repository.ownerOverlap = true;
-    const { service, postingsPublicCacheService } = createServiceHarness(repository);
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
 
-    const updated = await service.updateOwnerAvailabilityBlock("posting-1", "owner-1", "block-1", {
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
-    });
+    const updated = await service.updateOwnerAvailabilityBlock(
+      "posting-1",
+      "owner-1",
+      "block-1",
+      {
+        startAt: "2026-05-01T00:00:00.000Z",
+        endAt: "2026-05-04T00:00:00.000Z",
+      },
+    );
 
     expect(updated.id).toBe("block-1");
     expect(repository.updateOwnerAvailabilityBlockCalls).toBe(1);
-    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual(["posting-1"]);
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
+      "posting-1",
+    ]);
   });
 
   it("does not update or delete non-owner availability blocks", async () => {
@@ -1154,14 +1250,23 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     await expect(
-      service.updateOwnerAvailabilityBlock("posting-1", "owner-1", "booking-hold-1", {
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
-      }),
+      service.updateOwnerAvailabilityBlock(
+        "posting-1",
+        "owner-1",
+        "booking-hold-1",
+        {
+          startAt: "2026-05-01T00:00:00.000Z",
+          endAt: "2026-05-04T00:00:00.000Z",
+        },
+      ),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
 
     await expect(
-      service.deleteOwnerAvailabilityBlock("posting-1", "owner-1", "booking-hold-1"),
+      service.deleteOwnerAvailabilityBlock(
+        "posting-1",
+        "owner-1",
+        "booking-hold-1",
+      ),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -1179,7 +1284,9 @@ describe("PostingsService", () => {
       enqueuePostingThumbnailJob: jest.fn(async () => undefined),
     } as unknown as PostingThumbnailQueueService;
     const postingsPublicCacheService = new FakePostingsPublicCacheService();
-    postingsPublicCacheService.posting = isPostingPubliclyVisible(repository.posting)
+    postingsPublicCacheService.posting = isPostingPubliclyVisible(
+      repository.posting,
+    )
       ? toPublicPostingRecord(repository.posting)
       : null;
     const service = new PostingsService(

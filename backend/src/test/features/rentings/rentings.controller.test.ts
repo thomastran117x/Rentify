@@ -31,7 +31,8 @@ function createContext(options?: {
     req: {
       json: async () => options?.body ?? {},
       url: options?.url ?? "https://example.test/rentings/renting-1",
-      param: (name?: string) => (name ? options?.params?.[name] : options?.params ?? {}),
+      param: (name?: string) =>
+        name ? options?.params?.[name] : (options?.params ?? {}),
     },
     get: (name?: string) => {
       if (name === "requestId") {
@@ -111,7 +112,9 @@ describe("RentingsController", () => {
   });
 
   it("routes renting instruction updates to the service", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "owner-1", role: "owner" }));
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "owner-1", role: "owner" }),
+    );
     const updateInstructions = jest.fn(async () => ({ id: "renting-1" }));
     const controller = new RentingsController(
       {
@@ -143,7 +146,9 @@ describe("RentingsController", () => {
   });
 
   it("routes dispute creation through the renting service", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1", role: "user" }));
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "renter-1", role: "user" }),
+    );
     const createDispute = jest.fn(async () => ({ id: "renting-1" }));
     const controller = new RentingsController(
       {

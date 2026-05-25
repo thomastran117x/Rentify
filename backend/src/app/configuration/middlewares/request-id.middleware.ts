@@ -23,7 +23,9 @@ export function validateRequestId(value: string): string {
 }
 
 export function resolveRequestId(request: Request): string {
-  const requestId = normalizeRequestId(request.headers.get(REQUEST_ID_HEADER_NAME));
+  const requestId = normalizeRequestId(
+    request.headers.get(REQUEST_ID_HEADER_NAME),
+  );
 
   if (!requestId) {
     return randomUUID();
@@ -32,13 +34,15 @@ export function resolveRequestId(request: Request): string {
   return validateRequestId(requestId);
 }
 
-export const requestIdMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const requestId = resolveRequestId(context.req.raw);
-  context.set("requestId", requestId);
+export const requestIdMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const requestId = resolveRequestId(context.req.raw);
+    context.set("requestId", requestId);
 
-  try {
-    await next();
-  } finally {
-    context.header(REQUEST_ID_HEADER_NAME, requestId);
-  }
-});
+    try {
+      await next();
+    } finally {
+      context.header(REQUEST_ID_HEADER_NAME, requestId);
+    }
+  },
+);

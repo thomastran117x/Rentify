@@ -8,14 +8,16 @@ jest.mock("@/configuration/resources/rabbitmq", () => ({
 
 function createMockChannel() {
   let consumeHandler:
-    | ((message: {
-        content: Buffer;
-        properties: {
-          messageId?: string;
-          contentType?: string;
-          headers?: Record<string, unknown>;
-        };
-      } | null) => Promise<void>)
+    | ((
+        message: {
+          content: Buffer;
+          properties: {
+            messageId?: string;
+            contentType?: string;
+            headers?: Record<string, unknown>;
+          };
+        } | null,
+      ) => Promise<void>)
     | undefined;
 
   return {
@@ -24,12 +26,14 @@ function createMockChannel() {
       assertQueue: jest.fn(async () => undefined),
       bindQueue: jest.fn(async () => undefined),
       prefetch: jest.fn(async () => undefined),
-      consume: jest.fn(async (_queue: string, handler: typeof consumeHandler) => {
-        consumeHandler = handler;
-        return {
-          consumerTag: "consumer-1",
-        };
-      }),
+      consume: jest.fn(
+        async (_queue: string, handler: typeof consumeHandler) => {
+          consumeHandler = handler;
+          return {
+            consumerTag: "consumer-1",
+          };
+        },
+      ),
       publish: jest.fn(() => true),
       waitForConfirms: jest.fn(async () => undefined),
       cancel: jest.fn(async () => undefined),
@@ -42,7 +46,10 @@ function createMockChannel() {
   };
 }
 
-function createJobMessage(outboxId: string, operation: "upsert" | "delete" = "upsert") {
+function createJobMessage(
+  outboxId: string,
+  operation: "upsert" | "delete" = "upsert",
+) {
   return {
     content: Buffer.from(
       JSON.stringify({

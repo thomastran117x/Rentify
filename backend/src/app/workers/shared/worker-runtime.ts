@@ -33,9 +33,11 @@ export async function bootstrapWorker(input: {
 
   const lifecycle = new WorkerLifecycle(input.name, input.resources);
   const container = initializeContainer();
-  const workerLogger = loggerFactory.forComponent("worker-runtime", "worker").child({
-    workerName: input.name,
-  });
+  const workerLogger = loggerFactory
+    .forComponent("worker-runtime", "worker")
+    .child({
+      workerName: input.name,
+    });
 
   workerLogger.info("Worker started.");
   lifecycle.registerShutdownHandlers();
@@ -58,9 +60,11 @@ export async function bootstrapPollingWorker(input: {
     name: input.name,
     resources: input.resources,
     run: async ({ container }, lifecycle) => {
-      const workerLogger = loggerFactory.forComponent("worker-runtime", "worker").child({
-        workerName: input.name,
-      });
+      const workerLogger = loggerFactory
+        .forComponent("worker-runtime", "worker")
+        .child({
+          workerName: input.name,
+        });
       while (!lifecycle.isShuttingDown()) {
         const scope = container.createScope();
 
@@ -90,9 +94,12 @@ export function startWorker(input: {
   cleanup: () => Promise<unknown>;
 }): void {
   void input.bootstrap().catch(async (error: unknown) => {
-    loggerFactory.forComponent("worker-runtime", "worker").child({
-      workerName: input.name,
-    }).critical("Failed to start worker.", undefined, error);
+    loggerFactory
+      .forComponent("worker-runtime", "worker")
+      .child({
+        workerName: input.name,
+      })
+      .critical("Failed to start worker.", undefined, error);
     await Promise.allSettled([input.cleanup(), disconnectLogging()]);
     process.exit(1);
   });
@@ -137,11 +144,14 @@ export class WorkerLifecycle {
     }
 
     this.shuttingDown = true;
-    loggerFactory.forComponent("worker-runtime", "worker").child({
-      workerName: this.name,
-    }).info("Worker shutdown requested.", {
-      signal,
-    });
+    loggerFactory
+      .forComponent("worker-runtime", "worker")
+      .child({
+        workerName: this.name,
+      })
+      .info("Worker shutdown requested.", {
+        signal,
+      });
     await Promise.allSettled([
       ...this.shutdownTasks.map((task) => task()),
       ...this.resources.map((resource) => resource.disconnect()),

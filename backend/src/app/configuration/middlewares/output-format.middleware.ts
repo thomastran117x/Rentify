@@ -61,7 +61,10 @@ function toXmlNode(name: string, value: unknown): string {
   return `<${tagName}>${escapeXml(String(value))}</${tagName}>`;
 }
 
-export function serializeToXml(body: unknown, rootElement = "response"): string {
+export function serializeToXml(
+  body: unknown,
+  rootElement = "response",
+): string {
   return `${XML_DECLARATION}${toXmlNode(rootElement, body)}`;
 }
 
@@ -119,7 +122,9 @@ export function detectOutputFormat(request: Request): OutputFormat {
 
 function isJsonLikeContentType(contentType: string | null): boolean {
   const normalized = contentType?.toLowerCase() ?? "";
-  return normalized.includes("application/json") || normalized.includes("+json");
+  return (
+    normalized.includes("application/json") || normalized.includes("+json")
+  );
 }
 
 function canHaveBody(status: number): boolean {
@@ -134,9 +139,7 @@ function setVaryAccept(headers: Headers): void {
     return;
   }
 
-  const values = current
-    .split(",")
-    .map((value) => value.trim().toLowerCase());
+  const values = current.split(",").map((value) => value.trim().toLowerCase());
 
   if (!values.includes("accept")) {
     headers.set("vary", `${current}, Accept`);
@@ -171,60 +174,62 @@ async function tryReadJsonBody(response: Response): Promise<unknown | null> {
   }
 }
 
-export const outputFormatMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const outputFormat = detectOutputFormat(context.req.raw);
-  context.set("outputFormat", outputFormat);
+export const outputFormatMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const outputFormat = detectOutputFormat(context.req.raw);
+    context.set("outputFormat", outputFormat);
 
-  await next();
+    await next();
 
-  const response = context.res;
+    const response = context.res;
 
-  if (!canHaveBody(response.status)) {
-    return;
-  }
+    if (!canHaveBody(response.status)) {
+      return;
+    }
 
-  const headers = new Headers(response.headers);
-  setVaryAccept(headers);
+    const headers = new Headers(response.headers);
+    setVaryAccept(headers);
 
-  if (outputFormat === "json") {
-    headers.set("content-type", getContentType("json"));
+    if (outputFormat === "json") {
+      headers.set("content-type", getContentType("json"));
 
-    context.res = new Response(response.body, {
+      context.res = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+
+      return;
+    }
+
+    if (!isJsonLikeContentType(response.headers.get("content-type"))) {
+      context.res = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+
+      return;
+    }
+
+    const parsedBody = await tryReadJsonBody(response);
+
+    if (parsedBody === null) {
+      context.res = new Response(null, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+
+      return;
+    }
+
+    headers.set("content-type", getContentType("xml"));
+
+    context.res = new Response(serializeBody(parsedBody, "xml"), {
       status: response.status,
       statusText: response.statusText,
       headers,
     });
-
-    return;
-  }
-
-  if (!isJsonLikeContentType(response.headers.get("content-type"))) {
-    context.res = new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
-
-    return;
-  }
-
-  const parsedBody = await tryReadJsonBody(response);
-
-  if (parsedBody === null) {
-    context.res = new Response(null, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
-
-    return;
-  }
-
-  headers.set("content-type", getContentType("xml"));
-
-  context.res = new Response(serializeBody(parsedBody, "xml"), {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-});
+  },
+);

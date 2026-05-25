@@ -42,7 +42,8 @@ function createContext(options?: {
     req: {
       json: async () => options?.body ?? {},
       url: options?.url ?? "https://example.test/postings",
-      param: (name?: string) => (name ? options?.params?.[name] : options?.params ?? {}),
+      param: (name?: string) =>
+        name ? options?.params?.[name] : (options?.params ?? {}),
     },
     get: (name?: string) => {
       if (name === "client") {
@@ -249,7 +250,9 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?latitude=43.6532&radiusKm=12",
     });
 
-    await expect(controller.search(context)).rejects.toMatchObject<Partial<RequestValidationError>>({
+    await expect(controller.search(context)).rejects.toMatchObject<
+      Partial<RequestValidationError>
+    >({
       message: "Request query validation failed.",
       details: expect.arrayContaining([
         {
@@ -373,7 +376,9 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?family=place&subtype=entire_place&attr.bedrooms.min=two",
     });
 
-    await expect(controller.search(context)).rejects.toMatchObject<Partial<RequestValidationError>>({
+    await expect(controller.search(context)).rejects.toMatchObject<
+      Partial<RequestValidationError>
+    >({
       message: "Request query validation failed.",
       details: [
         {
@@ -441,7 +446,8 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
@@ -499,7 +505,8 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
@@ -561,7 +568,8 @@ describe("PostingsController", () => {
         },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },
@@ -648,11 +656,15 @@ describe("PostingsController", () => {
 
     const response = await controller.createAvailabilityBlock(context);
 
-    expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith("posting-1", "owner-1", {
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-03T00:00:00.000Z",
-      note: "Maintenance",
-    });
+    expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      {
+        startAt: "2026-05-01T00:00:00.000Z",
+        endAt: "2026-05-03T00:00:00.000Z",
+        note: "Maintenance",
+      },
+    );
     expect(response.status).toBe(201);
   });
 
@@ -686,11 +698,16 @@ describe("PostingsController", () => {
 
     const response = await controller.updateAvailabilityBlock(context);
 
-    expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith("posting-1", "owner-1", "block-1", {
-      startAt: "2026-05-02T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
-      note: undefined,
-    });
+    expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      "block-1",
+      {
+        startAt: "2026-05-02T00:00:00.000Z",
+        endAt: "2026-05-04T00:00:00.000Z",
+        note: undefined,
+      },
+    );
     expect(response.status).toBe(200);
   });
 
@@ -754,17 +771,14 @@ describe("PostingsController", () => {
   it("tracks search click activity and returns 202", async () => {
     mockGetOptionalJwtAuth.mockResolvedValue(null);
     const publishSearchClick = jest.fn(async () => undefined);
-    const controller = createController(
-      {} as never,
-      {
-        analytics: {
-          trackSearchClick: jest.fn(async () => undefined),
-        },
-        recommendationActivityPublisher: {
-          publishSearchClick,
-        },
+    const controller = createController({} as never, {
+      analytics: {
+        trackSearchClick: jest.fn(async () => undefined),
       },
-    );
+      recommendationActivityPublisher: {
+        publishSearchClick,
+      },
+    });
     const context = createContext({
       params: {
         id: "posting-1",

@@ -35,7 +35,9 @@ function createUser(): AuthUserRecord {
   };
 }
 
-function createClient(overrides?: Partial<ClientRequestContext>): ClientRequestContext {
+function createClient(
+  overrides?: Partial<ClientRequestContext>,
+): ClientRequestContext {
   return {
     ip: "127.0.0.1",
     device: {
@@ -49,7 +51,9 @@ function createClient(overrides?: Partial<ClientRequestContext>): ClientRequestC
   };
 }
 
-function createKnownDevice(overrides?: Partial<KnownDeviceRecord>): KnownDeviceRecord {
+function createKnownDevice(
+  overrides?: Partial<KnownDeviceRecord>,
+): KnownDeviceRecord {
   return {
     id: "known-device-1",
     userId: "user-1",
@@ -66,8 +70,15 @@ function createKnownDevice(overrides?: Partial<KnownDeviceRecord>): KnownDeviceR
 }
 
 function createService(overrides?: {
-  findKnownDevice?: (userId: string, deviceId: string) => Promise<KnownDeviceRecord | null>;
-  touchKnownDevice?: (userId: string, deviceId: string, ipAddress?: string) => Promise<void>;
+  findKnownDevice?: (
+    userId: string,
+    deviceId: string,
+  ) => Promise<KnownDeviceRecord | null>;
+  touchKnownDevice?: (
+    userId: string,
+    deviceId: string,
+    ipAddress?: string,
+  ) => Promise<void>;
   hasKnownIpAddress?: (userId: string, ipAddress: string) => Promise<boolean>;
   hasAnyKnownDevice?: (userId: string) => Promise<boolean>;
   touchKnownIpAddress?: (userId: string, ipAddress: string) => Promise<void>;
@@ -97,31 +108,42 @@ function createService(overrides?: {
   const deviceRepository = {
     findKnownDevice: jest.fn(overrides?.findKnownDevice ?? (async () => null)),
     touchKnownDevice: jest.fn(overrides?.touchKnownDevice ?? (async () => {})),
-    hasKnownIpAddress: jest.fn(overrides?.hasKnownIpAddress ?? (async () => false)),
-    hasAnyKnownDevice: jest.fn(overrides?.hasAnyKnownDevice ?? (async () => true)),
-    touchKnownIpAddress: jest.fn(overrides?.touchKnownIpAddress ?? (async () => {})),
-    registerKnownDevice:
-      jest.fn(
-        overrides?.registerKnownDevice ??
-          (async (input) =>
-            createKnownDevice({
-              userId: input.userId,
-              deviceId: input.deviceId,
-              type: input.type,
-              platform: input.platform,
-              userAgent: input.userAgent,
-              lastIpAddress: input.ipAddress,
-            })),
-      ),
-    listKnownDevices:
-      jest.fn(
-        overrides?.listKnownDevices ??
-          (async () => [createKnownDevice(), createKnownDevice({ id: "known-device-2", deviceId: "device-2" })]),
-      ),
-    removeKnownDevice: jest.fn(overrides?.removeKnownDevice ?? (async () => true)),
+    hasKnownIpAddress: jest.fn(
+      overrides?.hasKnownIpAddress ?? (async () => false),
+    ),
+    hasAnyKnownDevice: jest.fn(
+      overrides?.hasAnyKnownDevice ?? (async () => true),
+    ),
+    touchKnownIpAddress: jest.fn(
+      overrides?.touchKnownIpAddress ?? (async () => {}),
+    ),
+    registerKnownDevice: jest.fn(
+      overrides?.registerKnownDevice ??
+        (async (input) =>
+          createKnownDevice({
+            userId: input.userId,
+            deviceId: input.deviceId,
+            type: input.type,
+            platform: input.platform,
+            userAgent: input.userAgent,
+            lastIpAddress: input.ipAddress,
+          })),
+    ),
+    listKnownDevices: jest.fn(
+      overrides?.listKnownDevices ??
+        (async () => [
+          createKnownDevice(),
+          createKnownDevice({ id: "known-device-2", deviceId: "device-2" }),
+        ]),
+    ),
+    removeKnownDevice: jest.fn(
+      overrides?.removeKnownDevice ?? (async () => true),
+    ),
   };
   const emailService = {
-    sendNewDeviceEmail: jest.fn(overrides?.sendNewDeviceEmail ?? (async () => {})),
+    sendNewDeviceEmail: jest.fn(
+      overrides?.sendNewDeviceEmail ?? (async () => {}),
+    ),
   };
   const cache = {
     exists: jest.fn(overrides?.cacheExists ?? (async () => false)),
@@ -131,7 +153,8 @@ function createService(overrides?: {
     deviceRepository: deviceRepository as never,
     emailService: emailService as never,
     cache: cache as never,
-    unknownDeviceAlertCooldownInSeconds: overrides?.unknownDeviceAlertCooldownInSeconds,
+    unknownDeviceAlertCooldownInSeconds:
+      overrides?.unknownDeviceAlertCooldownInSeconds,
   });
 
   return {
@@ -150,7 +173,11 @@ describe("DeviceService", () => {
   it("registers a known device and returns a trusted device status", async () => {
     const { service, deviceRepository } = createService();
 
-    const result = await service.registerKnownDevice(createUser(), createClient(), "device-9");
+    const result = await service.registerKnownDevice(
+      createUser(),
+      createClient(),
+      "device-9",
+    );
 
     expect(result).toEqual({
       deviceId: "device-9",
@@ -170,7 +197,11 @@ describe("DeviceService", () => {
   it("returns an unknown status when registering without a device id", async () => {
     const { service, deviceRepository } = createService();
 
-    const result = await service.registerKnownDevice(createUser(), createClient(), undefined);
+    const result = await service.registerKnownDevice(
+      createUser(),
+      createClient(),
+      undefined,
+    );
 
     expect(result).toEqual({
       deviceId: undefined,
@@ -221,9 +252,18 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: true,
     });
-    expect(deviceRepository.findKnownDevice).toHaveBeenCalledWith("user-1", "device-2");
-    expect(deviceRepository.hasKnownIpAddress).toHaveBeenCalledWith("user-1", "127.0.0.1");
-    expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith("user-1", "127.0.0.1");
+    expect(deviceRepository.findKnownDevice).toHaveBeenCalledWith(
+      "user-1",
+      "device-2",
+    );
+    expect(deviceRepository.hasKnownIpAddress).toHaveBeenCalledWith(
+      "user-1",
+      "127.0.0.1",
+    );
+    expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith(
+      "user-1",
+      "127.0.0.1",
+    );
     expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
     expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
   });
@@ -244,7 +284,10 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: true,
     });
-    expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith("user-1", "127.0.0.1");
+    expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith(
+      "user-1",
+      "127.0.0.1",
+    );
     expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
   });
 
@@ -285,8 +328,14 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: false,
     });
-    expect(cache.exists).toHaveBeenCalledWith("auth:unknown-device:user-1:new-device");
-    expect(cache.set).toHaveBeenCalledWith("auth:unknown-device:user-1:new-device", "1", 1800);
+    expect(cache.exists).toHaveBeenCalledWith(
+      "auth:unknown-device:user-1:new-device",
+    );
+    expect(cache.set).toHaveBeenCalledWith(
+      "auth:unknown-device:user-1:new-device",
+      "1",
+      1800,
+    );
     expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith({
       to: "user@example.com",
       firstName: "Test",
@@ -363,9 +412,15 @@ describe("DeviceService", () => {
   it("falls back to an unknown-device label when alerting without a device id", async () => {
     const { service, cache, emailService } = createService();
 
-    await service.evaluateSuccessfulAuthentication(createUser(), createClient(), undefined);
+    await service.evaluateSuccessfulAuthentication(
+      createUser(),
+      createClient(),
+      undefined,
+    );
 
-    expect(cache.exists).toHaveBeenCalledWith("auth:unknown-device:user-1:unknown-device");
+    expect(cache.exists).toHaveBeenCalledWith(
+      "auth:unknown-device:user-1:unknown-device",
+    );
     expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         deviceLabel: "unknown-device",
@@ -376,7 +431,9 @@ describe("DeviceService", () => {
   it("marks the current device when listing known devices", async () => {
     const { service } = createService();
 
-    await expect(service.listKnownDevices("user-1", "device-2")).resolves.toEqual([
+    await expect(
+      service.listKnownDevices("user-1", "device-2"),
+    ).resolves.toEqual([
       {
         ...createKnownDevice(),
         current: false,
@@ -396,9 +453,9 @@ describe("DeviceService", () => {
       removeKnownDevice: async () => false,
     });
 
-    await expect(service.removeKnownDevice("user-1", "missing-device")).rejects.toMatchObject<
-      Partial<BadRequestError>
-    >({
+    await expect(
+      service.removeKnownDevice("user-1", "missing-device"),
+    ).rejects.toMatchObject<Partial<BadRequestError>>({
       message: "Known device could not be found.",
     });
   });
@@ -408,7 +465,12 @@ describe("DeviceService", () => {
       removeKnownDevice: async () => true,
     });
 
-    await expect(service.removeKnownDevice("user-1", "device-1")).resolves.toBeUndefined();
-    expect(deviceRepository.removeKnownDevice).toHaveBeenCalledWith("user-1", "device-1");
+    await expect(
+      service.removeKnownDevice("user-1", "device-1"),
+    ).resolves.toBeUndefined();
+    expect(deviceRepository.removeKnownDevice).toHaveBeenCalledWith(
+      "user-1",
+      "device-1",
+    );
   });
 });

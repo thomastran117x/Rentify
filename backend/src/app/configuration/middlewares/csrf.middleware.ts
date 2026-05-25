@@ -89,50 +89,55 @@ function requiresCookieBackedCsrf(path: string, request: Request): boolean {
     return true;
   }
 
-  return request.headers.get("cookie")?.includes(`${REFRESH_TOKEN_COOKIE_NAME}=`) ?? false;
+  return (
+    request.headers.get("cookie")?.includes(`${REFRESH_TOKEN_COOKIE_NAME}=`) ??
+    false
+  );
 }
 
-export const csrfMiddleware = createMiddleware<AppBindings>(async (context, next) => {
-  const request = context.req.raw;
+export const csrfMiddleware = createMiddleware<AppBindings>(
+  async (context, next) => {
+    const request = context.req.raw;
 
-  if (SAFE_METHODS.has(request.method.toUpperCase())) {
-    await next();
-    return;
-  }
+    if (SAFE_METHODS.has(request.method.toUpperCase())) {
+      await next();
+      return;
+    }
 
-  const path = stripApiRoutePrefix(new URL(request.url).pathname);
+    const path = stripApiRoutePrefix(new URL(request.url).pathname);
 
-  if (path.startsWith("/auth/oauth/")) {
-    await next();
-    return;
-  }
+    if (path.startsWith("/auth/oauth/")) {
+      await next();
+      return;
+    }
 
-  if (!isBrowserRequest(request)) {
-    await next();
-    return;
-  }
+    if (!isBrowserRequest(request)) {
+      await next();
+      return;
+    }
 
-  const requestOrigin = readRequestOrigin(request);
-  const allowedOrigins = readAllowedOrigins()
-    .map((origin) => normalizeOrigin(origin))
-    .filter((origin): origin is string => Boolean(origin));
+    const requestOrigin = readRequestOrigin(request);
+    const allowedOrigins = readAllowedOrigins()
+      .map((origin) => normalizeOrigin(origin))
+      .filter((origin): origin is string => Boolean(origin));
 
-  if (!requestOrigin || !allowedOrigins.includes(requestOrigin)) {
-    throw new ForbiddenError("CSRF validation failed.");
-  }
-
-  if (request.headers.get("sec-fetch-site")?.toLowerCase() === "cross-site") {
-    throw new ForbiddenError("CSRF validation failed.");
-  }
-
-  if (requiresCookieBackedCsrf(path, request)) {
-    const csrfCookie = getCookie(context, CSRF_TOKEN_COOKIE_NAME);
-    const csrfHeader = request.headers.get(CSRF_TOKEN_HEADER_NAME);
-
-    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+    if (!requestOrigin || !allowedOrigins.includes(requestOrigin)) {
       throw new ForbiddenError("CSRF validation failed.");
     }
-  }
 
-  await next();
-});
+    if (request.headers.get("sec-fetch-site")?.toLowerCase() === "cross-site") {
+      throw new ForbiddenError("CSRF validation failed.");
+    }
+
+    if (requiresCookieBackedCsrf(path, request)) {
+      const csrfCookie = getCookie(context, CSRF_TOKEN_COOKIE_NAME);
+      const csrfHeader = request.headers.get(CSRF_TOKEN_HEADER_NAME);
+
+      if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+        throw new ForbiddenError("CSRF validation failed.");
+      }
+    }
+
+    await next();
+  },
+);

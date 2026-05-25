@@ -193,7 +193,10 @@ describe("PostingsRepository", () => {
         },
       }),
     );
-    expect(result.postings.map((posting) => posting.id)).toEqual(["posting-1", "posting-2"]);
+    expect(result.postings.map((posting) => posting.id)).toEqual([
+      "posting-1",
+      "posting-2",
+    ]);
     expect(result.missingIds).toEqual(["posting-3"]);
   });
 
@@ -219,7 +222,9 @@ describe("PostingsRepository", () => {
       },
     };
     const repository = new PostingsRepository({
-      $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
     } as never);
 
     const result = await repository.createOwnerAvailabilityBlock("posting-1", {
@@ -372,7 +377,9 @@ describe("PostingsRepository", () => {
       },
     };
     const repository = new PostingsRepository({
-      $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
     } as never);
 
     const result = await repository.claimSearchOutboxBatch(2);
@@ -435,9 +442,7 @@ describe("PostingsRepository", () => {
         deadLetteredAt: null,
         lastError: null,
       });
-    const postingSearchOutboxCount = jest
-      .fn()
-      .mockResolvedValueOnce(0);
+    const postingSearchOutboxCount = jest.fn().mockResolvedValueOnce(0);
     const repository = new PostingsRepository({
       searchReindexRun: {
         findUnique: searchReindexRunFindUnique,
@@ -448,18 +453,28 @@ describe("PostingsRepository", () => {
       },
     } as never);
 
-    await expect(repository.getSearchReindexCatchUpState("run-1")).resolves.toEqual({
+    await expect(
+      repository.getSearchReindexCatchUpState("run-1"),
+    ).resolves.toEqual({
       state: "failed",
-      errorMessage: "Search reindex run is missing its barrier outbox reference.",
+      errorMessage:
+        "Search reindex run is missing its barrier outbox reference.",
     });
-    await expect(repository.getSearchReindexCatchUpState("run-2")).resolves.toEqual({
+    await expect(
+      repository.getSearchReindexCatchUpState("run-2"),
+    ).resolves.toEqual({
       state: "waiting",
     });
-    await expect(repository.getSearchReindexCatchUpState("run-3")).resolves.toEqual({
+    await expect(
+      repository.getSearchReindexCatchUpState("run-3"),
+    ).resolves.toEqual({
       state: "failed",
-      errorMessage: "Search reindex barrier could not complete: consumer failed",
+      errorMessage:
+        "Search reindex barrier could not complete: consumer failed",
     });
-    await expect(repository.getSearchReindexCatchUpState("run-4")).resolves.toEqual({
+    await expect(
+      repository.getSearchReindexCatchUpState("run-4"),
+    ).resolves.toEqual({
       state: "caught_up",
     });
   });
@@ -483,7 +498,9 @@ describe("PostingsRepository", () => {
       },
     } as never);
 
-    await expect(repository.findPrimaryPhotoForThumbnailing("posting-1")).resolves.toEqual({
+    await expect(
+      repository.findPrimaryPhotoForThumbnailing("posting-1"),
+    ).resolves.toEqual({
       id: "photo-1",
       blobUrl: "https://example.test/photo-1.jpg",
       blobName: "postings/photo-1.jpg",

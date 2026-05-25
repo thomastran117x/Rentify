@@ -16,7 +16,8 @@ export class PostingThumbnailService {
   ) {}
 
   async generateForPosting(postingId: string): Promise<void> {
-    const primaryPhoto = await this.postingsRepository.findPrimaryPhotoForThumbnailing(postingId);
+    const primaryPhoto =
+      await this.postingsRepository.findPrimaryPhotoForThumbnailing(postingId);
 
     if (!primaryPhoto) {
       return;
@@ -38,7 +39,9 @@ export class PostingThumbnailService {
       .toBuffer();
 
     const thumbnailBlobName =
-      this.blobService.buildPostingPhotoThumbnailBlobName(primaryPhoto.blobName);
+      this.blobService.buildPostingPhotoThumbnailBlobName(
+        primaryPhoto.blobName,
+      );
     const uploaded = await this.blobService.uploadBuffer({
       blobName: thumbnailBlobName,
       body: thumbnailBuffer,
@@ -49,7 +52,10 @@ export class PostingThumbnailService {
       thumbnailBlobName: uploaded.blobName,
       thumbnailBlobUrl: uploaded.blobUrl,
     });
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(postingId);
   }
 }

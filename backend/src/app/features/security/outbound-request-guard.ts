@@ -45,7 +45,9 @@ export function assertTrustedOutboundUrl(
   }
 
   if (options.allowedHosts?.length) {
-    const normalizedAllowedHosts = options.allowedHosts.map((host) => host.trim().toLowerCase());
+    const normalizedAllowedHosts = options.allowedHosts.map((host) =>
+      host.trim().toLowerCase(),
+    );
 
     if (!normalizedAllowedHosts.includes(hostname)) {
       throw new BadRequestError("Outbound request host is not allowed.");

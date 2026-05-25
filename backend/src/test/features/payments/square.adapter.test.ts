@@ -17,7 +17,8 @@ describe("SquarePaymentAdapter", () => {
         accessToken: "change-me-square-access-token",
         locationId: "change-me-square-location-id",
         webhookSignatureKey: "change-me-square-webhook-signature-key",
-        webhookNotificationUrl: "http://localhost:8040/api/v1/payments/webhooks/square",
+        webhookNotificationUrl:
+          "http://localhost:8040/api/v1/payments/webhooks/square",
         apiBaseUrl: "https://connect.squareupsandbox.com",
       },
       oauth: {

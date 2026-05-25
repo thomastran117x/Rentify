@@ -1,17 +1,28 @@
 import { Hono } from "hono";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
-import { containerTokens, type ServiceContainer } from "@/configuration/bootstrap/container";
+import {
+  containerTokens,
+  type ServiceContainer,
+} from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
-import type { AppBindings, ClientRequestContext } from "@/configuration/http/bindings";
+import type {
+  AppBindings,
+  ClientRequestContext,
+} from "@/configuration/http/bindings";
 import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
 import { AuthController } from "@/features/auth/auth.controller";
-import type { AuthSessionResult, AuthUserProfile } from "@/features/auth/auth.model";
+import type {
+  AuthSessionResult,
+  AuthUserProfile,
+} from "@/features/auth/auth.model";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
-function createAuthUser(overrides: Partial<AuthUserProfile> = {}): AuthUserProfile {
+function createAuthUser(
+  overrides: Partial<AuthUserProfile> = {},
+): AuthUserProfile {
   return {
     id: "user-1",
     email: "user@example.com",
@@ -31,7 +42,9 @@ function createAuthUser(overrides: Partial<AuthUserProfile> = {}): AuthUserProfi
   };
 }
 
-function createSessionResult(overrides?: Partial<AuthSessionResult>): AuthSessionResult {
+function createSessionResult(
+  overrides?: Partial<AuthSessionResult>,
+): AuthSessionResult {
   return {
     accessToken: "access-token-1",
     refreshToken: "refresh-token-1",
@@ -67,7 +80,8 @@ function createJwtAuthPrincipal(overrides: Partial<JwtClaims> = {}) {
 }
 
 class FakeRequestContainer implements ServiceContainer {
-  private readonly contentSanitizationService = new ContentSanitizationService();
+  private readonly contentSanitizationService =
+    new ContentSanitizationService();
 
   constructor(
     private readonly authController: AuthController,
@@ -106,91 +120,95 @@ function createApp(overrides?: {
   microsoftAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
   localVerify?: (input: unknown) => Promise<unknown>;
   logout?: (input: unknown) => Promise<unknown>;
-  captchaVerify?: (input: unknown) => Promise<{ success: boolean; failOpen: boolean; errors: string[] }>;
+  captchaVerify?: (
+    input: unknown,
+  ) => Promise<{ success: boolean; failOpen: boolean; errors: string[] }>;
   verifyAccessToken?: (token: string) => Promise<JwtClaims>;
 }) {
   const authService = {
-    localAuthenticate:
-      jest.fn(overrides?.localAuthenticate ?? (async () => createSessionResult())),
-    localSignup:
-      jest.fn(
-        overrides?.localSignup ??
-          (async () => ({
-            verificationRequired: true,
-            email: "user@example.com",
-            alreadyPending: false,
+    localAuthenticate: jest.fn(
+      overrides?.localAuthenticate ?? (async () => createSessionResult()),
+    ),
+    localSignup: jest.fn(
+      overrides?.localSignup ??
+        (async () => ({
+          verificationRequired: true,
+          email: "user@example.com",
+          alreadyPending: false,
+        })),
+    ),
+    googleAuthenticate: jest.fn(
+      overrides?.googleAuthenticate ??
+        (async () =>
+          createSessionResult({
+            accessToken: "google-access-token",
+            refreshToken: "google-refresh-token",
           })),
-      ),
-    googleAuthenticate:
-      jest.fn(
-        overrides?.googleAuthenticate ??
-          (async () =>
-            createSessionResult({
-              accessToken: "google-access-token",
-              refreshToken: "google-refresh-token",
-            })),
-      ),
-    microsoftAuthenticate:
-      jest.fn(
-        overrides?.microsoftAuthenticate ??
-          (async () =>
-            createSessionResult({
-              accessToken: "microsoft-access-token",
-              refreshToken: "microsoft-refresh-token",
-            })),
-      ),
-    localVerify:
-      jest.fn(
-        overrides?.localVerify ??
-          (async (input: { auth: JwtClaims; client: ClientRequestContext }) => ({
-            verified: true,
-            auth: {
-              userId: input.auth.sub,
-              deviceId: input.auth.deviceId,
-              role: input.auth.role,
-            },
-            client: input.client,
+    ),
+    microsoftAuthenticate: jest.fn(
+      overrides?.microsoftAuthenticate ??
+        (async () =>
+          createSessionResult({
+            accessToken: "microsoft-access-token",
+            refreshToken: "microsoft-refresh-token",
           })),
-      ),
-    logout:
-      jest.fn(
-        overrides?.logout ??
-          (async (input: { auth: JwtClaims; refreshToken?: string; client: ClientRequestContext }) => ({
-            loggedOut: true,
-            auth: {
-              userId: input.auth.sub,
-              deviceId: input.auth.deviceId,
-            },
-            refreshToken: input.refreshToken,
-            client: input.client,
-          })),
-      ),
+    ),
+    localVerify: jest.fn(
+      overrides?.localVerify ??
+        (async (input: { auth: JwtClaims; client: ClientRequestContext }) => ({
+          verified: true,
+          auth: {
+            userId: input.auth.sub,
+            deviceId: input.auth.deviceId,
+            role: input.auth.role,
+          },
+          client: input.client,
+        })),
+    ),
+    logout: jest.fn(
+      overrides?.logout ??
+        (async (input: {
+          auth: JwtClaims;
+          refreshToken?: string;
+          client: ClientRequestContext;
+        }) => ({
+          loggedOut: true,
+          auth: {
+            userId: input.auth.sub,
+            deviceId: input.auth.deviceId,
+          },
+          refreshToken: input.refreshToken,
+          client: input.client,
+        })),
+    ),
   };
   const captchaService = {
-    verify:
-      jest.fn(
-        overrides?.captchaVerify ??
-          (async () => ({
-            success: true,
-            failOpen: false,
-            errors: [],
-          })),
-      ),
+    verify: jest.fn(
+      overrides?.captchaVerify ??
+        (async () => ({
+          success: true,
+          failOpen: false,
+          errors: [],
+        })),
+    ),
   };
   const tokenService = {
-    verifyAccessToken:
-      jest.fn(
-        overrides?.verifyAccessToken ??
-          (async (token: string) => {
-            if (token === "good-token") {
-              return createClaims();
-            }
+    verifyAccessToken: jest.fn(
+      overrides?.verifyAccessToken ??
+        (async (token: string) => {
+          if (token === "good-token") {
+            return createClaims();
+          }
 
-            throw new Error("Invalid access token signature.");
-          }),
-      ),
+          throw new Error("Invalid access token signature.");
+        }),
+    ),
   };
-  const controller = new AuthController(authService as never, captchaService as never, {} as never);
+  const controller = new AuthController(
+    authService as never,
+    captchaService as never,
+    {} as never,
+  );
   const container = new FakeRequestContainer(controller, tokenService);
   const app = new Hono<AppBindings>();
 
@@ -223,24 +241,27 @@ describe("Auth integration", () => {
   it("POST /auth/local/login parses client headers, verifies captcha, and returns a desktop auth session with a refresh cookie", async () => {
     const { app, authService, captchaService } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "203.0.113.10",
-        "x-request-id": "req-123",
-        "x-device-id": "header-device-1",
-        origin: "http://localhost:3040",
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        "sec-ch-ua-platform": "\"macOS\"",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/login")}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.10",
+          "x-request-id": "req-123",
+          "x-device-id": "header-device-1",
+          origin: "http://localhost:3040",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          "sec-ch-ua-platform": '"macOS"',
+        },
+        body: JSON.stringify({
+          email: "USER@example.com",
+          password: "Password1!",
+          captchaToken: "captcha-token",
+          rememberMe: true,
+        }),
       },
-      body: JSON.stringify({
-        email: "USER@example.com",
-        password: "Password1!",
-        captchaToken: "captcha-token",
-        rememberMe: true,
-      }),
-    });
+    );
 
     expect(captchaService.verify).toHaveBeenCalledWith({
       token: "captcha-token",
@@ -264,7 +285,9 @@ describe("Auth integration", () => {
       deviceId: "header-device-1",
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("refresh_token=refresh-token-1");
+    expect(response.headers.get("set-cookie")).toContain(
+      "refresh_token=refresh-token-1",
+    );
     expect(response.headers.get("set-cookie")).toContain("csrf_token=");
     await expect(response.json()).resolves.toEqual({
       success: true,
@@ -299,17 +322,20 @@ describe("Auth integration", () => {
       }),
     });
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/local/signup")}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/signup")}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email: "user@example.com",
+          password: "StrongPassword1!",
+          captchaToken: "bad-captcha",
+        }),
       },
-      body: JSON.stringify({
-        email: "user@example.com",
-        password: "StrongPassword1!",
-        captchaToken: "bad-captcha",
-      }),
-    });
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -332,9 +358,12 @@ describe("Auth integration", () => {
   it("POST /auth/local/verify returns 401 when the authorization header is missing", async () => {
     const { app } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/local/verify")}`, {
-      method: "POST",
-    });
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/verify")}`,
+      {
+        method: "POST",
+      },
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
@@ -353,17 +382,21 @@ describe("Auth integration", () => {
   it("POST /auth/local/verify authenticates through the shared JWT helper and passes auth plus client context to the service", async () => {
     const { app, authService, tokenService } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/local/verify")}`, {
-      method: "POST",
-      headers: {
-        authorization: "Bearer good-token",
-        "x-forwarded-for": "198.51.100.5",
-        "x-device-id": "header-device-2",
-        "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": "\"iOS\"",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/verify")}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer good-token",
+          "x-forwarded-for": "198.51.100.5",
+          "x-device-id": "header-device-2",
+          "user-agent":
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+          "sec-ch-ua-mobile": "?1",
+          "sec-ch-ua-platform": '"iOS"',
+        },
       },
-    });
+    );
 
     expect(tokenService.verifyAccessToken).toHaveBeenCalledWith("good-token");
     expect(authService.localVerify).toHaveBeenCalledWith({
@@ -411,25 +444,28 @@ describe("Auth integration", () => {
   it("POST /auth/oauth/google maps the oauth request body and returns a desktop auth session", async () => {
     const { app, authService } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/oauth/google")}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "203.0.113.88",
-        "x-device-id": "oauth-device-1",
-        origin: "http://localhost:3040",
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        "sec-ch-ua-platform": "\"macOS\"",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.88",
+          "x-device-id": "oauth-device-1",
+          origin: "http://localhost:3040",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          "sec-ch-ua-platform": '"macOS"',
+        },
+        body: JSON.stringify({
+          code: "google-code",
+          codeVerifier: "google-verifier",
+          nonce: "google-nonce",
+          rememberMe: true,
+          firstName: "Gina",
+          lastName: "Google",
+        }),
       },
-      body: JSON.stringify({
-        code: "google-code",
-        codeVerifier: "google-verifier",
-        nonce: "google-nonce",
-        rememberMe: true,
-        firstName: "Gina",
-        lastName: "Google",
-      }),
-    });
+    );
 
     expect(authService.googleAuthenticate).toHaveBeenCalledWith({
       code: "google-code",
@@ -452,7 +488,9 @@ describe("Auth integration", () => {
       deviceId: "oauth-device-1",
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("refresh_token=google-refresh-token");
+    expect(response.headers.get("set-cookie")).toContain(
+      "refresh_token=google-refresh-token",
+    );
     expect(response.headers.get("set-cookie")).toContain("csrf_token=");
     await expect(response.json()).resolves.toEqual({
       success: true,
@@ -481,22 +519,26 @@ describe("Auth integration", () => {
   it("POST /auth/oauth/microsoft accepts id_token auth on mobile and returns the refresh token in the body", async () => {
     const { app, authService } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/oauth/microsoft")}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "198.51.100.44",
-        "x-device-id": "mobile-oauth-device",
-        "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": "\"iOS\"",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/microsoft")}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "198.51.100.44",
+          "x-device-id": "mobile-oauth-device",
+          "user-agent":
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+          "sec-ch-ua-mobile": "?1",
+          "sec-ch-ua-platform": '"iOS"',
+        },
+        body: JSON.stringify({
+          idToken: "microsoft-id-token",
+          nonce: "microsoft-nonce",
+          rememberMe: true,
+        }),
       },
-      body: JSON.stringify({
-        idToken: "microsoft-id-token",
-        nonce: "microsoft-nonce",
-        rememberMe: true,
-      }),
-    });
+    );
 
     expect(authService.microsoftAuthenticate).toHaveBeenCalledWith({
       code: undefined,
@@ -548,15 +590,18 @@ describe("Auth integration", () => {
   it("POST /auth/logout authenticates via bearer token, reads the refresh cookie, and clears it in the response", async () => {
     const { app, authService } = createApp();
 
-    const response = await app.request(`http://rent.test${buildApiPath("/auth/logout")}`, {
-      method: "POST",
-      headers: {
-        authorization: "Bearer good-token",
-        cookie: "refresh_token=refresh-cookie-value",
-        "x-forwarded-for": "203.0.113.77",
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/logout")}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer good-token",
+          cookie: "refresh_token=refresh-cookie-value",
+          "x-forwarded-for": "203.0.113.77",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        },
       },
-    });
+    );
 
     expect(authService.logout).toHaveBeenCalledWith({
       auth: createJwtAuthPrincipal(),

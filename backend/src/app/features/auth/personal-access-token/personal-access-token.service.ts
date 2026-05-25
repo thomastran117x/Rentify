@@ -35,14 +35,17 @@ export class PersonalAccessTokenService {
   }
 
   async listForUser(userId: string): Promise<PersonalAccessTokenListResult> {
-    const tokens = await this.personalAccessTokenRepository.listByUserId(userId);
+    const tokens =
+      await this.personalAccessTokenRepository.listByUserId(userId);
 
     return {
       tokens: tokens.map((token) => this.toSummary(token)),
     };
   }
 
-  async create(input: CreatePersonalAccessTokenInput): Promise<CreatePersonalAccessTokenResult> {
+  async create(
+    input: CreatePersonalAccessTokenInput,
+  ): Promise<CreatePersonalAccessTokenResult> {
     const publicId = randomBytes(12).toString("hex");
     const secret = randomBytes(24).toString("hex");
     const tokenValue = `${PAT_TOKEN_PREFIX}_${publicId}_${secret}`;
@@ -54,7 +57,12 @@ export class PersonalAccessTokenService {
       secretHash: this.hashSecret(publicId, secret),
       scopes: input.scopes,
       ...(input.expiresAt || input.expiresInDays !== undefined
-        ? { expiresAt: this.resolveExpiresAt(input.expiresAt, input.expiresInDays) }
+        ? {
+            expiresAt: this.resolveExpiresAt(
+              input.expiresAt,
+              input.expiresInDays,
+            ),
+          }
         : {}),
     });
 
@@ -64,8 +72,13 @@ export class PersonalAccessTokenService {
     };
   }
 
-  async revoke(input: RevokePersonalAccessTokenInput): Promise<RevokePersonalAccessTokenResult> {
-    const token = await this.personalAccessTokenRepository.findByIdForUser(input.tokenId, input.userId);
+  async revoke(
+    input: RevokePersonalAccessTokenInput,
+  ): Promise<RevokePersonalAccessTokenResult> {
+    const token = await this.personalAccessTokenRepository.findByIdForUser(
+      input.tokenId,
+      input.userId,
+    );
 
     if (!token) {
       throw new BadRequestError("Personal access token could not be found.");
@@ -81,9 +94,13 @@ export class PersonalAccessTokenService {
     };
   }
 
-  async authenticateToken(tokenValue: string): Promise<PersonalAccessTokenPrincipal> {
+  async authenticateToken(
+    tokenValue: string,
+  ): Promise<PersonalAccessTokenPrincipal> {
     const parsedToken = this.parseToken(tokenValue);
-    const token = await this.personalAccessTokenRepository.findByPublicId(parsedToken.publicId);
+    const token = await this.personalAccessTokenRepository.findByPublicId(
+      parsedToken.publicId,
+    );
 
     if (!token) {
       throw new UnauthorizedError("Personal access token is invalid.");
@@ -97,7 +114,10 @@ export class PersonalAccessTokenService {
       throw new UnauthorizedError("Personal access token has expired.");
     }
 
-    const expectedHash = this.hashSecret(parsedToken.publicId, parsedToken.secret);
+    const expectedHash = this.hashSecret(
+      parsedToken.publicId,
+      parsedToken.secret,
+    );
 
     if (!this.safeEquals(token.secretHash, expectedHash)) {
       throw new UnauthorizedError("Personal access token is invalid.");
@@ -120,7 +140,9 @@ export class PersonalAccessTokenService {
     return [MCP_READ_SCOPE];
   }
 
-  private toSummary(token: PersonalAccessTokenRecord): PersonalAccessTokenSummary {
+  private toSummary(
+    token: PersonalAccessTokenRecord,
+  ): PersonalAccessTokenSummary {
     return {
       id: token.id,
       name: token.name,
@@ -192,4 +214,3 @@ export class PersonalAccessTokenService {
     );
   }
 }
-

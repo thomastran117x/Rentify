@@ -145,7 +145,9 @@ describe("RecommendationsController", () => {
     const controller = new RecommendationsController({
       getRecommendations,
     } as never);
-    const context = createContext("https://example.test/postings/recommendations");
+    const context = createContext(
+      "https://example.test/postings/recommendations",
+    );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
     const response = await controller.list(context);
@@ -211,7 +213,9 @@ describe("RecommendationsController", () => {
     const controller = new RecommendationsController({
       getRecommendations,
     } as never);
-    const context = createContext("https://example.test/postings/recommendations");
+    const context = createContext(
+      "https://example.test/postings/recommendations",
+    );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
     await controller.list(context);
@@ -237,7 +241,9 @@ describe("RecommendationsController", () => {
       "https://example.test/postings/recommendations?startAt=2026-05-08T00:00:00.000Z",
     );
 
-    await expect(controller.list(context)).rejects.toMatchObject<Partial<RequestValidationError>>({
+    await expect(controller.list(context)).rejects.toMatchObject<
+      Partial<RequestValidationError>
+    >({
       message: "Request query validation failed.",
       details: [
         {

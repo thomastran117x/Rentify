@@ -21,7 +21,9 @@ describe("runSeedOrchestrator", () => {
     const secondModule: SeedModule = {
       name: "second",
       async run(context) {
-        execution.push(`second:${context.state.userIdsByEmail.get("owner@example.com")}`);
+        execution.push(
+          `second:${context.state.userIdsByEmail.get("owner@example.com")}`,
+        );
       },
     };
     const prisma = {

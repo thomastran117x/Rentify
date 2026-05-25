@@ -1,7 +1,8 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { z } from "zod";
 
-const UNSAFE_AUTH_INPUT_MESSAGE = "Input contains unsupported HTML or script content.";
+const UNSAFE_AUTH_INPUT_MESSAGE =
+  "Input contains unsupported HTML or script content.";
 const UNSAFE_AUTH_INPUT_PATTERN =
   /<[^>]*>|&lt;|&gt;|javascript:|data:text\/html|on[a-z]+\s*=|<\/?script\b/i;
 
@@ -13,14 +14,20 @@ const safeTrimmedString = z
   .string()
   .trim()
   .min(1)
-  .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE);
+  .refine(
+    (value) => !containsUnsafeAuthInput(value),
+    UNSAFE_AUTH_INPUT_MESSAGE,
+  );
 
 const requiredSafeTrimmedString = (requiredMessage: string) =>
   z
     .string()
     .trim()
     .min(1, requiredMessage)
-    .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE);
+    .refine(
+      (value) => !containsUnsafeAuthInput(value),
+      UNSAFE_AUTH_INPUT_MESSAGE,
+    );
 
 const optionalTrimmedString = safeTrimmedString.optional();
 export const appRoleSchema = z.enum(["user", "owner", "admin"]);
@@ -69,7 +76,10 @@ export const localAuthenticateRequestSchema = z.object({
   password: z
     .string()
     .min(1, "Password is required.")
-    .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE),
+    .refine(
+      (value) => !containsUnsafeAuthInput(value),
+      UNSAFE_AUTH_INPUT_MESSAGE,
+    ),
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
   rememberMe: z.boolean().optional(),
   deviceId: optionalTrimmedString,
@@ -116,7 +126,10 @@ export const unlinkOAuthProviderRequestSchema = z.object({
 
 export const verifyEmailRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
-  code: z.string().trim().regex(/^\d{6}$/, "Verification code must be 6 digits."),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Verification code must be 6 digits."),
   deviceId: optionalTrimmedString,
 });
 
@@ -127,7 +140,10 @@ export const resendVerificationEmailRequestSchema = z.object({
 
 export const unlockLocalLoginRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
-  code: z.string().trim().regex(/^\d{6}$/, "Unlock code must be 6 digits."),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Unlock code must be 6 digits."),
 });
 
 export const resendUnlockLocalLoginRequestSchema = z.object({
@@ -151,7 +167,10 @@ export const resendForgotPasswordRequestSchema = z.object({
 
 export const resetPasswordRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
-  code: z.string().trim().regex(/^\d{6}$/, "Reset code must be 6 digits."),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Reset code must be 6 digits."),
   newPassword: strongPasswordSchema,
   deviceId: optionalTrimmedString,
 });
@@ -160,7 +179,10 @@ export const changePasswordRequestSchema = z.object({
   currentPassword: z
     .string()
     .min(1, "Current password is required.")
-    .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE),
+    .refine(
+      (value) => !containsUnsafeAuthInput(value),
+      UNSAFE_AUTH_INPUT_MESSAGE,
+    ),
   newPassword: strongPasswordSchema,
 });
 
@@ -170,13 +192,19 @@ export const removeKnownDeviceRequestSchema = z.object({
 
 export type LocalSignupRequestBody = z.infer<typeof localSignupRequestSchema>;
 
-export type LocalAuthenticateRequestBody = z.infer<typeof localAuthenticateRequestSchema>;
+export type LocalAuthenticateRequestBody = z.infer<
+  typeof localAuthenticateRequestSchema
+>;
 
-export type OAuthAuthenticateRequestBody = z.infer<typeof oauthAuthenticateRequestSchema>;
+export type OAuthAuthenticateRequestBody = z.infer<
+  typeof oauthAuthenticateRequestSchema
+>;
 
 export type OAuthProvider = z.infer<typeof oauthProviderSchema>;
 
-export type UnlinkOAuthProviderRequestBody = z.infer<typeof unlinkOAuthProviderRequestSchema>;
+export type UnlinkOAuthProviderRequestBody = z.infer<
+  typeof unlinkOAuthProviderRequestSchema
+>;
 
 export type VerifyEmailRequestBody = z.infer<typeof verifyEmailRequestSchema>;
 
@@ -184,7 +212,9 @@ export type ResendVerificationEmailRequestBody = z.infer<
   typeof resendVerificationEmailRequestSchema
 >;
 
-export type UnlockLocalLoginRequestBody = z.infer<typeof unlockLocalLoginRequestSchema>;
+export type UnlockLocalLoginRequestBody = z.infer<
+  typeof unlockLocalLoginRequestSchema
+>;
 
 export type ResendUnlockLocalLoginRequestBody = z.infer<
   typeof resendUnlockLocalLoginRequestSchema
@@ -192,15 +222,25 @@ export type ResendUnlockLocalLoginRequestBody = z.infer<
 
 export type RefreshRequestBody = z.infer<typeof refreshRequestSchema>;
 
-export type RemoveKnownDeviceRequestBody = z.infer<typeof removeKnownDeviceRequestSchema>;
+export type RemoveKnownDeviceRequestBody = z.infer<
+  typeof removeKnownDeviceRequestSchema
+>;
 
-export type ForgotPasswordRequestBody = z.infer<typeof forgotPasswordRequestSchema>;
+export type ForgotPasswordRequestBody = z.infer<
+  typeof forgotPasswordRequestSchema
+>;
 
-export type ResendForgotPasswordRequestBody = z.infer<typeof resendForgotPasswordRequestSchema>;
+export type ResendForgotPasswordRequestBody = z.infer<
+  typeof resendForgotPasswordRequestSchema
+>;
 
-export type ResetPasswordRequestBody = z.infer<typeof resetPasswordRequestSchema>;
+export type ResetPasswordRequestBody = z.infer<
+  typeof resetPasswordRequestSchema
+>;
 
-export type ChangePasswordRequestBody = z.infer<typeof changePasswordRequestSchema>;
+export type ChangePasswordRequestBody = z.infer<
+  typeof changePasswordRequestSchema
+>;
 
 export interface LocalAuthenticateInput {
   client: ClientRequestContext;

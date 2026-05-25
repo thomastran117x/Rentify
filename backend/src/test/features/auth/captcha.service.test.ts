@@ -77,7 +77,8 @@ describe("CaptchaService", () => {
     );
     const service = createService({
       secretKey: "test-secret",
-      verificationUrl: "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      verificationUrl:
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
       allowedHosts: ["challenges.cloudflare.com"],
     });
 
@@ -98,7 +99,9 @@ describe("CaptchaService", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("https://challenges.cloudflare.com/turnstile/v0/siteverify");
+    expect(url).toBe(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    );
     expect(init).toMatchObject({
       method: "POST",
       headers: {
@@ -111,7 +114,9 @@ describe("CaptchaService", () => {
   });
 
   it("fails closed on non-transient turnstile HTTP errors", async () => {
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response("bad request", { status: 400 }));
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("bad request", { status: 400 }));
     const service = createService();
 
     await expect(

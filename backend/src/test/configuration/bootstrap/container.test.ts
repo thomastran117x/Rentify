@@ -132,7 +132,9 @@ describe("container", () => {
       resolve: () => ({}),
     });
 
-    expect(() => container.validate()).toThrow(/alpha -> beta -> gamma -> alpha/);
+    expect(() => container.validate()).toThrow(
+      /alpha -> beta -> gamma -> alpha/,
+    );
   });
 
   it("validates acyclic graphs with mixed lifetimes", () => {

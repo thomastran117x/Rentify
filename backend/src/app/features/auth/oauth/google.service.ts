@@ -75,7 +75,9 @@ class GoogleOAuthService {
     });
 
     if (!payload.sub || typeof payload.email !== "string") {
-      throw new UnauthorizedError("Google ID token is missing required claims.");
+      throw new UnauthorizedError(
+        "Google ID token is missing required claims.",
+      );
     }
 
     const emailVerified = normalizeEmailVerified(payload.email_verified);
@@ -91,16 +93,24 @@ class GoogleOAuthService {
       emailVerified,
       firstName:
         input.firstName ??
-        (typeof payload.given_name === "string" ? payload.given_name.trim() || undefined : undefined),
+        (typeof payload.given_name === "string"
+          ? payload.given_name.trim() || undefined
+          : undefined),
       lastName:
         input.lastName ??
-        (typeof payload.family_name === "string" ? payload.family_name.trim() || undefined : undefined),
+        (typeof payload.family_name === "string"
+          ? payload.family_name.trim() || undefined
+          : undefined),
     };
   }
 
-  private async exchangeCodeForIdToken(input: OAuthAuthenticateInput): Promise<string> {
+  private async exchangeCodeForIdToken(
+    input: OAuthAuthenticateInput,
+  ): Promise<string> {
     if (!input.code || !input.codeVerifier) {
-      throw new BadRequestError("Google authorization code exchange is missing PKCE inputs.");
+      throw new BadRequestError(
+        "Google authorization code exchange is missing PKCE inputs.",
+      );
     }
 
     const body = new URLSearchParams({
@@ -134,12 +144,16 @@ class GoogleOAuthService {
 
     if (!response.ok) {
       throw new UnauthorizedError(
-        payload.error_description || payload.error || "Google authorization code exchange failed.",
+        payload.error_description ||
+          payload.error ||
+          "Google authorization code exchange failed.",
       );
     }
 
     if (!payload.id_token) {
-      throw new UnauthorizedError("Google token response did not include an ID token.");
+      throw new UnauthorizedError(
+        "Google token response did not include an ID token.",
+      );
     }
 
     return payload.id_token;

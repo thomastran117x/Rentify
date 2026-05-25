@@ -99,17 +99,21 @@ describe("RentingsService", () => {
     ).rejects.toThrow("boom");
 
     expect(
-      (bookingsRepository.releaseConversionReservation as unknown as jest.Mock).mock.calls[0],
+      (bookingsRepository.releaseConversionReservation as unknown as jest.Mock)
+        .mock.calls[0],
     ).toEqual(["booking-1", "owner-1", reservation]);
-    expect((postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls).toEqual([
-      ["posting-1"],
-      ["posting-1"],
-    ]);
-    expect((postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).mock.calls).toEqual([
-      ["posting-1"],
-      ["posting-1"],
-    ]);
-    expect((cacheService.acquireLock as unknown as jest.Mock).mock.calls.map(([key]) => key)).toEqual([
+    expect(
+      (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
+    ).toEqual([["posting-1"], ["posting-1"]]);
+    expect(
+      (postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).mock
+        .calls,
+    ).toEqual([["posting-1"], ["posting-1"]]);
+    expect(
+      (cacheService.acquireLock as unknown as jest.Mock).mock.calls.map(
+        ([key]) => key,
+      ),
+    ).toEqual([
       "booking-request:booking-1:convert",
       "posting:posting-1:booking-window",
     ]);
@@ -197,16 +201,15 @@ describe("RentingsService", () => {
 
     expect(renting.id).toBe("renting-1");
     expect(
-      (rentingsRepository.convertApprovedBookingRequest as unknown as jest.Mock),
+      rentingsRepository.convertApprovedBookingRequest as unknown as jest.Mock,
     ).toHaveBeenCalledWith("booking-1", "owner-1");
-    expect((postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls).toEqual([
-      ["posting-1"],
-      ["posting-1"],
-    ]);
-    expect((postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).mock.calls).toEqual([
-      ["posting-1"],
-      ["posting-1"],
-    ]);
+    expect(
+      (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
+    ).toEqual([["posting-1"], ["posting-1"]]);
+    expect(
+      (postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).mock
+        .calls,
+    ).toEqual([["posting-1"], ["posting-1"]]);
   });
 
   it("promotes ended active rentings to return_due when reading a renting", async () => {
@@ -231,7 +234,9 @@ describe("RentingsService", () => {
 
     const result = await service.getById("renting-1", "renter-1", "user");
 
-    expect((rentingsRepository.promoteReturnDueForRenting as unknown as jest.Mock)).toHaveBeenCalled();
+    expect(
+      rentingsRepository.promoteReturnDueForRenting as unknown as jest.Mock,
+    ).toHaveBeenCalled();
     expect(result.status).toBe("return_due");
   });
 
@@ -306,12 +311,16 @@ describe("RentingsService", () => {
       actorRole: "owner",
     });
 
-    expect((rentingsRepository.markCompleted as unknown as jest.Mock)).toHaveBeenCalled();
+    expect(
+      rentingsRepository.markCompleted as unknown as jest.Mock,
+    ).toHaveBeenCalled();
     expect(result.status).toBe("completed");
   });
 
   it("rejects disputes after the 7-day completion window", async () => {
-    const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString();
+    const elevenDaysAgo = new Date(
+      Date.now() - 11 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const rentingsRepository = {
       promoteReturnDueForRenting: jest.fn(async () => undefined),
       findById: jest.fn(async () =>

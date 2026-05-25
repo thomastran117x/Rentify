@@ -1,5 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import type { PaymentFailureCategory, ProviderErrorInfo } from "@/features/payments/payments.model";
+import type {
+  PaymentFailureCategory,
+  ProviderErrorInfo,
+} from "@/features/payments/payments.model";
 
 export function createPaymentIdempotencyKey(provided?: string): string {
   const normalized = provided?.trim();
@@ -15,7 +18,10 @@ export function minorUnitsToMoney(amount: bigint | number): number {
   return numeric / 100;
 }
 
-export function calculatePlatformFeeAmount(totalAmount: number, feeBps: number): number {
+export function calculatePlatformFeeAmount(
+  totalAmount: number,
+  feeBps: number,
+): number {
   return Math.round(totalAmount * (feeBps / 10_000) * 100) / 100;
 }
 
@@ -26,7 +32,9 @@ export function createExponentialBackoffDate(
 ): Date {
   const cappedRetry = Math.min(retryCount, 8);
   const delay = Math.min(baseDelayMs * 2 ** cappedRetry, maxDelayMs);
-  const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(delay * 0.1)));
+  const jitter = Math.floor(
+    Math.random() * Math.max(250, Math.floor(delay * 0.1)),
+  );
 
   return new Date(Date.now() + delay + jitter);
 }
@@ -42,7 +50,9 @@ export function verifySquareSignature(input: {
   }
 
   const payload = `${input.notificationUrl}${input.rawBody}`;
-  const digest = createHmac("sha256", input.signatureKey).update(payload).digest("base64");
+  const digest = createHmac("sha256", input.signatureKey)
+    .update(payload)
+    .digest("base64");
 
   const expected = Buffer.from(digest);
   const actual = Buffer.from(input.signatureHeader);
@@ -69,7 +79,11 @@ export function classifyHttpError(
   }
 
   const category: PaymentFailureCategory =
-    status >= 500 || status === 429 ? "transient" : status >= 400 ? "permanent" : "unknown";
+    status >= 500 || status === 429
+      ? "transient"
+      : status >= 400
+        ? "permanent"
+        : "unknown";
 
   return {
     category,
