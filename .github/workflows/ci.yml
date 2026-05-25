@@ -14,7 +14,7 @@ env:
 
 jobs:
   frontend:
-    name: Frontend checks
+    name: Frontend format and lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,6 +54,28 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build
         env:
@@ -103,8 +125,8 @@ jobs:
           printf '%s\n' "${files[@]}"
           npx --yes prettier@3.6.2 --check "${files[@]}"
 
-  backend-unit:
-    name: Backend build and unit tests
+  backend-build:
+    name: Backend type check and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -148,6 +170,46 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  backend-unit:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      ELASTICSEARCH_ENABLED: "false"
+      RABBITMQ_URL: ""
+      FRONTEND_URL: http://localhost:3040
+      APP_BASE_URL: http://localhost:3040
+      GMAIL_USER: ci@example.com
+      GMAIL_APP_PASSWORD: ci-password
+      ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
+      REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
+      PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      SQUARE_ACCESS_TOKEN: ci-square-token
+      SQUARE_LOCATION_ID: ci-square-location
+      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
+      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run unit tests
         run: npm run test:unit
