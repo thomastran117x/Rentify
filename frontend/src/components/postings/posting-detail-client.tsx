@@ -59,10 +59,20 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  function setNextReviewsPage(
+    updater: number | ((current: number) => number),
+  ): void {
     setReviewsLoading(true);
     setReviewsError(null);
+    setReviewsPage((current) =>
+      typeof updater === "function"
+        ? (updater as (value: number) => number)(current)
+        : updater,
+    );
+  }
+
+  useEffect(() => {
+    let active = true;
 
     void fetchPublicPostingReviews(posting.id, reviewsPage, 5)
       .then((result) => {
@@ -334,7 +344,9 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                       <button
                         type="button"
                         onClick={() =>
-                          setReviewsPage((current) => Math.max(1, current - 1))
+                          setNextReviewsPage((current) =>
+                            Math.max(1, current - 1),
+                          )
                         }
                         disabled={!reviewsResult.pagination.hasPreviousPage}
                         className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -344,7 +356,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                       <button
                         type="button"
                         onClick={() =>
-                          setReviewsPage((current) =>
+                          setNextReviewsPage((current) =>
                             reviewsResult.pagination.hasNextPage
                               ? current + 1
                               : current,

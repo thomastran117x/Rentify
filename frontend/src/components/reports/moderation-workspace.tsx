@@ -7,7 +7,6 @@ import { isModeratorRole } from "@/lib/auth/roles";
 import {
   reportsApi,
   type ContentReportDetailRecord,
-  type ContentReportRecord,
   type ListContentReportsFilters,
   type ListContentReportsResult,
   type ReportReasonCode,

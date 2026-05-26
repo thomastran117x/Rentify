@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { PostingDetailClient } from "@/components/postings/posting-detail-client";
 import {
   getPublicPostingDetail,
@@ -59,7 +58,7 @@ export default async function PostingDetailPage({
     return <PostingDetailError />;
   }
 
-  return <PostingDetailClient posting={posting} />;
+  return <PostingDetailClient key={posting.id} posting={posting} />;
 }
 
 function PostingDetailError() {
