@@ -30,7 +30,7 @@ const requiredSafeTrimmedString = (requiredMessage: string) =>
     );
 
 const optionalTrimmedString = safeTrimmedString.optional();
-export const appRoleSchema = z.enum(["user", "owner", "admin"]);
+export const appRoleSchema = z.enum(["user", "owner", "moderator", "admin"]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 export const DEFAULT_APP_ROLE: AppRole = "user";
 const STRONG_PASSWORD_MESSAGE =

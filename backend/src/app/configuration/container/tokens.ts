@@ -29,6 +29,10 @@ import { PaymentsService } from "@/features/payments/payments.service";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 import { ProfileService } from "@/features/profile/profile.service";
+import { ReportsController } from "@/features/reports/reports.controller";
+import { ReportsRepository } from "@/features/reports/reports.repository";
+import { ReportsService } from "@/features/reports/reports.service";
+import { ReportsSearchIndexService } from "@/features/reports/search/index.service";
 import { RecommendationActivityProcessor } from "@/features/recommendations/recommendation-activity.processor";
 import { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import { RecommendationActivityQueueService } from "@/features/recommendations/recommendation-activity.queue.service";
@@ -113,6 +117,12 @@ export const containerTokens = {
   profileRepository: createServiceToken<ProfileRepository>("ProfileRepository"),
   profileService: createServiceToken<ProfileService>("ProfileService"),
   profileController: createServiceToken<ProfileController>("ProfileController"),
+  reportsRepository: createServiceToken<ReportsRepository>("ReportsRepository"),
+  reportsSearchIndexService: createServiceToken<ReportsSearchIndexService>(
+    "ReportsSearchIndexService",
+  ),
+  reportsService: createServiceToken<ReportsService>("ReportsService"),
+  reportsController: createServiceToken<ReportsController>("ReportsController"),
   recommendationActivityQueueService:
     createServiceToken<RecommendationActivityQueueService>(
       "RecommendationActivityQueueService",

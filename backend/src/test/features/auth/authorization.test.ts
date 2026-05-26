@@ -1,7 +1,9 @@
 import ForbiddenError from "@/errors/http/forbidden.error";
 import {
   getAuthRole,
+  hasAnyRole,
   hasMinimumRole,
+  requireAnyRole,
   requireMinimumRole,
 } from "@/features/auth/authorization";
 import { normalizeAppRole } from "@/features/auth/auth.model";
@@ -124,7 +126,7 @@ describe("authorization", () => {
     expect(getAuthRole(createClaims({ role: undefined }))).toBe("user");
   });
 
-  it("allows owner routes for owner and admin roles", () => {
+  it("allows owner routes for owner and admin roles only", () => {
     expect(requireMinimumRole(createClaims({ role: "owner" }), "owner")).toBe(
       "owner",
     );
@@ -132,11 +134,29 @@ describe("authorization", () => {
       "admin",
     );
     expect(hasMinimumRole(createClaims({ role: "admin" }), "owner")).toBe(true);
+    expect(hasMinimumRole(createClaims({ role: "moderator" }), "owner")).toBe(
+      false,
+    );
   });
 
   it("rejects regular users from owner routes", () => {
     expect(() =>
       requireMinimumRole(createClaims({ role: "user" }), "owner"),
+    ).toThrow(ForbiddenError);
+  });
+
+  it("allows moderator routes for moderators and admins only", () => {
+    expect(
+      requireMinimumRole(createClaims({ role: "moderator" }), "moderator"),
+    ).toBe("moderator");
+    expect(
+      requireMinimumRole(createClaims({ role: "admin" }), "moderator"),
+    ).toBe("admin");
+    expect(hasAnyRole(createClaims({ role: "moderator" }), ["moderator"])).toBe(
+      true,
+    );
+    expect(() =>
+      requireAnyRole(createClaims({ role: "owner" }), ["moderator", "admin"]),
     ).toThrow(ForbiddenError);
   });
 

@@ -8,15 +8,38 @@ import {
 } from "./site-header.shared";
 
 describe("site header shared helpers", () => {
-  it("returns owner dashboard links for non-user roles", () => {
+  it("returns owner dashboard links only for owner-capable roles", () => {
     const ownerLinks = getAccountLinks("owner");
+    const moderatorLinks = getAccountLinks("moderator");
     const userLinks = getAccountLinks("user");
 
     expect(ownerLinks.some((link) => link.href === "/dashboard")).toBe(true);
     expect(ownerLinks.some((link) => link.href === "/postings/create")).toBe(
       true,
     );
+    expect(moderatorLinks.some((link) => link.href === "/dashboard")).toBe(
+      false,
+    );
     expect(userLinks.some((link) => link.href === "/dashboard")).toBe(false);
+  });
+
+  it("returns moderation links for moderator-capable roles", () => {
+    const moderatorLinks = getAccountLinks("moderator");
+    const adminLinks = getAccountLinks("admin");
+    const ownerLinks = getAccountLinks("owner");
+
+    expect(moderatorLinks.some((link) => link.href === "/moderation")).toBe(
+      true,
+    );
+    expect(adminLinks.some((link) => link.href === "/moderation")).toBe(true);
+    expect(ownerLinks.some((link) => link.href === "/moderation")).toBe(false);
+  });
+
+  it("does not include dead account routes", () => {
+    const links = getAccountLinks("user");
+
+    expect(links.some((link) => link.href === "/profile")).toBe(false);
+    expect(links.some((link) => link.href === "/settings")).toBe(false);
   });
 
   it("prefers username and falls back to the email prefix for display labels", () => {

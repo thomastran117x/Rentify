@@ -10,6 +10,8 @@ export const ROUTE_MODULE_IDS = [
   "auth-personal-access-tokens",
   "blob",
   "profiles",
+  "reports",
+  "moderation-reports",
   "search-admin",
   "postings-owner",
   "postings-analytics",

@@ -29,6 +29,10 @@ import { SquarePaymentAdapter } from "@/features/payments/square.adapter";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 import { ProfileService } from "@/features/profile/profile.service";
+import { ReportsController } from "@/features/reports/reports.controller";
+import { ReportsRepository } from "@/features/reports/reports.repository";
+import { ReportsService } from "@/features/reports/reports.service";
+import { ReportsSearchIndexService } from "@/features/reports/search/index.service";
 import { RecommendationActivityProcessor } from "@/features/recommendations/recommendation-activity.processor";
 import { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import { RecommendationActivityQueueService } from "@/features/recommendations/recommendation-activity.queue.service";
@@ -293,6 +297,40 @@ export function registerApplicationServices(
     dependencies: [containerTokens.profileService],
     resolve: ({ resolve }) =>
       new ProfileController(resolve(containerTokens.profileService)),
+  });
+  container.register({
+    token: containerTokens.reportsRepository,
+    lifetime: "singleton",
+    dependencies: [],
+    resolve: () => new ReportsRepository(),
+  });
+  container.register({
+    token: containerTokens.reportsSearchIndexService,
+    lifetime: "scoped",
+    dependencies: [],
+    resolve: () => new ReportsSearchIndexService(),
+  });
+  container.register({
+    token: containerTokens.reportsService,
+    lifetime: "scoped",
+    dependencies: [
+      containerTokens.reportsRepository,
+      containerTokens.reportsSearchIndexService,
+      containerTokens.contentSanitizationService,
+    ],
+    resolve: ({ resolve }) =>
+      new ReportsService(
+        resolve(containerTokens.reportsRepository),
+        resolve(containerTokens.reportsSearchIndexService),
+        resolve(containerTokens.contentSanitizationService),
+      ),
+  });
+  container.register({
+    token: containerTokens.reportsController,
+    lifetime: "scoped",
+    dependencies: [containerTokens.reportsService],
+    resolve: ({ resolve }) =>
+      new ReportsController(resolve(containerTokens.reportsService)),
   });
   container.register({
     token: containerTokens.recommendationActivityQueueService,

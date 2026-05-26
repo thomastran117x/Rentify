@@ -156,6 +156,12 @@ const privateProfileExample = {
 const postingExample = {
   id: "posting-1",
   ownerId: "owner-1",
+  owner: {
+    id: "owner-1",
+    username: "owner-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    role: "owner",
+  },
   status: "published",
   variant: {
     family: "place",
@@ -280,6 +286,76 @@ const reviewExample = {
   },
   createdAt: "2026-05-18T10:00:00.000Z",
   updatedAt: "2026-05-18T10:00:00.000Z",
+};
+const reportExample = {
+  id: "report-1",
+  reporterId: "user-1",
+  subjectType: "posting",
+  subjectId: "posting-1",
+  reasonCode: "fraud_or_scam",
+  title: "Payment requested off-platform",
+  description:
+    "The listing description asks renters to contact a private number and pay by wire transfer.",
+  status: "open",
+  createdAt: "2026-05-25T15:00:00.000Z",
+  updatedAt: "2026-05-25T15:00:00.000Z",
+  reporter: {
+    id: "user-1",
+    email: "user1@rentify.local",
+    username: "renter-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+    role: "user",
+  },
+  assignedModerator: {
+    id: "moderator-1",
+    email: "moderator1@rentify.local",
+    username: "mod-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/mod-1.png",
+    role: "moderator",
+  },
+  subjectSnapshot: {
+    subjectType: "posting",
+    summaryText: "Sunny loft workspace published owner-one",
+    posting: {
+      id: "posting-1",
+      name: "Sunny loft workspace",
+      status: "published",
+      owner: {
+        id: "owner-1",
+        email: "owner1@rentify.local",
+        username: "owner-one",
+        avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+        role: "owner",
+      },
+    },
+  },
+};
+const reportDetailExample = {
+  ...reportExample,
+  reviewedAt: "2026-05-25T16:00:00.000Z",
+  events: [
+    {
+      id: "report-event-1",
+      eventType: "created",
+      actor: reportExample.reporter,
+      createdAt: "2026-05-25T15:00:00.000Z",
+      note: "Initial report submitted by renter.",
+    },
+    {
+      id: "report-event-2",
+      eventType: "assigned",
+      actor: reportExample.assignedModerator,
+      assignmentUserId: "moderator-1",
+      createdAt: "2026-05-25T15:10:00.000Z",
+      note: "Assigned for manual review.",
+    },
+  ],
+};
+const reportsListExample = {
+  reports: [reportExample],
+  pagination: searchResultExample.pagination,
+  source: "elasticsearch",
+  query: "wire transfer",
 };
 const analyticsSummaryExample = {
   window: "7d",
@@ -2432,6 +2508,221 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "post",
+      path: "/reports",
+      operationId: "createReport",
+      summary: "Create a misconduct report",
+      description:
+        "Creates a content report for a posting, posting review, or user. Browser bearer authentication is required.",
+      tags: ["moderation"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("CreateReportRequest", {
+        subjectType: "posting",
+        subjectId: "posting-1",
+        reasonCode: "fraud_or_scam",
+        title: "Payment requested off-platform",
+        description:
+          "The listing description asks renters to contact a private number and pay by wire transfer.",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Report created successfully.",
+          "ContentReportRecord",
+          reportExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/moderation/reports",
+      operationId: "listModerationReports",
+      summary: "List moderation reports",
+      description:
+        "Returns the moderator report queue with filters, pagination, and source metadata.",
+      tags: ["moderation"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "moderator",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "q",
+          { type: "string" },
+          "Full-text moderator search query.",
+        ),
+        queryParam(
+          "status",
+          {
+            type: "string",
+            enum: ["open", "under_review", "resolved", "dismissed"],
+          },
+          "Filter by report status.",
+        ),
+        queryParam(
+          "subjectType",
+          {
+            type: "string",
+            enum: ["posting", "posting_review", "user"],
+          },
+          "Filter by report subject type.",
+        ),
+        queryParam(
+          "reasonCode",
+          {
+            type: "string",
+            enum: [
+              "spam",
+              "fraud_or_scam",
+              "harassment_or_hate",
+              "sexual_content",
+              "violence_or_threats",
+              "illegal_or_prohibited",
+              "impersonation",
+              "misleading_information",
+              "review_manipulation",
+              "other",
+            ],
+          },
+          "Filter by report reason.",
+        ),
+        queryParam(
+          "assignedTo",
+          { type: "string" },
+          "Filter by assigned moderator ID or use `unassigned`.",
+        ),
+        queryParam(
+          "reporterId",
+          { type: "string" },
+          "Filter by reporter user ID.",
+        ),
+        parameterRef("Page"),
+        parameterRef("PageSize"),
+        queryParam(
+          "sort",
+          {
+            type: "string",
+            enum: ["newest", "oldest", "recentlyReviewed"],
+            default: "newest",
+          },
+          "Queue sort order.",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ListContentReportsResult",
+          reportsListExample,
+          "Successful response.",
+          {
+            requestId: requestIdExample,
+            pagination: searchResultExample.pagination,
+            source: "elasticsearch",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/moderation/reports/:id",
+      operationId: "getModerationReport",
+      summary: "Get a moderation report",
+      description:
+        "Returns a single report with its subject snapshot and event timeline.",
+      tags: ["moderation"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "moderator",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Report identifier.", "report-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ContentReportDetailRecord",
+          reportDetailExample,
+        ),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/moderation/reports/:id/assignment",
+      operationId: "assignModerationReport",
+      summary: "Assign or unassign a report",
+      description:
+        "Assigns a moderation report to the current moderator, clears the assignment, or lets admins assign another moderator.",
+      tags: ["moderation"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "moderator",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Report identifier.", "report-1")],
+      requestBody: requestBody("AssignContentReportRequest", {
+        assignedModeratorId: "moderator-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Report assignment updated successfully.",
+          "ContentReportRecord",
+          reportExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/moderation/reports/:id/status",
+      operationId: "updateModerationReportStatus",
+      summary: "Update moderation report status",
+      description:
+        "Moves a report through moderation review states and optionally records a resolution and note.",
+      tags: ["moderation"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "moderator",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Report identifier.", "report-1")],
+      requestBody: requestBody("UpdateContentReportStatusRequest", {
+        status: "resolved",
+        resolutionCode: "action_taken",
+        resolutionSummary: "Listing removed after moderator review.",
+        note: "Reporter and listing snapshot reviewed.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Report status updated successfully.",
+          "ContentReportRecord",
+          {
+            ...reportExample,
+            status: "resolved",
+            resolutionCode: "action_taken",
+            resolutionSummary: "Listing removed after moderator review.",
+            reviewedAt: "2026-05-25T16:00:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
       method: "get",
       path: "/postings/:id/availability-blocks",
       operationId: "listPostingAvailabilityBlocks",
@@ -4403,7 +4694,7 @@ function buildComponents(): Record<string, unknown> {
           avatarUrl: { type: "string", format: "uri" },
           role: {
             type: "string",
-            enum: ["user", "owner", "admin"],
+            enum: ["user", "owner", "moderator", "admin"],
           },
         },
       },
@@ -4929,6 +5220,238 @@ function buildComponents(): Record<string, unknown> {
         },
         required: ["reviews", "summary", "pagination"],
       },
+      CreateReportRequest: {
+        type: "object",
+        required: [
+          "subjectType",
+          "subjectId",
+          "reasonCode",
+          "title",
+          "description",
+        ],
+        properties: {
+          subjectType: {
+            type: "string",
+            enum: ["posting", "posting_review", "user"],
+          },
+          subjectId: { type: "string" },
+          reasonCode: {
+            type: "string",
+            enum: [
+              "spam",
+              "fraud_or_scam",
+              "harassment_or_hate",
+              "sexual_content",
+              "violence_or_threats",
+              "illegal_or_prohibited",
+              "impersonation",
+              "misleading_information",
+              "review_manipulation",
+              "other",
+            ],
+          },
+          title: { type: "string", minLength: 3, maxLength: 120 },
+          description: { type: "string", minLength: 10, maxLength: 2000 },
+        },
+      },
+      ContentReportUserSummary: {
+        type: "object",
+        required: ["id", "email", "role"],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+          role: {
+            type: "string",
+            enum: ["user", "owner", "moderator", "admin"],
+          },
+        },
+      },
+      ContentReportSubjectSnapshot: {
+        type: "object",
+        required: ["subjectType", "summaryText"],
+        properties: {
+          subjectType: {
+            type: "string",
+            enum: ["posting", "posting_review", "user"],
+          },
+          summaryText: { type: "string" },
+          posting: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              status: { type: "string" },
+              owner: schemaRef("ContentReportUserSummary"),
+            },
+          },
+          review: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              rating: { type: "integer" },
+              title: { type: "string" },
+              commentExcerpt: { type: "string" },
+              reviewer: schemaRef("ContentReportUserSummary"),
+              posting: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                },
+              },
+            },
+          },
+          user: schemaRef("ContentReportUserSummary"),
+        },
+      },
+      ContentReportEventRecord: {
+        type: "object",
+        required: ["id", "eventType", "actor", "createdAt"],
+        properties: {
+          id: { type: "string" },
+          eventType: {
+            type: "string",
+            enum: ["created", "assigned", "status_changed", "note_added"],
+          },
+          fromStatus: {
+            type: "string",
+            enum: ["open", "under_review", "resolved", "dismissed"],
+          },
+          toStatus: {
+            type: "string",
+            enum: ["open", "under_review", "resolved", "dismissed"],
+          },
+          assignmentUserId: { type: "string" },
+          note: { type: "string" },
+          actor: schemaRef("ContentReportUserSummary"),
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      ContentReportRecord: {
+        type: "object",
+        required: [
+          "id",
+          "reporterId",
+          "subjectType",
+          "subjectId",
+          "reasonCode",
+          "title",
+          "description",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "reporter",
+          "subjectSnapshot",
+        ],
+        properties: {
+          id: { type: "string" },
+          reporterId: { type: "string" },
+          subjectType: {
+            type: "string",
+            enum: ["posting", "posting_review", "user"],
+          },
+          subjectId: { type: "string" },
+          reasonCode: {
+            type: "string",
+            enum: [
+              "spam",
+              "fraud_or_scam",
+              "harassment_or_hate",
+              "sexual_content",
+              "violence_or_threats",
+              "illegal_or_prohibited",
+              "impersonation",
+              "misleading_information",
+              "review_manipulation",
+              "other",
+            ],
+          },
+          title: { type: "string" },
+          description: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["open", "under_review", "resolved", "dismissed"],
+          },
+          resolutionCode: {
+            type: "string",
+            enum: [
+              "action_taken",
+              "no_violation",
+              "duplicate",
+              "insufficient_information",
+            ],
+          },
+          resolutionSummary: { type: "string" },
+          reviewedAt: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          reporter: schemaRef("ContentReportUserSummary"),
+          assignedModerator: schemaRef("ContentReportUserSummary"),
+          subjectSnapshot: schemaRef("ContentReportSubjectSnapshot"),
+        },
+      },
+      ContentReportDetailRecord: {
+        allOf: [
+          schemaRef("ContentReportRecord"),
+          {
+            type: "object",
+            required: ["events"],
+            properties: {
+              events: {
+                type: "array",
+                items: schemaRef("ContentReportEventRecord"),
+              },
+            },
+          },
+        ],
+      },
+      ListContentReportsResult: {
+        type: "object",
+        required: ["reports", "pagination", "source"],
+        properties: {
+          reports: {
+            type: "array",
+            items: schemaRef("ContentReportRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+          source: {
+            type: "string",
+            enum: ["elasticsearch", "database"],
+          },
+          query: { type: "string" },
+        },
+      },
+      AssignContentReportRequest: {
+        type: "object",
+        properties: {
+          assignedModeratorId: {
+            oneOf: [{ type: "string" }, { type: "null" }],
+          },
+        },
+      },
+      UpdateContentReportStatusRequest: {
+        type: "object",
+        required: ["status"],
+        properties: {
+          status: {
+            type: "string",
+            enum: ["open", "under_review", "resolved", "dismissed"],
+          },
+          resolutionCode: {
+            type: "string",
+            enum: [
+              "action_taken",
+              "no_violation",
+              "duplicate",
+              "insufficient_information",
+            ],
+          },
+          resolutionSummary: { type: "string" },
+          note: { type: "string" },
+        },
+      },
       SearchClickActivityRequest: {
         type: "object",
         required: [
@@ -5198,6 +5721,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "admin-search",
         description: "Administrative search maintenance and telemetry routes.",
+      },
+      {
+        name: "moderation",
+        description: "Safety reporting and moderator review workflows.",
       },
     ],
     paths: buildDocumentPaths(),

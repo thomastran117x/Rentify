@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { isOwnerRole } from "@/lib/auth/roles";
 import {
   AnalyticsCard,
   buildDashboardDiagnostics,
@@ -79,7 +80,7 @@ export function OwnerDashboard() {
     if (
       status !== "authenticated" ||
       !session ||
-      session.user.role === "user"
+      !isOwnerRole(session.user.role)
     ) {
       return;
     }
@@ -162,7 +163,7 @@ export function OwnerDashboard() {
     if (
       status !== "authenticated" ||
       !session ||
-      session.user.role === "user"
+      !isOwnerRole(session.user.role)
     ) {
       return;
     }
@@ -284,7 +285,7 @@ export function OwnerDashboard() {
     return <LoadingDashboard />;
   }
 
-  if (session.user.role === "user") {
+  if (!isOwnerRole(session.user.role)) {
     return <RestrictedState />;
   }
 

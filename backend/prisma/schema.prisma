@@ -35,6 +35,9 @@ model User {
   personalAccessTokens PersonalAccessToken[]
   recommendationProfile UserRecommendationProfile?
   recommendationSnapshot UserRecommendationSnapshot?
+  filedContentReports    ContentReport[]      @relation("ContentReportReporter")
+  assignedContentReports ContentReport[]      @relation("ContentReportAssignee")
+  contentReportEvents    ContentReportEvent[] @relation("ContentReportEventActor")
 
   @@map("users")
 }
@@ -620,6 +623,73 @@ model PostingReview {
   @@map("posting_reviews")
 }
 
+model ContentReport {
+  id                 String               @id @db.VarChar(36)
+  reporterId         String               @map("reporter_id") @db.VarChar(36)
+  subjectType        ReportSubjectType    @map("subject_type")
+  subjectId          String               @map("subject_id") @db.VarChar(64)
+  reasonCode         ReportReasonCode     @map("reason_code")
+  title              String               @db.VarChar(120)
+  description        String               @db.VarChar(2000)
+  status             ReportStatus         @default(open)
+  assignedModeratorId String?             @map("assigned_moderator_id") @db.VarChar(36)
+  resolutionCode     ReportResolutionCode? @map("resolution_code")
+  resolutionSummary  String?              @map("resolution_summary") @db.VarChar(2000)
+  subjectSnapshot    Json                 @map("subject_snapshot")
+  subjectSnapshotText String              @map("subject_snapshot_text") @db.Text
+  reviewedAt         DateTime?            @map("reviewed_at") @db.DateTime(6)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.DateTime(6)
+  reporter           User                 @relation("ContentReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  assignedModerator  User?                @relation("ContentReportAssignee", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
+  events             ContentReportEvent[]
+  searchOutboxEntries ContentReportSearchOutbox[]
+
+  @@index([reporterId, createdAt])
+  @@index([status, createdAt])
+  @@index([assignedModeratorId, status, createdAt])
+  @@index([subjectType, subjectId, createdAt])
+  @@map("content_reports")
+}
+
+model ContentReportEvent {
+  id              String            @id @db.VarChar(36)
+  reportId         String            @map("report_id") @db.VarChar(36)
+  actorUserId      String            @map("actor_user_id") @db.VarChar(36)
+  eventType        ReportEventType   @map("event_type")
+  fromStatus       ReportStatus?     @map("from_status")
+  toStatus         ReportStatus?     @map("to_status")
+  assignmentUserId String?           @map("assignment_user_id") @db.VarChar(36)
+  note             String?           @db.VarChar(2000)
+  metadata         Json?
+  createdAt        DateTime          @default(now()) @map("created_at") @db.DateTime(6)
+  report           ContentReport     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor            User              @relation("ContentReportEventActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("content_report_events")
+}
+
+model ContentReportSearchOutbox {
+  id             String                @id @db.VarChar(36)
+  reportId        String                @map("report_id") @db.VarChar(36)
+  operation       ContentReportSearchOutboxOperation
+  attempts        Int                   @default(0)
+  availableAt     DateTime              @default(now()) @map("available_at") @db.DateTime(6)
+  processingAt    DateTime?             @map("processing_at") @db.DateTime(6)
+  processedAt     DateTime?             @map("processed_at") @db.DateTime(6)
+  deadLetteredAt  DateTime?             @map("dead_lettered_at") @db.DateTime(6)
+  lastError       String?               @map("last_error") @db.VarChar(2048)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.DateTime(6)
+  report          ContentReport         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([availableAt, processedAt, deadLetteredAt, processingAt], map: "cr_outbox_ready_idx")
+  @@index([reportId, operation])
+  @@map("content_report_search_outbox")
+}
+
 model RecommendationActivity {
   id                       String                          @id @db.VarChar(36)
   aggregationKey           String                          @unique @map("aggregation_key") @db.VarChar(255)
@@ -726,6 +796,51 @@ enum PostingStatus {
   published
   paused
   archived
+}
+
+enum ReportSubjectType {
+  posting
+  posting_review
+  user
+}
+
+enum ReportReasonCode {
+  spam
+  fraud_or_scam
+  harassment_or_hate
+  sexual_content
+  violence_or_threats
+  illegal_or_prohibited
+  impersonation
+  misleading_information
+  review_manipulation
+  other
+}
+
+enum ReportStatus {
+  open
+  under_review
+  resolved
+  dismissed
+}
+
+enum ReportResolutionCode {
+  action_taken
+  no_violation
+  duplicate
+  insufficient_information
+}
+
+enum ReportEventType {
+  created
+  assigned
+  status_changed
+  note_added
+}
+
+enum ContentReportSearchOutboxOperation {
+  upsert
+  delete
 }
 
 enum PostingAvailabilityStatus {

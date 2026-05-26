@@ -14,6 +14,7 @@ import type {
   BookingRequestsListResult,
 } from "@/lib/bookings/types";
 import { ApiError, type AuthResponseUser } from "@/lib/auth/types";
+import { isOwnerRole } from "@/lib/auth/roles";
 
 function formatDateRange(startAt: string, endAt: string): string {
   const formatter = new Intl.DateTimeFormat(undefined, {
@@ -322,7 +323,7 @@ export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
     Record<string, string>
   >({});
 
-  const showOwnerSection = role === "owner" || role === "admin";
+  const showOwnerSection = isOwnerRole(role);
 
   async function refreshBookings() {
     setLoading(true);

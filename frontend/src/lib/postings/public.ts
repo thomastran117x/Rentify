@@ -19,6 +19,12 @@ export interface PublicPostingPhoto {
 export interface PublicPostingDetail {
   id: string;
   ownerId: string;
+  owner?: {
+    id: string;
+    username?: string;
+    avatarUrl?: string;
+    role: "owner" | "admin";
+  };
   status: "published";
   variant: {
     family: string;
@@ -153,6 +159,86 @@ export async function fetchPublicPostingDetail(
 }
 
 export const getPublicPostingDetail = cache(fetchPublicPostingDetail);
+
+export interface PublicPostingReviewRecord {
+  id: string;
+  postingId: string;
+  reviewerId: string;
+  rating: number;
+  title?: string;
+  comment?: string;
+  reviewer: {
+    username?: string;
+    avatarUrl?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListPublicPostingReviewsResult {
+  reviews: PublicPostingReviewRecord[];
+  summary: {
+    averageRating: number;
+    reviewCount: number;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export async function fetchPublicPostingReviews(
+  postingId: string,
+  page = 1,
+  pageSize = 5,
+): Promise<ListPublicPostingReviewsResult> {
+  const requestUrl = `${resolveApiBaseUrl()}/postings/${encodeURIComponent(postingId)}/reviews?page=${page}&pageSize=${pageSize}`;
+
+  try {
+    const response = await fetch(requestUrl, {
+      headers: {
+        accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    const payload = (await readJson(response).catch(() => null)) as
+      | ApiErrorResponse
+      | { data: ListPublicPostingReviewsResult }
+      | null;
+
+    if (!response.ok) {
+      throw new PublicPostingDetailError(
+        (payload && "message" in payload && payload.message) ||
+          "Unable to load posting reviews.",
+        {
+          requestUrl,
+          postingId,
+          status: response.status,
+          statusText: response.statusText,
+          responseBody: payload,
+        },
+      );
+    }
+
+    return unwrapApiResponse<ListPublicPostingReviewsResult>(payload);
+  } catch (error) {
+    if (error instanceof PublicPostingDetailError) {
+      throw error;
+    }
+
+    throw new PublicPostingDetailError("Unable to load posting reviews.", {
+      requestUrl,
+      postingId,
+      causeMessage:
+        error instanceof Error ? error.message : "Unknown fetch failure.",
+    });
+  }
+}
 
 export function isPublicPostingDetailNotFoundError(error: unknown): boolean {
   return (

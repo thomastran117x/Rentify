@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 
-export type FixtureRole = "owner" | "user" | "admin";
+export type FixtureRole = "owner" | "user" | "moderator" | "admin";
 export type SeedSource = "startup" | "script" | "test";
 
 export interface SeedLogger {

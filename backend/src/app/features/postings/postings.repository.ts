@@ -55,6 +55,11 @@ type SearchReindexCatchUpState =
 
 type PostingPersistence = Prisma.PostingGetPayload<{
   include: {
+    owner: {
+      include: {
+        profile: true;
+      };
+    };
     photos: {
       orderBy: {
         position: "asc";
@@ -141,6 +146,11 @@ interface LockRow {
 
 const SEARCH_REINDEX_START_LOCK_NAME = "rentify:search-reindex:start";
 const postingInclude = {
+  owner: {
+    include: {
+      profile: true,
+    },
+  },
   photos: {
     orderBy: {
       position: "asc",
@@ -2528,7 +2538,22 @@ export class PostingsRepository extends BaseRepository {
   }
 
   private mapPublicPosting(posting: PostingPersistence): PublicPostingRecord {
-    return toPublicPostingRecord(this.mapPosting(posting));
+    const owner = posting.owner
+      ? {
+          id: posting.owner.id,
+          email: posting.owner.email,
+          username: posting.owner.profile?.username ?? undefined,
+          avatarUrl: posting.owner.profile?.avatarUrl ?? undefined,
+          role: posting.owner.role as NonNullable<
+            PublicPostingRecord["owner"]
+          >["role"],
+        }
+      : undefined;
+
+    return {
+      ...toPublicPostingRecord(this.mapPosting(posting)),
+      owner,
+    };
   }
 
   private mapSearchDocument(

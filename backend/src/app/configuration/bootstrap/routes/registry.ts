@@ -23,6 +23,10 @@ import {
   postingsPublicRouteModule,
   postingsReviewsRouteModule,
 } from "@/configuration/bootstrap/routes/modules/postings.routes";
+import {
+  moderationReportsRouteModule,
+  reportsRouteModule,
+} from "@/configuration/bootstrap/routes/modules/reports.routes";
 import { rentingsRouteModule } from "@/configuration/bootstrap/routes/modules/rentings.routes";
 import { systemRouteModule } from "@/configuration/bootstrap/routes/modules/system.routes";
 import type {
@@ -41,6 +45,8 @@ export const routeModuleRegistry: RouteModule[] = [
   authPersonalAccessTokensRouteModule,
   blobRouteModule,
   profilesRouteModule,
+  reportsRouteModule,
+  moderationReportsRouteModule,
   searchAdminRouteModule,
   postingsOwnerRouteModule,
   postingsAnalyticsRouteModule,

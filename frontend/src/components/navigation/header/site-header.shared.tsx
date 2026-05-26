@@ -1,5 +1,6 @@
 import { theme } from "@/styles/theme";
 import type { AuthResponseUser } from "@/lib/auth/types";
+import { isModeratorRole, isOwnerRole } from "@/lib/auth/roles";
 
 export interface HeaderNavigationLink {
   href: string;
@@ -26,7 +27,7 @@ export function getAccountLinks(
   role?: SiteHeaderUserRole,
 ): HeaderAccountLink[] {
   return [
-    ...(role && role !== "user"
+    ...(isOwnerRole(role)
       ? [
           {
             href: "/dashboard",
@@ -40,28 +41,26 @@ export function getAccountLinks(
           },
         ]
       : []),
+    ...(isModeratorRole(role)
+      ? [
+          {
+            href: "/moderation",
+            label: "Moderation",
+            description: "Review reports and keep the marketplace safe",
+          },
+        ]
+      : []),
     {
       href: "/bookings",
       label: "Bookings",
-      description:
-        role && role !== "user"
-          ? "Track renter and owner booking work in one place"
-          : "Track requests, payments, and upcoming rentings",
+      description: isOwnerRole(role)
+        ? "Track renter and owner booking work in one place"
+        : "Track requests, payments, and upcoming rentings",
     },
     {
       href: "/account",
       label: "Manage account",
       description: "Email, security, and login methods",
-    },
-    {
-      href: "/profile",
-      label: "Profile",
-      description: "Personal details and public-facing info",
-    },
-    {
-      href: "/settings",
-      label: "Settings",
-      description: "Preferences and application settings",
     },
   ];
 }
@@ -172,6 +171,7 @@ interface UserAvatarProps {
 export function UserAvatar({ name, imageUrl }: UserAvatarProps) {
   if (imageUrl) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={imageUrl}
         alt={`${name} avatar`}
