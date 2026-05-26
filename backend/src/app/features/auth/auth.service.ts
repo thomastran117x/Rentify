@@ -736,10 +736,7 @@ export class AuthService {
       }
     }
 
-    if (
-      context.auth.authMethod === "jwt" &&
-      context.auth.sessionId
-    ) {
+    if (context.auth.authMethod === "jwt" && context.auth.sessionId) {
       await this.tokenService.revokeSession(context.auth.sessionId);
     } else {
       await this.authRepository.rotateTokenVersion(context.auth.sub);
@@ -829,7 +826,10 @@ export class AuthService {
     deviceId: string;
   }> {
     await this.deviceService.removeKnownDevice(input.userId, input.deviceId);
-    await this.tokenService.revokeSessionsForDevice(input.userId, input.deviceId);
+    await this.tokenService.revokeSessionsForDevice(
+      input.userId,
+      input.deviceId,
+    );
 
     return {
       removed: true,

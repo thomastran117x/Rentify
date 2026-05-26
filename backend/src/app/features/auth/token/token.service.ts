@@ -278,7 +278,9 @@ export class TokenService {
     options: CreateRefreshTokenOptions = {},
   ): Promise<string> {
     if (this.getRefreshTokenMode() !== "stateful") {
-      throw new UnauthorizedError("Refresh token rotation requires stateful mode.");
+      throw new UnauthorizedError(
+        "Refresh token rotation requires stateful mode.",
+      );
     }
 
     const { claims } = this.parseAndVerifyRefreshTokenSignature(token);
@@ -343,7 +345,9 @@ export class TokenService {
             rotatedAt: Math.floor(Date.now() / 1000),
             replacementToken: nextToken,
           } satisfies StatefulRefreshSession,
-          await this.getRemainingTtlInSeconds(this.getRefreshCacheKey(claims.jti)),
+          await this.getRemainingTtlInSeconds(
+            this.getRefreshCacheKey(claims.jti),
+          ),
         );
         await this.extendSession(sessionId, payload, expiresInSeconds);
 
@@ -403,7 +407,8 @@ export class TokenService {
   }
 
   async verifyStatefulRefreshToken(token: string): Promise<RefreshTokenClaims> {
-    const { claims, signature } = this.parseAndVerifyRefreshTokenSignature(token);
+    const { claims, signature } =
+      this.parseAndVerifyRefreshTokenSignature(token);
     await this.assertSessionIsActive(claims.sub, claims.sessionId);
 
     const session = await this.cache.getJson<StatefulRefreshSession>(

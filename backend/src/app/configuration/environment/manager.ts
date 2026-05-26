@@ -33,7 +33,8 @@ export class EnvironmentManager {
     }
 
     if (!this.isLoaded) {
-      const envFilePath = this.options.envFilePath ?? resolveDefaultEnvFilePath();
+      const envFilePath =
+        this.options.envFilePath ?? resolveDefaultEnvFilePath();
 
       if (envFilePath && existsSync(envFilePath)) {
         config({

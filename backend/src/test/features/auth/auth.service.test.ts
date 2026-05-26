@@ -103,9 +103,7 @@ function createService(overrides?: {
   ) => Promise<AuthUserRecord>;
   updatePasswordHash?: (userId: string, passwordHash: string) => Promise<void>;
   rotateTokenVersion?: (userId: string) => Promise<number>;
-  verifyRefreshToken?: (
-    token: string,
-  ) => Promise<{
+  verifyRefreshToken?: (token: string) => Promise<{
     sub: string;
     deviceId?: string;
     rememberMe?: boolean;
