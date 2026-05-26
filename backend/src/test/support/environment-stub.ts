@@ -16,6 +16,23 @@ const captchaConfig = {
   allowedHosts: ["challenges.cloudflare.com"],
 };
 
+const elasticsearchConfig = {
+  enabled: false,
+  url: "http://localhost:9200",
+  username: undefined,
+  password: undefined,
+  postingsIndexName: "postings",
+  timeoutMs: 2_000,
+  circuitBreakerFailureThreshold: 3,
+  circuitBreakerCooldownMs: 30_000,
+};
+
+const oauthConfig = {
+  google: {
+    frontendBaseUrl: "http://localhost:3000",
+  },
+};
+
 const rateLimiterConfig = {
   enabled: true,
   strategy: "sliding-window" as const,
@@ -23,6 +40,14 @@ const rateLimiterConfig = {
   windowSeconds: 60,
   bucketCapacity: 60,
   refillTokensPerSecond: 1,
+};
+
+const squareConfig = {
+  accessToken: "square-test-access-token",
+  locationId: "square-test-location",
+  webhookSignatureKey: "square-test-signature-key",
+  webhookNotificationUrl: "http://localhost:8080/api/v1/payments/webhook",
+  apiBaseUrl: "https://connect.squareupsandbox.com",
 };
 
 function readBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -167,6 +192,12 @@ export const environment = {
   getRabbitMqConfig() {
     return readRabbitMqConfig();
   },
+  getElasticsearchConfig() {
+    return elasticsearchConfig;
+  },
+  getSquareConfig() {
+    return squareConfig;
+  },
   getRouteModulesConfig() {
     return readRouteModulesConfig();
   },
@@ -175,7 +206,9 @@ export const environment = {
       auth: tokenConfig,
       captcha: captchaConfig,
       database: readDatabaseConfig(),
+      elasticsearch: elasticsearchConfig,
       logging: readLoggingConfig(),
+      oauth: oauthConfig,
       routeModules: readRouteModulesConfig(),
       rabbitmq: readRabbitMqConfig(),
       rateLimiter: rateLimiterConfig,
@@ -183,6 +216,7 @@ export const environment = {
         nodeEnv: readNodeEnvironment(),
         isProduction: readNodeEnvironment() === "production",
       },
+      square: squareConfig,
     };
   },
   get() {
