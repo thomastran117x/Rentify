@@ -1,4 +1,6 @@
 .env
+backend/.env
+frontend/.env.local
 mcp/node_modules
 mcp/dist
 mcp/coverage

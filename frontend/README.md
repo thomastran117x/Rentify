@@ -2,13 +2,15 @@ This is the Rentify frontend built with [Next.js](https://nextjs.org) and `tailw
 
 ## Getting Started
 
-Create the shared repo env file first:
+For Docker Compose, create the shared repo env file first:
 
 ```bash
 cp ../.env.example ../.env
 ```
 
-The frontend loads public env values from the repo-root `.env` file. If you need frontend-only overrides while developing locally, add `frontend/.env.local`; Next.js will apply that after the shared file.
+For local frontend development, the app uses Next.js native env loading. If you need frontend-only overrides, add `frontend/.env.local`.
+
+When the frontend runs through Docker Compose, its public env values come from the repo-root `.env` file via compose build args and container environment settings.
 
 Frontend env values:
 

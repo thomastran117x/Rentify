@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { config } from "dotenv";
-import { fileURLToPath } from "node:url";
 import { parseEnvironmentState } from "@/configuration/environment/parser";
 import type {
   AppEnvironment,
@@ -7,11 +8,24 @@ import type {
   NodeEnvironment,
 } from "@/configuration/environment/types";
 
-const envFilePath = fileURLToPath(new URL("../../../../.env", import.meta.url));
+function resolveDefaultEnvFilePath(): string | undefined {
+  const candidatePaths = [
+    path.resolve(process.cwd(), ".env"),
+    path.resolve(process.cwd(), "backend/.env"),
+  ];
+
+  return candidatePaths.find((candidatePath) => existsSync(candidatePath));
+}
+
+type EnvironmentManagerOptions = {
+  envFilePath?: string;
+};
 
 export class EnvironmentManager {
   private isLoaded = false;
   private state: EnvironmentState | null = null;
+
+  constructor(private readonly options: EnvironmentManagerOptions = {}) {}
 
   load(): AppEnvironment {
     if (this.state) {
@@ -19,9 +33,15 @@ export class EnvironmentManager {
     }
 
     if (!this.isLoaded) {
-      config({
-        path: envFilePath,
-      });
+      const envFilePath = this.options.envFilePath ?? resolveDefaultEnvFilePath();
+
+      if (envFilePath && existsSync(envFilePath)) {
+        config({
+          path: envFilePath,
+          override: false,
+        });
+      }
+
       this.isLoaded = true;
     }
 
