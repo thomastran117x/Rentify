@@ -10,6 +10,8 @@ Browser clients use a cookie-backed refresh session:
 - The frontend sends `x-csrf-token` with cookie-backed unsafe auth requests, including refresh and logout.
 - Page reloads silently restore an access token through `POST /auth/refresh`.
 - No auth session token is written to `localStorage`.
+- Refresh tokens are stateful, server-tracked, and rotated on use.
+- Browser logout revokes only the current server-side session, not every device on the account.
 
 This applies to desktop and mobile browsers. Browser detection is based on browser request headers such as `Origin`, `Referer`, or `Sec-Fetch-Site`, not on the device user agent.
 
@@ -33,3 +35,10 @@ Cookie-backed browser refresh and logout are protected by origin checks plus a d
 - Header: `x-csrf-token`
 
 On logout, both `refresh_token` and `csrf_token` are cleared.
+
+## Session revocation
+
+- Every authenticated session is tracked server-side with a `sessionId`.
+- Access tokens remain short-lived, but they are also checked against the live server-side session state.
+- Replayed refresh tokens revoke the affected session chain after the short duplicate-request grace window.
+- Removing a known device revokes any active sessions bound to that device.

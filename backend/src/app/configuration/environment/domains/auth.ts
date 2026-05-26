@@ -21,11 +21,16 @@ export function parseRefreshTokenMode(
 ): RefreshTokenMode {
   const value = raw.REFRESH_TOKEN_MODE ?? "stateful";
 
-  if (value === "stateless" || value === "stateful") {
-    return value;
+  if (value === "stateful") {
+    return "stateful";
   }
 
-  errors.push("REFRESH_TOKEN_MODE must be either 'stateless' or 'stateful'.");
+  if (value === "stateless") {
+    errors.push("REFRESH_TOKEN_MODE=stateless is no longer supported.");
+    return "stateful";
+  }
+
+  errors.push("REFRESH_TOKEN_MODE must be 'stateful'.");
   return "stateful";
 }
 

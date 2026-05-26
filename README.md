@@ -125,8 +125,7 @@ Exposed ports:
 
 Notes:
 
-- `docker compose` now reads backend secrets and frontend public env values from the repo-root `.env` file.
-- The Next.js frontend also preloads the same repo-root `.env` file for local `npm run dev` and `npm run build`.
+- `docker compose` reads backend secrets and frontend public env values from the repo-root `.env` file.
 - Start by copying `.env.example` to `.env`, then replace the placeholder secrets before using the stack beyond local bootstrapping.
 - Frontend `NEXT_PUBLIC_*` values are consumed at build time, so after changing them you should rerun `docker compose up --build`.
 - The backend container runs `prisma migrate deploy` before starting the server.
@@ -147,6 +146,13 @@ Notes:
   - `user4@rentify.local` / `Rentify123!`
   - `admin1@rentify.local` / `Rentify123!`
 - The seed set includes 62 postings and 27 bookings, along with related payments, rentings, reviews across 5 reviewed postings, search rows, and analytics fixtures for local browsing and testing.
+
+Local app overrides:
+
+- Docker Compose expects the shared repo-root `.env`.
+- The backend can optionally read `backend/.env` for local non-Docker runs.
+- The frontend can optionally read `frontend/.env.local` through Next.js native env loading.
+- Explicit shell or Docker-provided environment variables keep precedence over local env files.
 ## Documentation
 
 - Application plan: [docs/rentify-plan.md](C:/Users/thoma/Documents/Rent/docs/rentify-plan.md)

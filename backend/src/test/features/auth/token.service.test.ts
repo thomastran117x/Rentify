@@ -57,6 +57,20 @@ function createCache() {
         },
       ),
       delete: jest.fn(async (key: string) => store.delete(key)),
+      ttl: jest.fn(async (key: string) => store.get(key)?.ttlSeconds ?? -1),
+      scanKeys: jest.fn(async (pattern: string) => {
+        const prefix = pattern.replace(/\*$/, "");
+        return [...store.keys()].filter((key) => key.startsWith(prefix));
+      }),
+      withLock: jest.fn(
+        async (
+          _key: string,
+          _ttlInMs: number,
+          callback: () => Promise<unknown>,
+        ) => {
+          return callback();
+        },
+      ),
     },
   };
 }
@@ -325,10 +339,20 @@ describe("TokenService", () => {
       refreshTokenMode: "stateful",
       cachePrefix: "test:refresh",
     });
+    await service.createSession(
+      {
+        sessionId: "session-1",
+        userId: "user-1",
+        deviceId: "device-7",
+        tokenVersion: 2,
+      },
+      120,
+    );
     const token = await service.createRefreshToken(
       {
         sub: "user-1",
         deviceId: "device-7",
+        sessionId: "session-1",
         tokenVersion: 2,
       },
       {
@@ -342,8 +366,9 @@ describe("TokenService", () => {
       jti: string;
     };
 
-    expect(cache.service.setJson).toHaveBeenCalledTimes(1);
-    expect(cache.service.setJson).toHaveBeenCalledWith(
+    expect(cache.service.setJson).toHaveBeenCalledTimes(2);
+    expect(cache.service.setJson).toHaveBeenNthCalledWith(
+      2,
       `test:refresh:${body.jti}`,
       expect.objectContaining({
         sub: "user-1",
@@ -355,11 +380,16 @@ describe("TokenService", () => {
     await expect(service.verifyRefreshToken(token)).resolves.toMatchObject({
       sub: "user-1",
       deviceId: "device-7",
+      sessionId: "session-1",
       tokenVersion: 2,
     });
     await expect(service.revokeRefreshToken(token)).resolves.toBe(true);
-    expect(cache.service.delete).toHaveBeenCalledWith(
+    expect(cache.service.setJson).toHaveBeenLastCalledWith(
       `test:refresh:${body.jti}`,
+      expect.objectContaining({
+        status: "revoked",
+      }),
+      120,
     );
   });
 
@@ -394,5 +424,115 @@ describe("TokenService", () => {
     await expect(service.verifyRefreshToken(token)).rejects.toThrow(
       "Refresh token session not found.",
     );
+  });
+
+  it("rejects access tokens when the server-side session has been revoked", async () => {
+    const { service } = createService();
+    await service.createSession(
+      {
+        sessionId: "session-123",
+        userId: "user-1",
+        deviceId: "device-1",
+        tokenVersion: 2,
+      },
+      300,
+    );
+    const token = service.createAccessToken({
+      sub: "user-1",
+      tokenVersion: 2,
+      sessionId: "session-123",
+    });
+
+    await service.revokeSession("session-123");
+
+    await expect(service.verifyAccessToken(token)).rejects.toThrow(
+      "Session is no longer valid.",
+    );
+  });
+
+  it("returns the same rotated token during the grace period and revokes the session after a replay outside it", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    const { service } = createService({
+      refreshTokenMode: "stateful",
+    });
+    await service.createSession(
+      {
+        sessionId: "session-rotate",
+        userId: "user-1",
+        deviceId: "device-1",
+        tokenVersion: 2,
+      },
+      120,
+    );
+    const token = await service.createRefreshToken(
+      {
+        sub: "user-1",
+        deviceId: "device-1",
+        sessionId: "session-rotate",
+        tokenVersion: 2,
+      },
+      {
+        expiresInSeconds: 120,
+      },
+    );
+
+    const rotated = await service.rotateRefreshToken(
+      token,
+      {
+        sub: "user-1",
+        deviceId: "device-1",
+        sessionId: "session-rotate",
+        tokenVersion: 2,
+      },
+      {
+        expiresInSeconds: 120,
+      },
+    );
+
+    await expect(
+      service.rotateRefreshToken(
+        token,
+        {
+          sub: "user-1",
+          deviceId: "device-1",
+          sessionId: "session-rotate",
+          tokenVersion: 2,
+        },
+        {
+          expiresInSeconds: 120,
+        },
+      ),
+    ).resolves.toBe(rotated);
+
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_010_000);
+
+    await expect(
+      service.rotateRefreshToken(
+        token,
+        {
+          sub: "user-1",
+          deviceId: "device-1",
+          sessionId: "session-rotate",
+          tokenVersion: 2,
+        },
+        {
+          expiresInSeconds: 120,
+        },
+      ),
+    ).rejects.toThrow("Refresh token has already been used.");
+  });
+
+  it("rejects malformed stateful refresh tokens with an unauthorized error", async () => {
+    const refreshTokenSecret = "test-refresh-secret-value-with-32chars";
+    const { service } = createService({
+      refreshTokenMode: "stateful",
+      refreshTokenSecret,
+    });
+    const body = Buffer.from("not-json", "utf8").toString("base64url");
+    const signature = signValue(body, refreshTokenSecret);
+
+    await expect(
+      service.verifyRefreshToken(`v1.${body}.${signature}`),
+    ).rejects.toThrow("Invalid refresh token format.");
   });
 });
