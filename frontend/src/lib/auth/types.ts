@@ -3,7 +3,7 @@ export interface AuthResponseUser {
   email: string;
   username: string;
   avatarUrl?: string;
-  role: "user" | "owner" | "admin";
+  role: "user" | "owner" | "moderator" | "admin";
 }
 
 export type OAuthProvider = "google" | "microsoft" | "apple";

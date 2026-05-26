@@ -570,6 +570,14 @@ export interface PostingViewerReviewState {
   hasOwnReview: boolean;
 }
 
+export interface PublicPostingOwnerSummary {
+  id: string;
+  email: string;
+  username?: string;
+  avatarUrl?: string;
+  role: "user" | "owner" | "moderator" | "admin";
+}
+
 export interface PostingRecord {
   id: string;
   ownerId: string;
@@ -597,6 +605,7 @@ export interface PostingRecord {
 
 export interface PublicPostingRecord extends Omit<PostingRecord, "location"> {
   location: PublicPostingLocationRecord;
+  owner?: PublicPostingOwnerSummary;
   primaryPhotoUrl?: string;
   primaryThumbnailUrl?: string;
   viewerReviewState?: PostingViewerReviewState;

@@ -40,6 +40,8 @@ tags:
     description: Booking-to-renting conversion and renting lifecycle management.
   - name: admin-search
     description: Administrative search maintenance and telemetry routes.
+  - name: moderation
+    description: Safety reporting and moderator review workflows.
 paths:
   /:
     get:
@@ -2323,6 +2325,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: published
                   variant:
                     family: place
@@ -2564,6 +2571,11 @@ paths:
                   postings:
                     - id: posting-1
                       ownerId: owner-1
+                      owner:
+                        id: owner-1
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
                       status: published
                       variant:
                         family: place
@@ -2700,6 +2712,11 @@ paths:
                   postings:
                     - id: posting-1
                       ownerId: owner-1
+                      owner:
+                        id: owner-1
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
                       status: published
                       variant:
                         family: place
@@ -2833,6 +2850,11 @@ paths:
                   postings:
                     - id: posting-1
                       ownerId: owner-1
+                      owner:
+                        id: owner-1
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
                       status: published
                       variant:
                         family: place
@@ -2990,6 +3012,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: published
                   variant:
                     family: place
@@ -3109,6 +3136,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: published
                   variant:
                     family: place
@@ -3222,6 +3254,11 @@ paths:
                 data:
                   id: posting-2
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: draft
                   variant:
                     family: place
@@ -3337,6 +3374,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: published
                   variant:
                     family: place
@@ -3452,6 +3494,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: paused
                   variant:
                     family: place
@@ -3568,6 +3615,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: published
                   variant:
                     family: place
@@ -3683,6 +3735,11 @@ paths:
                 data:
                   id: posting-1
                   ownerId: owner-1
+                  owner:
+                    id: owner-1
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
                   status: archived
                   variant:
                     family: place
@@ -4351,6 +4408,582 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /reports:
+    post:
+      operationId: createReport
+      summary: Create a misconduct report
+      description: 'Creates a content report for a posting, posting review, or user. Browser bearer authentication is required.'
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+            example:
+              subjectType: posting
+              subjectId: posting-1
+              reasonCode: fraud_or_scam
+              title: Payment requested off-platform
+              description: The listing description asks renters to contact a private number and pay by wire transfer.
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContentReportRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Report created successfully.
+                data:
+                  id: report-1
+                  reporterId: user-1
+                  subjectType: posting
+                  subjectId: posting-1
+                  reasonCode: fraud_or_scam
+                  title: Payment requested off-platform
+                  description: The listing description asks renters to contact a private number and pay by wire transfer.
+                  status: open
+                  createdAt: '2026-05-25T15:00:00.000Z'
+                  updatedAt: '2026-05-25T15:00:00.000Z'
+                  reporter:
+                    id: user-1
+                    email: user1@rentify.local
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                    role: user
+                  assignedModerator:
+                    id: moderator-1
+                    email: moderator1@rentify.local
+                    username: mod-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                    role: moderator
+                  subjectSnapshot:
+                    subjectType: posting
+                    summaryText: Sunny loft workspace published owner-one
+                    posting:
+                      id: posting-1
+                      name: Sunny loft workspace
+                      status: published
+                      owner:
+                        id: owner-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /moderation/reports:
+    get:
+      operationId: listModerationReports
+      summary: List moderation reports
+      description: 'Returns the moderator report queue with filters, pagination, and source metadata.'
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: moderator
+        patAllowed: false
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Full-text moderator search query.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Filter by report status.
+          schema:
+            type: string
+            enum:
+              - open
+              - under_review
+              - resolved
+              - dismissed
+        - name: subjectType
+          in: query
+          required: false
+          description: Filter by report subject type.
+          schema:
+            type: string
+            enum:
+              - posting
+              - posting_review
+              - user
+        - name: reasonCode
+          in: query
+          required: false
+          description: Filter by report reason.
+          schema:
+            type: string
+            enum:
+              - spam
+              - fraud_or_scam
+              - harassment_or_hate
+              - sexual_content
+              - violence_or_threats
+              - illegal_or_prohibited
+              - impersonation
+              - misleading_information
+              - review_manipulation
+              - other
+        - name: assignedTo
+          in: query
+          required: false
+          description: Filter by assigned moderator ID or use `unassigned`.
+          schema:
+            type: string
+        - name: reporterId
+          in: query
+          required: false
+          description: Filter by reporter user ID.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: sort
+          in: query
+          required: false
+          description: Queue sort order.
+          schema:
+            type: string
+            enum:
+              - newest
+              - oldest
+              - recentlyReviewed
+            default: newest
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ListContentReportsResult'
+                      meta:
+                        $ref: '#/components/schemas/ExtendedRequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  reports:
+                    - id: report-1
+                      reporterId: user-1
+                      subjectType: posting
+                      subjectId: posting-1
+                      reasonCode: fraud_or_scam
+                      title: Payment requested off-platform
+                      description: The listing description asks renters to contact a private number and pay by wire transfer.
+                      status: open
+                      createdAt: '2026-05-25T15:00:00.000Z'
+                      updatedAt: '2026-05-25T15:00:00.000Z'
+                      reporter:
+                        id: user-1
+                        email: user1@rentify.local
+                        username: renter-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                        role: user
+                      assignedModerator:
+                        id: moderator-1
+                        email: moderator1@rentify.local
+                        username: mod-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                        role: moderator
+                      subjectSnapshot:
+                        subjectType: posting
+                        summaryText: Sunny loft workspace published owner-one
+                        posting:
+                          id: posting-1
+                          name: Sunny loft workspace
+                          status: published
+                          owner:
+                            id: owner-1
+                            email: owner1@rentify.local
+                            username: owner-one
+                            avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                            role: owner
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                  source: elasticsearch
+                  query: wire transfer
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                  source: elasticsearch
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/moderation/reports/{id}':
+    get:
+      operationId: getModerationReport
+      summary: Get a moderation report
+      description: Returns a single report with its subject snapshot and event timeline.
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: moderator
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report identifier.
+          schema:
+            type: string
+          example: report-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContentReportDetailRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  id: report-1
+                  reporterId: user-1
+                  subjectType: posting
+                  subjectId: posting-1
+                  reasonCode: fraud_or_scam
+                  title: Payment requested off-platform
+                  description: The listing description asks renters to contact a private number and pay by wire transfer.
+                  status: open
+                  createdAt: '2026-05-25T15:00:00.000Z'
+                  updatedAt: '2026-05-25T15:00:00.000Z'
+                  reporter:
+                    id: user-1
+                    email: user1@rentify.local
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                    role: user
+                  assignedModerator:
+                    id: moderator-1
+                    email: moderator1@rentify.local
+                    username: mod-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                    role: moderator
+                  subjectSnapshot:
+                    subjectType: posting
+                    summaryText: Sunny loft workspace published owner-one
+                    posting:
+                      id: posting-1
+                      name: Sunny loft workspace
+                      status: published
+                      owner:
+                        id: owner-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
+                  reviewedAt: '2026-05-25T16:00:00.000Z'
+                  events:
+                    - id: report-event-1
+                      eventType: created
+                      actor:
+                        id: user-1
+                        email: user1@rentify.local
+                        username: renter-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                        role: user
+                      createdAt: '2026-05-25T15:00:00.000Z'
+                      note: Initial report submitted by renter.
+                    - id: report-event-2
+                      eventType: assigned
+                      actor:
+                        id: moderator-1
+                        email: moderator1@rentify.local
+                        username: mod-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                        role: moderator
+                      assignmentUserId: moderator-1
+                      createdAt: '2026-05-25T15:10:00.000Z'
+                      note: Assigned for manual review.
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/moderation/reports/{id}/assignment':
+    post:
+      operationId: assignModerationReport
+      summary: Assign or unassign a report
+      description: 'Assigns a moderation report to the current moderator, clears the assignment, or lets admins assign another moderator.'
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: moderator
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report identifier.
+          schema:
+            type: string
+          example: report-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignContentReportRequest'
+            example:
+              assignedModeratorId: moderator-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContentReportRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Report assignment updated successfully.
+                data:
+                  id: report-1
+                  reporterId: user-1
+                  subjectType: posting
+                  subjectId: posting-1
+                  reasonCode: fraud_or_scam
+                  title: Payment requested off-platform
+                  description: The listing description asks renters to contact a private number and pay by wire transfer.
+                  status: open
+                  createdAt: '2026-05-25T15:00:00.000Z'
+                  updatedAt: '2026-05-25T15:00:00.000Z'
+                  reporter:
+                    id: user-1
+                    email: user1@rentify.local
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                    role: user
+                  assignedModerator:
+                    id: moderator-1
+                    email: moderator1@rentify.local
+                    username: mod-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                    role: moderator
+                  subjectSnapshot:
+                    subjectType: posting
+                    summaryText: Sunny loft workspace published owner-one
+                    posting:
+                      id: posting-1
+                      name: Sunny loft workspace
+                      status: published
+                      owner:
+                        id: owner-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/moderation/reports/{id}/status':
+    post:
+      operationId: updateModerationReportStatus
+      summary: Update moderation report status
+      description: Moves a report through moderation review states and optionally records a resolution and note.
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: moderator
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report identifier.
+          schema:
+            type: string
+          example: report-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContentReportStatusRequest'
+            example:
+              status: resolved
+              resolutionCode: action_taken
+              resolutionSummary: Listing removed after moderator review.
+              note: Reporter and listing snapshot reviewed.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContentReportRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Report status updated successfully.
+                data:
+                  id: report-1
+                  reporterId: user-1
+                  subjectType: posting
+                  subjectId: posting-1
+                  reasonCode: fraud_or_scam
+                  title: Payment requested off-platform
+                  description: The listing description asks renters to contact a private number and pay by wire transfer.
+                  status: resolved
+                  createdAt: '2026-05-25T15:00:00.000Z'
+                  updatedAt: '2026-05-25T15:00:00.000Z'
+                  reporter:
+                    id: user-1
+                    email: user1@rentify.local
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/user-1.png'
+                    role: user
+                  assignedModerator:
+                    id: moderator-1
+                    email: moderator1@rentify.local
+                    username: mod-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/mod-1.png'
+                    role: moderator
+                  subjectSnapshot:
+                    subjectType: posting
+                    summaryText: Sunny loft workspace published owner-one
+                    posting:
+                      id: posting-1
+                      name: Sunny loft workspace
+                      status: published
+                      owner:
+                        id: owner-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
+                  resolutionCode: action_taken
+                  resolutionSummary: Listing removed after moderator review.
+                  reviewedAt: '2026-05-25T16:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/postings/{id}/availability-blocks':
     get:
       operationId: listPostingAvailabilityBlocks
@@ -4858,6 +5491,11 @@ paths:
                     - posting:
                         id: posting-1
                         ownerId: owner-1
+                        owner:
+                          id: owner-1
+                          username: owner-one
+                          avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                          role: owner
                         status: published
                         variant:
                           family: place
@@ -4998,6 +5636,11 @@ paths:
                   postings:
                     - id: posting-1
                       ownerId: owner-1
+                      owner:
+                        id: owner-1
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                        role: owner
                       status: published
                       variant:
                         family: place
@@ -8116,6 +8759,7 @@ components:
           enum:
             - user
             - owner
+            - moderator
             - admin
     AuthSessionResponseData:
       type: object
@@ -8772,6 +9416,292 @@ components:
         - reviews
         - summary
         - pagination
+    CreateReportRequest:
+      type: object
+      required:
+        - subjectType
+        - subjectId
+        - reasonCode
+        - title
+        - description
+      properties:
+        subjectType:
+          type: string
+          enum:
+            - posting
+            - posting_review
+            - user
+        subjectId:
+          type: string
+        reasonCode:
+          type: string
+          enum:
+            - spam
+            - fraud_or_scam
+            - harassment_or_hate
+            - sexual_content
+            - violence_or_threats
+            - illegal_or_prohibited
+            - impersonation
+            - misleading_information
+            - review_manipulation
+            - other
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+    ContentReportUserSummary:
+      type: object
+      required:
+        - id
+        - email
+        - role
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        role:
+          type: string
+          enum:
+            - user
+            - owner
+            - moderator
+            - admin
+    ContentReportSubjectSnapshot:
+      type: object
+      required:
+        - subjectType
+        - summaryText
+      properties:
+        subjectType:
+          type: string
+          enum:
+            - posting
+            - posting_review
+            - user
+        summaryText:
+          type: string
+        posting:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            status:
+              type: string
+            owner:
+              $ref: '#/components/schemas/ContentReportUserSummary'
+        review:
+          type: object
+          properties:
+            id:
+              type: string
+            rating:
+              type: integer
+            title:
+              type: string
+            commentExcerpt:
+              type: string
+            reviewer:
+              $ref: '#/components/schemas/ContentReportUserSummary'
+            posting:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+        user:
+          $ref: '#/components/schemas/ContentReportUserSummary'
+    ContentReportEventRecord:
+      type: object
+      required:
+        - id
+        - eventType
+        - actor
+        - createdAt
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+          enum:
+            - created
+            - assigned
+            - status_changed
+            - note_added
+        fromStatus:
+          type: string
+          enum:
+            - open
+            - under_review
+            - resolved
+            - dismissed
+        toStatus:
+          type: string
+          enum:
+            - open
+            - under_review
+            - resolved
+            - dismissed
+        assignmentUserId:
+          type: string
+        note:
+          type: string
+        actor:
+          $ref: '#/components/schemas/ContentReportUserSummary'
+        createdAt:
+          type: string
+          format: date-time
+    ContentReportRecord:
+      type: object
+      required:
+        - id
+        - reporterId
+        - subjectType
+        - subjectId
+        - reasonCode
+        - title
+        - description
+        - status
+        - createdAt
+        - updatedAt
+        - reporter
+        - subjectSnapshot
+      properties:
+        id:
+          type: string
+        reporterId:
+          type: string
+        subjectType:
+          type: string
+          enum:
+            - posting
+            - posting_review
+            - user
+        subjectId:
+          type: string
+        reasonCode:
+          type: string
+          enum:
+            - spam
+            - fraud_or_scam
+            - harassment_or_hate
+            - sexual_content
+            - violence_or_threats
+            - illegal_or_prohibited
+            - impersonation
+            - misleading_information
+            - review_manipulation
+            - other
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - open
+            - under_review
+            - resolved
+            - dismissed
+        resolutionCode:
+          type: string
+          enum:
+            - action_taken
+            - no_violation
+            - duplicate
+            - insufficient_information
+        resolutionSummary:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        reporter:
+          $ref: '#/components/schemas/ContentReportUserSummary'
+        assignedModerator:
+          $ref: '#/components/schemas/ContentReportUserSummary'
+        subjectSnapshot:
+          $ref: '#/components/schemas/ContentReportSubjectSnapshot'
+    ContentReportDetailRecord:
+      allOf:
+        - $ref: '#/components/schemas/ContentReportRecord'
+        - type: object
+          required:
+            - events
+          properties:
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContentReportEventRecord'
+    ListContentReportsResult:
+      type: object
+      required:
+        - reports
+        - pagination
+        - source
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentReportRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        source:
+          type: string
+          enum:
+            - elasticsearch
+            - database
+        query:
+          type: string
+    AssignContentReportRequest:
+      type: object
+      properties:
+        assignedModeratorId:
+          oneOf:
+            - type: string
+            - type: 'null'
+    UpdateContentReportStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - open
+            - under_review
+            - resolved
+            - dismissed
+        resolutionCode:
+          type: string
+          enum:
+            - action_taken
+            - no_violation
+            - duplicate
+            - insufficient_information
+        resolutionSummary:
+          type: string
+        note:
+          type: string
     SearchClickActivityRequest:
       type: object
       required:

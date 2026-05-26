@@ -127,6 +127,18 @@ export const SEED_USERS: SeedUserFixture[] = [
     trustworthinessScore: 95,
   },
   {
+    id: createFixtureId(1000, 15),
+    email: "moderator1@rentify.local",
+    password: "Rentify123!",
+    username: "mod-one",
+    firstName: "Casey",
+    lastName: "Morgan",
+    role: "moderator",
+    emailVerified: true,
+    phoneNumber: "+14165550198",
+    trustworthinessScore: 91,
+  },
+  {
     id: createFixtureId(1000, 11),
     email: "user5@rentify.local",
     password: "Rentify123!",
@@ -230,6 +242,15 @@ export const SEED_DEVICES: SeedDeviceFixture[] = [
     platform: "Linux",
     userAgent: "Mozilla/5.0 (X11; Linux x86_64)",
     lastIpAddress: "203.0.113.99",
+  },
+  {
+    id: createFixtureId(1010, 7),
+    userEmail: "moderator1@rentify.local",
+    deviceId: "moderator1-thinkpad",
+    type: "desktop",
+    platform: "Windows",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    lastIpAddress: "203.0.113.98",
   },
 ];
 

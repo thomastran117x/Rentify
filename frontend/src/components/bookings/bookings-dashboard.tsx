@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { isOwnerRole } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/auth/types";
 import { bookingsApi } from "@/lib/bookings/api";
 import type {
@@ -888,8 +889,7 @@ export function BookingsDashboard() {
     string | null
   >(null);
 
-  const showOwnerView =
-    session?.user.role === "owner" || session?.user.role === "admin";
+  const showOwnerView = isOwnerRole(session?.user.role);
 
   useEffect(() => {
     if (status === "anonymous") {

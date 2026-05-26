@@ -299,6 +299,16 @@ services:
     volumes: *backend-log-volume
     command: ["node", "dist/workers/search/search-indexer.worker.js"]
 
+  report-search-indexer-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-report-search-indexer-worker
+    restart: unless-stopped
+    depends_on: *search-worker-depends-on
+    environment: *backend-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/reports/report-search-indexer.worker.js"]
+
   frontend:
     build:
       context: ./frontend
