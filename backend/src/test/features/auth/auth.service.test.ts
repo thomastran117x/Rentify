@@ -105,11 +105,35 @@ function createService(overrides?: {
   rotateTokenVersion?: (userId: string) => Promise<number>;
   verifyRefreshToken?: (
     token: string,
-  ) => Promise<{ sub: string; deviceId?: string; rememberMe?: boolean }>;
+  ) => Promise<{
+    sub: string;
+    deviceId?: string;
+    rememberMe?: boolean;
+    sessionId?: string;
+  }>;
   createRefreshToken?: (
     payload: Record<string, unknown>,
     options?: { expiresInSeconds?: number },
   ) => Promise<string>;
+  rotateRefreshToken?: (
+    token: string,
+    payload: Record<string, unknown>,
+    options?: { expiresInSeconds?: number },
+  ) => Promise<string>;
+  createSession?: (
+    state: {
+      sessionId: string;
+      userId: string;
+      deviceId?: string;
+      tokenVersion: number;
+    },
+    ttlInSeconds: number,
+  ) => Promise<void>;
+  revokeSession?: (sessionId?: string) => Promise<boolean>;
+  revokeSessionsForDevice?: (
+    userId: string,
+    deviceId: string,
+  ) => Promise<number>;
   getRefreshTokenExpiresInSeconds?: (rememberMe?: boolean) => number;
   revokeRefreshToken?: (token: string) => Promise<boolean>;
   evaluateSuccessfulAuthentication?: () => Promise<{
@@ -264,6 +288,12 @@ function createService(overrides?: {
     createAccessToken: () => "access-token",
     createRefreshToken:
       overrides?.createRefreshToken ?? (async () => "refresh-token"),
+    rotateRefreshToken:
+      overrides?.rotateRefreshToken ?? (async () => "rotated-refresh-token"),
+    createSession: overrides?.createSession ?? (async () => {}),
+    revokeSession: overrides?.revokeSession ?? (async () => true),
+    revokeSessionsForDevice:
+      overrides?.revokeSessionsForDevice ?? (async () => 0),
     getRefreshTokenExpiresInSeconds:
       overrides?.getRefreshTokenExpiresInSeconds ??
       ((rememberMe = false) => (rememberMe ? 777 : 333)),
@@ -273,6 +303,7 @@ function createService(overrides?: {
         sub: "user-1",
         deviceId: "device-1",
         rememberMe: false,
+        sessionId: "session-1",
       })),
     revokeRefreshToken: overrides?.revokeRefreshToken ?? (async () => true),
   };
@@ -689,19 +720,17 @@ describe("AuthService", () => {
     const user = createUser();
     let issuedRememberMe: boolean | undefined;
     let issuedRefreshOptions: { expiresInSeconds?: number } | undefined;
-    let revokedRefreshToken: string | undefined;
+    let rotatedRefreshToken: string | undefined;
     const service = createService({
       findUserById: async () => user,
       verifyRefreshToken: async () => ({
         sub: user.id,
         deviceId: "device-1",
         rememberMe: true,
+        sessionId: "session-1",
       }),
-      revokeRefreshToken: async (token) => {
-        revokedRefreshToken = token;
-        return true;
-      },
-      createRefreshToken: async (payload, options) => {
+      rotateRefreshToken: async (token, payload, options) => {
+        rotatedRefreshToken = token;
         issuedRememberMe = (payload as { rememberMe?: boolean }).rememberMe;
         issuedRefreshOptions = options;
         return "rotated-refresh-token";
@@ -719,7 +748,7 @@ describe("AuthService", () => {
     expect(session.refreshTokenExpiresInSeconds).toBe(2_592_000);
     expect(issuedRememberMe).toBe(true);
     expect(issuedRefreshOptions?.expiresInSeconds).toBe(2_592_000);
-    expect(revokedRefreshToken).toBe("incoming-refresh-token");
+    expect(rotatedRefreshToken).toBe("incoming-refresh-token");
   });
 
   it("rejects change password when the current password is incorrect", async () => {
@@ -798,17 +827,17 @@ describe("AuthService", () => {
     });
   });
 
-  it("logs out by revoking the refresh token and rotating the token version", async () => {
+  it("logs out by revoking the refresh token and current session", async () => {
     let revokedToken: string | undefined;
-    let rotatedUserId: string | undefined;
+    let revokedSessionId: string | undefined;
     const service = createService({
       revokeRefreshToken: async (token) => {
         revokedToken = token;
         return true;
       },
-      rotateTokenVersion: async (userId) => {
-        rotatedUserId = userId;
-        return 4;
+      revokeSession: async (sessionId) => {
+        revokedSessionId = sessionId;
+        return true;
       },
     });
 
@@ -817,6 +846,8 @@ describe("AuthService", () => {
         auth: {
           sub: "user-1",
           deviceId: "device-1",
+          sessionId: "session-1",
+          authMethod: "jwt",
           iat: 1,
           exp: 999999,
         },
@@ -833,7 +864,7 @@ describe("AuthService", () => {
     });
 
     expect(revokedToken).toBe("refresh-token-1");
-    expect(rotatedUserId).toBe("user-1");
+    expect(revokedSessionId).toBe("session-1");
   });
 
   it("lists known devices for the authenticated user", async () => {
@@ -867,11 +898,16 @@ describe("AuthService", () => {
     });
   });
 
-  it("delegates removeKnownDevice to the device service", async () => {
+  it("removes a known device and revokes its active sessions", async () => {
     let removed: { userId: string; deviceId: string } | null = null;
+    let revokedSessions: { userId: string; deviceId: string } | null = null;
     const service = createService({
       removeKnownDevice: async (userId, deviceId) => {
         removed = { userId, deviceId };
+      },
+      revokeSessionsForDevice: async (userId, deviceId) => {
+        revokedSessions = { userId, deviceId };
+        return 1;
       },
     });
 
@@ -886,6 +922,10 @@ describe("AuthService", () => {
     });
 
     expect(removed).toEqual({
+      userId: "user-1",
+      deviceId: "device-2",
+    });
+    expect(revokedSessions).toEqual({
       userId: "user-1",
       deviceId: "device-2",
     });

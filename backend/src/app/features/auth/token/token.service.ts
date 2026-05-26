@@ -12,6 +12,7 @@ export interface AccessTokenPayload {
   email?: string;
   role?: AppRole;
   deviceId?: string;
+  sessionId?: string;
   [key: string]: string | number | boolean | null | undefined;
 }
 
@@ -20,6 +21,7 @@ export interface RefreshTokenPayload {
   deviceId?: string;
   rememberMe?: boolean;
   tokenVersion?: number;
+  sessionId?: string;
   [key: string]: string | number | boolean | null | undefined;
 }
 
@@ -38,6 +40,9 @@ interface RefreshTokenClaims extends RefreshTokenPayload {
 
 interface StatefulRefreshSession extends RefreshTokenClaims {
   signature: string;
+  status: "active" | "consumed" | "revoked";
+  rotatedAt?: number;
+  replacementToken?: string;
 }
 
 interface TokenServiceOptions {
@@ -59,6 +64,19 @@ interface CreateRefreshTokenOptions {
 
 const ACCESS_TOKEN_ALGORITHM = "HS256";
 const REFRESH_TOKEN_VERSION = "v1";
+const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
+const REFRESH_ROTATION_GRACE_PERIOD_SECONDS = 5;
+const SESSION_CACHE_PREFIX = "auth:session";
+
+export interface AuthSessionState {
+  sessionId: string;
+  userId: string;
+  deviceId?: string;
+  tokenVersion: number;
+  status: "active" | "revoked";
+  createdAt: string;
+  updatedAt: string;
+}
 
 function toBase64Url(value: string | Buffer): string {
   const buffer = typeof value === "string" ? Buffer.from(value, "utf8") : value;
@@ -128,6 +146,7 @@ export class TokenService {
       claims.sub,
       claims.tokenVersion,
     );
+    await this.assertSessionIsActive(claims.sub, claims.sessionId);
 
     return {
       ...claims,
@@ -176,6 +195,163 @@ export class TokenService {
     return false;
   }
 
+  async createSession(
+    state: Omit<AuthSessionState, "createdAt" | "updatedAt" | "status">,
+    ttlInSeconds: number,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+
+    await this.cache.setJson(
+      this.getSessionCacheKey(state.sessionId),
+      {
+        ...state,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      } satisfies AuthSessionState,
+      ttlInSeconds,
+    );
+  }
+
+  async revokeSession(sessionId?: string): Promise<boolean> {
+    if (!sessionId) {
+      return false;
+    }
+
+    const cacheKey = this.getSessionCacheKey(sessionId);
+    const session = await this.cache.getJson<AuthSessionState>(cacheKey);
+
+    if (!session) {
+      return false;
+    }
+
+    await this.cache.setJson(
+      cacheKey,
+      {
+        ...session,
+        status: "revoked",
+        updatedAt: new Date().toISOString(),
+      } satisfies AuthSessionState,
+      await this.getRemainingTtlInSeconds(cacheKey),
+    );
+
+    return true;
+  }
+
+  async revokeSessionsForDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<number> {
+    const sessionKeys = await this.cache.scanKeys(this.getSessionScanPattern());
+    let revokedCount = 0;
+
+    for (const sessionKey of sessionKeys) {
+      const session = await this.cache.getJson<AuthSessionState>(sessionKey);
+
+      if (
+        !session ||
+        session.userId !== userId ||
+        session.deviceId !== deviceId ||
+        session.status === "revoked"
+      ) {
+        continue;
+      }
+
+      await this.cache.setJson(
+        sessionKey,
+        {
+          ...session,
+          status: "revoked",
+          updatedAt: new Date().toISOString(),
+        } satisfies AuthSessionState,
+        await this.getRemainingTtlInSeconds(sessionKey),
+      );
+      revokedCount += 1;
+    }
+
+    return revokedCount;
+  }
+
+  async rotateRefreshToken(
+    token: string,
+    payload: RefreshTokenPayload,
+    options: CreateRefreshTokenOptions = {},
+  ): Promise<string> {
+    if (this.getRefreshTokenMode() !== "stateful") {
+      throw new UnauthorizedError("Refresh token rotation requires stateful mode.");
+    }
+
+    const { claims } = this.parseAndVerifyRefreshTokenSignature(token);
+    const sessionId = claims.sessionId ?? payload.sessionId;
+
+    if (!sessionId) {
+      throw new UnauthorizedError("Refresh token session is invalid.");
+    }
+
+    await this.assertTokenVersionIsCurrent(claims.sub, claims.tokenVersion);
+    await this.assertSessionIsActive(claims.sub, sessionId);
+
+    return this.cache.withLock(
+      this.getRefreshRotationLockKey(claims.jti),
+      REFRESH_SESSION_LOCK_TTL_IN_MS,
+      async () => {
+        const currentRecord = await this.cache.getJson<StatefulRefreshSession>(
+          this.getRefreshCacheKey(claims.jti),
+        );
+
+        if (!currentRecord) {
+          throw new UnauthorizedError("Refresh token session not found.");
+        }
+
+        if (
+          currentRecord.sub !== claims.sub ||
+          currentRecord.deviceId !== claims.deviceId
+        ) {
+          await this.revokeSession(sessionId);
+          throw new UnauthorizedError("Refresh token session mismatch.");
+        }
+
+        if (currentRecord.status === "consumed") {
+          if (this.isWithinRefreshRotationGracePeriod(currentRecord)) {
+            return currentRecord.replacementToken;
+          }
+
+          await this.revokeSession(sessionId);
+          throw new UnauthorizedError("Refresh token has already been used.");
+        }
+
+        if (currentRecord.status !== "active") {
+          await this.revokeSession(sessionId);
+          throw new UnauthorizedError("Refresh token is no longer valid.");
+        }
+
+        const expiresInSeconds =
+          options.expiresInSeconds ?? this.getRefreshTokenTtlSeconds();
+        const nextToken = await this.createStatefulRefreshToken(
+          {
+            ...payload,
+            sessionId,
+          },
+          expiresInSeconds,
+        );
+
+        await this.cache.setJson(
+          this.getRefreshCacheKey(claims.jti),
+          {
+            ...currentRecord,
+            status: "consumed",
+            rotatedAt: Math.floor(Date.now() / 1000),
+            replacementToken: nextToken,
+          } satisfies StatefulRefreshSession,
+          await this.getRemainingTtlInSeconds(this.getRefreshCacheKey(claims.jti)),
+        );
+        await this.extendSession(sessionId, payload, expiresInSeconds);
+
+        return nextToken;
+      },
+    );
+  }
+
   createStatelessRefreshToken(
     payload: RefreshTokenPayload,
     expiresInSeconds = this.getRefreshTokenTtlSeconds(),
@@ -218,6 +394,7 @@ export class TokenService {
     const session: StatefulRefreshSession = {
       ...claims,
       signature,
+      status: "active",
     };
 
     await this.cache.setJson(cacheKey, session, expiresInSeconds);
@@ -226,14 +403,8 @@ export class TokenService {
   }
 
   async verifyStatefulRefreshToken(token: string): Promise<RefreshTokenClaims> {
-    const [version, body, signature] = token.split(".");
-
-    if (!version || !body || !signature || version !== REFRESH_TOKEN_VERSION) {
-      throw new UnauthorizedError("Invalid refresh token format.");
-    }
-
-    const claims = JSON.parse(fromBase64Url(body)) as RefreshTokenClaims;
-    this.assertRefreshTokenIsValid(claims);
+    const { claims, signature } = this.parseAndVerifyRefreshTokenSignature(token);
+    await this.assertSessionIsActive(claims.sub, claims.sessionId);
 
     const session = await this.cache.getJson<StatefulRefreshSession>(
       this.getRefreshCacheKey(claims.jti),
@@ -243,16 +414,15 @@ export class TokenService {
       throw new UnauthorizedError("Refresh token session not found.");
     }
 
-    const expectedSignature = signValue(body, this.getRefreshTokenSecret());
-
-    if (
-      !safeEquals(signature, expectedSignature) ||
-      !safeEquals(signature, session.signature)
-    ) {
+    if (!safeEquals(signature, session.signature)) {
       throw new UnauthorizedError("Invalid refresh token signature.");
     }
 
-    if (session.sub !== claims.sub || session.deviceId !== claims.deviceId) {
+    if (
+      session.status !== "active" ||
+      session.sub !== claims.sub ||
+      session.deviceId !== claims.deviceId
+    ) {
       throw new UnauthorizedError("Refresh token session mismatch.");
     }
 
@@ -260,8 +430,24 @@ export class TokenService {
   }
 
   async revokeStatefulRefreshToken(token: string): Promise<boolean> {
-    const claims = await this.verifyStatefulRefreshToken(token);
-    return this.cache.delete(this.getRefreshCacheKey(claims.jti));
+    const { claims } = this.parseAndVerifyRefreshTokenSignature(token);
+    const cacheKey = this.getRefreshCacheKey(claims.jti);
+    const session = await this.cache.getJson<StatefulRefreshSession>(cacheKey);
+
+    if (!session) {
+      return false;
+    }
+
+    await this.cache.setJson(
+      cacheKey,
+      {
+        ...session,
+        status: "revoked",
+      } satisfies StatefulRefreshSession,
+      await this.getRemainingTtlInSeconds(cacheKey),
+    );
+
+    return true;
   }
 
   private signJwt(payload: JwtClaims): string {
@@ -370,8 +556,113 @@ export class TokenService {
     await this.getCurrentSessionValidation(userId, tokenVersion);
   }
 
+  private async assertSessionIsActive(
+    userId: string,
+    sessionId?: string | number | boolean | null,
+  ): Promise<void> {
+    if (typeof sessionId !== "string" || sessionId.length === 0) {
+      return;
+    }
+
+    const session = await this.cache.getJson<AuthSessionState>(
+      this.getSessionCacheKey(sessionId),
+    );
+
+    if (!session || session.userId !== userId || session.status !== "active") {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+  }
+
+  private async extendSession(
+    sessionId: string,
+    payload: RefreshTokenPayload,
+    ttlInSeconds: number,
+  ): Promise<void> {
+    const cacheKey = this.getSessionCacheKey(sessionId);
+    const session = await this.cache.getJson<AuthSessionState>(cacheKey);
+
+    if (!session) {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+
+    await this.cache.setJson(
+      cacheKey,
+      {
+        ...session,
+        deviceId: payload.deviceId,
+        tokenVersion:
+          typeof payload.tokenVersion === "number"
+            ? payload.tokenVersion
+            : session.tokenVersion,
+        updatedAt: new Date().toISOString(),
+      } satisfies AuthSessionState,
+      ttlInSeconds,
+    );
+  }
+
+  private parseAndVerifyRefreshTokenSignature(token: string): {
+    claims: RefreshTokenClaims;
+    signature: string;
+  } {
+    const [version, body, signature] = token.split(".");
+
+    if (!version || !body || !signature || version !== REFRESH_TOKEN_VERSION) {
+      throw new UnauthorizedError("Invalid refresh token format.");
+    }
+
+    const expectedSignature = signValue(body, this.getRefreshTokenSecret());
+
+    if (!safeEquals(signature, expectedSignature)) {
+      throw new UnauthorizedError("Invalid refresh token signature.");
+    }
+
+    try {
+      const claims = JSON.parse(fromBase64Url(body)) as RefreshTokenClaims;
+      this.assertRefreshTokenIsValid(claims);
+
+      return {
+        claims,
+        signature,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        throw error;
+      }
+
+      throw new UnauthorizedError("Invalid refresh token format.");
+    }
+  }
+
+  private isWithinRefreshRotationGracePeriod(
+    session: StatefulRefreshSession,
+  ): session is StatefulRefreshSession & { replacementToken: string } {
+    if (!session.replacementToken || !session.rotatedAt) {
+      return false;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    return now - session.rotatedAt <= REFRESH_ROTATION_GRACE_PERIOD_SECONDS;
+  }
+
   private getRefreshCacheKey(jti: string): string {
     return `${this.getRefreshTokenCachePrefix()}:${jti}`;
+  }
+
+  private getSessionCacheKey(sessionId: string): string {
+    return `${SESSION_CACHE_PREFIX}:${sessionId}`;
+  }
+
+  private getSessionScanPattern(): string {
+    return `${SESSION_CACHE_PREFIX}:*`;
+  }
+
+  private getRefreshRotationLockKey(jti: string): string {
+    return `refresh-rotate:${jti}`;
+  }
+
+  private async getRemainingTtlInSeconds(key: string): Promise<number> {
+    const ttl = await this.cache.ttl(key);
+    return ttl > 0 ? ttl : 1;
   }
 
   private getAccessTokenSecret(): string {

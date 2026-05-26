@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -656,15 +657,67 @@ export class AuthService {
       input.client,
       deviceId,
     );
+    const sessionId = claims.sessionId ?? randomUUID();
+    const refreshTokenExpiresInSeconds =
+      this.tokenService.getRefreshTokenExpiresInSeconds(
+        Boolean(claims.rememberMe),
+      );
 
-    await this.tokenService.revokeRefreshToken(input.refreshToken);
+    if (!claims.sessionId) {
+      await this.tokenService.createSession(
+        {
+          sessionId,
+          userId: user.id,
+          deviceId,
+          tokenVersion: user.tokenVersion,
+        },
+        refreshTokenExpiresInSeconds,
+      );
+      await this.tokenService.revokeRefreshToken(input.refreshToken);
+    }
 
-    return this.issueTokensForUser(
-      user,
-      deviceStatus,
+    const accessToken = this.tokenService.createAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
       deviceId,
-      Boolean(claims.rememberMe),
-    );
+      sessionId,
+      tokenVersion: user.tokenVersion,
+    });
+    const refreshToken = claims.sessionId
+      ? await this.tokenService.rotateRefreshToken(
+          input.refreshToken,
+          {
+            sub: user.id,
+            deviceId,
+            rememberMe: Boolean(claims.rememberMe),
+            sessionId,
+            tokenVersion: user.tokenVersion,
+          },
+          {
+            expiresInSeconds: refreshTokenExpiresInSeconds,
+          },
+        )
+      : await this.tokenService.createRefreshToken(
+          {
+            sub: user.id,
+            deviceId,
+            rememberMe: Boolean(claims.rememberMe),
+            sessionId,
+            tokenVersion: user.tokenVersion,
+          },
+          {
+            expiresInSeconds: refreshTokenExpiresInSeconds,
+          },
+        );
+
+    return {
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresInSeconds,
+      device: deviceStatus,
+      user: this.toUserProfile(user),
+    };
   }
 
   async logout(context: AuthRequestContext): Promise<{
@@ -679,11 +732,18 @@ export class AuthService {
       try {
         await this.tokenService.revokeRefreshToken(context.refreshToken);
       } catch {
-        // Logout should still invalidate the authenticated session version.
+        // Logout should still invalidate the current server-side session.
       }
     }
 
-    await this.authRepository.rotateTokenVersion(context.auth.sub);
+    if (
+      context.auth.authMethod === "jwt" &&
+      context.auth.sessionId
+    ) {
+      await this.tokenService.revokeSession(context.auth.sessionId);
+    } else {
+      await this.authRepository.rotateTokenVersion(context.auth.sub);
+    }
 
     return {
       loggedOut: true,
@@ -769,6 +829,7 @@ export class AuthService {
     deviceId: string;
   }> {
     await this.deviceService.removeKnownDevice(input.userId, input.deviceId);
+    await this.tokenService.revokeSessionsForDevice(input.userId, input.deviceId);
 
     return {
       removed: true,
@@ -782,21 +843,33 @@ export class AuthService {
     deviceId?: string,
     rememberMe = false,
   ): Promise<AuthSessionResult> {
+    const sessionId = randomUUID();
     const accessToken = this.tokenService.createAccessToken({
       sub: user.id,
       email: user.email,
       role: user.role,
       deviceId,
+      sessionId,
       tokenVersion: user.tokenVersion,
     });
 
     const refreshTokenExpiresInSeconds =
       this.tokenService.getRefreshTokenExpiresInSeconds(rememberMe);
+    await this.tokenService.createSession(
+      {
+        sessionId,
+        userId: user.id,
+        deviceId,
+        tokenVersion: user.tokenVersion,
+      },
+      refreshTokenExpiresInSeconds,
+    );
     const refreshToken = await this.tokenService.createRefreshToken(
       {
         sub: user.id,
         deviceId,
         rememberMe,
+        sessionId,
         tokenVersion: user.tokenVersion,
       },
       {
