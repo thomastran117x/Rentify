@@ -136,13 +136,14 @@ export class PostingsPublicSearchService {
   ): Promise<SearchIdsResult> {
     const indexName = `${this.elasticsearch.getPostingsIndexName()}-read`;
     const from = (input.page - 1) * input.pageSize;
-    let response = await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
-      `/${encodeURIComponent(indexName)}/_search`,
-      {
-        method: "POST",
-        body: JSON.stringify(this.buildSearchRequest(input, from, "strict")),
-      },
-    );
+    let response =
+      await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
+        `/${encodeURIComponent(indexName)}/_search`,
+        {
+          method: "POST",
+          body: JSON.stringify(this.buildSearchRequest(input, from, "strict")),
+        },
+      );
     let hits = response.hits?.hits ?? [];
     let total = response.hits?.total?.value ?? 0;
     const shouldRetryWithTolerance =
@@ -157,15 +158,16 @@ export class PostingsPublicSearchService {
           reason: total === 0 ? "zero-hits" : "weak-strict-match",
         },
       );
-      response = await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
-        `/${encodeURIComponent(indexName)}/_search`,
-        {
-          method: "POST",
-          body: JSON.stringify(
-            this.buildSearchRequest(input, from, "tolerant"),
-          ),
-        },
-      );
+      response =
+        await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
+          `/${encodeURIComponent(indexName)}/_search`,
+          {
+            method: "POST",
+            body: JSON.stringify(
+              this.buildSearchRequest(input, from, "tolerant"),
+            ),
+          },
+        );
       hits = response.hits?.hits ?? [];
       total = response.hits?.total?.value ?? 0;
 
@@ -364,7 +366,13 @@ export class PostingsPublicSearchService {
     return {
       from,
       size: input.pageSize,
-      _source: ["name", "tags", "location.city", "location.region", "location.country"],
+      _source: [
+        "name",
+        "tags",
+        "location.city",
+        "location.region",
+        "location.country",
+      ],
       query: {
         bool: {
           ...(must.length > 0 ? { must } : { must: [{ match_all: {} }] }),
@@ -391,7 +399,10 @@ export class PostingsPublicSearchService {
 
     return (hits ?? []).some((hit) =>
       this.collectSearchableTerms(hit).some((term) =>
-        this.hasPrefixTokenMatch(this.normalizeSearchText(term), normalizedQuery),
+        this.hasPrefixTokenMatch(
+          this.normalizeSearchText(term),
+          normalizedQuery,
+        ),
       ),
     );
   }
@@ -403,7 +414,10 @@ export class PostingsPublicSearchService {
     const normalizedQuery = this.normalizeSearchText(query);
 
     return [...(hits ?? [])].sort((left, right) => {
-      const rightScore = this.computeTypoConfidenceScore(right, normalizedQuery);
+      const rightScore = this.computeTypoConfidenceScore(
+        right,
+        normalizedQuery,
+      );
       const leftScore = this.computeTypoConfidenceScore(left, normalizedQuery);
 
       if (rightScore !== leftScore) {
@@ -426,14 +440,39 @@ export class PostingsPublicSearchService {
     }
 
     return (
-      this.countWeightedTokenMatches(source.name, normalizedQuery, allowedDistance, 3) +
-      this.countWeightedTokenMatches(source.location?.city, normalizedQuery, allowedDistance, 2) +
-      this.countWeightedTokenMatches(source.location?.region, normalizedQuery, allowedDistance, 1) +
-      this.countWeightedTokenMatches(source.location?.country, normalizedQuery, allowedDistance, 0.5) +
+      this.countWeightedTokenMatches(
+        source.name,
+        normalizedQuery,
+        allowedDistance,
+        3,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.city,
+        normalizedQuery,
+        allowedDistance,
+        2,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.region,
+        normalizedQuery,
+        allowedDistance,
+        1,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.country,
+        normalizedQuery,
+        allowedDistance,
+        0.5,
+      ) +
       (source.tags ?? []).reduce(
         (total: number, tag: string) =>
           total +
-          this.countWeightedTokenMatches(tag, normalizedQuery, allowedDistance, 1.5),
+          this.countWeightedTokenMatches(
+            tag,
+            normalizedQuery,
+            allowedDistance,
+            1.5,
+          ),
         0,
       )
     );
@@ -459,9 +498,7 @@ export class PostingsPublicSearchService {
     }, 0);
   }
 
-  private collectSearchableTerms(
-    hit: ElasticsearchSearchHit,
-  ): string[] {
+  private collectSearchableTerms(hit: ElasticsearchSearchHit): string[] {
     return [
       hit._source?.name,
       ...(hit._source?.tags ?? []),
@@ -485,7 +522,9 @@ export class PostingsPublicSearchService {
   }
 
   private tokenizeSearchText(value: string): string[] {
-    return this.normalizeSearchText(value).split(/[^a-z0-9]+/g).filter(Boolean);
+    return this.normalizeSearchText(value)
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean);
   }
 
   private normalizeSearchText(value: string): string {
@@ -517,7 +556,10 @@ export class PostingsPublicSearchService {
       return null;
     }
 
-    const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    const previous = Array.from(
+      { length: right.length + 1 },
+      (_, index) => index,
+    );
 
     for (let row = 1; row <= left.length; row += 1) {
       let current = [row];

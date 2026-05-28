@@ -59,16 +59,14 @@ function createDocument(
 }
 
 function createElasticsearchPublicSearchService(
-  response:
-    | unknown
-    | unknown[] = {
-        hits: {
-          total: {
-            value: 0,
-          },
-          hits: [],
-        },
+  response: unknown | unknown[] = {
+    hits: {
+      total: {
+        value: 0,
       },
+      hits: [],
+    },
+  },
 ) {
   const getPublicByIds = jest.fn(async () => ({
     postings: [],
@@ -180,7 +178,10 @@ function readKeywordShouldClauses(
   requestJson: jest.Mock,
   callIndex = 0,
 ): Array<Record<string, unknown>> {
-  return readSearchRequest(requestJson, callIndex).query.bool.must[0]?.bool.should ?? [];
+  return (
+    readSearchRequest(requestJson, callIndex).query.bool.must[0]?.bool.should ??
+    []
+  );
 }
 
 function createPublicPosting(overrides: Record<string, unknown> = {}) {

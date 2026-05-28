@@ -133,13 +133,14 @@ export class PostingsPublicAutocompleteService {
           query: input.query,
         },
       );
-      response = await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
-        `/${encodeURIComponent(indexName)}/_search`,
-        {
-          method: "POST",
-          body: JSON.stringify(this.buildSearchRequest(input, "tolerant")),
-        },
-      );
+      response =
+        await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
+          `/${encodeURIComponent(indexName)}/_search`,
+          {
+            method: "POST",
+            body: JSON.stringify(this.buildSearchRequest(input, "tolerant")),
+          },
+        );
 
       const tolerantDocuments = (
         response.hits?.hits ?? []
