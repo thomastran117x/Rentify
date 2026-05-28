@@ -32,9 +32,24 @@ interface ElasticsearchSearchResponse {
     };
     hits?: Array<{
       _id: string;
+      _score?: number;
+      _source?: {
+        name?: string;
+        tags?: string[];
+        location?: {
+          city?: string;
+          region?: string;
+          country?: string;
+        };
+      };
     }>;
   };
 }
+
+type ElasticsearchSearchHit = NonNullable<
+  NonNullable<ElasticsearchSearchResponse["hits"]>["hits"]
+>[number];
+type SearchQueryMode = "strict" | "tolerant";
 
 export class PostingsPublicSearchService {
   private readonly logger: Logger;
@@ -121,19 +136,49 @@ export class PostingsPublicSearchService {
   ): Promise<SearchIdsResult> {
     const indexName = `${this.elasticsearch.getPostingsIndexName()}-read`;
     const from = (input.page - 1) * input.pageSize;
-    const response =
+    let response =
       await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
         `/${encodeURIComponent(indexName)}/_search`,
         {
           method: "POST",
-          body: JSON.stringify(this.buildSearchRequest(input, from)),
+          body: JSON.stringify(this.buildSearchRequest(input, from, "strict")),
         },
       );
-    const hits = response.hits?.hits ?? [];
+    let hits = response.hits?.hits ?? [];
+    let total = response.hits?.total?.value ?? 0;
+    const shouldRetryWithTolerance =
+      input.query &&
+      (total === 0 || !this.hasDirectMatchInSearchHits(hits, input.query));
+
+    if (shouldRetryWithTolerance) {
+      this.logger.info(
+        "Postings search retrying with tolerant Elasticsearch typo matching.",
+        {
+          query: input.query,
+          reason: total === 0 ? "zero-hits" : "weak-strict-match",
+        },
+      );
+      response =
+        await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
+          `/${encodeURIComponent(indexName)}/_search`,
+          {
+            method: "POST",
+            body: JSON.stringify(
+              this.buildSearchRequest(input, from, "tolerant"),
+            ),
+          },
+        );
+      hits = response.hits?.hits ?? [];
+      total = response.hits?.total?.value ?? 0;
+
+      if (input.query) {
+        hits = this.rankTypoTolerantHits(hits, input.query);
+      }
+    }
 
     return {
       ids: hits.map((hit) => hit._id),
-      total: response.hits?.total?.value ?? 0,
+      total,
       source: "elasticsearch",
     };
   }
@@ -141,6 +186,7 @@ export class PostingsPublicSearchService {
   private buildSearchRequest(
     input: SearchPostingsInput,
     from: number,
+    mode: SearchQueryMode,
   ): Record<string, unknown> {
     const must: Array<Record<string, unknown>> = [];
     const filter: Array<Record<string, unknown>> = [
@@ -153,7 +199,8 @@ export class PostingsPublicSearchService {
     const mustNot: Array<Record<string, unknown>> = [];
 
     if (input.query) {
-      const isMultiTermQuery = this.countQueryTerms(input.query) > 1;
+      const isMultiTermQuery =
+        mode === "strict" && this.countQueryTerms(input.query) > 1;
       must.push({
         bool: {
           should: [
@@ -192,7 +239,8 @@ export class PostingsPublicSearchService {
                   "description",
                 ],
                 fuzziness: "AUTO",
-                prefix_length: 1,
+                prefix_length: mode === "strict" ? 1 : 0,
+                ...(mode === "tolerant" ? { max_expansions: 25 } : {}),
                 ...(isMultiTermQuery ? { operator: "and" } : {}),
                 boost: 0.7,
               },
@@ -318,6 +366,13 @@ export class PostingsPublicSearchService {
     return {
       from,
       size: input.pageSize,
+      _source: [
+        "name",
+        "tags",
+        "location.city",
+        "location.region",
+        "location.country",
+      ],
       query: {
         bool: {
           ...(must.length > 0 ? { must } : { must: [{ match_all: {} }] }),
@@ -334,6 +389,202 @@ export class PostingsPublicSearchService {
     return (
       query.match(PostingsPublicSearchService.queryTokenPattern)?.length ?? 0
     );
+  }
+
+  private hasDirectMatchInSearchHits(
+    hits: NonNullable<ElasticsearchSearchResponse["hits"]>["hits"],
+    query: string,
+  ): boolean {
+    const normalizedQuery = this.normalizeSearchText(query);
+
+    return (hits ?? []).some((hit) =>
+      this.collectSearchableTerms(hit).some((term) =>
+        this.hasPrefixTokenMatch(
+          this.normalizeSearchText(term),
+          normalizedQuery,
+        ),
+      ),
+    );
+  }
+
+  private rankTypoTolerantHits(
+    hits: NonNullable<ElasticsearchSearchResponse["hits"]>["hits"],
+    query: string,
+  ): ElasticsearchSearchHit[] {
+    const normalizedQuery = this.normalizeSearchText(query);
+
+    return [...(hits ?? [])].sort((left, right) => {
+      const rightScore = this.computeTypoConfidenceScore(
+        right,
+        normalizedQuery,
+      );
+      const leftScore = this.computeTypoConfidenceScore(left, normalizedQuery);
+
+      if (rightScore !== leftScore) {
+        return rightScore - leftScore;
+      }
+
+      return (right._score ?? 0) - (left._score ?? 0);
+    });
+  }
+
+  private computeTypoConfidenceScore(
+    hit: ElasticsearchSearchHit,
+    normalizedQuery: string,
+  ): number {
+    const allowedDistance = this.resolveFuzzyDistance(normalizedQuery);
+    const source = hit._source;
+
+    if (!source || allowedDistance < 0) {
+      return 0;
+    }
+
+    return (
+      this.countWeightedTokenMatches(
+        source.name,
+        normalizedQuery,
+        allowedDistance,
+        3,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.city,
+        normalizedQuery,
+        allowedDistance,
+        2,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.region,
+        normalizedQuery,
+        allowedDistance,
+        1,
+      ) +
+      this.countWeightedTokenMatches(
+        source.location?.country,
+        normalizedQuery,
+        allowedDistance,
+        0.5,
+      ) +
+      (source.tags ?? []).reduce(
+        (total: number, tag: string) =>
+          total +
+          this.countWeightedTokenMatches(
+            tag,
+            normalizedQuery,
+            allowedDistance,
+            1.5,
+          ),
+        0,
+      )
+    );
+  }
+
+  private countWeightedTokenMatches(
+    value: string | undefined,
+    normalizedQuery: string,
+    allowedDistance: number,
+    weight: number,
+  ): number {
+    if (!value) {
+      return 0;
+    }
+
+    return this.tokenizeSearchText(value).reduce((total, token) => {
+      const distance = this.computeEditDistanceWithinLimit(
+        token,
+        normalizedQuery,
+        allowedDistance,
+      );
+      return total + (distance !== null ? weight : 0);
+    }, 0);
+  }
+
+  private collectSearchableTerms(hit: ElasticsearchSearchHit): string[] {
+    return [
+      hit._source?.name,
+      ...(hit._source?.tags ?? []),
+      hit._source?.location?.city,
+      hit._source?.location?.region,
+      hit._source?.location?.country,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  private hasPrefixTokenMatch(
+    normalizedValue: string,
+    normalizedQuery: string,
+  ): boolean {
+    if (normalizedValue.startsWith(normalizedQuery)) {
+      return true;
+    }
+
+    return this.tokenizeSearchText(normalizedValue).some((token) =>
+      token.startsWith(normalizedQuery),
+    );
+  }
+
+  private tokenizeSearchText(value: string): string[] {
+    return this.normalizeSearchText(value)
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean);
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  private resolveFuzzyDistance(normalizedQuery: string): number {
+    if (normalizedQuery.length <= 2) {
+      return -1;
+    }
+
+    if (normalizedQuery.length <= 5) {
+      return 1;
+    }
+
+    return 2;
+  }
+
+  private computeEditDistanceWithinLimit(
+    left: string,
+    right: string,
+    limit: number,
+  ): number | null {
+    if (Math.abs(left.length - right.length) > limit) {
+      return null;
+    }
+
+    const previous = Array.from(
+      { length: right.length + 1 },
+      (_, index) => index,
+    );
+
+    for (let row = 1; row <= left.length; row += 1) {
+      let current = [row];
+      let rowMin = current[0];
+
+      for (let column = 1; column <= right.length; column += 1) {
+        const substitutionCost = left[row - 1] === right[column - 1] ? 0 : 1;
+        const value = Math.min(
+          previous[column] + 1,
+          current[column - 1]! + 1,
+          previous[column - 1]! + substitutionCost,
+        );
+
+        current.push(value);
+        rowMin = Math.min(rowMin, value);
+      }
+
+      if (rowMin > limit) {
+        return null;
+      }
+
+      previous.splice(0, previous.length, ...current);
+    }
+
+    return previous[right.length]! <= limit ? previous[right.length]! : null;
   }
 
   private buildSort(

@@ -7,9 +7,12 @@ import { PostingsRepository } from "@/features/postings/postings.repository";
 import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
 import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
 
-function createElasticsearchAutocompleteService(response: unknown) {
-  const autocompletePublicFallback = jest.fn();
-  const requestJson = jest.fn(async () => response);
+function createElasticsearchAutocompleteService(response: unknown | unknown[]) {
+  const autocompletePublicFallback = jest.fn(async () => []);
+  const requestJson = jest.fn();
+  const responses = Array.isArray(response) ? response : [response];
+  responses.forEach((item) => requestJson.mockResolvedValueOnce(item));
+  requestJson.mockResolvedValue(responses[responses.length - 1]);
   const repository = {
     autocompletePublicFallback,
   } as unknown as PostingsRepository;
@@ -26,14 +29,22 @@ function createElasticsearchAutocompleteService(response: unknown) {
   };
 }
 
-function readAutocompleteRequestBody(requestJson: jest.Mock): {
+function readAutocompleteRequestBody(
+  requestJson: jest.Mock,
+  callIndex = 0,
+): {
   query: {
     bool: {
+      must: Array<{
+        bool: {
+          should: Array<Record<string, unknown>>;
+        };
+      }>;
       filter: unknown[];
     };
   };
 } {
-  return JSON.parse(requestJson.mock.calls[0]?.[1]?.body as string);
+  return JSON.parse(requestJson.mock.calls[callIndex]?.[1]?.body as string);
 }
 
 describe("publicAutocompletePostingsQuerySchema", () => {
@@ -96,6 +107,110 @@ describe("PostingsPublicAutocompleteService", () => {
         },
       ]),
     );
+  });
+
+  it("retries zero-hit autocomplete searches with a tolerant fuzzy clause", async () => {
+    const { requestJson, service } = createElasticsearchAutocompleteService([
+      {
+        hits: {
+          hits: [],
+        },
+      },
+      {
+        hits: {
+          hits: [
+            {
+              _id: "posting-1",
+              _source: {
+                name: "North Shore Adventure Bike",
+                tags: ["bike", "mountain", "northshore"],
+                location: {
+                  city: "North Vancouver",
+                  region: "British Columbia",
+                  country: "Canada",
+                },
+                publishedAt: "2026-05-01T00:00:00.000Z",
+                createdAt: "2026-05-01T00:00:00.000Z",
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await service.autocompletePublic({
+      query: "borth",
+      limit: 6,
+    });
+
+    expect(requestJson).toHaveBeenCalledTimes(2);
+
+    const strictShouldClauses =
+      readAutocompleteRequestBody(requestJson, 0).query.bool.must[0]?.bool
+        .should ?? [];
+    const tolerantShouldClauses =
+      readAutocompleteRequestBody(requestJson, 1).query.bool.must[0]?.bool
+        .should ?? [];
+
+    expect(
+      strictShouldClauses.some(
+        (clause) =>
+          typeof clause === "object" &&
+          clause !== null &&
+          "multi_match" in clause &&
+          (clause.multi_match as { fuzziness?: string }).fuzziness === "AUTO",
+      ),
+    ).toBe(false);
+
+    const tolerantFuzzyClause = tolerantShouldClauses.find(
+      (clause) =>
+        typeof clause === "object" &&
+        clause !== null &&
+        "multi_match" in clause &&
+        (clause.multi_match as { fuzziness?: string }).fuzziness === "AUTO",
+    ) as { multi_match: Record<string, unknown> } | undefined;
+
+    expect(tolerantFuzzyClause?.multi_match).toMatchObject({
+      prefix_length: 0,
+      max_expansions: 25,
+      boost: 0.4,
+    });
+    expect(result.suggestions).toEqual(
+      expect.arrayContaining([
+        { value: "North Shore Adventure Bike", kind: "name" },
+        { value: "North Vancouver, British Columbia", kind: "location" },
+      ]),
+    );
+  });
+
+  it("does not retry autocomplete searches when the strict query already has hits", async () => {
+    const { requestJson, service } = createElasticsearchAutocompleteService({
+      hits: {
+        hits: [
+          {
+            _id: "posting-1",
+            _source: {
+              name: "North Shore Adventure Bike",
+              tags: ["bike"],
+              location: {
+                city: "North Vancouver",
+                region: "British Columbia",
+                country: "Canada",
+              },
+              publishedAt: "2026-05-01T00:00:00.000Z",
+              createdAt: "2026-05-01T00:00:00.000Z",
+            },
+          },
+        ],
+      },
+    });
+
+    await service.autocompletePublic({
+      query: "north",
+      limit: 6,
+    });
+
+    expect(requestJson).toHaveBeenCalledTimes(1);
   });
 
   it("ranks and deduplicates suggestions by kind priority, relevance order, and location formatting", async () => {
