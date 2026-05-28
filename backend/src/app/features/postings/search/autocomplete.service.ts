@@ -52,6 +52,8 @@ interface RankedSuggestion extends PostingAutocompleteSuggestion {
   publishedAtMs: number;
 }
 
+type AutocompleteQueryMode = "strict" | "tolerant";
+
 const AUTOCOMPLETE_CANDIDATE_LIMIT_MULTIPLIER = 5;
 const AUTOCOMPLETE_MIN_CANDIDATES = 12;
 const AUTOCOMPLETE_MAX_CANDIDATES = 40;
@@ -115,14 +117,51 @@ export class PostingsPublicAutocompleteService {
     input: PostingAutocompleteInput,
   ): Promise<PostingAutocompleteSuggestion[]> {
     const indexName = `${this.elasticsearch.getPostingsIndexName()}-read`;
-    const response =
+    let response =
       await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
         `/${encodeURIComponent(indexName)}/_search`,
         {
           method: "POST",
-          body: JSON.stringify(this.buildSearchRequest(input)),
+          body: JSON.stringify(this.buildSearchRequest(input, "strict")),
         },
       );
+
+    if ((response.hits?.hits?.length ?? 0) === 0) {
+      this.logger.info(
+        "Posting autocomplete retrying with tolerant Elasticsearch typo matching.",
+        {
+          query: input.query,
+        },
+      );
+      response = await this.elasticsearch.requestJson<ElasticsearchAutocompleteResponse>(
+        `/${encodeURIComponent(indexName)}/_search`,
+        {
+          method: "POST",
+          body: JSON.stringify(this.buildSearchRequest(input, "tolerant")),
+        },
+      );
+
+      const tolerantDocuments = (
+        response.hits?.hits ?? []
+      ).map<AutocompleteCandidateDocument>((hit) => ({
+        name: hit._source?.name,
+        tags: hit._source?.tags ?? [],
+        location: {
+          city: hit._source?.location?.city,
+          region: hit._source?.location?.region,
+          country: hit._source?.location?.country,
+        },
+        publishedAt: hit._source?.publishedAt,
+        createdAt: hit._source?.createdAt,
+      }));
+
+      return this.rankSuggestions(
+        tolerantDocuments,
+        input.query,
+        input.limit,
+        "tolerant",
+      );
+    }
 
     const documents = (
       response.hits?.hits ?? []
@@ -138,7 +177,7 @@ export class PostingsPublicAutocompleteService {
       createdAt: hit._source?.createdAt,
     }));
 
-    return this.rankSuggestions(documents, input.query, input.limit);
+    return this.rankSuggestions(documents, input.query, input.limit, "strict");
   }
 
   private async autocompleteInDatabase(
@@ -146,11 +185,12 @@ export class PostingsPublicAutocompleteService {
   ): Promise<PostingAutocompleteSuggestion[]> {
     const documents =
       await this.postingsRepository.autocompletePublicFallback(input);
-    return this.rankSuggestions(documents, input.query, input.limit);
+    return this.rankSuggestions(documents, input.query, input.limit, "strict");
   }
 
   private buildSearchRequest(
     input: PostingAutocompleteInput,
+    mode: AutocompleteQueryMode,
   ): Record<string, unknown> {
     const filter: Array<Record<string, unknown>> = [
       {
@@ -221,6 +261,26 @@ export class PostingsPublicAutocompleteService {
                       boost: 0.6,
                     },
                   },
+                  ...(mode === "tolerant"
+                    ? [
+                        {
+                          multi_match: {
+                            query: input.query,
+                            fields: [
+                              "name^5",
+                              "tags.text^3",
+                              "location.city^3",
+                              "location.region^2",
+                              "location.country^2",
+                            ],
+                            fuzziness: "AUTO",
+                            prefix_length: 0,
+                            max_expansions: 25,
+                            boost: 0.4,
+                          },
+                        },
+                      ]
+                    : []),
                 ],
                 minimum_should_match: 1,
               },
@@ -258,6 +318,7 @@ export class PostingsPublicAutocompleteService {
     documents: AutocompleteCandidateDocument[],
     query: string,
     limit: number,
+    mode: AutocompleteQueryMode,
   ): PostingAutocompleteSuggestion[] {
     const normalizedQuery = this.normalizeAutocompleteText(query);
     const ranked = new Map<string, RankedSuggestion>();
@@ -277,6 +338,7 @@ export class PostingsPublicAutocompleteService {
           publishedAtMs,
         },
         normalizedQuery,
+        mode,
       );
 
       for (const tag of document.tags) {
@@ -290,6 +352,7 @@ export class PostingsPublicAutocompleteService {
             publishedAtMs,
           },
           normalizedQuery,
+          mode,
         );
       }
 
@@ -305,6 +368,7 @@ export class PostingsPublicAutocompleteService {
           publishedAtMs,
         },
         normalizedQuery,
+        mode,
       );
     });
 
@@ -332,6 +396,7 @@ export class PostingsPublicAutocompleteService {
     ranked: Map<string, RankedSuggestion>,
     candidate: RankedSuggestion,
     normalizedQuery: string,
+    mode: AutocompleteQueryMode,
   ): void {
     const trimmedValue = candidate.value.trim();
 
@@ -341,7 +406,7 @@ export class PostingsPublicAutocompleteService {
 
     const normalizedValue = this.normalizeAutocompleteText(trimmedValue);
 
-    if (!this.matchesNormalizedQuery(normalizedValue, normalizedQuery)) {
+    if (!this.matchesNormalizedQuery(normalizedValue, normalizedQuery, mode)) {
       return;
     }
 
@@ -395,15 +460,38 @@ export class PostingsPublicAutocompleteService {
   private matchesNormalizedQuery(
     normalizedValue: string,
     normalizedQuery: string,
+    mode: AutocompleteQueryMode,
   ): boolean {
     if (normalizedValue.startsWith(normalizedQuery)) {
       return true;
     }
 
-    return normalizedValue
+    const tokenPrefixMatch = normalizedValue
       .split(/[^a-z0-9]+/g)
       .filter(Boolean)
       .some((token) => token.startsWith(normalizedQuery));
+
+    if (tokenPrefixMatch || mode === "strict") {
+      return tokenPrefixMatch;
+    }
+
+    const allowedDistance = this.resolveFuzzyDistance(normalizedQuery);
+
+    if (allowedDistance < 0) {
+      return false;
+    }
+
+    return normalizedValue
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean)
+      .some(
+        (token) =>
+          this.computeEditDistanceWithinLimit(
+            token,
+            normalizedQuery,
+            allowedDistance,
+          ) !== null,
+      );
   }
 
   private resolveCandidateLimit(limit: number): number {
@@ -423,5 +511,57 @@ export class PostingsPublicAutocompleteService {
 
     const timestamp = new Date(value).getTime();
     return Number.isNaN(timestamp) ? 0 : timestamp;
+  }
+
+  private resolveFuzzyDistance(normalizedQuery: string): number {
+    if (normalizedQuery.length <= 2) {
+      return -1;
+    }
+
+    if (normalizedQuery.length <= 5) {
+      return 1;
+    }
+
+    return 2;
+  }
+
+  private computeEditDistanceWithinLimit(
+    left: string,
+    right: string,
+    limit: number,
+  ): number | null {
+    if (Math.abs(left.length - right.length) > limit) {
+      return null;
+    }
+
+    const previous = Array.from(
+      { length: right.length + 1 },
+      (_, index) => index,
+    );
+
+    for (let row = 1; row <= left.length; row += 1) {
+      const current = [row];
+      let rowMin = current[0]!;
+
+      for (let column = 1; column <= right.length; column += 1) {
+        const substitutionCost = left[row - 1] === right[column - 1] ? 0 : 1;
+        const value = Math.min(
+          previous[column]! + 1,
+          current[column - 1]! + 1,
+          previous[column - 1]! + substitutionCost,
+        );
+
+        current.push(value);
+        rowMin = Math.min(rowMin, value);
+      }
+
+      if (rowMin > limit) {
+        return null;
+      }
+
+      previous.splice(0, previous.length, ...current);
+    }
+
+    return previous[right.length]! <= limit ? previous[right.length]! : null;
   }
 }

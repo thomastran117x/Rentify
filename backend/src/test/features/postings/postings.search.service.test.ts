@@ -58,7 +58,18 @@ function createDocument(
   };
 }
 
-function createElasticsearchPublicSearchService() {
+function createElasticsearchPublicSearchService(
+  response:
+    | unknown
+    | unknown[] = {
+        hits: {
+          total: {
+            value: 0,
+          },
+          hits: [],
+        },
+      },
+) {
   const getPublicByIds = jest.fn(async () => ({
     postings: [],
     missingIds: [],
@@ -70,14 +81,10 @@ function createElasticsearchPublicSearchService() {
       missingIds: ids,
     })),
   } as unknown as PostingsRepository;
-  const requestJson = jest.fn(async () => ({
-    hits: {
-      total: {
-        value: 0,
-      },
-      hits: [],
-    },
-  }));
+  const requestJson = jest.fn();
+  const responses = Array.isArray(response) ? response : [response];
+  responses.forEach((item) => requestJson.mockResolvedValueOnce(item));
+  requestJson.mockResolvedValue(responses[responses.length - 1]);
   const postingsPublicCacheService = {
     getPublicByIds,
   } as unknown as PostingsPublicCacheService;
@@ -149,7 +156,10 @@ function createSearchHydrationService(overrides?: {
   };
 }
 
-function readSearchRequest(requestJson: jest.Mock): {
+function readSearchRequest(
+  requestJson: jest.Mock,
+  callIndex = 0,
+): {
   query: {
     bool: {
       must: Array<{
@@ -163,13 +173,14 @@ function readSearchRequest(requestJson: jest.Mock): {
   };
   sort: unknown[];
 } {
-  return JSON.parse(requestJson.mock.calls[0]?.[1]?.body as string);
+  return JSON.parse(requestJson.mock.calls[callIndex]?.[1]?.body as string);
 }
 
 function readKeywordShouldClauses(
   requestJson: jest.Mock,
+  callIndex = 0,
 ): Array<Record<string, unknown>> {
-  return readSearchRequest(requestJson).query.bool.must[0]?.bool.should ?? [];
+  return readSearchRequest(requestJson, callIndex).query.bool.must[0]?.bool.should ?? [];
 }
 
 function createPublicPosting(overrides: Record<string, unknown> = {}) {
@@ -478,6 +489,155 @@ describe("PostingsPublicSearchService", () => {
     expect(fuzzyClause?.multi_match).not.toHaveProperty("operator");
     expect(prefixClause).toBeDefined();
     expect(prefixClause?.multi_match).not.toHaveProperty("operator");
+  });
+
+  it("retries zero-hit Elasticsearch searches with a more tolerant fuzzy query", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService([
+      {
+        hits: {
+          total: {
+            value: 0,
+          },
+          hits: [],
+        },
+      },
+      {
+        hits: {
+          total: {
+            value: 1,
+          },
+          hits: [{ _id: "posting-1" }],
+        },
+      },
+    ]);
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "borth",
+      sort: "relevance",
+    });
+
+    expect(requestJson).toHaveBeenCalledTimes(2);
+
+    const strictShouldClauses = readKeywordShouldClauses(requestJson, 0);
+    const tolerantShouldClauses = readKeywordShouldClauses(requestJson, 1);
+    const strictFuzzyClause = strictShouldClauses.find(
+      (clause) =>
+        typeof clause === "object" &&
+        clause !== null &&
+        "multi_match" in clause &&
+        (clause.multi_match as { fuzziness?: string }).fuzziness === "AUTO",
+    ) as { multi_match: Record<string, unknown> } | undefined;
+    const tolerantFuzzyClause = tolerantShouldClauses.find(
+      (clause) =>
+        typeof clause === "object" &&
+        clause !== null &&
+        "multi_match" in clause &&
+        (clause.multi_match as { fuzziness?: string }).fuzziness === "AUTO",
+    ) as { multi_match: Record<string, unknown> } | undefined;
+
+    expect(strictFuzzyClause?.multi_match).toMatchObject({
+      prefix_length: 1,
+      boost: 0.7,
+    });
+    expect(tolerantFuzzyClause?.multi_match).toMatchObject({
+      prefix_length: 0,
+      max_expansions: 25,
+      boost: 0.7,
+    });
+    expect(tolerantFuzzyClause?.multi_match).not.toHaveProperty("operator");
+  });
+
+  it("does not retry Elasticsearch searches when the strict query already has hits", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService({
+      hits: {
+        total: {
+          value: 1,
+        },
+        hits: [
+          {
+            _id: "posting-1",
+            _source: {
+              name: "North Shore Adventure Bike",
+              tags: ["bike", "mountain", "northshore"],
+              location: {
+                city: "North Vancouver",
+                region: "British Columbia",
+                country: "Canada",
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "north",
+      sort: "relevance",
+    });
+
+    expect(requestJson).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries Elasticsearch searches when strict hits do not contain a direct token match", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService([
+      {
+        hits: {
+          total: {
+            value: 1,
+          },
+          hits: [
+            {
+              _id: "posting-38",
+              _score: 8,
+              _source: {
+                name: "Mobile Merch Booth Bundle",
+                tags: ["merch", "booth", "retail"],
+                location: {
+                  city: "Ottawa",
+                  region: "Ontario",
+                  country: "Canada",
+                },
+              },
+            },
+          ],
+        },
+      },
+      {
+        hits: {
+          total: {
+            value: 2,
+          },
+          hits: [
+            {
+              _id: "posting-42",
+              _score: 8,
+              _source: {
+                name: "North Shore Adventure Bike",
+                tags: ["bike", "mountain", "northshore"],
+                location: {
+                  city: "North Vancouver",
+                  region: "British Columbia",
+                  country: "Canada",
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "borth",
+      sort: "relevance",
+    });
+
+    expect(requestJson).toHaveBeenCalledTimes(2);
   });
 
   it("preserves Elasticsearch relevance order when hydrating cached and uncached postings", async () => {
