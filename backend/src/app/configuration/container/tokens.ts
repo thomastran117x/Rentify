@@ -22,6 +22,9 @@ import { CacheService } from "@/features/cache/cache.service";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 import { EmailQueueService } from "@/features/email/email.queue.service";
 import { EmailService } from "@/features/email/email.service";
+import { OrganizationsController } from "@/features/organizations/organizations.controller";
+import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import { OrganizationsService } from "@/features/organizations/organizations.service";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -73,6 +76,15 @@ export const containerTokens = {
     "EmailDeliveryService",
   ),
   emailService: createServiceToken<EmailService>("EmailService"),
+  organizationsRepository: createServiceToken<OrganizationsRepository>(
+    "OrganizationsRepository",
+  ),
+  organizationsService: createServiceToken<OrganizationsService>(
+    "OrganizationsService",
+  ),
+  organizationsController: createServiceToken<OrganizationsController>(
+    "OrganizationsController",
+  ),
   captchaService: createServiceToken<CaptchaService>("CaptchaService"),
   otpService: createServiceToken<OtpService>("OtpService"),
   oauthTokenVerifier:

@@ -30,7 +30,10 @@ export function SiteHeader() {
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const desktopSearchInputRef = useRef<HTMLInputElement>(null);
 
-  const accountLinks = getAccountLinks(session?.user.role);
+  const accountLinks = getAccountLinks(session?.user.role, {
+    organizationMembershipCount: session?.user.organizationMembershipCount ?? 0,
+    hasActiveOrganization: Boolean(session?.user.activeOrganization),
+  });
   const displayName = session
     ? getDisplayLabel(session.user.email, session.user.username)
     : "Account";

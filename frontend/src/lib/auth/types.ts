@@ -1,9 +1,17 @@
+export interface ActiveOrganizationSummary {
+  id: string;
+  name: string;
+  role: "primary_manager" | "manager" | "operator";
+}
+
 export interface AuthResponseUser {
   id: string;
   email: string;
   username: string;
   avatarUrl?: string;
   role: "user" | "owner" | "moderator" | "admin";
+  activeOrganization?: ActiveOrganizationSummary;
+  organizationMembershipCount?: number;
 }
 
 export type OAuthProvider = "google" | "microsoft" | "apple";

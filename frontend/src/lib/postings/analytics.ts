@@ -3,7 +3,9 @@
 import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import { readStoredSession } from "@/lib/auth/storage";
-import { publicEnv } from "@/lib/env";
+import { resolveApiBaseUrl } from "@/lib/env";
+
+const apiBaseUrl = resolveApiBaseUrl();
 
 export type PostingAnalyticsWindow = "7d" | "30d" | "all";
 export type PostingAnalyticsGranularity = "hour" | "day";
@@ -137,7 +139,7 @@ async function authenticatedGet<TResponse>(path: string): Promise<TResponse> {
   const devicePlatform = getDevicePlatform();
   const session = readStoredSession();
   const csrfToken = readCsrfToken();
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "GET",
     headers: {
       accept: "application/json",

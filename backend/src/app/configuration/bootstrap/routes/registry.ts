@@ -14,6 +14,7 @@ import {
   profilesRouteModule,
   searchAdminRouteModule,
 } from "@/configuration/bootstrap/routes/modules/misc.routes";
+import { organizationsRouteModule } from "@/configuration/bootstrap/routes/modules/organizations.routes";
 import { paymentsRouteModule } from "@/configuration/bootstrap/routes/modules/payments.routes";
 import {
   postingsActivityRouteModule,
@@ -43,6 +44,7 @@ export const routeModuleRegistry: RouteModule[] = [
   authOauthRouteModule,
   authDevicesRouteModule,
   authPersonalAccessTokensRouteModule,
+  organizationsRouteModule,
   blobRouteModule,
   profilesRouteModule,
   reportsRouteModule,

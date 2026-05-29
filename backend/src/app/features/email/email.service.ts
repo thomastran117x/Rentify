@@ -28,6 +28,14 @@ export interface SendPasswordResetEmailInput {
   firstName?: string;
 }
 
+export interface SendOrganizationInviteEmailInput {
+  to: string;
+  organizationName: string;
+  inviterName: string;
+  role: "primary_manager" | "manager" | "operator";
+  token: string;
+}
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -49,5 +57,11 @@ export class EmailService {
     input: SendPasswordResetEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("password_reset", input);
+  }
+
+  async sendOrganizationInviteEmail(
+    input: SendOrganizationInviteEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("organization_invite", input);
   }
 }

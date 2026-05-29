@@ -287,6 +287,9 @@ describe("BookingsDashboard", () => {
     await waitFor(() => {
       expect(getOwnerDashboardMock).toHaveBeenCalled();
     });
+    expect(
+      await screen.findByRole("button", { name: "Renter" }),
+    ).toBeInTheDocument();
     const renterCallsBeforeSwitch = getMyDashboardMock.mock.calls.length;
 
     fireEvent.click(screen.getByRole("button", { name: "Renter" }));

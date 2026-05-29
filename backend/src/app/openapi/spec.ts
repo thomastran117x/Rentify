@@ -1,6 +1,6 @@
 import yaml from "js-yaml";
 
-type HttpMethod = "get" | "post" | "put" | "delete";
+type HttpMethod = "get" | "post" | "put" | "delete" | "patch";
 
 interface OperationDefinition {
   method: HttpMethod;
@@ -49,12 +49,116 @@ const authSessionExample = {
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
     role: "owner",
+    activeOrganization: {
+      id: "org-1",
+      name: "Owner One Organization",
+      role: "primary_manager",
+    },
+    organizationMembershipCount: 1,
   },
 };
 const signupPendingExample = {
   verificationRequired: true,
   email: "new-user@example.com",
   alreadyPending: false,
+};
+const organizationSummaryExample = {
+  id: "org-1",
+  name: "Northwind",
+  role: "primary_manager",
+};
+const organizationMembershipSummaryExample = {
+  membershipId: "membership-1",
+  ...organizationSummaryExample,
+  joinedAt: "2026-05-01T00:00:00.000Z",
+  isActive: true,
+};
+const organizationMemberExample = {
+  membershipId: "membership-2",
+  userId: "user-2",
+  email: "teammate@example.com",
+  firstName: "Taylor",
+  lastName: "Operator",
+  username: "taylor-operator",
+  avatarUrl: "https://cdn.rentify.local/avatars/user-2.png",
+  role: "operator",
+  joinedAt: "2026-05-03T10:00:00.000Z",
+};
+const organizationInviteExample = {
+  id: "invite-1",
+  email: "teammate@example.com",
+  emailHint: "t***@example.com",
+  role: "operator",
+  status: "pending",
+  expiresAt: "2026-06-04T10:00:00.000Z",
+  createdAt: "2026-05-28T10:00:00.000Z",
+  updatedAt: "2026-05-28T10:00:00.000Z",
+  invitedBy: {
+    id: "user-1",
+    email: "owner1@rentify.local",
+    username: "owner-one",
+  },
+};
+const organizationWorkspaceExample = {
+  memberships: [organizationMembershipSummaryExample],
+  activeOrganization: organizationSummaryExample,
+};
+const organizationDetailExample = {
+  organization: {
+    id: "org-1",
+    name: "Northwind",
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-28T10:00:00.000Z",
+  },
+  viewerRole: "primary_manager",
+  members: [
+    {
+      membershipId: "membership-1",
+      userId: "user-1",
+      email: "owner1@rentify.local",
+      firstName: "Owner",
+      lastName: "One",
+      username: "owner-one",
+      avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+      role: "primary_manager",
+      joinedAt: "2026-05-01T00:00:00.000Z",
+    },
+    organizationMemberExample,
+  ],
+  invitations: [organizationInviteExample],
+};
+const organizationInvitePreviewExample = {
+  invitation: {
+    organizationId: "org-1",
+    organizationName: "Northwind",
+    emailHint: "t***@example.com",
+    role: "operator",
+    status: "pending",
+    expiresAt: "2026-06-04T10:00:00.000Z",
+  },
+  viewer: {
+    authenticated: true,
+    email: "teammate@example.com",
+    emailVerified: true,
+    matchesEmail: true,
+    canAccept: true,
+  },
+};
+const organizationInviteAcceptedExample = {
+  accepted: true,
+  organization: {
+    id: "org-1",
+    name: "Northwind",
+    role: "operator",
+  },
+  membership: {
+    membershipId: "membership-2",
+    id: "org-1",
+    name: "Northwind",
+    role: "operator",
+    joinedAt: "2026-05-28T10:30:00.000Z",
+    isActive: true,
+  },
 };
 const linkedProvidersExample = {
   hasPassword: true,
@@ -1680,6 +1784,327 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/me",
+      operationId: "listMyOrganizations",
+      summary: "List the caller's organizations",
+      description:
+        "Returns organization memberships for the signed-in user together with the currently active organization summary.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationWorkspaceResult",
+          organizationWorkspaceExample,
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/me/active",
+      operationId: "setActiveOrganization",
+      summary: "Set the active organization",
+      description:
+        "Stores the signed-in user's active organization preference when they belong to more than one organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("SetActiveOrganizationRequest", {
+        organizationId: "org-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Active organization updated successfully.",
+          "SetActiveOrganizationResult",
+          {
+            activeOrganization: organizationSummaryExample,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/invitations/:token",
+      operationId: "previewOrganizationInvitation",
+      summary: "Preview an organization invitation",
+      description:
+        "Loads organization invitation status and viewer eligibility details. Authentication is optional; when present it is used to show whether the current account can accept the invite.",
+      tags: ["organizations"],
+      security: optionalSecurity,
+      permissions: {
+        authMode: "optional-bearer",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "token",
+          "Organization invitation token.",
+          "invite_token_123",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationInvitePreviewResult",
+          organizationInvitePreviewExample,
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/invitations/:token/accept",
+      operationId: "acceptOrganizationInvitation",
+      summary: "Accept an organization invitation",
+      description:
+        "Accepts a pending organization invitation for the authenticated user when the invite email matches the verified account email.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "token",
+          "Organization invitation token.",
+          "invite_token_123",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization invitation accepted successfully.",
+          "AcceptOrganizationInviteResult",
+          organizationInviteAcceptedExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id",
+      operationId: "getOrganizationById",
+      summary: "Get organization detail",
+      description:
+        "Returns organization profile, roster, and pending invitations for a member of the organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationDetailResult",
+          organizationDetailExample,
+        ),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id",
+      operationId: "updateOrganization",
+      summary: "Rename an organization",
+      description:
+        "Updates the organization name. Only the primary manager can rename the organization in this release.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+      ],
+      requestBody: requestBody("UpdateOrganizationRequest", {
+        name: "Northwind Creative",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization updated successfully.",
+          "OrganizationSummary",
+          {
+            ...organizationSummaryExample,
+            name: "Northwind Creative",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/invitations",
+      operationId: "createOrganizationInvitation",
+      summary: "Create or reissue an organization invitation",
+      description:
+        "Creates a new invitation for the organization or reissues a pending invite for the same email.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+      ],
+      requestBody: requestBody("CreateOrganizationInvitationRequest", {
+        email: "teammate@example.com",
+        role: "operator",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Organization invitation created successfully.",
+          "CreateOrganizationInviteResult",
+          {
+            invitation: organizationInviteExample,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/invitations/:inviteId",
+      operationId: "revokeOrganizationInvitation",
+      summary: "Revoke an organization invitation",
+      description:
+        "Revokes a pending organization invitation when the caller has sufficient organization permissions.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "inviteId",
+          "Organization invitation identifier.",
+          "invite-1",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization invitation revoked successfully.",
+          "CreateOrganizationInviteResult",
+          {
+            invitation: {
+              ...organizationInviteExample,
+              status: "revoked",
+              revokedAt: "2026-05-28T11:00:00.000Z",
+            },
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id/members/:memberId",
+      operationId: "updateOrganizationMember",
+      summary: "Update an organization member role",
+      description:
+        "Changes the role of an existing organization member within the v1 role restrictions.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "memberId",
+          "Organization membership identifier.",
+          "membership-2",
+        ),
+      ],
+      requestBody: requestBody("UpdateOrganizationMemberRequest", {
+        role: "manager",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization member updated successfully.",
+          "UpdateOrganizationMemberResult",
+          {
+            member: {
+              ...organizationMemberExample,
+              role: "manager",
+            },
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/members/:memberId",
+      operationId: "removeOrganizationMember",
+      summary: "Remove an organization member",
+      description:
+        "Removes an organization membership when the caller has permission to manage that member role.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "memberId",
+          "Organization membership identifier.",
+          "membership-2",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization member removed successfully.",
+          "RemoveOrganizationMemberResult",
+          {
+            removed: true,
+            membershipId: "membership-2",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {
@@ -4459,10 +4884,10 @@ function buildDocumentPaths(): Record<string, Record<string, unknown>> {
   const paths: Record<string, Record<string, unknown>> = {};
 
   for (const operation of buildOperations()) {
-    const normalizedPath = operation.path
-      .replaceAll(":id", "{id}")
-      .replaceAll(":provider", "{provider}")
-      .replaceAll(":blockId", "{blockId}");
+    const normalizedPath = operation.path.replace(
+      /:([A-Za-z0-9_]+)/g,
+      "{$1}",
+    );
 
     if (!paths[normalizedPath]) {
       paths[normalizedPath] = {};
@@ -4686,7 +5111,13 @@ function buildComponents(): Record<string, unknown> {
       },
       AuthResponseUser: {
         type: "object",
-        required: ["id", "email", "username", "role"],
+        required: [
+          "id",
+          "email",
+          "username",
+          "role",
+          "organizationMembershipCount",
+        ],
         properties: {
           id: { type: "string" },
           email: { type: "string", format: "email" },
@@ -4696,6 +5127,241 @@ function buildComponents(): Record<string, unknown> {
             type: "string",
             enum: ["user", "owner", "moderator", "admin"],
           },
+          activeOrganization: schemaRef("OrganizationSummary"),
+          organizationMembershipCount: { type: "integer", minimum: 0 },
+        },
+      },
+      OrganizationRole: {
+        type: "string",
+        enum: ["primary_manager", "manager", "operator"],
+      },
+      OrganizationInviteStatus: {
+        type: "string",
+        enum: ["pending", "accepted", "revoked", "expired"],
+      },
+      OrganizationSummary: {
+        type: "object",
+        required: ["id", "name", "role"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          role: schemaRef("OrganizationRole"),
+        },
+      },
+      OrganizationMembershipSummary: {
+        allOf: [
+          schemaRef("OrganizationSummary"),
+          {
+            type: "object",
+            required: ["membershipId", "joinedAt", "isActive"],
+            properties: {
+              membershipId: { type: "string" },
+              joinedAt: { type: "string", format: "date-time" },
+              isActive: { type: "boolean" },
+            },
+          },
+        ],
+      },
+      OrganizationWorkspaceResult: {
+        type: "object",
+        required: ["memberships"],
+        properties: {
+          memberships: {
+            type: "array",
+            items: schemaRef("OrganizationMembershipSummary"),
+          },
+          activeOrganization: schemaRef("OrganizationSummary"),
+        },
+      },
+      SetActiveOrganizationRequest: {
+        type: "object",
+        required: ["organizationId"],
+        properties: {
+          organizationId: { type: "string" },
+        },
+      },
+      SetActiveOrganizationResult: {
+        type: "object",
+        required: ["activeOrganization"],
+        properties: {
+          activeOrganization: schemaRef("OrganizationSummary"),
+        },
+      },
+      UpdateOrganizationRequest: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 160 },
+        },
+      },
+      OrganizationDetailOrganization: {
+        type: "object",
+        required: ["id", "name", "createdAt", "updatedAt"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationMemberRecord: {
+        type: "object",
+        required: ["membershipId", "userId", "email", "username", "role", "joinedAt"],
+        properties: {
+          membershipId: { type: "string" },
+          userId: { type: "string" },
+          email: { type: "string", format: "email" },
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+          role: schemaRef("OrganizationRole"),
+          joinedAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationInvitationActorSummary: {
+        type: "object",
+        required: ["id", "email", "username"],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          username: { type: "string" },
+        },
+      },
+      OrganizationInvitationRecord: {
+        type: "object",
+        required: [
+          "id",
+          "email",
+          "emailHint",
+          "role",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "updatedAt",
+          "invitedBy",
+        ],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          emailHint: { type: "string" },
+          role: schemaRef("OrganizationRole"),
+          status: schemaRef("OrganizationInviteStatus"),
+          expiresAt: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          acceptedAt: { type: "string", format: "date-time" },
+          revokedAt: { type: "string", format: "date-time" },
+          invitedBy: schemaRef("OrganizationInvitationActorSummary"),
+          acceptedBy: schemaRef("OrganizationInvitationActorSummary"),
+        },
+      },
+      OrganizationDetailResult: {
+        type: "object",
+        required: ["organization", "viewerRole", "members", "invitations"],
+        properties: {
+          organization: schemaRef("OrganizationDetailOrganization"),
+          viewerRole: schemaRef("OrganizationRole"),
+          members: {
+            type: "array",
+            items: schemaRef("OrganizationMemberRecord"),
+          },
+          invitations: {
+            type: "array",
+            items: schemaRef("OrganizationInvitationRecord"),
+          },
+        },
+      },
+      CreateOrganizationInvitationRequest: {
+        type: "object",
+        required: ["email", "role"],
+        properties: {
+          email: { type: "string", format: "email" },
+          role: {
+            type: "string",
+            enum: ["manager", "operator"],
+          },
+        },
+      },
+      CreateOrganizationInviteResult: {
+        type: "object",
+        required: ["invitation"],
+        properties: {
+          invitation: schemaRef("OrganizationInvitationRecord"),
+        },
+      },
+      UpdateOrganizationMemberRequest: {
+        type: "object",
+        required: ["role"],
+        properties: {
+          role: {
+            type: "string",
+            enum: ["manager", "operator", "primary_manager"],
+          },
+        },
+      },
+      UpdateOrganizationMemberResult: {
+        type: "object",
+        required: ["member"],
+        properties: {
+          member: schemaRef("OrganizationMemberRecord"),
+        },
+      },
+      RemoveOrganizationMemberResult: {
+        type: "object",
+        required: ["removed", "membershipId"],
+        properties: {
+          removed: { type: "boolean" },
+          membershipId: { type: "string" },
+        },
+      },
+      OrganizationInvitePreviewResult: {
+        type: "object",
+        required: ["invitation", "viewer"],
+        properties: {
+          invitation: {
+            type: "object",
+            required: [
+              "organizationId",
+              "organizationName",
+              "emailHint",
+              "role",
+              "status",
+              "expiresAt",
+            ],
+            properties: {
+              organizationId: { type: "string" },
+              organizationName: { type: "string" },
+              emailHint: { type: "string" },
+              role: schemaRef("OrganizationRole"),
+              status: schemaRef("OrganizationInviteStatus"),
+              expiresAt: { type: "string", format: "date-time" },
+            },
+          },
+          viewer: {
+            type: "object",
+            required: [
+              "authenticated",
+              "matchesEmail",
+              "canAccept",
+            ],
+            properties: {
+              authenticated: { type: "boolean" },
+              email: { type: "string", format: "email" },
+              emailVerified: { type: "boolean" },
+              matchesEmail: { type: "boolean" },
+              canAccept: { type: "boolean" },
+            },
+          },
+        },
+      },
+      AcceptOrganizationInviteResult: {
+        type: "object",
+        required: ["accepted", "organization", "membership"],
+        properties: {
+          accepted: { type: "boolean" },
+          organization: schemaRef("OrganizationSummary"),
+          membership: schemaRef("OrganizationMembershipSummary"),
         },
       },
       AuthSessionResponseData: {
@@ -5692,6 +6358,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "personal-access-tokens",
         description: "PAT creation and lifecycle management.",
+      },
+      {
+        name: "organizations",
+        description:
+          "Organization memberships, invitations, active-org switching, and member management.",
       },
       {
         name: "profiles",

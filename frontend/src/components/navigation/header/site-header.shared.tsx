@@ -25,7 +25,15 @@ export const navigationLinks: HeaderNavigationLink[] = [
 
 export function getAccountLinks(
   role?: SiteHeaderUserRole,
+  options?: {
+    organizationMembershipCount?: number;
+    hasActiveOrganization?: boolean;
+  },
 ): HeaderAccountLink[] {
+  const showOrganizations =
+    (options?.organizationMembershipCount ?? 0) > 0 ||
+    Boolean(options?.hasActiveOrganization);
+
   return [
     ...(isOwnerRole(role)
       ? [
@@ -47,6 +55,15 @@ export function getAccountLinks(
             href: "/moderation",
             label: "Moderation",
             description: "Review reports and keep the marketplace safe",
+          },
+        ]
+      : []),
+    ...(showOrganizations
+      ? [
+          {
+            href: "/organizations",
+            label: "Organizations",
+            description: "Switch organizations, invites, and team roles",
           },
         ]
       : []),

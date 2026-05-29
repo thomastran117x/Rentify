@@ -1,5 +1,5 @@
 import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
-import { publicEnv } from "@/lib/env";
+import { resolveApiBaseUrl } from "@/lib/env";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import {
   clearStoredSession,
@@ -95,6 +95,7 @@ interface CreatePersonalAccessTokenInput {
 let refreshSessionPromise: Promise<AuthResponseBody | null> | null = null;
 const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
+const apiBaseUrl = resolveApiBaseUrl();
 
 function readCookie(name: string): string | undefined {
   if (typeof document === "undefined") {
@@ -123,7 +124,7 @@ async function postJson<TResponse, TBody extends object = object>(
 ): Promise<TResponse> {
   const deviceId = getDeviceId();
   const devicePlatform = getDevicePlatform();
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -144,20 +145,30 @@ async function postJson<TResponse, TBody extends object = object>(
   return unwrapApiResponse<TResponse>(payload);
 }
 
-async function postAuthenticatedJson<TResponse, TBody extends object = object>(
+export async function postAuthenticatedJson<
+  TResponse,
+  TBody extends object = object,
+>(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
   return authenticatedJsonWithRetry(path, "POST", body, true);
 }
 
-async function getAuthenticatedJson<TResponse>(
+export async function getAuthenticatedJson<TResponse>(
   path: string,
 ): Promise<TResponse> {
   return authenticatedJsonWithRetry<TResponse>(path, "GET", undefined, true);
 }
 
-async function deleteAuthenticatedJson<TResponse>(
+export async function patchAuthenticatedJson<
+  TResponse,
+  TBody extends object = object,
+>(path: string, body: TBody): Promise<TResponse> {
+  return authenticatedJsonWithRetry(path, "PATCH", body, true);
+}
+
+export async function deleteAuthenticatedJson<TResponse>(
   path: string,
 ): Promise<TResponse> {
   return authenticatedJsonWithRetry<TResponse>(path, "DELETE", undefined, true);
@@ -168,7 +179,7 @@ async function authenticatedJsonWithRetry<
   TBody extends object = object,
 >(
   path: string,
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   body: TBody | undefined,
   allowRefreshRetry: boolean,
 ): Promise<TResponse> {
@@ -176,7 +187,7 @@ async function authenticatedJsonWithRetry<
   const devicePlatform = getDevicePlatform();
   const session = readStoredSession();
   const csrfToken = readCsrfToken();
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
     headers: {
       ...(body ? { "content-type": "application/json" } : {}),
@@ -221,7 +232,7 @@ async function refreshStoredSession(): Promise<AuthResponseBody | null> {
     const deviceId = getDeviceId();
     const devicePlatform = getDevicePlatform();
     const csrfToken = readCsrfToken();
-    const response = await fetch(`${publicEnv.apiBaseUrl}/auth/refresh`, {
+    const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

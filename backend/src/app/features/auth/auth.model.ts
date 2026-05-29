@@ -378,6 +378,21 @@ export interface OAuthIdentityRecord {
   updatedAt: string;
 }
 
+export interface AuthUserOrganizationMembershipRecord {
+  membershipId: string;
+  organizationId: string;
+  organizationName: string;
+  role: "primary_manager" | "manager" | "operator";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthActiveOrganizationSummary {
+  id: string;
+  name: string;
+  role: "primary_manager" | "manager" | "operator";
+}
+
 export interface AuthUserRecord {
   id: string;
   email: string;
@@ -389,6 +404,8 @@ export interface AuthUserRecord {
   emailVerified: boolean;
   profile: UserProfileRecord;
   oauthIdentities: OAuthIdentityRecord[];
+  preferredOrganizationId?: string;
+  organizationMemberships: AuthUserOrganizationMembershipRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -408,6 +425,8 @@ export interface AuthUserProfile {
   availableRentPostingsCount: number;
   role: AppRole;
   emailVerified: boolean;
+  activeOrganization?: AuthActiveOrganizationSummary;
+  organizationMembershipCount: number;
 }
 
 export interface AuthSessionResult {
@@ -428,6 +447,8 @@ export interface AuthResponseUser {
   username: string;
   avatarUrl?: string;
   role: AppRole;
+  activeOrganization?: AuthActiveOrganizationSummary;
+  organizationMembershipCount: number;
 }
 
 export interface AuthResponseBody {

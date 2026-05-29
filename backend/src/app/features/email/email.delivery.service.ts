@@ -6,6 +6,7 @@ import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendLoginUnlockEmailInput,
   SendNewDeviceEmailInput,
+  SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
@@ -119,6 +120,9 @@ export class EmailDeliveryService {
         return;
       case "password_reset":
         await this.sendPasswordResetEmail(payload.input);
+        return;
+      case "organization_invite":
+        await this.sendOrganizationInviteEmail(payload.input);
         return;
     }
   }
@@ -243,6 +247,39 @@ export class EmailDeliveryService {
         `<p style="font-size: 28px; font-weight: 700; letter-spacing: 0.3em;">${escapedResetCode}</p>`,
         "<p>Enter this code to choose a new password.</p>",
         "<p>If you didn't request this, you can ignore this email.</p>",
+      ].join(""),
+    });
+  }
+
+  async sendOrganizationInviteEmail(
+    input: SendOrganizationInviteEmailInput,
+  ): Promise<void> {
+    const roleLabel = input.role.replaceAll("_", " ");
+    const inviteUrl = `${this.appBaseUrl}/organizations/invitations/${encodeURIComponent(input.token)}`;
+    const escapedOrganizationName = escapeHtml(input.organizationName);
+    const escapedInviterName = escapeHtml(input.inviterName);
+    const escapedRoleLabel = escapeHtml(roleLabel);
+    const escapedInviteUrl = escapeHtml(inviteUrl);
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: `Join ${input.organizationName} on Rent`,
+      text: [
+        "You have been invited to join an organization on Rent.",
+        "",
+        `Organization: ${input.organizationName}`,
+        `Invited by: ${input.inviterName}`,
+        `Role: ${roleLabel}`,
+        "",
+        `Open this invite to review and accept it: ${inviteUrl}`,
+        "",
+        "This invite expires in 7 days.",
+      ].join("\n"),
+      html: [
+        "<p>You have been invited to join an organization on Rent.</p>",
+        `<p><strong>Organization:</strong> ${escapedOrganizationName}<br /><strong>Invited by:</strong> ${escapedInviterName}<br /><strong>Role:</strong> ${escapedRoleLabel}</p>`,
+        `<p><a href="${escapedInviteUrl}">Open this invite to review and accept it</a></p>`,
+        "<p>This invite expires in 7 days.</p>",
       ].join(""),
     });
   }

@@ -42,6 +42,22 @@ describe("site header shared helpers", () => {
     expect(links.some((link) => link.href === "/settings")).toBe(false);
   });
 
+  it("shows the organizations link when org membership context exists", () => {
+    const linksWithMembership = getAccountLinks("user", {
+      organizationMembershipCount: 1,
+    });
+    const linksWithActiveOrg = getAccountLinks("user", {
+      hasActiveOrganization: true,
+    });
+
+    expect(
+      linksWithMembership.some((link) => link.href === "/organizations"),
+    ).toBe(true);
+    expect(
+      linksWithActiveOrg.some((link) => link.href === "/organizations"),
+    ).toBe(true);
+  });
+
   it("prefers username and falls back to the email prefix for display labels", () => {
     expect(getDisplayLabel("person@example.com", "Person Name")).toBe(
       "Person Name",

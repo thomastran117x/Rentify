@@ -590,6 +590,8 @@ export class AuthController {
         username: result.user.username,
         avatarUrl: result.user.avatarUrl,
         role: result.user.role,
+        activeOrganization: result.user.activeOrganization,
+        organizationMembershipCount: result.user.organizationMembershipCount,
       },
     };
 

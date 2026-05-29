@@ -353,6 +353,29 @@ export default function AccountPage() {
           </div>
         </section>
 
+        {(session.user.organizationMembershipCount ?? 0) > 0 ||
+        session.user.activeOrganization ? (
+          <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-950">
+                  Organizations
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Switch organization context, invite teammates, and manage team
+                  roles before shared posting permissions roll out.
+                </p>
+              </div>
+              <Link
+                href="/organizations"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Open organizations
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">

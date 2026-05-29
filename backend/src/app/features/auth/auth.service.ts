@@ -10,6 +10,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import { EmailService } from "@/features/email/email.service";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import {
+  type AuthActiveOrganizationSummary,
   type AuthSessionResult,
   type SignupVerificationPendingResult,
   type AuthUserProfile,
@@ -981,6 +982,8 @@ export class AuthService {
   }
 
   private toUserProfile(user: AuthUserRecord): AuthUserProfile {
+    const activeOrganization = this.resolveActiveOrganization(user);
+
     return {
       id: user.id,
       email: user.email,
@@ -997,6 +1000,8 @@ export class AuthService {
       availableRentPostingsCount: user.profile.availableRentPostingsCount,
       role: user.role,
       emailVerified: user.emailVerified,
+      activeOrganization,
+      organizationMembershipCount: user.organizationMemberships.length,
     };
   }
 
@@ -1379,5 +1384,25 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  private resolveActiveOrganization(
+    user: AuthUserRecord,
+  ): AuthActiveOrganizationSummary | undefined {
+    const activeMembership =
+      user.organizationMemberships.find(
+        (membership) =>
+          membership.organizationId === user.preferredOrganizationId,
+      ) ?? user.organizationMemberships[0];
+
+    if (!activeMembership) {
+      return undefined;
+    }
+
+    return {
+      id: activeMembership.organizationId,
+      name: activeMembership.organizationName,
+      role: activeMembership.role,
+    };
   }
 }

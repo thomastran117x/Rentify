@@ -40,4 +40,27 @@ describe("EmailService", () => {
       ipAddress: "127.0.0.1",
     });
   });
+
+  it("queues organization invite jobs", async () => {
+    const enqueueEmailJob = jest.fn(async () => undefined);
+    const service = new EmailService({
+      enqueueEmailJob,
+    } as never);
+
+    await service.sendOrganizationInviteEmail({
+      to: "invitee@example.com",
+      organizationName: "Northwind",
+      inviterName: "Owner One",
+      role: "operator",
+      token: "invite-token-1",
+    });
+
+    expect(enqueueEmailJob).toHaveBeenCalledWith("organization_invite", {
+      to: "invitee@example.com",
+      organizationName: "Northwind",
+      inviterName: "Owner One",
+      role: "operator",
+      token: "invite-token-1",
+    });
+  });
 });

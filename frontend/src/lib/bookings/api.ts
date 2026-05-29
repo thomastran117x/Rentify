@@ -13,7 +13,9 @@ import type {
   RenterBookingDashboardBucket,
   RenterBookingDashboardResult,
 } from "@/lib/bookings/types";
-import { publicEnv } from "@/lib/env";
+import { resolveApiBaseUrl } from "@/lib/env";
+
+const apiBaseUrl = resolveApiBaseUrl();
 
 const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
@@ -47,7 +49,7 @@ async function authenticatedJson<
   const devicePlatform = getDevicePlatform();
   const session = readStoredSession();
   const csrfToken = readCsrfToken();
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
     headers: {
       accept: "application/json",

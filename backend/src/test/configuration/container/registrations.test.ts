@@ -21,6 +21,7 @@ import { ReportsController } from "@/features/reports/reports.controller";
 import { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import { SearchController } from "@/features/search/search.controller";
+import { OrganizationsController } from "@/features/organizations/organizations.controller";
 
 jest.mock("@/configuration/resources/database", () => ({
   getDatabaseClient: () => ({}),
@@ -79,6 +80,9 @@ describe("container registrations", () => {
       expect(scope.resolve(containerTokens.profileController)).toBeInstanceOf(
         ProfileController,
       );
+      expect(
+        scope.resolve(containerTokens.organizationsController),
+      ).toBeInstanceOf(OrganizationsController);
       expect(scope.resolve(containerTokens.blobController)).toBeInstanceOf(
         BlobController,
       );

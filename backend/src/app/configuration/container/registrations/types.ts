@@ -10,6 +10,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "auth-oauth",
   "auth-device",
   "auth-personal-access-tokens",
+  "organizations",
   "reports",
   "recommendations-activity",
   "recommendations-precompute",

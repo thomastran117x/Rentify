@@ -77,6 +77,7 @@ function createAuthUser(
     availableRentPostingsCount: 0,
     role: "user",
     emailVerified: true,
+    organizationMembershipCount: 0,
     ...overrides,
   };
 }
@@ -337,6 +338,7 @@ describe("AuthController", () => {
           email: "user@example.com",
           username: "test-user",
           role: "user",
+          organizationMembershipCount: 0,
         },
       },
       error: null,
@@ -384,6 +386,7 @@ describe("AuthController", () => {
           email: "user@example.com",
           username: "test-user",
           role: "user",
+          organizationMembershipCount: 0,
         },
       },
       error: null,
@@ -435,11 +438,54 @@ describe("AuthController", () => {
       success: true,
       data: {
         accessToken: "access-token-1",
+        user: {
+          organizationMembershipCount: 0,
+        },
       },
       error: null,
       message: "Authenticated successfully.",
     });
     expect(body.data).not.toHaveProperty("refreshToken");
+  });
+
+  it("includes organization context in auth responses when available", async () => {
+    const { controller } = createController({
+      localAuthenticate: async () =>
+        createSessionResult({
+          user: createAuthUser({
+            role: "owner",
+            organizationMembershipCount: 2,
+            activeOrganization: {
+              id: "org-1",
+              name: "Northwind",
+              role: "primary_manager",
+            },
+          }),
+        }),
+    });
+    const context = createContext({
+      body: {
+        email: "user@example.com",
+        password: "Password1!",
+        captchaToken: "captcha-token",
+      },
+    });
+
+    const response = await controller.localAuthenticate(context);
+
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        user: {
+          role: "owner",
+          organizationMembershipCount: 2,
+          activeOrganization: {
+            id: "org-1",
+            name: "Northwind",
+            role: "primary_manager",
+          },
+        },
+      },
+    });
   });
 
   it("localSignup rejects when captcha verification fails closed or fail-open", async () => {

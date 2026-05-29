@@ -1,7 +1,9 @@
 import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import { readStoredSession } from "@/lib/auth/storage";
-import { publicEnv } from "@/lib/env";
+import { resolveApiBaseUrl } from "@/lib/env";
+
+const apiBaseUrl = resolveApiBaseUrl();
 
 export interface BookingQuoteInput {
   startAt: string;
@@ -105,7 +107,7 @@ async function authenticatedJson<
   const devicePlatform = getDevicePlatform();
   const session = readStoredSession();
   const csrfToken = readCsrfToken();
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
     headers: {
       accept: "application/json",
