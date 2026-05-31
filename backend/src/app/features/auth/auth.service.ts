@@ -983,6 +983,7 @@ export class AuthService {
 
   private toUserProfile(user: AuthUserRecord): AuthUserProfile {
     const activeOrganization = this.resolveActiveOrganization(user);
+    const organizationMemberships = this.readOrganizationMemberships(user);
 
     return {
       id: user.id,
@@ -1001,7 +1002,7 @@ export class AuthService {
       role: user.role,
       emailVerified: user.emailVerified,
       activeOrganization,
-      organizationMembershipCount: user.organizationMemberships.length,
+      organizationMembershipCount: organizationMemberships.length,
     };
   }
 
@@ -1389,11 +1390,12 @@ export class AuthService {
   private resolveActiveOrganization(
     user: AuthUserRecord,
   ): AuthActiveOrganizationSummary | undefined {
+    const organizationMemberships = this.readOrganizationMemberships(user);
     const activeMembership =
-      user.organizationMemberships.find(
+      organizationMemberships.find(
         (membership) =>
           membership.organizationId === user.preferredOrganizationId,
-      ) ?? user.organizationMemberships[0];
+      ) ?? organizationMemberships[0];
 
     if (!activeMembership) {
       return undefined;
@@ -1404,5 +1406,11 @@ export class AuthService {
       name: activeMembership.organizationName,
       role: activeMembership.role,
     };
+  }
+
+  private readOrganizationMemberships(user: AuthUserRecord) {
+    return Array.isArray(user.organizationMemberships)
+      ? user.organizationMemberships
+      : [];
   }
 }
