@@ -81,18 +81,18 @@ export class OrganizationsService {
     userId: string,
   ): Promise<OrganizationDetailResult> {
     const membership = await this.requireMembership(userId, organizationId);
-    let detail = await this.organizationsRepository.findOrganizationDetail(
-      organizationId,
-    );
+    let detail =
+      await this.organizationsRepository.findOrganizationDetail(organizationId);
 
     if (!detail) {
       throw new ResourceNotFoundError("Organization could not be found.");
     }
 
     if (await this.expirePendingInvitations(detail.invitations)) {
-      detail = await this.organizationsRepository.findOrganizationDetail(
-        organizationId,
-      );
+      detail =
+        await this.organizationsRepository.findOrganizationDetail(
+          organizationId,
+        );
     }
 
     if (!detail) {
@@ -133,11 +133,10 @@ export class OrganizationsService {
     const email = normalizeOrganizationInvitationEmail(input.email);
     this.assertCanInvite(membership.role, input.role);
 
-    const existingMember =
-      await this.organizationsRepository.findMemberByEmail(
-        input.organizationId,
-        email,
-      );
+    const existingMember = await this.organizationsRepository.findMemberByEmail(
+      input.organizationId,
+      email,
+    );
 
     if (existingMember) {
       throw new ConflictError(
@@ -146,16 +145,15 @@ export class OrganizationsService {
     }
 
     const token = this.createInviteToken();
-    const invitation =
-      await this.organizationsRepository.reissueInvitation({
-        organizationId: input.organizationId,
-        invitedByUserId: input.actorUserId,
-        email,
-        role: input.role,
-        tokenHash: this.hashInviteToken(token),
-        expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
-        now: new Date(),
-      });
+    const invitation = await this.organizationsRepository.reissueInvitation({
+      organizationId: input.organizationId,
+      invitedByUserId: input.actorUserId,
+      email,
+      role: input.role,
+      tokenHash: this.hashInviteToken(token),
+      expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
+      now: new Date(),
+    });
 
     await this.emailService.sendOrganizationInviteEmail({
       to: email,
@@ -317,10 +315,11 @@ export class OrganizationsService {
     }
 
     if (invitation.status === "accepted") {
-      const existingMember = await this.organizationsRepository.findMemberByUserId(
-        invitation.organization.id,
-        user.id,
-      );
+      const existingMember =
+        await this.organizationsRepository.findMemberByUserId(
+          invitation.organization.id,
+          user.id,
+        );
 
       if (!existingMember) {
         throw new ConflictError(
@@ -338,7 +337,9 @@ export class OrganizationsService {
       );
 
       if (!membership) {
-        throw new ConflictError("This organization membership could not be found.");
+        throw new ConflictError(
+          "This organization membership could not be found.",
+        );
       }
 
       return {
@@ -381,7 +382,9 @@ export class OrganizationsService {
     );
 
     if (!membershipSummary) {
-      throw new ConflictError("This organization membership could not be found.");
+      throw new ConflictError(
+        "This organization membership could not be found.",
+      );
     }
 
     return {
@@ -428,7 +431,9 @@ export class OrganizationsService {
     );
 
     if (!invitation) {
-      throw new ResourceNotFoundError("Organization invitation could not be found.");
+      throw new ResourceNotFoundError(
+        "Organization invitation could not be found.",
+      );
     }
 
     return invitation;
@@ -441,7 +446,9 @@ export class OrganizationsService {
       );
 
     if (!invitation) {
-      throw new ResourceNotFoundError("Organization invitation could not be found.");
+      throw new ResourceNotFoundError(
+        "Organization invitation could not be found.",
+      );
     }
 
     return invitation;
@@ -457,7 +464,9 @@ export class OrganizationsService {
     );
 
     if (!member) {
-      throw new ResourceNotFoundError("Organization member could not be found.");
+      throw new ResourceNotFoundError(
+        "Organization member could not be found.",
+      );
     }
 
     return member;
@@ -489,9 +498,7 @@ export class OrganizationsService {
       return;
     }
 
-    throw new ForbiddenError(
-      "You do not have permission to invite that role.",
-    );
+    throw new ForbiddenError("You do not have permission to invite that role.");
   }
 
   private assertCanRevokeInvitation(
@@ -528,7 +535,10 @@ export class OrganizationsService {
       );
     }
 
-    if (targetMember.role === "primary_manager" || nextRole === "primary_manager") {
+    if (
+      targetMember.role === "primary_manager" ||
+      nextRole === "primary_manager"
+    ) {
       throw new BadRequestError(
         "Primary manager transfer is not supported in this release.",
       );

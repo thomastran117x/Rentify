@@ -21,16 +21,17 @@ type MembershipPersistence = Prisma.OrganizationMembershipGetPayload<{
   };
 }>;
 
-type MembershipWithOrganizationPersistence = Prisma.OrganizationMembershipGetPayload<{
-  include: {
-    organization: true;
-    user: {
-      include: {
-        profile: true;
+type MembershipWithOrganizationPersistence =
+  Prisma.OrganizationMembershipGetPayload<{
+    include: {
+      organization: true;
+      user: {
+        include: {
+          profile: true;
+        };
       };
     };
-  };
-}>;
+  }>;
 
 type OrganizationDetailPersistence = Prisma.OrganizationGetPayload<{
   include: {

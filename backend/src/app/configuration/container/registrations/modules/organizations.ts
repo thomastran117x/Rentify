@@ -33,7 +33,9 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
       lifetime: "scoped",
       dependencies: [containerTokens.organizationsService],
       resolve: ({ resolve }) =>
-        new OrganizationsController(resolve(containerTokens.organizationsService)),
+        new OrganizationsController(
+          resolve(containerTokens.organizationsService),
+        ),
     });
   },
 };

@@ -18,11 +18,7 @@ export type OrganizationInviteStatus = z.infer<
 >;
 
 export const organizationResourceIdSchema = z.uuid();
-export const organizationInviteTokenSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(200);
+export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
 
 export const updateOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),

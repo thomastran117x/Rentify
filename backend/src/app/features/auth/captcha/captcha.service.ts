@@ -98,8 +98,7 @@ export class CaptchaService {
       options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
   }
   async verify(input: VerifyCaptchaInput): Promise<CaptchaVerificationResult> {
-    const developmentBypassResult =
-      this.resolveDevelopmentBypassResult(input);
+    const developmentBypassResult = this.resolveDevelopmentBypassResult(input);
 
     if (developmentBypassResult) {
       return developmentBypassResult;

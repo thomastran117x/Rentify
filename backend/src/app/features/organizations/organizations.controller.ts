@@ -56,7 +56,10 @@ export class OrganizationsController {
 
   update = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, updateOrganizationRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      updateOrganizationRequestSchema,
+    );
     const result = await this.organizationsService.update({
       organizationId: this.requireOrganizationId(context),
       actorUserId: auth.sub,

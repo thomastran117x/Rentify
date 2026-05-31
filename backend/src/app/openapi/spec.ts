@@ -1915,9 +1915,7 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
       },
-      parameters: [
-        routePathParam("id", "Organization identifier.", "org-1"),
-      ],
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
       responses: {
         "200": successResponse(
           200,
@@ -1942,9 +1940,7 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
       },
-      parameters: [
-        routePathParam("id", "Organization identifier.", "org-1"),
-      ],
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
       requestBody: requestBody("UpdateOrganizationRequest", {
         name: "Northwind Creative",
       }),
@@ -1975,9 +1971,7 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
       },
-      parameters: [
-        routePathParam("id", "Organization identifier.", "org-1"),
-      ],
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
       requestBody: requestBody("CreateOrganizationInvitationRequest", {
         email: "teammate@example.com",
         role: "operator",
@@ -4884,10 +4878,7 @@ function buildDocumentPaths(): Record<string, Record<string, unknown>> {
   const paths: Record<string, Record<string, unknown>> = {};
 
   for (const operation of buildOperations()) {
-    const normalizedPath = operation.path.replace(
-      /:([A-Za-z0-9_]+)/g,
-      "{$1}",
-    );
+    const normalizedPath = operation.path.replace(/:([A-Za-z0-9_]+)/g, "{$1}");
 
     if (!paths[normalizedPath]) {
       paths[normalizedPath] = {};
@@ -5206,7 +5197,14 @@ function buildComponents(): Record<string, unknown> {
       },
       OrganizationMemberRecord: {
         type: "object",
-        required: ["membershipId", "userId", "email", "username", "role", "joinedAt"],
+        required: [
+          "membershipId",
+          "userId",
+          "email",
+          "username",
+          "role",
+          "joinedAt",
+        ],
         properties: {
           membershipId: { type: "string" },
           userId: { type: "string" },
@@ -5340,11 +5338,7 @@ function buildComponents(): Record<string, unknown> {
           },
           viewer: {
             type: "object",
-            required: [
-              "authenticated",
-              "matchesEmail",
-              "canAccept",
-            ],
+            required: ["authenticated", "matchesEmail", "canAccept"],
             properties: {
               authenticated: { type: "boolean" },
               email: { type: "string", format: "email" },

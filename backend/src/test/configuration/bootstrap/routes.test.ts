@@ -238,9 +238,9 @@ describe("mountRoutes", () => {
           },
           status: 200,
         }),
-      previewInvitation: async (
-        context: { req: { param(name: string): string } },
-      ) =>
+      previewInvitation: async (context: {
+        req: { param(name: string): string };
+      }) =>
         new Response(
           JSON.stringify({
             route: "previewInvitation",
@@ -266,10 +266,7 @@ describe("mountRoutes", () => {
     };
     const app = createApp(
       new Map([
-        [
-          containerTokens.organizationsController,
-          organizationsController,
-        ],
+        [containerTokens.organizationsController, organizationsController],
       ]),
     );
 
