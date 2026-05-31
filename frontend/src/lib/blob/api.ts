@@ -20,9 +20,7 @@ export interface BlobUploadTarget {
 }
 
 export const blobApi = {
-  createUploadUrl(
-    input: CreateBlobUploadUrlInput,
-  ): Promise<BlobUploadTarget> {
+  createUploadUrl(input: CreateBlobUploadUrlInput): Promise<BlobUploadTarget> {
     return authenticatedJson<BlobUploadTarget, CreateBlobUploadUrlInput>(
       "POST",
       "/blob/upload-url",

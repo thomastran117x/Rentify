@@ -423,7 +423,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
   if (verificationPending) {
     return (
-      <SignupVerificationPanel result={verificationPending} nextPath={nextPath} />
+      <SignupVerificationPanel
+        result={verificationPending}
+        nextPath={nextPath}
+      />
     );
   }
 

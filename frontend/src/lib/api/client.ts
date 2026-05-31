@@ -132,9 +132,7 @@ export function toApiError(response: Response, payload: unknown): ApiError {
   );
 }
 
-export function buildQuery<TParams extends object>(
-  params: TParams,
-): string {
+export function buildQuery<TParams extends object>(params: TParams): string {
   const searchParams = new URLSearchParams();
 
   for (const [key, rawValue] of Object.entries(

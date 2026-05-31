@@ -55,9 +55,8 @@ function OrganizationEmptyState() {
 export function OrganizationWorkspace() {
   const router = useRouter();
   const { status, session } = useAuth();
-  const [workspace, setWorkspace] = useState<OrganizationWorkspaceResult | null>(
-    null,
-  );
+  const [workspace, setWorkspace] =
+    useState<OrganizationWorkspaceResult | null>(null);
   const [detail, setDetail] = useState<OrganizationDetailResult | null>(null);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
@@ -264,7 +263,11 @@ export function OrganizationWorkspace() {
     setMessage(null);
 
     try {
-      await organizationsApi.updateMemberRole(detail.organization.id, memberId, role);
+      await organizationsApi.updateMemberRole(
+        detail.organization.id,
+        memberId,
+        role,
+      );
       await refresh(detail.organization.id);
       setMessage("Member role updated.");
     } catch (nextError) {
@@ -346,7 +349,9 @@ export function OrganizationWorkspace() {
               </span>
               <select
                 value={selectedOrganizationId ?? ""}
-                onChange={(event) => void handleSelectOrganization(event.target.value)}
+                onChange={(event) =>
+                  void handleSelectOrganization(event.target.value)
+                }
                 disabled={saving}
                 className="h-12 min-w-[18rem] rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
               >
@@ -404,7 +409,9 @@ export function OrganizationWorkspace() {
                       </span>
                       <input
                         value={organizationName}
-                        onChange={(event) => setOrganizationName(event.target.value)}
+                        onChange={(event) =>
+                          setOrganizationName(event.target.value)
+                        }
                         className="h-11 rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
                       />
                     </label>
@@ -448,7 +455,8 @@ export function OrganizationWorkspace() {
                       value={inviteRole}
                       onChange={(event) =>
                         setInviteRole(
-                          event.target.value as CreateOrganizationInviteInput["role"],
+                          event.target
+                            .value as CreateOrganizationInviteInput["role"],
                         )
                       }
                       className="h-11 rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
@@ -537,7 +545,8 @@ export function OrganizationWorkspace() {
                     detail.viewerRole === "primary_manager" &&
                     member.role !== "primary_manager";
                   const canManagerRemove =
-                    detail.viewerRole === "manager" && member.role === "operator";
+                    detail.viewerRole === "manager" &&
+                    member.role === "operator";
 
                   return (
                     <div
@@ -586,14 +595,18 @@ export function OrganizationWorkspace() {
                         {canPrimaryManagerEdit || canManagerRemove ? (
                           <button
                             type="button"
-                            onClick={() => void handleRemoveMember(member.membershipId)}
+                            onClick={() =>
+                              void handleRemoveMember(member.membershipId)
+                            }
                             disabled={saving}
                             className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Remove
                           </button>
                         ) : (
-                          <span className="text-sm text-slate-400">No actions</span>
+                          <span className="text-sm text-slate-400">
+                            No actions
+                          </span>
                         )}
                       </div>
                     </div>

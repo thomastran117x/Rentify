@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
-import { organizationsApi, type PreviewOrganizationInviteResult } from "@/lib/organizations/api";
+import {
+  organizationsApi,
+  type PreviewOrganizationInviteResult,
+} from "@/lib/organizations/api";
 
 interface OrganizationInvitePageProps {
   token: string;
@@ -26,14 +29,11 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-export function OrganizationInvitePage({
-  token,
-}: OrganizationInvitePageProps) {
+export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
   const router = useRouter();
   const { status, session, setSession } = useAuth();
-  const [preview, setPreview] = useState<PreviewOrganizationInviteResult | null>(
-    null,
-  );
+  const [preview, setPreview] =
+    useState<PreviewOrganizationInviteResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +170,8 @@ export function OrganizationInvitePage({
               </div>
             ) : null}
 
-            {preview.invitation.status === "pending" && status === "anonymous" ? (
+            {preview.invitation.status === "pending" &&
+            status === "anonymous" ? (
               <div className="mt-6 space-y-4">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm text-slate-600">
                   Sign in or create an account with the invited email address to
@@ -193,7 +194,8 @@ export function OrganizationInvitePage({
               </div>
             ) : null}
 
-            {preview.invitation.status === "pending" && status === "authenticated" ? (
+            {preview.invitation.status === "pending" &&
+            status === "authenticated" ? (
               <div className="mt-6 space-y-4">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm text-slate-600">
                   <p>

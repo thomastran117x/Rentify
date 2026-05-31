@@ -75,10 +75,7 @@ export interface AvailabilityBlockInput {
 }
 
 export type PostingStatus = "draft" | "published" | "paused" | "archived";
-export type PostingAvailabilityStatus =
-  | "available"
-  | "limited"
-  | "unavailable";
+export type PostingAvailabilityStatus = "available" | "limited" | "unavailable";
 export type PostingFamily = "place" | "equipment" | "vehicle";
 export type PostingDetailValue = string | number | boolean | string[];
 
@@ -235,10 +232,7 @@ export const postingsApi = {
     );
   },
 
-  update(
-    postingId: string,
-    input: UpsertPostingInput,
-  ): Promise<PostingRecord> {
+  update(postingId: string, input: UpsertPostingInput): Promise<PostingRecord> {
     return authenticatedJson<PostingRecord, UpsertPostingInput>(
       "PUT",
       `/postings/${encodeURIComponent(postingId)}`,
@@ -246,9 +240,10 @@ export const postingsApi = {
     );
   },
 
-  getPosting<TResponse extends PostingDetailResponse & PublicPostingDetail = PublicPostingDetail>(
-    postingId: string,
-  ): Promise<TResponse> {
+  getPosting<
+    TResponse extends PostingDetailResponse &
+      PublicPostingDetail = PublicPostingDetail,
+  >(postingId: string): Promise<TResponse> {
     return optionalAuthJson<TResponse>(
       "GET",
       `/postings/${encodeURIComponent(postingId)}`,
@@ -328,10 +323,13 @@ export const postingsApi = {
   ): Promise<PostingAnalyticsDetail> {
     return authenticatedJson<PostingAnalyticsDetail>(
       "GET",
-      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/analytics`, {
-        window: input.window,
-        granularity: input.granularity,
-      }),
+      buildPathWithQuery(
+        `/postings/${encodeURIComponent(postingId)}/analytics`,
+        {
+          window: input.window,
+          granularity: input.granularity,
+        },
+      ),
     );
   },
 
@@ -353,11 +351,10 @@ export const postingsApi = {
     postingId: string,
     input: CreatePostingReviewInput,
   ): Promise<PublicPostingReviewRecord> {
-    return authenticatedJson<PublicPostingReviewRecord, CreatePostingReviewInput>(
-      "POST",
-      `/postings/${encodeURIComponent(postingId)}/reviews`,
-      input,
-    );
+    return authenticatedJson<
+      PublicPostingReviewRecord,
+      CreatePostingReviewInput
+    >("POST", `/postings/${encodeURIComponent(postingId)}/reviews`, input);
   },
 
   updateOwnReview(
@@ -367,11 +364,7 @@ export const postingsApi = {
     return authenticatedJson<
       PublicPostingReviewRecord,
       UpdateOwnPostingReviewInput
-    >(
-      "PUT",
-      `/postings/${encodeURIComponent(postingId)}/reviews/me`,
-      input,
-    );
+    >("PUT", `/postings/${encodeURIComponent(postingId)}/reviews/me`, input);
   },
 
   listAvailabilityBlocks(
@@ -452,7 +445,9 @@ export const postingsApi = {
     );
   },
 
-  batchPublic(ids: string[]): Promise<BatchPostingsResult<PublicPostingDetail>> {
+  batchPublic(
+    ids: string[],
+  ): Promise<BatchPostingsResult<PublicPostingDetail>> {
     return publicJson<BatchPostingsResult<PublicPostingDetail>>(
       "GET",
       toIdsPath("/postings/batch", ids),

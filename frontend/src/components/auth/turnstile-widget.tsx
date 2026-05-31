@@ -8,7 +8,9 @@ const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalizedHostname = hostname.trim().toLowerCase();
-  return normalizedHostname === "localhost" || normalizedHostname === "127.0.0.1";
+  return (
+    normalizedHostname === "localhost" || normalizedHostname === "127.0.0.1"
+  );
 }
 
 declare global {

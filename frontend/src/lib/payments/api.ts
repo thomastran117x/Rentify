@@ -125,7 +125,9 @@ export interface ListPayoutsFilters {
   status?: PayoutStatus;
 }
 
-function toIdempotencyHeaders(idempotencyKey?: string): Record<string, string> | undefined {
+function toIdempotencyHeaders(
+  idempotencyKey?: string,
+): Record<string, string> | undefined {
   if (!idempotencyKey) {
     return undefined;
   }

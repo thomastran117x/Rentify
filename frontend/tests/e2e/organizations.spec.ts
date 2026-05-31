@@ -151,9 +151,7 @@ async function openInviteAndLogin(
   const page = await context.newPage();
 
   await page.goto(`/organizations/invitations/${token}`);
-  await expect(
-    page.getByRole("heading", { name: /Join .+/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Join .+/ })).toBeVisible();
   await page.getByRole("link", { name: "Sign in" }).click();
   await login(page, email, `/organizations/invitations/${token}`);
 
@@ -189,11 +187,8 @@ test("organization workspace supports owner invites and member role boundaries",
 
   const operatorToken = await waitForInviteToken(OPERATOR_EMAIL);
 
-  const { context: managerContext, page: managerPage } = await openInviteAndLogin(
-    browser,
-    managerToken,
-    MANAGER_EMAIL,
-  );
+  const { context: managerContext, page: managerPage } =
+    await openInviteAndLogin(browser, managerToken, MANAGER_EMAIL);
 
   await expect(
     managerPage.getByRole("button", { name: "Accept invitation" }),
@@ -205,9 +200,9 @@ test("organization workspace supports owner invites and member role boundaries",
     managerPage.getByRole("button", { name: "Save name" }),
   ).toHaveCount(0);
 
-  await managerPage.getByPlaceholder("teammate@example.com").fill(
-    "user6@rentify.local",
-  );
+  await managerPage
+    .getByPlaceholder("teammate@example.com")
+    .fill("user6@rentify.local");
   await managerPage.getByRole("button", { name: "Send invite" }).click();
   await expect(managerPage.getByText("Invitation sent.")).toBeVisible();
 
@@ -227,17 +222,13 @@ test("organization workspace supports owner invites and member role boundaries",
     mismatchPage.getByRole("button", { name: "Accept invitation" }),
   ).toBeDisabled();
 
-  const {
-    context: operatorContext,
-    page: operatorPage,
-  } = await openInviteAndLogin(browser, operatorToken, OPERATOR_EMAIL);
+  const { context: operatorContext, page: operatorPage } =
+    await openInviteAndLogin(browser, operatorToken, OPERATOR_EMAIL);
 
   await expect(
     operatorPage.getByRole("button", { name: "Accept invitation" }),
   ).toBeEnabled();
-  await operatorPage
-    .getByRole("button", { name: "Accept invitation" })
-    .click();
+  await operatorPage.getByRole("button", { name: "Accept invitation" }).click();
   await expect(operatorPage).toHaveURL(/\/organizations$/);
   await expectOrganizationsWorkspace(operatorPage, "Operator");
   await expect(

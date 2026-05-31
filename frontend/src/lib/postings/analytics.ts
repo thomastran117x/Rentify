@@ -143,10 +143,13 @@ export const postingsAnalyticsApi = {
   ): Promise<PostingAnalyticsDetail> {
     return authenticatedJson<PostingAnalyticsDetail>(
       "GET",
-      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/analytics`, {
-        window: input.window,
-        granularity: input.granularity,
-      }),
+      buildPathWithQuery(
+        `/postings/${encodeURIComponent(postingId)}/analytics`,
+        {
+          window: input.window,
+          granularity: input.granularity,
+        },
+      ),
     );
   },
 };

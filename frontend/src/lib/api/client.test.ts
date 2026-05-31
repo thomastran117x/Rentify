@@ -228,12 +228,15 @@ describe("api client", () => {
   });
 
   it("returns raw text payloads for text requests", async () => {
-    const fetchMock = vi.fn(async () => new Response("openapi: 3.1.0", {
-      status: 200,
-      headers: {
-        "content-type": "application/yaml",
-      },
-    }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("openapi: 3.1.0", {
+          status: 200,
+          headers: {
+            "content-type": "application/yaml",
+          },
+        }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const { textRequest } = await import("./client");

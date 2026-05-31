@@ -76,9 +76,7 @@ export interface CreateRentingDisputeInput {
 }
 
 export const rentingsApi = {
-  convertBookingRequest(
-    bookingRequestId: string,
-  ): Promise<RentingRecord> {
+  convertBookingRequest(bookingRequestId: string): Promise<RentingRecord> {
     return authenticatedJson<RentingRecord, Record<string, never>>(
       "POST",
       `/booking-requests/${encodeURIComponent(bookingRequestId)}/convert`,

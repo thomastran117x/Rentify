@@ -1,4 +1,8 @@
-import { authenticatedJson, buildPathWithQuery, publicJson } from "@/lib/api/client";
+import {
+  authenticatedJson,
+  buildPathWithQuery,
+  publicJson,
+} from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
 
 export interface PublicProfileRecord {

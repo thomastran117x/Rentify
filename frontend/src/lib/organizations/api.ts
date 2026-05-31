@@ -108,23 +108,23 @@ export interface AcceptOrganizationInviteResult {
 
 export const organizationsApi = {
   getMine(): Promise<OrganizationWorkspaceResult> {
-    return getAuthenticatedJson<OrganizationWorkspaceResult>("/organizations/me");
+    return getAuthenticatedJson<OrganizationWorkspaceResult>(
+      "/organizations/me",
+    );
   },
   setActive(
     input: SetActiveOrganizationInput,
   ): Promise<{ activeOrganization: ActiveOrganizationSummary }> {
-    return postAuthenticatedJson<{ activeOrganization: ActiveOrganizationSummary }>(
-      "/organizations/me/active",
-      input,
-    );
+    return postAuthenticatedJson<{
+      activeOrganization: ActiveOrganizationSummary;
+    }>("/organizations/me/active", input);
   },
   getById(id: string): Promise<OrganizationDetailResult> {
-    return getAuthenticatedJson<OrganizationDetailResult>(`/organizations/${id}`);
+    return getAuthenticatedJson<OrganizationDetailResult>(
+      `/organizations/${id}`,
+    );
   },
-  rename(
-    id: string,
-    name: string,
-  ): Promise<ActiveOrganizationSummary> {
+  rename(id: string, name: string): Promise<ActiveOrganizationSummary> {
     return patchAuthenticatedJson<ActiveOrganizationSummary>(
       `/organizations/${id}`,
       { name },
@@ -170,9 +170,7 @@ export const organizationsApi = {
       `/organizations/invitations/${encodeURIComponent(token)}`,
     );
   },
-  acceptInvite(
-    token: string,
-  ): Promise<AcceptOrganizationInviteResult> {
+  acceptInvite(token: string): Promise<AcceptOrganizationInviteResult> {
     return postAuthenticatedJson<AcceptOrganizationInviteResult>(
       `/organizations/invitations/${encodeURIComponent(token)}/accept`,
       {},

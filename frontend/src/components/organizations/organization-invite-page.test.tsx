@@ -8,17 +8,13 @@ import {
   routerReplaceMock,
 } from "@/test/mocks/next-navigation";
 
-const {
-  useAuthMock,
-  previewInviteMock,
-  acceptInviteMock,
-  refreshMock,
-} = vi.hoisted(() => ({
-  useAuthMock: vi.fn(),
-  previewInviteMock: vi.fn(),
-  acceptInviteMock: vi.fn(),
-  refreshMock: vi.fn(),
-}));
+const { useAuthMock, previewInviteMock, acceptInviteMock, refreshMock } =
+  vi.hoisted(() => ({
+    useAuthMock: vi.fn(),
+    previewInviteMock: vi.fn(),
+    acceptInviteMock: vi.fn(),
+    refreshMock: vi.fn(),
+  }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({

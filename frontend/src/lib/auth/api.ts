@@ -99,10 +99,7 @@ interface CreatePersonalAccessTokenInput {
   scopes: Array<"mcp:read" | "mcp:write">;
 }
 
-export function postAuthenticatedJson<
-  TResponse,
-  TBody extends object = object,
->(
+export function postAuthenticatedJson<TResponse, TBody extends object = object>(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
@@ -118,17 +115,11 @@ export function getAuthenticatedJson<TResponse>(
 export function patchAuthenticatedJson<
   TResponse,
   TBody extends object = object,
->(
-  path: string,
-  body: TBody,
-): Promise<TResponse> {
+>(path: string, body: TBody): Promise<TResponse> {
   return authenticatedJson<TResponse, TBody>("PATCH", path, body);
 }
 
-export function putAuthenticatedJson<
-  TResponse,
-  TBody extends object = object,
->(
+export function putAuthenticatedJson<TResponse, TBody extends object = object>(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
@@ -216,13 +207,13 @@ export const authApi = {
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    return postAuthenticatedJson<LinkedOAuthProvidersResult, OAuthAuthenticateInput>(
-      `/auth/oauth/${provider}/link`,
-      {
-        ...input,
-        deviceId: input.deviceId ?? getDeviceId(),
-      },
-    );
+    return postAuthenticatedJson<
+      LinkedOAuthProvidersResult,
+      OAuthAuthenticateInput
+    >(`/auth/oauth/${provider}/link`, {
+      ...input,
+      deviceId: input.deviceId ?? getDeviceId(),
+    });
   },
   linkedOAuthProviders(): Promise<LinkedOAuthProvidersResult> {
     return getAuthenticatedJson<LinkedOAuthProvidersResult>(

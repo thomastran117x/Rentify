@@ -142,7 +142,8 @@ export async function fetchPublicPostingDetail(
       ...(error instanceof Error && "status" in error
         ? { status: Number(error.status) }
         : {}),
-      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
+      causeMessage:
+        error instanceof Error ? error.message : "Unknown fetch failure.",
     });
   }
 }
@@ -225,7 +226,8 @@ export async function fetchPublicPostingReviews(
       ...(error instanceof Error && "status" in error
         ? { status: Number(error.status) }
         : {}),
-      causeMessage: error instanceof Error ? error.message : "Unknown fetch failure.",
+      causeMessage:
+        error instanceof Error ? error.message : "Unknown fetch failure.",
     });
   }
 }
