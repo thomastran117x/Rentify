@@ -37,7 +37,7 @@ async function ensureCaptchaToken(page: Page) {
       }
     });
 
-  let token = await readCaptchaToken();
+  const token = await readCaptchaToken();
 
   if (!token) {
     await page.evaluate(() => {

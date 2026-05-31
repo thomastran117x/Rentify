@@ -1,9 +1,28 @@
-import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
-import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
-import { readStoredSession } from "@/lib/auth/storage";
-import { resolveApiBaseUrl } from "@/lib/env";
-
-const apiBaseUrl = resolveApiBaseUrl();
+import {
+  authenticatedJson,
+  buildPathWithQuery,
+  optionalAuthJson,
+  publicJson,
+} from "@/lib/api/client";
+import type { Pagination } from "@/lib/api/types";
+import type {
+  PostingAnalyticsDetail,
+  PostingAnalyticsGranularity,
+  PostingAnalyticsListResult,
+  PostingAnalyticsWindow,
+  OwnerPostingsAnalyticsSummary,
+} from "@/lib/postings/analytics";
+import type {
+  ListPublicPostingReviewsResult,
+  PublicPostingDetail,
+  PublicPostingReviewRecord,
+} from "@/lib/postings/public";
+import type {
+  PublicPostingAutocompleteParams,
+  PublicPostingAutocompleteResult,
+  PublicPostingSearchParams,
+  PublicPostingSearchResult,
+} from "@/lib/postings/search";
 
 export interface BookingQuoteInput {
   startAt: string;
@@ -56,6 +75,63 @@ export interface AvailabilityBlockInput {
 }
 
 export type PostingStatus = "draft" | "published" | "paused" | "archived";
+export type PostingAvailabilityStatus =
+  | "available"
+  | "limited"
+  | "unavailable";
+export type PostingFamily = "place" | "equipment" | "vehicle";
+export type PostingDetailValue = string | number | boolean | string[];
+
+export interface PostingVariant {
+  family: PostingFamily;
+  subtype: string;
+}
+
+export interface PostingPricing {
+  currency: string;
+  daily: {
+    amount: number;
+  };
+  hourly?: {
+    amount: number;
+  };
+  weekly?: {
+    amount: number;
+  };
+  monthly?: {
+    amount: number;
+  };
+}
+
+export interface PostingPhotoInput {
+  blobUrl: string;
+  blobName: string;
+  position: number;
+}
+
+export interface PostingLocationInput {
+  city: string;
+  region: string;
+  country: string;
+  postalCode?: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface UpsertPostingInput {
+  name: string;
+  description: string;
+  pricing: PostingPricing;
+  photos: PostingPhotoInput[];
+  tags: string[];
+  availabilityStatus: PostingAvailabilityStatus;
+  availabilityNotes?: string | null;
+  maxBookingDurationDays?: number | null;
+  location: PostingLocationInput;
+  variant: PostingVariant;
+  details: Record<string, PostingDetailValue>;
+  availabilityBlocks?: AvailabilityBlockInput[];
+}
 
 export interface PostingLifecycleRecord {
   id: string;
@@ -75,101 +151,225 @@ export interface PostingDetailResponse {
   viewerReviewState?: PostingViewerReviewState;
 }
 
-const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "x-csrf-token";
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-
-  return document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${name}=`))
-    ?.slice(name.length + 1);
+export interface PostingRecord
+  extends Omit<PublicPostingDetail, "status" | "details" | "variant"> {
+  ownerId: string;
+  status: PostingStatus;
+  variant: PostingVariant;
+  details: Record<string, PostingDetailValue>;
 }
 
-function readCsrfToken(): string | undefined {
-  const token = readCookie(CSRF_COOKIE_NAME);
-  return token ? decodeURIComponent(token) : undefined;
+export interface ListOwnerPostingsResult {
+  postings: PostingRecord[];
+  pagination: Pagination;
+  status?: PostingStatus;
 }
 
-async function authenticatedJson<
-  TResponse,
-  TBody extends object | undefined = undefined,
->(
-  method: "GET" | "POST" | "PUT" | "DELETE",
-  path: string,
-  body?: TBody,
-): Promise<TResponse> {
-  const deviceId = getDeviceId();
-  const devicePlatform = getDevicePlatform();
-  const session = readStoredSession();
-  const csrfToken = readCsrfToken();
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method,
-    headers: {
-      accept: "application/json",
-      ...(body ? { "content-type": "application/json" } : {}),
-      ...(session?.accessToken
-        ? { authorization: `Bearer ${session.accessToken}` }
-        : {}),
-      ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-      ...(deviceId ? { "x-device-id": deviceId } : {}),
-      ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-    },
-    credentials: "include",
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+export interface BatchPostingsResult<TRecord> {
+  postings: TRecord[];
+  missingIds: string[];
+}
 
-  const payload = await readJson(response);
+export interface CreatePostingReviewInput {
+  rating: number;
+  title?: string;
+  comment?: string;
+}
 
-  if (!response.ok) {
-    throw toApiError(response, payload);
-  }
+export type UpdateOwnPostingReviewInput = CreatePostingReviewInput;
 
-  return unwrapApiResponse<TResponse>(payload);
+export interface ListRecommendationsFilters {
+  page?: number;
+  pageSize?: number;
+  family?: PostingFamily;
+  subtype?: string;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+  startAt?: string;
+  endAt?: string;
+}
+
+export interface TrackPostingSearchClickInput {
+  searchSessionId: string;
+  query?: string;
+  family?: PostingFamily;
+  subtype?: string;
+  page?: number;
+  position?: number;
+  source?: string;
+}
+
+function toIdsPath(path: string, ids: string[]): string {
+  return buildPathWithQuery(path, { ids });
 }
 
 export const postingsApi = {
-  getPosting<TResponse extends PostingDetailResponse = PostingDetailResponse>(
+  create(input: UpsertPostingInput): Promise<PostingRecord> {
+    return authenticatedJson<PostingRecord, UpsertPostingInput>(
+      "POST",
+      "/postings",
+      input,
+    );
+  },
+
+  listMine(input?: {
+    page?: number;
+    pageSize?: number;
+    status?: PostingStatus;
+  }): Promise<ListOwnerPostingsResult> {
+    return authenticatedJson<ListOwnerPostingsResult>(
+      "GET",
+      buildPathWithQuery("/postings/me", {
+        page: input?.page ?? 1,
+        pageSize: input?.pageSize ?? 20,
+        status: input?.status,
+      }),
+    );
+  },
+
+  batchMine(ids: string[]): Promise<BatchPostingsResult<PostingRecord>> {
+    return authenticatedJson<BatchPostingsResult<PostingRecord>>(
+      "GET",
+      toIdsPath("/postings/me/batch", ids),
+    );
+  },
+
+  update(
+    postingId: string,
+    input: UpsertPostingInput,
+  ): Promise<PostingRecord> {
+    return authenticatedJson<PostingRecord, UpsertPostingInput>(
+      "PUT",
+      `/postings/${encodeURIComponent(postingId)}`,
+      input,
+    );
+  },
+
+  getPosting<TResponse extends PostingDetailResponse & PublicPostingDetail = PublicPostingDetail>(
     postingId: string,
   ): Promise<TResponse> {
-    return authenticatedJson<TResponse>(
+    return optionalAuthJson<TResponse>(
       "GET",
       `/postings/${encodeURIComponent(postingId)}`,
     );
   },
 
-  pausePosting(postingId: string): Promise<PostingLifecycleRecord> {
-    return authenticatedJson<PostingLifecycleRecord>(
+  duplicate(postingId: string): Promise<PostingRecord> {
+    return authenticatedJson<PostingRecord, Record<string, never>>(
       "POST",
-      `/postings/${encodeURIComponent(postingId)}/pause`,
+      `/postings/${encodeURIComponent(postingId)}/duplicate`,
+      {},
     );
   },
 
-  duplicatePosting<TResponse>(postingId: string): Promise<TResponse> {
-    return authenticatedJson<TResponse>(
+  publish(postingId: string): Promise<PostingLifecycleRecord> {
+    return authenticatedJson<PostingLifecycleRecord, Record<string, never>>(
       "POST",
-      `/postings/${encodeURIComponent(postingId)}/duplicate`,
+      `/postings/${encodeURIComponent(postingId)}/publish`,
+      {},
+    );
+  },
+
+  pausePosting(postingId: string): Promise<PostingLifecycleRecord> {
+    return authenticatedJson<PostingLifecycleRecord, Record<string, never>>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/pause`,
+      {},
     );
   },
 
   unpausePosting(postingId: string): Promise<PostingLifecycleRecord> {
-    return authenticatedJson<PostingLifecycleRecord>(
+    return authenticatedJson<PostingLifecycleRecord, Record<string, never>>(
       "POST",
       `/postings/${encodeURIComponent(postingId)}/unpause`,
+      {},
     );
   },
 
-  quoteBooking(
-    postingId: string,
-    input: BookingQuoteInput,
-  ): Promise<BookingQuoteResult> {
-    return authenticatedJson<BookingQuoteResult, BookingQuoteInput>(
+  archive(postingId: string): Promise<PostingLifecycleRecord> {
+    return authenticatedJson<PostingLifecycleRecord, Record<string, never>>(
       "POST",
-      `/postings/${encodeURIComponent(postingId)}/booking-quote`,
+      `/postings/${encodeURIComponent(postingId)}/archive`,
+      {},
+    );
+  },
+
+  getOwnerAnalyticsSummary(
+    window: PostingAnalyticsWindow,
+  ): Promise<OwnerPostingsAnalyticsSummary> {
+    return authenticatedJson<OwnerPostingsAnalyticsSummary>(
+      "GET",
+      buildPathWithQuery("/postings/analytics/summary", { window }),
+    );
+  },
+
+  listOwnerAnalytics(input: {
+    window: PostingAnalyticsWindow;
+    page?: number;
+    pageSize?: number;
+  }): Promise<PostingAnalyticsListResult> {
+    return authenticatedJson<PostingAnalyticsListResult>(
+      "GET",
+      buildPathWithQuery("/postings/analytics/postings", {
+        window: input.window,
+        page: input.page ?? 1,
+        pageSize: input.pageSize ?? 20,
+      }),
+    );
+  },
+
+  getAnalyticsDetail(
+    postingId: string,
+    input: {
+      window: PostingAnalyticsWindow;
+      granularity: PostingAnalyticsGranularity;
+    },
+  ): Promise<PostingAnalyticsDetail> {
+    return authenticatedJson<PostingAnalyticsDetail>(
+      "GET",
+      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/analytics`, {
+        window: input.window,
+        granularity: input.granularity,
+      }),
+    );
+  },
+
+  listReviews(
+    postingId: string,
+    page = 1,
+    pageSize = 5,
+  ): Promise<ListPublicPostingReviewsResult> {
+    return publicJson<ListPublicPostingReviewsResult>(
+      "GET",
+      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/reviews`, {
+        page,
+        pageSize,
+      }),
+    );
+  },
+
+  createReview(
+    postingId: string,
+    input: CreatePostingReviewInput,
+  ): Promise<PublicPostingReviewRecord> {
+    return authenticatedJson<PublicPostingReviewRecord, CreatePostingReviewInput>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/reviews`,
+      input,
+    );
+  },
+
+  updateOwnReview(
+    postingId: string,
+    input: UpdateOwnPostingReviewInput,
+  ): Promise<PublicPostingReviewRecord> {
+    return authenticatedJson<
+      PublicPostingReviewRecord,
+      UpdateOwnPostingReviewInput
+    >(
+      "PUT",
+      `/postings/${encodeURIComponent(postingId)}/reviews/me`,
       input,
     );
   },
@@ -212,6 +412,72 @@ export const postingsApi = {
     await authenticatedJson<null>(
       "DELETE",
       `/postings/${encodeURIComponent(postingId)}/availability-blocks/${encodeURIComponent(blockId)}`,
+    );
+  },
+
+  searchPublic(
+    params: PublicPostingSearchParams,
+  ): Promise<PublicPostingSearchResult> {
+    return publicJson<PublicPostingSearchResult>(
+      "GET",
+      buildPathWithQuery("/postings", params),
+    );
+  },
+
+  autocomplete(
+    params: PublicPostingAutocompleteParams,
+  ): Promise<PublicPostingAutocompleteResult> {
+    return publicJson<PublicPostingAutocompleteResult>(
+      "GET",
+      buildPathWithQuery("/postings/autocomplete", params),
+    );
+  },
+
+  listRecommendations(
+    filters: ListRecommendationsFilters = {},
+  ): Promise<PublicPostingSearchResult> {
+    return optionalAuthJson<PublicPostingSearchResult>(
+      "GET",
+      buildPathWithQuery("/postings/recommendations", {
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? 20,
+        family: filters.family,
+        subtype: filters.subtype,
+        latitude: filters.latitude,
+        longitude: filters.longitude,
+        radiusKm: filters.radiusKm,
+        startAt: filters.startAt,
+        endAt: filters.endAt,
+      }),
+    );
+  },
+
+  batchPublic(ids: string[]): Promise<BatchPostingsResult<PublicPostingDetail>> {
+    return publicJson<BatchPostingsResult<PublicPostingDetail>>(
+      "GET",
+      toIdsPath("/postings/batch", ids),
+    );
+  },
+
+  trackSearchClick(
+    postingId: string,
+    input: TrackPostingSearchClickInput,
+  ): Promise<{ ok: true }> {
+    return optionalAuthJson<{ ok: true }, TrackPostingSearchClickInput>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/activity/search-click`,
+      input,
+    );
+  },
+
+  quoteBooking(
+    postingId: string,
+    input: BookingQuoteInput,
+  ): Promise<BookingQuoteResult> {
+    return authenticatedJson<BookingQuoteResult, BookingQuoteInput>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/booking-quote`,
+      input,
     );
   },
 };

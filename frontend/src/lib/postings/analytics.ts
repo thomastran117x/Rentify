@@ -1,11 +1,6 @@
 "use client";
 
-import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
-import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
-import { readStoredSession } from "@/lib/auth/storage";
-import { resolveApiBaseUrl } from "@/lib/env";
-
-const apiBaseUrl = resolveApiBaseUrl();
+import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 
 export type PostingAnalyticsWindow = "7d" | "30d" | "all";
 export type PostingAnalyticsGranularity = "hour" | "day";
@@ -114,74 +109,13 @@ export interface PostingAnalyticsDetail {
   range: PostingAnalyticsRange;
 }
 
-const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "x-csrf-token";
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-
-  return document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${name}=`))
-    ?.slice(name.length + 1);
-}
-
-function readCsrfToken(): string | undefined {
-  const token = readCookie(CSRF_COOKIE_NAME);
-  return token ? decodeURIComponent(token) : undefined;
-}
-
-async function authenticatedGet<TResponse>(path: string): Promise<TResponse> {
-  const deviceId = getDeviceId();
-  const devicePlatform = getDevicePlatform();
-  const session = readStoredSession();
-  const csrfToken = readCsrfToken();
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: "GET",
-    headers: {
-      accept: "application/json",
-      ...(session?.accessToken
-        ? { authorization: `Bearer ${session.accessToken}` }
-        : {}),
-      ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-      ...(deviceId ? { "x-device-id": deviceId } : {}),
-      ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-    },
-    credentials: "include",
-  });
-
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw toApiError(response, payload);
-  }
-
-  return unwrapApiResponse<TResponse>(payload);
-}
-
-function buildQuery(
-  params: Record<string, string | number | undefined>,
-): string {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      searchParams.set(key, String(value));
-    }
-  }
-
-  return searchParams.toString();
-}
-
 export const postingsAnalyticsApi = {
   getOwnerSummary(
     window: PostingAnalyticsWindow,
   ): Promise<OwnerPostingsAnalyticsSummary> {
-    return authenticatedGet<OwnerPostingsAnalyticsSummary>(
-      `/postings/analytics/summary?${buildQuery({ window })}`,
+    return authenticatedJson<OwnerPostingsAnalyticsSummary>(
+      "GET",
+      buildPathWithQuery("/postings/analytics/summary", { window }),
     );
   },
 
@@ -190,12 +124,13 @@ export const postingsAnalyticsApi = {
     page?: number;
     pageSize?: number;
   }): Promise<PostingAnalyticsListResult> {
-    return authenticatedGet<PostingAnalyticsListResult>(
-      `/postings/analytics/postings?${buildQuery({
+    return authenticatedJson<PostingAnalyticsListResult>(
+      "GET",
+      buildPathWithQuery("/postings/analytics/postings", {
         window: input.window,
         page: input.page ?? 1,
         pageSize: input.pageSize ?? 20,
-      })}`,
+      }),
     );
   },
 
@@ -206,11 +141,12 @@ export const postingsAnalyticsApi = {
       granularity: PostingAnalyticsGranularity;
     },
   ): Promise<PostingAnalyticsDetail> {
-    return authenticatedGet<PostingAnalyticsDetail>(
-      `/postings/${encodeURIComponent(postingId)}/analytics?${buildQuery({
+    return authenticatedJson<PostingAnalyticsDetail>(
+      "GET",
+      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/analytics`, {
         window: input.window,
         granularity: input.granularity,
-      })}`,
+      }),
     );
   },
 };

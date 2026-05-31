@@ -1,16 +1,11 @@
 import {
   deleteAuthenticatedJson,
   getAuthenticatedJson,
+  getOptionalAuthJson,
   patchAuthenticatedJson,
   postAuthenticatedJson,
 } from "@/lib/auth/api";
-import { readStoredSession } from "@/lib/auth/storage";
-import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import type { ActiveOrganizationSummary } from "@/lib/auth/types";
-import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
-import { resolveApiBaseUrl } from "@/lib/env";
-
-const apiBaseUrl = resolveApiBaseUrl();
 
 export type OrganizationRole = "primary_manager" | "manager" | "operator";
 export type OrganizationInviteStatus =
@@ -111,40 +106,6 @@ export interface AcceptOrganizationInviteResult {
   membership: OrganizationMembershipSummary;
 }
 
-async function fetchOptionalAuth<TResponse>(path: string): Promise<TResponse> {
-  const session = readStoredSession();
-  const deviceId = getDeviceId();
-  const devicePlatform = getDevicePlatform();
-
-  for (const includeAuth of [Boolean(session?.accessToken), false]) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      method: "GET",
-      headers: {
-        accept: "application/json",
-        ...(includeAuth && session?.accessToken
-          ? { authorization: `Bearer ${session.accessToken}` }
-          : {}),
-        ...(deviceId ? { "x-device-id": deviceId } : {}),
-        ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-      },
-      credentials: "include",
-    });
-    const payload = await readJson(response);
-
-    if (response.ok) {
-      return unwrapApiResponse<TResponse>(payload);
-    }
-
-    if (includeAuth && response.status === 401) {
-      continue;
-    }
-
-    throw toApiError(response, payload);
-  }
-
-  throw new Error("Organization request could not be completed.");
-}
-
 export const organizationsApi = {
   getMine(): Promise<OrganizationWorkspaceResult> {
     return getAuthenticatedJson<OrganizationWorkspaceResult>("/organizations/me");
@@ -205,7 +166,7 @@ export const organizationsApi = {
     );
   },
   previewInvite(token: string): Promise<PreviewOrganizationInviteResult> {
-    return fetchOptionalAuth<PreviewOrganizationInviteResult>(
+    return getOptionalAuthJson<PreviewOrganizationInviteResult>(
       `/organizations/invitations/${encodeURIComponent(token)}`,
     );
   },

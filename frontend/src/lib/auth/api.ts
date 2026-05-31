@@ -1,27 +1,31 @@
-import { readJson, toApiError, unwrapApiResponse } from "@/lib/api/response";
-import { resolveApiBaseUrl } from "@/lib/env";
-import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import {
-  clearStoredSession,
-  readStoredSession,
-  writeStoredSession,
-} from "@/lib/auth/storage";
-import {
-  type AuthEmailAcceptedResult,
-  type AuthResponseBody,
-  type ForgotPasswordAcceptedResult,
-  type LinkedOAuthProvidersResult,
-  type OAuthProvider,
-  type PersonalAccessTokenListResult,
-  type CreatePersonalAccessTokenResult,
-  type RevokePersonalAccessTokenResult,
-  type SignupVerificationPendingResult,
+  authenticatedJson,
+  hasRefreshCookieHint,
+  optionalAuthJson,
+  publicJson,
+  refreshStoredSession,
+} from "@/lib/api/client";
+import { getDeviceId } from "@/lib/auth/device";
+import type {
+  AuthEmailAcceptedResult,
+  AuthResponseBody,
+  ForgotPasswordAcceptedResult,
+  KnownDevicesResult,
+  LinkedOAuthProvidersResult,
+  OAuthProvider,
+  PersonalAccessTokenListResult,
+  CreatePersonalAccessTokenResult,
+  RevokePersonalAccessTokenResult,
+  SessionVerificationResult,
+  SignupVerificationPendingResult,
 } from "@/lib/auth/types";
+import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
 
 interface LoginInput {
   email: string;
   password: string;
   captchaToken: string;
+  rememberMe?: boolean;
   deviceId?: string;
 }
 
@@ -77,6 +81,9 @@ interface OAuthAuthenticateInput {
   code?: string;
   codeVerifier?: string;
   idToken?: string;
+  rememberMe?: boolean;
+  firstName?: string;
+  lastName?: string;
   deviceId?: string;
 }
 
@@ -92,180 +99,52 @@ interface CreatePersonalAccessTokenInput {
   scopes: Array<"mcp:read" | "mcp:write">;
 }
 
-let refreshSessionPromise: Promise<AuthResponseBody | null> | null = null;
-const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "x-csrf-token";
-const apiBaseUrl = resolveApiBaseUrl();
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-
-  return document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${name}=`))
-    ?.slice(name.length + 1);
-}
-
-function readCsrfToken(): string | undefined {
-  const token = readCookie(CSRF_COOKIE_NAME);
-  return token ? decodeURIComponent(token) : undefined;
-}
-
-function hasRefreshCookieHint(): boolean {
-  return Boolean(readCsrfToken());
-}
-
-async function postJson<TResponse, TBody extends object = object>(
-  path: string,
-  body: TBody,
-): Promise<TResponse> {
-  const deviceId = getDeviceId();
-  const devicePlatform = getDevicePlatform();
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-      ...(deviceId ? { "x-device-id": deviceId } : {}),
-      ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-    },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
-
-  const payload = await readJson(response);
-
-  if (!response.ok) {
-    throw toApiError(response, payload);
-  }
-
-  return unwrapApiResponse<TResponse>(payload);
-}
-
-export async function postAuthenticatedJson<
+export function postAuthenticatedJson<
   TResponse,
   TBody extends object = object,
 >(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
-  return authenticatedJsonWithRetry(path, "POST", body, true);
+  return authenticatedJson<TResponse, TBody>("POST", path, body);
 }
 
-export async function getAuthenticatedJson<TResponse>(
+export function getAuthenticatedJson<TResponse>(
   path: string,
 ): Promise<TResponse> {
-  return authenticatedJsonWithRetry<TResponse>(path, "GET", undefined, true);
+  return authenticatedJson<TResponse>("GET", path);
 }
 
-export async function patchAuthenticatedJson<
-  TResponse,
-  TBody extends object = object,
->(path: string, body: TBody): Promise<TResponse> {
-  return authenticatedJsonWithRetry(path, "PATCH", body, true);
-}
-
-export async function deleteAuthenticatedJson<TResponse>(
-  path: string,
-): Promise<TResponse> {
-  return authenticatedJsonWithRetry<TResponse>(path, "DELETE", undefined, true);
-}
-
-async function authenticatedJsonWithRetry<
+export function patchAuthenticatedJson<
   TResponse,
   TBody extends object = object,
 >(
   path: string,
-  method: "GET" | "POST" | "PATCH" | "DELETE",
-  body: TBody | undefined,
-  allowRefreshRetry: boolean,
+  body: TBody,
 ): Promise<TResponse> {
-  const deviceId = getDeviceId();
-  const devicePlatform = getDevicePlatform();
-  const session = readStoredSession();
-  const csrfToken = readCsrfToken();
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method,
-    headers: {
-      ...(body ? { "content-type": "application/json" } : {}),
-      accept: "application/json",
-      ...(session?.accessToken
-        ? { authorization: `Bearer ${session.accessToken}` }
-        : {}),
-      ...(csrfToken && method !== "GET"
-        ? { [CSRF_HEADER_NAME]: csrfToken }
-        : {}),
-      ...(deviceId ? { "x-device-id": deviceId } : {}),
-      ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-    },
-    credentials: "include",
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-
-  const payload = await readJson(response);
-
-  if (response.status === 401 && allowRefreshRetry) {
-    const refreshedSession = await refreshStoredSession();
-
-    if (refreshedSession) {
-      return authenticatedJsonWithRetry(path, method, body, false);
-    }
-  }
-
-  if (!response.ok) {
-    throw toApiError(response, payload);
-  }
-
-  return unwrapApiResponse<TResponse>(payload);
+  return authenticatedJson<TResponse, TBody>("PATCH", path, body);
 }
 
-async function refreshStoredSession(): Promise<AuthResponseBody | null> {
-  if (refreshSessionPromise) {
-    return refreshSessionPromise;
-  }
+export function putAuthenticatedJson<
+  TResponse,
+  TBody extends object = object,
+>(
+  path: string,
+  body: TBody,
+): Promise<TResponse> {
+  return authenticatedJson<TResponse, TBody>("PUT", path, body);
+}
 
-  refreshSessionPromise = (async () => {
-    const session = readStoredSession();
-    const deviceId = getDeviceId();
-    const devicePlatform = getDevicePlatform();
-    const csrfToken = readCsrfToken();
-    const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-        ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-        ...(deviceId ? { "x-device-id": deviceId } : {}),
-        ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        ...(session?.refreshToken
-          ? { refreshToken: session.refreshToken }
-          : {}),
-      }),
-    });
+export function deleteAuthenticatedJson<TResponse>(
+  path: string,
+): Promise<TResponse> {
+  return authenticatedJson<TResponse>("DELETE", path);
+}
 
-    const payload = await readJson(response);
-
-    if (!response.ok) {
-      clearStoredSession();
-      return null;
-    }
-
-    const nextSession = unwrapApiResponse<AuthResponseBody>(payload);
-    writeStoredSession(nextSession);
-    return nextSession;
-  })();
-
-  try {
-    return await refreshSessionPromise;
-  } finally {
-    refreshSessionPromise = null;
-  }
+export function getOptionalAuthJson<TResponse>(
+  path: string,
+): Promise<TResponse> {
+  return optionalAuthJson<TResponse>("GET", path);
 }
 
 export const authApi = {
@@ -273,38 +152,71 @@ export const authApi = {
     return hasRefreshCookieHint();
   },
   login(input: LoginInput): Promise<AuthResponseBody> {
-    return postJson<AuthResponseBody>("/auth/local/login", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<AuthResponseBody, LoginInput>(
+      "POST",
+      "/auth/local/login",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   logout(): Promise<{ loggedOut: true }> {
-    return postAuthenticatedJson<{ loggedOut: true }>("/auth/logout", {});
+    return postAuthenticatedJson<{ loggedOut: true }, Record<string, never>>(
+      "/auth/logout",
+      {},
+    );
   },
   refresh(): Promise<AuthResponseBody | null> {
     return refreshStoredSession();
   },
+  verifyLocalSession(): Promise<SessionVerificationResult> {
+    return postAuthenticatedJson<
+      SessionVerificationResult,
+      Record<string, never>
+    >("/auth/local/verify", {});
+  },
   authenticateWithGoogle(
     input: OAuthAuthenticateInput,
   ): Promise<AuthResponseBody> {
-    return postJson<AuthResponseBody>("/auth/oauth/google", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+      "POST",
+      "/auth/oauth/google",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   authenticateWithMicrosoft(
     input: OAuthAuthenticateInput,
   ): Promise<AuthResponseBody> {
-    return postJson<AuthResponseBody>("/auth/oauth/microsoft", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+      "POST",
+      "/auth/oauth/microsoft",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
+  },
+  authenticateWithApple(
+    input: OAuthAuthenticateInput,
+  ): Promise<AuthResponseBody> {
+    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+      "POST",
+      "/auth/oauth/apple",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   linkOAuthProvider(
-    provider: Exclude<OAuthProvider, "apple">,
+    provider: OAuthProvider,
     input: OAuthAuthenticateInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    return postAuthenticatedJson<LinkedOAuthProvidersResult>(
+    return postAuthenticatedJson<LinkedOAuthProvidersResult, OAuthAuthenticateInput>(
       `/auth/oauth/${provider}/link`,
       {
         ...input,
@@ -325,26 +237,39 @@ export const authApi = {
     );
   },
   signup(input: SignupInput): Promise<SignupVerificationPendingResult> {
-    return postJson<SignupVerificationPendingResult>("/auth/local/signup", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<SignupVerificationPendingResult, SignupInput>(
+      "POST",
+      "/auth/local/signup",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   verifyEmail(input: VerifyEmailInput): Promise<AuthResponseBody> {
-    return postJson<AuthResponseBody>("/auth/local/email/verify", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<AuthResponseBody, VerifyEmailInput>(
+      "POST",
+      "/auth/local/email/verify",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   resendVerificationEmail(
     input: ResendVerificationEmailInput,
   ): Promise<AuthEmailAcceptedResult> {
-    return postJson<AuthEmailAcceptedResult>("/auth/local/email/resend", input);
+    return publicJson<AuthEmailAcceptedResult, ResendVerificationEmailInput>(
+      "POST",
+      "/auth/local/email/resend",
+      input,
+    );
   },
   forgotPassword(
     input: ForgotPasswordInput,
   ): Promise<ForgotPasswordAcceptedResult> {
-    return postJson<ForgotPasswordAcceptedResult>(
+    return publicJson<ForgotPasswordAcceptedResult, ForgotPasswordInput>(
+      "POST",
       "/auth/local/password/forgot",
       input,
     );
@@ -352,21 +277,29 @@ export const authApi = {
   resendForgotPassword(
     input: ResendForgotPasswordInput,
   ): Promise<ForgotPasswordAcceptedResult> {
-    return postJson<ForgotPasswordAcceptedResult>(
+    return publicJson<ForgotPasswordAcceptedResult, ResendForgotPasswordInput>(
+      "POST",
       "/auth/local/password/forgot/resend",
       input,
     );
   },
   resetPassword(input: ResetPasswordInput): Promise<AuthResponseBody> {
-    return postJson<AuthResponseBody>("/auth/local/password/reset", {
-      ...input,
-      deviceId: input.deviceId ?? getDeviceId(),
-    });
+    return publicJson<AuthResponseBody, ResetPasswordInput>(
+      "POST",
+      "/auth/local/password/reset",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   unlockLocalLogin(
     input: UnlockLocalLoginInput,
   ): Promise<{ unlocked: true; email: string }> {
-    return postJson<{ unlocked: true; email: string }>("/auth/local/unlock", {
+    return publicJson<
+      { unlocked: true; email: string },
+      UnlockLocalLoginInput & { deviceId?: string }
+    >("POST", "/auth/local/unlock", {
       ...input,
       deviceId: getDeviceId(),
     });
@@ -374,13 +307,14 @@ export const authApi = {
   resendUnlockLocalLogin(
     input: ResendUnlockLocalLoginInput,
   ): Promise<AuthEmailAcceptedResult> {
-    return postJson<AuthEmailAcceptedResult>(
+    return publicJson<AuthEmailAcceptedResult, ResendUnlockLocalLoginInput>(
+      "POST",
       "/auth/local/unlock/resend",
       input,
     );
   },
   changePassword(input: ChangePasswordInput): Promise<AuthResponseBody> {
-    return postAuthenticatedJson<AuthResponseBody>(
+    return postAuthenticatedJson<AuthResponseBody, ChangePasswordInput>(
       "/auth/local/password/change",
       {
         ...input,
@@ -388,28 +322,33 @@ export const authApi = {
       },
     );
   },
-  listPersonalAccessTokens(): Promise<PersonalAccessTokenListResult> {
-    return getAuthenticatedJson<PersonalAccessTokenListResult>(
-      "/auth/personal-access-tokens",
+  verifyDevice(): Promise<{ ok: true }> {
+    return postAuthenticatedJson<{ ok: true }, Record<string, never>>(
+      "/auth/device/verify",
+      {},
     );
+  },
+  listKnownDevices(): Promise<KnownDevicesResult> {
+    return getAuthenticatedJson<KnownDevicesResult>("/auth/devices");
+  },
+  removeKnownDevice(deviceId: string): Promise<{ ok: true }> {
+    return authenticatedJson<{ ok: true }, { deviceId: string }>(
+      "DELETE",
+      "/auth/devices/remove",
+      { deviceId },
+    );
+  },
+  listPersonalAccessTokens(): Promise<PersonalAccessTokenListResult> {
+    return personalAccessTokensApi.list();
   },
   createPersonalAccessToken(
     input: CreatePersonalAccessTokenInput,
   ): Promise<CreatePersonalAccessTokenResult> {
-    return postAuthenticatedJson<CreatePersonalAccessTokenResult>(
-      "/auth/personal-access-tokens",
-      {
-        name: input.name,
-        scopes: input.scopes,
-        expiresInDays: input.expiresInDays,
-      },
-    );
+    return personalAccessTokensApi.create(input);
   },
   revokePersonalAccessToken(
     tokenId: string,
   ): Promise<RevokePersonalAccessTokenResult> {
-    return deleteAuthenticatedJson<RevokePersonalAccessTokenResult>(
-      `/auth/personal-access-tokens/${tokenId}`,
-    );
+    return personalAccessTokensApi.revoke(tokenId);
   },
 };
