@@ -85,6 +85,7 @@ export class RecommendationActivityProcessor {
       occurredAt,
       postingId: posting.id,
       ownerId: posting.ownerId,
+      organizationId: posting.organizationId,
       actorUserId: payload.actorUserId ?? undefined,
       anonymousActorHash: payload.anonymousActorHash ?? undefined,
       deviceType: payload.deviceType,

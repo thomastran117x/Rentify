@@ -23,6 +23,7 @@ import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 import { EmailQueueService } from "@/features/email/email.queue.service";
 import { EmailService } from "@/features/email/email.service";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
+import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
@@ -78,6 +79,9 @@ export const containerTokens = {
   emailService: createServiceToken<EmailService>("EmailService"),
   organizationsRepository: createServiceToken<OrganizationsRepository>(
     "OrganizationsRepository",
+  ),
+  organizationAccessService: createServiceToken<OrganizationAccessService>(
+    "OrganizationAccessService",
   ),
   organizationsService: createServiceToken<OrganizationsService>(
     "OrganizationsService",

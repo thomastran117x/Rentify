@@ -53,6 +53,7 @@ export interface BookingRequestRecord {
   postingId: string;
   renterId: string;
   ownerId: string;
+  organizationId: string;
   status: BookingRequestStatus;
   startAt: string;
   endAt: string;
@@ -145,6 +146,7 @@ export interface RentingRecord {
   bookingRequestId: string;
   renterId: string;
   ownerId: string;
+  organizationId: string;
   status: RentingStatus;
   startAt: string;
   endAt: string;
@@ -180,6 +182,7 @@ export interface BookingDashboardItem {
   postingId: string;
   renterId: string;
   ownerId: string;
+  organizationId: string;
   status: BookingRequestStatus | RentingStatus;
   sourceStatus: BookingRequestStatus | RentingStatus;
   startAt: string;

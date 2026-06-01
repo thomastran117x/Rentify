@@ -7,6 +7,7 @@ import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type {
   CreatePaymentSessionInput,
@@ -57,6 +58,7 @@ export class PaymentsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async createPaymentSession(
@@ -108,9 +110,10 @@ export class PaymentsService {
   }
 
   async retryPayment(input: RetryPaymentInput): Promise<PaymentRecord> {
-    const payment = await this.paymentsRepository.findAccessibleById(
+    const payment = await this.requirePaymentAccess(
       input.paymentId,
       input.renterId,
+      "manage",
     );
 
     if (!["failed_retryable", "failed_final"].includes(payment.status)) {
@@ -128,13 +131,14 @@ export class PaymentsService {
     paymentId: string,
     userId: string,
   ): Promise<PaymentRecord> {
-    return this.paymentsRepository.findAccessibleById(paymentId, userId);
+    return this.requirePaymentAccess(paymentId, userId, "read");
   }
 
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
-    await this.paymentsRepository.findAccessibleById(
+    await this.requirePaymentAccess(
       input.paymentId,
       input.actorUserId,
+      "manage",
     );
 
     const idempotencyKey = createPaymentIdempotencyKey(input.idempotencyKey);
@@ -159,6 +163,7 @@ export class PaymentsService {
     await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
       postingId: payment.postingId,
       ownerId: payment.ownerId,
+      organizationId: payment.organizationId,
       occurredAt: new Date().toISOString(),
       refundedAmount: input.amount,
     });
@@ -167,7 +172,19 @@ export class PaymentsService {
   }
 
   async listPayouts(input: ListPayoutsInput): Promise<PayoutListResult> {
-    return this.paymentsRepository.listPayoutsForOwner(input);
+    const membership = await this.organizationAccessService.requireActiveMembership(
+      input.actorUserId,
+      "Select or join an organization before viewing payouts.",
+    );
+    this.organizationAccessService.assertCanManage(
+      membership,
+      "You do not have permission to view payouts for this organization.",
+    );
+
+    return this.paymentsRepository.listPayoutsForOrganization({
+      ...input,
+      organizationId: membership.organizationId,
+    });
   }
 
   async processSquareWebhook(
@@ -238,10 +255,7 @@ export class PaymentsService {
     paymentId: string,
     userId: string,
   ): Promise<PaymentRecord> {
-    const payment = await this.paymentsRepository.findAccessibleById(
-      paymentId,
-      userId,
-    );
+    const payment = await this.requirePaymentAccess(paymentId, userId, "manage");
     const status = await this.paymentProvider.getPaymentStatus({
       providerPaymentId: payment.squarePaymentId,
       providerOrderId: payment.squareOrderId,
@@ -419,8 +433,40 @@ export class PaymentsService {
     await this.postingsAnalyticsRepository.enqueuePaymentFailedEvent({
       postingId: payment.postingId,
       ownerId: payment.ownerId,
+      organizationId: payment.organizationId,
       occurredAt: payment.failedAt ?? new Date().toISOString(),
     });
+  }
+
+  private async requirePaymentAccess(
+    paymentId: string,
+    userId: string,
+    access: "read" | "manage",
+  ): Promise<PaymentRecord> {
+    const payment = await this.paymentsRepository.findById(paymentId);
+
+    if (!payment) {
+      throw new ResourceNotFoundError("Payment could not be found.");
+    }
+
+    if (payment.renterId === userId) {
+      return payment;
+    }
+
+    const membership = await this.organizationAccessService.requireMembership(
+      userId,
+      payment.organizationId,
+      "You do not have access to this payment.",
+    );
+
+    if (access === "manage") {
+      this.organizationAccessService.assertCanManage(
+        membership,
+        "You do not have permission to manage this payment.",
+      );
+    }
+
+    return payment;
   }
 
   private async markCompletedPaymentStatus(

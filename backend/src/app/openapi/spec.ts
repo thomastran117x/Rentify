@@ -893,7 +893,7 @@ function errorResponse(
 }
 
 function commonErrors(
-  statuses: Array<400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 503>,
+  statuses: Array<400 | 401 | 403 | 404 | 409 | 415 | 422 | 429 | 500 | 503>,
 ) {
   const result: Record<string, unknown> = {};
 
@@ -913,6 +913,9 @@ function commonErrors(
         break;
       case 409:
         result["409"] = responseRef("Conflict");
+        break;
+      case 415:
+        result["415"] = responseRef("BadRequest");
         break;
       case 422:
         result["422"] = responseRef("UnprocessableEntity");
@@ -950,11 +953,12 @@ function queryParam(
   schema: Record<string, unknown>,
   description: string,
   example?: unknown,
+  required = false,
 ): Record<string, unknown> {
   return {
     name,
     in: "query",
-    required: false,
+    required,
     description,
     schema,
     ...(example !== undefined ? { example } : {}),

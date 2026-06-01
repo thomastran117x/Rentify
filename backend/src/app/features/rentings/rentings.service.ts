@@ -14,6 +14,7 @@ import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type {
   ConvertBookingRequestInput,
   CreateRentingDisputeInput,
@@ -36,6 +37,7 @@ export class RentingsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async convertApprovedBookingRequest(
@@ -49,11 +51,15 @@ export class RentingsService {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
-    if (bookingRequest.ownerId !== input.ownerId) {
-      throw new ForbiddenError(
-        "You do not have access to this booking request.",
-      );
-    }
+    const membership = await this.organizationAccessService.requireMembership(
+      input.actorUserId,
+      bookingRequest.organizationId,
+      "You do not have access to this booking request.",
+    );
+    this.organizationAccessService.assertCanManage(
+      membership,
+      "You do not have permission to convert this booking request.",
+    );
 
     await this.requirePostingActionableForConversion(bookingRequest.postingId);
 
@@ -66,7 +72,7 @@ export class RentingsService {
       async () => {
         const reservation = await this.bookingsRepository.reserveForConversion(
           input.bookingRequestId,
-          input.ownerId,
+          bookingRequest.organizationId,
           new Date(Date.now() + CONVERSION_RESERVATION_MINUTES * 60 * 1000),
         );
         await this.syncPostingSearchState(bookingRequest.postingId);
@@ -75,7 +81,7 @@ export class RentingsService {
           const nextRenting =
             await this.rentingsRepository.convertApprovedBookingRequest(
               input.bookingRequestId,
-              input.ownerId,
+              bookingRequest.organizationId,
             );
 
           if (!nextRenting) {
@@ -88,7 +94,7 @@ export class RentingsService {
         } catch (error) {
           await this.bookingsRepository.releaseConversionReservation(
             input.bookingRequestId,
-            input.ownerId,
+            bookingRequest.organizationId,
             reservation,
           );
           await this.syncPostingSearchState(bookingRequest.postingId);
@@ -101,6 +107,7 @@ export class RentingsService {
     await this.postingsAnalyticsRepository.enqueueRentingConfirmedEvent({
       postingId: renting.postingId,
       ownerId: renting.ownerId,
+      organizationId: renting.organizationId,
       occurredAt: renting.confirmedAt,
       estimatedTotal: renting.estimatedTotal,
     });
@@ -121,7 +128,7 @@ export class RentingsService {
       throw new ResourceNotFoundError("Renting could not be found.");
     }
 
-    this.assertParticipantOrAdmin(renting, userId, role);
+    await this.assertParticipantOrAdmin(renting, userId, role);
     return renting;
   }
 
@@ -130,7 +137,17 @@ export class RentingsService {
       input.userId,
       new Date(),
     );
-    return this.rentingsRepository.listMine(input);
+    const membership = await this.organizationAccessService
+      .requireActiveMembership(
+        input.userId,
+        "Select or join an organization before viewing organization rentings.",
+      )
+      .catch(() => null);
+
+    return this.rentingsRepository.listMine({
+      ...input,
+      organizationId: membership?.organizationId,
+    });
   }
 
   async updateInstructions(
@@ -149,7 +166,11 @@ export class RentingsService {
           input.actorUserId,
           input.actorRole,
         );
-        this.assertOwnerOrAdmin(renting, input.actorUserId, input.actorRole);
+        await this.assertOwnerOrAdmin(
+          renting,
+          input.actorUserId,
+          input.actorRole,
+        );
 
         if (renting.status === "cancelled") {
           throw new BadRequestError("Cancelled rentings cannot be updated.");
@@ -181,7 +202,11 @@ export class RentingsService {
           input.actorUserId,
           input.actorRole,
         );
-        this.assertOwnerOrAdmin(renting, input.actorUserId, input.actorRole);
+        await this.assertOwnerOrAdmin(
+          renting,
+          input.actorUserId,
+          input.actorRole,
+        );
 
         const updated = await this.rentingsRepository.markCheckInReady(
           input.rentingId,
@@ -212,7 +237,7 @@ export class RentingsService {
           input.actorUserId,
           input.actorRole,
         );
-        this.assertParticipantOrAdmin(
+        await this.assertParticipantOrAdmin(
           renting,
           input.actorUserId,
           input.actorRole,
@@ -247,7 +272,7 @@ export class RentingsService {
           input.actorUserId,
           input.actorRole,
         );
-        this.assertParticipantOrAdmin(
+        await this.assertParticipantOrAdmin(
           renting,
           input.actorUserId,
           input.actorRole,
@@ -284,7 +309,7 @@ export class RentingsService {
           input.actorUserId,
           input.actorRole,
         );
-        this.assertParticipantOrAdmin(
+        await this.assertParticipantOrAdmin(
           renting,
           input.actorUserId,
           input.actorRole,
@@ -317,38 +342,51 @@ export class RentingsService {
       throw new ResourceNotFoundError("Renting could not be found.");
     }
 
-    this.assertParticipantOrAdmin(renting, actorUserId, actorRole);
+    await this.assertParticipantOrAdmin(renting, actorUserId, actorRole);
     return renting;
   }
 
-  private assertParticipantOrAdmin(
+  private async assertParticipantOrAdmin(
     renting: RentingRecord,
     actorUserId: string,
     actorRole: AppRole,
-  ): void {
+  ): Promise<void> {
     if (actorRole === "admin") {
       return;
     }
 
-    if (renting.ownerId !== actorUserId && renting.renterId !== actorUserId) {
+    if (renting.renterId === actorUserId) {
+      return;
+    }
+
+    const membership = await this.organizationAccessService.findMembership(
+      actorUserId,
+      renting.organizationId,
+    );
+
+    if (!membership) {
       throw new ForbiddenError("You do not have access to this renting.");
     }
   }
 
-  private assertOwnerOrAdmin(
+  private async assertOwnerOrAdmin(
     renting: RentingRecord,
     actorUserId: string,
     actorRole: AppRole,
-  ): void {
+  ): Promise<void> {
     if (actorRole === "admin") {
       return;
     }
 
-    if (renting.ownerId !== actorUserId) {
-      throw new ForbiddenError(
-        "Only the owner can perform this renting action.",
-      );
-    }
+    const membership = await this.organizationAccessService.requireMembership(
+      actorUserId,
+      renting.organizationId,
+      "Only organization managers can perform this renting action.",
+    );
+    this.organizationAccessService.assertCanManage(
+      membership,
+      "Only organization managers can perform this renting action.",
+    );
   }
 
   private assertDisputeAllowed(renting: RentingRecord, now: Date): void {

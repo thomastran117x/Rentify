@@ -50,6 +50,7 @@ import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type { PaymentsRepository } from "@/features/payments/payments.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingRecord } from "@/features/rentings/rentings.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
@@ -97,6 +98,7 @@ export class BookingsService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly paymentsRepository: PaymentsRepository,
     private readonly paymentProvider: PaymentProviderAdapter,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async create(
@@ -124,6 +126,7 @@ export class BookingsService {
               postingId: lockedPosting.id,
               renterId: input.renterId,
               ownerId: lockedPosting.ownerId,
+              organizationId: lockedPosting.organizationId,
               startAt: normalized.startAt,
               endAt: normalized.endAt,
               durationDays: normalized.durationDays,
@@ -159,6 +162,7 @@ export class BookingsService {
     await this.postingsAnalyticsRepository.enqueueBookingRequestedEvent({
       postingId: created.postingId,
       ownerId: created.ownerId,
+      organizationId: created.organizationId,
       occurredAt: created.createdAt,
       estimatedTotal: created.estimatedTotal,
     });
@@ -199,7 +203,15 @@ export class BookingsService {
   async listOwned(
     input: ListOwnedBookingRequestsInput,
   ): Promise<BookingRequestsListResult> {
-    return this.bookingsRepository.listByOwner(input);
+    const membership = await this.organizationAccessService.requireActiveMembership(
+      input.actorUserId,
+      "Select or join an organization before managing bookings.",
+    );
+
+    return this.bookingsRepository.listByOwner({
+      ...input,
+      organizationId: membership.organizationId,
+    });
   }
 
   async dashboardMine(
@@ -281,19 +293,25 @@ export class BookingsService {
   async dashboardOwned(
     input: OwnerBookingDashboardInput,
   ): Promise<OwnerBookingDashboardResult> {
+    const membership = await this.organizationAccessService.requireActiveMembership(
+      input.actorUserId,
+      "Select or join an organization before managing bookings.",
+    );
     const [bookingRequests, postings] = await Promise.all([
       this.bookingsRepository.listDashboardByOwner({
-        ownerId: input.ownerId,
+        organizationId: membership.organizationId,
         status: input.status,
         postingId: input.postingId,
       }),
-      this.bookingsRepository.listDashboardPostingOptionsByOwner(input.ownerId),
+      this.bookingsRepository.listDashboardPostingOptionsByOrganization(
+        membership.organizationId,
+      ),
     ]);
 
     const rentings = input.status
       ? []
       : await this.rentingsRepository.listByOwnerForDashboard({
-          ownerId: input.ownerId,
+          organizationId: membership.organizationId,
           postingId: input.postingId,
         });
 
@@ -392,10 +410,12 @@ export class BookingsService {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
-    if (
-      bookingRequest.ownerId !== userId &&
-      bookingRequest.renterId !== userId
-    ) {
+    const membership = await this.organizationAccessService.findMembership(
+      userId,
+      bookingRequest.organizationId,
+    );
+
+    if (!membership && bookingRequest.renterId !== userId) {
       throw new ForbiddenError(
         "You do not have access to this booking request.",
       );
@@ -565,7 +585,7 @@ export class BookingsService {
       input.bookingRequestId,
       input.actorUserId,
     );
-    const actor = this.resolveCancellationActor(
+    const actor = await this.resolveCancellationActor(
       bookingRequest,
       input.actorUserId,
     );
@@ -611,6 +631,10 @@ export class BookingsService {
           bookingRequestId: lockedBookingRequest.id,
           actorUserId: input.actorUserId,
           actor: assessment.actor,
+          actorOrganizationId:
+            assessment.actor === "owner"
+              ? lockedBookingRequest.organizationId
+              : undefined,
           expectedStatus: lockedBookingRequest.status,
           reason,
           cancellationPolicyCode: BOOKING_CANCELLATION_POLICY_CODE,
@@ -631,6 +655,7 @@ export class BookingsService {
     await this.postingsAnalyticsRepository.enqueueBookingCancelledEvent({
       postingId: cancelled.postingId,
       ownerId: cancelled.ownerId,
+      organizationId: cancelled.organizationId,
       occurredAt: cancelled.cancelledAt ?? new Date().toISOString(),
     });
     await invalidatePublicPostingProjection(
@@ -650,19 +675,28 @@ export class BookingsService {
       throw new ResourceNotFoundError("Posting could not be found.");
     }
 
-    if (posting.ownerId !== input.ownerId) {
+    const membership = await this.organizationAccessService.requireMembership(
+      input.actorUserId,
+      posting.organizationId,
+      "You do not have access to this posting.",
+    );
+    if (posting.organizationId !== membership.organizationId) {
       throw new ForbiddenError("You do not have access to this posting.");
     }
 
-    return this.bookingsRepository.listByOwnerAndPosting(input);
+    return this.bookingsRepository.listByOwnerAndPosting({
+      ...input,
+      organizationId: membership.organizationId,
+    });
   }
 
   async approve(
     input: DecideBookingRequestInput,
   ): Promise<BookingRequestRecord> {
-    const bookingRequest = await this.requireOwnerBookingRequest(
+    const bookingRequest = await this.requireOrganizationBookingRequest(
       input.bookingRequestId,
-      input.ownerId,
+      input.actorUserId,
+      "manage",
     );
     const approved = await withFlowLocks(
       this.cacheService,
@@ -672,13 +706,14 @@ export class BookingsService {
         flowLockKeys.postingBookingWindow(bookingRequest.postingId),
       ],
       async () => {
-        const lockedBookingRequest = await this.requireOwnerBookingRequest(
+        const lockedBookingRequest = await this.requireOrganizationBookingRequest(
           input.bookingRequestId,
-          input.ownerId,
+          input.actorUserId,
+          "manage",
         );
 
         this.assertCanDecide(lockedBookingRequest, "approve");
-        await this.requirePostingActionableForOwner(
+        await this.requirePostingActionableForOrganization(
           lockedBookingRequest.postingId,
         );
         await this.assertNoRentingOverlap(
@@ -695,7 +730,7 @@ export class BookingsService {
 
         const nextBookingRequest = await this.bookingsRepository.approve(
           lockedBookingRequest.id,
-          input.ownerId,
+          lockedBookingRequest.organizationId,
           input.note,
           this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
         );
@@ -714,6 +749,7 @@ export class BookingsService {
     await this.postingsAnalyticsRepository.enqueueBookingApprovedEvent({
       postingId: approved.postingId,
       ownerId: approved.ownerId,
+      organizationId: approved.organizationId,
       occurredAt: approved.approvedAt ?? new Date().toISOString(),
     });
     await invalidatePublicPostingProjection(
@@ -727,9 +763,10 @@ export class BookingsService {
   async decline(
     input: DecideBookingRequestInput,
   ): Promise<BookingRequestRecord> {
-    const bookingRequest = await this.requireOwnerBookingRequest(
+    const bookingRequest = await this.requireOrganizationBookingRequest(
       input.bookingRequestId,
-      input.ownerId,
+      input.actorUserId,
+      "manage",
     );
     const declined = await withFlowLocks(
       this.cacheService,
@@ -738,16 +775,17 @@ export class BookingsService {
         flowLockKeys.bookingRequestState(bookingRequest.id),
       ],
       async () => {
-        const lockedBookingRequest = await this.requireOwnerBookingRequest(
+        const lockedBookingRequest = await this.requireOrganizationBookingRequest(
           input.bookingRequestId,
-          input.ownerId,
+          input.actorUserId,
+          "manage",
         );
 
         this.assertCanDecide(lockedBookingRequest, "decline");
 
         const nextBookingRequest = await this.bookingsRepository.decline(
           lockedBookingRequest.id,
-          input.ownerId,
+          lockedBookingRequest.organizationId,
           input.note,
         );
 
@@ -765,6 +803,7 @@ export class BookingsService {
     await this.postingsAnalyticsRepository.enqueueBookingDeclinedEvent({
       postingId: declined.postingId,
       ownerId: declined.ownerId,
+      organizationId: declined.organizationId,
       occurredAt: declined.declinedAt ?? new Date().toISOString(),
     });
     await invalidatePublicPostingProjection(
@@ -823,6 +862,7 @@ export class BookingsService {
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
       ownerId: bookingRequest.ownerId,
+      organizationId: bookingRequest.organizationId,
       status: bookingRequest.status,
       sourceStatus: bookingRequest.status,
       startAt: bookingRequest.startAt,
@@ -976,6 +1016,7 @@ export class BookingsService {
       postingId: renting.postingId,
       renterId: renting.renterId,
       ownerId: renting.ownerId,
+      organizationId: renting.organizationId,
       status: renting.status,
       sourceStatus: renting.status,
       startAt: renting.startAt,
@@ -1109,6 +1150,7 @@ export class BookingsService {
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
       ownerId: bookingRequest.ownerId,
+      organizationId: bookingRequest.organizationId,
       status: bookingRequest.status,
       sourceStatus: bookingRequest.status,
       startAt: bookingRequest.startAt,
@@ -1456,7 +1498,7 @@ export class BookingsService {
     return posting;
   }
 
-  private async requirePostingActionableForOwner(
+  private async requirePostingActionableForOrganization(
     postingId: string,
   ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
@@ -1487,9 +1529,10 @@ export class BookingsService {
     return posting;
   }
 
-  private async requireOwnerBookingRequest(
+  private async requireOrganizationBookingRequest(
     bookingRequestId: string,
-    ownerId: string,
+    actorUserId: string,
+    access: "read" | "manage",
   ): Promise<BookingRequestRecord> {
     const bookingRequest =
       await this.bookingsRepository.findById(bookingRequestId);
@@ -1498,28 +1541,41 @@ export class BookingsService {
       throw new ResourceNotFoundError("Booking request could not be found.");
     }
 
-    if (bookingRequest.ownerId !== ownerId) {
-      throw new ForbiddenError(
-        "You do not have access to this booking request.",
+    const membership = await this.organizationAccessService.requireMembership(
+      actorUserId,
+      bookingRequest.organizationId,
+      "You do not have access to this booking request.",
+    );
+
+    if (access === "manage") {
+      this.organizationAccessService.assertCanManage(
+        membership,
+        "You do not have permission to manage this booking request.",
       );
     }
 
     return bookingRequest;
   }
 
-  private resolveCancellationActor(
+  private async resolveCancellationActor(
     bookingRequest: BookingRequestRecord,
     userId: string,
-  ): BookingCancellationActor {
+  ): Promise<BookingCancellationActor> {
     if (bookingRequest.renterId === userId) {
       return "renter";
     }
 
-    if (bookingRequest.ownerId === userId) {
-      return "owner";
-    }
+    const membership = await this.organizationAccessService.requireMembership(
+      userId,
+      bookingRequest.organizationId,
+      "You do not have access to this booking request.",
+    );
+    this.organizationAccessService.assertCanManage(
+      membership,
+      "You do not have permission to manage this booking request.",
+    );
 
-    throw new ForbiddenError("You do not have access to this booking request.");
+    return "owner";
   }
 
   private normalizeCancellationReason(
@@ -1543,7 +1599,7 @@ export class BookingsService {
     bookingRequest: BookingRequestRecord,
     userId: string,
   ): Promise<BookingCancellationAssessment> {
-    const actor = this.resolveCancellationActor(bookingRequest, userId);
+    const actor = await this.resolveCancellationActor(bookingRequest, userId);
     const reasonRequired = actor === "owner";
     const currency = bookingRequest.pricingCurrency;
     const failureReasons: BookingCancellationFailureReason[] = [];
@@ -1889,7 +1945,12 @@ export class BookingsService {
       });
     }
 
-    if (posting.ownerId === input.renterId) {
+    const renterMembership = await this.organizationAccessService.findMembership(
+      input.renterId,
+      posting.organizationId,
+    );
+
+    if (renterMembership) {
       failureReasons.push({
         code: "own_posting",
         message: "You cannot create a booking request for your own posting.",

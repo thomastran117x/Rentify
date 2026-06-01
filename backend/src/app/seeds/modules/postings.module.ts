@@ -209,6 +209,10 @@ export const postingsSeedModule: SeedModule = {
       });
 
       state.postingOwnerIdsByPostingId.set(fixturePosting.id, ownerId);
+      state.postingOrganizationIdsByPostingId.set(
+        fixturePosting.id,
+        organizationId,
+      );
     }
 
     await prisma.postingPhoto.deleteMany({

@@ -168,6 +168,41 @@ describe("AccountBookingsPanel", () => {
     expect(listOwnedMock).toHaveBeenCalledTimes(1);
   });
 
+  it("shows owner bookings for operators without owner cancellation controls", async () => {
+    listOwnedMock.mockResolvedValue(
+      buildListResult([
+        buildBooking({
+          id: "booking-owner",
+          postingId: "posting-owner",
+          posting: {
+            id: "posting-owner",
+            name: "Owner Cabin",
+            effectiveMaxBookingDurationDays: 10,
+          },
+        }),
+      ]),
+    );
+
+    render(
+      <AccountBookingsPanel
+        role="user"
+        activeOrganization={{
+          id: "org-1",
+          name: "Org One",
+          role: "operator",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Owner bookings" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Owner Cabin")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review cancellation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("reviews cancellation terms and submits a trimmed cancellation reason", async () => {
     const user = userEvent.setup();
     listMineMock.mockResolvedValue(

@@ -170,7 +170,7 @@ export class RecommendationPrecomputeService {
       this.repository.listUserActivityRows(userId, activityWindowStart),
       this.repository.listPopularActivityRows(popularityWindowStart),
       this.repository.listPublishedRecommendationCandidates({
-        excludeOwnerId: userId,
+        excludeUserId: userId,
       }),
     ]);
 

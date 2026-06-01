@@ -3,6 +3,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsService } from "@/features/payments/payments.service";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -14,6 +15,7 @@ function createPaymentRecord() {
     postingId: "posting-1",
     renterId: "renter-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     provider: "square" as const,
     status: "succeeded" as const,
     pricingCurrency: "CAD",
@@ -39,7 +41,7 @@ describe("PaymentsService", () => {
   it("throws ConflictError on reconcile when payment success needs reconciliation", async () => {
     const payment = createPaymentRecord();
     const paymentsRepository = {
-      findAccessibleById: jest.fn(async () => payment),
+      findById: jest.fn(async () => payment),
       markPaymentSucceeded: jest.fn(async () => ({
         payment,
         reconciliationRequired: true,
@@ -71,6 +73,12 @@ describe("PaymentsService", () => {
     const postingsPublicCacheService = {
       invalidatePublic: jest.fn(async () => 1),
     } as unknown as PostingsPublicCacheService;
+    const organizationAccessService = {
+      requireActiveMembership: jest.fn(),
+      requireMembership: jest.fn(),
+      findMembership: jest.fn(),
+      assertCanManage: jest.fn(),
+    } as unknown as OrganizationAccessService;
 
     const service = new PaymentsService(
       paymentsRepository,
@@ -79,6 +87,7 @@ describe("PaymentsService", () => {
       postingsRepository,
       cacheService,
       postingsPublicCacheService,
+      organizationAccessService,
     );
 
     await expect(
@@ -96,6 +105,7 @@ describe("PaymentsService", () => {
     const payment = createPaymentRecord();
     const paymentsRepository = {
       findBySquareReferences: jest.fn(async () => payment),
+      findById: jest.fn(async () => payment),
       upsertWebhookEvent: jest.fn(async () => ({
         alreadyProcessed: false,
       })),
@@ -141,6 +151,12 @@ describe("PaymentsService", () => {
     const postingsPublicCacheService = {
       invalidatePublic: jest.fn(async () => 1),
     } as unknown as PostingsPublicCacheService;
+    const organizationAccessService = {
+      requireActiveMembership: jest.fn(),
+      requireMembership: jest.fn(),
+      findMembership: jest.fn(),
+      assertCanManage: jest.fn(),
+    } as unknown as OrganizationAccessService;
 
     const service = new PaymentsService(
       paymentsRepository,
@@ -149,6 +165,7 @@ describe("PaymentsService", () => {
       postingsRepository,
       cacheService,
       postingsPublicCacheService,
+      organizationAccessService,
     );
 
     await expect(

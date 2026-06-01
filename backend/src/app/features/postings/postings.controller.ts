@@ -9,7 +9,6 @@ import {
   paginationMeta,
   pickMeta,
 } from "@/configuration/http/responses";
-import { requireMinimumRole } from "@/features/auth/authorization";
 import {
   getOptionalJwtAuth,
   requireJwtAuth,
@@ -286,6 +285,7 @@ export class PostingsController {
 
     await this.postingsAnalyticsService.trackSearchClick(
       this.requireRouteId(context),
+      auth?.sub,
     );
     await this.recommendationActivityPublisher.publishSearchClick({
       postingId: this.requireRouteId(context),
@@ -366,7 +366,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const query = this.parseAnalyticsSummaryQuery(context);
     const result = await this.postingsAnalyticsService.getOwnerSummary(
       auth.sub,
@@ -379,7 +378,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const input = this.parseListPostingAnalyticsInput(context, auth.sub);
     const result =
       await this.postingsAnalyticsService.listOwnerPostingsAnalytics(input);
@@ -390,7 +388,6 @@ export class PostingsController {
 
   analyticsById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const input = this.parsePostingAnalyticsDetailInput(
       context,
       auth.sub,
@@ -582,7 +579,7 @@ export class PostingsController {
 
   private parseListPostingAnalyticsInput(
     context: Context<AppBindings>,
-    ownerId: string,
+    actorUserId: string,
   ): ListPostingAnalyticsInput {
     const url = new URL(context.req.url);
 
@@ -593,7 +590,7 @@ export class PostingsController {
         pageSize: url.searchParams.get("pageSize") ?? undefined,
       });
 
-      return this.toListPostingAnalyticsInput(ownerId, query);
+      return this.toListPostingAnalyticsInput(actorUserId, query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }
@@ -601,7 +598,7 @@ export class PostingsController {
 
   private parsePostingAnalyticsDetailInput(
     context: Context<AppBindings>,
-    ownerId: string,
+    actorUserId: string,
     postingId: string,
   ): PostingAnalyticsDetailInput {
     const url = new URL(context.req.url);
@@ -612,7 +609,7 @@ export class PostingsController {
         granularity: url.searchParams.get("granularity") ?? undefined,
       });
 
-      return this.toPostingAnalyticsDetailInput(ownerId, postingId, query);
+      return this.toPostingAnalyticsDetailInput(actorUserId, postingId, query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }
@@ -749,11 +746,12 @@ export class PostingsController {
   }
 
   private toListPostingAnalyticsInput(
-    ownerId: string,
+    actorUserId: string,
     query: ListPostingAnalyticsQuery,
   ): ListPostingAnalyticsInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       window: query.window,
       page: query.page,
       pageSize: query.pageSize,
@@ -761,12 +759,13 @@ export class PostingsController {
   }
 
   private toPostingAnalyticsDetailInput(
-    ownerId: string,
+    actorUserId: string,
     postingId: string,
     query: PostingAnalyticsDetailQuery,
   ): PostingAnalyticsDetailInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       postingId,
       window: query.window,
       granularity: query.granularity,

@@ -117,6 +117,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "posting_viewed",
       {
         occurredAt: input.occurredAt,
@@ -135,6 +136,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "search_impression",
       {
         occurredAt: input.occurredAt,
@@ -148,6 +150,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "search_click",
       {
         occurredAt: input.occurredAt,
@@ -161,6 +164,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "booking_requested",
       {
         occurredAt: input.occurredAt,
@@ -175,6 +179,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "booking_approved",
       {
         occurredAt: input.occurredAt,
@@ -188,6 +193,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "booking_declined",
       {
         occurredAt: input.occurredAt,
@@ -201,6 +207,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "booking_expired",
       {
         occurredAt: input.occurredAt,
@@ -214,6 +221,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "booking_cancelled",
       {
         occurredAt: input.occurredAt,
@@ -227,6 +235,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "payment_failed",
       {
         occurredAt: input.occurredAt,
@@ -240,6 +249,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "refund_recorded",
       {
         occurredAt: input.occurredAt,
@@ -254,6 +264,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.enqueueOutboxEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       "renting_confirmed",
       {
         occurredAt: input.occurredAt,
@@ -380,6 +391,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             id: randomUUID(),
             postingId: input.postingId,
             ownerId: input.ownerId,
+            organizationId: input.organizationId,
             viewerHash: input.viewerHash,
             userId: input.userId ?? null,
             ipAddressHash: input.ipAddressHash ?? null,
@@ -397,6 +409,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
               {
                 postingId: input.postingId,
                 ownerId: input.ownerId,
+                organizationId: input.organizationId,
                 viewerHash: input.viewerHash,
                 eventDate,
               },
@@ -409,6 +422,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventHour,
           {
             views: 1,
@@ -419,6 +433,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventDate,
           {
             views: 1,
@@ -435,6 +450,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -449,6 +465,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -463,6 +480,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -477,6 +495,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -491,6 +510,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -505,6 +525,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -519,6 +540,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -533,6 +555,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     await this.processSimpleCounterEvent(
       input.postingId,
       input.ownerId,
+      input.organizationId,
       input.eventDate,
       input.eventHour,
       {
@@ -554,6 +577,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventHour,
           {
             refundedRevenue: refundedAmount,
@@ -563,6 +587,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventDate,
           {
             refundedRevenue: refundedAmount,
@@ -585,6 +610,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventHour,
           {
             confirmedBookings: 1,
@@ -595,6 +621,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           input.postingId,
           input.ownerId,
+          input.organizationId,
           eventDate,
           {
             confirmedBookings: 1,
@@ -611,7 +638,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     const tableSql = this.dailyTableSql();
     const range = this.createWindowRange(input.window);
     const whereSql = Prisma.sql`
-      owner_id = ${input.ownerId}
+      organization_id = ${input.organizationId}
       ${range.startAt ? Prisma.sql`AND bucket_start >= ${range.startAt}` : Prisma.empty}
     `;
     const [row, operationalRows] = await this.executeAsync(() =>
@@ -634,7 +661,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           FROM ${tableSql}
           WHERE ${whereSql}
         `),
-        this.listOperationalPostingStatesByOwner(input.ownerId),
+        this.listOperationalPostingStatesByOrganization(input.organizationId),
       ]),
     );
 
@@ -663,7 +690,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     const skip = (input.page - 1) * input.pageSize;
     const tableSql = this.dailyTableSql();
     const whereSql = Prisma.sql`
-      ra.owner_id = ${input.ownerId}
+      ra.organization_id = ${input.organizationId}
       ${range.startAt ? Prisma.sql`AND ra.bucket_start >= ${range.startAt}` : Prisma.empty}
     `;
 
@@ -759,7 +786,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<PostingAnalyticsDetail | null> {
     const header = await this.findPostingAnalyticsHeader(
       input.postingId,
-      input.ownerId,
+      input.organizationId,
     );
 
     if (!header) {
@@ -774,7 +801,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         : this.dailyTableSql();
     const whereTotalsSql = Prisma.sql`
       posting_id = ${input.postingId}
-      AND owner_id = ${input.ownerId}
+      AND organization_id = ${input.organizationId}
       ${range.startAt ? Prisma.sql`AND bucket_start >= ${range.startAt}` : Prisma.empty}
     `;
 
@@ -875,6 +902,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   private async enqueueOutboxEvent(
     postingId: string,
     ownerId: string,
+    organizationId: string,
     eventType: PostingAnalyticsEventType,
     payload: Record<string, unknown>,
   ): Promise<void> {
@@ -884,6 +912,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           id: randomUUID(),
           postingId,
           ownerId,
+          organizationId,
           eventType,
           payload: payload as Prisma.InputJsonValue,
         },
@@ -894,6 +923,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   private async processSimpleCounterEvent(
     postingId: string,
     ownerId: string,
+    organizationId: string,
     eventDateIso: string,
     eventHourIso: string,
     increments: Partial<CounterIncrements>,
@@ -907,6 +937,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           postingId,
           ownerId,
+          organizationId,
           eventHour,
           increments,
         );
@@ -914,6 +945,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           transaction,
           postingId,
           ownerId,
+          organizationId,
           eventDate,
           increments,
         );
@@ -923,7 +955,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private async findPostingAnalyticsHeader(
     postingId: string,
-    ownerId: string,
+    organizationId: string,
   ): Promise<PostingAnalyticsHeaderRow | null> {
     const [row] = await this.executeAsync(() =>
       this.prisma.$queryRaw<PostingAnalyticsHeaderRow[]>(Prisma.sql`
@@ -943,7 +975,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           r.archived_at AS archivedAt
         FROM postings r
         WHERE r.id = ${postingId}
-          AND r.owner_id = ${ownerId}
+          AND r.organization_id = ${organizationId}
         LIMIT 1
       `),
     );
@@ -951,8 +983,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     return row ?? null;
   }
 
-  private async listOperationalPostingStatesByOwner(
-    ownerId: string,
+  private async listOperationalPostingStatesByOrganization(
+    organizationId: string,
   ): Promise<PostingOperationalStateRow[]> {
     return this.executeAsync(() =>
       this.prisma.$queryRaw<PostingOperationalStateRow[]>(Prisma.sql`
@@ -963,7 +995,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           paused_at AS pausedAt,
           archived_at AS archivedAt
         FROM postings
-        WHERE owner_id = ${ownerId}
+        WHERE organization_id = ${organizationId}
       `),
     );
   }
@@ -1062,6 +1094,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     transaction: Prisma.TransactionClient,
     postingId: string,
     ownerId: string,
+    organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ): Promise<void> {
@@ -1076,6 +1109,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       create: this.createRollupCreate(
         postingId,
         ownerId,
+        organizationId,
         bucketStart,
         increments,
       ),
@@ -1086,6 +1120,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     transaction: Prisma.TransactionClient,
     postingId: string,
     ownerId: string,
+    organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ): Promise<void> {
@@ -1100,6 +1135,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       create: this.createRollupCreate(
         postingId,
         ownerId,
+        organizationId,
         bucketStart,
         increments,
       ),
@@ -1109,6 +1145,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   private createRollupCreate(
     postingId: string,
     ownerId: string,
+    organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ) {
@@ -1116,6 +1153,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       id: randomUUID(),
       postingId,
       ownerId,
+      organizationId,
       bucketStart,
       searchImpressions: increments.searchImpressions ?? 0,
       searchClicks: increments.searchClicks ?? 0,
@@ -1379,6 +1417,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       id: outbox.id,
       postingId: outbox.postingId,
       ownerId: outbox.ownerId,
+      organizationId: outbox.organizationId,
       eventType: outbox.eventType as PostingAnalyticsEventType,
       payload: (outbox.payload ?? {}) as Record<string, unknown>,
       attempts: outbox.attempts,

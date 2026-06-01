@@ -1,7 +1,6 @@
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
-import { requireMinimumRole } from "@/features/auth/authorization";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
   RequestValidationError,
@@ -85,7 +84,6 @@ export class BookingsController {
 
   listOwned = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.listOwned(
       this.toListOwnedInput(auth.sub, this.parseListQuery(context)),
     );
@@ -109,7 +107,6 @@ export class BookingsController {
 
   dashboardOwned = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.dashboardOwned(
       this.toDashboardOwnedInput(
         auth.sub,
@@ -125,7 +122,6 @@ export class BookingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.bookingsService.listForOwnerPosting(
       this.toListOwnerPostingInput(
         auth.sub,
@@ -171,7 +167,6 @@ export class BookingsController {
 
   approve = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.approve(
       this.toDecisionInput(
@@ -187,7 +182,6 @@ export class BookingsController {
 
   decline = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, decideBookingRequestSchema);
     const result = await this.bookingsService.decline(
       this.toDecisionInput(
@@ -300,14 +294,14 @@ export class BookingsController {
 
   private toDecisionInput(
     bookingRequestId: string,
-    ownerId: string,
+    actorUserId: string,
     body: {
       note?: string | null;
     },
   ): DecideBookingRequestInput {
     return {
       bookingRequestId,
-      ownerId,
+      actorUserId,
       note: body.note ?? null,
     };
   }
@@ -363,11 +357,12 @@ export class BookingsController {
   }
 
   private toListOwnedInput(
-    ownerId: string,
+    actorUserId: string,
     query: ListBookingRequestsQuery,
   ): ListOwnedBookingRequestsInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
@@ -375,12 +370,13 @@ export class BookingsController {
   }
 
   private toListOwnerPostingInput(
-    ownerId: string,
+    actorUserId: string,
     postingId: string,
     query: ListBookingRequestsQuery,
   ): ListOwnerBookingRequestsInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       postingId,
       page: query.page,
       pageSize: query.pageSize,
@@ -403,11 +399,12 @@ export class BookingsController {
   }
 
   private toDashboardOwnedInput(
-    ownerId: string,
+    actorUserId: string,
     query: OwnerBookingDashboardQuery,
   ): OwnerBookingDashboardInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       page: query.page,
       pageSize: query.pageSize,
       sort: query.sort,

@@ -104,7 +104,8 @@ describe("BookingsController", () => {
     );
 
     expect(listOwned).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "",
       page: 1,
       pageSize: 20,
       status: undefined,
@@ -213,7 +214,8 @@ describe("BookingsController", () => {
     );
 
     expect(dashboardOwned).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "",
       page: 1,
       pageSize: 20,
       sort: "start_at",

@@ -19,11 +19,13 @@ export const postingsAnalyticsRegistrationModule: ContainerRegistrationModule =
         dependencies: [
           containerTokens.postingsAnalyticsRepository,
           containerTokens.postingsRepository,
+          containerTokens.organizationAccessService,
         ],
         resolve: ({ resolve }) =>
           new PostingsAnalyticsService(
             resolve(containerTokens.postingsAnalyticsRepository),
             resolve(containerTokens.postingsRepository),
+            resolve(containerTokens.organizationAccessService),
           ),
       });
     },

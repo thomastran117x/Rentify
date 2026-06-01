@@ -33,7 +33,7 @@ type RentingPersistence = Prisma.RentingGetPayload<{
 export class RentingsRepository extends BaseRepository {
   async convertApprovedBookingRequest(
     bookingRequestId: string,
-    ownerId: string,
+    organizationId: string,
   ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       try {
@@ -60,7 +60,7 @@ export class RentingsRepository extends BaseRepository {
             },
           });
 
-          if (!bookingRequest || bookingRequest.ownerId !== ownerId) {
+          if (!bookingRequest || bookingRequest.organizationId !== organizationId) {
             return null;
           }
 
@@ -135,6 +135,7 @@ export class RentingsRepository extends BaseRepository {
               bookingRequestId: bookingRequest.id,
               renterId: bookingRequest.renterId,
               ownerId: bookingRequest.ownerId,
+              organizationId: bookingRequest.organizationId,
               status: "confirmed",
               startAt: bookingRequest.startAt,
               endAt: bookingRequest.endAt,
@@ -236,7 +237,7 @@ export class RentingsRepository extends BaseRepository {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {
-          ownerId: input.ownerId,
+          organizationId: input.organizationId,
           ...(input.postingId ? { postingId: input.postingId } : {}),
           status: "active",
           endAt: {
@@ -277,7 +278,12 @@ export class RentingsRepository extends BaseRepository {
 
   async listMine(input: ListMyRentingsInput): Promise<ListRentingsResult> {
     const where: Prisma.RentingWhereInput = {
-      OR: [{ renterId: input.userId }, { ownerId: input.userId }],
+      OR: [
+        { renterId: input.userId },
+        ...(input.organizationId
+          ? [{ organizationId: input.organizationId }]
+          : []),
+      ],
       ...(input.status ? { status: input.status } : {}),
     };
     const skip = (input.page - 1) * input.pageSize;
@@ -344,7 +350,7 @@ export class RentingsRepository extends BaseRepository {
     const rentings = await this.executeAsync(() =>
       this.prisma.renting.findMany({
         where: {
-          ownerId: input.ownerId,
+          organizationId: input.organizationId,
           ...(input.postingId ? { postingId: input.postingId } : {}),
         },
         orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
@@ -734,6 +740,7 @@ export class RentingsRepository extends BaseRepository {
       bookingRequestId: renting.bookingRequestId,
       renterId: renting.renterId,
       ownerId: renting.ownerId,
+      organizationId: renting.organizationId,
       status: renting.status as RentingStatus,
       startAt: renting.startAt.toISOString(),
       endAt: renting.endAt.toISOString(),

@@ -10,6 +10,7 @@ import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
 function createPostingRecord(
@@ -18,6 +19,7 @@ function createPostingRecord(
   return {
     id: "posting-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     variant: {
       family: "place",
@@ -63,6 +65,7 @@ function createBookingRequestRecord(
     postingId: "posting-1",
     renterId: "renter-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     status: "pending",
     startAt: "2026-05-01T00:00:00.000Z",
     endAt: "2026-05-04T00:00:00.000Z",
@@ -99,6 +102,7 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
     bookingRequestId: "booking-1",
     renterId: "renter-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     status: "confirmed",
     startAt: "2099-05-01T00:00:00.000Z",
     endAt: "2099-05-04T00:00:00.000Z",
@@ -132,6 +136,7 @@ function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
     postingId: "posting-1",
     renterId: "renter-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     provider: "square",
     status: "succeeded",
     pricingCurrency: "CAD",
@@ -202,7 +207,7 @@ function createService(options?: {
         options?.dashboardOwnerBookings ??
         options?.dashboardBookings ?? [createdBooking],
     ),
-    listDashboardPostingOptionsByOwner: jest.fn(
+    listDashboardPostingOptionsByOrganization: jest.fn(
       async () =>
         options?.dashboardOwnerPostingOptions ?? [
           { id: "posting-1", name: "City loft" },
@@ -275,6 +280,34 @@ function createService(options?: {
       retryable: true,
     })),
   } as unknown as PaymentProviderAdapter;
+  const organizationAccessService = {
+    requireActiveMembership: jest.fn(async (userId: string) => ({
+      organizationId: "org-1",
+      userId,
+      role: "primary_manager",
+    })),
+    requireMembership: jest.fn(async (userId: string, organizationId: string) => {
+      if (userId.startsWith("owner")) {
+        return {
+          organizationId,
+          userId,
+          role: "primary_manager",
+        };
+      }
+
+      throw new Error("Unexpected membership lookup");
+    }),
+    findMembership: jest.fn(async (userId: string, organizationId: string) =>
+      userId.startsWith("owner")
+        ? {
+            organizationId,
+            userId,
+            role: "primary_manager",
+          }
+        : null,
+    ),
+    assertCanManage: jest.fn(() => undefined),
+  } as unknown as OrganizationAccessService;
 
   const service = new BookingsService(
     bookingsRepository,
@@ -285,6 +318,7 @@ function createService(options?: {
     postingsPublicCacheService,
     paymentsRepository,
     paymentProvider,
+    organizationAccessService,
   );
 
   return {
@@ -299,7 +333,7 @@ function createService(options?: {
       listByOwner: jest.Mock;
       listDashboardByRenter: jest.Mock;
       listDashboardByOwner: jest.Mock;
-      listDashboardPostingOptionsByOwner: jest.Mock;
+      listDashboardPostingOptionsByOrganization: jest.Mock;
       cancel: jest.Mock;
       hasBlockingAvailabilityOverlap: jest.Mock;
     },
@@ -332,6 +366,12 @@ function createService(options?: {
     paymentProvider: paymentProvider as unknown as {
       createRefund: jest.Mock;
       classifyError: jest.Mock;
+    },
+    organizationAccessService: organizationAccessService as unknown as {
+      requireActiveMembership: jest.Mock;
+      requireMembership: jest.Mock;
+      findMembership: jest.Mock;
+      assertCanManage: jest.Mock;
     },
   };
 }
@@ -715,7 +755,7 @@ describe("BookingsService", () => {
 
     await service.approve({
       bookingRequestId: "booking-1",
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
       note: "approved",
     });
 
@@ -746,7 +786,7 @@ describe("BookingsService", () => {
 
     const approved = await service.approve({
       bookingRequestId: "booking-1",
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
       note: "approved",
     });
 
@@ -761,13 +801,15 @@ describe("BookingsService", () => {
     const { service, bookingsRepository } = createService();
 
     const result = await service.listOwned({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       page: 1,
       pageSize: 20,
     });
 
     expect(bookingsRepository.listByOwner).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       page: 1,
       pageSize: 20,
       status: undefined,
@@ -969,7 +1011,8 @@ describe("BookingsService", () => {
     });
 
     const result = await service.dashboardOwned({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       page: 1,
       pageSize: 10,
       sort: "urgency",
@@ -977,7 +1020,7 @@ describe("BookingsService", () => {
     });
 
     expect(bookingsRepository.listDashboardByOwner).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+      organizationId: "org-1",
       status: undefined,
       postingId: undefined,
     });

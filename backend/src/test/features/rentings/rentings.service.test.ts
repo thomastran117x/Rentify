@@ -3,6 +3,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { RentingsService } from "@/features/rentings/rentings.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import ForbiddenError from "@/errors/http/forbidden.error";
@@ -13,6 +14,7 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
     id: "renting-1",
     postingId: "posting-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     renterId: "renter-1",
     bookingRequestId: "booking-1",
     status: "confirmed",
@@ -41,6 +43,37 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("RentingsService", () => {
+  function createOrganizationAccessService() {
+    return {
+      requireActiveMembership: jest.fn(async (userId: string) => ({
+        organizationId: "org-1",
+        userId,
+        role: "primary_manager",
+      })),
+      requireMembership: jest.fn(async (userId: string, organizationId: string) => {
+        if (userId.startsWith("owner")) {
+          return {
+            organizationId,
+            userId,
+            role: "primary_manager",
+          };
+        }
+
+        throw new ForbiddenError("Only organization managers can perform this renting action.");
+      }),
+      findMembership: jest.fn(async (userId: string, organizationId: string) =>
+        userId.startsWith("owner")
+          ? {
+              organizationId,
+              userId,
+              role: "primary_manager",
+            }
+          : null,
+      ),
+      assertCanManage: jest.fn(() => undefined),
+    } as unknown as OrganizationAccessService;
+  }
+
   it("releases only the reservation it acquired when conversion fails", async () => {
     const reservation = {
       reservedAt: new Date("2026-04-23T00:00:00.000Z"),
@@ -51,6 +84,7 @@ describe("RentingsService", () => {
         id: "booking-1",
         postingId: "posting-1",
         ownerId: "owner-1",
+        organizationId: "org-1",
       })),
       reserveForConversion: jest.fn(async () => reservation),
       releaseConversionReservation: jest.fn(async () => undefined),
@@ -89,19 +123,20 @@ describe("RentingsService", () => {
       postingsRepository,
       cacheService,
       postingsPublicCacheService,
+      createOrganizationAccessService(),
     );
 
     await expect(
       service.convertApprovedBookingRequest({
         bookingRequestId: "booking-1",
-        ownerId: "owner-1",
+        actorUserId: "owner-1",
       }),
     ).rejects.toThrow("boom");
 
     expect(
       (bookingsRepository.releaseConversionReservation as unknown as jest.Mock)
         .mock.calls[0],
-    ).toEqual(["booking-1", "owner-1", reservation]);
+    ).toEqual(["booking-1", "org-1", reservation]);
     expect(
       (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
     ).toEqual([["posting-1"], ["posting-1"]]);
@@ -125,6 +160,7 @@ describe("RentingsService", () => {
         id: "booking-1",
         postingId: "posting-1",
         ownerId: "owner-1",
+        organizationId: "org-1",
       })),
       reserveForConversion: jest.fn(async () => ({
         reservedAt: new Date("2026-04-23T00:00:00.000Z"),
@@ -137,6 +173,7 @@ describe("RentingsService", () => {
         id: "renting-1",
         postingId: "posting-1",
         ownerId: "owner-1",
+        organizationId: "org-1",
         renterId: "renter-1",
         bookingRequestId: "booking-1",
         status: "confirmed",
@@ -192,17 +229,18 @@ describe("RentingsService", () => {
       postingsRepository,
       cacheService,
       postingsPublicCacheService,
+      createOrganizationAccessService(),
     );
 
     const renting = await service.convertApprovedBookingRequest({
       bookingRequestId: "booking-1",
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
     });
 
     expect(renting.id).toBe("renting-1");
     expect(
       rentingsRepository.convertApprovedBookingRequest as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("booking-1", "owner-1");
+    ).toHaveBeenCalledWith("booking-1", "org-1");
     expect(
       (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
     ).toEqual([["posting-1"], ["posting-1"]]);
@@ -230,6 +268,7 @@ describe("RentingsService", () => {
       {} as never,
       {} as never,
       {} as never,
+      createOrganizationAccessService(),
     );
 
     const result = await service.getById("renting-1", "renter-1", "user");
@@ -260,6 +299,7 @@ describe("RentingsService", () => {
       {} as never,
       cacheService,
       {} as never,
+      createOrganizationAccessService(),
     );
 
     await expect(
@@ -303,6 +343,7 @@ describe("RentingsService", () => {
       {} as never,
       cacheService,
       {} as never,
+      createOrganizationAccessService(),
     );
 
     const result = await service.markCompleted({
@@ -345,6 +386,7 @@ describe("RentingsService", () => {
       {} as never,
       cacheService,
       {} as never,
+      createOrganizationAccessService(),
     );
 
     await expect(

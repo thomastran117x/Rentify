@@ -162,6 +162,8 @@ export interface SetActiveOrganizationInput {
   organizationId: string;
 }
 
+export type OrganizationScopedRole = OrganizationRole;
+
 export interface UpdateOrganizationMemberInput {
   organizationId: string;
   actorUserId: string;

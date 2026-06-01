@@ -13,7 +13,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
-import { isOwnerRole } from "@/lib/auth/roles";
+import {
+  canManageOrganizationPostings,
+  canReadOrganizationPostings,
+  isOwnerRole,
+} from "@/lib/auth/roles";
 import { ApiError } from "@/lib/auth/types";
 import { bookingsApi } from "@/lib/bookings/api";
 import type {
@@ -218,6 +222,7 @@ function canOpenDispute(item: BookingDashboardItem): boolean {
 interface BookingItemCardProps {
   item: BookingDashboardItem;
   view: DashboardView;
+  canManageOwnerActions: boolean;
   quoteByBookingId: Record<string, BookingCancellationQuoteResult | undefined>;
   reasonByBookingId: Record<string, string>;
   instructionDraftByRentingId: Record<
@@ -254,6 +259,7 @@ interface BookingItemCardProps {
 function BookingItemCard({
   item,
   view,
+  canManageOwnerActions,
   quoteByBookingId,
   reasonByBookingId,
   instructionDraftByRentingId,
@@ -302,7 +308,9 @@ function BookingItemCard({
           details: "",
         })
       : undefined;
-  const canEditInstructions = item.kind === "renting" && view === "owner";
+  const canManageCurrentView = view !== "owner" || canManageOwnerActions;
+  const canEditInstructions =
+    item.kind === "renting" && view === "owner" && canManageOwnerActions;
   const isRentingActionPending = (action: string) =>
     rentingMutationPendingKey === `${action}:${item.rentingId}`;
 
@@ -376,7 +384,9 @@ function BookingItemCard({
                       : "Save instructions"}
                   </button>
                 )}
-                {view === "owner" && item.sourceStatus === "confirmed" ? (
+                {view === "owner" &&
+                canManageOwnerActions &&
+                item.sourceStatus === "confirmed" ? (
                   <button
                     type="button"
                     onClick={() => void onMarkCheckInReady(item.rentingId!)}
@@ -388,7 +398,9 @@ function BookingItemCard({
                       : "Mark check-in ready"}
                   </button>
                 ) : null}
-                {["confirmed", "check_in_ready"].includes(item.sourceStatus) ? (
+                {view === "owner" &&
+                canManageOwnerActions &&
+                ["confirmed", "check_in_ready"].includes(item.sourceStatus) ? (
                   <button
                     type="button"
                     onClick={() => void onMarkCheckInComplete(item.rentingId!)}
@@ -400,7 +412,9 @@ function BookingItemCard({
                       : "Confirm check-in"}
                   </button>
                 ) : null}
-                {["active", "return_due"].includes(item.sourceStatus) ? (
+                {view === "owner" &&
+                canManageOwnerActions &&
+                ["active", "return_due"].includes(item.sourceStatus) ? (
                   <button
                     type="button"
                     onClick={() => void onCompleteReturn(item.rentingId!)}
@@ -413,7 +427,9 @@ function BookingItemCard({
                   </button>
                 ) : null}
               </div>
-            ) : canReviewCancellation(item) && item.bookingRequestId ? (
+            ) : canManageCurrentView &&
+              canReviewCancellation(item) &&
+              item.bookingRequestId ? (
               <button
                 type="button"
                 onClick={() =>
@@ -665,7 +681,10 @@ function BookingItemCard({
             </div>
           ) : null}
 
-          {item.kind === "renting" && item.rentingId && canOpenDispute(item) ? (
+          {item.kind === "renting" &&
+          item.rentingId &&
+          canManageCurrentView &&
+          canOpenDispute(item) ? (
             <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-700">
@@ -740,7 +759,7 @@ function BookingItemCard({
             </div>
           ) : null}
 
-          {quote && item.bookingRequestId ? (
+          {quote && item.bookingRequestId && canManageCurrentView ? (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
@@ -889,7 +908,12 @@ export function BookingsDashboard() {
     string | null
   >(null);
 
-  const showOwnerView = isOwnerRole(session?.user.role);
+  const showOwnerView =
+    isOwnerRole(session?.user.role) ||
+    canReadOrganizationPostings(session?.user.activeOrganization);
+  const canManageOwnerView =
+    isOwnerRole(session?.user.role) ||
+    canManageOrganizationPostings(session?.user.activeOrganization);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -1501,6 +1525,7 @@ export function BookingsDashboard() {
                 key={`${item.kind}-${item.id}`}
                 item={item}
                 view={activeView}
+                canManageOwnerActions={canManageOwnerView}
                 quoteByBookingId={quoteByBookingId}
                 reasonByBookingId={reasonByBookingId}
                 instructionDraftByRentingId={instructionDraftByRentingId}

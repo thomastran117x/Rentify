@@ -53,6 +53,7 @@ export interface PayoutRecord {
   id: string;
   paymentId: string;
   ownerId: string;
+  organizationId: string;
   status: PayoutStatus;
   amount: number;
   dueAt: string;
@@ -70,6 +71,7 @@ export interface PaymentRecord {
   postingId: string;
   renterId: string;
   ownerId: string;
+  organizationId: string;
   provider: "square";
   status: PaymentStatus;
   pricingCurrency: string;

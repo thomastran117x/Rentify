@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
-import { getAuthRole, requireMinimumRole } from "@/features/auth/authorization";
+import { getAuthRole } from "@/features/auth/authorization";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
   RequestValidationError,
@@ -35,10 +35,9 @@ export class RentingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.rentingsService.convertApprovedBookingRequest({
       bookingRequestId: this.requireBookingRequestId(context),
-      ownerId: auth.sub,
+      actorUserId: auth.sub,
     });
     await this.recommendationActivityPublisher.publishRentingConfirmed({
       renting: result,

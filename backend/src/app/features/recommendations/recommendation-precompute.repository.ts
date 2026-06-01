@@ -268,7 +268,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
   }
 
   async listPublishedRecommendationCandidates(input?: {
-    excludeOwnerId?: string;
+    excludeUserId?: string;
     family?: RecommendationPostingCandidate["family"];
     subtype?: RecommendationPostingCandidate["subtype"];
   }): Promise<RecommendationPostingCandidate[]> {
@@ -280,10 +280,16 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
       const rows = await posting.findMany({
         where: {
           status: "published",
-          ...(input?.excludeOwnerId
+          ...(input?.excludeUserId
             ? {
                 NOT: {
-                  ownerId: input.excludeOwnerId,
+                  organization: {
+                    memberships: {
+                      some: {
+                        userId: input.excludeUserId,
+                      },
+                    },
+                  },
                 },
               }
             : {}),

@@ -62,6 +62,7 @@ export class BookingsRepository extends BaseRepository {
           postingId: input.postingId,
           renterId: input.renterId,
           ownerId: input.ownerId,
+          organizationId: input.organizationId,
           status: "pending",
           startAt: input.startAt,
           endAt: input.endAt,
@@ -126,6 +127,7 @@ export class BookingsRepository extends BaseRepository {
             postingId: input.postingId,
             renterId: input.renterId,
             ownerId: input.ownerId,
+            organizationId: input.organizationId,
             status: "pending",
             startAt: input.startAt,
             endAt: input.endAt,
@@ -339,7 +341,7 @@ export class BookingsRepository extends BaseRepository {
     input: ListOwnerBookingRequestsInput,
   ): Promise<BookingRequestsListResult> {
     const where: Prisma.BookingRequestWhereInput = {
-      ownerId: input.ownerId,
+      organizationId: input.organizationId,
       postingId: input.postingId,
       ...(input.status ? { status: input.status } : {}),
     };
@@ -384,7 +386,7 @@ export class BookingsRepository extends BaseRepository {
     input: ListOwnedBookingRequestsInput,
   ): Promise<BookingRequestsListResult> {
     const where: Prisma.BookingRequestWhereInput = {
-      ownerId: input.ownerId,
+      organizationId: input.organizationId,
       ...(input.status ? { status: input.status } : {}),
     };
     const skip = (input.page - 1) * input.pageSize;
@@ -459,10 +461,13 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async listDashboardByOwner(
-    input: Pick<OwnerBookingDashboardInput, "ownerId" | "status" | "postingId">,
+    input: Pick<
+      OwnerBookingDashboardInput,
+      "organizationId" | "status" | "postingId"
+    >,
   ): Promise<BookingRequestRecord[]> {
     const where: Prisma.BookingRequestWhereInput = {
-      ownerId: input.ownerId,
+      organizationId: input.organizationId,
       ...(input.status ? { status: input.status } : {}),
       ...(input.postingId ? { postingId: input.postingId } : {}),
     };
@@ -493,13 +498,13 @@ export class BookingsRepository extends BaseRepository {
     return rows.map((row) => this.mapBookingRequest(row));
   }
 
-  async listDashboardPostingOptionsByOwner(
-    ownerId: string,
+  async listDashboardPostingOptionsByOrganization(
+    organizationId: string,
   ): Promise<BookingDashboardPostingOption[]> {
     const rows = await this.executeAsync(() =>
       this.prisma.bookingRequest.findMany({
         where: {
-          ownerId,
+          organizationId,
         },
         select: {
           postingId: true,
@@ -592,7 +597,7 @@ export class BookingsRepository extends BaseRepository {
 
   async approve(
     bookingRequestId: string,
-    ownerId: string,
+    organizationId: string,
     note: string | null | undefined,
     holdExpiresAt: Date,
   ): Promise<BookingRequestRecord | null> {
@@ -621,7 +626,7 @@ export class BookingsRepository extends BaseRepository {
             },
           });
 
-          if (!existing || existing.ownerId !== ownerId) {
+          if (!existing || existing.organizationId !== organizationId) {
             return null;
           }
 
@@ -671,7 +676,7 @@ export class BookingsRepository extends BaseRepository {
           const result = await transaction.bookingRequest.updateMany({
             where: {
               id: existing.id,
-              ownerId,
+              organizationId,
               status: "pending",
               holdExpiresAt: {
                 gt: new Date(),
@@ -731,7 +736,7 @@ export class BookingsRepository extends BaseRepository {
 
   async decline(
     bookingRequestId: string,
-    ownerId: string,
+    organizationId: string,
     note: string | null | undefined,
   ): Promise<BookingRequestRecord | null> {
     const declined = await this.executeAsync(async () =>
@@ -742,12 +747,12 @@ export class BookingsRepository extends BaseRepository {
           },
           select: {
             id: true,
-            ownerId: true,
+            organizationId: true,
             status: true,
           },
         });
 
-        if (!existing || existing.ownerId !== ownerId) {
+        if (!existing || existing.organizationId !== organizationId) {
           return null;
         }
 
@@ -758,7 +763,7 @@ export class BookingsRepository extends BaseRepository {
         const result = await transaction.bookingRequest.updateMany({
           where: {
             id: bookingRequestId,
-            ownerId,
+            organizationId,
             status: "pending",
             holdExpiresAt: {
               gt: new Date(),
@@ -806,6 +811,7 @@ export class BookingsRepository extends BaseRepository {
     bookingRequestId: string;
     actorUserId: string;
     actor: BookingCancellationActor;
+    actorOrganizationId?: string;
     expectedStatus: BookingRequestStatus;
     reason?: string | null;
     cancellationPolicyCode: string;
@@ -821,6 +827,7 @@ export class BookingsRepository extends BaseRepository {
             id: true,
             renterId: true,
             ownerId: true,
+            organizationId: true,
             status: true,
             holdBlockId: true,
             convertedAt: true,
@@ -834,7 +841,8 @@ export class BookingsRepository extends BaseRepository {
         if (
           (input.actor === "renter" &&
             existing.renterId !== input.actorUserId) ||
-          (input.actor === "owner" && existing.ownerId !== input.actorUserId)
+          (input.actor === "owner" &&
+            existing.organizationId !== input.actorOrganizationId)
         ) {
           return null;
         }
@@ -853,7 +861,7 @@ export class BookingsRepository extends BaseRepository {
                   renterId: input.actorUserId,
                 }
               : {
-                  ownerId: input.actorUserId,
+                  organizationId: input.actorOrganizationId,
                 }),
           },
           data: {
@@ -943,12 +951,13 @@ export class BookingsRepository extends BaseRepository {
         },
         orderBy: [{ holdExpiresAt: "asc" }, { createdAt: "asc" }],
         take: limit,
-        select: {
-          id: true,
-          postingId: true,
-          ownerId: true,
-          status: true,
-          holdBlockId: true,
+      select: {
+        id: true,
+        postingId: true,
+        ownerId: true,
+        organizationId: true,
+        status: true,
+        holdBlockId: true,
         },
       }),
     );
@@ -957,6 +966,7 @@ export class BookingsRepository extends BaseRepository {
       id: row.id,
       postingId: row.postingId,
       ownerId: row.ownerId,
+      organizationId: row.organizationId,
       status: row.status as BookingRequestStatus,
       holdBlockId: row.holdBlockId ?? undefined,
     }));
@@ -1107,7 +1117,7 @@ export class BookingsRepository extends BaseRepository {
 
   async reserveForConversion(
     bookingRequestId: string,
-    ownerId: string,
+    organizationId: string,
     reservationExpiresAt: Date,
   ): Promise<{
     reservedAt: Date;
@@ -1118,7 +1128,7 @@ export class BookingsRepository extends BaseRepository {
       this.prisma.bookingRequest.updateMany({
         where: {
           id: bookingRequestId,
-          ownerId,
+          organizationId,
           status: "paid",
           convertedAt: null,
           OR: [
@@ -1153,7 +1163,7 @@ export class BookingsRepository extends BaseRepository {
 
   async releaseConversionReservation(
     bookingRequestId: string,
-    ownerId: string,
+    organizationId: string,
     reservation: {
       reservedAt: Date;
       reservationExpiresAt: Date;
@@ -1163,7 +1173,7 @@ export class BookingsRepository extends BaseRepository {
       this.prisma.bookingRequest.updateMany({
         where: {
           id: bookingRequestId,
-          ownerId,
+          organizationId,
           conversionReservedAt: reservation.reservedAt,
           conversionReservationExpiresAt: reservation.reservationExpiresAt,
         },
@@ -1183,6 +1193,7 @@ export class BookingsRepository extends BaseRepository {
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
       ownerId: bookingRequest.ownerId,
+      organizationId: bookingRequest.organizationId,
       status: bookingRequest.status as BookingRequestStatus,
       startAt: bookingRequest.startAt.toISOString(),
       endAt: bookingRequest.endAt.toISOString(),

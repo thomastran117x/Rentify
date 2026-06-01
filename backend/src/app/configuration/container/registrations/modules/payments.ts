@@ -31,6 +31,7 @@ export const paymentsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsRepository,
         containerTokens.cacheService,
         containerTokens.postingsPublicCacheService,
+        containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new PaymentsService(
@@ -40,6 +41,7 @@ export const paymentsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.postingsPublicCacheService),
+          resolve(containerTokens.organizationAccessService),
         ),
     });
     container.register({

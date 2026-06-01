@@ -14,7 +14,11 @@ import type {
   BookingRequestsListResult,
 } from "@/lib/bookings/types";
 import { ApiError, type AuthResponseUser } from "@/lib/auth/types";
-import { isOwnerRole } from "@/lib/auth/roles";
+import {
+  canManageOrganizationPostings,
+  canReadOrganizationPostings,
+  isOwnerRole,
+} from "@/lib/auth/roles";
 
 function formatDateRange(startAt: string, endAt: string): string {
   const formatter = new Intl.DateTimeFormat(undefined, {
@@ -66,6 +70,7 @@ interface BookingListSectionProps {
   subtitle: string;
   bookings: BookingRequestRecord[];
   emptyMessage: string;
+  canManageCancellations: boolean;
   quoteByBookingId: Record<string, BookingCancellationQuoteResult | undefined>;
   reasonByBookingId: Record<string, string>;
   quotePendingId: string | null;
@@ -80,6 +85,7 @@ function BookingListSection({
   subtitle,
   bookings,
   emptyMessage,
+  canManageCancellations,
   quoteByBookingId,
   reasonByBookingId,
   quotePendingId,
@@ -143,7 +149,7 @@ function BookingListSection({
                     </div>
                   </div>
 
-                  {canReviewCancellation(booking) ? (
+                  {canManageCancellations && canReviewCancellation(booking) ? (
                     <button
                       type="button"
                       onClick={() => void onReviewCancellation(booking.id)}
@@ -201,7 +207,7 @@ function BookingListSection({
                   </div>
                 ) : null}
 
-                {quote ? (
+                {quote && canManageCancellations ? (
                   <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
                     <div className="flex items-start gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
@@ -305,9 +311,13 @@ function BookingListSection({
 
 interface AccountBookingsPanelProps {
   role: AuthResponseUser["role"];
+  activeOrganization?: AuthResponseUser["activeOrganization"];
 }
 
-export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
+export function AccountBookingsPanel({
+  role,
+  activeOrganization,
+}: AccountBookingsPanelProps) {
   const [renterBookings, setRenterBookings] =
     useState<BookingRequestsListResult | null>(null);
   const [ownerBookings, setOwnerBookings] =
@@ -323,7 +333,10 @@ export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
     Record<string, string>
   >({});
 
-  const showOwnerSection = isOwnerRole(role);
+  const showOwnerSection =
+    isOwnerRole(role) || canReadOrganizationPostings(activeOrganization);
+  const canManageOwnerSection =
+    isOwnerRole(role) || canManageOrganizationPostings(activeOrganization);
 
   async function refreshBookings() {
     setLoading(true);
@@ -462,6 +475,7 @@ export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
         subtitle="Track requests you made, review cancellation terms, and release holds when plans change."
         bookings={renterBookings?.bookingRequests ?? []}
         emptyMessage="No booking requests have been created from this account yet."
+        canManageCancellations
         quoteByBookingId={quoteByBookingId}
         reasonByBookingId={reasonByBookingId}
         quotePendingId={quotePendingId}
@@ -482,6 +496,7 @@ export function AccountBookingsPanel({ role }: AccountBookingsPanelProps) {
           subtitle="Review incoming booking requests across your listings and capture required reasons for owner-initiated cancellations."
           bookings={ownerBookings?.bookingRequests ?? []}
           emptyMessage="No booking requests are currently tied to listings owned by this account."
+          canManageCancellations={canManageOwnerSection}
           quoteByBookingId={quoteByBookingId}
           reasonByBookingId={reasonByBookingId}
           quotePendingId={quotePendingId}

@@ -52,6 +52,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessPostingViewedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -71,6 +72,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessBookingRequestedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -86,6 +88,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessSearchImpressionEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -100,6 +103,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessSearchClickEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -114,6 +118,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessBookingApprovedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -128,6 +133,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessBookingDeclinedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -142,6 +148,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessBookingExpiredEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -156,6 +163,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessBookingCancelledEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -170,6 +178,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessPaymentFailedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -184,6 +193,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessRefundRecordedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
@@ -199,6 +209,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const input: ProcessRentingConfirmedEventInput = {
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),

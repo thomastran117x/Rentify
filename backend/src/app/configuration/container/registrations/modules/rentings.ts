@@ -23,6 +23,7 @@ export const rentingsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsRepository,
         containerTokens.cacheService,
         containerTokens.postingsPublicCacheService,
+        containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new RentingsService(
@@ -32,6 +33,7 @@ export const rentingsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.postingsPublicCacheService),
+          resolve(containerTokens.organizationAccessService),
         ),
     });
     container.register({

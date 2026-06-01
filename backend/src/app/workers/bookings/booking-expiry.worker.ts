@@ -47,6 +47,7 @@ export async function bootstrapBookingExpiryWorker(): Promise<void> {
             await postingsAnalyticsRepository.enqueueBookingExpiredEvent({
               postingId: job.postingId,
               ownerId: job.ownerId,
+              organizationId: job.organizationId,
               occurredAt: new Date().toISOString(),
             });
             await invalidatePublicPostingProjection(

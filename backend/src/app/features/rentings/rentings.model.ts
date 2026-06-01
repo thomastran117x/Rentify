@@ -100,6 +100,7 @@ export interface RentingRecord {
   bookingRequestId: string;
   renterId: string;
   ownerId: string;
+  organizationId: string;
   status: RentingStatus;
   startAt: string;
   endAt: string;
@@ -139,18 +140,19 @@ export interface ListRentingsResult {
 
 export interface ConvertBookingRequestInput {
   bookingRequestId: string;
-  ownerId: string;
+  actorUserId: string;
 }
 
 export interface ListMyRentingsInput {
   userId: string;
+  organizationId?: string;
   page: number;
   pageSize: number;
   status?: RentingStatus;
 }
 
 export interface ListOwnerDashboardRentingsInput {
-  ownerId: string;
+  organizationId: string;
   postingId?: string;
 }
 
