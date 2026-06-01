@@ -712,8 +712,7 @@ describe("Postings integration", () => {
     expect(batchMineResponse.status).toBe(200);
     expect(batchPublicResponse.status).toBe(200);
 
-    expect(postingsService.listByOwner).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+    expect(postingsService.listByOwner).toHaveBeenCalledWith("owner-1", {
       page: 1,
       pageSize: 20,
       status: "published",

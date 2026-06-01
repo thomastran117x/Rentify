@@ -581,6 +581,7 @@ export interface PublicPostingOwnerSummary {
 export interface PostingRecord {
   id: string;
   ownerId: string;
+  organizationId: string;
   status: PostingStatus;
   variant: PostingVariant;
   name: string;
@@ -603,7 +604,8 @@ export interface PostingRecord {
   updatedAt: string;
 }
 
-export interface PublicPostingRecord extends Omit<PostingRecord, "location"> {
+export interface PublicPostingRecord
+  extends Omit<PostingRecord, "location" | "organizationId"> {
   location: PublicPostingLocationRecord;
   owner?: PublicPostingOwnerSummary;
   primaryPhotoUrl?: string;
@@ -663,6 +665,7 @@ export interface PostingGeoInput {
 
 export interface UpsertPostingInput {
   ownerId: string;
+  organizationId: string;
   variant: PostingVariant;
   name: string;
   description: string;
@@ -678,14 +681,14 @@ export interface UpsertPostingInput {
 }
 
 export interface ListOwnerPostingsInput {
-  ownerId: string;
+  organizationId: string;
   page: number;
   pageSize: number;
   status?: PostingStatus;
 }
 
 export interface BatchOwnerPostingsInput {
-  ownerId: string;
+  organizationId: string;
   ids: string[];
 }
 
@@ -792,11 +795,15 @@ export function isPostingSearchIndexable(status: PostingStatus): boolean {
 export function toPublicPostingRecord(
   posting: PostingRecord | PublicPostingRecord,
 ): PublicPostingRecord {
+  const publicPosting = {
+    ...posting,
+  } as Record<string, unknown>;
+  delete publicPosting.organizationId;
   const primaryPhoto =
     posting.photos.find((photo) => photo.position === 0) ?? posting.photos[0];
 
   return {
-    ...posting,
+    ...(publicPosting as unknown as PublicPostingRecord),
     primaryPhotoUrl: primaryPhoto?.blobUrl,
     primaryThumbnailUrl: primaryPhoto?.thumbnailBlobUrl,
     effectiveMaxBookingDurationDays:

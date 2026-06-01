@@ -124,10 +124,19 @@ export const postingsSeedModule: SeedModule = {
 
     for (const [index, fixturePosting] of SEED_POSTINGS.entries()) {
       const ownerId = state.userIdsByEmail.get(fixturePosting.ownerEmail);
+      const organizationId = state.organizationIdsByOwnerEmail.get(
+        fixturePosting.ownerEmail,
+      );
 
       if (!ownerId) {
         throw new Error(
           `Missing fixture owner for posting seed: ${fixturePosting.ownerEmail}`,
+        );
+      }
+
+      if (!organizationId) {
+        throw new Error(
+          `Missing fixture organization for posting seed: ${fixturePosting.ownerEmail}`,
         );
       }
 
@@ -142,6 +151,7 @@ export const postingsSeedModule: SeedModule = {
         },
         update: {
           ownerId,
+          organizationId,
           status: fixturePosting.status,
           family: fixturePosting.family,
           subtype: fixturePosting.subtype,
@@ -170,6 +180,7 @@ export const postingsSeedModule: SeedModule = {
         create: {
           id: fixturePosting.id,
           ownerId,
+          organizationId,
           status: fixturePosting.status,
           family: fixturePosting.family,
           subtype: fixturePosting.subtype,

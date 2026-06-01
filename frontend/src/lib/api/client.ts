@@ -68,6 +68,18 @@ function toRequestUrl(path: string): string {
   return `${resolveApiBaseUrl()}${path}`;
 }
 
+function shouldIncludeCsrfHeader(options: JsonRequestOptions<unknown>): boolean {
+  if (!readCsrfToken()) {
+    return false;
+  }
+
+  if (options.mode !== "public") {
+    return true;
+  }
+
+  return options.path.startsWith("/auth/");
+}
+
 function buildRequestHeaders(
   options: JsonRequestOptions<unknown>,
   includeAuthorization: boolean,
@@ -85,7 +97,7 @@ function buildRequestHeaders(
     ...(includeAuthorization && session?.accessToken
       ? { authorization: `Bearer ${session.accessToken}` }
       : {}),
-    ...(options.mode !== "public" && csrfToken
+    ...(csrfToken && shouldIncludeCsrfHeader(options)
       ? { [CSRF_HEADER_NAME]: csrfToken }
       : {}),
     ...(deviceId ? { "x-device-id": deviceId } : {}),

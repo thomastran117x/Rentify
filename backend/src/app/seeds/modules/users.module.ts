@@ -104,6 +104,8 @@ export const usersSeedModule: SeedModule = {
           },
         });
 
+        state.organizationIdsByOwnerEmail.set(fixtureUser.email, organizationId);
+
         await prisma.organizationMembership.upsert({
           where: {
             organizationId_userId: {
@@ -130,6 +132,55 @@ export const usersSeedModule: SeedModule = {
             preferredOrganizationId: organizationId,
           },
         });
+      }
+    }
+
+    for (const fixtureUser of SEED_USERS) {
+      const userId = state.userIdsByEmail.get(fixtureUser.email);
+
+      if (!userId) {
+        throw new Error(`Missing user for organization memberships ${fixtureUser.email}.`);
+      }
+
+      for (const membershipFixture of fixtureUser.organizationMemberships ?? []) {
+        const organizationId = state.organizationIdsByOwnerEmail.get(
+          membershipFixture.ownerEmail,
+        );
+
+        if (!organizationId) {
+          throw new Error(
+            `Missing organization for seeded membership owner ${membershipFixture.ownerEmail}.`,
+          );
+        }
+
+        await prisma.organizationMembership.upsert({
+          where: {
+            organizationId_userId: {
+              organizationId,
+              userId,
+            },
+          },
+          update: {
+            role: membershipFixture.role,
+          },
+          create: {
+            id: randomUUID(),
+            organizationId,
+            userId,
+            role: membershipFixture.role,
+          },
+        });
+
+        if (membershipFixture.preferred) {
+          await prisma.user.update({
+            where: {
+              id: userId,
+            },
+            data: {
+              preferredOrganizationId: organizationId,
+            },
+          });
+        }
       }
     }
 

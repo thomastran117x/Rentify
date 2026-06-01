@@ -6,7 +6,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
 import { ApiError } from "@/lib/auth/types";
-import { isOwnerRole } from "@/lib/auth/roles";
+import {
+  canManageOrganizationPostings,
+  isOwnerRole,
+} from "@/lib/auth/roles";
 import { theme } from "@/styles/theme";
 import { SiteHeaderDesktopAccount } from "./site-header-account-panels";
 import { SiteHeaderMobileMenu } from "./site-header-mobile-menu";
@@ -33,12 +36,15 @@ export function SiteHeader() {
   const accountLinks = getAccountLinks(session?.user.role, {
     organizationMembershipCount: session?.user.organizationMembershipCount ?? 0,
     hasActiveOrganization: Boolean(session?.user.activeOrganization),
+    activeOrganization: session?.user.activeOrganization,
   });
   const displayName = session
     ? getDisplayLabel(session.user.email, session.user.username)
     : "Account";
 
-  const userCanCreatePosting = isOwnerRole(session?.user.role);
+  const userCanCreatePosting =
+    isOwnerRole(session?.user.role) ||
+    canManageOrganizationPostings(session?.user.activeOrganization);
   const mobileCtaHref = userCanCreatePosting ? "/postings/create" : "/signup";
   const mobileCtaLabel = userCanCreatePosting
     ? "Create posting"

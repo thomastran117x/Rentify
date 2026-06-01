@@ -55,6 +55,7 @@ model Organization {
   memberships OrganizationMembership[]
   invitations OrganizationInvitation[]
   preferredByUsers User[] @relation("PreferredOrganization")
+  postings    Posting[]
 
   @@map("organizations")
 }
@@ -182,6 +183,7 @@ model Device {
 model Posting {
   id                String                     @id @db.VarChar(36)
   ownerId           String                     @map("owner_id") @db.VarChar(36)
+  organizationId    String                     @map("organization_id") @db.VarChar(36)
   status            PostingStatus
   family            PostingFamily
   subtype           String                     @db.VarChar(50)
@@ -208,6 +210,7 @@ model Posting {
   createdAt         DateTime                   @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt         DateTime                   @updatedAt @map("updated_at") @db.DateTime(6)
   owner             User                       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   photos            PostingPhoto[]
   availabilityBlocks PostingAvailabilityBlock[]
   searchOutboxEntries PostingSearchOutbox[]
@@ -222,6 +225,7 @@ model Posting {
   payments          Payment[]
 
   @@index([ownerId, status])
+  @@index([organizationId, status])
   @@index([status, publishedAt])
   @@index([status, family, subtype, publishedAt])
   @@index([country, region, city])

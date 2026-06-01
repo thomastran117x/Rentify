@@ -26,6 +26,8 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.contentSanitizationService,
         containerTokens.cacheService,
         containerTokens.postingsPublicCacheService,
+        containerTokens.organizationsRepository,
+        containerTokens.authRepository,
       ],
       resolve: ({ resolve }) =>
         new PostingsService(
@@ -38,6 +40,8 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.contentSanitizationService),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.postingsPublicCacheService),
+          resolve(containerTokens.organizationsRepository),
+          resolve(containerTokens.authRepository),
         ),
     });
     container.register({

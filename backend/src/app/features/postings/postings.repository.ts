@@ -667,6 +667,7 @@ export class PostingsRepository extends BaseRepository {
   async findPublicReadMetadataById(id: string): Promise<{
     id: string;
     ownerId: string;
+    organizationId: string;
     status: PostingStatus;
     archivedAt?: string;
   } | null> {
@@ -678,6 +679,7 @@ export class PostingsRepository extends BaseRepository {
         select: {
           id: true,
           ownerId: true,
+          organizationId: true,
           status: true,
           archivedAt: true,
         },
@@ -688,6 +690,7 @@ export class PostingsRepository extends BaseRepository {
       ? {
           id: posting.id,
           ownerId: posting.ownerId,
+          organizationId: posting.organizationId,
           status: posting.status as PostingStatus,
           archivedAt: posting.archivedAt?.toISOString(),
         }
@@ -698,7 +701,7 @@ export class PostingsRepository extends BaseRepository {
     input: ListOwnerPostingsInput,
   ): Promise<ListOwnerPostingsResult> {
     const where: Prisma.PostingWhereInput = {
-      ownerId: input.ownerId,
+      organizationId: input.organizationId,
       ...(input.status ? { status: input.status } : {}),
     };
     const skip = (input.page - 1) * input.pageSize;
@@ -738,7 +741,7 @@ export class PostingsRepository extends BaseRepository {
     const postings = await this.executeAsync(() =>
       this.prisma.posting.findMany({
         where: {
-          ownerId: input.ownerId,
+          organizationId: input.organizationId,
           id: {
             in: input.ids,
           },
@@ -2329,6 +2332,11 @@ export class PostingsRepository extends BaseRepository {
           id: input.ownerId,
         },
       },
+      organization: {
+        connect: {
+          id: input.organizationId,
+        },
+      },
       status: "draft",
       family: input.variant.family,
       subtype: input.variant.subtype,
@@ -2374,6 +2382,11 @@ export class PostingsRepository extends BaseRepository {
     photos: ManagedPostingPhotoInput[] = input.photos,
   ): Prisma.PostingUpdateInput {
     return {
+      organization: {
+        connect: {
+          id: input.organizationId,
+        },
+      },
       family: input.variant.family,
       subtype: input.variant.subtype,
       name: input.name,
@@ -2491,6 +2504,7 @@ export class PostingsRepository extends BaseRepository {
     return {
       id: posting.id,
       ownerId: posting.ownerId,
+      organizationId: posting.organizationId,
       status: posting.status as PostingStatus,
       variant: {
         family: posting.family,

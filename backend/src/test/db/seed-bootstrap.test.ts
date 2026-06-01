@@ -6,6 +6,7 @@ import { getDatabaseClient } from "@/configuration/resources/database";
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
+import { createFixtureId } from "@/seeds/types";
 
 describe("database seed harness", () => {
   beforeAll(async () => {
@@ -38,6 +39,39 @@ describe("database seed harness", () => {
         },
       }),
     ).toBe(SEED_BOOKINGS.length);
+
+    const organizationOwnedPostings = await prisma.posting.count({
+      where: {
+        id: {
+          in: SEED_POSTINGS.map((posting) => posting.id),
+        },
+        organizationId: {
+          not: null,
+        },
+      },
+    });
+
+    expect(organizationOwnedPostings).toBe(SEED_POSTINGS.length);
+
+    const ownerOneOrganization = await prisma.organization.findUnique({
+      where: {
+        id: createFixtureId(1040, 1),
+      },
+      include: {
+        memberships: {
+          orderBy: {
+            createdAt: "asc",
+          },
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    expect(ownerOneOrganization?.memberships.map((membership) => membership.role)).toEqual(
+      expect.arrayContaining(["primary_manager", "manager", "operator"]),
+    );
   });
 
   it("restores fixture-owned rows on refresh", async () => {

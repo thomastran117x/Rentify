@@ -1,6 +1,13 @@
 import { theme } from "@/styles/theme";
-import type { AuthResponseUser } from "@/lib/auth/types";
-import { isModeratorRole, isOwnerRole } from "@/lib/auth/roles";
+import type {
+  ActiveOrganizationSummary,
+  AuthResponseUser,
+} from "@/lib/auth/types";
+import {
+  canManageOrganizationPostings,
+  isModeratorRole,
+  isOwnerRole,
+} from "@/lib/auth/roles";
 
 export interface HeaderNavigationLink {
   href: string;
@@ -28,11 +35,14 @@ export function getAccountLinks(
   options?: {
     organizationMembershipCount?: number;
     hasActiveOrganization?: boolean;
+    activeOrganization?: ActiveOrganizationSummary;
   },
 ): HeaderAccountLink[] {
   const showOrganizations =
     (options?.organizationMembershipCount ?? 0) > 0 ||
     Boolean(options?.hasActiveOrganization);
+  const showCreatePosting =
+    isOwnerRole(role) || canManageOrganizationPostings(options?.activeOrganization);
 
   return [
     ...(isOwnerRole(role)
@@ -42,10 +52,14 @@ export function getAccountLinks(
             label: "Dashboard",
             description: "Manage listings, bookings, and performance",
           },
+        ]
+      : []),
+    ...(showCreatePosting
+      ? [
           {
             href: "/postings/create",
             label: "Create posting",
-            description: "List a rental for others to discover",
+            description: "Create and manage drafts for your active organization",
           },
         ]
       : []),

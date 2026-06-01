@@ -244,4 +244,48 @@ describe("api client", () => {
 
     expect(result).toBe("openapi: 3.1.0");
   });
+
+  it("includes the CSRF header for public auth requests", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              ok: true,
+            },
+            error: null,
+            meta: {
+              requestId: "request-6",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { publicJson } = await import("./client");
+    await publicJson<{ ok: true }, { email: string }>(
+      "POST",
+      "/auth/local/login",
+      {
+        email: "owner1@rentify.local",
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8040/api/v1/auth/local/login",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-csrf-token": "client-csrf-token",
+        }),
+      }),
+    );
+  });
 });

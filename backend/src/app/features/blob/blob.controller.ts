@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import BadRequestError from "@/errors/http/bad-request.error";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { created } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
@@ -39,6 +40,50 @@ export class BlobController {
       filename: input.filename,
       contentType: input.contentType,
       scope: input.scope,
+      requestOrigin: new URL(context.req.url).origin,
     };
   }
+
+  uploadLocal = async (context: Context<AppBindings>): Promise<Response> => {
+    const blobName = context.req.query("blobName")?.trim();
+    const expiresAt = context.req.query("expiresAt")?.trim();
+    const token = context.req.query("token")?.trim();
+    const contentType = context.req.header("content-type")?.trim();
+
+    if (!blobName || !expiresAt || !token || !contentType) {
+      throw new BadRequestError("Local blob upload query parameters are missing.");
+    }
+
+    const body = Buffer.from(await context.req.raw.arrayBuffer());
+
+    await this.blobService.uploadLocalBlob({
+      blobName,
+      expiresAt,
+      token,
+      contentType,
+      body,
+    });
+
+    return new Response(null, {
+      status: 201,
+    });
+  };
+
+  getLocal = async (context: Context<AppBindings>): Promise<Response> => {
+    const blobName = context.req.query("blobName")?.trim();
+
+    if (!blobName) {
+      throw new BadRequestError("Blob name is required.");
+    }
+
+    const blob = await this.blobService.readLocalBlob(blobName);
+
+    return new Response(new Uint8Array(blob.body), {
+      status: 200,
+      headers: {
+        "content-type": blob.contentType,
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    });
+  };
 }

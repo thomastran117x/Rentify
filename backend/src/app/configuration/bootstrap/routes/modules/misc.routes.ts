@@ -14,6 +14,17 @@ export const blobRouteModule: RouteModule = {
         "createUploadUrl",
       ),
     );
+    app.put(
+      "/blob/upload",
+      resolveHandler<BlobController>(
+        containerTokens.blobController,
+        "uploadLocal",
+      ),
+    );
+    app.get(
+      "/blob/file",
+      resolveHandler<BlobController>(containerTokens.blobController, "getLocal"),
+    );
   },
 };
 

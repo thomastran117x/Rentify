@@ -150,6 +150,7 @@ export interface PostingDetailResponse {
 
 export interface PostingRecord
   extends Omit<PublicPostingDetail, "status" | "details" | "variant"> {
+  organizationId: string;
   ownerId: string;
   status: PostingStatus;
   variant: PostingVariant;

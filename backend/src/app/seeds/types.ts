@@ -20,6 +20,11 @@ export interface SeedUserFixture {
   phoneNumber?: string;
   avatarUrl?: string;
   trustworthinessScore?: number;
+  organizationMemberships?: Array<{
+    ownerEmail: string;
+    role: "manager" | "operator";
+    preferred?: boolean;
+  }>;
 }
 
 export interface SeedDeviceFixture {
@@ -329,6 +334,7 @@ export interface SeedPostingAnalyticsOutboxFixture {
 
 export interface SeedState {
   userIdsByEmail: Map<string, string>;
+  organizationIdsByOwnerEmail: Map<string, string>;
   postingOwnerIdsByPostingId: Map<string, string>;
 }
 

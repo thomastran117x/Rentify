@@ -23,6 +23,30 @@ describe("site header shared helpers", () => {
     expect(userLinks.some((link) => link.href === "/dashboard")).toBe(false);
   });
 
+  it("shows create posting for manager-capable active organizations", () => {
+    const managerLinks = getAccountLinks("user", {
+      activeOrganization: {
+        id: "org-1",
+        name: "Org 1",
+        role: "manager",
+      },
+    });
+    const operatorLinks = getAccountLinks("user", {
+      activeOrganization: {
+        id: "org-1",
+        name: "Org 1",
+        role: "operator",
+      },
+    });
+
+    expect(managerLinks.some((link) => link.href === "/postings/create")).toBe(
+      true,
+    );
+    expect(
+      operatorLinks.some((link) => link.href === "/postings/create"),
+    ).toBe(false);
+  });
+
   it("returns moderation links for moderator-capable roles", () => {
     const moderatorLinks = getAccountLinks("moderator");
     const adminLinks = getAccountLinks("admin");
