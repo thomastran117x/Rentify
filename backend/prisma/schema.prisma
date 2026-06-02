@@ -22,16 +22,11 @@ model User {
   devices       Device[]
   oauthIdentities OAuthIdentity[]
   profile       Profile?
-  postings      Posting[]
   postingReviews PostingReview[] @relation("PostingReviewAuthor")
   bookingRequestsAsRenter BookingRequest[] @relation("BookingRequestRenter")
-  bookingRequestsAsOwner  BookingRequest[] @relation("BookingRequestOwner")
   rentingsAsRenter Renting[] @relation("RentingRenter")
-  rentingsAsOwner  Renting[] @relation("RentingOwner")
   rentingDisputesOpened RentingDispute[] @relation("RentingDisputeOpenedBy")
   paymentsAsRenter Payment[] @relation("PaymentRenter")
-  paymentsAsOwner  Payment[] @relation("PaymentOwner")
-  payouts          Payout[]
   refundsIssued    Refund[]  @relation("RefundIssuer")
   personalAccessTokens PersonalAccessToken[]
   recommendationProfile UserRecommendationProfile?
@@ -191,7 +186,6 @@ model Device {
 
 model Posting {
   id                String                     @id @db.VarChar(36)
-  ownerId           String                     @map("owner_id") @db.VarChar(36)
   organizationId    String                     @map("organization_id") @db.VarChar(36)
   status            PostingStatus
   family            PostingFamily
@@ -218,7 +212,6 @@ model Posting {
   archivedAt        DateTime?                  @map("archived_at") @db.DateTime(6)
   createdAt         DateTime                   @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt         DateTime                   @updatedAt @map("updated_at") @db.DateTime(6)
-  owner             User                       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   photos            PostingPhoto[]
   availabilityBlocks PostingAvailabilityBlock[]
@@ -233,7 +226,6 @@ model Posting {
   rentings          Renting[]
   payments          Payment[]
 
-  @@index([ownerId, status])
   @@index([organizationId, status])
   @@index([status, publishedAt])
   @@index([status, family, subtype, publishedAt])
@@ -279,7 +271,6 @@ model BookingRequest {
   id             String               @id @db.VarChar(36)
   postingId       String               @map("posting_id") @db.VarChar(36)
   renterId        String               @map("renter_id") @db.VarChar(36)
-  ownerId         String               @map("owner_id") @db.VarChar(36)
   organizationId  String               @map("organization_id") @db.VarChar(36)
   status          BookingRequestStatus
   startAt         DateTime             @map("start_at") @db.DateTime(6)
@@ -317,7 +308,6 @@ model BookingRequest {
   updatedAt       DateTime             @updatedAt @map("updated_at") @db.DateTime(6)
   posting         Posting              @relation(fields: [postingId], references: [id], onDelete: Cascade)
   renter          User                 @relation("BookingRequestRenter", fields: [renterId], references: [id], onDelete: Cascade)
-  owner           User                 @relation("BookingRequestOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   holdBlock       PostingAvailabilityBlock? @relation("BookingRequestHold", fields: [holdBlockId], references: [id], onDelete: SetNull)
   renting         Renting?
@@ -326,7 +316,6 @@ model BookingRequest {
   @@index([postingId, status, startAt])
   @@index([postingId, holdExpiresAt])
   @@index([status, conversionReservationExpiresAt])
-  @@index([ownerId, status, createdAt])
   @@index([organizationId, status, createdAt])
   @@index([renterId, status, createdAt])
   @@index([status, holdExpiresAt])
@@ -338,7 +327,6 @@ model Renting {
   postingId         String        @map("posting_id") @db.VarChar(36)
   bookingRequestId  String        @unique @map("booking_request_id") @db.VarChar(36)
   renterId          String        @map("renter_id") @db.VarChar(36)
-  ownerId           String        @map("owner_id") @db.VarChar(36)
   organizationId    String        @map("organization_id") @db.VarChar(36)
   status            RentingStatus
   startAt           DateTime      @map("start_at") @db.DateTime(6)
@@ -363,13 +351,11 @@ model Renting {
   posting           Posting       @relation(fields: [postingId], references: [id], onDelete: Cascade)
   bookingRequest    BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
   renter            User          @relation("RentingRenter", fields: [renterId], references: [id], onDelete: Cascade)
-  owner             User          @relation("RentingOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   dispute           RentingDispute?
 
   @@index([postingId, status, startAt])
   @@index([renterId, status, createdAt])
-  @@index([ownerId, status, createdAt])
   @@index([organizationId, status, createdAt])
   @@map("rentings")
 }
@@ -394,7 +380,6 @@ model Payment {
   bookingRequestId     String         @unique @map("booking_request_id") @db.VarChar(36)
   postingId            String         @map("posting_id") @db.VarChar(36)
   renterId             String         @map("renter_id") @db.VarChar(36)
-  ownerId              String         @map("owner_id") @db.VarChar(36)
   organizationId       String         @map("organization_id") @db.VarChar(36)
   provider             PaymentProvider
   status               PaymentStatus
@@ -415,7 +400,6 @@ model Payment {
   bookingRequest       BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
   posting              Posting        @relation(fields: [postingId], references: [id], onDelete: Cascade)
   renter               User           @relation("PaymentRenter", fields: [renterId], references: [id], onDelete: Cascade)
-  owner                User           @relation("PaymentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   attempts             PaymentAttempt[]
   refunds              Refund[]
@@ -424,7 +408,6 @@ model Payment {
   ledgerEntries        PaymentLedgerEntry[]
 
   @@index([renterId, status, createdAt])
-  @@index([ownerId, status, createdAt])
   @@index([organizationId, status, createdAt])
   @@index([status, createdAt])
   @@map("payments")
@@ -475,7 +458,6 @@ model Refund {
 model Payout {
   id             String       @id @db.VarChar(36)
   paymentId      String       @unique @map("payment_id") @db.VarChar(36)
-  ownerId        String       @map("owner_id") @db.VarChar(36)
   organizationId String       @map("organization_id") @db.VarChar(36)
   status         PayoutStatus
   amount         Decimal      @db.Decimal(18, 2)
@@ -487,10 +469,8 @@ model Payout {
   createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.DateTime(6)
   payment        Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  owner          User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([ownerId, status, dueAt])
   @@index([organizationId, status, dueAt])
   @@index([status, dueAt])
   @@map("payouts")
@@ -582,7 +562,6 @@ model SearchReindexRun {
 model PostingViewEvent {
   id             String   @id @db.VarChar(36)
   postingId      String   @map("posting_id") @db.VarChar(36)
-  ownerId        String   @map("owner_id") @db.VarChar(36)
   organizationId String   @map("organization_id") @db.VarChar(36)
   viewerHash     String   @map("viewer_hash") @db.VarChar(128)
   userId         String?  @map("user_id") @db.VarChar(36)
@@ -597,7 +576,6 @@ model PostingViewEvent {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([postingId, eventDate])
-  @@index([ownerId, eventDate])
   @@index([organizationId, eventDate])
   @@index([postingId, eventHour])
   @@index([viewerHash, eventDate])
@@ -606,14 +584,12 @@ model PostingViewEvent {
 
 model PostingAnalyticsUniqueView {
   postingId   String   @map("posting_id") @db.VarChar(36)
-  ownerId     String   @map("owner_id") @db.VarChar(36)
   organizationId String @map("organization_id") @db.VarChar(36)
   viewerHash  String   @map("viewer_hash") @db.VarChar(128)
   eventDate   DateTime @map("event_date") @db.DateTime(6)
   firstSeenAt DateTime @default(now()) @map("first_seen_at") @db.DateTime(6)
 
   @@id([postingId, eventDate, viewerHash])
-  @@index([ownerId, eventDate])
   @@index([organizationId, eventDate])
   @@map("posting_analytics_unique_views")
 }
@@ -621,7 +597,6 @@ model PostingAnalyticsUniqueView {
 model PostingAnalyticsHourly {
   id               String   @id @db.VarChar(36)
   postingId        String   @map("posting_id") @db.VarChar(36)
-  ownerId          String   @map("owner_id") @db.VarChar(36)
   organizationId   String   @map("organization_id") @db.VarChar(36)
   bucketStart      DateTime @map("bucket_start") @db.DateTime(6)
   searchImpressions Int     @default(0) @map("search_impressions")
@@ -643,7 +618,6 @@ model PostingAnalyticsHourly {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([postingId, bucketStart])
-  @@index([ownerId, bucketStart])
   @@index([organizationId, bucketStart])
   @@map("posting_analytics_hourly")
 }
@@ -651,7 +625,6 @@ model PostingAnalyticsHourly {
 model PostingAnalyticsDaily {
   id               String   @id @db.VarChar(36)
   postingId        String   @map("posting_id") @db.VarChar(36)
-  ownerId          String   @map("owner_id") @db.VarChar(36)
   organizationId   String   @map("organization_id") @db.VarChar(36)
   bucketStart      DateTime @map("bucket_start") @db.DateTime(6)
   searchImpressions Int     @default(0) @map("search_impressions")
@@ -673,7 +646,6 @@ model PostingAnalyticsDaily {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([postingId, bucketStart])
-  @@index([ownerId, bucketStart])
   @@index([organizationId, bucketStart])
   @@map("posting_analytics_daily")
 }
@@ -681,7 +653,6 @@ model PostingAnalyticsDaily {
 model PostingAnalyticsOutbox {
   id           String                    @id @db.VarChar(36)
   postingId    String                    @map("posting_id") @db.VarChar(36)
-  ownerId      String                    @map("owner_id") @db.VarChar(36)
   organizationId String                  @map("organization_id") @db.VarChar(36)
   eventType    PostingAnalyticsEventType @map("event_type")
   payload      Json
@@ -696,7 +667,6 @@ model PostingAnalyticsOutbox {
   organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([availableAt, processedAt, processingAt])
-  @@index([ownerId, eventType])
   @@index([organizationId, eventType])
   @@index([postingId, eventType])
   @@map("posting_analytics_outbox")
@@ -794,7 +764,6 @@ model RecommendationActivity {
   source                   RecommendationActivitySource
   occurredAt               DateTime                        @map("occurred_at") @db.DateTime(6)
   postingId                String                          @map("posting_id") @db.VarChar(36)
-  ownerId                  String                          @map("owner_id") @db.VarChar(36)
   organizationId           String                          @map("organization_id") @db.VarChar(36)
   actorUserId              String?                         @map("actor_user_id") @db.VarChar(36)
   anonymousActorHash       String?                         @map("anonymous_actor_hash") @db.VarChar(128)
@@ -814,7 +783,6 @@ model RecommendationActivity {
   @@index([postingId, eventType, lastOccurredAt])
   @@index([actorUserId, personalizationEligible, lastOccurredAt])
   @@index([anonymousActorHash, eventType, lastOccurredAt])
-  @@index([ownerId, eventType, lastOccurredAt])
   @@index([organizationId, eventType, lastOccurredAt], map: "rec_act_org_evt_last_idx")
   @@map("recommendation_activities")
 }

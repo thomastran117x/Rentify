@@ -66,7 +66,6 @@ describe("PostingManagementWorkspace", () => {
         {
           id: "posting-1",
           organizationId: "org-1",
-          ownerId: "owner-1",
           status: "draft",
           variant: {
             family: "place",
@@ -114,7 +113,6 @@ describe("PostingManagementWorkspace", () => {
     getPostingMock.mockResolvedValue({
       id: "posting-1",
       organizationId: "org-1",
-      ownerId: "owner-1",
       status: "draft",
       variant: {
         family: "place",

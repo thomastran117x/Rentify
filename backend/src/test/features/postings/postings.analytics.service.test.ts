@@ -12,7 +12,6 @@ function hashValue(value: string): string {
 function createPublicPosting(overrides: Record<string, unknown> = {}) {
   return {
     id: "posting-1",
-    ownerId: "owner-1",
     organizationId: "org-1",
     status: "published",
     archivedAt: undefined,
@@ -101,7 +100,6 @@ describe("PostingsAnalyticsService", () => {
 
     expect(analyticsRepository.enqueuePostingViewedEvent).toHaveBeenCalledWith({
       postingId: "posting-1",
-      ownerId: "owner-1",
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
       viewerHash: hashValue(
@@ -175,7 +173,6 @@ describe("PostingsAnalyticsService", () => {
       analyticsRepository.enqueueSearchImpressionEvent,
     ).toHaveBeenNthCalledWith(1, {
       postingId: "posting-1",
-      ownerId: "owner-1",
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
@@ -191,7 +188,6 @@ describe("PostingsAnalyticsService", () => {
         .mockResolvedValueOnce(createPublicPosting())
         .mockResolvedValueOnce({
           id: "posting-2",
-          ownerId: "owner-1",
           organizationId: "org-1",
           status: "paused",
         }),
@@ -213,7 +209,6 @@ describe("PostingsAnalyticsService", () => {
     );
     expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledWith({
       postingId: "posting-1",
-      ownerId: "owner-1",
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
@@ -259,7 +254,6 @@ describe("PostingsAnalyticsService", () => {
         .mockResolvedValueOnce(createPublicPosting())
         .mockResolvedValueOnce({
           ...createPublicPosting(),
-          ownerId: "owner-2",
           organizationId: "org-2",
         })
         .mockResolvedValueOnce(createPublicPosting()),

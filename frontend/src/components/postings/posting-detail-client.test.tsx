@@ -69,16 +69,15 @@ describe("PostingDetailClient", () => {
     });
   });
 
-  it("renders posting, owner, and review report actions", async () => {
+  it("renders posting, organization, and review report actions", async () => {
     render(
       <PostingDetailClient
         posting={{
           id: "posting-1",
-          ownerId: "owner-1",
-          owner: {
-            id: "owner-1",
-            username: "owner-one",
-            role: "owner",
+          organizationId: "org-1",
+          organization: {
+            id: "org-1",
+            name: "Owner One Organization",
           },
           status: "published",
           variant: {
@@ -116,8 +115,8 @@ describe("PostingDetailClient", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Report posting" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("button", { name: "Report posting" }).length,
+    ).toBeGreaterThan(0);
 
     await waitFor(() => {
       expect(screen.getByText("Excellent stay")).toBeInTheDocument();

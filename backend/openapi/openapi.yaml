@@ -3166,12 +3166,10 @@ paths:
                 message: Posting draft created successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3412,12 +3410,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -3553,12 +3549,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -3691,12 +3685,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -3853,12 +3845,10 @@ paths:
                 message: Posting updated successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3977,12 +3967,10 @@ paths:
                 message: Request completed successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -4095,12 +4083,10 @@ paths:
                 message: Posting duplicated successfully.
                 data:
                   id: posting-2
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: draft
                   variant:
                     family: place
@@ -4215,12 +4201,10 @@ paths:
                 message: Posting published successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -4335,12 +4319,10 @@ paths:
                 message: Posting paused successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: paused
                   variant:
                     family: place
@@ -4456,12 +4438,10 @@ paths:
                 message: Posting unpaused successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -4576,12 +4556,10 @@ paths:
                 message: Posting archived successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: archived
                   variant:
                     family: place
@@ -5317,17 +5295,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -5471,17 +5446,14 @@ paths:
                         role: moderator
                       subjectSnapshot:
                         subjectType: posting
-                        summaryText: Sunny loft workspace published owner-one
+                        summaryText: Sunny loft workspace published Owner One Organization
                         posting:
                           id: posting-1
                           name: Sunny loft workspace
                           status: published
-                          owner:
-                            id: owner-1
-                            email: owner1@rentify.local
-                            username: owner-one
-                            avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                            role: owner
+                          organization:
+                            id: org-1
+                            name: Owner One Organization
                   pagination:
                     page: 1
                     pageSize: 20
@@ -5575,17 +5547,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                   reviewedAt: '2026-05-25T16:00:00.000Z'
                   events:
                     - id: report-event-1
@@ -5693,17 +5662,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -5795,17 +5761,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                   resolutionCode: action_taken
                   resolutionSummary: Listing removed after moderator review.
                   reviewedAt: '2026-05-25T16:00:00.000Z'
@@ -6332,12 +6295,10 @@ paths:
                   items:
                     - posting:
                         id: posting-1
-                        ownerId: owner-1
-                        owner:
-                          id: owner-1
-                          username: owner-one
-                          avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                          role: owner
+                        organizationId: org-1
+                        organization:
+                          id: org-1
+                          name: Owner One Organization
                         status: published
                         variant:
                           family: place
@@ -6477,12 +6438,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -6609,7 +6568,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -6721,7 +6680,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -6916,7 +6875,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -7031,7 +6990,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -7169,7 +7128,7 @@ paths:
                       bookingRequestId: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       sourceStatus: approved
                       startAt: '2026-06-14T15:00:00.000Z'
@@ -7319,7 +7278,7 @@ paths:
                       bookingRequestId: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: pending
                       sourceStatus: pending
                       startAt: '2026-06-14T15:00:00.000Z'
@@ -7424,7 +7383,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7523,7 +7482,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-15T15:00:00.000Z'
                   endAt: '2026-06-18T11:00:00.000Z'
@@ -7686,7 +7645,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7784,7 +7743,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: declined
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7882,7 +7841,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: cancelled
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7983,7 +7942,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -8127,7 +8086,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -8214,7 +8173,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -8309,7 +8268,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: partially_refunded
                   pricingCurrency: CAD
@@ -8403,7 +8362,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: succeeded
                   pricingCurrency: CAD
@@ -8546,7 +8505,7 @@ paths:
                   payouts:
                     - id: payout-1
                       paymentId: payment-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: scheduled
                       amount: 405
                       dueAt: '2026-06-17T12:00:00.000Z'
@@ -8624,7 +8583,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8718,7 +8677,7 @@ paths:
                       postingId: posting-1
                       bookingRequestId: booking-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: confirmed
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -8823,7 +8782,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8908,7 +8867,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: check_in_ready
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8992,7 +8951,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: active
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -9076,7 +9035,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: completed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -9169,7 +9128,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: disputed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -9262,7 +9221,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -10660,8 +10619,13 @@ components:
               type: string
             status:
               type: string
-            owner:
-              $ref: '#/components/schemas/ContentReportUserSummary'
+            organization:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
         review:
           type: object
           properties:

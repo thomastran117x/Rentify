@@ -4,7 +4,7 @@ function createAnalyticsOutboxRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "outbox-1",
     postingId: "posting-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     eventType: "posting_viewed",
     payload: {
       occurredAt: "2026-05-20T12:00:00.000Z",
@@ -39,7 +39,7 @@ describe("PostingsAnalyticsRepository", () => {
 
     await repository.enqueuePostingViewedEvent({
       postingId: "posting-1",
-      ownerId: "owner-1",
+      organizationId: "org-1",
       occurredAt: "2026-05-20T12:00:00.000Z",
       viewerHash: "viewer-hash",
       userId: "user-1",
@@ -52,7 +52,7 @@ describe("PostingsAnalyticsRepository", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           postingId: "posting-1",
-          ownerId: "owner-1",
+          organizationId: "org-1",
           eventType: "posting_viewed",
           payload: {
             occurredAt: "2026-05-20T12:00:00.000Z",
@@ -95,7 +95,7 @@ describe("PostingsAnalyticsRepository", () => {
       {
         id: "outbox-1",
         postingId: "posting-1",
-        ownerId: "owner-1",
+        organizationId: "org-1",
         eventType: "posting_viewed",
         payload: {
           occurredAt: "2026-05-20T12:00:00.000Z",
@@ -168,7 +168,7 @@ describe("PostingsAnalyticsRepository", () => {
 
     await repository.processPostingViewedEvent({
       postingId: "posting-1",
-      ownerId: "owner-1",
+      organizationId: "org-1",
       occurredAt: "2026-05-20T10:45:00.000Z",
       eventDate: "2026-05-20T00:00:00.000Z",
       eventHour: "2026-05-20T10:00:00.000Z",
@@ -183,7 +183,7 @@ describe("PostingsAnalyticsRepository", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           postingId: "posting-1",
-          ownerId: "owner-1",
+          organizationId: "org-1",
           viewerHash: "viewer-hash",
         }),
       }),
@@ -194,7 +194,7 @@ describe("PostingsAnalyticsRepository", () => {
       data: [
         {
           postingId: "posting-1",
-          ownerId: "owner-1",
+          organizationId: "org-1",
           viewerHash: "viewer-hash",
           eventDate: new Date("2026-05-20T00:00:00.000Z"),
         },
@@ -275,7 +275,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as never);
 
     const result = await repository.getOwnerSummary({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       window: "7d",
     });
 
@@ -346,7 +347,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as never);
 
     const result = await repository.listOwnerPostingsAnalytics({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       window: "7d",
       page: 1,
       pageSize: 20,
@@ -431,7 +433,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as never);
 
     const result = await repository.getPostingAnalyticsDetail({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "org-1",
       postingId: "posting-1",
       window: "7d",
       granularity: "hour",

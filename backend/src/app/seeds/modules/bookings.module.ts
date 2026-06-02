@@ -132,17 +132,10 @@ export const bookingsSeedModule: SeedModule = {
     });
 
     for (const fixture of SEED_BOOKINGS) {
-      const ownerId = state.postingOwnerIdsByPostingId.get(fixture.postingId);
       const organizationId = state.postingOrganizationIdsByPostingId.get(
         fixture.postingId,
       );
       const renterId = state.userIdsByEmail.get(fixture.renterEmail);
-
-      if (!ownerId) {
-        throw new Error(
-          `Missing seeded posting owner for booking ${fixture.id}.`,
-        );
-      }
 
       if (!organizationId) {
         throw new Error(
@@ -185,7 +178,6 @@ export const bookingsSeedModule: SeedModule = {
           id: fixture.id,
           postingId: fixture.postingId,
           renterId,
-          ownerId,
           organizationId,
           status: fixture.status,
           startAt: new Date(fixture.startAt),
@@ -238,7 +230,6 @@ export const bookingsSeedModule: SeedModule = {
             bookingRequestId: fixture.id,
             postingId: fixture.postingId,
             renterId,
-            ownerId,
             organizationId,
             provider: fixture.payment.provider,
             status: fixture.payment.status,
@@ -319,7 +310,6 @@ export const bookingsSeedModule: SeedModule = {
             data: {
               id: fixture.payment.payout.id,
               paymentId: fixture.payment.id,
-              ownerId,
               organizationId,
               status: fixture.payment.payout.status,
               amount: fixture.payment.payout.amount,
@@ -377,7 +367,6 @@ export const bookingsSeedModule: SeedModule = {
             postingId: fixture.postingId,
             bookingRequestId: fixture.id,
             renterId,
-            ownerId,
             organizationId,
             status: fixture.renting.status,
             startAt: new Date(fixture.startAt),

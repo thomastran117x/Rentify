@@ -32,7 +32,7 @@ function buildBooking(
     id: "booking-1",
     postingId: "posting-1",
     renterId: "renter-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "approved",
     startAt: "2026-07-01T15:00:00.000Z",
     endAt: "2026-07-03T11:00:00.000Z",

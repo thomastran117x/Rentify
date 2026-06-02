@@ -25,7 +25,6 @@ export interface RentingRecord {
   postingId: string;
   bookingRequestId: string;
   renterId: string;
-  ownerId: string;
   organizationId: string;
   status: RentingStatus;
   startAt: string;

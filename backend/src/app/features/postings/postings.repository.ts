@@ -55,11 +55,7 @@ type SearchReindexCatchUpState =
 
 type PostingPersistence = Prisma.PostingGetPayload<{
   include: {
-    owner: {
-      include: {
-        profile: true;
-      };
-    };
+    organization: true;
     photos: {
       orderBy: {
         position: "asc";
@@ -146,11 +142,7 @@ interface LockRow {
 
 const SEARCH_REINDEX_START_LOCK_NAME = "rentify:search-reindex:start";
 const postingInclude = {
-  owner: {
-    include: {
-      profile: true,
-    },
-  },
+  organization: true,
   photos: {
     orderBy: {
       position: "asc",
@@ -207,8 +199,6 @@ export class PostingsRepository extends BaseRepository {
             ? "upsert"
             : "delete",
         );
-        await this.syncOwnerPostingCounts(transaction, input.ownerId);
-
         return created;
       });
 
@@ -261,8 +251,6 @@ export class PostingsRepository extends BaseRepository {
               ? "upsert"
               : "delete",
           );
-          await this.syncOwnerPostingCounts(transaction, input.ownerId);
-
           return updated;
         });
 
@@ -506,7 +494,7 @@ export class PostingsRepository extends BaseRepository {
     return Boolean(renting);
   }
 
-  async publish(id: string, ownerId: string): Promise<PostingRecord | null> {
+  async publish(id: string): Promise<PostingRecord | null> {
     return this.executeAsync(async () => {
       try {
         const posting = await this.prisma.$transaction(async (transaction) => {
@@ -524,8 +512,6 @@ export class PostingsRepository extends BaseRepository {
           });
 
           await this.enqueueOutbox(transaction, updated.id, "upsert");
-          await this.syncOwnerPostingCounts(transaction, ownerId);
-
           return updated;
         });
 
@@ -543,7 +529,7 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async archive(id: string, ownerId: string): Promise<PostingRecord | null> {
+  async archive(id: string): Promise<PostingRecord | null> {
     return this.executeAsync(async () => {
       try {
         const posting = await this.prisma.$transaction(async (transaction) => {
@@ -560,8 +546,6 @@ export class PostingsRepository extends BaseRepository {
           });
 
           await this.enqueueOutbox(transaction, updated.id, "delete");
-          await this.syncOwnerPostingCounts(transaction, ownerId);
-
           return updated;
         });
 
@@ -579,7 +563,7 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async pause(id: string, ownerId: string): Promise<PostingRecord | null> {
+  async pause(id: string): Promise<PostingRecord | null> {
     return this.executeAsync(async () => {
       try {
         const posting = await this.prisma.$transaction(async (transaction) => {
@@ -596,8 +580,6 @@ export class PostingsRepository extends BaseRepository {
           });
 
           await this.enqueueOutbox(transaction, updated.id, "delete");
-          await this.syncOwnerPostingCounts(transaction, ownerId);
-
           return updated;
         });
 
@@ -615,7 +597,7 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  async unpause(id: string, ownerId: string): Promise<PostingRecord | null> {
+  async unpause(id: string): Promise<PostingRecord | null> {
     return this.executeAsync(async () => {
       try {
         const posting = await this.prisma.$transaction(async (transaction) => {
@@ -632,8 +614,6 @@ export class PostingsRepository extends BaseRepository {
           });
 
           await this.enqueueOutbox(transaction, updated.id, "upsert");
-          await this.syncOwnerPostingCounts(transaction, ownerId);
-
           return updated;
         });
 
@@ -666,7 +646,6 @@ export class PostingsRepository extends BaseRepository {
 
   async findPublicReadMetadataById(id: string): Promise<{
     id: string;
-    ownerId: string;
     organizationId: string;
     status: PostingStatus;
     archivedAt?: string;
@@ -678,7 +657,6 @@ export class PostingsRepository extends BaseRepository {
         },
         select: {
           id: true,
-          ownerId: true,
           organizationId: true,
           status: true,
           archivedAt: true,
@@ -689,7 +667,6 @@ export class PostingsRepository extends BaseRepository {
     return posting
       ? {
           id: posting.id,
-          ownerId: posting.ownerId,
           organizationId: posting.organizationId,
           status: posting.status as PostingStatus,
           archivedAt: posting.archivedAt?.toISOString(),
@@ -2288,50 +2265,9 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  private async syncOwnerPostingCounts(
-    transaction: Prisma.TransactionClient,
-    ownerId: string,
-  ): Promise<void> {
-    const [totalPostings, availablePostings] = await Promise.all([
-      transaction.posting.count({
-        where: {
-          ownerId,
-          status: {
-            in: ["draft", "published", "paused"],
-          },
-        },
-      }),
-      transaction.posting.count({
-        where: {
-          ownerId,
-          status: "published",
-          availabilityStatus: {
-            in: ["available", "limited"],
-          },
-          archivedAt: null,
-        },
-      }),
-    ]);
-
-    await transaction.profile.updateMany({
-      where: {
-        userId: ownerId,
-      },
-      data: {
-        rentPostingsCount: totalPostings,
-        availableRentPostingsCount: availablePostings,
-      },
-    });
-  }
-
   private toCreateData(input: UpsertPostingInput): Prisma.PostingCreateInput {
     return {
       id: randomUUID(),
-      owner: {
-        connect: {
-          id: input.ownerId,
-        },
-      },
       organization: {
         connect: {
           id: input.organizationId,
@@ -2503,7 +2439,6 @@ export class PostingsRepository extends BaseRepository {
 
     return {
       id: posting.id,
-      ownerId: posting.ownerId,
       organizationId: posting.organizationId,
       status: posting.status as PostingStatus,
       variant: {
@@ -2552,21 +2487,16 @@ export class PostingsRepository extends BaseRepository {
   }
 
   private mapPublicPosting(posting: PostingPersistence): PublicPostingRecord {
-    const owner = posting.owner
+    const organization = posting.organization
       ? {
-          id: posting.owner.id,
-          email: posting.owner.email,
-          username: posting.owner.profile?.username ?? undefined,
-          avatarUrl: posting.owner.profile?.avatarUrl ?? undefined,
-          role: posting.owner.role as NonNullable<
-            PublicPostingRecord["owner"]
-          >["role"],
+          id: posting.organization.id,
+          name: posting.organization.name,
         }
       : undefined;
 
     return {
       ...toPublicPostingRecord(this.mapPosting(posting)),
-      owner,
+      organization,
     };
   }
 
@@ -2577,7 +2507,7 @@ export class PostingsRepository extends BaseRepository {
 
     return {
       id: posting.id,
-      ownerId: posting.ownerId,
+      organizationId: posting.organizationId,
       status: posting.status as PostingStatus,
       variant: {
         family: posting.family,

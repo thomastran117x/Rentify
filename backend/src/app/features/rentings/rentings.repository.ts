@@ -134,7 +134,6 @@ export class RentingsRepository extends BaseRepository {
               postingId: bookingRequest.postingId,
               bookingRequestId: bookingRequest.id,
               renterId: bookingRequest.renterId,
-              ownerId: bookingRequest.ownerId,
               organizationId: bookingRequest.organizationId,
               status: "confirmed",
               startAt: bookingRequest.startAt,
@@ -216,7 +215,7 @@ export class RentingsRepository extends BaseRepository {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {
-          OR: [{ renterId: userId }, { ownerId: userId }],
+          renterId: userId,
           status: "active",
           endAt: {
             lte: now,
@@ -739,7 +738,6 @@ export class RentingsRepository extends BaseRepository {
       postingId: renting.postingId,
       bookingRequestId: renting.bookingRequestId,
       renterId: renting.renterId,
-      ownerId: renting.ownerId,
       organizationId: renting.organizationId,
       status: renting.status as RentingStatus,
       startAt: renting.startAt.toISOString(),

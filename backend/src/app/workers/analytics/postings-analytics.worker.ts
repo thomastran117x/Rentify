@@ -51,7 +51,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessPostingViewedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -71,7 +70,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessBookingRequestedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -87,7 +85,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessSearchImpressionEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -102,7 +99,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessSearchClickEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -117,7 +113,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessBookingApprovedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -132,7 +127,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessBookingDeclinedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -147,7 +141,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessBookingExpiredEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -162,7 +155,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessBookingCancelledEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -177,7 +169,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessPaymentFailedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -192,7 +183,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessRefundRecordedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),
@@ -208,7 +198,6 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
             const occurredAt = readString(payload.occurredAt, "occurredAt");
             const input: ProcessRentingConfirmedEventInput = {
               postingId: job.postingId,
-              ownerId: job.ownerId,
               organizationId: job.organizationId,
               occurredAt,
               eventDate: floorToUtcDay(occurredAt),

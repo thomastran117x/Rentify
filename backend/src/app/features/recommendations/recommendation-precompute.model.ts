@@ -60,7 +60,7 @@ export interface RecommendationActivityRow {
 
 export interface RecommendationPostingCandidate {
   id: string;
-  ownerId: string;
+  organizationId: string;
   family: PostingFamily;
   subtype: PostingSubtype;
   tags: string[];

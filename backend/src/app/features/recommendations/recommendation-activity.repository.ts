@@ -14,7 +14,6 @@ export class RecommendationActivityRepository extends BaseRepository {
     const prismaPosting = this.prisma.posting as unknown as {
       findUnique: (args: unknown) => Promise<{
         id: string;
-        ownerId: string;
         organizationId: string;
         family: RecommendationPostingSummary["family"];
         subtype: RecommendationPostingSummary["subtype"];
@@ -27,7 +26,6 @@ export class RecommendationActivityRepository extends BaseRepository {
         },
         select: {
           id: true,
-          ownerId: true,
           organizationId: true,
           family: true,
           subtype: true,
@@ -41,7 +39,6 @@ export class RecommendationActivityRepository extends BaseRepository {
 
     return {
       id: posting.id,
-      ownerId: posting.ownerId,
       organizationId: posting.organizationId,
       family: posting.family,
       subtype: posting.subtype,
@@ -91,7 +88,6 @@ export class RecommendationActivityRepository extends BaseRepository {
               source: activity.source,
               occurredAt: activity.occurredAt,
               postingId: activity.postingId,
-              ownerId: activity.ownerId,
               organizationId: activity.organizationId,
               actorUserId: activity.actorUserId ?? null,
               anonymousActorHash: activity.anonymousActorHash ?? null,
@@ -126,7 +122,6 @@ export class RecommendationActivityRepository extends BaseRepository {
               source: activity.source,
               occurredAt: activity.occurredAt,
               postingId: activity.postingId,
-              ownerId: activity.ownerId,
               organizationId: activity.organizationId,
               actorUserId: activity.actorUserId ?? null,
               anonymousActorHash: activity.anonymousActorHash ?? null,

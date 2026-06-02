@@ -125,7 +125,6 @@ export class BookingsService {
             {
               postingId: lockedPosting.id,
               renterId: input.renterId,
-              ownerId: lockedPosting.ownerId,
               organizationId: lockedPosting.organizationId,
               startAt: normalized.startAt,
               endAt: normalized.endAt,
@@ -161,7 +160,6 @@ export class BookingsService {
 
     await this.postingsAnalyticsRepository.enqueueBookingRequestedEvent({
       postingId: created.postingId,
-      ownerId: created.ownerId,
       organizationId: created.organizationId,
       occurredAt: created.createdAt,
       estimatedTotal: created.estimatedTotal,
@@ -654,7 +652,6 @@ export class BookingsService {
 
     await this.postingsAnalyticsRepository.enqueueBookingCancelledEvent({
       postingId: cancelled.postingId,
-      ownerId: cancelled.ownerId,
       organizationId: cancelled.organizationId,
       occurredAt: cancelled.cancelledAt ?? new Date().toISOString(),
     });
@@ -748,7 +745,6 @@ export class BookingsService {
 
     await this.postingsAnalyticsRepository.enqueueBookingApprovedEvent({
       postingId: approved.postingId,
-      ownerId: approved.ownerId,
       organizationId: approved.organizationId,
       occurredAt: approved.approvedAt ?? new Date().toISOString(),
     });
@@ -802,7 +798,6 @@ export class BookingsService {
 
     await this.postingsAnalyticsRepository.enqueueBookingDeclinedEvent({
       postingId: declined.postingId,
-      ownerId: declined.ownerId,
       organizationId: declined.organizationId,
       occurredAt: declined.declinedAt ?? new Date().toISOString(),
     });
@@ -861,7 +856,6 @@ export class BookingsService {
       bookingRequestId: bookingRequest.id,
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
-      ownerId: bookingRequest.ownerId,
       organizationId: bookingRequest.organizationId,
       status: bookingRequest.status,
       sourceStatus: bookingRequest.status,
@@ -1015,7 +1009,6 @@ export class BookingsService {
       bookingRequestId: renting.bookingRequestId,
       postingId: renting.postingId,
       renterId: renting.renterId,
-      ownerId: renting.ownerId,
       organizationId: renting.organizationId,
       status: renting.status,
       sourceStatus: renting.status,
@@ -1149,7 +1142,6 @@ export class BookingsService {
       bookingRequestId: bookingRequest.id,
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
-      ownerId: bookingRequest.ownerId,
       organizationId: bookingRequest.organizationId,
       status: bookingRequest.status,
       sourceStatus: bookingRequest.status,

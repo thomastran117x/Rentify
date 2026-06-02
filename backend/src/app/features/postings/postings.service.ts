@@ -8,7 +8,7 @@ import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
-import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
   MAX_BATCH_IDS,
@@ -63,14 +63,17 @@ export class PostingsService {
     private readonly contentSanitizationService: ContentSanitizationService,
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationAccessService: OrganizationAccessService,
     private readonly authRepository: AuthRepository,
   ) {
     this.logger = loggerFactory.forClass(PostingsService, "service");
   }
 
-  async createDraft(input: UpsertPostingInput): Promise<PostingRecord> {
-    const membership = await this.requireActiveMembership(input.ownerId);
+  async createDraft(
+    actorUserId: string,
+    input: UpsertPostingInput,
+  ): Promise<PostingRecord> {
+    const membership = await this.requireActiveMembership(actorUserId);
     this.assertCanManagePostingRole(membership.role);
     const normalizedInput = this.normalizeUpsertInput(
       await this.resolveWriteInputForActiveOrganization(input, membership),
@@ -84,8 +87,12 @@ export class PostingsService {
     return created;
   }
 
-  async duplicate(id: string, ownerId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+  async duplicate(id: string, actorUserId: string): Promise<PostingRecord> {
+    const posting = await this.requireManagedPosting(
+      id,
+      actorUserId,
+      "write",
+    );
     const availabilityBlocks =
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
     const duplicateInput = this.normalizeUpsertInput(
@@ -100,11 +107,14 @@ export class PostingsService {
     return duplicated;
   }
 
-  async update(id: string, input: UpsertPostingInput): Promise<PostingRecord> {
-    const existing = await this.requireManagedPosting(id, input.ownerId, "write");
+  async update(
+    id: string,
+    actorUserId: string,
+    input: UpsertPostingInput,
+  ): Promise<PostingRecord> {
+    const existing = await this.requireManagedPosting(id, actorUserId, "write");
     const normalizedInput = this.normalizeUpsertInput({
       ...input,
-      ownerId: existing.ownerId,
       organizationId: existing.organizationId,
     });
     this.assertSafeTextContent(normalizedInput);
@@ -126,9 +136,9 @@ export class PostingsService {
 
   async listOwnerAvailabilityBlocks(
     id: string,
-    ownerId: string,
+    actorUserId: string,
   ): Promise<{ availabilityBlocks: PostingAvailabilityBlockRecord[] }> {
-    const posting = await this.requireManagedPosting(id, ownerId, "read");
+    const posting = await this.requireManagedPosting(id, actorUserId, "read");
     const availabilityBlocks =
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
 
@@ -139,10 +149,10 @@ export class PostingsService {
 
   async createOwnerAvailabilityBlock(
     id: string,
-    ownerId: string,
+    actorUserId: string,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     const normalized = this.normalizeSingleAvailabilityBlock(input);
     this.assertSafeAvailabilityBlockContent(normalized);
 
@@ -165,11 +175,11 @@ export class PostingsService {
 
   async updateOwnerAvailabilityBlock(
     id: string,
-    ownerId: string,
+    actorUserId: string,
     blockId: string,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     const normalized = this.normalizeSingleAvailabilityBlock(input);
     this.assertSafeAvailabilityBlockContent(normalized);
 
@@ -206,10 +216,10 @@ export class PostingsService {
 
   async deleteOwnerAvailabilityBlock(
     id: string,
-    ownerId: string,
+    actorUserId: string,
     blockId: string,
   ): Promise<void> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
 
     await withFlowLock(
       this.cacheService,
@@ -233,11 +243,11 @@ export class PostingsService {
     );
   }
 
-  async publish(id: string, ownerId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+  async publish(id: string, actorUserId: string): Promise<PostingRecord> {
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanPublish(posting);
 
-    const published = await this.postingsRepository.publish(id, posting.ownerId);
+    const published = await this.postingsRepository.publish(id);
 
     if (!published) {
       throw new ResourceNotFoundError("Posting could not be found.");
@@ -248,8 +258,8 @@ export class PostingsService {
     return published;
   }
 
-  async pause(id: string, ownerId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+  async pause(id: string, actorUserId: string): Promise<PostingRecord> {
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanPause(posting);
 
     return withFlowLock(
@@ -258,14 +268,11 @@ export class PostingsService {
       async () => {
         const lockedPosting = await this.requireManagedPosting(
           id,
-          ownerId,
+          actorUserId,
           "write",
         );
         this.assertCanPause(lockedPosting);
-        const paused = await this.postingsRepository.pause(
-          id,
-          lockedPosting.ownerId,
-        );
+        const paused = await this.postingsRepository.pause(id);
 
         if (!paused) {
           throw new ResourceNotFoundError("Posting could not be found.");
@@ -278,8 +285,8 @@ export class PostingsService {
     );
   }
 
-  async unpause(id: string, ownerId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+  async unpause(id: string, actorUserId: string): Promise<PostingRecord> {
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanUnpause(posting);
 
     return withFlowLock(
@@ -288,14 +295,11 @@ export class PostingsService {
       async () => {
         const lockedPosting = await this.requireManagedPosting(
           id,
-          ownerId,
+          actorUserId,
           "write",
         );
         this.assertCanUnpause(lockedPosting);
-        const unpaused = await this.postingsRepository.unpause(
-          id,
-          lockedPosting.ownerId,
-        );
+        const unpaused = await this.postingsRepository.unpause(id);
 
         if (!unpaused) {
           throw new ResourceNotFoundError("Posting could not be found.");
@@ -309,10 +313,10 @@ export class PostingsService {
     );
   }
 
-  async archive(id: string, ownerId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(id, ownerId, "write");
+  async archive(id: string, actorUserId: string): Promise<PostingRecord> {
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanArchive(posting);
-    const archived = await this.postingsRepository.archive(id, posting.ownerId);
+    const archived = await this.postingsRepository.archive(id);
 
     if (!archived) {
       throw new ResourceNotFoundError("Posting could not be found.");
@@ -395,11 +399,11 @@ export class PostingsService {
   }
 
   async batchByOwner(
-    ownerId: string,
+    actorUserId: string,
     ids: string[],
   ): Promise<BatchPostingsResult<PostingRecord>> {
     const normalizedIds = this.normalizeBatchIds(ids);
-    const membership = await this.requireActiveMembership(ownerId);
+    const membership = await this.requireActiveMembership(actorUserId);
 
     return this.postingsRepository.batchFindByOwner({
       organizationId: membership.organizationId,
@@ -617,7 +621,6 @@ export class PostingsService {
     // Duplicate the posting with the same managed photo blobs and only owner-authored
     // availability blocks; transient booking holds should not carry over to the new draft.
     return {
-      ownerId: posting.ownerId,
       organizationId: posting.organizationId,
       variant: posting.variant,
       name: posting.name,
@@ -1303,19 +1306,8 @@ export class PostingsService {
     input: UpsertPostingInput,
     membership: AuthUserOrganizationMembershipRecord,
   ): Promise<UpsertPostingInput> {
-    const legacyOwnerId = await this.organizationsRepository.findPrimaryManagerUserId(
-      membership.organizationId,
-    );
-
-    if (!legacyOwnerId) {
-      throw new ConflictError(
-        "This organization does not have a primary manager configured.",
-      );
-    }
-
     return {
       ...input,
-      ownerId: legacyOwnerId,
       organizationId: membership.organizationId,
     };
   }
@@ -1324,17 +1316,7 @@ export class PostingsService {
     userId: string,
     organizationId: string,
   ): Promise<AuthUserOrganizationMembershipRecord | null> {
-    const user = await this.authRepository.findUserById(userId);
-
-    if (!user) {
-      return null;
-    }
-
-    return (
-      user.organizationMemberships.find(
-        (membership) => membership.organizationId === organizationId,
-      ) ?? null
-    );
+    return this.organizationAccessService.findMembership(userId, organizationId);
   }
 
   private assertCanManagePostingRole(

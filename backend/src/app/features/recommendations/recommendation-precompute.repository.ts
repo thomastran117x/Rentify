@@ -298,7 +298,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
         },
         select: {
           id: true,
-          ownerId: true,
+          organizationId: true,
           family: true,
           subtype: true,
           tags: true,
@@ -309,7 +309,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
 
       return rows.map((row) => ({
         id: String(row.id),
-        ownerId: String(row.ownerId),
+        organizationId: String(row.organizationId),
         family: row.family as RecommendationPostingCandidate["family"],
         subtype: row.subtype as RecommendationPostingCandidate["subtype"],
         tags: this.readTags(row.tags),

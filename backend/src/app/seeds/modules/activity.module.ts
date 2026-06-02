@@ -27,7 +27,6 @@ function startOfHour(date: Date): Date {
 
 type Aggregate = {
   postingId: string;
-  ownerId: string;
   organizationId: string;
   eventDate: Date;
   eventHour: Date;
@@ -115,17 +114,12 @@ export const activitySeedModule: SeedModule = {
     const dailyAggregateMap = new Map<string, Aggregate>();
 
     for (const viewEvent of SEED_POSTING_VIEW_EVENTS) {
-      const ownerId = state.postingOwnerIdsByPostingId.get(viewEvent.postingId);
       const organizationId = state.postingOrganizationIdsByPostingId.get(
         viewEvent.postingId,
       );
       const userId = viewEvent.userEmail
         ? state.userIdsByEmail.get(viewEvent.userEmail)
         : undefined;
-
-      if (!ownerId) {
-        throw new Error(`Missing owner for seeded view event ${viewEvent.id}.`);
-      }
 
       if (!organizationId) {
         throw new Error(
@@ -141,7 +135,6 @@ export const activitySeedModule: SeedModule = {
         data: {
           id: viewEvent.id,
           postingId: viewEvent.postingId,
-          ownerId,
           organizationId,
           viewerHash: viewEvent.viewerHash,
           userId: userId ?? null,
@@ -160,7 +153,6 @@ export const activitySeedModule: SeedModule = {
         await prisma.postingAnalyticsUniqueView.create({
           data: {
             postingId: viewEvent.postingId,
-            ownerId,
             organizationId,
             viewerHash: viewEvent.viewerHash,
             eventDate,
@@ -173,7 +165,6 @@ export const activitySeedModule: SeedModule = {
 
       const hourlyAggregate = hourlyAggregateMap.get(hourlyKey) ?? {
         postingId: viewEvent.postingId,
-        ownerId,
         organizationId,
         eventDate,
         eventHour,
@@ -186,7 +177,6 @@ export const activitySeedModule: SeedModule = {
 
       const dailyAggregate = dailyAggregateMap.get(dailyKey) ?? {
         postingId: viewEvent.postingId,
-        ownerId,
         organizationId,
         eventDate,
         eventHour,
@@ -239,7 +229,6 @@ export const activitySeedModule: SeedModule = {
         data: {
           id: createFixtureId(4040, hourlyIndex),
           postingId: aggregate.postingId,
-          ownerId: aggregate.ownerId,
           organizationId: aggregate.organizationId,
           bucketStart: aggregate.eventHour,
           searchImpressions: 0,
@@ -270,7 +259,6 @@ export const activitySeedModule: SeedModule = {
         data: {
           id: createFixtureId(4050, dailyIndex),
           postingId: aggregate.postingId,
-          ownerId: aggregate.ownerId,
           organizationId: aggregate.organizationId,
           bucketStart: aggregate.eventDate,
           searchImpressions: 0,
@@ -296,16 +284,9 @@ export const activitySeedModule: SeedModule = {
     }
 
     for (const event of SEED_ANALYTICS_OUTBOX_EVENTS) {
-      const ownerId = state.postingOwnerIdsByPostingId.get(event.postingId);
       const organizationId = state.postingOrganizationIdsByPostingId.get(
         event.postingId,
       );
-
-      if (!ownerId) {
-        throw new Error(
-          `Missing owner for analytics outbox event ${event.id}.`,
-        );
-      }
 
       if (!organizationId) {
         throw new Error(
@@ -317,7 +298,6 @@ export const activitySeedModule: SeedModule = {
         data: {
           id: event.id,
           postingId: event.postingId,
-          ownerId,
           organizationId,
           eventType: event.eventType,
           payload: event.payload as never,

@@ -259,12 +259,10 @@ const privateProfileExample = {
 };
 const postingExample = {
   id: "posting-1",
-  ownerId: "owner-1",
-  owner: {
-    id: "owner-1",
-    username: "owner-one",
-    avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
-    role: "owner",
+  organizationId: "org-1",
+  organization: {
+    id: "org-1",
+    name: "Owner One Organization",
   },
   status: "published",
   variant: {
@@ -419,17 +417,14 @@ const reportExample = {
   },
   subjectSnapshot: {
     subjectType: "posting",
-    summaryText: "Sunny loft workspace published owner-one",
+    summaryText: "Sunny loft workspace published Owner One Organization",
     posting: {
       id: "posting-1",
       name: "Sunny loft workspace",
       status: "published",
-      owner: {
-        id: "owner-1",
-        email: "owner1@rentify.local",
-        username: "owner-one",
-        avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
-        role: "owner",
+      organization: {
+        id: "org-1",
+        name: "Owner One Organization",
       },
     },
   },
@@ -552,7 +547,7 @@ const bookingRequestExample = {
   id: "booking-1",
   postingId: "posting-1",
   renterId: "user-1",
-  ownerId: "owner-1",
+  organizationId: "org-1",
   status: "approved",
   startAt: "2026-06-14T15:00:00.000Z",
   endAt: "2026-06-17T11:00:00.000Z",
@@ -606,7 +601,7 @@ const paymentExample = {
   bookingRequestId: "booking-1",
   postingId: "posting-1",
   renterId: "user-1",
-  ownerId: "owner-1",
+  organizationId: "org-1",
   provider: "square",
   status: "awaiting_method",
   pricingCurrency: "CAD",
@@ -633,7 +628,7 @@ const paymentExample = {
 const payoutExample = {
   id: "payout-1",
   paymentId: "payment-1",
-  ownerId: "owner-1",
+  organizationId: "org-1",
   status: "scheduled",
   amount: 405,
   dueAt: "2026-06-17T12:00:00.000Z",
@@ -645,7 +640,7 @@ const rentingExample = {
   postingId: "posting-1",
   bookingRequestId: "booking-1",
   renterId: "user-1",
-  ownerId: "owner-1",
+  organizationId: "org-1",
   status: "confirmed",
   startAt: "2026-06-14T15:00:00.000Z",
   endAt: "2026-06-17T11:00:00.000Z",
@@ -4063,7 +4058,7 @@ function buildOperations(): OperationDefinition[] {
                 bookingRequestId: "booking-1",
                 postingId: "posting-1",
                 renterId: "user-1",
-                ownerId: "owner-1",
+                organizationId: "org-1",
                 status: "approved",
                 sourceStatus: "approved",
                 startAt: bookingRequestExample.startAt,
@@ -4185,7 +4180,7 @@ function buildOperations(): OperationDefinition[] {
                 bookingRequestId: "booking-1",
                 postingId: "posting-1",
                 renterId: "user-1",
-                ownerId: "owner-1",
+                organizationId: "org-1",
                 status: "pending",
                 sourceStatus: "pending",
                 startAt: bookingRequestExample.startAt,
@@ -6062,7 +6057,13 @@ function buildComponents(): Record<string, unknown> {
               id: { type: "string" },
               name: { type: "string" },
               status: { type: "string" },
-              owner: schemaRef("ContentReportUserSummary"),
+              organization: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                },
+              },
             },
           },
           review: {

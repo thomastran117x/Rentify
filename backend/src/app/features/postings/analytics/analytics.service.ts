@@ -61,7 +61,6 @@ export class PostingsAnalyticsService {
 
     await this.analyticsRepository.enqueuePostingViewedEvent({
       postingId: posting.id,
-      ownerId: posting.ownerId,
       organizationId,
       occurredAt: occurredAt.toISOString(),
       viewerHash,
@@ -92,7 +91,6 @@ export class PostingsAnalyticsService {
 
         await this.analyticsRepository.enqueueSearchImpressionEvent({
           postingId: metadata.id,
-          ownerId: metadata.ownerId,
           organizationId: metadata.organizationId,
           occurredAt,
         });
@@ -120,7 +118,6 @@ export class PostingsAnalyticsService {
 
     await this.analyticsRepository.enqueueSearchClickEvent({
       postingId: metadata.id,
-      ownerId: metadata.ownerId,
       organizationId: metadata.organizationId,
       occurredAt: new Date().toISOString(),
     });

@@ -116,7 +116,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "posting_viewed",
       {
@@ -135,7 +134,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "search_impression",
       {
@@ -149,7 +147,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "search_click",
       {
@@ -163,7 +160,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "booking_requested",
       {
@@ -178,7 +174,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "booking_approved",
       {
@@ -192,7 +187,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "booking_declined",
       {
@@ -206,7 +200,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "booking_expired",
       {
@@ -220,7 +213,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "booking_cancelled",
       {
@@ -234,7 +226,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "payment_failed",
       {
@@ -248,7 +239,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "refund_recorded",
       {
@@ -263,7 +253,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.enqueueOutboxEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       "renting_confirmed",
       {
@@ -390,7 +379,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           data: {
             id: randomUUID(),
             postingId: input.postingId,
-            ownerId: input.ownerId,
             organizationId: input.organizationId,
             viewerHash: input.viewerHash,
             userId: input.userId ?? null,
@@ -408,7 +396,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             data: [
               {
                 postingId: input.postingId,
-                ownerId: input.ownerId,
                 organizationId: input.organizationId,
                 viewerHash: input.viewerHash,
                 eventDate,
@@ -421,7 +408,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementHourlyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventHour,
           {
@@ -432,7 +418,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementDailyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventDate,
           {
@@ -449,7 +434,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -464,7 +448,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -479,7 +462,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -494,7 +476,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -509,7 +490,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -524,7 +504,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -539,7 +518,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -554,7 +532,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   ): Promise<void> {
     await this.processSimpleCounterEvent(
       input.postingId,
-      input.ownerId,
       input.organizationId,
       input.eventDate,
       input.eventHour,
@@ -576,7 +553,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementHourlyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventHour,
           {
@@ -586,7 +562,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementDailyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventDate,
           {
@@ -609,7 +584,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementHourlyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventHour,
           {
@@ -620,7 +594,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementDailyMetrics(
           transaction,
           input.postingId,
-          input.ownerId,
           input.organizationId,
           eventDate,
           {
@@ -901,7 +874,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private async enqueueOutboxEvent(
     postingId: string,
-    ownerId: string,
     organizationId: string,
     eventType: PostingAnalyticsEventType,
     payload: Record<string, unknown>,
@@ -911,7 +883,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         data: {
           id: randomUUID(),
           postingId,
-          ownerId,
           organizationId,
           eventType,
           payload: payload as Prisma.InputJsonValue,
@@ -922,7 +893,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private async processSimpleCounterEvent(
     postingId: string,
-    ownerId: string,
     organizationId: string,
     eventDateIso: string,
     eventHourIso: string,
@@ -936,7 +906,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementHourlyMetrics(
           transaction,
           postingId,
-          ownerId,
           organizationId,
           eventHour,
           increments,
@@ -944,7 +913,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
         await this.incrementDailyMetrics(
           transaction,
           postingId,
-          ownerId,
           organizationId,
           eventDate,
           increments,
@@ -1093,7 +1061,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   private async incrementHourlyMetrics(
     transaction: Prisma.TransactionClient,
     postingId: string,
-    ownerId: string,
     organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
@@ -1108,7 +1075,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       update: this.toCounterUpdate(increments),
       create: this.createRollupCreate(
         postingId,
-        ownerId,
         organizationId,
         bucketStart,
         increments,
@@ -1119,7 +1085,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   private async incrementDailyMetrics(
     transaction: Prisma.TransactionClient,
     postingId: string,
-    ownerId: string,
     organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
@@ -1134,7 +1099,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       update: this.toCounterUpdate(increments),
       create: this.createRollupCreate(
         postingId,
-        ownerId,
         organizationId,
         bucketStart,
         increments,
@@ -1144,7 +1108,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private createRollupCreate(
     postingId: string,
-    ownerId: string,
     organizationId: string,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
@@ -1152,7 +1115,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     return {
       id: randomUUID(),
       postingId,
-      ownerId,
       organizationId,
       bucketStart,
       searchImpressions: increments.searchImpressions ?? 0,
@@ -1416,7 +1378,6 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     return {
       id: outbox.id,
       postingId: outbox.postingId,
-      ownerId: outbox.ownerId,
       organizationId: outbox.organizationId,
       eventType: outbox.eventType as PostingAnalyticsEventType,
       payload: (outbox.payload ?? {}) as Record<string, unknown>,

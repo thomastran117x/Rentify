@@ -27,12 +27,14 @@ export const reportsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.reportsRepository,
         containerTokens.reportsSearchIndexService,
         containerTokens.contentSanitizationService,
+        containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new ReportsService(
           resolve(containerTokens.reportsRepository),
           resolve(containerTokens.reportsSearchIndexService),
           resolve(containerTokens.contentSanitizationService),
+          resolve(containerTokens.organizationAccessService),
         ),
     });
     container.register({

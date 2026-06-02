@@ -57,7 +57,7 @@ describe("paymentsApi", () => {
               bookingRequestId: "booking-1",
               postingId: "posting-1",
               renterId: "user-1",
-              ownerId: "owner-1",
+              organizationId: "org-1",
               provider: "square",
               status: "awaiting_method",
               pricingCurrency: "CAD",

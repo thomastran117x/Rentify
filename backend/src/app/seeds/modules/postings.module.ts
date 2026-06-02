@@ -66,6 +66,7 @@ function toPostingDetailsColumns(
 
 async function syncOwnerProfilePostingCounts(
   userIdsByEmail: Map<string, string>,
+  organizationIdsByOwnerEmail: Map<string, string>,
   prisma: PrismaClient,
 ): Promise<void> {
   const ownerEmails = Array.from(
@@ -74,15 +75,16 @@ async function syncOwnerProfilePostingCounts(
 
   for (const ownerEmail of ownerEmails) {
     const ownerId = userIdsByEmail.get(ownerEmail);
+    const organizationId = organizationIdsByOwnerEmail.get(ownerEmail);
 
-    if (!ownerId) {
+    if (!ownerId || !organizationId) {
       continue;
     }
 
     const [rentPostingsCount, availableRentPostingsCount] = await Promise.all([
       prisma.posting.count({
         where: {
-          ownerId,
+          organizationId,
           status: {
             in: ["draft", "published", "paused"],
           },
@@ -90,7 +92,7 @@ async function syncOwnerProfilePostingCounts(
       }),
       prisma.posting.count({
         where: {
-          ownerId,
+          organizationId,
           status: "published",
           availabilityStatus: {
             in: ["available", "limited"],
@@ -150,7 +152,6 @@ export const postingsSeedModule: SeedModule = {
           id: fixturePosting.id,
         },
         update: {
-          ownerId,
           organizationId,
           status: fixturePosting.status,
           family: fixturePosting.family,
@@ -179,7 +180,6 @@ export const postingsSeedModule: SeedModule = {
         },
         create: {
           id: fixturePosting.id,
-          ownerId,
           organizationId,
           status: fixturePosting.status,
           family: fixturePosting.family,
@@ -208,7 +208,6 @@ export const postingsSeedModule: SeedModule = {
         },
       });
 
-      state.postingOwnerIdsByPostingId.set(fixturePosting.id, ownerId);
       state.postingOrganizationIdsByPostingId.set(
         fixturePosting.id,
         organizationId,
@@ -261,7 +260,11 @@ export const postingsSeedModule: SeedModule = {
       }
     }
 
-    await syncOwnerProfilePostingCounts(state.userIdsByEmail, prisma);
+    await syncOwnerProfilePostingCounts(
+      state.userIdsByEmail,
+      state.organizationIdsByOwnerEmail,
+      prisma,
+    );
     logger.info(
       `Seeded ${SEED_POSTINGS.length} postings with photos and owner availability.`,
     );

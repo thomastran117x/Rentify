@@ -351,7 +351,7 @@ export class PostingsSearchIndexService {
 
     return {
       id: document.id,
-      ownerId: document.ownerId,
+      organizationId: document.organizationId,
       status: document.status,
       family: document.variant.family,
       subtype: document.variant.subtype,
@@ -501,7 +501,7 @@ export class PostingsSearchIndexService {
         dynamic: false,
         properties: {
           id: { type: "keyword" },
-          ownerId: { type: "keyword" },
+          organizationId: { type: "keyword" },
           status: { type: "keyword" },
           family: { type: "keyword" },
           subtype: { type: "keyword" },

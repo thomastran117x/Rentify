@@ -162,7 +162,6 @@ export class PaymentsService {
     );
     await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
       postingId: payment.postingId,
-      ownerId: payment.ownerId,
       organizationId: payment.organizationId,
       occurredAt: new Date().toISOString(),
       refundedAmount: input.amount,
@@ -432,7 +431,6 @@ export class PaymentsService {
 
     await this.postingsAnalyticsRepository.enqueuePaymentFailedEvent({
       postingId: payment.postingId,
-      ownerId: payment.ownerId,
       organizationId: payment.organizationId,
       occurredAt: payment.failedAt ?? new Date().toISOString(),
     });

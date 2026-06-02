@@ -541,7 +541,7 @@ describe("jwt middleware helpers", () => {
     let receivedViewerId: string | undefined;
     const trackPublicView = jest.fn(
       async (
-        posting: { id: string; ownerId: string },
+        posting: { id: string; organizationId: string },
         client: ClientRequestContext,
         viewerId?: string,
       ) => {
@@ -556,7 +556,7 @@ describe("jwt middleware helpers", () => {
           receivedViewerId = viewerId;
           return {
             id: postingId,
-            ownerId: "owner-1",
+            organizationId: "org-1",
           };
         },
       } as never,
@@ -584,7 +584,7 @@ describe("jwt middleware helpers", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      data: { id: "posting-123", ownerId: "owner-1" },
+      data: { id: "posting-123", organizationId: "org-1" },
       error: null,
       message: "Request completed successfully.",
       meta: { requestId: "unknown" },

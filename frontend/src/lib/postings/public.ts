@@ -21,12 +21,10 @@ export interface PublicPostingPhoto {
 
 export interface PublicPostingDetail {
   id: string;
-  ownerId: string;
-  owner?: {
+  organizationId: string;
+  organization?: {
     id: string;
-    username?: string;
-    avatarUrl?: string;
-    role: "owner" | "admin";
+    name: string;
   };
   status: "published";
   variant: {

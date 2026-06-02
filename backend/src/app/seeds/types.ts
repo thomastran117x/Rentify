@@ -335,7 +335,6 @@ export interface SeedPostingAnalyticsOutboxFixture {
 export interface SeedState {
   userIdsByEmail: Map<string, string>;
   organizationIdsByOwnerEmail: Map<string, string>;
-  postingOwnerIdsByPostingId: Map<string, string>;
   postingOrganizationIdsByPostingId: Map<string, string>;
 }
 

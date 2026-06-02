@@ -30,6 +30,11 @@ export interface ContentReportUserSummary {
   role: "user" | "owner" | "moderator" | "admin";
 }
 
+export interface ContentReportOrganizationSummary {
+  id: string;
+  name: string;
+}
+
 export interface ContentReportSubjectSnapshot {
   subjectType: ReportSubjectType;
   summaryText: string;
@@ -37,7 +42,7 @@ export interface ContentReportSubjectSnapshot {
     id: string;
     name: string;
     status: string;
-    owner: ContentReportUserSummary;
+    organization: ContentReportOrganizationSummary;
   };
   review?: {
     id: string;

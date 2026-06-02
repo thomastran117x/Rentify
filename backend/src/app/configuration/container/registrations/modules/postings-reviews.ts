@@ -19,12 +19,14 @@ export const postingsReviewsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsReviewsRepository,
         containerTokens.postingsRepository,
         containerTokens.rentingsRepository,
+        containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new PostingsReviewsService(
           resolve(containerTokens.postingsReviewsRepository),
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.rentingsRepository),
+          resolve(containerTokens.organizationAccessService),
         ),
     });
   },

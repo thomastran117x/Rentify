@@ -152,7 +152,6 @@ export interface PostingAnalyticsDetail {
 
 interface BasePostingAnalyticsEventInput {
   postingId: string;
-  ownerId: string;
   organizationId: string;
   occurredAt: string;
 }
@@ -284,7 +283,6 @@ export type PostingAnalyticsEventType =
 export interface PostingAnalyticsOutboxRecord {
   id: string;
   postingId: string;
-  ownerId: string;
   organizationId: string;
   eventType: PostingAnalyticsEventType;
   payload: Record<string, unknown>;

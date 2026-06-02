@@ -243,7 +243,6 @@ export interface BookingRequestRecord {
   id: string;
   postingId: string;
   renterId: string;
-  ownerId: string;
   organizationId: string;
   status: BookingRequestStatus;
   startAt: string;
@@ -331,7 +330,6 @@ export interface BookingDashboardItem {
   rentingId?: string;
   postingId: string;
   renterId: string;
-  ownerId: string;
   organizationId: string;
   status:
     | BookingRequestStatus
@@ -558,7 +556,6 @@ export interface OwnerBookingDashboardInput {
 export interface CreateBookingRequestPersistenceInput {
   postingId: string;
   renterId: string;
-  ownerId: string;
   organizationId: string;
   startAt: Date;
   endAt: Date;
@@ -586,7 +583,6 @@ export interface ActiveBookingOverlapInput {
 export interface BookingRequestExpirationRecord {
   id: string;
   postingId: string;
-  ownerId: string;
   organizationId: string;
   status: BookingRequestStatus;
   holdBlockId?: string;

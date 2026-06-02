@@ -91,7 +91,7 @@ function buildDashboardItem(
     bookingRequestId: "booking-1",
     postingId: "posting-1",
     renterId: "renter-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "approved",
     sourceStatus: "approved",
     startAt: "2026-08-01T15:00:00.000Z",

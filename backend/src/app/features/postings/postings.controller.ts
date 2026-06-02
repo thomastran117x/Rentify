@@ -88,7 +88,8 @@ export class PostingsController {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, upsertPostingRequestSchema);
     const result = await this.postingsService.createDraft(
-      this.toUpsertInput(auth.sub, body),
+      auth.sub,
+      this.toUpsertInput(body),
     );
     return created(context, result, {
       message: "Posting draft created successfully.",
@@ -100,7 +101,8 @@ export class PostingsController {
     const body = await parseRequestBody(context, updatePostingRequestSchema);
     const result = await this.postingsService.update(
       this.requireRouteId(context),
-      this.toUpsertInput(auth.sub, body),
+      auth.sub,
+      this.toUpsertInput(body),
     );
     return ok(context, result, {
       message: "Posting updated successfully.",
@@ -445,14 +447,12 @@ export class PostingsController {
   };
 
   private toUpsertInput(
-    userId: string,
     body: UpsertPostingRequestBody | UpdatePostingRequestBody,
   ): UpsertPostingInput {
     const availabilityBlocks =
       "availabilityBlocks" in body ? body.availabilityBlocks : [];
 
     return {
-      ownerId: userId,
       organizationId: "",
       variant: body.variant,
       name: body.name,

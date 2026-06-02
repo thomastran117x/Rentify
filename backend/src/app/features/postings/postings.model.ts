@@ -570,17 +570,13 @@ export interface PostingViewerReviewState {
   hasOwnReview: boolean;
 }
 
-export interface PublicPostingOwnerSummary {
+export interface PublicPostingOrganizationSummary {
   id: string;
-  email: string;
-  username?: string;
-  avatarUrl?: string;
-  role: "user" | "owner" | "moderator" | "admin";
+  name: string;
 }
 
 export interface PostingRecord {
   id: string;
-  ownerId: string;
   organizationId: string;
   status: PostingStatus;
   variant: PostingVariant;
@@ -607,7 +603,7 @@ export interface PostingRecord {
 export interface PublicPostingRecord
   extends Omit<PostingRecord, "location" | "organizationId"> {
   location: PublicPostingLocationRecord;
-  owner?: PublicPostingOwnerSummary;
+  organization?: PublicPostingOrganizationSummary;
   primaryPhotoUrl?: string;
   primaryThumbnailUrl?: string;
   viewerReviewState?: PostingViewerReviewState;
@@ -664,7 +660,6 @@ export interface PostingGeoInput {
 }
 
 export interface UpsertPostingInput {
-  ownerId: string;
   organizationId: string;
   variant: PostingVariant;
   name: string;
@@ -729,7 +724,7 @@ export interface SearchPostingsInput {
 
 export interface PostingSearchDocument {
   id: string;
-  ownerId: string;
+  organizationId: string;
   status: PostingStatus;
   variant: PostingVariant;
   name: string;

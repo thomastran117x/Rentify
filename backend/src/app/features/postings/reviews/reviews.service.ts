@@ -11,12 +11,14 @@ import { isPostingPubliclyVisible } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 export class PostingsReviewsService {
   constructor(
     private readonly postingsReviewsRepository: PostingsReviewsRepository,
     private readonly postingsRepository: PostingsRepository,
     private readonly rentingsRepository: RentingsRepository,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async create(
@@ -25,7 +27,10 @@ export class PostingsReviewsService {
     body: CreatePostingReviewRequestBody,
   ): Promise<PostingReviewRecord> {
     const posting = await this.requirePublishedPosting(postingId);
-    this.assertReviewerIsNotOwner(posting.ownerId, reviewerId);
+    await this.assertReviewerIsNotOrganizationMember(
+      posting.organizationId,
+      reviewerId,
+    );
     await this.assertReviewerIsEligible(postingId, reviewerId);
 
     const existing = await this.postingsReviewsRepository.findOwnReview(
@@ -48,7 +53,10 @@ export class PostingsReviewsService {
     body: CreatePostingReviewRequestBody,
   ): Promise<PostingReviewRecord> {
     const posting = await this.requirePublishedPosting(postingId);
-    this.assertReviewerIsNotOwner(posting.ownerId, reviewerId);
+    await this.assertReviewerIsNotOrganizationMember(
+      posting.organizationId,
+      reviewerId,
+    );
     await this.assertReviewerIsEligible(postingId, reviewerId);
 
     const review = await this.postingsReviewsRepository.updateOwnReview(
@@ -85,8 +93,16 @@ export class PostingsReviewsService {
     return posting;
   }
 
-  private assertReviewerIsNotOwner(ownerId: string, reviewerId: string): void {
-    if (ownerId === reviewerId) {
+  private async assertReviewerIsNotOrganizationMember(
+    organizationId: string,
+    reviewerId: string,
+  ): Promise<void> {
+    const membership = await this.organizationAccessService.findMembership(
+      reviewerId,
+      organizationId,
+    );
+
+    if (membership) {
       throw new ForbiddenError("You cannot review your own posting.");
     }
   }

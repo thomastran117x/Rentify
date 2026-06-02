@@ -106,7 +106,6 @@ export class RentingsService {
 
     await this.postingsAnalyticsRepository.enqueueRentingConfirmedEvent({
       postingId: renting.postingId,
-      ownerId: renting.ownerId,
       organizationId: renting.organizationId,
       occurredAt: renting.confirmedAt,
       estimatedTotal: renting.estimatedTotal,
