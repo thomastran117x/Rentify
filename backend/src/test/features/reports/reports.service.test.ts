@@ -168,14 +168,15 @@ describe("ReportsService", () => {
   it("rejects self-reporting for owned postings", async () => {
     const { service } = createService({
       organizationAccessService: {
-        findMembership: jest.fn(async (userId: string, organizationId: string) =>
-          userId === "user-1" && organizationId === "org-1"
-            ? {
-                organizationId,
-                userId,
-                role: "primary_manager",
-              }
-            : null,
+        findMembership: jest.fn(
+          async (userId: string, organizationId: string) =>
+            userId === "user-1" && organizationId === "org-1"
+              ? {
+                  organizationId,
+                  userId,
+                  role: "primary_manager",
+                }
+              : null,
         ),
       },
     });

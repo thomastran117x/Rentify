@@ -104,7 +104,10 @@ export const usersSeedModule: SeedModule = {
           },
         });
 
-        state.organizationIdsByOwnerEmail.set(fixtureUser.email, organizationId);
+        state.organizationIdsByOwnerEmail.set(
+          fixtureUser.email,
+          organizationId,
+        );
 
         await prisma.organizationMembership.upsert({
           where: {
@@ -139,10 +142,13 @@ export const usersSeedModule: SeedModule = {
       const userId = state.userIdsByEmail.get(fixtureUser.email);
 
       if (!userId) {
-        throw new Error(`Missing user for organization memberships ${fixtureUser.email}.`);
+        throw new Error(
+          `Missing user for organization memberships ${fixtureUser.email}.`,
+        );
       }
 
-      for (const membershipFixture of fixtureUser.organizationMemberships ?? []) {
+      for (const membershipFixture of fixtureUser.organizationMemberships ??
+        []) {
         const organizationId = state.organizationIdsByOwnerEmail.get(
           membershipFixture.ownerEmail,
         );

@@ -69,7 +69,9 @@ describe("database seed harness", () => {
       },
     });
 
-    expect(ownerOneOrganization?.memberships.map((membership) => membership.role)).toEqual(
+    expect(
+      ownerOneOrganization?.memberships.map((membership) => membership.role),
+    ).toEqual(
       expect.arrayContaining(["primary_manager", "manager", "operator"]),
     );
   });

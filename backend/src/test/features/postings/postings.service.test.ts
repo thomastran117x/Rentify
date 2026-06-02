@@ -30,14 +30,12 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 class FakePostingsRepository {
   createCalls = 0;
   lastCreateInput: UpsertPostingInput | null = null;
-  lastListInput:
-    | {
-        organizationId: string;
-        page: number;
-        pageSize: number;
-        status?: PostingRecord["status"];
-      }
-    | null = null;
+  lastListInput: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    status?: PostingRecord["status"];
+  } | null = null;
   updateCalls = 0;
   findByIdCalls = 0;
   publishCalls = 0;
@@ -332,8 +330,7 @@ class FakeAuthRepository {
   ]);
 
   async findUserById(userId: string) {
-    const organizationMemberships =
-      this.membershipsByUserId.get(userId) ?? [];
+    const organizationMemberships = this.membershipsByUserId.get(userId) ?? [];
 
     if (
       !this.preferredOrganizationIdByUserId.has(userId) &&
@@ -619,9 +616,9 @@ describe("PostingsService", () => {
     const service = createService(repository);
     const input = createValidInput();
 
-    await expect(service.createDraft("operator-1", input)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    await expect(
+      service.createDraft("operator-1", input),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repository.createCalls).toBe(0);
   });
 

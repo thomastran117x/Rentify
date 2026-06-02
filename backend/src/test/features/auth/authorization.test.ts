@@ -187,7 +187,8 @@ describe("authorization", () => {
         pricing: { currency: "cad", daily: { amount: 100 } },
         photos: [
           {
-            blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
             blobName: "postings/photo-1.jpg",
             position: 0,
           },

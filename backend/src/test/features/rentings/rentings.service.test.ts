@@ -50,17 +50,21 @@ describe("RentingsService", () => {
         userId,
         role: "primary_manager",
       })),
-      requireMembership: jest.fn(async (userId: string, organizationId: string) => {
-        if (userId.startsWith("owner")) {
-          return {
-            organizationId,
-            userId,
-            role: "primary_manager",
-          };
-        }
+      requireMembership: jest.fn(
+        async (userId: string, organizationId: string) => {
+          if (userId.startsWith("owner")) {
+            return {
+              organizationId,
+              userId,
+              role: "primary_manager",
+            };
+          }
 
-        throw new ForbiddenError("Only organization managers can perform this renting action.");
-      }),
+          throw new ForbiddenError(
+            "Only organization managers can perform this renting action.",
+          );
+        },
+      ),
       findMembership: jest.fn(async (userId: string, organizationId: string) =>
         userId.startsWith("owner")
           ? {

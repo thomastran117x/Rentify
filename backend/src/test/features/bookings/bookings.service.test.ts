@@ -286,17 +286,19 @@ function createService(options?: {
       userId,
       role: "primary_manager",
     })),
-    requireMembership: jest.fn(async (userId: string, organizationId: string) => {
-      if (userId.startsWith("owner")) {
-        return {
-          organizationId,
-          userId,
-          role: "primary_manager",
-        };
-      }
+    requireMembership: jest.fn(
+      async (userId: string, organizationId: string) => {
+        if (userId.startsWith("owner")) {
+          return {
+            organizationId,
+            userId,
+            role: "primary_manager",
+          };
+        }
 
-      throw new Error("Unexpected membership lookup");
-    }),
+        throw new Error("Unexpected membership lookup");
+      },
+    ),
     findMembership: jest.fn(async (userId: string, organizationId: string) =>
       userId.startsWith("owner")
         ? {

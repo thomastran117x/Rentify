@@ -64,7 +64,9 @@ export class BlobService {
     }
 
     const localConfig = this.requireLocalConfiguration();
-    const expiresAt = new Date(Date.now() + localConfig.uploadTtlSeconds * 1000);
+    const expiresAt = new Date(
+      Date.now() + localConfig.uploadTtlSeconds * 1000,
+    );
     const token = this.signLocalUploadToken(blobName, expiresAt.toISOString());
     const publicOrigin = this.resolvePublicOrigin(input.requestOrigin);
 
@@ -508,9 +510,15 @@ export class BlobService {
   }
 
   private normalizeLocalBlobName(blobName: string): string {
-    const normalized = path.posix.normalize(blobName.trim()).replace(/^\/+/, "");
+    const normalized = path.posix
+      .normalize(blobName.trim())
+      .replace(/^\/+/, "");
 
-    if (!normalized || normalized.startsWith("..") || normalized.includes("../")) {
+    if (
+      !normalized ||
+      normalized.startsWith("..") ||
+      normalized.includes("../")
+    ) {
       throw new BadRequestError("Blob name is invalid.");
     }
 

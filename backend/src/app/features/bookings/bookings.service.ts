@@ -201,10 +201,11 @@ export class BookingsService {
   async listOwned(
     input: ListOwnedBookingRequestsInput,
   ): Promise<BookingRequestsListResult> {
-    const membership = await this.organizationAccessService.requireActiveMembership(
-      input.actorUserId,
-      "Select or join an organization before managing bookings.",
-    );
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        input.actorUserId,
+        "Select or join an organization before managing bookings.",
+      );
 
     return this.bookingsRepository.listByOwner({
       ...input,
@@ -291,10 +292,11 @@ export class BookingsService {
   async dashboardOwned(
     input: OwnerBookingDashboardInput,
   ): Promise<OwnerBookingDashboardResult> {
-    const membership = await this.organizationAccessService.requireActiveMembership(
-      input.actorUserId,
-      "Select or join an organization before managing bookings.",
-    );
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        input.actorUserId,
+        "Select or join an organization before managing bookings.",
+      );
     const [bookingRequests, postings] = await Promise.all([
       this.bookingsRepository.listDashboardByOwner({
         organizationId: membership.organizationId,
@@ -703,11 +705,12 @@ export class BookingsService {
         flowLockKeys.postingBookingWindow(bookingRequest.postingId),
       ],
       async () => {
-        const lockedBookingRequest = await this.requireOrganizationBookingRequest(
-          input.bookingRequestId,
-          input.actorUserId,
-          "manage",
-        );
+        const lockedBookingRequest =
+          await this.requireOrganizationBookingRequest(
+            input.bookingRequestId,
+            input.actorUserId,
+            "manage",
+          );
 
         this.assertCanDecide(lockedBookingRequest, "approve");
         await this.requirePostingActionableForOrganization(
@@ -771,11 +774,12 @@ export class BookingsService {
         flowLockKeys.bookingRequestState(bookingRequest.id),
       ],
       async () => {
-        const lockedBookingRequest = await this.requireOrganizationBookingRequest(
-          input.bookingRequestId,
-          input.actorUserId,
-          "manage",
-        );
+        const lockedBookingRequest =
+          await this.requireOrganizationBookingRequest(
+            input.bookingRequestId,
+            input.actorUserId,
+            "manage",
+          );
 
         this.assertCanDecide(lockedBookingRequest, "decline");
 
@@ -1937,10 +1941,11 @@ export class BookingsService {
       });
     }
 
-    const renterMembership = await this.organizationAccessService.findMembership(
-      input.renterId,
-      posting.organizationId,
-    );
+    const renterMembership =
+      await this.organizationAccessService.findMembership(
+        input.renterId,
+        posting.organizationId,
+      );
 
     if (renterMembership) {
       failureReasons.push({

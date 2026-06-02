@@ -23,7 +23,10 @@ export const blobRouteModule: RouteModule = {
     );
     app.get(
       "/blob/file",
-      resolveHandler<BlobController>(containerTokens.blobController, "getLocal"),
+      resolveHandler<BlobController>(
+        containerTokens.blobController,
+        "getLocal",
+      ),
     );
   },
 };

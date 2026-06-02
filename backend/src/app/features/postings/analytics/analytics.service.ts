@@ -98,7 +98,10 @@ export class PostingsAnalyticsService {
     );
   }
 
-  async trackSearchClick(postingId: string, viewerUserId?: string): Promise<void> {
+  async trackSearchClick(
+    postingId: string,
+    viewerUserId?: string,
+  ): Promise<void> {
     const metadata =
       await this.postingsRepository.findPublicReadMetadataById(postingId);
 
@@ -127,10 +130,11 @@ export class PostingsAnalyticsService {
     actorUserId: string,
     window: "7d" | "30d" | "all",
   ): Promise<OwnerPostingsAnalyticsSummary> {
-    const membership = await this.organizationAccessService.requireActiveMembership(
-      actorUserId,
-      "Select or join an organization before viewing posting analytics.",
-    );
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        actorUserId,
+        "Select or join an organization before viewing posting analytics.",
+      );
 
     return this.analyticsRepository.getOwnerSummary({
       actorUserId,
@@ -140,10 +144,11 @@ export class PostingsAnalyticsService {
   }
 
   async listOwnerPostingsAnalytics(input: ListPostingAnalyticsInput) {
-    const membership = await this.organizationAccessService.requireActiveMembership(
-      input.actorUserId,
-      "Select or join an organization before viewing posting analytics.",
-    );
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        input.actorUserId,
+        "Select or join an organization before viewing posting analytics.",
+      );
     return this.analyticsRepository.listOwnerPostingsAnalytics({
       ...input,
       organizationId: membership.organizationId,

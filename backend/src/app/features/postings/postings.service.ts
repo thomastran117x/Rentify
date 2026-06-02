@@ -88,11 +88,7 @@ export class PostingsService {
   }
 
   async duplicate(id: string, actorUserId: string): Promise<PostingRecord> {
-    const posting = await this.requireManagedPosting(
-      id,
-      actorUserId,
-      "write",
-    );
+    const posting = await this.requireManagedPosting(id, actorUserId, "write");
     const availabilityBlocks =
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
     const duplicateInput = this.normalizeUpsertInput(
@@ -1259,7 +1255,10 @@ export class PostingsService {
       throw new ResourceNotFoundError("Posting could not be found.");
     }
 
-    const membership = await this.findMembership(userId, posting.organizationId);
+    const membership = await this.findMembership(
+      userId,
+      posting.organizationId,
+    );
 
     if (!membership) {
       throw new ForbiddenError("You do not have access to this posting.");
@@ -1290,7 +1289,8 @@ export class PostingsService {
 
     const membership =
       user.organizationMemberships.find(
-        (candidate) => candidate.organizationId === user.preferredOrganizationId,
+        (candidate) =>
+          candidate.organizationId === user.preferredOrganizationId,
       ) ?? user.organizationMemberships[0];
 
     if (!membership) {
@@ -1316,7 +1316,10 @@ export class PostingsService {
     userId: string,
     organizationId: string,
   ): Promise<AuthUserOrganizationMembershipRecord | null> {
-    return this.organizationAccessService.findMembership(userId, organizationId);
+    return this.organizationAccessService.findMembership(
+      userId,
+      organizationId,
+    );
   }
 
   private assertCanManagePostingRole(

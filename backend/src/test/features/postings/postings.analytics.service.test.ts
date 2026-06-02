@@ -53,17 +53,21 @@ describe("PostingsAnalyticsService", () => {
         userId,
         role: "primary_manager",
       })),
-      requireMembership: jest.fn(async (userId: string, organizationId: string) => {
-        if (userId === "owner-1" && organizationId === "org-1") {
-          return {
-            organizationId,
-            userId,
-            role: "primary_manager",
-          };
-        }
+      requireMembership: jest.fn(
+        async (userId: string, organizationId: string) => {
+          if (userId === "owner-1" && organizationId === "org-1") {
+            return {
+              organizationId,
+              userId,
+              role: "primary_manager",
+            };
+          }
 
-        throw new ForbiddenError("You do not have access to this posting analytics.");
-      }),
+          throw new ForbiddenError(
+            "You do not have access to this posting analytics.",
+          );
+        },
+      ),
       findMembership: jest.fn(async (userId: string, organizationId: string) =>
         userId === "owner-1" && organizationId === "org-1"
           ? {
@@ -91,7 +95,9 @@ describe("PostingsAnalyticsService", () => {
     };
     const service = new PostingsAnalyticsService(
       analyticsRepository as never,
-      { findPublicReadMetadataById: jest.fn(async () => createPublicPosting()) } as never,
+      {
+        findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
+      } as never,
       createOrganizationAccessService(),
     );
     const client = createClient();
@@ -118,7 +124,9 @@ describe("PostingsAnalyticsService", () => {
     };
     const service = new PostingsAnalyticsService(
       analyticsRepository as never,
-      { findPublicReadMetadataById: jest.fn(async () => createPublicPosting()) } as never,
+      {
+        findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
+      } as never,
       createOrganizationAccessService(),
     );
 
@@ -154,7 +162,9 @@ describe("PostingsAnalyticsService", () => {
     };
     const service = new PostingsAnalyticsService(
       analyticsRepository as never,
-      { findPublicReadMetadataById: jest.fn(async () => createPublicPosting()) } as never,
+      {
+        findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
+      } as never,
       createOrganizationAccessService(),
     );
 

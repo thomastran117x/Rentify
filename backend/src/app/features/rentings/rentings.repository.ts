@@ -60,7 +60,10 @@ export class RentingsRepository extends BaseRepository {
             },
           });
 
-          if (!bookingRequest || bookingRequest.organizationId !== organizationId) {
+          if (
+            !bookingRequest ||
+            bookingRequest.organizationId !== organizationId
+          ) {
             return null;
           }
 

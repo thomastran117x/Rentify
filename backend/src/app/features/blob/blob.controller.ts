@@ -51,7 +51,9 @@ export class BlobController {
     const contentType = context.req.header("content-type")?.trim();
 
     if (!blobName || !expiresAt || !token || !contentType) {
-      throw new BadRequestError("Local blob upload query parameters are missing.");
+      throw new BadRequestError(
+        "Local blob upload query parameters are missing.",
+      );
     }
 
     const body = Buffer.from(await context.req.raw.arrayBuffer());

@@ -171,10 +171,11 @@ export class PaymentsService {
   }
 
   async listPayouts(input: ListPayoutsInput): Promise<PayoutListResult> {
-    const membership = await this.organizationAccessService.requireActiveMembership(
-      input.actorUserId,
-      "Select or join an organization before viewing payouts.",
-    );
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        input.actorUserId,
+        "Select or join an organization before viewing payouts.",
+      );
     this.organizationAccessService.assertCanManage(
       membership,
       "You do not have permission to view payouts for this organization.",
@@ -254,7 +255,11 @@ export class PaymentsService {
     paymentId: string,
     userId: string,
   ): Promise<PaymentRecord> {
-    const payment = await this.requirePaymentAccess(paymentId, userId, "manage");
+    const payment = await this.requirePaymentAccess(
+      paymentId,
+      userId,
+      "manage",
+    );
     const status = await this.paymentProvider.getPaymentStatus({
       providerPaymentId: payment.squarePaymentId,
       providerOrderId: payment.squareOrderId,
