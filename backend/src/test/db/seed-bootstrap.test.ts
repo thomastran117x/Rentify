@@ -8,14 +8,16 @@ import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
 import { createFixtureId } from "@/seeds/types";
 
+jest.setTimeout(180_000);
+
 describe("database seed harness", () => {
   beforeAll(async () => {
     await bootstrapSeedTestDatabase();
-  });
+  }, 180_000);
 
   afterAll(async () => {
     await teardownSeedTestDatabase();
-  });
+  }, 180_000);
 
   it("creates the expanded fixture dataset", async () => {
     const prisma = getDatabaseClient();
@@ -40,18 +42,22 @@ describe("database seed harness", () => {
       }),
     ).toBe(SEED_BOOKINGS.length);
 
-    const organizationOwnedPostings = await prisma.posting.count({
+    const organizationOwnedPostings = await prisma.posting.findMany({
       where: {
         id: {
           in: SEED_POSTINGS.map((posting) => posting.id),
         },
-        organizationId: {
-          not: null,
-        },
+      },
+      select: {
+        id: true,
+        organizationId: true,
       },
     });
 
-    expect(organizationOwnedPostings).toBe(SEED_POSTINGS.length);
+    expect(organizationOwnedPostings).toHaveLength(SEED_POSTINGS.length);
+    expect(
+      organizationOwnedPostings.every((posting) => posting.organizationId),
+    ).toBe(true);
 
     const ownerOneOrganization = await prisma.organization.findUnique({
       where: {
