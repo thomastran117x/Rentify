@@ -42,7 +42,8 @@ export function getAccountLinks(
     (options?.organizationMembershipCount ?? 0) > 0 ||
     Boolean(options?.hasActiveOrganization);
   const showCreatePosting =
-    isOwnerRole(role) || canManageOrganizationPostings(options?.activeOrganization);
+    isOwnerRole(role) ||
+    canManageOrganizationPostings(options?.activeOrganization);
 
   return [
     ...(isOwnerRole(role)
@@ -59,7 +60,8 @@ export function getAccountLinks(
           {
             href: "/postings/create",
             label: "Create posting",
-            description: "Create and manage drafts for your active organization",
+            description:
+              "Create and manage drafts for your active organization",
           },
         ]
       : []),

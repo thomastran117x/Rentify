@@ -80,11 +80,7 @@ export function OwnerDashboard() {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !canReadDashboard
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -160,14 +156,18 @@ export function OwnerDashboard() {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [canReadDashboard, page, router, selectedPostingId, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    page,
+    router,
+    selectedPostingId,
+    session,
+    status,
+    windowValue,
+  ]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !canReadDashboard
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -240,7 +240,15 @@ export function OwnerDashboard() {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [canReadDashboard, granularity, router, selectedPostingId, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    granularity,
+    router,
+    selectedPostingId,
+    session,
+    status,
+    windowValue,
+  ]);
 
   const selectedPosting = useMemo(
     () =>

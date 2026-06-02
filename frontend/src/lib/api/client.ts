@@ -68,7 +68,9 @@ function toRequestUrl(path: string): string {
   return `${resolveApiBaseUrl()}${path}`;
 }
 
-function shouldIncludeCsrfHeader(options: JsonRequestOptions<unknown>): boolean {
+function shouldIncludeCsrfHeader(
+  options: JsonRequestOptions<unknown>,
+): boolean {
   if (!readCsrfToken()) {
     return false;
   }

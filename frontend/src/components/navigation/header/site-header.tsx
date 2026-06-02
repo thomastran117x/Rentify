@@ -6,10 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
 import { ApiError } from "@/lib/auth/types";
-import {
-  canManageOrganizationPostings,
-  isOwnerRole,
-} from "@/lib/auth/roles";
+import { canManageOrganizationPostings, isOwnerRole } from "@/lib/auth/roles";
 import { theme } from "@/styles/theme";
 import { SiteHeaderDesktopAccount } from "./site-header-account-panels";
 import { SiteHeaderMobileMenu } from "./site-header-mobile-menu";

@@ -62,11 +62,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !canReadDashboard
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -132,7 +128,15 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [canReadDashboard, granularity, postingId, router, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    granularity,
+    postingId,
+    router,
+    session,
+    status,
+    windowValue,
+  ]);
 
   const diagnostics = useMemo(
     () => (detail ? buildDashboardDiagnostics(detail.totals) : []),

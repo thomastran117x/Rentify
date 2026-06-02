@@ -42,9 +42,9 @@ describe("site header shared helpers", () => {
     expect(managerLinks.some((link) => link.href === "/postings/create")).toBe(
       true,
     );
-    expect(
-      operatorLinks.some((link) => link.href === "/postings/create"),
-    ).toBe(false);
+    expect(operatorLinks.some((link) => link.href === "/postings/create")).toBe(
+      false,
+    );
   });
 
   it("returns moderation links for moderator-capable roles", () => {

@@ -117,7 +117,11 @@ function createDefaultFormState(): PostingFormState {
     postalCode: "",
     latitude: "43.6532",
     longitude: "-79.3832",
-    detailsJson: JSON.stringify(createDefaultDetails("place", "workspace"), null, 2),
+    detailsJson: JSON.stringify(
+      createDefaultDetails("place", "workspace"),
+      null,
+      2,
+    ),
     photos: [],
   };
 }
@@ -169,7 +173,10 @@ function buildPayload(form: PostingFormState): UpsertPostingInput {
   let details: Record<string, PostingDetailValue>;
 
   try {
-    details = JSON.parse(form.detailsJson) as Record<string, PostingDetailValue>;
+    details = JSON.parse(form.detailsJson) as Record<
+      string,
+      PostingDetailValue
+    >;
   } catch {
     throw new Error("Details JSON must be valid before saving.");
   }
@@ -269,7 +276,9 @@ export function PostingManagementWorkspace() {
   const { status, session } = useAuth();
   const [postings, setPostings] = useState<PostingRecord[]>([]);
   const [form, setForm] = useState<PostingFormState>(createDefaultFormState());
-  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null);
+  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(
+    null,
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -332,7 +341,8 @@ export function PostingManagementWorkspace() {
 
   async function refresh(preferredPostingId?: string | null) {
     const result = await postingsApi.listMine();
-    const nextPostingId = preferredPostingId ?? selectedPostingId ?? result.postings[0]?.id ?? null;
+    const nextPostingId =
+      preferredPostingId ?? selectedPostingId ?? result.postings[0]?.id ?? null;
 
     startTransition(() => {
       setPostings(result.postings);
@@ -348,10 +358,7 @@ export function PostingManagementWorkspace() {
     }
   }
 
-  async function handleSelectPosting(
-    postingId: string,
-    clearMessages = true,
-  ) {
+  async function handleSelectPosting(postingId: string, clearMessages = true) {
     if (clearMessages) {
       setError(null);
       setMessage(null);
@@ -578,8 +585,9 @@ export function PostingManagementWorkspace() {
                   {form.postingId ? "Edit posting" : "Create draft"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  The form keeps variant details in JSON so managers can edit any
-                  seeded posting type without a separate editor for each family.
+                  The form keeps variant details in JSON so managers can edit
+                  any seeded posting type without a separate editor for each
+                  family.
                 </p>
               </div>
               {canManage ? (
@@ -632,7 +640,10 @@ export function PostingManagementWorkspace() {
                 <input
                   value={form.name}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, name: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
                   }
                   disabled={!canManage || saving}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
@@ -689,7 +700,10 @@ export function PostingManagementWorkspace() {
                 <input
                   value={form.tags}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, tags: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      tags: event.target.value,
+                    }))
                   }
                   disabled={!canManage || saving}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
@@ -706,8 +720,8 @@ export function PostingManagementWorkspace() {
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      availabilityStatus:
-                        event.target.value as PostingAvailabilityStatus,
+                      availabilityStatus: event.target
+                        .value as PostingAvailabilityStatus,
                     }))
                   }
                   disabled={!canManage || saving}
@@ -719,7 +733,9 @@ export function PostingManagementWorkspace() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm sm:col-span-2">
-                <span className="font-medium text-slate-700">Availability note</span>
+                <span className="font-medium text-slate-700">
+                  Availability note
+                </span>
                 <input
                   value={form.availabilityNotes}
                   onChange={(event) =>
@@ -782,7 +798,9 @@ export function PostingManagementWorkspace() {
             </div>
 
             <label className="mt-4 grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Variant details JSON</span>
+              <span className="font-medium text-slate-700">
+                Variant details JSON
+              </span>
               <textarea
                 value={form.detailsJson}
                 onChange={(event) =>
