@@ -83,7 +83,7 @@ export type RecommendationActivityEventPayload = z.infer<
 
 export interface RecommendationPostingSummary {
   id: string;
-  ownerId: string;
+  organizationId: string;
   family: PostingFamily;
   subtype: PostingSubtype;
 }
@@ -95,7 +95,7 @@ export interface PersistRecommendationActivityInput {
   source: RecommendationActivitySource;
   occurredAt: Date;
   postingId: string;
-  ownerId: string;
+  organizationId: string;
   actorUserId?: string;
   anonymousActorHash?: string;
   deviceType: string;

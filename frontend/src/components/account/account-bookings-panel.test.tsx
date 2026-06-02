@@ -32,7 +32,7 @@ function buildBooking(
     id: "booking-1",
     postingId: "posting-1",
     renterId: "renter-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "approved",
     startAt: "2026-07-01T15:00:00.000Z",
     endAt: "2026-07-03T11:00:00.000Z",
@@ -166,6 +166,41 @@ describe("AccountBookingsPanel", () => {
     expect(screen.getByText("Owner Cabin")).toBeInTheDocument();
     expect(listMineMock).toHaveBeenCalledTimes(1);
     expect(listOwnedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows owner bookings for operators without owner cancellation controls", async () => {
+    listOwnedMock.mockResolvedValue(
+      buildListResult([
+        buildBooking({
+          id: "booking-owner",
+          postingId: "posting-owner",
+          posting: {
+            id: "posting-owner",
+            name: "Owner Cabin",
+            effectiveMaxBookingDurationDays: 10,
+          },
+        }),
+      ]),
+    );
+
+    render(
+      <AccountBookingsPanel
+        role="user"
+        activeOrganization={{
+          id: "org-1",
+          name: "Org One",
+          role: "operator",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Owner bookings" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Owner Cabin")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review cancellation" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reviews cancellation terms and submits a trimmed cancellation reason", async () => {

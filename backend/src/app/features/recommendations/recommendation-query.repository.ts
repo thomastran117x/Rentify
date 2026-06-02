@@ -103,7 +103,13 @@ export class RecommendationQueryRepository extends BaseRepository {
         await Promise.all([
           this.prisma.posting.findMany({
             where: {
-              ownerId: userId,
+              organization: {
+                memberships: {
+                  some: {
+                    userId,
+                  },
+                },
+              },
               status: "published",
               archivedAt: null,
             },

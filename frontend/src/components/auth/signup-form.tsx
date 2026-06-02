@@ -313,7 +313,11 @@ function SignupField({
   );
 }
 
-export function SignupForm() {
+interface SignupFormProps {
+  nextPath?: string;
+}
+
+export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const router = useRouter();
   const { status, setSession } = useAuth();
 
@@ -334,14 +338,14 @@ export function SignupForm() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/");
+      router.replace(nextPath);
     }
-  }, [router, status]);
+  }, [nextPath, router, status]);
 
   function handleOAuthSuccess(session: AuthResponseBody) {
     setGeneralError(null);
     setSession(session);
-    router.replace("/");
+    router.replace(nextPath);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -418,7 +422,12 @@ export function SignupForm() {
   }
 
   if (verificationPending) {
-    return <SignupVerificationPanel result={verificationPending} />;
+    return (
+      <SignupVerificationPanel
+        result={verificationPending}
+        nextPath={nextPath}
+      />
+    );
   }
 
   return (

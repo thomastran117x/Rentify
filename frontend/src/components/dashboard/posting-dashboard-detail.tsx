@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
-import { isOwnerRole } from "@/lib/auth/roles";
+import { canReadOrganizationPostings } from "@/lib/auth/roles";
 import {
   AnalyticsCard,
   buildDashboardDiagnostics,
@@ -45,6 +45,9 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(
     undefined,
   );
+  const canReadDashboard = canReadOrganizationPostings(
+    session?.user.activeOrganization,
+  );
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -59,11 +62,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !isOwnerRole(session.user.role)
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -129,7 +128,15 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [granularity, postingId, router, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    granularity,
+    postingId,
+    router,
+    session,
+    status,
+    windowValue,
+  ]);
 
   const diagnostics = useMemo(
     () => (detail ? buildDashboardDiagnostics(detail.totals) : []),
@@ -144,7 +151,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
     return <LoadingDashboard />;
   }
 
-  if (!isOwnerRole(session.user.role)) {
+  if (!canReadDashboard) {
     return <RestrictedState />;
   }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
-import { isOwnerRole } from "@/lib/auth/roles";
+import { canReadOrganizationPostings } from "@/lib/auth/roles";
 import {
   AnalyticsCard,
   buildDashboardDiagnostics,
@@ -63,6 +63,9 @@ export function OwnerDashboard() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(
     undefined,
   );
+  const canReadDashboard = canReadOrganizationPostings(
+    session?.user.activeOrganization,
+  );
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -77,11 +80,7 @@ export function OwnerDashboard() {
   }, [granularity, windowValue]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !isOwnerRole(session.user.role)
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -157,14 +156,18 @@ export function OwnerDashboard() {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [page, router, selectedPostingId, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    page,
+    router,
+    selectedPostingId,
+    session,
+    status,
+    windowValue,
+  ]);
 
   useEffect(() => {
-    if (
-      status !== "authenticated" ||
-      !session ||
-      !isOwnerRole(session.user.role)
-    ) {
+    if (status !== "authenticated" || !session || !canReadDashboard) {
       return;
     }
 
@@ -237,7 +240,15 @@ export function OwnerDashboard() {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [granularity, router, selectedPostingId, session, status, windowValue]);
+  }, [
+    canReadDashboard,
+    granularity,
+    router,
+    selectedPostingId,
+    session,
+    status,
+    windowValue,
+  ]);
 
   const selectedPosting = useMemo(
     () =>
@@ -285,7 +296,7 @@ export function OwnerDashboard() {
     return <LoadingDashboard />;
   }
 
-  if (!isOwnerRole(session.user.role)) {
+  if (!canReadDashboard) {
     return <RestrictedState />;
   }
 

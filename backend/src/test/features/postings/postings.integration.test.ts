@@ -30,7 +30,7 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
 function createPosting(overrides: Record<string, unknown> = {}) {
   return {
     id: "posting-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     variant: {
       family: "place",
@@ -712,8 +712,7 @@ describe("Postings integration", () => {
     expect(batchMineResponse.status).toBe(200);
     expect(batchPublicResponse.status).toBe(200);
 
-    expect(postingsService.listByOwner).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+    expect(postingsService.listByOwner).toHaveBeenCalledWith("owner-1", {
       page: 1,
       pageSize: 20,
       status: "published",
@@ -875,13 +874,15 @@ describe("Postings integration", () => {
     expect(
       postingsAnalyticsService.listOwnerPostingsAnalytics,
     ).toHaveBeenCalledWith({
-      ownerId: "owner-1",
+      actorUserId: "owner-1",
+      organizationId: "",
       window: "7d",
       page: 1,
       pageSize: 10,
     });
     expect(postingsAnalyticsService.trackSearchClick).toHaveBeenCalledWith(
       "posting-1",
+      "user-1",
     );
     expect(
       recommendationActivityPublisher.publishSearchClick,

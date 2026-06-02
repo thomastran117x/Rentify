@@ -1,5 +1,6 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { ReportsService } from "@/features/reports/reports.service";
 
 function createReportRecord(overrides: Record<string, unknown> = {}) {
@@ -26,10 +27,9 @@ function createReportRecord(overrides: Record<string, unknown> = {}) {
         id: "posting-1",
         name: "Studio Loft",
         status: "published",
-        owner: {
-          id: "owner-1",
-          email: "owner@example.com",
-          role: "owner",
+        organization: {
+          id: "org-1",
+          name: "Studio Loft Org",
         },
       },
     },
@@ -45,21 +45,26 @@ function createService(overrides?: {
       input: Array<{ path: string; value: string }>,
     ) => Array<{ path: string; message: string }>;
   };
+  organizationAccessService?: {
+    findMembership: (
+      userId: string,
+      organizationId: string,
+    ) => Promise<{
+      organizationId: string;
+      userId: string;
+      role: "primary_manager" | "manager" | "operator";
+    } | null>;
+  };
 }) {
   const repository = {
     findPostingSubject: jest.fn(async () => ({
       id: "posting-1",
       name: "Studio Loft",
       status: "published",
-      ownerId: "owner-1",
-      owner: {
-        id: "owner-1",
-        email: "owner@example.com",
-        role: "owner",
-        profile: {
-          username: "owner-one",
-          avatarUrl: null,
-        },
+      organizationId: "org-1",
+      organization: {
+        id: "org-1",
+        name: "Studio Loft Org",
       },
     })),
     findPostingReviewSubject: jest.fn(async () => ({
@@ -142,37 +147,37 @@ function createService(overrides?: {
   const sanitizer = overrides?.sanitizer ?? {
     inspect: () => [],
   };
+  const organizationAccessService = overrides?.organizationAccessService ?? {
+    findMembership: jest.fn(async () => null),
+  };
 
   return {
     service: new ReportsService(
       repository as never,
       search as never,
       sanitizer as never,
+      organizationAccessService as unknown as OrganizationAccessService,
     ),
     repository,
     search,
+    organizationAccessService,
   };
 }
 
 describe("ReportsService", () => {
   it("rejects self-reporting for owned postings", async () => {
     const { service } = createService({
-      repository: {
-        findPostingSubject: jest.fn(async () => ({
-          id: "posting-1",
-          name: "Studio Loft",
-          status: "published",
-          ownerId: "user-1",
-          owner: {
-            id: "user-1",
-            email: "user1@example.com",
-            role: "owner",
-            profile: {
-              username: "owner-one",
-              avatarUrl: null,
-            },
-          },
-        })),
+      organizationAccessService: {
+        findMembership: jest.fn(
+          async (userId: string, organizationId: string) =>
+            userId === "user-1" && organizationId === "org-1"
+              ? {
+                  organizationId,
+                  userId,
+                  role: "primary_manager",
+                }
+              : null,
+        ),
       },
     });
 

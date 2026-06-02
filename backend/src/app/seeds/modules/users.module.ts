@@ -1,12 +1,13 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
+import { createFixtureId } from "@/seeds/types";
 import {
   SEED_DEVICES,
   SEED_OAUTH_IDENTITIES,
   SEED_PERSONAL_ACCESS_TOKENS,
   SEED_USERS,
 } from "@/seeds/fixtures/users";
-import type { SeedModule } from "@/seeds/types";
+import type { SeedModule, SeedUserFixture } from "@/seeds/types";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -25,6 +26,7 @@ export const usersSeedModule: SeedModule = {
   name: "users",
   async run({ logger, prisma, state }) {
     const passwordHashes = await hashPasswords();
+    let ownerOrganizationIndex = 1;
 
     for (const fixtureUser of SEED_USERS) {
       const passwordHash = passwordHashes.get(fixtureUser.password);
@@ -83,6 +85,109 @@ export const usersSeedModule: SeedModule = {
           trustworthinessScore: fixtureUser.trustworthinessScore ?? 1,
         },
       });
+
+      if (fixtureUser.role === "owner") {
+        const organizationId = createFixtureId(1040, ownerOrganizationIndex);
+        ownerOrganizationIndex += 1;
+        const organizationName = buildOrganizationName(fixtureUser);
+
+        await prisma.organization.upsert({
+          where: {
+            id: organizationId,
+          },
+          update: {
+            name: organizationName,
+          },
+          create: {
+            id: organizationId,
+            name: organizationName,
+          },
+        });
+
+        state.organizationIdsByOwnerEmail.set(
+          fixtureUser.email,
+          organizationId,
+        );
+
+        await prisma.organizationMembership.upsert({
+          where: {
+            organizationId_userId: {
+              organizationId,
+              userId: user.id,
+            },
+          },
+          update: {
+            role: "primary_manager",
+          },
+          create: {
+            id: randomUUID(),
+            organizationId,
+            userId: user.id,
+            role: "primary_manager",
+          },
+        });
+
+        await prisma.user.update({
+          where: {
+            id: user.id,
+          },
+          data: {
+            preferredOrganizationId: organizationId,
+          },
+        });
+      }
+    }
+
+    for (const fixtureUser of SEED_USERS) {
+      const userId = state.userIdsByEmail.get(fixtureUser.email);
+
+      if (!userId) {
+        throw new Error(
+          `Missing user for organization memberships ${fixtureUser.email}.`,
+        );
+      }
+
+      for (const membershipFixture of fixtureUser.organizationMemberships ??
+        []) {
+        const organizationId = state.organizationIdsByOwnerEmail.get(
+          membershipFixture.ownerEmail,
+        );
+
+        if (!organizationId) {
+          throw new Error(
+            `Missing organization for seeded membership owner ${membershipFixture.ownerEmail}.`,
+          );
+        }
+
+        await prisma.organizationMembership.upsert({
+          where: {
+            organizationId_userId: {
+              organizationId,
+              userId,
+            },
+          },
+          update: {
+            role: membershipFixture.role,
+          },
+          create: {
+            id: randomUUID(),
+            organizationId,
+            userId,
+            role: membershipFixture.role,
+          },
+        });
+
+        if (membershipFixture.preferred) {
+          await prisma.user.update({
+            where: {
+              id: userId,
+            },
+            data: {
+              preferredOrganizationId: organizationId,
+            },
+          });
+        }
+      }
     }
 
     await prisma.device.deleteMany({
@@ -179,3 +284,21 @@ export const usersSeedModule: SeedModule = {
     logger.info(`Seeded ${SEED_USERS.length} users and related auth fixtures.`);
   },
 };
+
+function buildOrganizationName(fixtureUser: SeedUserFixture): string {
+  const fullName = [fixtureUser.firstName, fixtureUser.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName) {
+    return `${fullName} Organization`;
+  }
+
+  if (fixtureUser.username.trim()) {
+    return `${fixtureUser.username.trim()} Organization`;
+  }
+
+  const [localPart] = fixtureUser.email.split("@");
+  return `${(localPart ?? "owner").trim()} Organization`;
+}

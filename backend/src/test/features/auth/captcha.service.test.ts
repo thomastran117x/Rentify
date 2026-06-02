@@ -43,6 +43,27 @@ describe("CaptchaService", () => {
     });
   });
 
+  it("accepts the local development bypass token outside production", async () => {
+    const fetchMock = jest.spyOn(globalThis, "fetch");
+    const service = createService({
+      secretKey: "test-secret",
+    });
+
+    await expect(
+      service.verify({
+        token: "local-dev-bypass",
+      }),
+    ).resolves.toEqual({
+      success: true,
+      failOpen: false,
+      errors: [],
+      action: "local-development-bypass",
+      challengeTimestamp: undefined,
+      hostname: undefined,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("fails closed when the captcha token is missing", async () => {
     const service = createService();
 

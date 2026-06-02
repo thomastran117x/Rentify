@@ -22,12 +22,20 @@ import type { PostingsPublicSearchService } from "@/features/postings/search/pub
 import { PostingsService } from "@/features/postings/postings.service";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
+import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
 class FakePostingsRepository {
   createCalls = 0;
   lastCreateInput: UpsertPostingInput | null = null;
+  lastListInput: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    status?: PostingRecord["status"];
+  } | null = null;
   updateCalls = 0;
   findByIdCalls = 0;
   publishCalls = 0;
@@ -75,13 +83,13 @@ class FakePostingsRepository {
 
   async findPublicReadMetadataById(id: string): Promise<{
     id: string;
-    ownerId: string;
+    organizationId: string;
     status: PostingRecord["status"];
     archivedAt?: string;
   }> {
     return {
       id,
-      ownerId: this.posting.ownerId,
+      organizationId: this.posting.organizationId,
       status: this.posting.status,
       archivedAt: this.posting.archivedAt,
     };
@@ -141,6 +149,27 @@ class FakePostingsRepository {
     PostingAvailabilityBlockRecord[]
   > {
     return this.ownerBlocks;
+  }
+
+  async listByOwner(input: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    status?: PostingRecord["status"];
+  }) {
+    this.lastListInput = input;
+    return {
+      postings: [this.posting],
+      pagination: {
+        page: input.page,
+        pageSize: input.pageSize,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      ...(input.status ? { status: input.status } : {}),
+    };
   }
 
   async findOwnerAvailabilityBlock(): Promise<PostingAvailabilityBlockRecord | null> {
@@ -238,6 +267,106 @@ class FakePostingsPublicCacheService {
   }
 }
 
+class FakeAuthRepository {
+  membershipsByUserId = new Map([
+    [
+      "owner-1",
+      [
+        {
+          membershipId: "membership-1",
+          organizationId: "org-1",
+          organizationName: "Org 1",
+          role: "primary_manager" as const,
+          createdAt: "2026-04-18T00:00:00.000Z",
+          updatedAt: "2026-04-18T00:00:00.000Z",
+        },
+      ],
+    ],
+    [
+      "manager-1",
+      [
+        {
+          membershipId: "membership-2",
+          organizationId: "org-1",
+          organizationName: "Org 1",
+          role: "manager" as const,
+          createdAt: "2026-04-18T00:00:00.000Z",
+          updatedAt: "2026-04-18T00:00:00.000Z",
+        },
+      ],
+    ],
+    [
+      "operator-1",
+      [
+        {
+          membershipId: "membership-3",
+          organizationId: "org-1",
+          organizationName: "Org 1",
+          role: "operator" as const,
+          createdAt: "2026-04-18T00:00:00.000Z",
+          updatedAt: "2026-04-18T00:00:00.000Z",
+        },
+      ],
+    ],
+    [
+      "owner-2",
+      [
+        {
+          membershipId: "membership-4",
+          organizationId: "org-2",
+          organizationName: "Org 2",
+          role: "primary_manager" as const,
+          createdAt: "2026-04-18T00:00:00.000Z",
+          updatedAt: "2026-04-18T00:00:00.000Z",
+        },
+      ],
+    ],
+  ]);
+  preferredOrganizationIdByUserId = new Map<string, string>([
+    ["owner-1", "org-1"],
+    ["manager-1", "org-1"],
+    ["operator-1", "org-1"],
+    ["owner-2", "org-2"],
+  ]);
+
+  async findUserById(userId: string) {
+    const organizationMemberships = this.membershipsByUserId.get(userId) ?? [];
+
+    if (
+      !this.preferredOrganizationIdByUserId.has(userId) &&
+      organizationMemberships.length === 0
+    ) {
+      return null;
+    }
+
+    return {
+      id: userId,
+      email: `${userId}@example.com`,
+      tokenVersion: 0,
+      role: "user" as const,
+      emailVerified: true,
+      profile: {
+        id: `profile-${userId}`,
+        userId,
+        username: userId,
+        isPrivate: false,
+        recommendationPersonalizationEnabled: true,
+        trustworthinessScore: 1,
+        rentPostingsCount: 0,
+        availableRentPostingsCount: 0,
+        createdAt: "2026-04-18T00:00:00.000Z",
+        updatedAt: "2026-04-18T00:00:00.000Z",
+      },
+      oauthIdentities: [],
+      preferredOrganizationId:
+        this.preferredOrganizationIdByUserId.get(userId) ?? undefined,
+      organizationMemberships,
+      createdAt: "2026-04-18T00:00:00.000Z",
+      updatedAt: "2026-04-18T00:00:00.000Z",
+    };
+  }
+}
+
 function createService(
   repository: FakePostingsRepository,
   postingsReviewsRepository = new FakePostingsReviewsRepository(),
@@ -274,6 +403,10 @@ function createServiceHarness(
     enqueuePostingThumbnailJob: jest.fn(async () => undefined),
   };
   const postingsPublicCacheService = new FakePostingsPublicCacheService();
+  const authRepository = new FakeAuthRepository();
+  const organizationAccessService = new OrganizationAccessService(
+    authRepository as unknown as AuthRepository,
+  );
   postingsPublicCacheService.posting = isPostingPubliclyVisible(
     repository.posting,
   )
@@ -291,15 +424,19 @@ function createServiceHarness(
       new ContentSanitizationService(),
       cacheService,
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
+      organizationAccessService,
+      authRepository as unknown as AuthRepository,
     ),
     postingThumbnailQueueService,
     postingsPublicCacheService,
+    organizationAccessService,
+    authRepository,
   };
 }
 
 function createValidInput(): UpsertPostingInput {
   return {
-    ownerId: "owner-1",
+    organizationId: "org-1",
     variant: {
       family: "place",
       subtype: "entire_place",
@@ -352,7 +489,7 @@ function createValidInput(): UpsertPostingInput {
 function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
   return {
     id: "posting-1",
-    ownerId: input.ownerId,
+    organizationId: input.organizationId,
     status: "draft",
     variant: input.variant,
     name: input.name,
@@ -425,7 +562,7 @@ describe("PostingsService", () => {
     input.description = "<script>alert('boom')</script>";
 
     const error = await service
-      .createDraft(input)
+      .createDraft("owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -445,7 +582,7 @@ describe("PostingsService", () => {
     input.availabilityBlocks[0]!.note = "javascript:alert('x')";
 
     const error = await service
-      .createDraft(input)
+      .createDraft("owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -458,6 +595,51 @@ describe("PostingsService", () => {
     expect(repository.createCalls).toBe(0);
   });
 
+  it("lets managers create organization-owned drafts in their active organization", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input = {
+      ...createValidInput(),
+      organizationId: "org-2",
+    };
+
+    const created = await service.createDraft("manager-1", input);
+
+    expect(created.organizationId).toBe("org-1");
+    expect(repository.lastCreateInput).toMatchObject({
+      organizationId: "org-1",
+    });
+  });
+
+  it("blocks operators from creating drafts", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input = createValidInput();
+
+    await expect(
+      service.createDraft("operator-1", input),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repository.createCalls).toBe(0);
+  });
+
+  it("lists postings for the caller's active organization", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await service.listByOwner("manager-1", {
+      page: 1,
+      pageSize: 20,
+      status: "draft",
+    });
+
+    expect(repository.lastListInput).toEqual({
+      organizationId: "org-1",
+      page: 1,
+      pageSize: 20,
+      status: "draft",
+    });
+  });
+
   it("rejects unsafe content before update persists", async () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
@@ -465,7 +647,7 @@ describe("PostingsService", () => {
     input.tags = ["safe", "' OR 1=1 --"];
 
     const error = await service
-      .update("posting-123", input)
+      .update("posting-123", "owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -486,7 +668,7 @@ describe("PostingsService", () => {
     const input = createValidInput();
     input.tags = ["  Loft  ", "loft", "Transit"];
 
-    const created = await service.createDraft(input);
+    const created = await service.createDraft("owner-1", input);
 
     expect(repository.createCalls).toBe(1);
     expect(
@@ -537,7 +719,7 @@ describe("PostingsService", () => {
     expect(repository.findByIdCalls).toBe(1);
     expect(repository.createCalls).toBe(1);
     expect(repository.lastCreateInput).toMatchObject({
-      ownerId: "owner-1",
+      organizationId: "org-1",
       variant: repository.posting.variant,
       name: repository.posting.name,
       description: repository.posting.description,
@@ -587,7 +769,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      ownerId: "owner-2",
+      organizationId: "org-2",
     };
     const service = createService(repository);
 
@@ -708,7 +890,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "paused",
-      ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
       pausedAt: "2026-04-23T00:00:00.000Z",
     };
@@ -728,7 +909,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "draft",
-      ownerId: "owner-1",
     };
     const { service, postingsPublicCacheService } =
       createServiceHarness(repository);
@@ -746,7 +926,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "published",
-      ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const { service, postingsPublicCacheService } =
@@ -771,7 +950,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "published",
-      ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const postingsReviewsRepository = new FakePostingsReviewsRepository();
@@ -801,7 +979,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "published",
-      ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const service = createService(repository);
@@ -817,7 +994,6 @@ describe("PostingsService", () => {
       ...repository.posting,
       id: "posting-1",
       status: "published",
-      ownerId: "owner-1",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const service = createService(repository);
@@ -842,7 +1018,7 @@ describe("PostingsService", () => {
     };
 
     const error = await service
-      .createDraft(input)
+      .createDraft("owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -858,7 +1034,7 @@ describe("PostingsService", () => {
     (input.details as Record<string, unknown>).guest_capacity = "four";
 
     const error = await service
-      .createDraft(input)
+      .createDraft("owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -876,7 +1052,7 @@ describe("PostingsService", () => {
     });
 
     const error = await service
-      .createDraft(input)
+      .createDraft("owner-1", input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -896,7 +1072,7 @@ describe("PostingsService", () => {
       ownerNote: "  Bring ID  ",
     };
 
-    const created = await service.createDraft(input);
+    const created = await service.createDraft("owner-1", input);
 
     expect(created.details).toEqual({
       guest_capacity: 4,
@@ -1284,6 +1460,10 @@ describe("PostingsService", () => {
       enqueuePostingThumbnailJob: jest.fn(async () => undefined),
     } as unknown as PostingThumbnailQueueService;
     const postingsPublicCacheService = new FakePostingsPublicCacheService();
+    const authRepository = new FakeAuthRepository();
+    const organizationAccessService = new OrganizationAccessService(
+      authRepository as unknown as AuthRepository,
+    );
     postingsPublicCacheService.posting = isPostingPubliclyVisible(
       repository.posting,
     )
@@ -1299,6 +1479,8 @@ describe("PostingsService", () => {
       new ContentSanitizationService(),
       cacheService,
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
+      organizationAccessService,
+      authRepository as unknown as AuthRepository,
     );
 
     await expect(

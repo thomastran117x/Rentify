@@ -6,6 +6,13 @@ import { publicEnv } from "@/lib/env";
 
 const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase();
+  return (
+    normalizedHostname === "localhost" || normalizedHostname === "127.0.0.1"
+  );
+}
+
 declare global {
   interface Window {
     turnstile?: {
@@ -39,16 +46,41 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     () => typeof window !== "undefined" && Boolean(window.turnstile),
   );
   const [hasError, setHasError] = useState(false);
+  const canUseLoopbackBypass =
+    typeof window !== "undefined" &&
+    isLoopbackHostname(window.location.hostname);
+  const shouldUseLocalBypass =
+    !publicEnv.turnstileSiteKey || (hasError && canUseLoopbackBypass);
+
+  function handleTurnstileLoadFailure() {
+    setHasError(true);
+    onChange(canUseLoopbackBypass ? LOCAL_CAPTCHA_BYPASS_TOKEN : "");
+  }
+
+  function disposeWidget() {
+    if (!widgetIdRef.current || !window.turnstile?.remove) {
+      widgetIdRef.current = null;
+      return;
+    }
+
+    try {
+      window.turnstile.remove(widgetIdRef.current);
+    } catch {
+      // Ignore widget cleanup races after the fallback path takes over.
+    } finally {
+      widgetIdRef.current = null;
+    }
+  }
 
   useEffect(() => {
-    if (publicEnv.turnstileSiteKey) {
+    if (!shouldUseLocalBypass) {
       return;
     }
 
     if (!value) {
       onChange(LOCAL_CAPTCHA_BYPASS_TOKEN);
     }
-  }, [value, onChange]);
+  }, [onChange, shouldUseLocalBypass, value]);
 
   useEffect(() => {
     if (!publicEnv.turnstileSiteKey) return;
@@ -70,36 +102,39 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
           onChange("");
         },
         "error-callback": () => {
-          setHasError(true);
-          onChange("");
+          handleTurnstileLoadFailure();
         },
       });
     } catch (err) {
       console.error("Turnstile render failed", err);
       queueMicrotask(() => {
-        setHasError(true);
+        handleTurnstileLoadFailure();
       });
     }
 
     return () => {
-      if (widgetIdRef.current && window.turnstile?.remove) {
-        window.turnstile.remove(widgetIdRef.current);
-        widgetIdRef.current = null;
-      }
+      disposeWidget();
     };
   }, [scriptLoaded, onChange]);
 
   useEffect(() => {
-    if (!value && widgetIdRef.current && window.turnstile) {
-      window.turnstile.reset(widgetIdRef.current);
+    if (hasError || value || !widgetIdRef.current || !window.turnstile) {
+      return;
     }
-  }, [value]);
 
-  if (!publicEnv.turnstileSiteKey) {
+    try {
+      window.turnstile.reset(widgetIdRef.current);
+    } catch {
+      disposeWidget();
+    }
+  }, [hasError, value]);
+
+  if (shouldUseLocalBypass) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Captcha is disabled for this environment. Local auth requests will use
-        the development verification bypass.
+        {!publicEnv.turnstileSiteKey
+          ? "Captcha is disabled for this environment. Local auth requests will use the development verification bypass."
+          : "Cloudflare Turnstile could not be loaded on this local environment. Continuing with the development verification bypass."}
       </div>
     );
   }
@@ -111,7 +146,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="afterInteractive"
         onLoad={() => setScriptLoaded(true)}
-        onError={() => setHasError(true)}
+        onError={handleTurnstileLoadFailure}
       />
 
       <div className="w-full max-w-[420px]">

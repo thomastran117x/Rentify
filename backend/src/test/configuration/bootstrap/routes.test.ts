@@ -227,4 +227,67 @@ describe("mountRoutes", () => {
       route: "getById",
     });
   });
+
+  it("preserves static-before-dynamic organization route behavior", async () => {
+    delete process.env.DISABLED_ROUTE_MODULES;
+    const organizationsController = {
+      listMine: async () =>
+        new Response(JSON.stringify({ route: "listMine" }), {
+          headers: {
+            "content-type": "application/json; charset=UTF-8",
+          },
+          status: 200,
+        }),
+      previewInvitation: async (context: {
+        req: { param(name: string): string };
+      }) =>
+        new Response(
+          JSON.stringify({
+            route: "previewInvitation",
+            token: context.req.param("token"),
+          }),
+          {
+            headers: {
+              "content-type": "application/json; charset=UTF-8",
+            },
+            status: 200,
+          },
+        ),
+      getById: async (context: { req: { param(name: string): string } }) =>
+        new Response(
+          JSON.stringify({ route: "getById", id: context.req.param("id") }),
+          {
+            headers: {
+              "content-type": "application/json; charset=UTF-8",
+            },
+            status: 200,
+          },
+        ),
+    };
+    const app = createApp(
+      new Map([
+        [containerTokens.organizationsController, organizationsController],
+      ]),
+    );
+
+    const [mineResponse, invitationResponse, itemResponse] = await Promise.all([
+      app.request(`http://rent.test${buildApiPath("/organizations/me")}`),
+      app.request(
+        `http://rent.test${buildApiPath("/organizations/invitations/token-123")}`,
+      ),
+      app.request(`http://rent.test${buildApiPath("/organizations/org-123")}`),
+    ]);
+
+    await expect(mineResponse.json()).resolves.toEqual({
+      route: "listMine",
+    });
+    await expect(invitationResponse.json()).resolves.toEqual({
+      route: "previewInvitation",
+      token: "token-123",
+    });
+    await expect(itemResponse.json()).resolves.toEqual({
+      route: "getById",
+      id: "org-123",
+    });
+  });
 });

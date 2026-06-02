@@ -1,0 +1,79 @@
+import { containerTokens } from "@/configuration/bootstrap/container";
+import type { OrganizationsController } from "@/features/organizations/organizations.controller";
+import type { RouteModule } from "@/configuration/bootstrap/routes/types";
+
+export const organizationsRouteModule: RouteModule = {
+  id: "organizations",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/organizations/me",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listMine",
+      ),
+    );
+    app.post(
+      "/organizations/me/active",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "setActive",
+      ),
+    );
+    app.get(
+      "/organizations/invitations/:token",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "previewInvitation",
+      ),
+    );
+    app.post(
+      "/organizations/invitations/:token/accept",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "acceptInvitation",
+      ),
+    );
+    app.get(
+      "/organizations/:id",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "getById",
+      ),
+    );
+    app.patch(
+      "/organizations/:id",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "update",
+      ),
+    );
+    app.post(
+      "/organizations/:id/invitations",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "createInvitation",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/invitations/:inviteId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "revokeInvitation",
+      ),
+    );
+    app.patch(
+      "/organizations/:id/members/:memberId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "updateMemberRole",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/members/:memberId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "removeMember",
+      ),
+    );
+  },
+};

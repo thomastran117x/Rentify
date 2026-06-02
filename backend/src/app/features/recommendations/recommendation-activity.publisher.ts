@@ -43,10 +43,6 @@ export class RecommendationActivityPublisher {
       return;
     }
 
-    if (input.actorUserId && input.actorUserId === input.posting.ownerId) {
-      return;
-    }
-
     await this.publishBestEffort("posting_view", {
       eventId: randomUUID(),
       eventType: "posting_view",

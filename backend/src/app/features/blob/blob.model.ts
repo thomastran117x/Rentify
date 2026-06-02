@@ -26,6 +26,7 @@ export interface CreateBlobUploadUrlInput {
   filename: string;
   contentType: string;
   scope?: string;
+  requestOrigin?: string;
 }
 
 export interface BlobUploadTarget {

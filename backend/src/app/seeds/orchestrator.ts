@@ -69,7 +69,8 @@ export async function runSeedOrchestrator(
   );
 
   const state = {
-    postingOwnerIdsByPostingId: new Map<string, string>(),
+    organizationIdsByOwnerEmail: new Map<string, string>(),
+    postingOrganizationIdsByPostingId: new Map<string, string>(),
     userIdsByEmail: new Map<string, string>(),
   };
 

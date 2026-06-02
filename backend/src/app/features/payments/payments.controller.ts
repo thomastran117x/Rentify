@@ -1,7 +1,6 @@
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
-import { requireMinimumRole } from "@/features/auth/authorization";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
@@ -9,6 +8,7 @@ import {
   parseRequestBody,
 } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireMinimumRole } from "@/features/auth/authorization";
 import type {
   CreatePaymentSessionBody,
   CreateRefundBody,
@@ -81,7 +81,6 @@ export class PaymentsController {
 
   listPayouts = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.paymentsService.listPayouts(
       this.toListPayoutsInput(auth.sub, this.parseListPayoutsQuery(context)),
     );
@@ -162,7 +161,8 @@ export class PaymentsController {
     query: ListPayoutsQuery,
   ): ListPayoutsInput {
     return {
-      ownerId: userId,
+      actorUserId: userId,
+      organizationId: "",
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,

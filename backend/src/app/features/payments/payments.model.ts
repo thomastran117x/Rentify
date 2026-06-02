@@ -109,7 +109,7 @@ export interface RefundRecord {
 export interface PayoutRecord {
   id: string;
   paymentId: string;
-  ownerId: string;
+  organizationId: string;
   status: PayoutStatus;
   amount: number;
   dueAt: string;
@@ -126,7 +126,7 @@ export interface PaymentRecord {
   bookingRequestId: string;
   postingId: string;
   renterId: string;
-  ownerId: string;
+  organizationId: string;
   provider: typeof PAYMENT_PROVIDER;
   status: PaymentStatus;
   pricingCurrency: string;
@@ -190,7 +190,8 @@ export interface CreateRefundInput {
 }
 
 export interface ListPayoutsInput {
-  ownerId: string;
+  actorUserId: string;
+  organizationId: string;
   page: number;
   pageSize: number;
   status?: PayoutStatus;

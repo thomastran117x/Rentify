@@ -160,7 +160,7 @@ describe("authorization", () => {
     ).toThrow(ForbiddenError);
   });
 
-  it("rejects posting creation for regular users before calling the service", async () => {
+  it("does not block posting creation at the controller layer for authenticated users", async () => {
     let createDraftCalled = false;
     const controller = new PostingsController(
       {
@@ -169,6 +169,7 @@ describe("authorization", () => {
           return { id: "posting-1" };
         },
       } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -184,7 +185,14 @@ describe("authorization", () => {
         name: "Test posting",
         description: "Nice place",
         pricing: { currency: "cad", daily: { amount: 100 } },
-        photos: [],
+        photos: [
+          {
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobName: "postings/photo-1.jpg",
+            position: 0,
+          },
+        ],
         tags: [],
         details: {
           guest_capacity: 2,
@@ -203,10 +211,10 @@ describe("authorization", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
-    expect(createDraftCalled).toBe(false);
+    const response = await controller.create(context);
+
+    expect(response.status).toBe(201);
+    expect(createDraftCalled).toBe(true);
   });
 
   it("restricts payment repair to admins", async () => {

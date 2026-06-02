@@ -21,7 +21,11 @@ describe("fetchPublicPostingDetail", () => {
               message: "ok",
               data: {
                 id: "posting-1",
-                ownerId: "owner-1",
+                organizationId: "org-1",
+                organization: {
+                  id: "org-1",
+                  name: "Studio Loft Collective",
+                },
                 status: "published",
                 variant: {
                   family: "place",

@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { stripApiRoutePrefix } from "@/configuration/http/api-path";
 import type { AppBindings } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -67,6 +68,15 @@ function isJsonContentType(contentType: string | null): boolean {
   );
 }
 
+function allowsNonJsonBody(request: Request): boolean {
+  try {
+    const pathname = stripApiRoutePrefix(new URL(request.url).pathname);
+    return pathname === "/blob/upload";
+  } catch {
+    return false;
+  }
+}
+
 async function assertRequestBodySizeWithinLimit(
   request: Request,
   maxBytes: number,
@@ -103,7 +113,10 @@ export const requestBodyPolicyMiddleware = createMiddleware<AppBindings>(
       return;
     }
 
-    if (!isJsonContentType(request.headers.get("content-type"))) {
+    if (
+      !isJsonContentType(request.headers.get("content-type")) &&
+      !allowsNonJsonBody(request)
+    ) {
       throw new UnsupportedMediaTypeError(
         "Request body must use application/json.",
       );

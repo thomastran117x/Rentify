@@ -21,11 +21,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function SignupPage() {
+interface SignupPageProps {
+  searchParams?: Promise<{
+    next?: string;
+  }>;
+}
+
+export default async function SignupPage({ searchParams }: SignupPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const nextPath = resolvedSearchParams?.next || "/";
+
   return (
     <AuthPageShell variant="signup">
       <SignupFormCard>
-        <SignupForm />
+        <SignupForm nextPath={nextPath} />
       </SignupFormCard>
     </AuthPageShell>
   );

@@ -65,6 +65,7 @@ export function createCorsMiddleware(): MiddlewareHandler<AppBindings> {
     allowHeaders: [
       "authorization",
       "content-type",
+      "x-ms-blob-type",
       "x-device-id",
       "x-device-platform",
       "x-request-id",

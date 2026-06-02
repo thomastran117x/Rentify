@@ -139,10 +139,12 @@ function getResendFailureResult(error: unknown): VerificationFailureResult {
 
 interface SignupVerificationPanelProps {
   result: SignupVerificationPendingResult;
+  nextPath?: string;
 }
 
 export function SignupVerificationPanel({
   result,
+  nextPath = "/",
 }: SignupVerificationPanelProps) {
   const router = useRouter();
   const { setSession } = useAuth();
@@ -179,7 +181,7 @@ export function SignupVerificationPanel({
       });
 
       setSession(session);
-      router.replace("/");
+      router.replace(nextPath);
     } catch (error) {
       const failure = getVerificationFailureResult(error);
       setGeneralError(failure.generalError);
@@ -310,7 +312,10 @@ export function SignupVerificationPanel({
         {resending ? "Sending new code..." : "Resend code"}
       </button>
 
-      <Link href="/login" className={theme.auth.tertiaryLink}>
+      <Link
+        href={`/login?next=${encodeURIComponent(nextPath)}`}
+        className={theme.auth.tertiaryLink}
+      >
         Back to sign in
       </Link>
     </div>

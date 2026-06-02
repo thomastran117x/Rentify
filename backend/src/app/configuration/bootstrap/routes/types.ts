@@ -8,6 +8,7 @@ export const ROUTE_MODULE_IDS = [
   "auth-oauth",
   "auth-devices",
   "auth-personal-access-tokens",
+  "organizations",
   "blob",
   "profiles",
   "reports",

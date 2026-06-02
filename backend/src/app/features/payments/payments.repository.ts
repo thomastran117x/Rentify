@@ -162,7 +162,7 @@ export class PaymentsRepository extends BaseRepository {
               bookingRequestId: booking.id,
               postingId: booking.postingId,
               renterId: booking.renterId,
-              ownerId: booking.ownerId,
+              organizationId: booking.organizationId,
               provider: PAYMENT_PROVIDER,
               status: "awaiting_method",
               pricingCurrency: booking.pricingCurrency,
@@ -441,7 +441,7 @@ export class PaymentsRepository extends BaseRepository {
       throw new ResourceNotFoundError("Payment could not be found.");
     }
 
-    if (payment.renterId !== userId && payment.ownerId !== userId) {
+    if (payment.renterId !== userId) {
       throw new ForbiddenError("You do not have access to this payment.");
     }
 
@@ -1001,7 +1001,7 @@ export class PaymentsRepository extends BaseRepository {
             data: {
               id: randomUUID(),
               paymentId: payment.id,
-              ownerId: payment.ownerId,
+              organizationId: payment.organizationId,
               status: "scheduled",
               amount: payment.rentalSubtotalAmount,
               dueAt: booking.startAt,
@@ -1393,11 +1393,11 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async listPayoutsForOwner(
+  async listPayoutsForOrganization(
     input: ListPayoutsInput,
   ): Promise<PayoutListResult> {
     const where: Prisma.PayoutWhereInput = {
-      ownerId: input.ownerId,
+      organizationId: input.organizationId,
       ...(input.status ? { status: input.status } : {}),
     };
     const skip = (input.page - 1) * input.pageSize;
@@ -1426,7 +1426,7 @@ export class PaymentsRepository extends BaseRepository {
       bookingRequestId: payment.bookingRequestId,
       postingId: payment.postingId,
       renterId: payment.renterId,
-      ownerId: payment.ownerId,
+      organizationId: payment.organizationId,
       provider: PAYMENT_PROVIDER,
       status: payment.status,
       pricingCurrency: payment.pricingCurrency,
@@ -1487,7 +1487,7 @@ export class PaymentsRepository extends BaseRepository {
     return {
       id: payout.id,
       paymentId: payout.paymentId,
-      ownerId: payout.ownerId,
+      organizationId: payout.organizationId,
       status: payout.status,
       amount: Number(payout.amount),
       dueAt: payout.dueAt.toISOString(),

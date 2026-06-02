@@ -58,7 +58,14 @@ vi.mock("@/lib/bookings/api", () => ({
   },
 }));
 
-function buildSession(role: "user" | "owner" | "admin") {
+function buildSession(
+  role: "user" | "owner" | "admin",
+  activeOrganization?: {
+    id: string;
+    name: string;
+    role: "primary_manager" | "manager" | "operator";
+  },
+) {
   return {
     accessToken: "access-token",
     device: {
@@ -70,6 +77,7 @@ function buildSession(role: "user" | "owner" | "admin") {
       email: "person@example.com",
       username: "person",
       role,
+      activeOrganization,
     },
   };
 }
@@ -83,7 +91,7 @@ function buildDashboardItem(
     bookingRequestId: "booking-1",
     postingId: "posting-1",
     renterId: "renter-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "approved",
     sourceStatus: "approved",
     startAt: "2026-08-01T15:00:00.000Z",
@@ -287,6 +295,9 @@ describe("BookingsDashboard", () => {
     await waitFor(() => {
       expect(getOwnerDashboardMock).toHaveBeenCalled();
     });
+    expect(
+      await screen.findByRole("button", { name: "Renter" }),
+    ).toBeInTheDocument();
     const renterCallsBeforeSwitch = getMyDashboardMock.mock.calls.length;
 
     fireEvent.click(screen.getByRole("button", { name: "Renter" }));
@@ -348,5 +359,36 @@ describe("BookingsDashboard", () => {
     expect(
       await screen.findByText("Booking cancellation completed."),
     ).toBeInTheDocument();
+  });
+
+  it("keeps operators in the owner view but hides owner mutation controls", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("user", {
+        id: "org-1",
+        name: "Org One",
+        role: "operator",
+      }),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            id: "owner-item",
+            bookingRequestId: "owner-booking",
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await waitFor(() => {
+      expect(getOwnerDashboardMock).toHaveBeenCalled();
+    });
+    expect(screen.getByRole("button", { name: "Renter" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review cancellation" }),
+    ).not.toBeInTheDocument();
   });
 });

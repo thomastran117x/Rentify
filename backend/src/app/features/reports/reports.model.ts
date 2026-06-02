@@ -119,6 +119,11 @@ export interface ContentReportUserSummary {
   role: AppRole;
 }
 
+export interface ContentReportOrganizationSummary {
+  id: string;
+  name: string;
+}
+
 export interface PostingReportSubjectSnapshot {
   subjectType: "posting";
   summaryText: string;
@@ -126,7 +131,7 @@ export interface PostingReportSubjectSnapshot {
     id: string;
     name: string;
     status: string;
-    owner: ContentReportUserSummary;
+    organization: ContentReportOrganizationSummary;
   };
 }
 

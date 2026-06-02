@@ -9,11 +9,12 @@ import type {
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 class FakePostingsRepository {
   posting = {
     id: "posting-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     archivedAt: undefined,
   };
@@ -69,10 +70,25 @@ class FakeRentingsRepository {
   }
 }
 
+class FakeOrganizationAccessService {
+  memberships = new Map<string, string>([["owner-1", "org-1"]]);
+
+  async findMembership(userId: string, organizationId: string) {
+    return this.memberships.get(userId) === organizationId
+      ? {
+          organizationId,
+          userId,
+          role: "primary_manager" as const,
+        }
+      : null;
+  }
+}
+
 function createService(options?: {
   postingsRepository?: FakePostingsRepository;
   postingsReviewsRepository?: FakePostingsReviewsRepository;
   rentingsRepository?: FakeRentingsRepository;
+  organizationAccessService?: FakeOrganizationAccessService;
 }) {
   const postingsRepository =
     options?.postingsRepository ?? new FakePostingsRepository();
@@ -80,11 +96,14 @@ function createService(options?: {
     options?.postingsReviewsRepository ?? new FakePostingsReviewsRepository();
   const rentingsRepository =
     options?.rentingsRepository ?? new FakeRentingsRepository();
+  const organizationAccessService =
+    options?.organizationAccessService ?? new FakeOrganizationAccessService();
 
   return new PostingsReviewsService(
     postingsReviewsRepository as unknown as PostingsReviewsRepository,
     postingsRepository as unknown as PostingsRepository,
     rentingsRepository as unknown as RentingsRepository,
+    organizationAccessService as unknown as OrganizationAccessService,
   );
 }
 

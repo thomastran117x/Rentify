@@ -16,11 +16,13 @@ import {
   type PostingRecord,
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 export class PostingsAnalyticsService {
   constructor(
     private readonly analyticsRepository: PostingsAnalyticsRepository,
     private readonly postingsRepository: PostingsRepository,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async trackPublicView(
@@ -32,7 +34,16 @@ export class PostingsAnalyticsService {
       return;
     }
 
-    if (viewerUserId && viewerUserId === posting.ownerId) {
+    const organizationId = await this.resolvePostingOrganizationId(posting);
+
+    if (
+      viewerUserId &&
+      organizationId &&
+      (await this.organizationAccessService.findMembership(
+        viewerUserId,
+        organizationId,
+      ))
+    ) {
       return;
     }
 
@@ -50,7 +61,7 @@ export class PostingsAnalyticsService {
 
     await this.analyticsRepository.enqueuePostingViewedEvent({
       postingId: posting.id,
-      ownerId: posting.ownerId,
+      organizationId,
       occurredAt: occurredAt.toISOString(),
       viewerHash,
       userId: viewerUserId,
@@ -70,17 +81,27 @@ export class PostingsAnalyticsService {
     const occurredAt = new Date().toISOString();
 
     await Promise.all(
-      postings.map((posting) =>
-        this.analyticsRepository.enqueueSearchImpressionEvent({
-          postingId: posting.id,
-          ownerId: posting.ownerId,
+      postings.map(async (posting) => {
+        const metadata =
+          await this.postingsRepository.findPublicReadMetadataById(posting.id);
+
+        if (!metadata) {
+          return;
+        }
+
+        await this.analyticsRepository.enqueueSearchImpressionEvent({
+          postingId: metadata.id,
+          organizationId: metadata.organizationId,
           occurredAt,
-        }),
-      ),
+        });
+      }),
     );
   }
 
-  async trackSearchClick(postingId: string): Promise<void> {
+  async trackSearchClick(
+    postingId: string,
+    viewerUserId?: string,
+  ): Promise<void> {
     const metadata =
       await this.postingsRepository.findPublicReadMetadataById(postingId);
 
@@ -88,25 +109,50 @@ export class PostingsAnalyticsService {
       return;
     }
 
+    if (
+      viewerUserId &&
+      (await this.organizationAccessService.findMembership(
+        viewerUserId,
+        metadata.organizationId,
+      ))
+    ) {
+      return;
+    }
+
     await this.analyticsRepository.enqueueSearchClickEvent({
       postingId: metadata.id,
-      ownerId: metadata.ownerId,
+      organizationId: metadata.organizationId,
       occurredAt: new Date().toISOString(),
     });
   }
 
   async getOwnerSummary(
-    ownerId: string,
+    actorUserId: string,
     window: "7d" | "30d" | "all",
   ): Promise<OwnerPostingsAnalyticsSummary> {
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        actorUserId,
+        "Select or join an organization before viewing posting analytics.",
+      );
+
     return this.analyticsRepository.getOwnerSummary({
-      ownerId,
+      actorUserId,
+      organizationId: membership.organizationId,
       window,
     });
   }
 
   async listOwnerPostingsAnalytics(input: ListPostingAnalyticsInput) {
-    return this.analyticsRepository.listOwnerPostingsAnalytics(input);
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        input.actorUserId,
+        "Select or join an organization before viewing posting analytics.",
+      );
+    return this.analyticsRepository.listOwnerPostingsAnalytics({
+      ...input,
+      organizationId: membership.organizationId,
+    });
   }
 
   async getPostingAnalyticsDetail(
@@ -118,11 +164,11 @@ export class PostingsAnalyticsService {
       throw new ResourceNotFoundError("Posting could not be found.");
     }
 
-    if (posting.ownerId !== input.ownerId) {
-      throw new ForbiddenError(
-        "You do not have access to this posting analytics.",
-      );
-    }
+    await this.organizationAccessService.requireMembership(
+      input.actorUserId,
+      posting.organizationId,
+      "You do not have access to this posting analytics.",
+    );
 
     if (input.window !== "7d" && input.granularity === "hour") {
       throw new BadRequestError(
@@ -130,8 +176,10 @@ export class PostingsAnalyticsService {
       );
     }
 
-    const detail =
-      await this.analyticsRepository.getPostingAnalyticsDetail(input);
+    const detail = await this.analyticsRepository.getPostingAnalyticsDetail({
+      ...input,
+      organizationId: posting.organizationId,
+    });
 
     if (!detail) {
       throw new ResourceNotFoundError("Posting analytics could not be found.");
@@ -167,5 +215,23 @@ export class PostingsAnalyticsService {
 
   private hashValue(value: string): string {
     return createHash("sha256").update(value).digest("hex");
+  }
+
+  private async resolvePostingOrganizationId(
+    posting: PostingRecord | PublicPostingRecord,
+  ): Promise<string> {
+    if ("organizationId" in posting) {
+      return posting.organizationId;
+    }
+
+    const metadata = await this.postingsRepository.findPublicReadMetadataById(
+      posting.id,
+    );
+
+    if (!metadata) {
+      throw new ResourceNotFoundError("Posting could not be found.");
+    }
+
+    return metadata.organizationId;
   }
 }

@@ -6,6 +6,7 @@ import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-g
 
 const TURNSTILE_SITEVERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
 
 const DEFAULTS = {
   maxRetries: 3,
@@ -97,6 +98,12 @@ export class CaptchaService {
       options.requestTimeoutMs ?? DEFAULTS.requestTimeoutMs;
   }
   async verify(input: VerifyCaptchaInput): Promise<CaptchaVerificationResult> {
+    const developmentBypassResult = this.resolveDevelopmentBypassResult(input);
+
+    if (developmentBypassResult) {
+      return developmentBypassResult;
+    }
+
     if (!this.secretKey) {
       return this.buildFailOpenResult(["turnstile-not-configured"]);
     }
@@ -150,6 +157,27 @@ export class CaptchaService {
       token,
       remoteIp: input.remoteIp,
       idempotencyKey: input.idempotencyKey,
+    };
+  }
+
+  private resolveDevelopmentBypassResult(
+    input: VerifyCaptchaInput,
+  ): CaptchaVerificationResult | null {
+    const token = input.token?.trim();
+
+    if (environment.isProduction()) {
+      return null;
+    }
+
+    if (token !== LOCAL_CAPTCHA_BYPASS_TOKEN) {
+      return null;
+    }
+
+    return {
+      success: true,
+      failOpen: false,
+      errors: [],
+      action: "local-development-bypass",
     };
   }
 

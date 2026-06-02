@@ -26,6 +26,8 @@ tags:
     description: 'Local auth, OAuth auth, and session/device flows.'
   - name: personal-access-tokens
     description: PAT creation and lifecycle management.
+  - name: organizations
+    description: 'Organization memberships, invitations, active-org switching, and member management.'
   - name: profiles
     description: Public profile browsing and current-user profile management.
   - name: blob
@@ -214,6 +216,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -444,6 +451,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -511,6 +523,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -790,6 +807,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -858,6 +880,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -975,6 +1002,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -1044,6 +1076,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -1112,6 +1149,11 @@ paths:
                     username: owner-one
                     avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
                     role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -1629,6 +1671,701 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /organizations/me:
+    get:
+      operationId: listMyOrganizations
+      summary: List the caller's organizations
+      description: Returns organization memberships for the signed-in user together with the currently active organization summary.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationWorkspaceResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  memberships:
+                    - membershipId: membership-1
+                      id: org-1
+                      name: Northwind
+                      role: primary_manager
+                      joinedAt: '2026-05-01T00:00:00.000Z'
+                      isActive: true
+                  activeOrganization:
+                    id: org-1
+                    name: Northwind
+                    role: primary_manager
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /organizations/me/active:
+    post:
+      operationId: setActiveOrganization
+      summary: Set the active organization
+      description: Stores the signed-in user's active organization preference when they belong to more than one organization.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetActiveOrganizationRequest'
+            example:
+              organizationId: org-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SetActiveOrganizationResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Active organization updated successfully.
+                data:
+                  activeOrganization:
+                    id: org-1
+                    name: Northwind
+                    role: primary_manager
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/invitations/{token}':
+    get:
+      operationId: previewOrganizationInvitation
+      summary: Preview an organization invitation
+      description: Loads organization invitation status and viewer eligibility details. Authentication is optional; when present it is used to show whether the current account can accept the invite.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+        - {}
+      x-rentify-permissions:
+        authMode: optional-bearer
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Organization invitation token.
+          schema:
+            type: string
+          example: invite_token_123
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationInvitePreviewResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  invitation:
+                    organizationId: org-1
+                    organizationName: Northwind
+                    emailHint: t***@example.com
+                    role: operator
+                    status: pending
+                    expiresAt: '2026-06-04T10:00:00.000Z'
+                  viewer:
+                    authenticated: true
+                    email: teammate@example.com
+                    emailVerified: true
+                    matchesEmail: true
+                    canAccept: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/invitations/{token}/accept':
+    post:
+      operationId: acceptOrganizationInvitation
+      summary: Accept an organization invitation
+      description: Accepts a pending organization invitation for the authenticated user when the invite email matches the verified account email.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Organization invitation token.
+          schema:
+            type: string
+          example: invite_token_123
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AcceptOrganizationInviteResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization invitation accepted successfully.
+                data:
+                  accepted: true
+                  organization:
+                    id: org-1
+                    name: Northwind
+                    role: operator
+                  membership:
+                    membershipId: membership-2
+                    id: org-1
+                    name: Northwind
+                    role: operator
+                    joinedAt: '2026-05-28T10:30:00.000Z'
+                    isActive: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}':
+    get:
+      operationId: getOrganizationById
+      summary: Get organization detail
+      description: 'Returns organization profile, roster, and pending invitations for a member of the organization.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationDetailResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  organization:
+                    id: org-1
+                    name: Northwind
+                    createdAt: '2026-05-01T00:00:00.000Z'
+                    updatedAt: '2026-05-28T10:00:00.000Z'
+                  viewerRole: primary_manager
+                  members:
+                    - membershipId: membership-1
+                      userId: user-1
+                      email: owner1@rentify.local
+                      firstName: Owner
+                      lastName: One
+                      username: owner-one
+                      avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                      role: primary_manager
+                      joinedAt: '2026-05-01T00:00:00.000Z'
+                    - membershipId: membership-2
+                      userId: user-2
+                      email: teammate@example.com
+                      firstName: Taylor
+                      lastName: Operator
+                      username: taylor-operator
+                      avatarUrl: 'https://cdn.rentify.local/avatars/user-2.png'
+                      role: operator
+                      joinedAt: '2026-05-03T10:00:00.000Z'
+                  invitations:
+                    - id: invite-1
+                      email: teammate@example.com
+                      emailHint: t***@example.com
+                      role: operator
+                      status: pending
+                      expiresAt: '2026-06-04T10:00:00.000Z'
+                      createdAt: '2026-05-28T10:00:00.000Z'
+                      updatedAt: '2026-05-28T10:00:00.000Z'
+                      invitedBy:
+                        id: user-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      operationId: updateOrganization
+      summary: Rename an organization
+      description: Updates the organization name. Only the primary manager can rename the organization in this release.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+            example:
+              name: Northwind Creative
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationSummary'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization updated successfully.
+                data:
+                  id: org-1
+                  name: Northwind Creative
+                  role: primary_manager
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/invitations':
+    post:
+      operationId: createOrganizationInvitation
+      summary: Create or reissue an organization invitation
+      description: Creates a new invitation for the organization or reissues a pending invite for the same email.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationInvitationRequest'
+            example:
+              email: teammate@example.com
+              role: operator
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreateOrganizationInviteResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization invitation created successfully.
+                data:
+                  invitation:
+                    id: invite-1
+                    email: teammate@example.com
+                    emailHint: t***@example.com
+                    role: operator
+                    status: pending
+                    expiresAt: '2026-06-04T10:00:00.000Z'
+                    createdAt: '2026-05-28T10:00:00.000Z'
+                    updatedAt: '2026-05-28T10:00:00.000Z'
+                    invitedBy:
+                      id: user-1
+                      email: owner1@rentify.local
+                      username: owner-one
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/invitations/{inviteId}':
+    delete:
+      operationId: revokeOrganizationInvitation
+      summary: Revoke an organization invitation
+      description: Revokes a pending organization invitation when the caller has sufficient organization permissions.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: inviteId
+          in: path
+          required: true
+          description: Organization invitation identifier.
+          schema:
+            type: string
+          example: invite-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreateOrganizationInviteResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization invitation revoked successfully.
+                data:
+                  invitation:
+                    id: invite-1
+                    email: teammate@example.com
+                    emailHint: t***@example.com
+                    role: operator
+                    status: revoked
+                    expiresAt: '2026-06-04T10:00:00.000Z'
+                    createdAt: '2026-05-28T10:00:00.000Z'
+                    updatedAt: '2026-05-28T10:00:00.000Z'
+                    invitedBy:
+                      id: user-1
+                      email: owner1@rentify.local
+                      username: owner-one
+                    revokedAt: '2026-05-28T11:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/members/{memberId}':
+    patch:
+      operationId: updateOrganizationMember
+      summary: Update an organization member role
+      description: Changes the role of an existing organization member within the v1 role restrictions.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: memberId
+          in: path
+          required: true
+          description: Organization membership identifier.
+          schema:
+            type: string
+          example: membership-2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationMemberRequest'
+            example:
+              role: manager
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UpdateOrganizationMemberResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization member updated successfully.
+                data:
+                  member:
+                    membershipId: membership-2
+                    userId: user-2
+                    email: teammate@example.com
+                    firstName: Taylor
+                    lastName: Operator
+                    username: taylor-operator
+                    avatarUrl: 'https://cdn.rentify.local/avatars/user-2.png'
+                    role: manager
+                    joinedAt: '2026-05-03T10:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: removeOrganizationMember
+      summary: Remove an organization member
+      description: Removes an organization membership when the caller has permission to manage that member role.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: memberId
+          in: path
+          required: true
+          description: Organization membership identifier.
+          schema:
+            type: string
+          example: membership-2
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RemoveOrganizationMemberResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization member removed successfully.
+                data:
+                  removed: true
+                  membershipId: membership-2
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /blob/upload-url:
     post:
       operationId: createBlobUploadUrl
@@ -1688,6 +2425,111 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /blob/upload:
+    put:
+      operationId: uploadLocalBlob
+      summary: Upload a blob payload to the local development fallback
+      description: Accepts a signed local-development upload URL generated by the blob upload target route. This route is only used when Azure Blob Storage is not configured in development.
+      tags:
+        - blob
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: blobName
+          in: query
+          required: true
+          description: Managed blob name to store.
+          schema:
+            type: string
+          example: postings/user-1/local-photo.png
+        - name: expiresAt
+          in: query
+          required: true
+          description: Signed upload expiry timestamp.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-31T18:15:00.000Z'
+        - name: token
+          in: query
+          required: true
+          description: Upload token generated by the blob upload target route.
+          schema:
+            type: string
+          example: signed-local-upload-token
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Blob uploaded successfully.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /blob/file:
+    get:
+      operationId: getLocalBlob
+      summary: Read a locally stored development blob
+      description: Returns a blob payload from the local development fallback store. This route is only used when Azure Blob Storage is not configured in development.
+      tags:
+        - blob
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: blobName
+          in: query
+          required: true
+          description: Managed blob name to fetch.
+          schema:
+            type: string
+          example: postings/user-1/local-photo.png
+      responses:
+        '200':
+          description: Blob payload returned successfully.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -2324,12 +3166,10 @@ paths:
                 message: Posting draft created successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -2570,12 +3410,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -2711,12 +3549,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -2849,12 +3685,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -3011,12 +3845,10 @@ paths:
                 message: Posting updated successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3135,12 +3967,10 @@ paths:
                 message: Request completed successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3253,12 +4083,10 @@ paths:
                 message: Posting duplicated successfully.
                 data:
                   id: posting-2
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: draft
                   variant:
                     family: place
@@ -3373,12 +4201,10 @@ paths:
                 message: Posting published successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3493,12 +4319,10 @@ paths:
                 message: Posting paused successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: paused
                   variant:
                     family: place
@@ -3614,12 +4438,10 @@ paths:
                 message: Posting unpaused successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: published
                   variant:
                     family: place
@@ -3734,12 +4556,10 @@ paths:
                 message: Posting archived successfully.
                 data:
                   id: posting-1
-                  ownerId: owner-1
-                  owner:
-                    id: owner-1
-                    username: owner-one
-                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                    role: owner
+                  organizationId: org-1
+                  organization:
+                    id: org-1
+                    name: Owner One Organization
                   status: archived
                   variant:
                     family: place
@@ -4475,17 +5295,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -4629,17 +5446,14 @@ paths:
                         role: moderator
                       subjectSnapshot:
                         subjectType: posting
-                        summaryText: Sunny loft workspace published owner-one
+                        summaryText: Sunny loft workspace published Owner One Organization
                         posting:
                           id: posting-1
                           name: Sunny loft workspace
                           status: published
-                          owner:
-                            id: owner-1
-                            email: owner1@rentify.local
-                            username: owner-one
-                            avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                            role: owner
+                          organization:
+                            id: org-1
+                            name: Owner One Organization
                   pagination:
                     page: 1
                     pageSize: 20
@@ -4733,17 +5547,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                   reviewedAt: '2026-05-25T16:00:00.000Z'
                   events:
                     - id: report-event-1
@@ -4851,17 +5662,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -4953,17 +5761,14 @@ paths:
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
-                    summaryText: Sunny loft workspace published owner-one
+                    summaryText: Sunny loft workspace published Owner One Organization
                     posting:
                       id: posting-1
                       name: Sunny loft workspace
                       status: published
-                      owner:
-                        id: owner-1
-                        email: owner1@rentify.local
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                   resolutionCode: action_taken
                   resolutionSummary: Listing removed after moderator review.
                   reviewedAt: '2026-05-25T16:00:00.000Z'
@@ -5490,12 +6295,10 @@ paths:
                   items:
                     - posting:
                         id: posting-1
-                        ownerId: owner-1
-                        owner:
-                          id: owner-1
-                          username: owner-one
-                          avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                          role: owner
+                        organizationId: org-1
+                        organization:
+                          id: org-1
+                          name: Owner One Organization
                         status: published
                         variant:
                           family: place
@@ -5635,12 +6438,10 @@ paths:
                 data:
                   postings:
                     - id: posting-1
-                      ownerId: owner-1
-                      owner:
-                        id: owner-1
-                        username: owner-one
-                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
-                        role: owner
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
                       status: published
                       variant:
                         family: place
@@ -5767,7 +6568,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -5879,7 +6680,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -6074,7 +6875,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -6189,7 +6990,7 @@ paths:
                     - id: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -6327,7 +7128,7 @@ paths:
                       bookingRequestId: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: approved
                       sourceStatus: approved
                       startAt: '2026-06-14T15:00:00.000Z'
@@ -6477,7 +7278,7 @@ paths:
                       bookingRequestId: booking-1
                       postingId: posting-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: pending
                       sourceStatus: pending
                       startAt: '2026-06-14T15:00:00.000Z'
@@ -6582,7 +7383,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -6681,7 +7482,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-15T15:00:00.000Z'
                   endAt: '2026-06-18T11:00:00.000Z'
@@ -6844,7 +7645,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: approved
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -6942,7 +7743,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: declined
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7040,7 +7841,7 @@ paths:
                   id: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: cancelled
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7141,7 +7942,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -7285,7 +8086,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -7372,7 +8173,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: awaiting_method
                   pricingCurrency: CAD
@@ -7467,7 +8268,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: partially_refunded
                   pricingCurrency: CAD
@@ -7561,7 +8362,7 @@ paths:
                   bookingRequestId: booking-1
                   postingId: posting-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   provider: square
                   status: succeeded
                   pricingCurrency: CAD
@@ -7704,7 +8505,7 @@ paths:
                   payouts:
                     - id: payout-1
                       paymentId: payment-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: scheduled
                       amount: 405
                       dueAt: '2026-06-17T12:00:00.000Z'
@@ -7782,7 +8583,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -7876,7 +8677,7 @@ paths:
                       postingId: posting-1
                       bookingRequestId: booking-1
                       renterId: user-1
-                      ownerId: owner-1
+                      organizationId: org-1
                       status: confirmed
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
@@ -7981,7 +8782,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8066,7 +8867,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: check_in_ready
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8150,7 +8951,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: active
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8234,7 +9035,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: completed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8327,7 +9128,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: disputed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8420,7 +9221,7 @@ paths:
                   postingId: posting-1
                   bookingRequestId: booking-1
                   renterId: user-1
-                  ownerId: owner-1
+                  organizationId: org-1
                   status: confirmed
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
@@ -8743,6 +9544,7 @@ components:
         - email
         - username
         - role
+        - organizationMembershipCount
       properties:
         id:
           type: string
@@ -8761,6 +9563,322 @@ components:
             - owner
             - moderator
             - admin
+        activeOrganization:
+          $ref: '#/components/schemas/OrganizationSummary'
+        organizationMembershipCount:
+          type: integer
+          minimum: 0
+    OrganizationRole:
+      type: string
+      enum:
+        - primary_manager
+        - manager
+        - operator
+    OrganizationInviteStatus:
+      type: string
+      enum:
+        - pending
+        - accepted
+        - revoked
+        - expired
+    OrganizationSummary:
+      type: object
+      required:
+        - id
+        - name
+        - role
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/OrganizationRole'
+    OrganizationMembershipSummary:
+      allOf:
+        - $ref: '#/components/schemas/OrganizationSummary'
+        - type: object
+          required:
+            - membershipId
+            - joinedAt
+            - isActive
+          properties:
+            membershipId:
+              type: string
+            joinedAt:
+              type: string
+              format: date-time
+            isActive:
+              type: boolean
+    OrganizationWorkspaceResult:
+      type: object
+      required:
+        - memberships
+      properties:
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMembershipSummary'
+        activeOrganization:
+          $ref: '#/components/schemas/OrganizationSummary'
+    SetActiveOrganizationRequest:
+      type: object
+      required:
+        - organizationId
+      properties:
+        organizationId:
+          type: string
+    SetActiveOrganizationResult:
+      type: object
+      required:
+        - activeOrganization
+      properties:
+        activeOrganization:
+          $ref: '#/components/schemas/OrganizationSummary'
+    UpdateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+    OrganizationDetailOrganization:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrganizationMemberRecord:
+      type: object
+      required:
+        - membershipId
+        - userId
+        - email
+        - username
+        - role
+        - joinedAt
+      properties:
+        membershipId:
+          type: string
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        role:
+          $ref: '#/components/schemas/OrganizationRole'
+        joinedAt:
+          type: string
+          format: date-time
+    OrganizationInvitationActorSummary:
+      type: object
+      required:
+        - id
+        - email
+        - username
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+    OrganizationInvitationRecord:
+      type: object
+      required:
+        - id
+        - email
+        - emailHint
+        - role
+        - status
+        - expiresAt
+        - createdAt
+        - updatedAt
+        - invitedBy
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        emailHint:
+          type: string
+        role:
+          $ref: '#/components/schemas/OrganizationRole'
+        status:
+          $ref: '#/components/schemas/OrganizationInviteStatus'
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+        invitedBy:
+          $ref: '#/components/schemas/OrganizationInvitationActorSummary'
+        acceptedBy:
+          $ref: '#/components/schemas/OrganizationInvitationActorSummary'
+    OrganizationDetailResult:
+      type: object
+      required:
+        - organization
+        - viewerRole
+        - members
+        - invitations
+      properties:
+        organization:
+          $ref: '#/components/schemas/OrganizationDetailOrganization'
+        viewerRole:
+          $ref: '#/components/schemas/OrganizationRole'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMemberRecord'
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationInvitationRecord'
+    CreateOrganizationInvitationRequest:
+      type: object
+      required:
+        - email
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+            - manager
+            - operator
+    CreateOrganizationInviteResult:
+      type: object
+      required:
+        - invitation
+      properties:
+        invitation:
+          $ref: '#/components/schemas/OrganizationInvitationRecord'
+    UpdateOrganizationMemberRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum:
+            - manager
+            - operator
+            - primary_manager
+    UpdateOrganizationMemberResult:
+      type: object
+      required:
+        - member
+      properties:
+        member:
+          $ref: '#/components/schemas/OrganizationMemberRecord'
+    RemoveOrganizationMemberResult:
+      type: object
+      required:
+        - removed
+        - membershipId
+      properties:
+        removed:
+          type: boolean
+        membershipId:
+          type: string
+    OrganizationInvitePreviewResult:
+      type: object
+      required:
+        - invitation
+        - viewer
+      properties:
+        invitation:
+          type: object
+          required:
+            - organizationId
+            - organizationName
+            - emailHint
+            - role
+            - status
+            - expiresAt
+          properties:
+            organizationId:
+              type: string
+            organizationName:
+              type: string
+            emailHint:
+              type: string
+            role:
+              $ref: '#/components/schemas/OrganizationRole'
+            status:
+              $ref: '#/components/schemas/OrganizationInviteStatus'
+            expiresAt:
+              type: string
+              format: date-time
+        viewer:
+          type: object
+          required:
+            - authenticated
+            - matchesEmail
+            - canAccept
+          properties:
+            authenticated:
+              type: boolean
+            email:
+              type: string
+              format: email
+            emailVerified:
+              type: boolean
+            matchesEmail:
+              type: boolean
+            canAccept:
+              type: boolean
+    AcceptOrganizationInviteResult:
+      type: object
+      required:
+        - accepted
+        - organization
+        - membership
+      properties:
+        accepted:
+          type: boolean
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+        membership:
+          $ref: '#/components/schemas/OrganizationMembershipSummary'
     AuthSessionResponseData:
       type: object
       required:
@@ -9501,8 +10619,13 @@ components:
               type: string
             status:
               type: string
-            owner:
-              $ref: '#/components/schemas/ContentReportUserSummary'
+            organization:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
         review:
           type: object
           properties:

@@ -53,8 +53,17 @@ vi.mock("@/components/auth/oauth-buttons", () => ({
 }));
 
 vi.mock("@/components/auth/signup-verification-panel", () => ({
-  SignupVerificationPanel: ({ result }: { result: { email: string } }) => (
-    <div>Verification pending for {result.email}</div>
+  SignupVerificationPanel: ({
+    result,
+    nextPath,
+  }: {
+    result: { email: string };
+    nextPath?: string;
+  }) => (
+    <div>
+      Verification pending for {result.email}
+      {nextPath ? ` and redirecting to ${nextPath}` : ""}
+    </div>
   ),
 }));
 
@@ -94,6 +103,21 @@ describe("SignupForm", () => {
 
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/");
+    });
+  });
+
+  it("redirects authenticated users to the provided next path", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+    });
+
+    render(<SignupForm nextPath="/organizations/invitations/token-123" />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith(
+        "/organizations/invitations/token-123",
+      );
     });
   });
 
@@ -150,9 +174,35 @@ describe("SignupForm", () => {
     });
     expect(clearCaptchaTokenMock).toHaveBeenCalled();
     expect(
-      await screen.findByText("Verification pending for person@example.com"),
+      await screen.findByText(
+        "Verification pending for person@example.com and redirecting to /",
+      ),
     ).toBeInTheDocument();
   }, 10000);
+
+  it("passes the next path into the verification state", async () => {
+    const user = userEvent.setup();
+    signupMock.mockResolvedValue({
+      verificationRequired: true,
+      email: "person@example.com",
+      alreadyPending: false,
+    });
+
+    render(<SignupForm nextPath="/organizations/invitations/token-123" />);
+
+    await user.type(screen.getByLabelText("First name"), "Jane");
+    await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findByText(
+        "Verification pending for person@example.com and redirecting to /organizations/invitations/token-123",
+      ),
+    ).toBeInTheDocument();
+  });
 
   it("maps conflict responses to the email field", async () => {
     const user = userEvent.setup();

@@ -4,6 +4,7 @@ function createPostingPersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "posting-1",
     ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     family: "place",
     subtype: "entire_place",
@@ -128,7 +129,7 @@ describe("PostingsRepository", () => {
     } as never);
 
     const result = await repository.listByOwner({
-      ownerId: "owner-1",
+      organizationId: "org-1",
       page: 2,
       pageSize: 2,
       status: "published",
@@ -137,7 +138,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          ownerId: "owner-1",
+          organizationId: "org-1",
           status: "published",
         },
         skip: 2,
@@ -146,6 +147,7 @@ describe("PostingsRepository", () => {
     );
     expect(result.postings[0]).toMatchObject({
       id: "posting-1",
+      organizationId: "org-1",
       variant: {
         family: "place",
         subtype: "entire_place",

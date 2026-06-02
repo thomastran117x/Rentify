@@ -17,6 +17,7 @@ import type { ReportsRepository } from "@/features/reports/reports.repository";
 import type { ReportsSearchIndexService } from "@/features/reports/search/index.service";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 const MAX_SEARCH_OUTBOX_ATTEMPTS = 5;
 
@@ -27,6 +28,7 @@ export class ReportsService {
     private readonly reportsRepository: ReportsRepository,
     private readonly reportsSearchIndexService: ReportsSearchIndexService,
     private readonly contentSanitizationService: ContentSanitizationService,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {
     this.logger = loggerFactory.forClass(ReportsService, "service");
   }
@@ -202,19 +204,26 @@ export class ReportsService {
           throw new ResourceNotFoundError("Posting could not be found.");
         }
 
-        if (posting.ownerId === input.reporterId) {
+        const membership = await this.organizationAccessService.findMembership(
+          input.reporterId,
+          posting.organizationId,
+        );
+
+        if (membership) {
           throw new ForbiddenError("You cannot report your own posting.");
         }
 
-        const owner = this.toUserSummary(posting.owner);
         return {
           subjectType: "posting",
-          summaryText: `${posting.name} ${posting.status} ${owner.username ?? owner.email}`,
+          summaryText: `${posting.name} ${posting.status} ${posting.organization.name}`,
           posting: {
             id: posting.id,
             name: posting.name,
             status: posting.status,
-            owner,
+            organization: {
+              id: posting.organization.id,
+              name: posting.organization.name,
+            },
           },
         };
       }

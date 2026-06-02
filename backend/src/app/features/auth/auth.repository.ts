@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
+  type AuthUserOrganizationMembershipRecord,
   type AppRole,
   type CreateLocalUserInput,
   type AuthUserRecord,
@@ -25,8 +26,23 @@ type AuthUserPersistence = {
   emailVerified: boolean;
   oauthIdentities: OAuthIdentityPersistence[];
   profile: AuthProfilePersistence | null;
+  preferredOrganizationId: string | null;
+  organizationMemberships: OrganizationMembershipPersistence[];
   createdAt: Date;
   updatedAt: Date;
+};
+
+type OrganizationMembershipPersistence = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  organization: {
+    id: string;
+    name: string;
+  };
 };
 
 type OAuthIdentityPersistence = {
@@ -90,10 +106,7 @@ export class AuthRepository extends BaseRepository {
         where: {
           id,
         },
-        include: {
-          profile: true,
-          oauthIdentities: true,
-        },
+        include: this.buildAuthUserInclude(),
       }),
     );
 
@@ -110,10 +123,7 @@ export class AuthRepository extends BaseRepository {
         where: {
           email: email.toLowerCase(),
         },
-        include: {
-          profile: true,
-          oauthIdentities: true,
-        },
+        include: this.buildAuthUserInclude(),
       }),
     );
 
@@ -147,10 +157,7 @@ export class AuthRepository extends BaseRepository {
             },
           },
         },
-        include: {
-          profile: true,
-          oauthIdentities: true,
-        },
+        include: this.buildAuthUserInclude(),
       }),
     );
 
@@ -187,10 +194,7 @@ export class AuthRepository extends BaseRepository {
             },
           },
         },
-        include: {
-          profile: true,
-          oauthIdentities: true,
-        },
+        include: this.buildAuthUserInclude(),
       }),
     );
 
@@ -211,10 +215,7 @@ export class AuthRepository extends BaseRepository {
         },
         include: {
           user: {
-            include: {
-              profile: true,
-              oauthIdentities: true,
-            },
+            include: this.buildAuthUserInclude(),
           },
         },
       }),
@@ -322,10 +323,7 @@ export class AuthRepository extends BaseRepository {
           lastName: input.lastName ?? null,
           emailVerified: true,
         },
-        include: {
-          profile: true,
-          oauthIdentities: true,
-        },
+        include: this.buildAuthUserInclude(),
       }),
     );
 
@@ -392,6 +390,10 @@ export class AuthRepository extends BaseRepository {
       profile: this.mapProfile(user.profile),
       oauthIdentities: user.oauthIdentities.map((identity) =>
         this.mapOAuthIdentity(identity),
+      ),
+      preferredOrganizationId: user.preferredOrganizationId ?? undefined,
+      organizationMemberships: user.organizationMemberships.map((membership) =>
+        this.mapOrganizationMembership(membership),
       ),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
@@ -478,5 +480,38 @@ export class AuthRepository extends BaseRepository {
       .join(" ")
       .trim();
     return displayName || null;
+  }
+
+  private mapOrganizationMembership(
+    membership: OrganizationMembershipPersistence,
+  ): AuthUserOrganizationMembershipRecord {
+    return {
+      membershipId: membership.id,
+      organizationId: membership.organizationId,
+      organizationName: membership.organization.name,
+      role: membership.role as AuthUserOrganizationMembershipRecord["role"],
+      createdAt: membership.createdAt.toISOString(),
+      updatedAt: membership.updatedAt.toISOString(),
+    };
+  }
+
+  private buildAuthUserInclude() {
+    return {
+      profile: true,
+      oauthIdentities: true,
+      organizationMemberships: {
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "asc" as const,
+        },
+      },
+    };
   }
 }

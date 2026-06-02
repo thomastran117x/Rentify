@@ -11,8 +11,8 @@ import {
   ScrollText,
   ShieldAlert,
   Star,
+  Building2,
   Tags,
-  UserRound,
 } from "lucide-react";
 import { ReportDialog } from "@/components/reports/report-dialog";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
@@ -379,30 +379,27 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
           </div>
 
           <div className="space-y-6">
-            {posting.owner ? (
+            {posting.organization ? (
               <Panel
                 icon={
-                  <UserRound
+                  <Building2
                     className="h-4 w-4 text-violet-600"
                     aria-hidden="true"
                   />
                 }
-                title="Host"
-                description="A quick view of the person behind this posting."
+                title="Organization"
+                description="The team responsible for this posting."
               >
                 <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
                   <p className="text-lg font-semibold text-slate-950">
-                    {posting.owner.username ?? "Host"}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {humanizePostingValue(posting.owner.role)}
+                    {posting.organization.name}
                   </p>
                   <div className="mt-4">
                     <ReportDialog
-                      subjectType="user"
-                      subjectId={posting.owner.id}
-                      subjectLabel="User"
-                      triggerLabel="Report user"
+                      subjectType="posting"
+                      subjectId={posting.id}
+                      subjectLabel="Posting"
+                      triggerLabel="Report posting"
                     />
                   </div>
                 </div>

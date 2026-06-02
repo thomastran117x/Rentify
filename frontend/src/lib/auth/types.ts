@@ -1,9 +1,25 @@
+export type {
+  ApiErrorPayload,
+  ApiErrorResponse,
+  ApiResponse,
+  ApiResponseMeta,
+} from "@/lib/api/types";
+export { ApiError } from "@/lib/api/types";
+
+export interface ActiveOrganizationSummary {
+  id: string;
+  name: string;
+  role: "primary_manager" | "manager" | "operator";
+}
+
 export interface AuthResponseUser {
   id: string;
   email: string;
   username: string;
   avatarUrl?: string;
   role: "user" | "owner" | "moderator" | "admin";
+  activeOrganization?: ActiveOrganizationSummary;
+  organizationMembershipCount?: number;
 }
 
 export type OAuthProvider = "google" | "microsoft" | "apple";
@@ -43,6 +59,41 @@ export interface LinkedOAuthProvidersResult {
   }>;
 }
 
+export interface SessionVerificationResult {
+  verified: boolean;
+  auth?: {
+    userId: string;
+    deviceId?: string;
+    role: AuthResponseUser["role"];
+  };
+  client?: {
+    ip?: string;
+    device?: {
+      id?: string;
+      type?: string;
+      isMobile?: boolean;
+      userAgent?: string;
+      platform?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface KnownDeviceRecord {
+  id: string;
+  label?: string;
+  lastSeenAt?: string;
+  knownByIp?: boolean;
+  current?: boolean;
+  [key: string]: unknown;
+}
+
+export interface KnownDevicesResult {
+  devices: KnownDeviceRecord[];
+}
+
 export type PersonalAccessTokenScope = "mcp:read" | "mcp:write";
 
 export interface PersonalAccessTokenSummary {
@@ -69,52 +120,6 @@ export interface CreatePersonalAccessTokenResult
 export interface RevokePersonalAccessTokenResult {
   revoked: true;
   tokenId: string;
-}
-
-export interface ApiResponseMeta {
-  requestId: string;
-  pagination?: unknown;
-  [key: string]: unknown;
-}
-
-export interface ApiErrorPayload<TDetails = unknown> {
-  code: string;
-  details?: TDetails;
-}
-
-export interface ApiResponse<TData> {
-  success: true;
-  message: string;
-  data: TData;
-  error: null;
-  meta: ApiResponseMeta;
-}
-
-export interface ApiErrorResponse<TDetails = unknown> {
-  success: false;
-  message: string;
-  data: null;
-  error: ApiErrorPayload<TDetails>;
-  meta: ApiResponseMeta;
-}
-
-export class ApiError extends Error {
-  public readonly code: string;
-  public readonly status: number;
-  public readonly details?: unknown;
-
-  constructor(
-    message: string,
-    code: string,
-    status: number,
-    details?: unknown,
-  ) {
-    super(message);
-    this.name = "ApiError";
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
 }
 
 export type StoredAuthSession = AuthResponseBody;

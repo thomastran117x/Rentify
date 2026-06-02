@@ -9,7 +9,6 @@ import {
   paginationMeta,
   pickMeta,
 } from "@/configuration/http/responses";
-import { requireMinimumRole } from "@/features/auth/authorization";
 import {
   getOptionalJwtAuth,
   requireJwtAuth,
@@ -58,6 +57,8 @@ import {
   type UpdatePostingRequestBody,
   type UpsertPostingInput,
   type UpsertPostingRequestBody,
+  type PostingRecord,
+  type PublicPostingRecord,
   updatePostingRequestSchema,
   upsertPostingRequestSchema,
 } from "@/features/postings/postings.model";
@@ -85,10 +86,10 @@ export class PostingsController {
 
   create = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, upsertPostingRequestSchema);
     const result = await this.postingsService.createDraft(
-      this.toUpsertInput(auth.sub, body),
+      auth.sub,
+      this.toUpsertInput(body),
     );
     return created(context, result, {
       message: "Posting draft created successfully.",
@@ -97,11 +98,11 @@ export class PostingsController {
 
   update = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(context, updatePostingRequestSchema);
     const result = await this.postingsService.update(
       this.requireRouteId(context),
-      this.toUpsertInput(auth.sub, body),
+      auth.sub,
+      this.toUpsertInput(body),
     );
     return ok(context, result, {
       message: "Posting updated successfully.",
@@ -110,7 +111,6 @@ export class PostingsController {
 
   duplicate = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.duplicate(
       this.requireRouteId(context),
       auth.sub,
@@ -124,7 +124,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.listOwnerAvailabilityBlocks(
       this.requireRouteId(context),
       auth.sub,
@@ -136,7 +135,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(
       context,
       ownerAvailabilityBlockRequestSchema,
@@ -155,7 +153,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const body = await parseRequestBody(
       context,
       ownerAvailabilityBlockRequestSchema,
@@ -175,7 +172,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     await this.postingsService.deleteOwnerAvailabilityBlock(
       this.requireRouteId(context),
       auth.sub,
@@ -186,7 +182,6 @@ export class PostingsController {
 
   publish = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.publish(
       this.requireRouteId(context),
       auth.sub,
@@ -205,7 +200,6 @@ export class PostingsController {
 
   archive = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.archive(
       this.requireRouteId(context),
       auth.sub,
@@ -224,7 +218,6 @@ export class PostingsController {
 
   pause = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.pause(
       this.requireRouteId(context),
       auth.sub,
@@ -243,7 +236,6 @@ export class PostingsController {
 
   unpause = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.unpause(
       this.requireRouteId(context),
       auth.sub,
@@ -267,7 +259,7 @@ export class PostingsController {
       auth?.sub,
     );
 
-    if (!auth || auth.sub !== result.ownerId) {
+    if (!auth || !this.isManagedPostingRecord(result)) {
       await this.postingsAnalyticsService.trackPublicView(
         result,
         context.get("client"),
@@ -295,6 +287,7 @@ export class PostingsController {
 
     await this.postingsAnalyticsService.trackSearchClick(
       this.requireRouteId(context),
+      auth?.sub,
     );
     await this.recommendationActivityPublisher.publishSearchClick({
       postingId: this.requireRouteId(context),
@@ -317,9 +310,9 @@ export class PostingsController {
 
   listMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.listByOwner(
-      this.parseListOwnerPostingsInput(context, auth.sub),
+      auth.sub,
+      this.parseListOwnerPostingsInput(context),
     );
     return ok(context, result, {
       meta: paginationMeta(result),
@@ -328,7 +321,6 @@ export class PostingsController {
 
   batchMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const result = await this.postingsService.batchByOwner(
       auth.sub,
       this.parseBatchIds(context),
@@ -376,7 +368,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const query = this.parseAnalyticsSummaryQuery(context);
     const result = await this.postingsAnalyticsService.getOwnerSummary(
       auth.sub,
@@ -389,7 +380,6 @@ export class PostingsController {
     context: Context<AppBindings>,
   ): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const input = this.parseListPostingAnalyticsInput(context, auth.sub);
     const result =
       await this.postingsAnalyticsService.listOwnerPostingsAnalytics(input);
@@ -400,7 +390,6 @@ export class PostingsController {
 
   analyticsById = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    requireMinimumRole(auth, "owner");
     const input = this.parsePostingAnalyticsDetailInput(
       context,
       auth.sub,
@@ -458,14 +447,13 @@ export class PostingsController {
   };
 
   private toUpsertInput(
-    userId: string,
     body: UpsertPostingRequestBody | UpdatePostingRequestBody,
   ): UpsertPostingInput {
     const availabilityBlocks =
       "availabilityBlocks" in body ? body.availabilityBlocks : [];
 
     return {
-      ownerId: userId,
+      organizationId: "",
       variant: body.variant,
       name: body.name,
       description: body.description,
@@ -504,8 +492,7 @@ export class PostingsController {
 
   private parseListOwnerPostingsInput(
     context: Context<AppBindings>,
-    ownerId: string,
-  ): ListOwnerPostingsInput {
+  ): Omit<ListOwnerPostingsInput, "organizationId"> {
     const url = new URL(context.req.url);
 
     try {
@@ -515,7 +502,7 @@ export class PostingsController {
         status: url.searchParams.get("status") ?? undefined,
       });
 
-      return this.toListOwnerPostingsInput(ownerId, query);
+      return this.toListOwnerPostingsInput(query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }
@@ -592,7 +579,7 @@ export class PostingsController {
 
   private parseListPostingAnalyticsInput(
     context: Context<AppBindings>,
-    ownerId: string,
+    actorUserId: string,
   ): ListPostingAnalyticsInput {
     const url = new URL(context.req.url);
 
@@ -603,7 +590,7 @@ export class PostingsController {
         pageSize: url.searchParams.get("pageSize") ?? undefined,
       });
 
-      return this.toListPostingAnalyticsInput(ownerId, query);
+      return this.toListPostingAnalyticsInput(actorUserId, query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }
@@ -611,7 +598,7 @@ export class PostingsController {
 
   private parsePostingAnalyticsDetailInput(
     context: Context<AppBindings>,
-    ownerId: string,
+    actorUserId: string,
     postingId: string,
   ): PostingAnalyticsDetailInput {
     const url = new URL(context.req.url);
@@ -622,18 +609,16 @@ export class PostingsController {
         granularity: url.searchParams.get("granularity") ?? undefined,
       });
 
-      return this.toPostingAnalyticsDetailInput(ownerId, postingId, query);
+      return this.toPostingAnalyticsDetailInput(actorUserId, postingId, query);
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
     }
   }
 
   private toListOwnerPostingsInput(
-    ownerId: string,
     query: ListOwnerPostingsQuery,
-  ): ListOwnerPostingsInput {
+  ): Omit<ListOwnerPostingsInput, "organizationId"> {
     return {
-      ownerId,
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
@@ -761,11 +746,12 @@ export class PostingsController {
   }
 
   private toListPostingAnalyticsInput(
-    ownerId: string,
+    actorUserId: string,
     query: ListPostingAnalyticsQuery,
   ): ListPostingAnalyticsInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       window: query.window,
       page: query.page,
       pageSize: query.pageSize,
@@ -773,12 +759,13 @@ export class PostingsController {
   }
 
   private toPostingAnalyticsDetailInput(
-    ownerId: string,
+    actorUserId: string,
     postingId: string,
     query: PostingAnalyticsDetailQuery,
   ): PostingAnalyticsDetailInput {
     return {
-      ownerId,
+      actorUserId,
+      organizationId: "",
       postingId,
       window: query.window,
       granularity: query.granularity,
@@ -882,6 +869,12 @@ export class PostingsController {
 
   private readRequestId(context: Context<AppBindings>): string | undefined {
     return context.get("requestId");
+  }
+
+  private isManagedPostingRecord(
+    result: PostingRecord | PublicPostingRecord,
+  ): result is PostingRecord {
+    return "organizationId" in result;
   }
 
   private toValidationError(

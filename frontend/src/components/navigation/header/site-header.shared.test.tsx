@@ -23,6 +23,30 @@ describe("site header shared helpers", () => {
     expect(userLinks.some((link) => link.href === "/dashboard")).toBe(false);
   });
 
+  it("shows create posting for manager-capable active organizations", () => {
+    const managerLinks = getAccountLinks("user", {
+      activeOrganization: {
+        id: "org-1",
+        name: "Org 1",
+        role: "manager",
+      },
+    });
+    const operatorLinks = getAccountLinks("user", {
+      activeOrganization: {
+        id: "org-1",
+        name: "Org 1",
+        role: "operator",
+      },
+    });
+
+    expect(managerLinks.some((link) => link.href === "/postings/create")).toBe(
+      true,
+    );
+    expect(operatorLinks.some((link) => link.href === "/postings/create")).toBe(
+      false,
+    );
+  });
+
   it("returns moderation links for moderator-capable roles", () => {
     const moderatorLinks = getAccountLinks("moderator");
     const adminLinks = getAccountLinks("admin");
@@ -40,6 +64,22 @@ describe("site header shared helpers", () => {
 
     expect(links.some((link) => link.href === "/profile")).toBe(false);
     expect(links.some((link) => link.href === "/settings")).toBe(false);
+  });
+
+  it("shows the organizations link when org membership context exists", () => {
+    const linksWithMembership = getAccountLinks("user", {
+      organizationMembershipCount: 1,
+    });
+    const linksWithActiveOrg = getAccountLinks("user", {
+      hasActiveOrganization: true,
+    });
+
+    expect(
+      linksWithMembership.some((link) => link.href === "/organizations"),
+    ).toBe(true);
+    expect(
+      linksWithActiveOrg.some((link) => link.href === "/organizations"),
+    ).toBe(true);
   });
 
   it("prefers username and falls back to the email prefix for display labels", () => {

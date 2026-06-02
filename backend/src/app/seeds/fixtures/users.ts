@@ -66,6 +66,13 @@ export const SEED_USERS: SeedUserFixture[] = [
     emailVerified: true,
     phoneNumber: "+14165550111",
     trustworthinessScore: 74,
+    organizationMemberships: [
+      {
+        ownerEmail: "owner1@rentify.local",
+        role: "manager",
+        preferred: true,
+      },
+    ],
   },
   {
     id: createFixtureId(1000, 6),
@@ -78,6 +85,13 @@ export const SEED_USERS: SeedUserFixture[] = [
     emailVerified: true,
     phoneNumber: "+14165550112",
     trustworthinessScore: 81,
+    organizationMemberships: [
+      {
+        ownerEmail: "owner1@rentify.local",
+        role: "operator",
+        preferred: true,
+      },
+    ],
   },
   {
     id: createFixtureId(1000, 7),
@@ -90,6 +104,13 @@ export const SEED_USERS: SeedUserFixture[] = [
     emailVerified: true,
     phoneNumber: "+16135550113",
     trustworthinessScore: 69,
+    organizationMemberships: [
+      {
+        ownerEmail: "owner2@rentify.local",
+        role: "manager",
+        preferred: true,
+      },
+    ],
   },
   {
     id: createFixtureId(1000, 8),
@@ -102,6 +123,13 @@ export const SEED_USERS: SeedUserFixture[] = [
     emailVerified: true,
     phoneNumber: "+16045550114",
     trustworthinessScore: 77,
+    organizationMemberships: [
+      {
+        ownerEmail: "owner2@rentify.local",
+        role: "operator",
+        preferred: true,
+      },
+    ],
   },
   {
     id: createFixtureId(1000, 9),

@@ -747,9 +747,11 @@ describe("PostingsController", () => {
     expect(unpauseResponse.status).toBe(200);
   });
 
-  it("requires owner auth for listing availability blocks", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ role: "renter" }));
-    const listOwnerAvailabilityBlocks = jest.fn();
+  it("allows authenticated org members to list availability blocks", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ role: "user" }));
+    const listOwnerAvailabilityBlocks = jest.fn(async () => ({
+      availabilityBlocks: [],
+    }));
     const controller = new PostingsController(
       {
         listOwnerAvailabilityBlocks,
@@ -764,8 +766,13 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.listAvailabilityBlocks(context)).rejects.toThrow();
-    expect(listOwnerAvailabilityBlocks).not.toHaveBeenCalled();
+    const response = await controller.listAvailabilityBlocks(context);
+
+    expect(response.status).toBe(200);
+    expect(listOwnerAvailabilityBlocks).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+    );
   });
 
   it("tracks search click activity and returns 202", async () => {

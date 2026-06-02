@@ -88,8 +88,11 @@ type ReportSubjectPosting = {
   id: string;
   name: string;
   status: string;
-  ownerId: string;
-  owner: UserSummaryPersistence;
+  organizationId: string;
+  organization: {
+    id: string;
+    name: string;
+  };
 };
 
 type ReportSubjectReview = {
@@ -118,18 +121,11 @@ export class ReportsRepository extends BaseRepository {
           id: true,
           name: true,
           status: true,
-          ownerId: true,
-          owner: {
+          organizationId: true,
+          organization: {
             select: {
               id: true,
-              email: true,
-              role: true,
-              profile: {
-                select: {
-                  username: true,
-                  avatarUrl: true,
-                },
-              },
+              name: true,
             },
           },
         },
