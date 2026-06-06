@@ -1,5 +1,6 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { ReportsService } from "@/features/reports/reports.service";
 
@@ -33,6 +34,16 @@ function createReportRecord(overrides: Record<string, unknown> = {}) {
         },
       },
     },
+    ...overrides,
+  };
+}
+
+function createOutboxEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "outbox-1",
+    reportId: "report-1",
+    operation: "upsert",
+    attempts: 0,
     ...overrides,
   };
 }
@@ -123,10 +134,10 @@ function createService(overrides?: {
     findUserSummaryById: jest.fn(async (userId: string) => ({
       id: userId,
       email: `${userId}@example.com`,
-      role: userId === "moderator-1" ? "moderator" : "user",
+      role: userId === "moderator-1" ? "moderator" : "admin",
     })),
     claimSearchOutboxBatch: jest.fn(async () => []),
-    listReportsForIndexing: jest.fn(async () => []),
+    listReportsForIndexing: jest.fn(async () => [createReportRecord()]),
     markSearchOutboxProcessed: jest.fn(async () => undefined),
     retrySearchOutbox: jest.fn(async () => undefined),
     markSearchOutboxDeadLettered: jest.fn(async () => undefined),
@@ -165,6 +176,64 @@ function createService(overrides?: {
 }
 
 describe("ReportsService", () => {
+  it("creates posting reports with a resolved posting snapshot", async () => {
+    const { service, repository } = createService();
+
+    await service.create({
+      reporterId: "user-1",
+      subjectType: "posting",
+      subjectId: "posting-1",
+      reasonCode: "spam",
+      title: "Bad listing",
+      description: "This listing tries to move payment off-platform.",
+    });
+
+    expect(repository.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reporterId: "user-1",
+        subjectType: "posting",
+      }),
+      {
+        subjectType: "posting",
+        summaryText: "Studio Loft published Studio Loft Org",
+        posting: {
+          id: "posting-1",
+          name: "Studio Loft",
+          status: "published",
+          organization: {
+            id: "org-1",
+            name: "Studio Loft Org",
+          },
+        },
+      },
+    );
+  });
+
+  it("rejects unsafe report title or description content", async () => {
+    const { service, repository } = createService({
+      sanitizer: {
+        inspect: () => [
+          {
+            path: "title",
+            message: "Contains blocked phrase.",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.create({
+        reporterId: "user-1",
+        subjectType: "posting",
+        subjectId: "posting-1",
+        reasonCode: "spam",
+        title: "Scam listing",
+        description: "This listing tries to move payment off-platform.",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repository.createReport).not.toHaveBeenCalled();
+  });
+
   it("rejects self-reporting for owned postings", async () => {
     const { service } = createService({
       organizationAccessService: {
@@ -193,6 +262,182 @@ describe("ReportsService", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it("creates posting review reports with reviewer and excerpt details", async () => {
+    const { service, repository } = createService();
+
+    await service.create({
+      reporterId: "user-9",
+      subjectType: "posting_review",
+      subjectId: "review-1",
+      reasonCode: "review_manipulation",
+      title: "Suspicious review",
+      description: "This review looks coordinated and misleading.",
+    });
+
+    expect(repository.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectType: "posting_review",
+      }),
+      expect.objectContaining({
+        subjectType: "posting_review",
+        review: expect.objectContaining({
+          id: "review-1",
+          rating: 2,
+          commentExcerpt: "Felt unsafe.",
+          reviewer: expect.objectContaining({
+            id: "user-2",
+            username: "renter-two",
+            role: "user",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects reporting your own review", async () => {
+    const { service } = createService({
+      repository: {
+        findPostingReviewSubject: jest.fn(async () => ({
+          id: "review-1",
+          rating: 5,
+          title: "Great stay",
+          comment: "Loved it.",
+          reviewerId: "user-1",
+          reviewer: {
+            id: "user-1",
+            email: "user1@example.com",
+            role: "user",
+            profile: {
+              username: "self-reviewer",
+              avatarUrl: null,
+            },
+          },
+          posting: {
+            id: "posting-1",
+            name: "Studio Loft",
+          },
+        })),
+      },
+    });
+
+    await expect(
+      service.create({
+        reporterId: "user-1",
+        subjectType: "posting_review",
+        subjectId: "review-1",
+        reasonCode: "other",
+        title: "My own review",
+        description: "This should fail because the review belongs to me.",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("creates user reports with normalized user summaries", async () => {
+    const { service, repository } = createService({
+      repository: {
+        findUserSubject: jest.fn(async () => ({
+          id: "user-2",
+          email: "user2@example.com",
+          role: "owner",
+          profile: {
+            username: "renter-two",
+            avatarUrl: "https://example.test/avatar.png",
+          },
+        })),
+      },
+    });
+
+    await service.create({
+      reporterId: "user-1",
+      subjectType: "user",
+      subjectId: "user-2",
+      reasonCode: "harassment_or_hate",
+      title: "Abusive messages",
+      description: "This user is sending abusive messages through the platform.",
+    });
+
+    expect(repository.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectType: "user",
+      }),
+      {
+        subjectType: "user",
+        summaryText: "renter-two owner",
+        user: {
+          id: "user-2",
+          email: "user2@example.com",
+          role: "owner",
+          username: "renter-two",
+          avatarUrl: "https://example.test/avatar.png",
+        },
+      },
+    );
+  });
+
+  it("falls back to database moderation search when elasticsearch is disabled", async () => {
+    const { service, repository } = createService({
+      search: {
+        isElasticsearchEnabled: jest.fn(() => false),
+      },
+    });
+
+    const result = await service.listModeration({
+      page: 1,
+      pageSize: 20,
+      sort: "newest",
+    });
+
+    expect(result.source).toBe("database");
+    expect(repository.listReportsDb).toHaveBeenCalled();
+  });
+
+  it("uses elasticsearch results when moderation search succeeds", async () => {
+    const { service, repository, search } = createService({
+      search: {
+        search: jest.fn(async () => ({
+          ids: ["report-2", "report-1"],
+          total: 8,
+        })),
+      },
+      repository: {
+        findReportsByIds: jest.fn(async () => [
+          createReportRecord({ id: "report-2" }),
+          createReportRecord({ id: "report-1" }),
+        ]),
+      },
+    });
+
+    const result = await service.listModeration({
+      page: 2,
+      pageSize: 5,
+      sort: "newest",
+      query: "fraud",
+    });
+
+    expect(search.search).toHaveBeenCalledWith({
+      page: 2,
+      pageSize: 5,
+      sort: "newest",
+      query: "fraud",
+    });
+    expect(repository.findReportsByIds).toHaveBeenCalledWith([
+      "report-2",
+      "report-1",
+    ]);
+    expect(result).toMatchObject({
+      source: "elasticsearch",
+      query: "fraud",
+      pagination: {
+        page: 2,
+        pageSize: 5,
+        total: 8,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    });
+  });
+
   it("falls back to database-backed moderation search when elasticsearch fails", async () => {
     const { service, repository } = createService({
       search: {
@@ -212,6 +457,34 @@ describe("ReportsService", () => {
     expect(repository.listReportsDb).toHaveBeenCalled();
   });
 
+  it("throws when moderation detail is missing", async () => {
+    const { service } = createService({
+      repository: {
+        findById: jest.fn(async () => null),
+      },
+    });
+
+    await expect(service.getModerationDetail("missing")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("defaults undefined report assignment to the acting moderator", async () => {
+    const { service, repository } = createService();
+
+    await service.assign({
+      actorUserId: "moderator-1",
+      actorRole: "moderator",
+      reportId: "report-1",
+    });
+
+    expect(repository.updateAssignment).toHaveBeenCalledWith({
+      reportId: "report-1",
+      actorUserId: "moderator-1",
+      assignedModeratorId: "moderator-1",
+    });
+  });
+
   it("prevents non-admin moderators from assigning another moderator", async () => {
     const { service } = createService();
 
@@ -223,6 +496,44 @@ describe("ReportsService", () => {
         assignedModeratorId: "moderator-2",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects assignments to non-moderator roles", async () => {
+    const { service } = createService({
+      repository: {
+        findUserSummaryById: jest.fn(async () => ({
+          id: "user-2",
+          email: "user2@example.com",
+          role: "user",
+        })),
+      },
+    });
+
+    await expect(
+      service.assign({
+        actorUserId: "admin-1",
+        actorRole: "admin",
+        reportId: "report-1",
+        assignedModeratorId: "user-2",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects missing assignees", async () => {
+    const { service } = createService({
+      repository: {
+        findUserSummaryById: jest.fn(async () => null),
+      },
+    });
+
+    await expect(
+      service.assign({
+        actorUserId: "admin-1",
+        actorRole: "admin",
+        reportId: "report-1",
+        assignedModeratorId: "missing",
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("rejects invalid status transitions", async () => {
@@ -244,5 +555,148 @@ describe("ReportsService", () => {
         status: "resolved",
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("trims moderation status updates before persistence", async () => {
+    const { service, repository } = createService();
+
+    await service.updateStatus({
+      actorUserId: "moderator-1",
+      actorRole: "moderator",
+      reportId: "report-1",
+      status: "resolved",
+      resolutionCode: "action_taken",
+      resolutionSummary: "  Listing removed  ",
+      note: "  Escalated to trust and safety  ",
+    });
+
+    expect(repository.updateStatus).toHaveBeenCalledWith({
+      reportId: "report-1",
+      actorUserId: "moderator-1",
+      status: "resolved",
+      resolutionCode: "action_taken",
+      resolutionSummary: "Listing removed",
+      note: "Escalated to trust and safety",
+    });
+  });
+
+  it("rejects unsafe optional moderation text", async () => {
+    const { service, repository } = createService({
+      sanitizer: {
+        inspect: () => [
+          {
+            path: "note",
+            message: "Contains blocked phrase.",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.updateStatus({
+        actorUserId: "moderator-1",
+        actorRole: "moderator",
+        reportId: "report-1",
+        status: "resolved",
+        resolutionCode: "action_taken",
+        note: "bad text",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns zero when no search outbox entries are available", async () => {
+    const { service, repository } = createService();
+
+    const result = await service.processSearchOutboxBatch(10);
+
+    expect(result).toBe(0);
+    expect(repository.markSearchOutboxProcessed).not.toHaveBeenCalled();
+  });
+
+  it("indexes upserts, deletes missing reports, and marks processed ids", async () => {
+    const { service, repository, search } = createService({
+      repository: {
+        claimSearchOutboxBatch: jest.fn(async () => [
+          createOutboxEntry({
+            id: "outbox-1",
+            reportId: "report-1",
+            operation: "upsert",
+          }),
+          createOutboxEntry({
+            id: "outbox-2",
+            reportId: "report-2",
+            operation: "delete",
+          }),
+          createOutboxEntry({
+            id: "outbox-3",
+            reportId: "report-3",
+            operation: "upsert",
+          }),
+        ]),
+        listReportsForIndexing: jest.fn(async () => [
+          createReportRecord({ id: "report-1" }),
+        ]),
+      },
+    });
+
+    const result = await service.processSearchOutboxBatch(3);
+
+    expect(result).toBe(3);
+    expect(search.upsertDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "report-1",
+      }),
+    );
+    expect(search.deleteDocument).toHaveBeenCalledWith("report-2");
+    expect(search.deleteDocument).toHaveBeenCalledWith("report-3");
+    expect(repository.markSearchOutboxProcessed).toHaveBeenCalledWith([
+      "outbox-1",
+      "outbox-2",
+      "outbox-3",
+    ]);
+  });
+
+  it("retries transient outbox failures and dead-letters exhausted ones", async () => {
+    const deleteDocument = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce(new Error("permanent failure"));
+    const { service, repository } = createService({
+      repository: {
+        claimSearchOutboxBatch: jest.fn(async () => [
+          createOutboxEntry({
+            id: "outbox-1",
+            reportId: "report-1",
+            operation: "delete",
+            attempts: 1,
+          }),
+          createOutboxEntry({
+            id: "outbox-2",
+            reportId: "report-2",
+            operation: "delete",
+            attempts: 4,
+          }),
+        ]),
+      },
+      search: {
+        deleteDocument,
+      },
+    });
+
+    const result = await service.processSearchOutboxBatch(2);
+
+    expect(result).toBe(2);
+    expect(repository.retrySearchOutbox).toHaveBeenCalledWith(
+      "outbox-1",
+      2,
+      "temporary failure",
+    );
+    expect(repository.markSearchOutboxDeadLettered).toHaveBeenCalledWith(
+      "outbox-2",
+      5,
+      "permanent failure",
+    );
+    expect(repository.markSearchOutboxProcessed).toHaveBeenCalledWith([]);
   });
 });

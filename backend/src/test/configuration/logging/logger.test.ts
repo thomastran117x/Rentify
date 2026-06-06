@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import rootLogger, { logger, loggerFactory } from "@/configuration/logging";
@@ -7,6 +7,19 @@ function waitForLogger(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, 25);
   });
+}
+
+async function waitForFile(filePath: string): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      await access(filePath);
+      return;
+    } catch {
+      await waitForLogger();
+    }
+  }
+
+  throw new Error(`Timed out waiting for log file ${filePath}.`);
 }
 
 describe("logger", () => {
@@ -76,12 +89,10 @@ describe("logger", () => {
       .child({ requestId: "request-42", fields: { phase: "fallback" } })
       .error("Broker unavailable.");
 
-    await waitForLogger();
+    const logFilePath = path.join(tempDirectory, "application.log.jsonl");
+    await waitForFile(logFilePath);
 
-    const fileContent = await readFile(
-      path.join(tempDirectory, "application.log.jsonl"),
-      "utf8",
-    );
+    const fileContent = await readFile(logFilePath, "utf8");
     const [firstLine] = fileContent.trim().split("\n");
     const event = JSON.parse(firstLine ?? "{}") as Record<string, unknown>;
 

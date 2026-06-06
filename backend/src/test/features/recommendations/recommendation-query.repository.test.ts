@@ -6,6 +6,146 @@ interface CapturedSql {
 }
 
 describe("RecommendationQueryRepository", () => {
+  it("maps personalization context records and defaults the toggle to enabled", async () => {
+    const repository = new RecommendationQueryRepository(
+      createDatabaseMock({
+        profile: {
+          findUnique: jest
+            .fn(async () => ({
+              recommendationPersonalizationEnabled: false,
+            }))
+            .mockResolvedValueOnce({
+              recommendationPersonalizationEnabled: false,
+            })
+            .mockResolvedValueOnce(null),
+        },
+        userRecommendationProfile: {
+          findUnique: jest.fn(async () => ({
+            userId: "user-1",
+            qualified: true,
+            activityWindowStartAt: new Date("2026-05-01T00:00:00.000Z"),
+            lastSignalAt: new Date("2026-05-10T00:00:00.000Z"),
+            distinctPostingCount: 3,
+            signalCounts: {
+              posting_view: 2,
+              search_click: 1,
+            },
+            familyAffinities: [{ value: "place", score: 0.8 }],
+            subtypeAffinities: [{ value: "studio", score: 0.7 }],
+            tagAffinities: [{ value: "wifi", score: 0.6 }],
+            rebuiltAt: new Date("2026-05-11T00:00:00.000Z"),
+          })),
+        },
+        userRecommendationSnapshot: {
+          findUnique: jest.fn(async () => ({
+            userId: "user-1",
+            generatedAt: new Date("2026-05-12T00:00:00.000Z"),
+            sourceLastSignalAt: new Date("2026-05-10T00:00:00.000Z"),
+            candidateCount: 2,
+            candidates: [
+              {
+                postingId: "posting-1",
+                score: "0.75",
+                reasonCodes: ["family_affinity"],
+              },
+              {
+                postingId: "",
+                score: 0.1,
+                reasonCodes: ["ignored"],
+              },
+            ],
+          })),
+        },
+      }) as never,
+    );
+
+    const context = await repository.getPersonalizationContext("user-1");
+    const defaultedContext = await repository.getPersonalizationContext("user-2");
+
+    expect(context).toEqual({
+      recommendationPersonalizationEnabled: false,
+      profile: {
+        userId: "user-1",
+        qualified: true,
+        activityWindowStartAt: "2026-05-01T00:00:00.000Z",
+        lastSignalAt: "2026-05-10T00:00:00.000Z",
+        distinctPostingCount: 3,
+        signalCounts: {
+          posting_view: 2,
+          search_click: 1,
+          booking_request_created: 0,
+          renting_confirmed: 0,
+        },
+        familyAffinities: [{ value: "place", score: 0.8 }],
+        subtypeAffinities: [{ value: "studio", score: 0.7 }],
+        tagAffinities: [{ value: "wifi", score: 0.6 }],
+        rebuiltAt: "2026-05-11T00:00:00.000Z",
+      },
+      snapshot: {
+        userId: "user-1",
+        generatedAt: "2026-05-12T00:00:00.000Z",
+        sourceLastSignalAt: "2026-05-10T00:00:00.000Z",
+        candidateCount: 2,
+        candidates: [
+          {
+            postingId: "posting-1",
+            score: 0.75,
+            reasonCodes: ["family_affinity"],
+          },
+        ],
+      },
+    });
+    expect(defaultedContext.recommendationPersonalizationEnabled).toBe(true);
+  });
+
+  it("maps popular recommendation snapshots and empty availability windows", async () => {
+    const $queryRaw = jest.fn(async () => []);
+    const repository = new RecommendationQueryRepository(
+      createDatabaseMock({
+        popularRecommendationSnapshot: {
+          findUnique: jest.fn(async () => ({
+            segmentType: "region",
+            segmentValue: "toronto",
+            generatedAt: new Date("2026-05-12T00:00:00.000Z"),
+            sourceLastSignalAt: null,
+            candidateCount: 1,
+            candidates: [
+              {
+                postingId: "posting-2",
+                score: 0.55,
+                reasonCodes: ["popular"],
+              },
+            ],
+          })),
+        },
+        $queryRaw,
+      }) as never,
+    );
+
+    await expect(repository.getPopularSnapshot("region", "toronto")).resolves.toEqual({
+      segmentType: "region",
+      segmentValue: "toronto",
+      generatedAt: "2026-05-12T00:00:00.000Z",
+      sourceLastSignalAt: undefined,
+      candidateCount: 1,
+      candidates: [
+        {
+          postingId: "posting-2",
+          score: 0.55,
+          reasonCodes: ["popular"],
+        },
+      ],
+    });
+    await expect(
+      repository.filterCandidateIdsByAvailabilityWindow({
+        candidateIds: [],
+        startAt: new Date("2026-05-09T00:00:00.000Z"),
+        endAt: new Date("2026-05-10T00:00:00.000Z"),
+      }),
+    ).resolves.toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
+  });
+
   it("returns only own, active-booking, and confirmed-renting posting ids for exclusions", async () => {
     const repository = new RecommendationQueryRepository(
       createDatabaseMock({
@@ -88,6 +228,22 @@ describe("RecommendationQueryRepository", () => {
 
 function createDatabaseMock(delegates: Record<string, unknown>) {
   return {
+    profile: {
+      findUnique: jest.fn(async () => null),
+      ...(delegates.profile as object),
+    },
+    userRecommendationProfile: {
+      findUnique: jest.fn(async () => null),
+      ...(delegates.userRecommendationProfile as object),
+    },
+    userRecommendationSnapshot: {
+      findUnique: jest.fn(async () => null),
+      ...(delegates.userRecommendationSnapshot as object),
+    },
+    popularRecommendationSnapshot: {
+      findUnique: jest.fn(async () => null),
+      ...(delegates.popularRecommendationSnapshot as object),
+    },
     ...delegates,
   };
 }
