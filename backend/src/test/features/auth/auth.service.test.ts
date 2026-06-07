@@ -6,6 +6,9 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { AuthService } from "@/features/auth/auth.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 
+const FAST_TEST_PASSWORD_HASH =
+  "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
+
 function createUser(): AuthUserRecord {
   return {
     id: "user-1",
@@ -433,24 +436,31 @@ describe("AuthService", () => {
       email: "pending@example.com",
       emailVerified: false,
     };
+    const hashSpy = jest
+      .spyOn(bcrypt, "hash")
+      .mockResolvedValue(FAST_TEST_PASSWORD_HASH);
     const service = createService({
       findUserByEmail: async () => existingUser,
     });
 
-    const result = await service.localSignup({
-      client: createClient(),
-      email: existingUser.email,
-      password: "CorrectHorseBatteryStaple1!",
-      firstName: "Pending",
-      lastName: "User",
-      deviceId: "device-1",
-    });
+    try {
+      const result = await service.localSignup({
+        client: createClient(),
+        email: existingUser.email,
+        password: "CorrectHorseBatteryStaple1!",
+        firstName: "Pending",
+        lastName: "User",
+        deviceId: "device-1",
+      });
 
-    expect(result).toEqual({
-      verificationRequired: true,
-      email: existingUser.email,
-      alreadyPending: false,
-    });
+      expect(result).toEqual({
+        verificationRequired: true,
+        email: existingUser.email,
+        alreadyPending: false,
+      });
+    } finally {
+      hashSpy.mockRestore();
+    }
   });
 
   it("returns a generic pending verification response when a verified account already exists for the email", async () => {
@@ -935,6 +945,9 @@ describe("AuthService", () => {
     let cachedKey: string | undefined;
     let cachedValue: unknown;
     let cachedTtl: number | undefined;
+    const hashSpy = jest
+      .spyOn(bcrypt, "hash")
+      .mockResolvedValue(FAST_TEST_PASSWORD_HASH);
     const service = createService({
       findUserByEmail: async () => null,
       createLocalUser: async () => {
@@ -952,37 +965,41 @@ describe("AuthService", () => {
       },
     });
 
-    const result = await service.localSignup({
-      client: createClient(),
-      email: "new-user@example.com",
-      password: "CorrectHorseBatteryStaple1!",
-      firstName: "New",
-      lastName: "User",
-      deviceId: "device-1",
-    });
+    try {
+      const result = await service.localSignup({
+        client: createClient(),
+        email: "new-user@example.com",
+        password: "CorrectHorseBatteryStaple1!",
+        firstName: "New",
+        lastName: "User",
+        deviceId: "device-1",
+      });
 
-    expect(createLocalUserCalled).toBe(false);
-    expect(cachedKey).toBe("auth:pending-signup:new-user@example.com");
-    expect(cachedTtl).toBe(600);
-    expect(cachedValue).toMatchObject({
-      email: "new-user@example.com",
-      firstName: "New",
-      lastName: "User",
-      deviceId: "device-1",
-      createdAt: expect.any(String),
-    });
-    await expect(
-      bcrypt.compare(
-        "CorrectHorseBatteryStaple1!",
-        (cachedValue as { passwordHash?: string }).passwordHash ?? "",
-      ),
-    ).resolves.toBe(true);
-    expect(verificationEmailSentTo).toBe("new-user@example.com");
-    expect(result).toEqual({
-      verificationRequired: true,
-      email: "new-user@example.com",
-      alreadyPending: false,
-    });
+      expect(createLocalUserCalled).toBe(false);
+      expect(cachedKey).toBe("auth:pending-signup:new-user@example.com");
+      expect(cachedTtl).toBe(600);
+      expect(cachedValue).toMatchObject({
+        email: "new-user@example.com",
+        firstName: "New",
+        lastName: "User",
+        deviceId: "device-1",
+        createdAt: expect.any(String),
+      });
+      await expect(
+        bcrypt.compare(
+          "CorrectHorseBatteryStaple1!",
+          (cachedValue as { passwordHash?: string }).passwordHash ?? "",
+        ),
+      ).resolves.toBe(true);
+      expect(verificationEmailSentTo).toBe("new-user@example.com");
+      expect(result).toEqual({
+        verificationRequired: true,
+        email: "new-user@example.com",
+        alreadyPending: false,
+      });
+    } finally {
+      hashSpy.mockRestore();
+    }
   });
 
   it("creates a new OAuth user when the provider account is verified and not yet linked", async () => {

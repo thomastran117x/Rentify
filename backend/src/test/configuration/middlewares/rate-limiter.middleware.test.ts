@@ -170,7 +170,14 @@ describe("resolveRateLimitPolicy", () => {
 });
 
 describe("rateLimiterMiddleware", () => {
+  const originalLogSilent = process.env.LOG_SILENT;
+
+  beforeEach(() => {
+    process.env.LOG_SILENT = "false";
+  });
+
   afterEach(() => {
+    process.env.LOG_SILENT = originalLogSilent;
     jest.restoreAllMocks();
     resetRateLimiterMemoryFallbackForTests();
   });
