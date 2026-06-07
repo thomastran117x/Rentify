@@ -7,8 +7,16 @@ function createApp() {
   const app = new Hono<AppBindings>();
   app.use("*", requestBodyPolicyMiddleware);
   app.onError(handleApplicationError);
+  app.get("/profiles", async (context) =>
+    context.json({
+      ok: true,
+    }),
+  );
   app.post("/profiles", async (context) =>
     context.json(await context.req.json()),
+  );
+  app.post("/blob/upload", async (context) =>
+    context.json({ body: await context.req.text() }),
   );
   app.post("/payments/webhooks/square", async (context) =>
     context.json({ body: await context.req.text() }),
@@ -105,6 +113,82 @@ describe("requestBodyPolicyMiddleware", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       body: '{"eventId":"evt_123"}',
+    });
+  });
+
+  it("rejects invalid content-length headers", async () => {
+    const app = createApp();
+    const response = await app.request("http://rent.test/profiles", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "abc",
+      },
+      body: JSON.stringify({
+        bio: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      message: "Content-Length header is invalid.",
+      data: null,
+      error: {
+        code: "BAD_REQUEST",
+      },
+      meta: {
+        requestId: "unknown",
+      },
+    });
+  });
+
+  it("allows non-json uploads on blob routes", async () => {
+    const app = createApp();
+    const response = await app.request("http://rent.test/blob/upload", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+      },
+      body: "raw blob body",
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      body: "raw blob body",
+    });
+  });
+
+  it("allows custom json media types on write endpoints", async () => {
+    const app = createApp();
+    const response = await app.request("http://rent.test/profiles", {
+      method: "POST",
+      headers: {
+        "content-type": "application/merge-patch+json",
+      },
+      body: JSON.stringify({
+        bio: "patched",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      bio: "patched",
+    });
+  });
+
+  it("skips body enforcement for read-only requests", async () => {
+    const app = createApp();
+    const response = await app.request("http://rent.test/profiles", {
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
     });
   });
 });

@@ -1490,4 +1490,320 @@ describe("PostingsService", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
+
+  it("archives managed postings and invalidates the public projection", async () => {
+    const repository = new FakePostingsRepository();
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
+
+    const archived = await service.archive("posting-1", "owner-1");
+
+    expect(archived.status).toBe("archived");
+    expect(repository.archiveCalls).toBe(1);
+    expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
+      "posting-1",
+    ]);
+  });
+
+  it("rejects archive when the repository no longer returns the posting", async () => {
+    const repository = new FakePostingsRepository();
+    repository.archive = jest.fn(async () => null) as never;
+    const service = createService(repository);
+
+    await expect(service.archive("posting-1", "owner-1")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("normalizes owner batch ids before reading managed postings", async () => {
+    const repository = new FakePostingsRepository() as FakePostingsRepository & {
+      batchFindByOwner: jest.Mock;
+    };
+    repository.batchFindByOwner = jest.fn(async (input) => ({
+      postings: [repository.posting],
+      missingIds: input.ids.filter((id: string) => id === "posting-3"),
+    }));
+    const service = createService(repository);
+
+    const result = await service.batchByOwner("owner-1", [
+      " posting-1 ",
+      "posting-1",
+      "posting-3",
+    ]);
+
+    expect(repository.batchFindByOwner).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      ids: ["posting-1", "posting-3"],
+    });
+    expect(result.missingIds).toEqual(["posting-3"]);
+  });
+
+  it("normalizes public batch ids before reading cached projections", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      status: "published",
+      publishedAt: "2026-04-21T00:00:00.000Z",
+    };
+    const { service } = createServiceHarness(repository);
+
+    const result = await service.batchPublic([
+      " posting-1 ",
+      "posting-1",
+      "posting-missing",
+    ]);
+
+    expect(result.postings).toHaveLength(1);
+    expect(result.postings[0]?.id).toBe("posting-1");
+    expect(result.missingIds).toEqual(["posting-missing"]);
+  });
+
+  it("rejects blank public batch ids", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await expect(service.batchPublic([" ", "\n"])).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
+  });
+
+  it("requires an active membership when listing owner postings", async () => {
+    const repository = new FakePostingsRepository();
+    const { service, authRepository } = createServiceHarness(repository);
+    authRepository.membershipsByUserId.set("memberless-1", []);
+    authRepository.preferredOrganizationIdByUserId.set("memberless-1", "org-1");
+
+    await expect(
+      service.listByOwner("memberless-1", {
+        page: 1,
+        pageSize: 10,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects owner reads when the user record cannot be found", async () => {
+    const repository = new FakePostingsRepository();
+    const { service, authRepository } = createServiceHarness(repository);
+    authRepository.membershipsByUserId.delete("ghost-user");
+    authRepository.preferredOrganizationIdByUserId.delete("ghost-user");
+
+    await expect(
+      service.listByOwner("ghost-user", {
+        page: 1,
+        pageSize: 10,
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  it("returns not found when public-read metadata is missing for an authenticated viewer", async () => {
+    const repository = new FakePostingsRepository();
+    repository.findPublicReadMetadataById = jest.fn(async () => null) as never;
+    const service = createService(repository);
+
+    await expect(service.getById("posting-1", "owner-1")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("returns not found when an owner viewer can see metadata but the posting row disappears", async () => {
+    const repository = new FakePostingsRepository();
+    repository.findById = jest.fn(async () => null) as never;
+    const service = createService(repository);
+
+    await expect(service.getById("posting-1", "owner-1")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("returns not found when no public projection exists for anonymous reads", async () => {
+    const repository = new FakePostingsRepository();
+    const { service, postingsPublicCacheService } =
+      createServiceHarness(repository);
+    postingsPublicCacheService.posting = null;
+
+    await expect(service.getById("posting-1")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("swallows thumbnail queue failures after create succeeds", async () => {
+    const repository = new FakePostingsRepository();
+    const searchService = {} as PostingsPublicSearchService;
+    const blobService = {
+      isConfigured: () => true,
+      isManagedBlobUrl: () => true,
+    } as unknown as BlobService;
+    const cacheService = {
+      acquireLock: jest.fn(async (key: string) => ({
+        key,
+        token: `${key}-token`,
+        release: jest.fn(async () => true),
+        extend: jest.fn(async () => true),
+      })),
+    } as unknown as CacheService;
+    const postingThumbnailQueueService = {
+      enqueuePostingThumbnailJob: jest.fn(async () => {
+        throw new Error("queue unavailable");
+      }),
+    } as unknown as PostingThumbnailQueueService;
+    const postingsPublicCacheService = new FakePostingsPublicCacheService();
+    const authRepository = new FakeAuthRepository();
+    const organizationAccessService = new OrganizationAccessService(
+      authRepository as unknown as AuthRepository,
+    );
+    postingsPublicCacheService.posting = isPostingPubliclyVisible(
+      repository.posting,
+    )
+      ? toPublicPostingRecord(repository.posting)
+      : null;
+    const service = new PostingsService(
+      repository as unknown as PostingsRepository,
+      searchService,
+      {} as unknown as PostingsReviewsRepository,
+      {} as unknown as RentingsRepository,
+      blobService,
+      postingThumbnailQueueService,
+      new ContentSanitizationService(),
+      cacheService,
+      postingsPublicCacheService as unknown as PostingsPublicCacheService,
+      organizationAccessService,
+      authRepository as unknown as AuthRepository,
+    );
+
+    await expect(
+      service.createDraft("owner-1", createValidInput()),
+    ).resolves.toMatchObject({
+      id: "posting-1",
+    });
+    expect(repository.createCalls).toBe(1);
+  });
+
+  it("rejects attribute filters that mix exact values with ranges", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const error = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        family: "place",
+        subtype: "entire_place",
+        attributeFilters: [
+          {
+            key: "guest_capacity",
+            value: 2,
+            min: 1,
+          },
+        ],
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(RequestValidationError);
+    expect((error as RequestValidationError).details).toEqual([
+      {
+        path: "attr.guest_capacity",
+        message:
+          "Exact attribute filters cannot be combined with min/max range filters.",
+      },
+    ]);
+  });
+
+  it("normalizes numeric search attribute filters before delegating search", async () => {
+    const repository = new FakePostingsRepository();
+    const searchPublic = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      source: "elasticsearch" as const,
+    }));
+    const service = createService(repository, undefined, undefined, {
+      searchPublic,
+    } as unknown as PostingsPublicSearchService);
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 10,
+      family: "place",
+      subtype: "entire_place",
+      attributeFilters: [
+        {
+          key: "guest_capacity",
+          min: "2",
+          max: "5",
+        },
+      ],
+      sort: "relevance",
+    });
+
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributeFilters: [
+          {
+            key: "guest_capacity",
+            min: 2,
+            max: 5,
+          },
+        ],
+      }),
+    );
+  });
+
+  it("rejects invalid attribute keys and non-numeric values in public search filters", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const invalidKeyError = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        family: "place",
+        subtype: "entire_place",
+        attributeFilters: [
+          {
+            key: "unknown_detail",
+            value: "x",
+          },
+        ],
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+    expect(invalidKeyError).toBeInstanceOf(RequestValidationError);
+    expect((invalidKeyError as RequestValidationError).details).toEqual([
+      {
+        path: "attr.unknown_detail",
+        message:
+          "Attribute is not valid for the selected family and subtype.",
+      },
+    ]);
+
+    const invalidNumericError = await service
+      .searchPublic({
+        page: 1,
+        pageSize: 10,
+        family: "place",
+        subtype: "entire_place",
+        attributeFilters: [
+          {
+            key: "guest_capacity",
+            value: true,
+          },
+        ],
+        sort: "relevance",
+      })
+      .catch((caughtError: unknown) => caughtError);
+    expect(invalidNumericError).toBeInstanceOf(RequestValidationError);
+    expect((invalidNumericError as RequestValidationError).details).toEqual([
+      {
+        path: "attr.guest_capacity",
+        message: "Numeric attributes must be valid numbers.",
+      },
+    ]);
+  });
 });

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 
 function createPostingPersistence(overrides: Record<string, unknown> = {}) {
@@ -107,6 +108,78 @@ function createSearchOutboxRow(overrides: Record<string, unknown> = {}) {
     updatedAt: new Date("2026-05-20T12:00:00.000Z"),
     ...overrides,
   };
+}
+
+function createSearchReindexRunRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "run-1",
+    status: "pending",
+    targetIndexName: "postings-reindex-1",
+    retainedIndexName: null,
+    sourceSnapshotAt: new Date("2026-05-20T10:00:00.000Z"),
+    barrierOutboxId: null,
+    totalPostings: 0,
+    indexedPostings: 0,
+    failedPostings: 0,
+    startedAt: null,
+    completedAt: null,
+    failedAt: null,
+    processingAt: null,
+    lastError: null,
+    createdAt: new Date("2026-05-20T10:00:00.000Z"),
+    updatedAt: new Date("2026-05-20T10:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createUpsertPostingInput(overrides: Record<string, unknown> = {}) {
+  return {
+    organizationId: "org-1",
+    variant: {
+      family: "place",
+      subtype: "entire_place",
+    },
+    name: "Sunny loft",
+    description: "Bright loft with workspace",
+    pricing: {
+      currency: "CAD",
+      daily: {
+        amount: 150,
+      },
+    },
+    photos: [
+      {
+        blobUrl: "https://example.test/photo-1.jpg",
+        blobName: "postings/photo-1.jpg",
+        position: 0,
+      },
+    ],
+    tags: ["loft", "workspace"],
+    details: {
+      guest_capacity: 4,
+      property_type: "loft",
+      amenities: ["wifi"],
+    },
+    availabilityStatus: "available",
+    availabilityNotes: "Open for bookings",
+    maxBookingDurationDays: 14,
+    availabilityBlocks: [
+      {
+        startAt: "2026-06-01T00:00:00.000Z",
+        endAt: "2026-06-03T00:00:00.000Z",
+        note: "Owner stay",
+      },
+    ],
+    location: {
+      latitude: 43.6532,
+      longitude: -79.3832,
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      postalCode: "M5H 2N2",
+    },
+    ...overrides,
+  } as never;
 }
 
 describe("PostingsRepository", () => {
@@ -527,5 +600,1102 @@ describe("PostingsRepository", () => {
         thumbnailBlobUrl: "https://example.test/photo-1.webp",
       },
     });
+  });
+
+  it("creates draft postings and enqueues live and reindex delete jobs", async () => {
+    const transaction = {
+      posting: {
+        create: jest.fn(async () =>
+          createPostingPersistence({
+            status: "draft",
+            publishedAt: null,
+          }),
+        ),
+      },
+      searchReindexRun: {
+        findFirst: jest.fn(async () => ({
+          id: "run-1",
+          targetIndexName: "postings-reindex-1",
+        })),
+      },
+      postingSearchOutbox: {
+        createMany: jest.fn(async () => undefined),
+      },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as never);
+
+    const result = await repository.create(createUpsertPostingInput());
+
+    expect(transaction.posting.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "draft",
+          family: "place",
+          subtype: "entire_place",
+          placeDetails: expect.objectContaining({
+            guest_capacity: 4,
+            property_type: "loft",
+          }),
+          equipmentDetails: Prisma.DbNull,
+          vehicleDetails: Prisma.DbNull,
+          photos: {
+            create: [
+              expect.objectContaining({
+                blobUrl: "https://example.test/photo-1.jpg",
+                position: 0,
+              }),
+            ],
+          },
+          availabilityBlocks: {
+            create: [
+              expect.objectContaining({
+                note: "Owner stay",
+                source: "owner",
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            postingId: "posting-1",
+            operation: "delete",
+          }),
+          expect.objectContaining({
+            postingId: "posting-1",
+            reindexRunId: "run-1",
+            operation: "delete",
+            targetIndexName: "postings-reindex-1",
+          }),
+        ]),
+      }),
+    );
+    expect(result.status).toBe("draft");
+  });
+
+  it("updates postings while preserving existing thumbnails for unchanged photos", async () => {
+    const transaction = {
+      posting: {
+        findUnique: jest.fn(async () => ({
+          photos: [
+            {
+              blobUrl: "https://example.test/photo-1.jpg",
+              blobName: "postings/photo-1.jpg",
+              thumbnailBlobUrl: "https://example.test/photo-1.webp",
+              thumbnailBlobName: "postings/thumbnails/photo-1.webp",
+            },
+          ],
+        })),
+        update: jest.fn(async () =>
+          createPostingPersistence({
+            status: "published",
+          }),
+        ),
+      },
+      searchReindexRun: {
+        findFirst: jest.fn(async () => null),
+      },
+      postingSearchOutbox: {
+        createMany: jest.fn(async () => undefined),
+      },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as never);
+
+    const result = await repository.update(
+      "posting-1",
+      createUpsertPostingInput({
+        photos: [
+          {
+            blobUrl: "https://example.test/photo-1.jpg",
+            blobName: "postings/photo-1.jpg",
+            position: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(transaction.posting.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "posting-1",
+        },
+        data: expect.objectContaining({
+          photos: {
+            deleteMany: {},
+            create: [
+              expect.objectContaining({
+                thumbnailBlobName: "postings/thumbnails/photo-1.webp",
+                thumbnailBlobUrl: "https://example.test/photo-1.webp",
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            postingId: "posting-1",
+            operation: "upsert",
+          }),
+        ],
+      }),
+    );
+    expect(result?.status).toBe("published");
+  });
+
+  it("returns null when updating a missing posting", async () => {
+    const transaction = {
+      posting: {
+        findUnique: jest.fn(async () => null),
+      },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as never);
+
+    await expect(
+      repository.update("missing-posting", createUpsertPostingInput()),
+    ).resolves.toBeNull();
+  });
+
+  it("maps publish, archive, pause, and unpause transitions into the expected outbox operations", async () => {
+    const createLifecycleRepository = (updated: Record<string, unknown>) => {
+      const transaction = {
+        posting: {
+          update: jest.fn(async () => createPostingPersistence(updated)),
+        },
+        searchReindexRun: {
+          findFirst: jest.fn(async () => null),
+        },
+        postingSearchOutbox: {
+          createMany: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PostingsRepository({
+        $transaction: async (
+          callback: (tx: typeof transaction) => Promise<unknown>,
+        ) => callback(transaction),
+      } as never);
+
+      return {
+        repository,
+        transaction,
+      };
+    };
+
+    const publishCase = createLifecycleRepository({
+      status: "published",
+      publishedAt: new Date("2026-05-20T12:00:00.000Z"),
+      pausedAt: null,
+      archivedAt: null,
+    });
+    const archiveCase = createLifecycleRepository({
+      status: "archived",
+      archivedAt: new Date("2026-05-20T12:00:00.000Z"),
+      pausedAt: null,
+    });
+    const pauseCase = createLifecycleRepository({
+      status: "paused",
+      pausedAt: new Date("2026-05-20T12:00:00.000Z"),
+      archivedAt: null,
+    });
+    const unpauseCase = createLifecycleRepository({
+      status: "published",
+      publishedAt: new Date("2026-05-01T00:00:00.000Z"),
+      pausedAt: null,
+      archivedAt: null,
+    });
+
+    await expect(publishCase.repository.publish("posting-1")).resolves.toMatchObject(
+      {
+        status: "published",
+      },
+    );
+    await expect(archiveCase.repository.archive("posting-1")).resolves.toMatchObject(
+      {
+        status: "archived",
+      },
+    );
+    await expect(pauseCase.repository.pause("posting-1")).resolves.toMatchObject(
+      {
+        status: "paused",
+      },
+    );
+    await expect(unpauseCase.repository.unpause("posting-1")).resolves.toMatchObject(
+      {
+        status: "published",
+      },
+    );
+
+    expect(publishCase.transaction.posting.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "published",
+          pausedAt: null,
+          archivedAt: null,
+        }),
+      }),
+    );
+    expect(archiveCase.transaction.posting.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "archived",
+        }),
+      }),
+    );
+    expect(pauseCase.transaction.posting.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "paused",
+        }),
+      }),
+    );
+    expect(unpauseCase.transaction.posting.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "published",
+          pausedAt: null,
+          archivedAt: null,
+        }),
+      }),
+    );
+    expect(publishCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            operation: "upsert",
+          }),
+        ],
+      }),
+    );
+    expect(archiveCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            operation: "delete",
+          }),
+        ],
+      }),
+    );
+    expect(pauseCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            operation: "delete",
+          }),
+        ],
+      }),
+    );
+    expect(unpauseCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            operation: "upsert",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("maps direct reads, public metadata, and owner batches with missing ids preserved", async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(
+        createPostingPersistence({
+          status: "paused",
+        }),
+      )
+      .mockResolvedValueOnce({
+        id: "posting-1",
+        organizationId: "org-1",
+        status: "archived",
+        archivedAt: new Date("2026-05-20T12:00:00.000Z"),
+      });
+    const findMany = jest.fn(async () => [
+      createPostingPersistence({
+        id: "posting-2",
+      }),
+    ]);
+    const repository = new PostingsRepository({
+      posting: {
+        findUnique,
+        findMany,
+      },
+    } as never);
+
+    await expect(repository.findById("posting-1")).resolves.toMatchObject({
+      id: "posting-1",
+      status: "paused",
+    });
+    await expect(
+      repository.findPublicReadMetadataById("posting-1"),
+    ).resolves.toEqual({
+      id: "posting-1",
+      organizationId: "org-1",
+      status: "archived",
+      archivedAt: "2026-05-20T12:00:00.000Z",
+    });
+    await expect(
+      repository.batchFindByOwner({
+        organizationId: "org-1",
+        ids: ["posting-3", "posting-2"],
+      }),
+    ).resolves.toEqual({
+      postings: [
+        expect.objectContaining({
+          id: "posting-2",
+        }),
+      ],
+      missingIds: ["posting-3"],
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          id: {
+            in: ["posting-3", "posting-2"],
+          },
+        },
+      }),
+    );
+  });
+
+  it("maps autocomplete fallback rows, including invalid tag payloads", async () => {
+    const queryRaw = jest.fn(async () => [
+      {
+        id: "posting-1",
+        name: "Sunny loft",
+        tags: "[\"wifi\",\"desk\"]",
+        city: "Toronto",
+        region: "Ontario",
+        country: "Canada",
+        publishedAt: new Date("2026-05-01T00:00:00.000Z"),
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      },
+      {
+        id: "posting-2",
+        name: "Broken tags",
+        tags: "not-json",
+        city: null,
+        region: null,
+        country: null,
+        publishedAt: null,
+        createdAt: new Date("2026-04-02T00:00:00.000Z"),
+      },
+    ]);
+    const repository = new PostingsRepository({
+      $queryRaw: queryRaw,
+    } as never);
+
+    await expect(
+      repository.autocompletePublicFallback({
+        query: "LoFt",
+        family: "place",
+        subtype: "entire_place",
+        limit: 5,
+      }),
+    ).resolves.toEqual([
+      {
+        name: "Sunny loft",
+        tags: ["wifi", "desk"],
+        location: {
+          city: "Toronto",
+          region: "Ontario",
+          country: "Canada",
+        },
+        publishedAt: "2026-05-01T00:00:00.000Z",
+        createdAt: "2026-04-01T00:00:00.000Z",
+      },
+      {
+        name: "Broken tags",
+        tags: [],
+        location: {},
+        createdAt: "2026-04-02T00:00:00.000Z",
+      },
+    ]);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps indexing documents, searchable attributes, and blocked ranges", async () => {
+    const posting = createPostingPersistence({
+      organization: {
+        id: "org-1",
+        name: "North Studio",
+      },
+      availabilityBlocks: [
+        {
+          id: "block-open",
+          postingId: "posting-1",
+          startAt: new Date("2026-05-21T00:00:00.000Z"),
+          endAt: new Date("2026-05-22T00:00:00.000Z"),
+          note: "Owner stay",
+          source: "owner",
+          bookingRequestHold: null,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: "block-held",
+          postingId: "posting-1",
+          startAt: new Date("2026-05-23T00:00:00.000Z"),
+          endAt: new Date("2026-05-24T00:00:00.000Z"),
+          note: "Paid hold",
+          source: "owner",
+          bookingRequestHold: {
+            id: "booking-hold",
+            status: "paid",
+            holdExpiresAt: new Date("2026-05-21T12:00:00.000Z"),
+            convertedAt: null,
+          },
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: "block-expired",
+          postingId: "posting-1",
+          startAt: new Date("2026-05-25T00:00:00.000Z"),
+          endAt: new Date("2026-05-26T00:00:00.000Z"),
+          note: "Expired hold",
+          source: "owner",
+          bookingRequestHold: {
+            id: "booking-expired",
+            status: "paid",
+            holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
+            convertedAt: null,
+          },
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+      ],
+      bookingRequests: [
+        {
+          id: "booking-include",
+          status: "pending",
+          startAt: new Date("2026-05-27T00:00:00.000Z"),
+          endAt: new Date("2026-05-28T00:00:00.000Z"),
+          holdExpiresAt: new Date("2026-05-22T12:00:00.000Z"),
+          convertedAt: null,
+          conversionReservationExpiresAt: null,
+        },
+        {
+          id: "booking-reserved",
+          status: "awaiting_payment",
+          startAt: new Date("2026-05-29T00:00:00.000Z"),
+          endAt: new Date("2026-05-30T00:00:00.000Z"),
+          holdExpiresAt: new Date("2026-05-22T12:00:00.000Z"),
+          convertedAt: null,
+          conversionReservationExpiresAt: new Date("2026-05-21T12:00:00.000Z"),
+        },
+      ],
+    });
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce([posting])
+      .mockResolvedValueOnce([posting]);
+    const repository = new PostingsRepository({
+      posting: {
+        findMany,
+      },
+    } as never);
+
+    await expect(repository.findByIdsForIndexing([])).resolves.toEqual([]);
+    await expect(
+      repository.findByIdsForIndexing(["posting-1"]),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "posting-1",
+        searchableAttributes: {
+          guest_capacity: 4,
+          property_type: "loft",
+          amenities: ["wifi"],
+        },
+        blockedRanges: [
+          expect.objectContaining({
+            source: "availability_block",
+            startAt: "2026-05-21T00:00:00.000Z",
+          }),
+          expect.objectContaining({
+            source: "availability_block",
+            startAt: "2026-05-23T00:00:00.000Z",
+          }),
+          expect.objectContaining({
+            source: "booking_request",
+            startAt: "2026-05-27T00:00:00.000Z",
+          }),
+          expect.objectContaining({
+            source: "renting",
+            startAt: "2026-05-26T00:00:00.000Z",
+          }),
+        ],
+      }),
+    ]);
+    await expect(repository.listRecentForIndexReconciliation(5)).resolves.toEqual([
+      expect.objectContaining({
+        id: "posting-1",
+      }),
+    ]);
+
+    expect(findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        take: 5,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      }),
+    );
+  });
+
+  it("updates outbox publish, retry, dead-letter, lookup, and newer-job state", async () => {
+    const update = jest
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({
+        attempts: 3,
+      })
+      .mockResolvedValueOnce(undefined);
+    const findUnique = jest.fn(async () => createSearchOutboxRow());
+    const findMany = jest.fn(async () => [
+      createSearchOutboxRow({
+        id: "outbox-2",
+        postingId: "posting-2",
+      }),
+      createSearchOutboxRow({
+        id: "outbox-1",
+      }),
+    ]);
+    const count = jest.fn(async () => 1);
+    const repository = new PostingsRepository({
+      postingSearchOutbox: {
+        update,
+        findUnique,
+        findMany,
+        count,
+      },
+    } as never);
+    const longError = "x".repeat(3000);
+
+    await repository.markSearchOutboxPublished("outbox-1", "broker-1");
+    await repository.markSearchOutboxPublishRetry("outbox-1", 20, longError);
+    await repository.markSearchOutboxIndexed("outbox-1");
+    await expect(
+      repository.incrementSearchOutboxAttempt("outbox-1", longError),
+    ).resolves.toBe(3);
+    await repository.markSearchOutboxDeadLettered("outbox-1", longError);
+    await expect(repository.getSearchOutboxById("outbox-1")).resolves.toEqual(
+      expect.objectContaining({
+        id: "outbox-1",
+        postingId: "posting-1",
+      }),
+    );
+    await expect(repository.getSearchOutboxesByIds([])).resolves.toEqual([]);
+    await expect(
+      repository.getSearchOutboxesByIds(["outbox-1", "outbox-3", "outbox-2"]),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "outbox-1",
+      }),
+      expect.objectContaining({
+        id: "outbox-2",
+      }),
+    ]);
+    await expect(
+      repository.hasNewerSearchOutboxJob({
+        id: "outbox-1",
+        createdAt: "2026-05-20T11:00:00.000Z",
+      } as never),
+    ).resolves.toBe(false);
+    await expect(
+      repository.hasNewerSearchOutboxJob({
+        id: "outbox-1",
+        postingId: "posting-1",
+        reindexRunId: "run-1",
+        targetIndexName: "postings-reindex-1",
+        createdAt: "2026-05-20T11:00:00.000Z",
+      }),
+    ).resolves.toBe(true);
+
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          brokerMessageId: "broker-1",
+          processingAt: null,
+        }),
+      }),
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          publishAttempts: {
+            increment: 1,
+          },
+          lastError: longError.slice(0, 2048),
+        }),
+      }),
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      5,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deadLetteredAt: new Date("2026-05-20T12:00:00.000Z"),
+          lastError: longError.slice(0, 2048),
+        }),
+      }),
+    );
+  });
+
+  it("maps search reindex reads, writes, and claim races", async () => {
+    const create = jest.fn(async () =>
+      createSearchReindexRunRow({
+        id: "run-created",
+      }),
+    );
+    const findUnique = jest.fn(async () =>
+      createSearchReindexRunRow({
+        id: "run-found",
+      }),
+    );
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-active",
+        }),
+      )
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-latest",
+        }),
+      )
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-completed",
+          status: "completed",
+          completedAt: new Date("2026-05-20T12:00:00.000Z"),
+        }),
+      )
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-claim",
+          createdAt: new Date("2026-05-19T12:00:00.000Z"),
+        }),
+      )
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-claim-success",
+          createdAt: new Date("2026-05-19T12:00:00.000Z"),
+        }),
+      );
+    const findMany = jest.fn(async () => [
+      createSearchReindexRunRow({
+        id: "run-retained",
+        status: "completed",
+        retainedIndexName: "postings-old",
+        completedAt: new Date("2026-05-20T12:00:00.000Z"),
+      }),
+    ]);
+    const updateMany = jest
+      .fn()
+      .mockResolvedValueOnce({
+        count: 0,
+      })
+      .mockResolvedValueOnce({
+        count: 1,
+      });
+    const update = jest
+      .fn()
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-running",
+          status: "running",
+          totalPostings: 25,
+          startedAt: new Date("2026-05-20T12:00:00.000Z"),
+          processingAt: new Date("2026-05-20T12:00:00.000Z"),
+        }),
+      )
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-complete",
+          status: "completed",
+          retainedIndexName: "postings-20260520",
+          completedAt: new Date("2026-05-20T12:00:00.000Z"),
+        }),
+      )
+      .mockResolvedValueOnce(
+        createSearchReindexRunRow({
+          id: "run-failed",
+          status: "failed",
+          failedAt: new Date("2026-05-20T12:00:00.000Z"),
+          lastError: "boom",
+        }),
+      )
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    const repository = new PostingsRepository({
+      searchReindexRun: {
+        create,
+        findUnique,
+        findFirst,
+        findMany,
+        updateMany,
+        update,
+      },
+    } as never);
+
+    await expect(
+      repository.createSearchReindexRun("postings-reindex-2"),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-created",
+        targetIndexName: "postings-reindex-1",
+      }),
+    );
+    await expect(repository.findSearchReindexRunById("run-found")).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-found",
+      }),
+    );
+    await expect(repository.findActiveSearchReindexRun()).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-active",
+      }),
+    );
+    await expect(repository.findLatestSearchReindexRun()).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-latest",
+      }),
+    );
+    await expect(
+      repository.findLatestCompletedSearchReindexRun(),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-completed",
+      }),
+    );
+    await expect(
+      repository.listCompletedSearchReindexRunsWithRetainedIndices(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "run-retained",
+        retainedIndexName: "postings-old",
+      }),
+    ]);
+    await expect(repository.claimNextSearchReindexRun()).resolves.toBeNull();
+    await expect(repository.claimNextSearchReindexRun()).resolves.toBeNull();
+    await expect(repository.claimNextSearchReindexRun()).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-claim-success",
+        processingAt: "2026-05-20T12:00:00.000Z",
+      }),
+    );
+    await expect(
+      repository.markSearchReindexRunRunning("run-running", 25),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-running",
+        status: "running",
+        totalPostings: 25,
+      }),
+    );
+    await repository.updateSearchReindexRunProgress("run-running", {
+      indexedPostings: 12,
+      failedPostings: 2,
+    });
+    await expect(
+      repository.markSearchReindexRunCompleted(
+        "run-complete",
+        "postings-20260520",
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-complete",
+        retainedIndexName: "postings-20260520",
+      }),
+    );
+    await expect(
+      repository.markSearchReindexRunFailed("run-failed", "boom"),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "run-failed",
+        lastError: "boom",
+      }),
+    );
+    await repository.touchSearchReindexRunProcessing("run-touch");
+    await repository.clearSearchReindexRunProcessing("run-clear");
+    await repository.clearSearchReindexRunRetainedIndexName("run-retained");
+
+    expect(updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "run-claim-success",
+        }),
+        data: {
+          processingAt: new Date("2026-05-20T12:00:00.000Z"),
+        },
+      }),
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "run-retained",
+        },
+        data: {
+          retainedIndexName: null,
+        },
+      }),
+    );
+  });
+
+  it("handles indexing batches, outbox relay flows, metrics, and dead-letter revival", async () => {
+    const postingFindMany = jest.fn(async () => [createPostingPersistence()]);
+    const postingCount = jest.fn(async () => 7);
+    const searchOutboxCount = jest.fn(async () => 9);
+    const outboxUpdateMany = jest.fn(async () => undefined);
+    const queryRaw = jest.fn(async () => [
+      {
+        unpublishedCount: 4n,
+        unpublishedOldestCreatedAt: new Date("2026-05-20T11:59:00.000Z"),
+        publishedNotIndexedCount: 3n,
+        publishedNotIndexedOldestProcessedAt: new Date("2026-05-20T11:58:00.000Z"),
+        upsertDeadLetteredCount: 2n,
+        deleteDeadLetteredCount: 1,
+        barrierDeadLetteredCount: null,
+      },
+    ]);
+    const relayTransaction = {
+      postingSearchOutbox: {
+        update: jest.fn(async () => undefined),
+        updateMany: jest.fn(async () => undefined),
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "dead-1",
+            },
+            {
+              id: "dead-2",
+            },
+          ]),
+      },
+    };
+    const repository = new PostingsRepository({
+      posting: {
+        count: postingCount,
+        findMany: postingFindMany,
+      },
+      postingSearchOutbox: {
+        count: searchOutboxCount,
+        updateMany: outboxUpdateMany,
+      },
+      $queryRaw: queryRaw,
+      $transaction: async (
+        callback: (tx: typeof relayTransaction) => Promise<unknown>,
+      ) => callback(relayTransaction),
+    } as never);
+
+    await expect(
+      repository.countPublishedPostingsForIndexing("2026-05-20T12:00:00.000Z"),
+    ).resolves.toBe(7);
+    await expect(
+      repository.listPublishedForIndexingBatch(
+        5,
+        "posting-10",
+        "2026-05-20T12:00:00.000Z",
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "posting-1",
+      }),
+    ]);
+    await expect(repository.getPendingSearchOutboxCount()).resolves.toBe(9);
+    await expect(
+      repository.getPendingSearchOutboxMetrics(),
+    ).resolves.toEqual({
+      count: 4,
+      oldestAgeMs: 60_000,
+    });
+    await expect(repository.getSearchOutboxLagMetrics()).resolves.toEqual({
+      unpublishedCount: 4,
+      unpublishedOldestAgeMs: 60_000,
+      publishedNotIndexedCount: 3,
+      publishedNotIndexedOldestAgeMs: 120_000,
+      deadLetteredByOperation: {
+        upsert: 2,
+        delete: 1,
+        barrier: 0,
+      },
+    });
+    await repository.markSearchOutboxesIndexed([]);
+    await repository.markSearchOutboxesIndexed(["outbox-1", "outbox-2"]);
+    await repository.markSearchOutboxRelayed("outbox-1", ["outbox-2"], "broker-1");
+    await repository.markSearchOutboxSuperseded([], "broker-2");
+    await repository.markSearchOutboxSuperseded(["outbox-3"], "broker-2");
+    await repository.releaseSearchOutboxClaims([]);
+    await repository.releaseSearchOutboxClaims(["outbox-4"], "release failed");
+    await expect(repository.reviveDeadLetteredSearchOutbox(0)).resolves.toBe(0);
+    await expect(repository.reviveDeadLetteredSearchOutbox(5)).resolves.toBe(2);
+
+    expect(postingCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "published",
+          archivedAt: null,
+          updatedAt: {
+            lte: new Date("2026-05-20T12:00:00.000Z"),
+          },
+        }),
+      }),
+    );
+    expect(postingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 5,
+        cursor: {
+          id: "posting-10",
+        },
+        skip: 1,
+      }),
+    );
+    expect(outboxUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: {
+            in: ["outbox-1", "outbox-2"],
+          },
+        },
+        data: {
+          indexedAt: new Date("2026-05-20T12:00:00.000Z"),
+          lastError: null,
+        },
+      }),
+    );
+    expect(relayTransaction.postingSearchOutbox.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: {
+            in: ["dead-1", "dead-2"],
+          },
+        },
+        data: expect.objectContaining({
+          attempts: 0,
+          publishAttempts: 0,
+          availableAt: new Date("2026-05-20T12:00:00.000Z"),
+        }),
+      }),
+    );
+  });
+
+  it("guards search reindex start locking and releases the mysql lock after successful work", async () => {
+    const unlockedRepository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: { $queryRaw: typeof jest.fn }) => Promise<unknown>,
+      ) =>
+        callback({
+          $queryRaw: jest.fn(async () => [
+            {
+              acquired: 0,
+            },
+          ]),
+        }),
+    } as never);
+
+    await expect(
+      unlockedRepository.withSearchReindexStartLock(async () => "nope"),
+    ).resolves.toBeNull();
+
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          acquired: 1n,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          released: true,
+        },
+      ]);
+    const create = jest.fn(async () =>
+      createSearchReindexRunRow({
+        id: "run-locked",
+      }),
+    );
+    const findFirst = jest.fn(async () =>
+      createSearchReindexRunRow({
+        id: "run-active",
+      }),
+    );
+    const lockedRepository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: {
+          $queryRaw: typeof queryRaw;
+          searchReindexRun: {
+            create: typeof create;
+            findFirst: typeof findFirst;
+          };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          $queryRaw: queryRaw,
+          searchReindexRun: {
+            create,
+            findFirst,
+          },
+        }),
+    } as never);
+
+    await expect(
+      lockedRepository.withSearchReindexStartLock(async (helpers) => {
+        const active = await helpers.findActiveSearchReindexRun();
+        const created = await helpers.createSearchReindexRun(
+          "postings-reindex-locked",
+        );
+
+        return {
+          activeId: active?.id,
+          createdId: created.id,
+        };
+      }),
+    ).resolves.toEqual({
+      activeId: "run-active",
+      createdId: "run-locked",
+    });
+
+    expect(queryRaw).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        strings: ["SELECT GET_LOCK(", ", 0) AS acquired"],
+        values: ["rentify:search-reindex:start"],
+      }),
+    );
+    expect(queryRaw).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        strings: ["SELECT RELEASE_LOCK(", ") AS released"],
+        values: ["rentify:search-reindex:start"],
+      }),
+    );
   });
 });

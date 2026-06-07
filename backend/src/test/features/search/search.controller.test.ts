@@ -122,6 +122,9 @@ describe("SearchController", () => {
       }))
       .mockResolvedValueOnce({
         accepted: 7,
+      })
+      .mockResolvedValueOnce({
+        accepted: 100,
       });
     const controller = new SearchController({
       replayDeadLetteredOutbox,
@@ -137,9 +140,15 @@ describe("SearchController", () => {
         url: "https://example.test/api/v1/search/replay?limit=-3",
       }),
     );
+    await controller.replayDeadLettered(
+      createContext({
+        url: "https://example.test/api/v1/search/replay?limit=%20%20%20",
+      }),
+    );
 
     expect(replayDeadLetteredOutbox).toHaveBeenNthCalledWith(1, 7);
     expect(replayDeadLetteredOutbox).toHaveBeenNthCalledWith(2, 100);
+    expect(replayDeadLetteredOutbox).toHaveBeenNthCalledWith(3, 100);
     await expect(fallbackResponse.json()).resolves.toMatchObject({
       message: "Dead-lettered search outbox entries are being replayed.",
     });

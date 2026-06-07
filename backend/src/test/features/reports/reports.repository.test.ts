@@ -281,6 +281,133 @@ describe("ReportsRepository", () => {
     ]);
   });
 
+  it("finds posting, review, and user subjects and maps user summaries", async () => {
+    const postingFindUnique = jest.fn(async () => ({
+      id: "posting-1",
+      name: "Sunny Loft",
+      status: "published",
+      organizationId: "org-1",
+      organization: {
+        id: "org-1",
+        name: "Studio Group",
+      },
+    }));
+    const reviewFindUnique = jest.fn(async () => ({
+      id: "review-1",
+      rating: 5,
+      title: "Excellent stay",
+      comment: "Clean and quiet.",
+      reviewerId: "user-2",
+      reviewer: createUserPersistence({
+        id: "user-2",
+        role: "user",
+        profile: {
+          username: "reviewer-one",
+          avatarUrl: null,
+        },
+      }),
+      posting: {
+        id: "posting-1",
+        name: "Sunny Loft",
+      },
+    }));
+    const userFindUnique = jest.fn(async () =>
+      createUserPersistence({
+        id: "user-3",
+        role: "admin",
+      }),
+    );
+    const repository = new ReportsRepository({
+      posting: {
+        findUnique: postingFindUnique,
+      },
+      postingReview: {
+        findUnique: reviewFindUnique,
+      },
+      user: {
+        findUnique: userFindUnique,
+      },
+    } as never);
+
+    await expect(repository.findPostingSubject("posting-1")).resolves.toEqual({
+      id: "posting-1",
+      name: "Sunny Loft",
+      status: "published",
+      organizationId: "org-1",
+      organization: {
+        id: "org-1",
+        name: "Studio Group",
+      },
+    });
+    await expect(repository.findPostingReviewSubject("review-1")).resolves.toEqual({
+      id: "review-1",
+      rating: 5,
+      title: "Excellent stay",
+      comment: "Clean and quiet.",
+      reviewerId: "user-2",
+      reviewer: expect.objectContaining({
+        id: "user-2",
+        email: "user@example.com",
+      }),
+      posting: {
+        id: "posting-1",
+        name: "Sunny Loft",
+      },
+    });
+    await expect(repository.findUserSubject("user-3")).resolves.toEqual(
+      expect.objectContaining({
+        id: "user-3",
+        role: "admin",
+      }),
+    );
+    await expect(repository.findUserSummaryById("user-3")).resolves.toEqual({
+      id: "user-3",
+      email: "user@example.com",
+      username: "moderator-one",
+      avatarUrl: "https://example.test/avatar.png",
+      role: "admin",
+    });
+  });
+
+  it("finds report records by id and preserves requested id ordering", async () => {
+    const findUnique = jest.fn(async () => createReportPersistence());
+    const findMany = jest.fn(async () => [
+      createReportPersistence({
+        id: "report-2",
+        title: "Second",
+      }),
+      createReportPersistence({
+        id: "report-1",
+        title: "First",
+      }),
+    ]);
+    const repository = new ReportsRepository({
+      contentReport: {
+        findUnique,
+        findMany,
+      },
+    } as never);
+
+    await expect(repository.findReportRecordById("report-1")).resolves.toEqual(
+      expect.objectContaining({
+        id: "report-1",
+        title: "Looks suspicious",
+      }),
+    );
+    await expect(
+      repository.findReportsByIds(["report-1", "missing", "report-2"]),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "report-1",
+        title: "First",
+      }),
+      expect.objectContaining({
+        id: "report-2",
+        title: "Second",
+      }),
+    ]);
+  });
+
   it("returns null for missing assignment and status updates", async () => {
     const missingError = new Prisma.PrismaClientKnownRequestError("missing", {
       code: "P2025",
@@ -307,6 +434,162 @@ describe("ReportsRepository", () => {
         status: "resolved",
       }),
     ).resolves.toBeNull();
+  });
+
+  it("updates assignments and statuses and records audit events on success", async () => {
+    const update = jest
+      .fn(async () =>
+        createReportPersistence({
+          assignedModerator: createUserPersistence({
+            id: "moderator-2",
+            email: "assigned@example.com",
+            profile: {
+              username: "assigned-mod",
+              avatarUrl: null,
+            },
+          }),
+        }),
+      )
+      .mockResolvedValueOnce(
+        createReportPersistence({
+          assignedModerator: createUserPersistence({
+            id: "moderator-2",
+            email: "assigned@example.com",
+            profile: {
+              username: "assigned-mod",
+              avatarUrl: null,
+            },
+          }),
+        }),
+      )
+      .mockResolvedValueOnce(
+        createReportPersistence({
+          status: "resolved",
+          resolutionCode: "action_taken",
+          resolutionSummary: "Listing removed.",
+          reviewedAt: new Date("2026-05-05T00:00:00.000Z"),
+        }),
+      )
+      .mockResolvedValueOnce(
+        createReportPersistence({
+          status: "resolved",
+          reviewedAt: new Date("2026-05-05T00:00:00.000Z"),
+        }),
+      );
+    const findExisting = jest
+      .fn(async () => ({
+        status: "under_review",
+      }))
+      .mockResolvedValueOnce({
+        status: "under_review",
+      })
+      .mockResolvedValueOnce({
+        status: "resolved",
+      });
+    const createEvent = jest.fn(async () => undefined);
+    const createOutbox = jest.fn(async () => undefined);
+    const database = {
+      $transaction: async <T>(
+        callback: (transaction: {
+          contentReport: {
+            update: typeof update;
+            findUnique: typeof findExisting;
+          };
+          contentReportEvent: { create: typeof createEvent };
+          contentReportSearchOutbox: { create: typeof createOutbox };
+        }) => Promise<T>,
+      ) =>
+        callback({
+          contentReport: {
+            update,
+            findUnique: findExisting,
+          },
+          contentReportEvent: { create: createEvent },
+          contentReportSearchOutbox: { create: createOutbox },
+        }),
+    };
+    const repository = new ReportsRepository(database as never);
+
+    const assigned = await repository.updateAssignment({
+      reportId: "report-1",
+      actorUserId: "user-1",
+      assignedModeratorId: "moderator-2",
+    });
+    const resolved = await repository.updateStatus({
+      reportId: "report-1",
+      actorUserId: "user-1",
+      status: "resolved",
+      resolutionCode: "action_taken",
+      resolutionSummary: "Listing removed.",
+    });
+    const noted = await repository.updateStatus({
+      reportId: "report-1",
+      actorUserId: "user-1",
+      status: "resolved",
+      note: "Follow-up note",
+    });
+
+    expect(assigned).toEqual(
+      expect.objectContaining({
+        assignedModerator: {
+          id: "moderator-2",
+          email: "assigned@example.com",
+          username: "assigned-mod",
+          avatarUrl: undefined,
+          role: "moderator",
+        },
+      }),
+    );
+    expect(resolved).toEqual(
+      expect.objectContaining({
+        status: "resolved",
+        resolutionCode: "action_taken",
+        resolutionSummary: "Listing removed.",
+        reviewedAt: "2026-05-05T00:00:00.000Z",
+      }),
+    );
+    expect(noted).toEqual(
+      expect.objectContaining({
+        status: "resolved",
+      }),
+    );
+
+    expect(createEvent).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "assigned",
+          assignmentUserId: "moderator-2",
+          note: "Moderator assignment updated.",
+        }),
+      }),
+    );
+    expect(createEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "status_changed",
+          fromStatus: "under_review",
+          toStatus: "resolved",
+          note: "Listing removed.",
+        }),
+      }),
+    );
+    expect(createEvent).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "note_added",
+          fromStatus: "resolved",
+          toStatus: "resolved",
+          note: "Follow-up note",
+          metadata: {
+            status: "resolved",
+          },
+        }),
+      }),
+    );
+    expect(createOutbox).toHaveBeenCalledTimes(3);
   });
 
   it("claims outbox batches, marks them processing, and maps timestamps", async () => {
@@ -354,5 +637,78 @@ describe("ReportsRepository", () => {
       createdAt: "2026-05-04T00:00:00.000Z",
       updatedAt: "2026-05-04T00:00:00.000Z",
     });
+  });
+
+  it("updates search outbox state and skips empty processed batches", async () => {
+    const findMany = jest.fn(async () => [createReportPersistence()]);
+    const updateMany = jest.fn(async () => undefined);
+    const update = jest.fn(async () => undefined);
+    const repository = new ReportsRepository({
+      contentReport: {
+        findMany,
+      },
+      contentReportSearchOutbox: {
+        updateMany,
+        update,
+      },
+    } as never);
+
+    const docs = await repository.listReportsForIndexing(["report-1"]);
+    await repository.markSearchOutboxProcessed(["outbox-1"]);
+    await repository.markSearchOutboxProcessed([]);
+    await repository.retrySearchOutbox("outbox-1", 3, "x".repeat(3_000));
+    await repository.markSearchOutboxDeadLettered(
+      "outbox-2",
+      5,
+      "y".repeat(3_000),
+    );
+
+    expect(docs).toEqual([
+      expect.objectContaining({
+        id: "report-1",
+        reporterUsername: "reporter-one",
+      }),
+    ]);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: {
+          in: ["outbox-1"],
+        },
+      },
+      data: {
+        processedAt: expect.any(Date),
+        processingAt: null,
+        lastError: null,
+      },
+    });
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: {
+          id: "outbox-1",
+        },
+        data: expect.objectContaining({
+          attempts: 3,
+          processingAt: null,
+          availableAt: expect.any(Date),
+          lastError: "x".repeat(2_048),
+        }),
+      }),
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          id: "outbox-2",
+        },
+        data: {
+          attempts: 5,
+          processingAt: null,
+          deadLetteredAt: expect.any(Date),
+          lastError: "y".repeat(2_048),
+        },
+      }),
+    );
   });
 });

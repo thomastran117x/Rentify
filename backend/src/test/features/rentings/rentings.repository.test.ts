@@ -233,6 +233,169 @@ describe("RentingsRepository", () => {
     expect(result.status).toBe("confirmed");
   });
 
+  it("finds a renting by id and maps optional photo and dispute fields", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () =>
+          createRentingPersistence({
+            posting: {
+              id: "posting-1",
+              name: "Sunny loft",
+              photos: [],
+            },
+            dispute: {
+              id: "dispute-1",
+              rentingId: "renting-1",
+              openedByUserId: "moderator-1",
+              reason: "damage",
+              details: null,
+              createdAt: new Date("2026-05-20T12:00:00.000Z"),
+              updatedAt: new Date("2026-05-20T12:05:00.000Z"),
+            },
+          }),
+        ),
+      },
+    } as never);
+
+    const result = await repository.findById("renting-1");
+
+    expect(result).toMatchObject({
+      id: "renting-1",
+      posting: {
+        id: "posting-1",
+        name: "Sunny loft",
+        primaryPhotoUrl: undefined,
+      },
+      dispute: {
+        id: "dispute-1",
+        reason: "damage",
+        details: undefined,
+      },
+    });
+  });
+
+  it("returns null when a renting lookup misses", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () => null),
+      },
+    } as never);
+
+    await expect(repository.findById("missing-renting")).resolves.toBeNull();
+  });
+
+  it("lists renter dashboard rentings", async () => {
+    const findMany = jest.fn(async () => [createRentingPersistence()]);
+    const repository = new RentingsRepository({
+      renting: {
+        findMany,
+      },
+    } as never);
+
+    const result = await repository.listByRenterForDashboard("renter-1");
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        renterId: "renter-1",
+      },
+      orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      include: expect.any(Object),
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "renting-1",
+      posting: {
+        primaryPhotoUrl: "https://example.test/posting-1.jpg",
+      },
+    });
+  });
+
+  it("lists owner dashboard rentings without a posting filter", async () => {
+    const findMany = jest.fn(async () => [createRentingPersistence()]);
+    const repository = new RentingsRepository({
+      renting: {
+        findMany,
+      },
+    } as never);
+
+    const result = await repository.listByOwnerForDashboard({
+      organizationId: "org-1",
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "org-1",
+      },
+      orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      include: expect.any(Object),
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].organizationId).toBe("org-1");
+  });
+
+  it("updates instructions for an existing renting", async () => {
+    const update = jest.fn(async () =>
+      createRentingPersistence({
+        pickupInstructions: "Call from the curb.",
+        returnInstructions: "Return to concierge desk.",
+      }),
+    );
+    const repository = new RentingsRepository({
+      renting: {
+        update,
+      },
+    } as never);
+
+    const result = await repository.updateInstructions({
+      rentingId: "renting-1",
+      pickupInstructions: "Call from the curb.",
+      returnInstructions: "Return to concierge desk.",
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: {
+        id: "renting-1",
+      },
+      data: {
+        pickupInstructions: "Call from the curb.",
+        returnInstructions: "Return to concierge desk.",
+      },
+      include: expect.any(Object),
+    });
+    expect(result).toMatchObject({
+      id: "renting-1",
+      pickupInstructions: "Call from the curb.",
+      returnInstructions: "Return to concierge desk.",
+    });
+  });
+
+  it("returns null when updating instructions for a missing renting", async () => {
+    const error = Object.assign(new Error("record not found"), {
+      code: "P2025",
+      clientVersion: "test",
+    });
+    Object.setPrototypeOf(
+      error,
+      Prisma.PrismaClientKnownRequestError.prototype,
+    );
+
+    const repository = new RentingsRepository({
+      renting: {
+        update: jest.fn(async () => {
+          throw error;
+        }),
+      },
+    } as never);
+
+    await expect(
+      repository.updateInstructions({
+        rentingId: "missing-renting",
+        pickupInstructions: "Meet outside.",
+        returnInstructions: "Leave with the doorman.",
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("marks a confirmed renting as check-in ready", async () => {
     const update = jest.fn(async () =>
       createRentingPersistence({
@@ -284,6 +447,21 @@ describe("RentingsRepository", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 
+  it("returns null when marking check-in complete for a missing renting", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () => null),
+      },
+    } as never);
+
+    await expect(
+      repository.markCheckInComplete(
+        "missing-renting",
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).resolves.toBeNull();
+  });
+
   it("checks in an upcoming renting and backfills check-in-ready time", async () => {
     const update = jest.fn(async () =>
       createRentingPersistence({
@@ -322,6 +500,40 @@ describe("RentingsRepository", () => {
       include: expect.any(Object),
     });
     expect(result?.status).toBe("active");
+  });
+
+  it("rejects check-in completion for a non-upcoming renting", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () =>
+          createRentingPersistence({
+            status: "active",
+          }),
+        ),
+      },
+    } as never);
+
+    await expect(
+      repository.markCheckInComplete(
+        "renting-1",
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("returns null when marking a missing renting as completed", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () => null),
+      },
+    } as never);
+
+    await expect(
+      repository.markCompleted(
+        "missing-renting",
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).resolves.toBeNull();
   });
 
   it("marks an active renting as completed and records return due when overdue", async () => {
@@ -363,6 +575,84 @@ describe("RentingsRepository", () => {
       include: expect.any(Object),
     });
     expect(result?.status).toBe("completed");
+  });
+
+  it("preserves return-due timing when completing a return-due renting", async () => {
+    const existingReturnDueAt = new Date("2026-05-19T18:00:00.000Z");
+    const update = jest.fn(async () =>
+      createRentingPersistence({
+        status: "completed",
+        returnDueAt: existingReturnDueAt,
+        completedAt: new Date("2026-05-20T12:00:00.000Z"),
+      }),
+    );
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () =>
+          createRentingPersistence({
+            status: "return_due",
+            returnDueAt: existingReturnDueAt,
+          }),
+        ),
+        update,
+      },
+    } as never);
+
+    await repository.markCompleted(
+      "renting-1",
+      new Date("2026-05-20T12:00:00.000Z"),
+    );
+
+    expect(update).toHaveBeenCalledWith({
+      where: {
+        id: "renting-1",
+      },
+      data: {
+        status: "completed",
+        returnDueAt: existingReturnDueAt,
+        completedAt: new Date("2026-05-20T12:00:00.000Z"),
+      },
+      include: expect.any(Object),
+    });
+  });
+
+  it("rejects completion for a renting that is not active or return-due", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () =>
+          createRentingPersistence({
+            status: "confirmed",
+          }),
+        ),
+      },
+    } as never);
+
+    await expect(
+      repository.markCompleted(
+        "renting-1",
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("returns null when opening a dispute for a missing renting", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () => null),
+      },
+      $transaction: jest.fn(),
+    } as never);
+
+    await expect(
+      repository.createDispute(
+        {
+          rentingId: "missing-renting",
+          actorUserId: "moderator-1",
+          reason: "damage",
+        },
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).resolves.toBeNull();
   });
 
   it("opens a dispute and transitions the renting to disputed", async () => {
@@ -436,6 +726,38 @@ describe("RentingsRepository", () => {
     });
   });
 
+  it("rejects opening a second dispute for the same renting", async () => {
+    const repository = new RentingsRepository({
+      renting: {
+        findUnique: jest.fn(async () =>
+          createRentingPersistence({
+            dispute: {
+              id: "dispute-1",
+              rentingId: "renting-1",
+              openedByUserId: "moderator-1",
+              reason: "damage",
+              details: "Cracked lamp base.",
+              createdAt: new Date("2026-05-20T12:00:00.000Z"),
+              updatedAt: new Date("2026-05-20T12:00:00.000Z"),
+            },
+          }),
+        ),
+      },
+      $transaction: jest.fn(),
+    } as never);
+
+    await expect(
+      repository.createDispute(
+        {
+          rentingId: "renting-1",
+          actorUserId: "moderator-2",
+          reason: "damage",
+        },
+        new Date("2026-05-20T12:00:00.000Z"),
+      ),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("checks overlap while excluding the current renting when requested", async () => {
     const findFirst = jest.fn(async () => ({
       id: "renting-2",
@@ -472,6 +794,66 @@ describe("RentingsRepository", () => {
       },
       select: {
         id: true,
+      },
+    });
+  });
+
+  it("updates return-due transitions for a single renting", async () => {
+    const updateMany = jest.fn(async () => ({
+      count: 1,
+    }));
+    const repository = new RentingsRepository({
+      renting: {
+        updateMany,
+      },
+    } as never);
+
+    await repository.promoteReturnDueForRenting(
+      "renting-1",
+      new Date("2026-05-20T12:00:00.000Z"),
+    );
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "renting-1",
+        status: "active",
+        endAt: {
+          lte: new Date("2026-05-20T12:00:00.000Z"),
+        },
+      },
+      data: {
+        status: "return_due",
+        returnDueAt: new Date("2026-05-20T12:00:00.000Z"),
+      },
+    });
+  });
+
+  it("updates return-due transitions for a renter", async () => {
+    const updateMany = jest.fn(async () => ({
+      count: 2,
+    }));
+    const repository = new RentingsRepository({
+      renting: {
+        updateMany,
+      },
+    } as never);
+
+    await repository.promoteReturnDueForUser(
+      "renter-1",
+      new Date("2026-05-20T12:00:00.000Z"),
+    );
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        renterId: "renter-1",
+        status: "active",
+        endAt: {
+          lte: new Date("2026-05-20T12:00:00.000Z"),
+        },
+      },
+      data: {
+        status: "return_due",
+        returnDueAt: new Date("2026-05-20T12:00:00.000Z"),
       },
     });
   });
