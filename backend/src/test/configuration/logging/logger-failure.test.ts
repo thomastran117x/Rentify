@@ -20,6 +20,7 @@ async function waitFor(assertion: () => void, timeoutMs = 500): Promise<void> {
 describe("logger failure handling", () => {
   const originalEnv = {
     LOG_FALLBACK_DIRECTORY: process.env.LOG_FALLBACK_DIRECTORY,
+    LOG_SILENT: process.env.LOG_SILENT,
     NODE_ENV: process.env.NODE_ENV,
     RABBITMQ_URL: process.env.RABBITMQ_URL,
   };
@@ -27,6 +28,7 @@ describe("logger failure handling", () => {
   afterEach(async () => {
     process.env.NODE_ENV = originalEnv.NODE_ENV;
     process.env.LOG_FALLBACK_DIRECTORY = originalEnv.LOG_FALLBACK_DIRECTORY;
+    process.env.LOG_SILENT = originalEnv.LOG_SILENT;
     process.env.RABBITMQ_URL = originalEnv.RABBITMQ_URL;
     jest.resetModules();
     jest.restoreAllMocks();
@@ -36,6 +38,7 @@ describe("logger failure handling", () => {
     process.env.NODE_ENV = "production";
     process.env.RABBITMQ_URL = "";
     process.env.LOG_FALLBACK_DIRECTORY = "C:/tmp/logger-failure";
+    process.env.LOG_SILENT = "false";
 
     const consoleErrorSpy = jest
       .spyOn(console, "error")

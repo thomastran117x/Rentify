@@ -55,12 +55,14 @@ async function loadLoggingModuleWithEnvironment(options?: {
 describe("logger branches", () => {
   const originalEnv = {
     LOG_LEVEL: process.env.LOG_LEVEL,
+    LOG_SILENT: process.env.LOG_SILENT,
     NODE_ENV: process.env.NODE_ENV,
     RABBITMQ_URL: process.env.RABBITMQ_URL,
   };
 
   afterEach(() => {
     process.env.LOG_LEVEL = originalEnv.LOG_LEVEL;
+    process.env.LOG_SILENT = originalEnv.LOG_SILENT;
     process.env.NODE_ENV = originalEnv.NODE_ENV;
     process.env.RABBITMQ_URL = originalEnv.RABBITMQ_URL;
     jest.resetModules();
@@ -70,6 +72,7 @@ describe("logger branches", () => {
   it("defaults invalid env and level values through the console logger fallback", async () => {
     process.env.NODE_ENV = "mystery";
     process.env.LOG_LEVEL = "LOUD";
+    process.env.LOG_SILENT = "false";
 
     const stdoutSpy = spyStream(process.stdout);
     const { loggerFactory } = await loadLoggingModuleWithEnvironment({
@@ -90,6 +93,7 @@ describe("logger branches", () => {
   it("suppresses logs below the configured threshold and writes warnings to stderr", async () => {
     const stdoutSpy = spyStream(process.stdout);
     const stderrSpy = spyStream(process.stderr);
+    process.env.LOG_SILENT = "false";
     const { loggerFactory } = await loadLoggingModuleWithEnvironment({
       level: "warn",
       environment: "development",
@@ -123,6 +127,7 @@ describe("logger branches", () => {
     class ExampleService {}
 
     const stderrSpy = spyStream(process.stderr);
+    process.env.LOG_SILENT = "false";
     const { loggerFactory } = await loadLoggingModuleWithEnvironment({
       level: "debug",
       environment: "development",

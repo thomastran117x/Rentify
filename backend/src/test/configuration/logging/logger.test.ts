@@ -26,6 +26,7 @@ describe("logger", () => {
   const originalEnv = {
     LOG_FALLBACK_DIRECTORY: process.env.LOG_FALLBACK_DIRECTORY,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    LOG_SILENT: process.env.LOG_SILENT,
     LOG_SERVICE_NAME: process.env.LOG_SERVICE_NAME,
     NODE_ENV: process.env.NODE_ENV,
     RABBITMQ_URL: process.env.RABBITMQ_URL,
@@ -34,6 +35,7 @@ describe("logger", () => {
   afterEach(async () => {
     process.env.NODE_ENV = originalEnv.NODE_ENV;
     process.env.LOG_LEVEL = originalEnv.LOG_LEVEL;
+    process.env.LOG_SILENT = originalEnv.LOG_SILENT;
     process.env.LOG_SERVICE_NAME = originalEnv.LOG_SERVICE_NAME;
     process.env.LOG_FALLBACK_DIRECTORY = originalEnv.LOG_FALLBACK_DIRECTORY;
     process.env.RABBITMQ_URL = originalEnv.RABBITMQ_URL;
@@ -47,6 +49,7 @@ describe("logger", () => {
   it("logs pretty terminal output in development", async () => {
     process.env.NODE_ENV = "development";
     process.env.LOG_LEVEL = "debug";
+    process.env.LOG_SILENT = "false";
 
     const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -79,6 +82,7 @@ describe("logger", () => {
     process.env.NODE_ENV = "production";
     process.env.RABBITMQ_URL = "";
     process.env.LOG_LEVEL = "debug";
+    process.env.LOG_SILENT = "false";
     process.env.LOG_SERVICE_NAME = "backend-test";
 
     const tempDirectory = await mkdtemp(path.join(tmpdir(), "rent-logger-"));
