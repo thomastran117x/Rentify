@@ -114,9 +114,9 @@ describe("OrganizationAccessService", () => {
   it("throws ResourceNotFoundError when the user does not exist", async () => {
     const { service } = createService(null);
 
-    await expect(service.requireActiveMembership("missing-user")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.requireActiveMembership("missing-user"),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("finds and requires memberships by organization id", async () => {
@@ -156,8 +156,6 @@ describe("OrganizationAccessService", () => {
     expect(() =>
       service.assertCanManage({ role: "operator" }, "Managers only."),
     ).toThrow(ForbiddenError);
-    expect(() =>
-      service.assertCanManage({ role: "manager" }),
-    ).not.toThrow();
+    expect(() => service.assertCanManage({ role: "manager" })).not.toThrow();
   });
 });

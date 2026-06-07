@@ -167,9 +167,8 @@ describe("SearchController", () => {
       getStatus,
     } as never);
 
-    const cleanupResponse = await controller.cleanupRetainedIndices(
-      createContext(),
-    );
+    const cleanupResponse =
+      await controller.cleanupRetainedIndices(createContext());
     const statusResponse = await controller.getStatus(createContext());
 
     expect(cleanupRetainedIndices).toHaveBeenCalled();

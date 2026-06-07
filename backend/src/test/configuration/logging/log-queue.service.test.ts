@@ -51,7 +51,9 @@ function createMockChannel() {
   };
 }
 
-function createMockConnection(channels: Array<ReturnType<typeof createMockChannel>>) {
+function createMockConnection(
+  channels: Array<ReturnType<typeof createMockChannel>>,
+) {
   const eventHandlers = new Map<string, () => void>();
 
   return {

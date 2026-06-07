@@ -14,8 +14,9 @@ jest.mock("@/configuration/bootstrap/container", () => {
   };
 });
 
-const mockGetRequestContainer =
-  getRequestContainer as jest.MockedFunction<typeof getRequestContainer>;
+const mockGetRequestContainer = getRequestContainer as jest.MockedFunction<
+  typeof getRequestContainer
+>;
 
 function createApp() {
   const app = new Hono<AppBindings>();

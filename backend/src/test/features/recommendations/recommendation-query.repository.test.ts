@@ -60,7 +60,8 @@ describe("RecommendationQueryRepository", () => {
     );
 
     const context = await repository.getPersonalizationContext("user-1");
-    const defaultedContext = await repository.getPersonalizationContext("user-2");
+    const defaultedContext =
+      await repository.getPersonalizationContext("user-2");
 
     expect(context).toEqual({
       recommendationPersonalizationEnabled: false,
@@ -122,7 +123,9 @@ describe("RecommendationQueryRepository", () => {
       }) as never,
     );
 
-    await expect(repository.getPopularSnapshot("region", "toronto")).resolves.toEqual({
+    await expect(
+      repository.getPopularSnapshot("region", "toronto"),
+    ).resolves.toEqual({
       segmentType: "region",
       segmentValue: "toronto",
       generatedAt: "2026-05-12T00:00:00.000Z",

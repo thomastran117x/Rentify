@@ -97,14 +97,12 @@ describe("payments.utils", () => {
       retryable: true,
     });
 
-    expect(classifyHttpError(503, "provider unavailable", "UPSTREAM")).toEqual(
-      {
-        category: "transient",
-        code: "UPSTREAM",
-        message: "provider unavailable",
-        retryable: true,
-      },
-    );
+    expect(classifyHttpError(503, "provider unavailable", "UPSTREAM")).toEqual({
+      category: "transient",
+      code: "UPSTREAM",
+      message: "provider unavailable",
+      retryable: true,
+    });
   });
 
   it("classifies 4xx and non-error HTTP statuses appropriately", () => {

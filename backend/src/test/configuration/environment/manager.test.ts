@@ -129,7 +129,8 @@ describe("EnvironmentManager", () => {
 
     const firstEnvironment = manager.load();
 
-    process.env.DATABASE_URL = "mysql://cached:second@localhost:3306/rent_second";
+    process.env.DATABASE_URL =
+      "mysql://cached:second@localhost:3306/rent_second";
 
     const secondEnvironment = manager.load();
 
@@ -178,7 +179,9 @@ describe("EnvironmentManager", () => {
       environment.workers.searchReindex,
     );
     expect(manager.getEmailWorkerConfig()).toBe(environment.workers.email);
-    expect(manager.getAnalyticsWorkerConfig()).toBe(environment.workers.analytics);
+    expect(manager.getAnalyticsWorkerConfig()).toBe(
+      environment.workers.analytics,
+    );
     expect(manager.getRecommendationsPrecomputeWorkerConfig()).toBe(
       environment.workers.recommendationsPrecompute,
     );
@@ -256,8 +259,12 @@ describe("EnvironmentManager", () => {
     expect(manager.getCsrfAllowedOrigins()).toEqual(
       environment.csrf.allowedOrigins,
     );
-    expect(manager.getCorsAllowedOrigins()).not.toContain("http://localhost:3099");
-    expect(manager.getCsrfAllowedOrigins()).not.toContain("http://localhost:3099");
+    expect(manager.getCorsAllowedOrigins()).not.toContain(
+      "http://localhost:3099",
+    );
+    expect(manager.getCsrfAllowedOrigins()).not.toContain(
+      "http://localhost:3099",
+    );
   });
 
   it("reads required and optional raw environment variables after load", () => {
@@ -278,8 +285,8 @@ describe("EnvironmentManager", () => {
     expect(manager.getOptionalEnvironmentVariable("MISSING_OPTIONAL_KEY")).toBe(
       undefined,
     );
-    expect(() => manager.getEnvironmentVariable("MISSING_REQUIRED_KEY")).toThrow(
-      "Missing required environment variable: MISSING_REQUIRED_KEY",
-    );
+    expect(() =>
+      manager.getEnvironmentVariable("MISSING_REQUIRED_KEY"),
+    ).toThrow("Missing required environment variable: MISSING_REQUIRED_KEY");
   });
 });

@@ -59,7 +59,9 @@ describe("RecommendationActivityPublisher", () => {
     });
 
     expect(publishActivityEvent).not.toHaveBeenCalled();
-    expect(findRecommendationPersonalizationEnabledByUserId).not.toHaveBeenCalled();
+    expect(
+      findRecommendationPersonalizationEnabledByUserId,
+    ).not.toHaveBeenCalled();
   });
 
   it("publishes opted-in posting views with personalization enabled", async () => {
@@ -365,6 +367,8 @@ describe("RecommendationActivityPublisher", () => {
         },
       }),
     );
-    expect(findRecommendationPersonalizationEnabledByUserId).not.toHaveBeenCalled();
+    expect(
+      findRecommendationPersonalizationEnabledByUserId,
+    ).not.toHaveBeenCalled();
   });
 });

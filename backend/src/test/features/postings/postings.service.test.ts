@@ -1510,15 +1510,16 @@ describe("PostingsService", () => {
     repository.archive = jest.fn(async () => null) as never;
     const service = createService(repository);
 
-    await expect(service.archive("posting-1", "owner-1")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.archive("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("normalizes owner batch ids before reading managed postings", async () => {
-    const repository = new FakePostingsRepository() as FakePostingsRepository & {
-      batchFindByOwner: jest.Mock;
-    };
+    const repository =
+      new FakePostingsRepository() as FakePostingsRepository & {
+        batchFindByOwner: jest.Mock;
+      };
     repository.batchFindByOwner = jest.fn(async (input) => ({
       postings: [repository.posting],
       missingIds: input.ids.filter((id: string) => id === "posting-3"),
@@ -1600,9 +1601,9 @@ describe("PostingsService", () => {
     repository.findPublicReadMetadataById = jest.fn(async () => null) as never;
     const service = createService(repository);
 
-    await expect(service.getById("posting-1", "owner-1")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.getById("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("returns not found when an owner viewer can see metadata but the posting row disappears", async () => {
@@ -1610,9 +1611,9 @@ describe("PostingsService", () => {
     repository.findById = jest.fn(async () => null) as never;
     const service = createService(repository);
 
-    await expect(service.getById("posting-1", "owner-1")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.getById("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("returns not found when no public projection exists for anonymous reads", async () => {
@@ -1778,8 +1779,7 @@ describe("PostingsService", () => {
     expect((invalidKeyError as RequestValidationError).details).toEqual([
       {
         path: "attr.unknown_detail",
-        message:
-          "Attribute is not valid for the selected family and subtype.",
+        message: "Attribute is not valid for the selected family and subtype.",
       },
     ]);
 

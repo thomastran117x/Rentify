@@ -25,11 +25,9 @@ jest.mock("@/configuration/logging", () => ({
 }));
 
 function createMockDatabaseClient() {
-  const queryHandlers: Array<(event: {
-    duration: number;
-    query: string;
-    target: string;
-  }) => void> = [];
+  const queryHandlers: Array<
+    (event: { duration: number; query: string; target: string }) => void
+  > = [];
 
   return {
     client: {

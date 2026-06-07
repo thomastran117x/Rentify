@@ -9,8 +9,7 @@ const mockContainerTokens = {
 
 jest.mock("@/configuration/container/core", () => ({
   createRootContainer: (...args: unknown[]) => mockCreateRootContainer(...args),
-  createServiceToken: (...args: unknown[]) =>
-    mockCreateServiceToken(...args),
+  createServiceToken: (...args: unknown[]) => mockCreateServiceToken(...args),
 }));
 
 jest.mock("@/configuration/container/registrations", () => ({

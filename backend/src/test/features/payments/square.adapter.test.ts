@@ -67,21 +67,19 @@ describe("SquarePaymentAdapter", () => {
   });
 
   it("creates a Square payment link session and maps checkout details", async () => {
-    const fetchMock = jest
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        createFetchResponse({
-          ok: true,
-          status: 200,
-          requestId: "request-1",
-          body: {
-            payment_link: {
-              url: "https://square.test/checkout",
-              order_id: "order-1",
-            },
+    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      createFetchResponse({
+        ok: true,
+        status: 200,
+        requestId: "request-1",
+        body: {
+          payment_link: {
+            url: "https://square.test/checkout",
+            order_id: "order-1",
           },
-        }),
-      );
+        },
+      }),
+    );
     const adapter = new SquarePaymentAdapter();
 
     const result = await adapter.createPaymentSession({
@@ -266,20 +264,18 @@ describe("SquarePaymentAdapter", () => {
   });
 
   it("creates real Square refunds and maps rejected responses as failed", async () => {
-    const fetchMock = jest
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        createFetchResponse({
-          ok: true,
-          status: 200,
-          body: {
-            refund: {
-              id: "refund-1",
-              status: "REJECTED",
-            },
+    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      createFetchResponse({
+        ok: true,
+        status: 200,
+        body: {
+          refund: {
+            id: "refund-1",
+            status: "REJECTED",
           },
-        }),
-      );
+        },
+      }),
+    );
     const adapter = new SquarePaymentAdapter();
 
     const result = await adapter.createRefund({

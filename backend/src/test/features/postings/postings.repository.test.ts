@@ -821,26 +821,26 @@ describe("PostingsRepository", () => {
       archivedAt: null,
     });
 
-    await expect(publishCase.repository.publish("posting-1")).resolves.toMatchObject(
-      {
-        status: "published",
-      },
-    );
-    await expect(archiveCase.repository.archive("posting-1")).resolves.toMatchObject(
-      {
-        status: "archived",
-      },
-    );
-    await expect(pauseCase.repository.pause("posting-1")).resolves.toMatchObject(
-      {
-        status: "paused",
-      },
-    );
-    await expect(unpauseCase.repository.unpause("posting-1")).resolves.toMatchObject(
-      {
-        status: "published",
-      },
-    );
+    await expect(
+      publishCase.repository.publish("posting-1"),
+    ).resolves.toMatchObject({
+      status: "published",
+    });
+    await expect(
+      archiveCase.repository.archive("posting-1"),
+    ).resolves.toMatchObject({
+      status: "archived",
+    });
+    await expect(
+      pauseCase.repository.pause("posting-1"),
+    ).resolves.toMatchObject({
+      status: "paused",
+    });
+    await expect(
+      unpauseCase.repository.unpause("posting-1"),
+    ).resolves.toMatchObject({
+      status: "published",
+    });
 
     expect(publishCase.transaction.posting.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -874,7 +874,9 @@ describe("PostingsRepository", () => {
         }),
       }),
     );
-    expect(publishCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+    expect(
+      publishCase.transaction.postingSearchOutbox.createMany,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: [
           expect.objectContaining({
@@ -883,7 +885,9 @@ describe("PostingsRepository", () => {
         ],
       }),
     );
-    expect(archiveCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+    expect(
+      archiveCase.transaction.postingSearchOutbox.createMany,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: [
           expect.objectContaining({
@@ -892,7 +896,9 @@ describe("PostingsRepository", () => {
         ],
       }),
     );
-    expect(pauseCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+    expect(
+      pauseCase.transaction.postingSearchOutbox.createMany,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: [
           expect.objectContaining({
@@ -901,7 +907,9 @@ describe("PostingsRepository", () => {
         ],
       }),
     );
-    expect(unpauseCase.transaction.postingSearchOutbox.createMany).toHaveBeenCalledWith(
+    expect(
+      unpauseCase.transaction.postingSearchOutbox.createMany,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: [
           expect.objectContaining({
@@ -981,7 +989,7 @@ describe("PostingsRepository", () => {
       {
         id: "posting-1",
         name: "Sunny loft",
-        tags: "[\"wifi\",\"desk\"]",
+        tags: '["wifi","desk"]',
         city: "Toronto",
         region: "Ontario",
         country: "Canada",
@@ -1146,7 +1154,9 @@ describe("PostingsRepository", () => {
         ],
       }),
     ]);
-    await expect(repository.listRecentForIndexReconciliation(5)).resolves.toEqual([
+    await expect(
+      repository.listRecentForIndexReconciliation(5),
+    ).resolves.toEqual([
       expect.objectContaining({
         id: "posting-1",
       }),
@@ -1372,7 +1382,9 @@ describe("PostingsRepository", () => {
         targetIndexName: "postings-reindex-1",
       }),
     );
-    await expect(repository.findSearchReindexRunById("run-found")).resolves.toEqual(
+    await expect(
+      repository.findSearchReindexRunById("run-found"),
+    ).resolves.toEqual(
       expect.objectContaining({
         id: "run-found",
       }),
@@ -1479,7 +1491,9 @@ describe("PostingsRepository", () => {
         unpublishedCount: 4n,
         unpublishedOldestCreatedAt: new Date("2026-05-20T11:59:00.000Z"),
         publishedNotIndexedCount: 3n,
-        publishedNotIndexedOldestProcessedAt: new Date("2026-05-20T11:58:00.000Z"),
+        publishedNotIndexedOldestProcessedAt: new Date(
+          "2026-05-20T11:58:00.000Z",
+        ),
         upsertDeadLetteredCount: 2n,
         deleteDeadLetteredCount: 1,
         barrierDeadLetteredCount: null,
@@ -1489,16 +1503,14 @@ describe("PostingsRepository", () => {
       postingSearchOutbox: {
         update: jest.fn(async () => undefined),
         updateMany: jest.fn(async () => undefined),
-        findMany: jest
-          .fn()
-          .mockResolvedValueOnce([
-            {
-              id: "dead-1",
-            },
-            {
-              id: "dead-2",
-            },
-          ]),
+        findMany: jest.fn().mockResolvedValueOnce([
+          {
+            id: "dead-1",
+          },
+          {
+            id: "dead-2",
+          },
+        ]),
       },
     };
     const repository = new PostingsRepository({
@@ -1531,9 +1543,7 @@ describe("PostingsRepository", () => {
       }),
     ]);
     await expect(repository.getPendingSearchOutboxCount()).resolves.toBe(9);
-    await expect(
-      repository.getPendingSearchOutboxMetrics(),
-    ).resolves.toEqual({
+    await expect(repository.getPendingSearchOutboxMetrics()).resolves.toEqual({
       count: 4,
       oldestAgeMs: 60_000,
     });
@@ -1550,7 +1560,11 @@ describe("PostingsRepository", () => {
     });
     await repository.markSearchOutboxesIndexed([]);
     await repository.markSearchOutboxesIndexed(["outbox-1", "outbox-2"]);
-    await repository.markSearchOutboxRelayed("outbox-1", ["outbox-2"], "broker-1");
+    await repository.markSearchOutboxRelayed(
+      "outbox-1",
+      ["outbox-2"],
+      "broker-1",
+    );
     await repository.markSearchOutboxSuperseded([], "broker-2");
     await repository.markSearchOutboxSuperseded(["outbox-3"], "broker-2");
     await repository.releaseSearchOutboxClaims([]);
@@ -1591,7 +1605,9 @@ describe("PostingsRepository", () => {
         },
       }),
     );
-    expect(relayTransaction.postingSearchOutbox.updateMany).toHaveBeenCalledWith(
+    expect(
+      relayTransaction.postingSearchOutbox.updateMany,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           id: {

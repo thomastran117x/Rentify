@@ -73,9 +73,9 @@ describe("rabbitmq resource", () => {
   it("caches the connection, logs connection errors, and reconnects after close", async () => {
     const first = createMockConnection();
     const second = createMockConnection();
-    mockConnect.mockResolvedValueOnce(first.connection).mockResolvedValueOnce(
-      second.connection,
-    );
+    mockConnect
+      .mockResolvedValueOnce(first.connection)
+      .mockResolvedValueOnce(second.connection);
     const rabbitMq = await loadRabbitMqModule();
 
     const initial = await rabbitMq.connectRabbitMq();

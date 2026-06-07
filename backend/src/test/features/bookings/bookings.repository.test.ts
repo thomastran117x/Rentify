@@ -254,9 +254,8 @@ describe("BookingsRepository", () => {
       },
     } as never);
 
-    const result = await repository.listDashboardPostingOptionsByOrganization(
-      "org-1",
-    );
+    const result =
+      await repository.listDashboardPostingOptionsByOrganization("org-1");
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({

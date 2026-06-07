@@ -64,9 +64,12 @@ jest.mock("@/configuration/middlewares/request-logger.middleware", () => ({
   requestLoggerMiddleware: jest.fn(),
 }));
 
-jest.mock("@/configuration/middlewares/request-sanitization.middleware", () => ({
-  requestSanitizationMiddleware: jest.fn(),
-}));
+jest.mock(
+  "@/configuration/middlewares/request-sanitization.middleware",
+  () => ({
+    requestSanitizationMiddleware: jest.fn(),
+  }),
+);
 
 jest.mock("@/configuration/middlewares/request-timeout.middleware", () => ({
   requestTimeoutMiddleware: jest.fn(),

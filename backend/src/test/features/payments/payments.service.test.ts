@@ -258,14 +258,23 @@ describe("PaymentsService", () => {
       idempotencyKey: "idem-1",
     });
 
-    expect(paymentProvider.createPaymentSession as unknown as jest.Mock).not.toHaveBeenCalled();
-    expect(paymentsRepository.attachPaymentSession as unknown as jest.Mock).not.toHaveBeenCalled();
+    expect(
+      paymentProvider.createPaymentSession as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.attachPaymentSession as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
     expect(result.status).toBe("processing");
   });
 
   it("creates and attaches a provider payment session", async () => {
-    const { service, paymentsRepository, paymentProvider, postingsRepository, postingsPublicCacheService } =
-      createService();
+    const {
+      service,
+      paymentsRepository,
+      paymentProvider,
+      postingsRepository,
+      postingsPublicCacheService,
+    } = createService();
 
     const result = await service.createPaymentSession({
       bookingRequestId: "booking-1",
@@ -273,7 +282,9 @@ describe("PaymentsService", () => {
       idempotencyKey: "idem-1",
     });
 
-    expect(paymentProvider.createPaymentSession as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentProvider.createPaymentSession as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         bookingRequestId: "booking-1",
         paymentId: "payment-1",
@@ -281,39 +292,45 @@ describe("PaymentsService", () => {
         currency: "CAD",
       }),
     );
-    expect(paymentsRepository.attachPaymentSession as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentsRepository.attachPaymentSession as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       "payment-1",
       "attempt-1",
       expect.objectContaining({
         providerPaymentId: "square-pay-1",
       }),
     );
-    expect(postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).toHaveBeenCalledWith(
-      "posting-1",
-    );
-    expect(postingsRepository.enqueueSearchSync as unknown as jest.Mock).toHaveBeenCalledWith(
-      "posting-1",
-    );
+    expect(
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("posting-1");
+    expect(
+      postingsRepository.enqueueSearchSync as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("posting-1");
     expect(result.status).toBe("processing");
   });
 
   it("records provider session failures and emits failed-payment analytics", async () => {
-    const { service, paymentsRepository, paymentProvider, analyticsRepository } =
-      createService({
-        provider: {
-          createPaymentSession: jest.fn(async () => {
-            throw new Error("square unavailable");
+    const {
+      service,
+      paymentsRepository,
+      paymentProvider,
+      analyticsRepository,
+    } = createService({
+      provider: {
+        createPaymentSession: jest.fn(async () => {
+          throw new Error("square unavailable");
+        }),
+      },
+      repository: {
+        recordAttemptFailure: jest.fn(async () =>
+          createPaymentRecord({
+            status: "failed_retryable",
+            failedAt: "2026-04-20T00:20:00.000Z",
           }),
-        },
-        repository: {
-          recordAttemptFailure: jest.fn(async () =>
-            createPaymentRecord({
-              status: "failed_retryable",
-              failedAt: "2026-04-20T00:20:00.000Z",
-            }),
-          ),
-        },
-      });
+        ),
+      },
+    });
 
     const result = await service.createPaymentSession({
       bookingRequestId: "booking-1",
@@ -321,21 +338,25 @@ describe("PaymentsService", () => {
       idempotencyKey: "idem-1",
     });
 
-    expect(paymentProvider.classifyError as unknown as jest.Mock).toHaveBeenCalled();
-    expect(paymentsRepository.recordAttemptFailure as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentProvider.classifyError as unknown as jest.Mock,
+    ).toHaveBeenCalled();
+    expect(
+      paymentsRepository.recordAttemptFailure as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       "payment-1",
       "attempt-1",
       expect.objectContaining({
         message: "provider unavailable",
       }),
     );
-    expect(analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock).toHaveBeenCalledWith(
-      {
-        postingId: "posting-1",
-        organizationId: "org-1",
-        occurredAt: "2026-04-20T00:20:00.000Z",
-      },
-    );
+    expect(
+      analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
+    ).toHaveBeenCalledWith({
+      postingId: "posting-1",
+      organizationId: "org-1",
+      occurredAt: "2026-04-20T00:20:00.000Z",
+    });
     expect(result.status).toBe("failed_retryable");
   });
 
@@ -360,16 +381,20 @@ describe("PaymentsService", () => {
   });
 
   it("creates refunds and records refund analytics", async () => {
-    const { service, paymentsRepository, paymentProvider, analyticsRepository } =
-      createService({
-        repository: {
-          completeRefund: jest.fn(async () =>
-            createPaymentRecord({
-              status: "refunded",
-            }),
-          ),
-        },
-      });
+    const {
+      service,
+      paymentsRepository,
+      paymentProvider,
+      analyticsRepository,
+    } = createService({
+      repository: {
+        completeRefund: jest.fn(async () =>
+          createPaymentRecord({
+            status: "refunded",
+          }),
+        ),
+      },
+    });
 
     const result = await service.createRefund({
       paymentId: "payment-1",
@@ -379,28 +404,32 @@ describe("PaymentsService", () => {
       idempotencyKey: "refund-idem-1",
     });
 
-    expect(paymentsRepository.createRefundRecord as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentsRepository.createRefundRecord as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentId: "payment-1",
         actorUserId: "renter-1",
         amount: 42,
       }),
     );
-    expect(paymentProvider.createRefund as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentProvider.createRefund as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         providerPaymentId: "square-pay-1",
         amount: 42,
         currency: "CAD",
       }),
     );
-    expect(analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock).toHaveBeenCalledWith(
-      {
-        postingId: "posting-1",
-        organizationId: "org-1",
-        occurredAt: expect.any(String),
-        refundedAmount: 42,
-      },
-    );
+    expect(
+      analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
+    ).toHaveBeenCalledWith({
+      postingId: "posting-1",
+      organizationId: "org-1",
+      occurredAt: expect.any(String),
+      refundedAmount: 42,
+    });
     expect(result.status).toBe("refunded");
   });
 
@@ -416,20 +445,24 @@ describe("PaymentsService", () => {
       status: "scheduled",
     });
 
-    expect(organizationAccessService.requireActiveMembership as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      organizationAccessService.requireActiveMembership as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       "manager-1",
       "Select or join an organization before viewing payouts.",
     );
-    expect(organizationAccessService.assertCanManage as unknown as jest.Mock).toHaveBeenCalled();
-    expect(paymentsRepository.listPayoutsForOrganization as unknown as jest.Mock).toHaveBeenCalledWith(
-      {
-        actorUserId: "manager-1",
-        organizationId: "org-1",
-        page: 2,
-        pageSize: 5,
-        status: "scheduled",
-      },
-    );
+    expect(
+      organizationAccessService.assertCanManage as unknown as jest.Mock,
+    ).toHaveBeenCalled();
+    expect(
+      paymentsRepository.listPayoutsForOrganization as unknown as jest.Mock,
+    ).toHaveBeenCalledWith({
+      actorUserId: "manager-1",
+      organizationId: "org-1",
+      page: 2,
+      pageSize: 5,
+      status: "scheduled",
+    });
   });
 
   it("rejects invalid webhook signatures after persisting the event", async () => {
@@ -454,11 +487,15 @@ describe("PaymentsService", () => {
       },
     });
 
-    await expect(service.processSquareWebhook("{}", "bad-sig")).rejects.toBeInstanceOf(
-      BadRequestError,
-    );
-    expect(paymentsRepository.upsertWebhookEvent as unknown as jest.Mock).toHaveBeenCalled();
-    expect(paymentsRepository.markWebhookProcessed as unknown as jest.Mock).not.toHaveBeenCalled();
+    await expect(
+      service.processSquareWebhook("{}", "bad-sig"),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(
+      paymentsRepository.upsertWebhookEvent as unknown as jest.Mock,
+    ).toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
   });
 
   it("returns early when the webhook was already processed", async () => {
@@ -472,8 +509,12 @@ describe("PaymentsService", () => {
 
     await service.processSquareWebhook("{}", "sig");
 
-    expect(paymentsRepository.markPaymentSucceeded as unknown as jest.Mock).not.toHaveBeenCalled();
-    expect(paymentsRepository.markWebhookProcessed as unknown as jest.Mock).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
   });
 
   it("records failed webhook payment statuses and analytics", async () => {
@@ -508,40 +549,46 @@ describe("PaymentsService", () => {
 
     await service.processSquareWebhook("{}", "sig");
 
-    expect(paymentsRepository.markPaymentFailed as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "FAILED",
         failureCode: "payment.updated",
       }),
       "permanent",
     );
-    expect(analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock).toHaveBeenCalled();
-    expect(paymentsRepository.markWebhookProcessed as unknown as jest.Mock).toHaveBeenCalledWith(
-      "event-2",
-    );
+    expect(
+      analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
+    ).toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-2");
   });
 
   it("throws ConflictError on reconcile when payment success needs reconciliation", async () => {
     const payment = createPaymentRecord();
-    const { service, cacheService, postingsPublicCacheService } = createService({
-      repository: {
-        findById: jest.fn(async () => payment),
-        markPaymentSucceeded: jest.fn(async () => ({
-          payment,
-          reconciliationRequired: true,
-        })),
+    const { service, cacheService, postingsPublicCacheService } = createService(
+      {
+        repository: {
+          findById: jest.fn(async () => payment),
+          markPaymentSucceeded: jest.fn(async () => ({
+            payment,
+            reconciliationRequired: true,
+          })),
+        },
       },
-    });
+    );
 
     await expect(
       service.reconcilePayment("payment-1", "renter-1"),
     ).rejects.toBeInstanceOf(ConflictError);
-    expect((cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0]).toBe(
-      "posting:posting-1:booking-window",
-    );
-    expect(postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).toHaveBeenCalledWith(
-      "posting-1",
-    );
+    expect(
+      (cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0],
+    ).toBe("posting:posting-1:booking-window");
+    expect(
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("posting-1");
   });
 
   it("throws when reconciliation cannot find the provider payment", async () => {
@@ -568,13 +615,15 @@ describe("PaymentsService", () => {
         },
       });
 
-    await expect(service.processSquareWebhook("{}", "sig")).resolves.toBeUndefined();
-    expect(paymentsRepository.markWebhookProcessed as unknown as jest.Mock).toHaveBeenCalledWith(
-      "event-1",
-    );
-    expect(postingsPublicCacheService.invalidatePublic as unknown as jest.Mock).toHaveBeenCalledWith(
-      "posting-1",
-    );
+    await expect(
+      service.processSquareWebhook("{}", "sig"),
+    ).resolves.toBeUndefined();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-1");
+    expect(
+      postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("posting-1");
   });
 
   it("replays retry candidates through provider session creation", async () => {
@@ -601,7 +650,9 @@ describe("PaymentsService", () => {
     const processed = await service.processRetryQueue(5);
 
     expect(processed).toBe(1);
-    expect(paymentsRepository.attachPaymentSession as unknown as jest.Mock).toHaveBeenCalledWith(
+    expect(
+      paymentsRepository.attachPaymentSession as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
       "payment-1",
       "attempt-1",
       expect.objectContaining({
@@ -644,7 +695,9 @@ describe("PaymentsService", () => {
     const processed = await service.processRepairQueue(2);
 
     expect(processed).toBe(2);
-    expect(paymentsRepository.listRepairCandidates as unknown as jest.Mock).toHaveBeenCalledWith(2);
+    expect(
+      paymentsRepository.listRepairCandidates as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(2);
   });
 
   it("marks due payouts released and records failures", async () => {
@@ -668,10 +721,11 @@ describe("PaymentsService", () => {
     const processed = await service.processDuePayouts(2);
 
     expect(processed).toBe(2);
-    expect(paymentsRepository.markPayoutReleased as unknown as jest.Mock).toHaveBeenCalledTimes(2);
-    expect(paymentsRepository.markPayoutFailed as unknown as jest.Mock).toHaveBeenCalledWith(
-      "payout-2",
-      "bank offline",
-    );
+    expect(
+      paymentsRepository.markPayoutReleased as unknown as jest.Mock,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      paymentsRepository.markPayoutFailed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("payout-2", "bank offline");
   });
 });

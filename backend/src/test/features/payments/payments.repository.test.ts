@@ -78,9 +78,7 @@ function createPaymentPersistence(
   };
 }
 
-function createPayoutPersistence(
-  overrides?: Partial<Record<string, unknown>>,
-) {
+function createPayoutPersistence(overrides?: Partial<Record<string, unknown>>) {
   return {
     id: "payout-1",
     paymentId: "payment-1",

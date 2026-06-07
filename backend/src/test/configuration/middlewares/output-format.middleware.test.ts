@@ -18,27 +18,33 @@ function createApp() {
       items: [1, null],
     }),
   );
-  app.get("/json-like", () =>
-    new Response(JSON.stringify({ ok: true }), {
-      headers: {
-        "content-type": "application/hal+json",
-        vary: "Origin",
-      },
-    }),
+  app.get(
+    "/json-like",
+    () =>
+      new Response(JSON.stringify({ ok: true }), {
+        headers: {
+          "content-type": "application/hal+json",
+          vary: "Origin",
+        },
+      }),
   );
-  app.get("/text", () =>
-    new Response("plain-text-body", {
-      headers: {
-        "content-type": "text/plain; charset=UTF-8",
-      },
-    }),
+  app.get(
+    "/text",
+    () =>
+      new Response("plain-text-body", {
+        headers: {
+          "content-type": "text/plain; charset=UTF-8",
+        },
+      }),
   );
-  app.get("/invalid-json", () =>
-    new Response("{broken-json", {
-      headers: {
-        "content-type": "application/json",
-      },
-    }),
+  app.get(
+    "/invalid-json",
+    () =>
+      new Response("{broken-json", {
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
   );
   app.get("/empty", () => new Response(null, { status: 204 }));
 
@@ -57,9 +63,7 @@ describe("outputFormatMiddleware", () => {
 
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain("<message>&lt;ok&gt;</message>");
-    expect(xml).toContain(
-      "<createdAt>2026-06-07T00:00:00.000Z</createdAt>",
-    );
+    expect(xml).toContain("<createdAt>2026-06-07T00:00:00.000Z</createdAt>");
     expect(xml).toContain("<item-123-bad-key>A&amp;B</item-123-bad-key>");
     expect(xml).toContain("<items><item>1</item><item/></items>");
     expect(xml).toContain("<emptyObject/>");
@@ -104,17 +108,17 @@ describe("outputFormatMiddleware", () => {
       "application/xml; charset=UTF-8",
     );
     expect(response.headers.get("vary")).toBe("Accept");
-    expect(body).toContain('<message>&lt;ok&gt;</message>');
-    expect(body).toContain(
-      "<createdAt>2026-06-07T00:00:00.000Z</createdAt>",
-    );
+    expect(body).toContain("<message>&lt;ok&gt;</message>");
+    expect(body).toContain("<createdAt>2026-06-07T00:00:00.000Z</createdAt>");
     expect(body).toContain("<item-123-bad-key>A&amp;B</item-123-bad-key>");
   });
 
   it("normalizes json-like content types and appends Accept to Vary for json responses", async () => {
     const app = createApp();
 
-    const response = await app.request("http://rent.test/json-like?format=json");
+    const response = await app.request(
+      "http://rent.test/json-like?format=json",
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
@@ -142,7 +146,9 @@ describe("outputFormatMiddleware", () => {
   it("returns an empty body when xml conversion cannot parse the original json body", async () => {
     const app = createApp();
 
-    const response = await app.request("http://rent.test/invalid-json?format=xml");
+    const response = await app.request(
+      "http://rent.test/invalid-json?format=xml",
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json");

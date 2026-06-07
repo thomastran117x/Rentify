@@ -65,7 +65,9 @@ describe("ReportsSearchIndexService", () => {
 
   it("indexes documents using the configured reports index name override", async () => {
     mockGetOptionalEnvironmentVariable.mockImplementation((name: string) =>
-      name === "ELASTICSEARCH_REPORTS_INDEX" ? "custom-reports-index" : undefined,
+      name === "ELASTICSEARCH_REPORTS_INDEX"
+        ? "custom-reports-index"
+        : undefined,
     );
     const requestJson = jest
       .fn(async () => undefined)

@@ -417,7 +417,10 @@ describe("PostingsSearchIndexService", () => {
     );
 
     await expect(
-      service.bulkUpsertDocuments([createDocument() as never], "postings-test_v2"),
+      service.bulkUpsertDocuments(
+        [createDocument() as never],
+        "postings-test_v2",
+      ),
     ).rejects.toBeInstanceOf(ElasticsearchRequestError);
   });
 

@@ -87,7 +87,9 @@ describe("environment shared helpers", () => {
       ACCESS_TOKEN_SECRET: "short-secret",
     };
 
-    expect(readRequiredString(raw, "DATABASE_URL", errors)).toBe("mysql://rent");
+    expect(readRequiredString(raw, "DATABASE_URL", errors)).toBe(
+      "mysql://rent",
+    );
     expect(readRequiredString(raw, "FRONTEND_URL", errors)).toBe("");
     expect(readRequiredSecret(raw, "ACCESS_TOKEN_SECRET", errors)).toBe(
       "short-secret",

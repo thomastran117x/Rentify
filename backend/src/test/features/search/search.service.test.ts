@@ -985,7 +985,9 @@ describe("SearchService", () => {
       ],
     ]);
     const postingsRepository = {
-      getSearchOutboxesByIds: jest.fn(async () => Array.from(outboxById.values())),
+      getSearchOutboxesByIds: jest.fn(async () =>
+        Array.from(outboxById.values()),
+      ),
       getSearchOutboxById: jest.fn(async (id: string) => outboxById.get(id)),
       hasNewerSearchOutboxJob: jest.fn(async () => false),
       markSearchOutboxesIndexed: jest.fn(async () => undefined),

@@ -308,8 +308,12 @@ describe("OrganizationsRepository", () => {
     const repository = new OrganizationsRepository(database as never);
     const now = new Date("2026-06-01T00:00:00.000Z");
 
-    await expect(repository.revokeInvitation("invite-1", now)).resolves.toBeNull();
-    await expect(repository.revokeInvitation("invite-2", now)).resolves.toBeNull();
+    await expect(
+      repository.revokeInvitation("invite-1", now),
+    ).resolves.toBeNull();
+    await expect(
+      repository.revokeInvitation("invite-2", now),
+    ).resolves.toBeNull();
     expect(update).not.toHaveBeenCalled();
   });
 

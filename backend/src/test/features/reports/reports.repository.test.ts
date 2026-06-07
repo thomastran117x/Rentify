@@ -339,7 +339,9 @@ describe("ReportsRepository", () => {
         name: "Studio Group",
       },
     });
-    await expect(repository.findPostingReviewSubject("review-1")).resolves.toEqual({
+    await expect(
+      repository.findPostingReviewSubject("review-1"),
+    ).resolves.toEqual({
       id: "review-1",
       rating: 5,
       title: "Excellent stay",

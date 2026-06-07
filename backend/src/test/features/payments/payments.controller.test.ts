@@ -148,7 +148,7 @@ describe("PaymentsController", () => {
 
     const response = await controller.webhook(
       createContext({
-        text: "{\"type\":\"payment.updated\"}",
+        text: '{"type":"payment.updated"}',
         headers: {
           "x-square-hmacsha256-signature": "signature-1",
         },
@@ -156,7 +156,7 @@ describe("PaymentsController", () => {
     );
 
     expect(processSquareWebhook).toHaveBeenCalledWith(
-      "{\"type\":\"payment.updated\"}",
+      '{"type":"payment.updated"}',
       "signature-1",
     );
     await expect(response.json()).resolves.toMatchObject({
@@ -170,9 +170,15 @@ describe("PaymentsController", () => {
   it("maps retry, refund, get-by-id, and reconcile calls to the service layer", async () => {
     const service = {
       getPaymentById: jest.fn(async () => ({ id: "payment-1" })),
-      retryPayment: jest.fn(async () => ({ id: "payment-1", status: "processing" })),
+      retryPayment: jest.fn(async () => ({
+        id: "payment-1",
+        status: "processing",
+      })),
       createRefund: jest.fn(async () => ({ id: "refund-1" })),
-      reconcilePayment: jest.fn(async () => ({ id: "payment-1", status: "succeeded" })),
+      reconcilePayment: jest.fn(async () => ({
+        id: "payment-1",
+        status: "succeeded",
+      })),
     };
     const controller = new PaymentsController(service as never);
     const context = createContext({
@@ -204,7 +210,10 @@ describe("PaymentsController", () => {
       reason: "guest_request",
       idempotencyKey: "retry-1",
     });
-    expect(service.reconcilePayment).toHaveBeenCalledWith("payment-1", "user-1");
+    expect(service.reconcilePayment).toHaveBeenCalledWith(
+      "payment-1",
+      "user-1",
+    );
   });
 
   it("returns request validation details for invalid payout queries", async () => {

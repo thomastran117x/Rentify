@@ -353,7 +353,8 @@ describe("ReportsService", () => {
       subjectId: "user-2",
       reasonCode: "harassment_or_hate",
       title: "Abusive messages",
-      description: "This user is sending abusive messages through the platform.",
+      description:
+        "This user is sending abusive messages through the platform.",
     });
 
     expect(repository.createReport).toHaveBeenCalledWith(

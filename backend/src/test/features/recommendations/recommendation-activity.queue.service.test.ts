@@ -123,7 +123,10 @@ describe("RecommendationActivityQueueService", () => {
     const service = new RecommendationActivityQueueService();
 
     await service.publishActivityEvent(createEventPayload());
-    await service.publishRetryEvent(createEventPayload({ eventId: "event-2" }), 9);
+    await service.publishRetryEvent(
+      createEventPayload({ eventId: "event-2" }),
+      9,
+    );
 
     expect(mockCreateRabbitMqChannel).toHaveBeenCalledTimes(1);
     expect(channel.publish).toHaveBeenNthCalledWith(

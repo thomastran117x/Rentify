@@ -1,6 +1,9 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import type { ProfileRecord, PublicProfileRecord } from "@/features/profile/profile.model";
+import type {
+  ProfileRecord,
+  PublicProfileRecord,
+} from "@/features/profile/profile.model";
 import { ProfileService } from "@/features/profile/profile.service";
 
 function createProfile(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
@@ -78,7 +81,10 @@ function createService(options?: {
   return {
     profileRepository,
     blobService,
-    service: new ProfileService(profileRepository as never, blobService as never),
+    service: new ProfileService(
+      profileRepository as never,
+      blobService as never,
+    ),
   };
 }
 
@@ -148,8 +154,7 @@ describe("ProfileService", () => {
         username: "  Owner-One  ",
         phoneNumber: "  +1 555 0111  ",
         isPrivate: true,
-        avatarUrl:
-          "  https://storage.example.com/avatars/user-1-updated.png  ",
+        avatarUrl: "  https://storage.example.com/avatars/user-1-updated.png  ",
         avatarBlobName: "  avatars/user-1-updated.png  ",
         recommendationPersonalizationEnabled: false,
         trustworthinessScore: 5,

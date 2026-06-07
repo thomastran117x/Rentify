@@ -165,10 +165,12 @@ describe("ProfileController", () => {
 
   it("reads the authenticated user profile from context auth", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", claims);
-      return claims;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", claims);
+        return claims;
+      },
+    );
     const getByUserId = jest.fn(async (userId: string) => ({
       id: "profile-1",
       userId,
@@ -187,10 +189,12 @@ describe("ProfileController", () => {
 
   it("validates update bodies, maps auth to userId, and returns a success message", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", claims);
-      return claims;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", claims);
+        return claims;
+      },
+    );
     const update = jest.fn(async (input) => ({
       id: "profile-1",
       ...input,
@@ -242,10 +246,12 @@ describe("ProfileController", () => {
 
   it("returns request validation errors for invalid update bodies", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(async (context: Context<AppBindings>) => {
-      context.set("auth", claims);
-      return claims;
-    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", claims);
+        return claims;
+      },
+    );
     const update = jest.fn();
     const controller = new ProfileController({
       update,
