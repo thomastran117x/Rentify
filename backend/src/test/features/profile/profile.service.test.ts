@@ -119,6 +119,17 @@ describe("ProfileService", () => {
     );
   });
 
+  it("returns the resolved profile when reading by user id", async () => {
+    const expectedProfile = createProfile({
+      userId: "user-42",
+    });
+    const { service } = createService({
+      findByUserId: jest.fn(async () => expectedProfile),
+    });
+
+    await expect(service.getByUserId("user-42")).resolves.toBe(expectedProfile);
+  });
+
   it("normalizes profile updates before saving", async () => {
     const updatedProfile = createProfile({
       username: "owner-one",
@@ -195,6 +206,22 @@ describe("ProfileService", () => {
     ).rejects.toMatchObject<BadRequestError>({
       message:
         "Avatar URL and avatar blob name must be provided together when updating the avatar.",
+    });
+  });
+
+  it("rejects updates when only the avatar blob name is provided", async () => {
+    const { service } = createService();
+
+    await expect(
+      service.update({
+        userId: "user-1",
+        username: "owner-one",
+        avatarUrl: null,
+        avatarBlobName: "avatars/user-1.png",
+      }),
+    ).rejects.toMatchObject<BadRequestError>({
+      message:
+        "Avatar URL and avatar blob name must both be set or both be null.",
     });
   });
 
