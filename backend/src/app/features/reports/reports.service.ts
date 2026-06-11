@@ -431,13 +431,17 @@ export class ReportsService {
     role: AppRole | string;
     username?: string;
     avatarUrl?: string;
+    profile?: {
+      username?: string | null;
+      avatarUrl?: string | null;
+    } | null;
   }): ContentReportUserSummary {
     return {
       id: user.id,
       email: user.email,
       role: normalizeAppRole(user.role),
-      username: user.username,
-      avatarUrl: user.avatarUrl,
+      username: user.username ?? user.profile?.username ?? undefined,
+      avatarUrl: user.avatarUrl ?? user.profile?.avatarUrl ?? undefined,
     };
   }
 }

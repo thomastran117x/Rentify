@@ -35,12 +35,17 @@ export function assertTrustedOutboundUrl(
   }
 
   const hostname = url.hostname.trim().toLowerCase();
+  const normalizedHostname = hostname.replace(/^\[|\]$/g, "");
 
-  if (!hostname) {
+  if (!normalizedHostname) {
     throw new BadRequestError("Outbound request hostname is invalid.");
   }
 
-  if (PRIVATE_HOSTNAME_PATTERNS.some((pattern) => pattern.test(hostname))) {
+  if (
+    PRIVATE_HOSTNAME_PATTERNS.some((pattern) =>
+      pattern.test(normalizedHostname),
+    )
+  ) {
     throw new BadRequestError("Outbound request host is not allowed.");
   }
 

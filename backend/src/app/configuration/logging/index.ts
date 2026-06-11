@@ -20,6 +20,7 @@ interface LoggingRuntimeConfig {
   mode: "console" | "rabbitmq";
   rabbitMqUrl?: string;
   serviceName: string;
+  silent: boolean;
 }
 
 type PendingLogEvent = Pick<LogEvent, "level" | "message"> &
@@ -87,18 +88,54 @@ function normalizeNodeEnvironment(value: string | undefined): string {
   return "development";
 }
 
+function parseBooleanOverride(value: string | undefined): boolean | undefined {
+  const normalized = value?.trim().toLowerCase();
+
+  if (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "on"
+  ) {
+    return true;
+  }
+
+  if (
+    normalized === "0" ||
+    normalized === "false" ||
+    normalized === "no" ||
+    normalized === "off"
+  ) {
+    return false;
+  }
+
+  return undefined;
+}
+
+function shouldUseSilentLogging(nodeEnv: string): boolean {
+  const explicitOverride = parseBooleanOverride(process.env.LOG_SILENT);
+
+  if (explicitOverride !== undefined) {
+    return explicitOverride;
+  }
+
+  return process.env.CI === "true" && nodeEnv === "test";
+}
+
 function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
   try {
     const logging = environment.getLoggingConfig();
     const rabbitMq = environment.getRabbitMqConfig();
+    const nodeEnv = environment.getNodeEnvironment();
 
     return {
-      environment: environment.getNodeEnvironment(),
+      environment: nodeEnv,
       fallbackDirectory: logging.fallbackDirectory,
       level: logging.level,
       mode: logging.mode,
       rabbitMqUrl: rabbitMq.url,
       serviceName: logging.serviceName,
+      silent: shouldUseSilentLogging(nodeEnv),
     };
   } catch {
     const nodeEnv = normalizeNodeEnvironment(process.env.NODE_ENV);
@@ -112,6 +149,7 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
       mode: nodeEnv === "production" ? "rabbitmq" : "console",
       rabbitMqUrl: process.env.RABBITMQ_URL?.trim() || undefined,
       serviceName: process.env.LOG_SERVICE_NAME?.trim() || DEFAULT_SERVICE_NAME,
+      silent: shouldUseSilentLogging(nodeEnv),
     };
   }
 }
@@ -252,7 +290,7 @@ class BestEffortLogDispatcher {
     const config = getRuntimeLoggingConfig();
     const finalizedEvent = this.finalizeEvent(event, config);
 
-    if (!shouldLog(finalizedEvent.level, config.level)) {
+    if (config.silent || !shouldLog(finalizedEvent.level, config.level)) {
       return;
     }
 

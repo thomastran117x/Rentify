@@ -70,4 +70,19 @@ describe("ContentSanitizationService", () => {
     expect(violations[0]?.path).toBe("details.entryCode");
     expect(violations[0]?.code).toBe("INJECTION_PATTERN");
   });
+
+  it("ignores inputs that are blank after trimming", () => {
+    const violations = service.inspect([
+      {
+        path: "description",
+        value: "   ",
+      },
+      {
+        path: "title",
+        value: "Clean title",
+      },
+    ]);
+
+    expect(violations).toEqual([]);
+  });
 });

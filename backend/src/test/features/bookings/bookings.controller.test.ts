@@ -75,6 +75,100 @@ describe("BookingsController", () => {
     mockRequireJwtAuth.mockReset();
   });
 
+  it("creates booking requests for postings and publishes recommendation activity", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    const create = jest.fn(async () => ({
+      id: "booking-1",
+      postingId: "posting-1",
+      status: "pending",
+    }));
+    const publishBookingRequestCreated = jest.fn(async () => undefined);
+    const controller = new BookingsController(
+      {
+        create,
+      } as never,
+      {
+        publishBookingRequestCreated,
+      } as never,
+    );
+
+    const response = await controller.createForPosting(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        body: {
+          startAt: "2099-05-01T00:00:00.000Z",
+          endAt: "2099-05-04T00:00:00.000Z",
+          guestCount: 2,
+          note: "Can arrive after 6pm.",
+          contactName: "Jordan Lee",
+          contactEmail: "jordan@example.com",
+          contactPhoneNumber: "1234567890",
+        },
+      }),
+    );
+
+    expect(create).toHaveBeenCalledWith({
+      postingId: "posting-1",
+      renterId: "renter-1",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
+      guestCount: 2,
+      note: "Can arrive after 6pm.",
+      contactName: "Jordan Lee",
+      contactEmail: "jordan@example.com",
+      contactPhoneNumber: "1234567890",
+    });
+    expect(publishBookingRequestCreated).toHaveBeenCalledWith({
+      bookingRequest: {
+        id: "booking-1",
+        postingId: "posting-1",
+        status: "pending",
+      },
+      client: expect.any(Object),
+      requestId: "request-1",
+    });
+    expect(response.status).toBe(201);
+  });
+
+  it("quotes bookings for postings and normalizes nullable notes", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-2" }));
+    const quote = jest.fn(async () => ({
+      bookingRequestId: "quote-1",
+      estimatedTotal: 240,
+    }));
+    const controller = new BookingsController(
+      {
+        quote,
+      } as never,
+      {} as never,
+    );
+
+    const response = await controller.quoteForPosting(
+      createContext({
+        params: {
+          id: "posting-2",
+        },
+        body: {
+          startAt: "2099-06-01T00:00:00.000Z",
+          endAt: "2099-06-03T00:00:00.000Z",
+          guestCount: 1,
+        },
+      }),
+    );
+
+    expect(quote).toHaveBeenCalledWith({
+      postingId: "posting-2",
+      renterId: "renter-2",
+      startAt: "2099-06-01T00:00:00.000Z",
+      endAt: "2099-06-03T00:00:00.000Z",
+      guestCount: 1,
+      note: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("lists owned booking requests for owner accounts", async () => {
     mockRequireJwtAuth.mockResolvedValue(
       createClaims({ sub: "owner-1", role: "owner" }),
@@ -111,6 +205,70 @@ describe("BookingsController", () => {
       status: undefined,
     });
     expect(response.status).toBe(200);
+  });
+
+  it("lists the caller's booking requests and owner-posting booking requests", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    const listMine = jest.fn(async () => ({
+      bookingRequests: [],
+      pagination: {
+        page: 2,
+        pageSize: 5,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    }));
+    const listForOwnerPosting = jest.fn(async () => ({
+      bookingRequests: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    }));
+    const controller = new BookingsController(
+      {
+        listMine,
+        listForOwnerPosting,
+      } as never,
+      {} as never,
+    );
+
+    const mineResponse = await controller.listMine(
+      createContext({
+        url: "https://example.test/booking-requests/me?page=2&pageSize=5&status=pending",
+      }),
+    );
+    const ownerPostingResponse = await controller.listForOwnerPosting(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        url: "https://example.test/postings/posting-1/booking-requests?page=1&pageSize=10&status=approved",
+      }),
+    );
+
+    expect(listMine).toHaveBeenCalledWith({
+      renterId: "renter-1",
+      page: 2,
+      pageSize: 5,
+      status: "pending",
+    });
+    expect(listForOwnerPosting).toHaveBeenCalledWith({
+      actorUserId: "renter-1",
+      organizationId: "",
+      postingId: "posting-1",
+      page: 1,
+      pageSize: 10,
+      status: "approved",
+    });
+    expect(mineResponse.status).toBe(200);
+    expect(ownerPostingResponse.status).toBe(200);
   });
 
   it("maps renter dashboard query params into dashboardMine inputs", async () => {
@@ -259,6 +417,105 @@ describe("BookingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("gets, updates, approves, and declines booking requests", async () => {
+    mockRequireJwtAuth.mockResolvedValue(
+      createClaims({ sub: "owner-2", role: "owner" }),
+    );
+    const getById = jest.fn(async () => ({
+      id: "booking-2",
+      status: "pending",
+    }));
+    const updateOwnPending = jest.fn(async () => ({
+      id: "booking-2",
+      status: "pending",
+    }));
+    const approve = jest.fn(async () => ({
+      id: "booking-2",
+      status: "approved",
+    }));
+    const decline = jest.fn(async () => ({
+      id: "booking-2",
+      status: "declined",
+    }));
+    const controller = new BookingsController(
+      {
+        getById,
+        updateOwnPending,
+        approve,
+        decline,
+      } as never,
+      {} as never,
+    );
+
+    const getResponse = await controller.getById(
+      createContext({
+        params: {
+          id: "booking-2",
+        },
+      }),
+    );
+    const updateResponse = await controller.updateOwn(
+      createContext({
+        params: {
+          id: "booking-2",
+        },
+        body: {
+          startAt: "2099-07-01T00:00:00.000Z",
+          endAt: "2099-07-04T00:00:00.000Z",
+          guestCount: 3,
+          note: "Updated note",
+          contactName: "Updated Guest",
+          contactEmail: "updated@example.com",
+        },
+      }),
+    );
+    const approveResponse = await controller.approve(
+      createContext({
+        params: {
+          id: "booking-2",
+        },
+        body: {
+          note: "Approved quickly",
+        },
+      }),
+    );
+    const declineResponse = await controller.decline(
+      createContext({
+        params: {
+          id: "booking-2",
+        },
+        body: {},
+      }),
+    );
+
+    expect(getById).toHaveBeenCalledWith("booking-2", "owner-2");
+    expect(updateOwnPending).toHaveBeenCalledWith({
+      bookingRequestId: "booking-2",
+      renterId: "owner-2",
+      startAt: "2099-07-01T00:00:00.000Z",
+      endAt: "2099-07-04T00:00:00.000Z",
+      guestCount: 3,
+      note: "Updated note",
+      contactName: "Updated Guest",
+      contactEmail: "updated@example.com",
+      contactPhoneNumber: null,
+    });
+    expect(approve).toHaveBeenCalledWith({
+      bookingRequestId: "booking-2",
+      actorUserId: "owner-2",
+      note: "Approved quickly",
+    });
+    expect(decline).toHaveBeenCalledWith({
+      bookingRequestId: "booking-2",
+      actorUserId: "owner-2",
+      note: null,
+    });
+    expect(getResponse.status).toBe(200);
+    expect(updateResponse.status).toBe(200);
+    expect(approveResponse.status).toBe(200);
+    expect(declineResponse.status).toBe(200);
+  });
+
   it("routes booking cancellation reason and actor user id", async () => {
     mockRequireJwtAuth.mockResolvedValue(
       createClaims({ sub: "owner-1", role: "owner" }),
@@ -317,5 +574,27 @@ describe("BookingsController", () => {
       reason: "Pipe burst in the unit.",
     });
     expect(response.status).toBe(200);
+  });
+
+  it("wraps invalid booking query params in request validation errors", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-3" }));
+    const listMine = jest.fn();
+    const controller = new BookingsController(
+      {
+        listMine,
+      } as never,
+      {} as never,
+    );
+
+    await expect(
+      controller.listMine(
+        createContext({
+          url: "https://example.test/booking-requests/me?page=0&pageSize=two",
+        }),
+      ),
+    ).rejects.toMatchObject<Partial<Error>>({
+      message: "Request query validation failed.",
+    });
+    expect(listMine).not.toHaveBeenCalled();
   });
 });

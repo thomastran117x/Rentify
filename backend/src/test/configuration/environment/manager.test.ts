@@ -45,6 +45,14 @@ describe("EnvironmentManager", () => {
     rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("throws when reading the environment before it has been loaded", () => {
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.get()).toThrow(
+      "Environment has not been loaded. Call loadEnvironment() during application startup first.",
+    );
+  });
+
   it("loads successfully when the optional env file is missing", () => {
     process.env = buildRequiredEnv();
 
@@ -110,5 +118,175 @@ describe("EnvironmentManager", () => {
     expect(process.env.DATABASE_URL).toBe(
       "mysql://process:process@localhost:3306/rent_process",
     );
+  });
+
+  it("returns the cached environment on subsequent loads", () => {
+    process.env = buildRequiredEnv({
+      DATABASE_URL: "mysql://cached:first@localhost:3306/rent_first",
+    });
+
+    const manager = new EnvironmentManager();
+
+    const firstEnvironment = manager.load();
+
+    process.env.DATABASE_URL =
+      "mysql://cached:second@localhost:3306/rent_second";
+
+    const secondEnvironment = manager.load();
+
+    expect(secondEnvironment).toBe(firstEnvironment);
+    expect(secondEnvironment.database.url).toBe(
+      "mysql://cached:first@localhost:3306/rent_first",
+    );
+  });
+
+  it("exposes the loaded environment through its getters", () => {
+    process.env = buildRequiredEnv({
+      NODE_ENV: "development",
+      FRONTEND_URL: "http://localhost:3041",
+      CORS_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
+      CSRF_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
+    });
+
+    const manager = new EnvironmentManager();
+    const environment = manager.load();
+
+    expect(manager.get()).toBe(environment);
+    expect(manager.getNodeEnvironment()).toBe("development");
+    expect(manager.isProduction()).toBe(false);
+    expect(manager.isDevelopment()).toBe(true);
+    expect(manager.isTest()).toBe(false);
+    expect(manager.getServerPort()).toBe(environment.server.port);
+    expect(manager.getTokenConfig()).toBe(environment.auth);
+    expect(manager.getDatabaseConfig()).toBe(environment.database);
+    expect(manager.getEmailConfig()).toBe(environment.email);
+    expect(manager.getCaptchaConfig()).toBe(environment.captcha);
+    expect(manager.getGoogleOAuthConfig()).toBe(environment.oauth.google);
+    expect(manager.getMicrosoftOAuthConfig()).toBe(environment.oauth.microsoft);
+    expect(manager.getRedisConfig()).toBe(environment.redis);
+    expect(manager.getRateLimiterConfig()).toBe(environment.rateLimiter);
+    expect(manager.getSearchWorkerConfig()).toBe(environment.workers.search);
+    expect(manager.getSearchRelayWorkerConfig()).toBe(
+      environment.workers.searchRelay,
+    );
+    expect(manager.getSearchIndexerWorkerConfig()).toBe(
+      environment.workers.searchIndexer,
+    );
+    expect(manager.getSearchReconcileWorkerConfig()).toBe(
+      environment.workers.searchReconcile,
+    );
+    expect(manager.getSearchReindexWorkerConfig()).toBe(
+      environment.workers.searchReindex,
+    );
+    expect(manager.getEmailWorkerConfig()).toBe(environment.workers.email);
+    expect(manager.getAnalyticsWorkerConfig()).toBe(
+      environment.workers.analytics,
+    );
+    expect(manager.getRecommendationsPrecomputeWorkerConfig()).toBe(
+      environment.workers.recommendationsPrecompute,
+    );
+    expect(manager.getPostingsThumbnailWorkerConfig()).toBe(
+      environment.workers.postingsThumbnail,
+    );
+    expect(manager.getBookingExpiryWorkerConfig()).toBe(
+      environment.workers.bookingExpiry,
+    );
+    expect(manager.getPaymentsRetryWorkerConfig()).toBe(
+      environment.workers.paymentsRetry,
+    );
+    expect(manager.getPaymentsRepairWorkerConfig()).toBe(
+      environment.workers.paymentsRepair,
+    );
+    expect(manager.getPayoutReleaseWorkerConfig()).toBe(
+      environment.workers.payoutRelease,
+    );
+    expect(manager.getPostingsPublicCacheConfig()).toBe(
+      environment.postingsCache,
+    );
+    expect(manager.getBlobStorageConfig()).toBe(environment.blobStorage);
+    expect(manager.getLoggingConfig()).toBe(environment.logging);
+    expect(manager.getRouteModulesConfig()).toBe(environment.routeModules);
+    expect(manager.getRabbitMqConfig()).toBe(environment.rabbitmq);
+    expect(manager.getElasticsearchConfig()).toBe(environment.elasticsearch);
+    expect(manager.getSquareConfig()).toBe(environment.square);
+  });
+
+  it("reports production and test node environments correctly", () => {
+    const productionManager = new EnvironmentManager();
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+    });
+
+    productionManager.load();
+
+    expect(productionManager.getNodeEnvironment()).toBe("production");
+    expect(productionManager.isProduction()).toBe(true);
+    expect(productionManager.isDevelopment()).toBe(false);
+    expect(productionManager.isTest()).toBe(false);
+
+    const testManager = new EnvironmentManager();
+    process.env = buildRequiredEnv({
+      NODE_ENV: "test",
+    });
+
+    testManager.load();
+
+    expect(testManager.getNodeEnvironment()).toBe("test");
+    expect(testManager.isProduction()).toBe(false);
+    expect(testManager.isDevelopment()).toBe(false);
+    expect(testManager.isTest()).toBe(true);
+  });
+
+  it("returns cloned origin arrays so callers cannot mutate stored config", () => {
+    process.env = buildRequiredEnv({
+      CORS_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
+      CSRF_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
+    });
+
+    const manager = new EnvironmentManager();
+    const environment = manager.load();
+
+    const corsOrigins = manager.getCorsAllowedOrigins();
+    const csrfOrigins = manager.getCsrfAllowedOrigins();
+
+    corsOrigins.push("http://localhost:3099");
+    csrfOrigins.push("http://localhost:3099");
+
+    expect(manager.getCorsAllowedOrigins()).toEqual(
+      environment.cors.allowedOrigins,
+    );
+    expect(manager.getCsrfAllowedOrigins()).toEqual(
+      environment.csrf.allowedOrigins,
+    );
+    expect(manager.getCorsAllowedOrigins()).not.toContain(
+      "http://localhost:3099",
+    );
+    expect(manager.getCsrfAllowedOrigins()).not.toContain(
+      "http://localhost:3099",
+    );
+  });
+
+  it("reads required and optional raw environment variables after load", () => {
+    process.env = buildRequiredEnv({
+      FRONTEND_URL: "http://localhost:3041",
+    });
+
+    const manager = new EnvironmentManager();
+
+    manager.load();
+
+    expect(manager.getEnvironmentVariable("DATABASE_URL")).toBe(
+      "mysql://process:process@localhost:3306/rent_process",
+    );
+    expect(manager.getOptionalEnvironmentVariable("FRONTEND_URL")).toBe(
+      "http://localhost:3041",
+    );
+    expect(manager.getOptionalEnvironmentVariable("MISSING_OPTIONAL_KEY")).toBe(
+      undefined,
+    );
+    expect(() =>
+      manager.getEnvironmentVariable("MISSING_REQUIRED_KEY"),
+    ).toThrow("Missing required environment variable: MISSING_REQUIRED_KEY");
   });
 });

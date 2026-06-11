@@ -25,6 +25,26 @@ module.exports = {
     "/node_modules/",
     "/dist/",
     "/src/test/db/",
+    "/src/test/openapi/",
     "\\.integration\\.test\\.ts$",
   ],
+  collectCoverageFrom: [
+    "src/app/**/*.ts",
+    "!src/app/server.ts",
+    "!src/app/scripts/**",
+    "!src/app/seeds/**",
+    "!src/app/workers/**",
+    "!src/app/openapi/**",
+    "!src/app/**/*.model.ts",
+    "!src/app/**/*.types.ts",
+    "!src/app/**/index.ts",
+  ],
+  coverageThreshold: {
+    global: {
+      statements: 90,
+      lines: 90,
+      functions: 90,
+      branches: 75,
+    },
+  },
 };

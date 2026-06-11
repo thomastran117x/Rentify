@@ -641,6 +641,152 @@ describe("PostingsPublicSearchService", () => {
     expect(requestJson).toHaveBeenCalledTimes(2);
   });
 
+  it("ranks typo-tolerant hits by weighted confidence before raw Elasticsearch score", () => {
+    const { service } = createElasticsearchPublicSearchService();
+    const ranked = (
+      service as unknown as {
+        rankTypoTolerantHits: (
+          hits: Array<{
+            _id: string;
+            _score?: number;
+            _source?: {
+              name?: string;
+              tags?: string[];
+              location?: {
+                city?: string;
+                region?: string;
+                country?: string;
+              };
+            };
+          }>,
+          query: string,
+        ) => Array<{ _id: string }>;
+      }
+    ).rankTypoTolerantHits(
+      [
+        {
+          _id: "posting-country",
+          _score: 100,
+          _source: {
+            name: "Weekend Escape",
+            tags: ["retreat"],
+            location: {
+              country: "Northland",
+            },
+          },
+        },
+        {
+          _id: "posting-name",
+          _score: 1,
+          _source: {
+            name: "North Shore Camera Rig",
+            tags: ["north"],
+            location: {
+              city: "Toronto",
+            },
+          },
+        },
+      ],
+      "north",
+    );
+
+    expect(ranked.map((hit) => hit._id)).toEqual([
+      "posting-name",
+      "posting-country",
+    ]);
+  });
+
+  it("falls back to raw Elasticsearch score when typo confidence ties", () => {
+    const { service } = createElasticsearchPublicSearchService();
+    const ranked = (
+      service as unknown as {
+        rankTypoTolerantHits: (
+          hits: Array<{ _id: string; _score?: number }>,
+          query: string,
+        ) => Array<{ _id: string }>;
+      }
+    ).rankTypoTolerantHits(
+      [
+        {
+          _id: "posting-low",
+          _score: 1,
+        },
+        {
+          _id: "posting-high",
+          _score: 9,
+        },
+      ],
+      "north",
+    );
+
+    expect(ranked.map((hit) => hit._id)).toEqual([
+      "posting-high",
+      "posting-low",
+    ]);
+  });
+
+  it("normalizes search helpers and enforces fuzzy edit-distance limits", () => {
+    const { service } = createElasticsearchPublicSearchService();
+    const helper = service as unknown as {
+      normalizeSearchText(value: string): string;
+      resolveFuzzyDistance(value: string): number;
+      computeEditDistanceWithinLimit(
+        left: string,
+        right: string,
+        limit: number,
+      ): number | null;
+      countWeightedTokenMatches(
+        value: string | undefined,
+        normalizedQuery: string,
+        allowedDistance: number,
+        weight: number,
+      ): number;
+      collectSearchableTerms(hit: {
+        _source?: {
+          name?: string;
+          tags?: string[];
+          location?: {
+            city?: string;
+            region?: string;
+            country?: string;
+          };
+        };
+      }): string[];
+    };
+
+    expect(helper.normalizeSearchText("  Montréal Loft  ")).toBe(
+      "montreal loft",
+    );
+    expect(helper.resolveFuzzyDistance("no")).toBe(-1);
+    expect(helper.resolveFuzzyDistance("north")).toBe(1);
+    expect(helper.resolveFuzzyDistance("mountain")).toBe(2);
+    expect(helper.computeEditDistanceWithinLimit("north", "nort", 1)).toBe(1);
+    expect(helper.computeEditDistanceWithinLimit("tiny", "enormous", 1)).toBe(
+      null,
+    );
+    expect(helper.computeEditDistanceWithinLimit("north", "zzzzz", 1)).toBe(
+      null,
+    );
+    expect(helper.countWeightedTokenMatches(undefined, "north", 1, 2)).toBe(0);
+    expect(
+      helper.countWeightedTokenMatches("north north", "north", 1, 1.5),
+    ).toBe(3);
+    expect(helper.countWeightedTokenMatches("camera", "north", 1, 1.5)).toBe(0);
+    expect(
+      helper.collectSearchableTerms({
+        _source: {
+          name: "Sunny Loft",
+          tags: ["wifi"],
+          location: {
+            city: "Toronto",
+            region: undefined,
+            country: "Canada",
+          },
+        },
+      }),
+    ).toEqual(["Sunny Loft", "wifi", "Toronto", "Canada"]);
+  });
+
   it("preserves Elasticsearch relevance order when hydrating cached and uncached postings", async () => {
     const { batchFindPublic, getPublicByIds, service } =
       createSearchHydrationService({
@@ -905,6 +1051,69 @@ describe("PostingsPublicSearchService", () => {
     ]);
   });
 
+  it("adds daily price sorting and falls back from nearest to recency without geo input", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      sort: "dailyPrice",
+    });
+
+    let body = readSearchRequest(requestJson);
+
+    expect(body.sort).toEqual([
+      {
+        dailyPriceAmount: {
+          order: "asc",
+        },
+      },
+      {
+        publishedAt: {
+          order: "desc",
+        },
+      },
+      {
+        createdAt: {
+          order: "desc",
+        },
+      },
+      {
+        id: {
+          order: "asc",
+        },
+      },
+    ]);
+
+    requestJson.mockClear();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      sort: "nearest",
+    });
+
+    body = readSearchRequest(requestJson);
+
+    expect(body.sort).toEqual([
+      {
+        publishedAt: {
+          order: "desc",
+        },
+      },
+      {
+        createdAt: {
+          order: "desc",
+        },
+      },
+      {
+        id: {
+          order: "asc",
+        },
+      },
+    ]);
+  });
+
   it("excludes overlapping blocked ranges when availability search is provided", async () => {
     const { requestJson, service } = createElasticsearchPublicSearchService();
 
@@ -999,6 +1208,52 @@ describe("PostingsPublicSearchService", () => {
                 },
               },
             ],
+          },
+        },
+      ]),
+    );
+  });
+
+  it("adds primitive structured attribute filters for scalar values", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      attributeFilters: [
+        {
+          key: "instantBook",
+          value: true,
+        },
+        {
+          key: "guests",
+          value: 4,
+        },
+        {
+          key: "propertyType",
+          value: "loft",
+        },
+      ],
+      sort: "relevance",
+    });
+
+    const body = readSearchRequest(requestJson);
+
+    expect(body.query.bool.filter).toEqual(
+      expect.arrayContaining([
+        {
+          term: {
+            "searchableAttributes.instantBook": true,
+          },
+        },
+        {
+          term: {
+            "searchableAttributes.guests": 4,
+          },
+        },
+        {
+          term: {
+            "searchableAttributes.propertyType": "loft",
           },
         },
       ]),

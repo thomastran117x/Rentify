@@ -30,12 +30,14 @@ class FakePostingsRepository {
 class FakePostingsReviewsRepository {
   ownReview: PostingReviewRecord | null = null;
   createdReview: PostingReviewRecord = buildReviewRecord();
+  lastCreateInput: unknown = null;
 
   async findOwnReview(): Promise<PostingReviewRecord | null> {
     return this.ownReview;
   }
 
-  async create(): Promise<PostingReviewRecord> {
+  async create(input: unknown): Promise<PostingReviewRecord> {
+    this.lastCreateInput = input;
     return this.createdReview;
   }
 
@@ -166,6 +168,29 @@ describe("PostingsReviewsService", () => {
     expect(review.id).toBe("review-1");
   });
 
+  it("trims blank review title and comment fields to null", async () => {
+    const postingsReviewsRepository = new FakePostingsReviewsRepository();
+    const rentingsRepository = new FakeRentingsRepository();
+    rentingsRepository.eligible = true;
+    const service = createService({
+      postingsReviewsRepository,
+      rentingsRepository,
+    });
+
+    await service.create("posting-1", "renter-1", {
+      rating: 4,
+      title: "   ",
+      comment: "   ",
+    });
+
+    expect(postingsReviewsRepository.lastCreateInput).toEqual(
+      expect.objectContaining({
+        title: null,
+        comment: null,
+      }),
+    );
+  });
+
   it("still enforces one review per reviewer per posting", async () => {
     const postingsReviewsRepository = new FakePostingsReviewsRepository();
     postingsReviewsRepository.ownReview = buildReviewRecord();
@@ -225,5 +250,30 @@ describe("PostingsReviewsService", () => {
     await expect(service.list("posting-1", 1, 20)).rejects.toBeInstanceOf(
       ResourceNotFoundError,
     );
+  });
+
+  it("lists reviews for published postings", async () => {
+    const postingsReviewsRepository = new FakePostingsReviewsRepository();
+    const service = createService({
+      postingsReviewsRepository,
+    });
+
+    const result = await service.list("posting-1", 2, 10);
+
+    expect(result).toEqual({
+      reviews: [],
+      summary: {
+        averageRating: 0,
+        reviewCount: 0,
+      },
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
   });
 });

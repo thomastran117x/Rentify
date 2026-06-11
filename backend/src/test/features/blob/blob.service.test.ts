@@ -1,4 +1,7 @@
 import { BlobService } from "@/features/blob/blob.service";
+import BadRequestError from "@/errors/http/bad-request.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalAccessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
@@ -68,5 +71,137 @@ describe("BlobService", () => {
     expect(service.isManagedBlobUrl(uploadTarget.blobUrl, blobName!)).toBe(
       true,
     );
+  });
+
+  it("uses the local fallback origin when the request origin is invalid", () => {
+    process.env.NODE_ENV = "development";
+    process.env.PORT = "8040";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const uploadTarget = service.createUploadUrl({
+      userId: "user-1",
+      filename: "photo.jpg",
+      contentType: " image/jpeg ",
+      requestOrigin: "not-a-valid-origin",
+    });
+
+    expect(uploadTarget.uploadUrl).toContain("http://localhost:8040/");
+    expect(uploadTarget.headers["Content-Type"]).toBe("image/jpeg");
+  });
+
+  it("downloads local blobs, computes managed URLs, and derives thumbnail paths", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const result = await service.uploadBuffer({
+      blobName: "postings/user-1/photo.png",
+      body: Buffer.from("thumbnail-source"),
+      contentType: "image/png",
+    });
+    const download = await service.downloadBlob("postings/user-1/photo.png");
+
+    expect(result.blobUrl).toBe(
+      service.getBlobUrl("postings/user-1/photo.png"),
+    );
+    expect(download.body.toString("utf8")).toBe("thumbnail-source");
+    expect(download.contentType).toBe("image/png");
+    expect(
+      service.buildPostingPhotoThumbnailBlobName("postings/user-1/photo.png"),
+    ).toBe("postings/user-1/thumbnails/photo.webp");
+  });
+
+  it("rejects invalid scope, content types, upload tokens, and expired local uploads", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const uploadTarget = service.createUploadUrl({
+      userId: "user-1",
+      filename: "photo.png",
+      contentType: "image/png",
+      requestOrigin: "http://localhost:8040",
+    });
+    const uploadUrl = new URL(uploadTarget.uploadUrl);
+    const blobName = uploadUrl.searchParams.get("blobName")!;
+    const token = uploadUrl.searchParams.get("token")!;
+
+    expect(() =>
+      service.createUploadUrl({
+        userId: "user-1",
+        filename: "photo.png",
+        contentType: "text/plain\r\nx-test: bad",
+      }),
+    ).toThrow(BadRequestError);
+    expect(() =>
+      service.createUploadUrl({
+        userId: "user-1",
+        filename: "photo.png",
+        contentType: "image/png",
+        scope: "Invalid Scope",
+      }),
+    ).toThrow(BadRequestError);
+    expect(() => service.buildPostingPhotoThumbnailBlobName("/")).toThrow(
+      BadRequestError,
+    );
+    const helper = service as unknown as {
+      signLocalUploadToken(blobName: string, expiresAt: string): string;
+    };
+    const expiredAt = new Date(Date.now() - 1000).toISOString();
+    await expect(
+      service.uploadLocalBlob({
+        blobName,
+        expiresAt: expiredAt,
+        token: helper.signLocalUploadToken(blobName, expiredAt),
+        contentType: "image/png",
+        body: Buffer.from("late"),
+      }),
+    ).rejects.toThrow("Blob upload URL has expired.");
+    await expect(
+      service.uploadLocalBlob({
+        blobName,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        token: "bad-token",
+        contentType: "image/png",
+        body: Buffer.from("bad"),
+      }),
+    ).rejects.toThrow("Blob upload token is invalid.");
+  });
+
+  it("rejects invalid local blob names and missing files", async () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    await expect(service.readLocalBlob("../escape.txt")).rejects.toThrow(
+      BadRequestError,
+    );
+    await expect(service.readLocalBlob("missing/file.txt")).rejects.toThrow(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("requires complete Azure configuration and validates SAS ttl configuration", () => {
+    process.env.NODE_ENV = "test";
+    process.env.AZURE_STORAGE_CONNECTION_STRING =
+      "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
+
+    process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+    process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS = "59";
+
+    expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
+
+    delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
   });
 });

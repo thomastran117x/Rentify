@@ -124,4 +124,89 @@ describe("RecommendationActivityProcessor", () => {
       expect.any(Array),
     );
   });
+
+  it("rejects activity for postings that can no longer be resolved", async () => {
+    const processor = new RecommendationActivityProcessor({
+      findPostingSummary: jest.fn(async () => null),
+      persistActivityAndRefreshJobs: jest.fn(async () => undefined),
+    } as never);
+
+    await expect(
+      processor.process({
+        eventId: "event-missing",
+        eventType: "posting_view",
+        occurredAt: "2026-04-30T12:07:00.000Z",
+        postingId: "posting-missing",
+        actorUserId: "user-1",
+        deviceType: "desktop",
+        source: "posting_detail",
+        personalizationEnabled: true,
+      }),
+    ).rejects.toThrow(
+      "Posting posting-missing could not be resolved for recommendation activity.",
+    );
+  });
+
+  it("rejects activity with invalid occurrence timestamps", async () => {
+    const persistActivityAndRefreshJobs = jest.fn(async () => undefined);
+    const processor = new RecommendationActivityProcessor({
+      findPostingSummary: jest.fn(async () => ({
+        id: "posting-1",
+        ownerId: "owner-1",
+        family: "place",
+        subtype: "entire_place",
+      })),
+      persistActivityAndRefreshJobs,
+    } as never);
+
+    await expect(
+      processor.process({
+        eventId: "event-invalid-time",
+        eventType: "posting_view",
+        occurredAt: "not-a-date",
+        postingId: "posting-1",
+        actorUserId: "user-1",
+        deviceType: "desktop",
+        source: "posting_detail",
+        personalizationEnabled: true,
+      }),
+    ).rejects.toThrow(
+      "Recommendation activity occurredAt must be a valid ISO datetime.",
+    );
+    expect(persistActivityAndRefreshJobs).not.toHaveBeenCalled();
+  });
+
+  it("keeps posting lifecycle activity out of personalized refreshes", async () => {
+    const persistActivityAndRefreshJobs = jest.fn(async () => undefined);
+    const processor = new RecommendationActivityProcessor({
+      findPostingSummary: jest.fn(async () => ({
+        id: "posting-1",
+        ownerId: "owner-1",
+        family: "place",
+        subtype: "entire_place",
+      })),
+      persistActivityAndRefreshJobs,
+    } as never);
+
+    await processor.process({
+      eventId: "event-lifecycle",
+      eventType: "posting_archived",
+      occurredAt: "2026-04-30T12:07:00.000Z",
+      postingId: "posting-1",
+      actorUserId: "user-1",
+      deviceType: "desktop",
+      source: "posting_lifecycle",
+      personalizationEnabled: true,
+    });
+
+    const [activity, jobs] = persistActivityAndRefreshJobs.mock.calls[0] ?? [];
+    expect(activity.personalizationEligible).toBe(false);
+    expect(jobs).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          jobType: "user_refresh",
+        }),
+      ]),
+    );
+  });
 });

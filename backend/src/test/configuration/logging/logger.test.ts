@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import rootLogger, { logger, loggerFactory } from "@/configuration/logging";
@@ -9,10 +9,24 @@ function waitForLogger(): Promise<void> {
   });
 }
 
+async function waitForFile(filePath: string): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      await access(filePath);
+      return;
+    } catch {
+      await waitForLogger();
+    }
+  }
+
+  throw new Error(`Timed out waiting for log file ${filePath}.`);
+}
+
 describe("logger", () => {
   const originalEnv = {
     LOG_FALLBACK_DIRECTORY: process.env.LOG_FALLBACK_DIRECTORY,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    LOG_SILENT: process.env.LOG_SILENT,
     LOG_SERVICE_NAME: process.env.LOG_SERVICE_NAME,
     NODE_ENV: process.env.NODE_ENV,
     RABBITMQ_URL: process.env.RABBITMQ_URL,
@@ -21,6 +35,7 @@ describe("logger", () => {
   afterEach(async () => {
     process.env.NODE_ENV = originalEnv.NODE_ENV;
     process.env.LOG_LEVEL = originalEnv.LOG_LEVEL;
+    process.env.LOG_SILENT = originalEnv.LOG_SILENT;
     process.env.LOG_SERVICE_NAME = originalEnv.LOG_SERVICE_NAME;
     process.env.LOG_FALLBACK_DIRECTORY = originalEnv.LOG_FALLBACK_DIRECTORY;
     process.env.RABBITMQ_URL = originalEnv.RABBITMQ_URL;
@@ -34,6 +49,7 @@ describe("logger", () => {
   it("logs pretty terminal output in development", async () => {
     process.env.NODE_ENV = "development";
     process.env.LOG_LEVEL = "debug";
+    process.env.LOG_SILENT = "false";
 
     const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -66,6 +82,7 @@ describe("logger", () => {
     process.env.NODE_ENV = "production";
     process.env.RABBITMQ_URL = "";
     process.env.LOG_LEVEL = "debug";
+    process.env.LOG_SILENT = "false";
     process.env.LOG_SERVICE_NAME = "backend-test";
 
     const tempDirectory = await mkdtemp(path.join(tmpdir(), "rent-logger-"));
@@ -76,12 +93,10 @@ describe("logger", () => {
       .child({ requestId: "request-42", fields: { phase: "fallback" } })
       .error("Broker unavailable.");
 
-    await waitForLogger();
+    const logFilePath = path.join(tempDirectory, "application.log.jsonl");
+    await waitForFile(logFilePath);
 
-    const fileContent = await readFile(
-      path.join(tempDirectory, "application.log.jsonl"),
-      "utf8",
-    );
+    const fileContent = await readFile(logFilePath, "utf8");
     const [firstLine] = fileContent.trim().split("\n");
     const event = JSON.parse(firstLine ?? "{}") as Record<string, unknown>;
 

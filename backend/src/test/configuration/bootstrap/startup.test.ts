@@ -51,4 +51,50 @@ describe("initializeServerApplication", () => {
       port: 8040,
     });
   });
+
+  it("skips RabbitMQ connection when the broker is disabled", async () => {
+    const calls: string[] = [];
+
+    const result = await initializeServerApplication({
+      connectDatabase: async () => {
+        calls.push("connectDatabase");
+      },
+      runAutoSeedsIfNeeded: async () => {
+        calls.push("runAutoSeedsIfNeeded");
+      },
+      connectRedis: async () => {
+        calls.push("connectRedis");
+      },
+      connectElasticsearch: async () => {
+        calls.push("connectElasticsearch");
+      },
+      isRabbitMqEnabled: () => false,
+      connectRabbitMq: async () => {
+        calls.push("connectRabbitMq");
+      },
+      initializeContainer: () => {
+        calls.push("initializeContainer");
+        return {} as never;
+      },
+      createApplication: () => {
+        calls.push("createApplication");
+        return { fetch: jest.fn() } as never;
+      },
+      loadEnvironment: () => {
+        calls.push("loadEnvironment");
+        return {} as never;
+      },
+    });
+
+    expect(calls).toEqual([
+      "loadEnvironment",
+      "connectDatabase",
+      "runAutoSeedsIfNeeded",
+      "connectRedis",
+      "connectElasticsearch",
+      "initializeContainer",
+      "createApplication",
+    ]);
+    expect(result.port).toBe(8040);
+  });
 });

@@ -104,6 +104,8 @@ function createContext(options?: {
   client?: ClientRequestContext;
   auth?: JwtClaims;
   headers?: Record<string, string | undefined>;
+  params?: Record<string, string>;
+  url?: string;
 }) {
   const variables = new Map<string, unknown>();
   const contentSanitizationService = new ContentSanitizationService();
@@ -137,8 +139,11 @@ function createContext(options?: {
   const context = {
     req: {
       json: async () => options?.body ?? {},
+      url: options?.url ?? "https://example.test/auth",
       header: (name: string) =>
         options?.headers?.[name.toLowerCase()] ?? options?.headers?.[name],
+      param: (name?: string) =>
+        name ? options?.params?.[name] : (options?.params ?? {}),
     },
     get: (name: string) => variables.get(name),
     set: (name: string, value: unknown) => {
@@ -159,13 +164,25 @@ function createContext(options?: {
 function createController(overrides?: {
   localAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
   localSignup?: (input: unknown) => Promise<unknown>;
+  forgotPassword?: (input: unknown) => Promise<unknown>;
   resendForgotPassword?: (input: unknown) => Promise<unknown>;
+  resetPassword?: (input: unknown) => Promise<AuthSessionResult>;
+  verifyEmail?: (input: unknown) => Promise<AuthSessionResult>;
   resendVerificationEmail?: (input: unknown) => Promise<unknown>;
+  unlockLocalLogin?: (input: unknown) => Promise<unknown>;
   resendUnlockLocalLogin?: (input: unknown) => Promise<unknown>;
   changePassword?: (input: unknown) => Promise<AuthSessionResult>;
+  googleAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
+  microsoftAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
+  appleAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
+  linkOAuthProvider?: (input: unknown) => Promise<unknown>;
+  linkedOAuthProviders?: (input: unknown) => Promise<unknown>;
+  unlinkOAuthProvider?: (input: unknown) => Promise<unknown>;
   refresh?: (input: unknown) => Promise<AuthSessionResult>;
   logout?: (input: unknown) => Promise<unknown>;
   localVerify?: (input: unknown) => Promise<unknown>;
+  deviceVerify?: (input: unknown) => Promise<unknown>;
+  devices?: (input: unknown) => Promise<unknown>;
   removeKnownDevice?: (input: unknown) => Promise<unknown>;
   captchaVerify?: (
     input: unknown,
@@ -183,16 +200,44 @@ function createController(overrides?: {
           alreadyPending: false,
         })),
     ),
+    forgotPassword: jest.fn(
+      overrides?.forgotPassword ??
+        (async () => ({
+          accepted: true,
+        })),
+    ),
     resendForgotPassword: jest.fn(
       overrides?.resendForgotPassword ??
         (async () => ({
           accepted: true,
         })),
     ),
+    resetPassword: jest.fn(
+      overrides?.resetPassword ??
+        (async () =>
+          createSessionResult({
+            accessToken: "reset-access-token",
+            refreshToken: "reset-refresh-token",
+          })),
+    ),
+    verifyEmail: jest.fn(
+      overrides?.verifyEmail ??
+        (async () =>
+          createSessionResult({
+            accessToken: "verified-access-token",
+            refreshToken: "verified-refresh-token",
+          })),
+    ),
     resendVerificationEmail: jest.fn(
       overrides?.resendVerificationEmail ??
         (async () => ({
           accepted: true,
+        })),
+    ),
+    unlockLocalLogin: jest.fn(
+      overrides?.unlockLocalLogin ??
+        (async () => ({
+          unlocked: true,
         })),
     ),
     resendUnlockLocalLogin: jest.fn(
@@ -208,6 +253,48 @@ function createController(overrides?: {
             accessToken: "changed-access-token",
             refreshToken: "changed-refresh-token",
           })),
+    ),
+    googleAuthenticate: jest.fn(
+      overrides?.googleAuthenticate ??
+        (async () =>
+          createSessionResult({
+            accessToken: "google-access-token",
+            refreshToken: "google-refresh-token",
+          })),
+    ),
+    microsoftAuthenticate: jest.fn(
+      overrides?.microsoftAuthenticate ??
+        (async () =>
+          createSessionResult({
+            accessToken: "microsoft-access-token",
+            refreshToken: "microsoft-refresh-token",
+          })),
+    ),
+    appleAuthenticate: jest.fn(
+      overrides?.appleAuthenticate ??
+        (async () =>
+          createSessionResult({
+            accessToken: "apple-access-token",
+            refreshToken: "apple-refresh-token",
+          })),
+    ),
+    linkOAuthProvider: jest.fn(
+      overrides?.linkOAuthProvider ??
+        (async () => ({
+          linked: true,
+        })),
+    ),
+    linkedOAuthProviders: jest.fn(
+      overrides?.linkedOAuthProviders ??
+        (async () => ({
+          providers: ["google"],
+        })),
+    ),
+    unlinkOAuthProvider: jest.fn(
+      overrides?.unlinkOAuthProvider ??
+        (async () => ({
+          unlinked: true,
+        })),
     ),
     refresh: jest.fn(
       overrides?.refresh ??
@@ -227,6 +314,18 @@ function createController(overrides?: {
       overrides?.localVerify ??
         (async () => ({
           verified: true,
+        })),
+    ),
+    deviceVerify: jest.fn(
+      overrides?.deviceVerify ??
+        (async () => ({
+          verified: true,
+        })),
+    ),
+    devices: jest.fn(
+      overrides?.devices ??
+        (async () => ({
+          devices: [],
         })),
     ),
     removeKnownDevice: jest.fn(
@@ -515,6 +614,139 @@ describe("AuthController", () => {
     });
   });
 
+  it("covers signup and recovery flows with their expected service inputs", async () => {
+    const { controller, authService } = createController();
+
+    const signupResponse = await controller.localSignup(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          password: "StrongPassword1!",
+          captchaToken: "signup-captcha",
+          firstName: "Test",
+          lastName: "User",
+          deviceId: "signup-device",
+        },
+        headers: {
+          "x-request-id": "signup-request",
+        },
+      }),
+    );
+    const forgotResponse = await controller.forgotPassword(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          captchaToken: "forgot-captcha",
+        },
+      }),
+    );
+    const resendForgotResponse = await controller.resendForgotPassword(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          captchaToken: "resend-forgot-captcha",
+        },
+      }),
+    );
+    const resetResponse = await controller.resetPassword(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          code: "123456",
+          newPassword: "ResetPassword1!",
+          deviceId: "reset-device",
+        },
+      }),
+    );
+    const verifyResponse = await controller.verifyEmail(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          code: "123456",
+          deviceId: "verify-device",
+        },
+      }),
+    );
+    const resendVerifyResponse = await controller.resendVerificationEmail(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          captchaToken: "verify-captcha",
+        },
+      }),
+    );
+    const unlockResponse = await controller.unlockLocalLogin(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          code: "654321",
+        },
+      }),
+    );
+    const resendUnlockResponse = await controller.resendUnlockLocalLogin(
+      createContext({
+        body: {
+          email: "USER@example.com",
+          captchaToken: "unlock-captcha",
+        },
+      }),
+    );
+
+    expect(authService.localSignup).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      password: "StrongPassword1!",
+      firstName: "Test",
+      lastName: "User",
+      deviceId: "signup-device",
+    });
+    expect(authService.forgotPassword).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      deviceId: "device-1",
+    });
+    expect(authService.resendForgotPassword).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      deviceId: "device-1",
+    });
+    expect(authService.resetPassword).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      code: "123456",
+      newPassword: "ResetPassword1!",
+      deviceId: "reset-device",
+    });
+    expect(authService.verifyEmail).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      code: "123456",
+      deviceId: "verify-device",
+    });
+    expect(authService.resendVerificationEmail).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      deviceId: "device-1",
+    });
+    expect(authService.unlockLocalLogin).toHaveBeenCalledWith({
+      email: "user@example.com",
+      code: "654321",
+    });
+    expect(authService.resendUnlockLocalLogin).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "user@example.com",
+      deviceId: "device-1",
+    });
+    expect(signupResponse.status).toBe(202);
+    expect(forgotResponse.status).toBe(202);
+    expect(resendForgotResponse.status).toBe(202);
+    expect(resetResponse.status).toBe(200);
+    expect(verifyResponse.status).toBe(200);
+    expect(resendVerifyResponse.status).toBe(202);
+    expect(unlockResponse.status).toBe(200);
+    expect(resendUnlockResponse.status).toBe(202);
+  });
+
   it("public resend actions verify captcha before calling the auth service", async () => {
     const { controller, authService, captchaService } = createController();
 
@@ -769,5 +1001,183 @@ describe("AuthController", () => {
         requestId: "request-test",
       },
     });
+  });
+
+  it("covers oauth authentication, linking, provider listing, and unlinking", async () => {
+    const auth = createClaims({
+      sub: "user-15",
+    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
+    const { controller, authService } = createController();
+    const oauthBody = {
+      code: "oauth-code",
+      codeVerifier: "oauth-verifier",
+      nonce: "oauth-nonce",
+      rememberMe: true,
+      deviceId: "oauth-device",
+      firstName: "OAuth",
+      lastName: "User",
+    };
+
+    const googleResponse = await controller.googleAuthenticate(
+      createContext({
+        body: oauthBody,
+      }),
+    );
+    const microsoftResponse = await controller.microsoftAuthenticate(
+      createContext({
+        body: oauthBody,
+      }),
+    );
+    const appleResponse = await controller.appleAuthenticate(
+      createContext({
+        body: {
+          idToken: "id-token",
+          nonce: "apple-nonce",
+        },
+      }),
+    );
+    const linkResponse = await controller.linkOAuthProvider(
+      createContext({
+        auth,
+        params: {
+          provider: "google",
+        },
+        body: oauthBody,
+      }),
+    );
+    const listResponse = await controller.linkedOAuthProviders(
+      createContext({
+        auth,
+      }),
+    );
+    const unlinkResponse = await controller.unlinkOAuthProvider(
+      createContext({
+        auth,
+        params: {
+          provider: "microsoft",
+        },
+      }),
+    );
+
+    expect(authService.googleAuthenticate).toHaveBeenCalledWith({
+      code: "oauth-code",
+      codeVerifier: "oauth-verifier",
+      idToken: undefined,
+      nonce: "oauth-nonce",
+      rememberMe: true,
+      client: expect.any(Object),
+      firstName: "OAuth",
+      lastName: "User",
+      deviceId: "oauth-device",
+    });
+    expect(authService.microsoftAuthenticate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nonce: "oauth-nonce",
+        code: "oauth-code",
+      }),
+    );
+    expect(authService.appleAuthenticate).toHaveBeenCalledWith({
+      code: undefined,
+      codeVerifier: undefined,
+      idToken: "id-token",
+      nonce: "apple-nonce",
+      rememberMe: undefined,
+      client: expect.any(Object),
+      firstName: undefined,
+      lastName: undefined,
+      deviceId: "device-1",
+    });
+    expect(authService.linkOAuthProvider).toHaveBeenCalledWith({
+      code: "oauth-code",
+      codeVerifier: "oauth-verifier",
+      idToken: undefined,
+      nonce: "oauth-nonce",
+      rememberMe: true,
+      client: expect.any(Object),
+      firstName: "OAuth",
+      lastName: "User",
+      deviceId: "oauth-device",
+      provider: "google",
+      userId: "user-15",
+    });
+    expect(authService.linkedOAuthProviders).toHaveBeenCalledWith({
+      userId: "user-15",
+    });
+    expect(authService.unlinkOAuthProvider).toHaveBeenCalledWith({
+      provider: "microsoft",
+      userId: "user-15",
+    });
+    expect(googleResponse.status).toBe(200);
+    expect(microsoftResponse.status).toBe(200);
+    expect(appleResponse.status).toBe(200);
+    expect(linkResponse.status).toBe(200);
+    expect(listResponse.status).toBe(200);
+    expect(unlinkResponse.status).toBe(200);
+  });
+
+  it("validates oauth provider route params before calling the service", async () => {
+    const auth = createClaims();
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
+    const { controller, authService } = createController();
+
+    await expect(
+      controller.unlinkOAuthProvider(
+        createContext({
+          auth,
+          params: {
+            provider: "invalid-provider",
+          },
+        }),
+      ),
+    ).rejects.toHaveProperty("name", "ZodError");
+
+    expect(authService.unlinkOAuthProvider).not.toHaveBeenCalled();
+  });
+
+  it("covers device verification and known-device listing routes", async () => {
+    const auth = createClaims({
+      sub: "user-44",
+      deviceId: "trusted-device-44",
+    });
+    mockRequireJwtAuth.mockImplementation(
+      async (context: Context<AppBindings>) => {
+        context.set("auth", auth);
+        return auth;
+      },
+    );
+    const { controller, authService } = createController();
+
+    const verifyResponse = await controller.deviceVerify(
+      createContext({
+        auth,
+      }),
+    );
+    const devicesResponse = await controller.devices(
+      createContext({
+        auth,
+      }),
+    );
+
+    expect(authService.deviceVerify).toHaveBeenCalledWith({
+      auth,
+      client: expect.any(Object),
+    });
+    expect(authService.devices).toHaveBeenCalledWith({
+      auth,
+      client: expect.any(Object),
+    });
+    expect(verifyResponse.status).toBe(200);
+    expect(devicesResponse.status).toBe(200);
   });
 });

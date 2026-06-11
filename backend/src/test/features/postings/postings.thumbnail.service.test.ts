@@ -121,4 +121,26 @@ describe("PostingThumbnailService", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(repository.updatedThumbnail).toBeNull();
   });
+
+  it("does nothing when the posting has no primary photo", async () => {
+    const repository = new FakePostingsRepository();
+    repository.primaryPhoto = null as never;
+    const downloadBlob = jest.fn();
+    const postingsPublicCacheService = {
+      invalidatePublic: jest.fn(async () => 1),
+    } as unknown as PostingsPublicCacheService;
+    const service = new PostingThumbnailService(
+      repository as unknown as PostingsRepository,
+      {
+        downloadBlob,
+      } as unknown as BlobService,
+      postingsPublicCacheService,
+    );
+
+    await service.generateForPosting("posting-1");
+
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(repository.updatedThumbnail).toBeNull();
+    expect(repository.enqueuedSearchPostingId).toBeNull();
+  });
 });

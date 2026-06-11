@@ -17,7 +17,14 @@ class TestRepository extends BaseRepository {
 }
 
 describe("BaseRepository", () => {
+  const originalLogSilent = process.env.LOG_SILENT;
+
+  beforeEach(() => {
+    process.env.LOG_SILENT = "false";
+  });
+
   afterEach(() => {
+    process.env.LOG_SILENT = originalLogSilent;
     jest.restoreAllMocks();
   });
 

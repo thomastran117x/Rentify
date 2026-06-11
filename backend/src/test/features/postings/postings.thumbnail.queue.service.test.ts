@@ -178,6 +178,19 @@ describe("PostingThumbnailQueueService", () => {
     expect(channel.close).toHaveBeenCalled();
   });
 
+  it("ignores null consumer messages", async () => {
+    const channel = createChannel();
+    mockCreateRabbitMqChannel.mockResolvedValue(channel);
+    const onMessage = jest.fn(async () => undefined);
+    const service = new PostingThumbnailQueueService();
+
+    await service.consumePostingThumbnailJobs(1, onMessage);
+    await createChannel.lastHandler?.(null);
+
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
   it("nacks malformed jobs before custom handler ack logic runs", async () => {
     const channel = createChannel();
     mockCreateRabbitMqChannel.mockResolvedValue(channel);

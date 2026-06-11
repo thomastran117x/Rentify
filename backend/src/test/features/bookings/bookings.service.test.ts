@@ -1260,4 +1260,357 @@ describe("BookingsService", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
+
+  it("lists renter booking requests directly from the repository", async () => {
+    const { service, bookingsRepository } = createService();
+    bookingsRepository.listByRenter = jest.fn(async () => ({
+      bookingRequests: [createBookingRequestRecord()],
+      pagination: {
+        page: 2,
+        pageSize: 5,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    }));
+
+    const result = await service.listMine({
+      renterId: "renter-1",
+      page: 2,
+      pageSize: 5,
+    } as never);
+
+    expect(bookingsRepository.listByRenter).toHaveBeenCalledWith({
+      renterId: "renter-1",
+      page: 2,
+      pageSize: 5,
+    });
+    expect(result.pagination.page).toBe(2);
+  });
+
+  it("returns a conflict when booking creation loses its conditional write race", async () => {
+    const { service, bookingsRepository } = createService();
+    bookingsRepository.createIfWithinActiveRequestLimit.mockResolvedValue(null);
+
+    await expect(
+      service.create({
+        postingId: "posting-1",
+        renterId: "renter-1",
+        startAt: "2026-05-01T00:00:00.000Z",
+        endAt: "2026-05-04T00:00:00.000Z",
+        guestCount: 2,
+        contactName: "Jordan Lee",
+        contactEmail: "jordan@example.com",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("returns a conflict when approval or decline loses its conditional write race", async () => {
+    const booking = createBookingRequestRecord({
+      holdExpiresAt: "2099-04-21T00:00:00.000Z",
+    });
+    const { service, bookingsRepository } = createService({
+      createdBooking: booking,
+    });
+
+    bookingsRepository.findById.mockResolvedValue(booking);
+    bookingsRepository.approve.mockResolvedValueOnce(null);
+
+    await expect(
+      service.approve({
+        bookingRequestId: "booking-1",
+        actorUserId: "owner-1",
+        note: "approve",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    bookingsRepository.decline.mockResolvedValueOnce(null);
+
+    await expect(
+      service.decline({
+        bookingRequestId: "booking-1",
+        actorUserId: "owner-1",
+        note: "decline",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("treats missing or failed refunds as cancellation conflicts for paid bookings", async () => {
+    const booking = createBookingRequestRecord({
+      status: "paid",
+      startAt: "2099-05-10T00:00:00.000Z",
+      endAt: "2099-05-12T00:00:00.000Z",
+    });
+    const missingPayment = createService({
+      createdBooking: booking,
+    });
+    missingPayment.paymentsRepository.findByBookingRequestId.mockResolvedValue(
+      null,
+    );
+
+    const unsupportedQuote = await missingPayment.service.getCancellationQuote(
+      "booking-1",
+      "renter-1",
+    );
+
+    expect(unsupportedQuote).toMatchObject({
+      cancellable: false,
+      refundType: "unsupported",
+    });
+    await expect(
+      missingPayment.service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "renter-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    const failedRefund = createService({
+      createdBooking: booking,
+    });
+    failedRefund.paymentProvider.createRefund.mockResolvedValueOnce({
+      providerRefundId: "square-refund-1",
+      status: "FAILED",
+      raw: { ok: false },
+    });
+
+    await expect(
+      failedRefund.service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "owner-1",
+        reason: "Pipe burst in the unit.",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("wraps provider refund errors with classified conflict messaging", async () => {
+    const booking = createBookingRequestRecord({
+      status: "paid",
+      startAt: "2099-05-10T00:00:00.000Z",
+      endAt: "2099-05-12T00:00:00.000Z",
+    });
+    const { service, paymentProvider } = createService({
+      createdBooking: booking,
+    });
+    paymentProvider.createRefund.mockRejectedValueOnce(
+      new Error("gateway down"),
+    );
+    paymentProvider.classifyError.mockReturnValueOnce({
+      category: "transient",
+      code: "provider-down",
+      message: "Provider temporarily unavailable.",
+      retryable: true,
+    });
+
+    await expect(
+      service.cancel({
+        bookingRequestId: "booking-1",
+        actorUserId: "owner-1",
+        reason: "Emergency maintenance",
+      }),
+    ).rejects.toThrow("Provider temporarily unavailable.");
+  });
+
+  it("covers booking helpers for normalization, guest counts, conflicts, and cancellation helpers", async () => {
+    const { service } = createService();
+    const helper = service as unknown as {
+      resolveGuestCountOrThrow(
+        guestCount: number | undefined,
+        posting: PostingRecord,
+      ): number;
+      resolveGuestCountOrCollectFailures(
+        guestCount: number | undefined,
+        posting: PostingRecord,
+        failureReasons: Array<Record<string, unknown>>,
+      ): number;
+      resolveMaxGuestCountForPosting(posting: PostingRecord): number;
+      assertBookingRequestValidationPassed(validation: {
+        normalized: unknown;
+        failureReasons: Array<{ code: string; message: string }>;
+      }): void;
+      assertCanDecide(
+        bookingRequest: BookingRequestRecord,
+        action: "approve" | "decline",
+      ): void;
+      assertNoBlockingAvailabilityOverlap(
+        postingId: string,
+        startAt: Date,
+        endAt: Date,
+        excludeBookingRequestId?: string,
+      ): Promise<void>;
+      assertWithinPostingRequestCap(
+        postingId: string,
+        renterId: string,
+        excludeBookingRequestId?: string,
+      ): Promise<void>;
+      assertNoRentingOverlap(
+        postingId: string,
+        startAt: Date,
+        endAt: Date,
+      ): Promise<void>;
+      throwIfCancellationNotAllowed(assessment: {
+        failureReasons: Array<{ code: string; message: string }>;
+      }): void;
+      resolveRemainingRefundableAmount(payment: {
+        totalAmount: number;
+        refunds: Array<{ status: string; amount: number }>;
+      }): number;
+      resolveCancellationRefundAmount(
+        actor: "owner" | "renter",
+        bookingStartAt: string,
+        refundableAmount: number,
+      ): number;
+      resolveRefundType(refundableAmount: number, refundAmount: number): string;
+    };
+
+    expect(
+      helper.resolveGuestCountOrThrow(
+        undefined,
+        createPostingRecord({
+          variant: {
+            family: "vehicle",
+            subtype: "car",
+          } as never,
+        }),
+      ),
+    ).toBe(1);
+    expect(() =>
+      helper.resolveGuestCountOrThrow(undefined, createPostingRecord()),
+    ).toThrow(BadRequestError);
+    expect(() =>
+      helper.resolveGuestCountOrThrow(9, createPostingRecord()),
+    ).toThrow(BadRequestError);
+    const failureReasons: Array<Record<string, unknown>> = [];
+    expect(
+      helper.resolveGuestCountOrCollectFailures(
+        undefined,
+        createPostingRecord(),
+        failureReasons,
+      ),
+    ).toBe(1);
+    expect(
+      helper.resolveGuestCountOrCollectFailures(
+        9,
+        createPostingRecord(),
+        failureReasons,
+      ),
+    ).toBe(9);
+    expect(
+      helper.resolveMaxGuestCountForPosting(
+        createPostingRecord({
+          details: {
+            guest_capacity: 99,
+            property_type: "loft",
+            amenities: [],
+          },
+        }),
+      ),
+    ).toBe(20);
+    expect(() =>
+      helper.assertBookingRequestValidationPassed({
+        normalized: {},
+        failureReasons: [
+          {
+            code: "own_posting",
+            message:
+              "You cannot create a booking request for your own posting.",
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      helper.assertCanDecide(
+        createBookingRequestRecord({
+          status: "declined",
+        }),
+        "approve",
+      ),
+    ).toThrow(BadRequestError);
+    expect(() =>
+      helper.assertCanDecide(
+        createBookingRequestRecord({
+          holdExpiresAt: "2020-01-01T00:00:00.000Z",
+        }),
+        "decline",
+      ),
+    ).toThrow(BadRequestError);
+
+    const conflictContext = createService();
+    conflictContext.bookingsRepository.hasBlockingAvailabilityOverlap.mockResolvedValueOnce(
+      true,
+    );
+    await expect(
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertNoBlockingAvailabilityOverlap(
+        "posting-1",
+        new Date("2026-05-01T00:00:00.000Z"),
+        new Date("2026-05-04T00:00:00.000Z"),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    conflictContext.bookingsRepository.countActiveRequestsForRenterPosting.mockResolvedValueOnce(
+      2,
+    );
+    await expect(
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertWithinPostingRequestCap("posting-1", "renter-1"),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    conflictContext.rentingsRepository.hasOverlap.mockResolvedValueOnce(true);
+    await expect(
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertNoRentingOverlap(
+        "posting-1",
+        new Date("2026-05-01T00:00:00.000Z"),
+        new Date("2026-05-04T00:00:00.000Z"),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    expect(() =>
+      helper.throwIfCancellationNotAllowed({
+        failureReasons: [
+          {
+            code: "payment_processing_in_progress",
+            message: "wait",
+          },
+        ],
+      }),
+    ).toThrow(ConflictError);
+    expect(() =>
+      helper.throwIfCancellationNotAllowed({
+        failureReasons: [
+          {
+            code: "booking_status_ineligible",
+            message: "bad",
+          },
+        ],
+      }),
+    ).toThrow(BadRequestError);
+    expect(
+      helper.resolveRemainingRefundableAmount({
+        totalAmount: 330,
+        refunds: [
+          {
+            status: "succeeded",
+            amount: 30,
+          },
+          {
+            status: "pending",
+            amount: 15,
+          },
+        ],
+      }),
+    ).toBe(300);
+    expect(
+      helper.resolveCancellationRefundAmount(
+        "owner",
+        "2099-05-10T00:00:00.000Z",
+        330,
+      ),
+    ).toBe(330);
+    expect(helper.resolveRefundType(0, 0)).toBe("none");
+    expect(helper.resolveRefundType(330, 165)).toBe("partial");
+    expect(helper.resolveRefundType(330, 330)).toBe("full");
+  });
 });
