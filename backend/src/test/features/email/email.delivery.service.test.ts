@@ -150,9 +150,7 @@ describe("EmailDeliveryService", () => {
         to: "user@example.com",
         subject: "Verify your email address",
         text: expect.stringContaining("Hi <Mia>,"),
-        html: expect.stringContaining(
-          "Hi &lt;Mia&gt;",
-        ),
+        html: expect.stringContaining("Hi &lt;Mia&gt;"),
       }),
     );
     expect(transporter.sendMail.mock.calls[0]?.[0]).toEqual(
@@ -194,9 +192,7 @@ describe("EmailDeliveryService", () => {
     expect(transporter.sendMail.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         subject: "New device sign-in detected",
-        text: expect.stringContaining(
-          "Detected at: 2026-06-10T12:34:56.000Z",
-        ),
+        text: expect.stringContaining("Detected at: 2026-06-10T12:34:56.000Z"),
         html: expect.stringContaining("IP address: 127.0.0.1"),
       }),
     );
@@ -327,9 +323,7 @@ describe("EmailDeliveryService", () => {
         }),
       ),
     ).toBe(true);
-    expect(helper.isTransientError(new Error("permanent failure"))).toBe(
-      false,
-    );
+    expect(helper.isTransientError(new Error("permanent failure"))).toBe(false);
     expect(helper.isTransientError("oops")).toBe(false);
 
     const originalRandom = Math.random;

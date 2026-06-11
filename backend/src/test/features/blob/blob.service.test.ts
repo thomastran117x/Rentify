@@ -105,7 +105,9 @@ describe("BlobService", () => {
     });
     const download = await service.downloadBlob("postings/user-1/photo.png");
 
-    expect(result.blobUrl).toBe(service.getBlobUrl("postings/user-1/photo.png"));
+    expect(result.blobUrl).toBe(
+      service.getBlobUrl("postings/user-1/photo.png"),
+    );
     expect(download.body.toString("utf8")).toBe("thumbnail-source");
     expect(download.contentType).toBe("image/png");
     expect(

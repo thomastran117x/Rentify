@@ -93,7 +93,8 @@ describe("EmailQueueService", () => {
       attempt: number;
       occurredAt: string;
     };
-    const publishOptions = (channel.publish as jest.Mock).mock.calls[0]?.[3] as {
+    const publishOptions = (channel.publish as jest.Mock).mock
+      .calls[0]?.[3] as {
       messageId: string;
     };
 
@@ -214,7 +215,9 @@ describe("EmailQueueService", () => {
     const channel = createChannel();
     mockCreateRabbitMqChannel.mockResolvedValue(channel);
     const service = new EmailQueueService();
-    const onMessage = jest.fn().mockRejectedValueOnce(new Error("worker failed"));
+    const onMessage = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("worker failed"));
 
     await service.consumeEmailJobs(1, onMessage);
 

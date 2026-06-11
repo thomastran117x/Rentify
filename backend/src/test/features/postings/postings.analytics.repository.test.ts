@@ -504,7 +504,10 @@ describe("PostingsAnalyticsRepository", () => {
         $transaction: async (
           callback: (tx: typeof transaction) => Promise<void>,
         ) => callback(transaction),
-      } as never) as unknown as Record<string, (input: unknown) => Promise<void>>;
+      } as never) as unknown as Record<
+        string,
+        (input: unknown) => Promise<void>
+      >;
 
       await repository[testCase.method]({
         postingId: "posting-1",
@@ -843,17 +846,23 @@ describe("PostingsAnalyticsRepository", () => {
   });
 
   it("covers analytics repository helper branches for ranges, metrics, and pagination", async () => {
-    const repository = new PostingsAnalyticsRepository({} as never) as unknown as {
+    const repository = new PostingsAnalyticsRepository(
+      {} as never,
+    ) as unknown as {
       createWindowRange: (window: "7d" | "30d" | "all") => {
         startAt?: Date;
         endAt: Date;
       };
-      mapBucketMetrics: (row?: Record<string, unknown>) => Record<string, number>;
+      mapBucketMetrics: (
+        row?: Record<string, unknown>,
+      ) => Record<string, number>;
       combineMetrics: (
         bucketMetrics: Record<string, number>,
         operationalMetrics: Record<string, number>,
       ) => Record<string, number>;
-      createDerivedMetrics: (metrics: Record<string, number>) => Record<string, number>;
+      createDerivedMetrics: (
+        metrics: Record<string, number>,
+      ) => Record<string, number>;
       createPagination: (
         page: number,
         pageSize: number,
@@ -867,7 +876,9 @@ describe("PostingsAnalyticsRepository", () => {
       sumOperationalMetrics: (
         metrics: Array<Record<string, number>>,
       ) => Record<string, number>;
-      toOperationalState: (row: Record<string, unknown>) => Record<string, unknown>;
+      toOperationalState: (
+        row: Record<string, unknown>,
+      ) => Record<string, unknown>;
       calculateActiveDaysPublished: (
         posting: Record<string, unknown>,
         range: { startAt?: Date; endAt: Date },

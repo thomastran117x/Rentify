@@ -1697,7 +1697,10 @@ describe("AuthService", () => {
     });
 
     jest
-      .spyOn(service as unknown as { sendVerificationCode(): Promise<void> }, "sendVerificationCode")
+      .spyOn(
+        service as unknown as { sendVerificationCode(): Promise<void> },
+        "sendVerificationCode",
+      )
       .mockRejectedValueOnce(cooldownError);
     await expect(
       helper.sendPublicVerificationCode({
@@ -1713,15 +1716,19 @@ describe("AuthService", () => {
         },
       },
     });
-    await expect(helper.sendPasswordResetCode(createUser())).resolves.toBeUndefined();
-    await expect(helper.sendLocalLoginUnlockCode(createUser())).resolves.toBeUndefined();
-    await expect(helper.sendLocalLoginUnlockCode(null)).resolves.toBeUndefined();
+    await expect(
+      helper.sendPasswordResetCode(createUser()),
+    ).resolves.toBeUndefined();
+    await expect(
+      helper.sendLocalLoginUnlockCode(createUser()),
+    ).resolves.toBeUndefined();
+    await expect(
+      helper.sendLocalLoginUnlockCode(null),
+    ).resolves.toBeUndefined();
     expect(() =>
       helper.requireEligibleLocalPasswordUser(null, "Missing account."),
     ).toThrow(BadRequestError);
-    expect(
-      helper.redactEmail("invalid-email-without-domain"),
-    ).toBe("redacted");
+    expect(helper.redactEmail("invalid-email-without-domain")).toBe("redacted");
     expect(
       helper.toUserProfile({
         ...createUser(),

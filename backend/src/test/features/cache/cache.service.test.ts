@@ -65,15 +65,15 @@ describe("CacheService", () => {
     await expect(
       service.setIfNotExists("lock-key", "token-1", 15),
     ).resolves.toBe(true);
+    await expect(service.setIfNotExists("lock-key", "token-2")).resolves.toBe(
+      false,
+    );
     await expect(
-      service.setIfNotExists("lock-key", "token-2"),
-    ).resolves.toBe(false);
-    await expect(service.getOrSetJson("fresh-key", factory, 45)).resolves.toEqual(
-      { generated: true },
-    );
-    await expect(service.getOrSetJson("cached-key", factory, 45)).resolves.toEqual(
-      { cached: true },
-    );
+      service.getOrSetJson("fresh-key", factory, 45),
+    ).resolves.toEqual({ generated: true });
+    await expect(
+      service.getOrSetJson("cached-key", factory, 45),
+    ).resolves.toEqual({ cached: true });
 
     expect(client.set).toHaveBeenNthCalledWith(
       1,
@@ -211,9 +211,9 @@ describe("CacheService", () => {
     await expect(service.releaseLock("lock:jobs", "token-1")).resolves.toBe(
       false,
     );
-    await expect(service.extendLock("lock:jobs", "token-1", 7_000)).resolves.toBe(
-      false,
-    );
+    await expect(
+      service.extendLock("lock:jobs", "token-1", 7_000),
+    ).resolves.toBe(false);
 
     expect(client.set).toHaveBeenNthCalledWith(1, "lock:jobs", "token-1", {
       NX: true,

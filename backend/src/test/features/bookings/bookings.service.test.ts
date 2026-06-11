@@ -1392,7 +1392,9 @@ describe("BookingsService", () => {
     const { service, paymentProvider } = createService({
       createdBooking: booking,
     });
-    paymentProvider.createRefund.mockRejectedValueOnce(new Error("gateway down"));
+    paymentProvider.createRefund.mockRejectedValueOnce(
+      new Error("gateway down"),
+    );
     paymentProvider.classifyError.mockReturnValueOnce({
       category: "transient",
       code: "provider-down",
@@ -1458,10 +1460,7 @@ describe("BookingsService", () => {
         bookingStartAt: string,
         refundableAmount: number,
       ): number;
-      resolveRefundType(
-        refundableAmount: number,
-        refundAmount: number,
-      ): string;
+      resolveRefundType(refundableAmount: number, refundAmount: number): string;
     };
 
     expect(
@@ -1513,7 +1512,8 @@ describe("BookingsService", () => {
         failureReasons: [
           {
             code: "own_posting",
-            message: "You cannot create a booking request for your own posting.",
+            message:
+              "You cannot create a booking request for your own posting.",
           },
         ],
       }),
@@ -1540,7 +1540,9 @@ describe("BookingsService", () => {
       true,
     );
     await expect(
-      (conflictContext.service as unknown as typeof helper).assertNoBlockingAvailabilityOverlap(
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertNoBlockingAvailabilityOverlap(
         "posting-1",
         new Date("2026-05-01T00:00:00.000Z"),
         new Date("2026-05-04T00:00:00.000Z"),
@@ -1550,14 +1552,15 @@ describe("BookingsService", () => {
       2,
     );
     await expect(
-      (conflictContext.service as unknown as typeof helper).assertWithinPostingRequestCap(
-        "posting-1",
-        "renter-1",
-      ),
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertWithinPostingRequestCap("posting-1", "renter-1"),
     ).rejects.toBeInstanceOf(BadRequestError);
     conflictContext.rentingsRepository.hasOverlap.mockResolvedValueOnce(true);
     await expect(
-      (conflictContext.service as unknown as typeof helper).assertNoRentingOverlap(
+      (
+        conflictContext.service as unknown as typeof helper
+      ).assertNoRentingOverlap(
         "posting-1",
         new Date("2026-05-01T00:00:00.000Z"),
         new Date("2026-05-04T00:00:00.000Z"),

@@ -318,9 +318,9 @@ describe("RecommendationActivityQueueService", () => {
       .mockResolvedValueOnce(second.channel);
     const service = new RecommendationActivityQueueService();
 
-    await expect(service.publishActivityEvent(createEventPayload())).rejects.toThrow(
-      "confirm failed",
-    );
+    await expect(
+      service.publishActivityEvent(createEventPayload()),
+    ).rejects.toThrow("confirm failed");
 
     await service.publishActivityEvent(
       createEventPayload({ eventId: "event-2" }),

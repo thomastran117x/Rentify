@@ -20,7 +20,9 @@ function createOrganizationMembershipPersistence(
   };
 }
 
-function createOAuthIdentityPersistence(overrides: Record<string, unknown> = {}) {
+function createOAuthIdentityPersistence(
+  overrides: Record<string, unknown> = {},
+) {
   return {
     id: "oauth-1",
     userId: "user-1",
@@ -115,7 +117,9 @@ describe("AuthRepository", () => {
     await expect(
       repository.findSessionValidationByUserId("missing-user"),
     ).resolves.toBeNull();
-    await expect(repository.findTokenVersionByUserId("user-2")).resolves.toBe(9);
+    await expect(repository.findTokenVersionByUserId("user-2")).resolves.toBe(
+      9,
+    );
   });
 
   it("finds users by id and email and maps nested auth records", async () => {
@@ -306,7 +310,10 @@ describe("AuthRepository", () => {
     } as never);
 
     const created = await repository.createOAuthUser(createOAuthProfile());
-    const found = await repository.findUserByOAuthIdentity("google", "google-user-1");
+    const found = await repository.findUserByOAuthIdentity(
+      "google",
+      "google-user-1",
+    );
     const identities = await repository.listOAuthIdentitiesByUserId("user-1");
 
     expect(create).toHaveBeenCalledWith(
@@ -382,9 +389,7 @@ describe("AuthRepository", () => {
 
     await expect(
       duplicateRepository.linkOAuthIdentity("user-1", createOAuthProfile()),
-    ).rejects.toThrow(
-      "This OAuth provider is already linked to an account.",
-    );
+    ).rejects.toThrow("This OAuth provider is already linked to an account.");
   });
 
   it("unlinks identities and updates email verification, passwords, and token versions", async () => {
@@ -462,7 +467,10 @@ describe("AuthRepository", () => {
     } as never) as unknown as {
       mapUser: (user: ReturnType<typeof createUserPersistence>) => unknown;
       sanitizeUsername: (value: string) => string;
-      createDisplayName: (input: { firstName?: string; lastName?: string }) => string | null;
+      createDisplayName: (input: {
+        firstName?: string;
+        lastName?: string;
+      }) => string | null;
       generateAvailableUsername: (email: string) => Promise<string>;
     };
 

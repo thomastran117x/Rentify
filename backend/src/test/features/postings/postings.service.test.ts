@@ -1876,9 +1876,9 @@ describe("PostingsService", () => {
     pauseRepository.pause = jest.fn(async () => null) as never;
     const pauseService = createService(pauseRepository);
 
-    await expect(
-      pauseService.pause("posting-1", "owner-1"),
-    ).rejects.toThrow("Posting could not be found.");
+    await expect(pauseService.pause("posting-1", "owner-1")).rejects.toThrow(
+      "Posting could not be found.",
+    );
 
     const unpauseRepository = new FakePostingsRepository();
     unpauseRepository.posting = {
@@ -1896,9 +1896,7 @@ describe("PostingsService", () => {
   });
 
   it("covers posting draft and asset validation helper branches", async () => {
-    const service = createService(
-      new FakePostingsRepository(),
-    ) as unknown as {
+    const service = createService(new FakePostingsRepository()) as unknown as {
       normalizePhotos: (photos: Array<Record<string, unknown>>) => unknown[];
       normalizeAvailabilityBlocks: (
         blocks: PostingAvailabilityBlockInput[],
@@ -2080,15 +2078,16 @@ describe("PostingsService", () => {
     );
     expect(() =>
       service.normalizeBatchIds(
-        Array.from({ length: MAX_BATCH_IDS + 1 }, (_, index) => `posting-${index}`),
+        Array.from(
+          { length: MAX_BATCH_IDS + 1 },
+          (_, index) => `posting-${index}`,
+        ),
       ),
     ).toThrow("At most");
   });
 
   it("covers search attribute normalization helpers across supported kinds", async () => {
-    const service = createService(
-      new FakePostingsRepository(),
-    ) as unknown as {
+    const service = createService(new FakePostingsRepository()) as unknown as {
       normalizeSearchAttributeFilters: (
         filters: Array<Record<string, unknown>> | undefined,
         family?: string,
@@ -2328,9 +2327,7 @@ describe("PostingsService", () => {
   });
 
   it("covers posting detail normalization helpers across supported kinds", async () => {
-    const service = createService(
-      new FakePostingsRepository(),
-    ) as unknown as {
+    const service = createService(new FakePostingsRepository()) as unknown as {
       normalizeSearchableAttributeValue: (
         key: string,
         value: unknown,

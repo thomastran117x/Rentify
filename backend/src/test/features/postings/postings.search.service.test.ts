@@ -643,24 +643,26 @@ describe("PostingsPublicSearchService", () => {
 
   it("ranks typo-tolerant hits by weighted confidence before raw Elasticsearch score", () => {
     const { service } = createElasticsearchPublicSearchService();
-    const ranked = (service as unknown as {
-      rankTypoTolerantHits: (
-        hits: Array<{
-          _id: string;
-          _score?: number;
-          _source?: {
-            name?: string;
-            tags?: string[];
-            location?: {
-              city?: string;
-              region?: string;
-              country?: string;
+    const ranked = (
+      service as unknown as {
+        rankTypoTolerantHits: (
+          hits: Array<{
+            _id: string;
+            _score?: number;
+            _source?: {
+              name?: string;
+              tags?: string[];
+              location?: {
+                city?: string;
+                region?: string;
+                country?: string;
+              };
             };
-          };
-        }>,
-        query: string,
-      ) => Array<{ _id: string }>;
-    }).rankTypoTolerantHits(
+          }>,
+          query: string,
+        ) => Array<{ _id: string }>;
+      }
+    ).rankTypoTolerantHits(
       [
         {
           _id: "posting-country",
@@ -696,12 +698,14 @@ describe("PostingsPublicSearchService", () => {
 
   it("falls back to raw Elasticsearch score when typo confidence ties", () => {
     const { service } = createElasticsearchPublicSearchService();
-    const ranked = (service as unknown as {
-      rankTypoTolerantHits: (
-        hits: Array<{ _id: string; _score?: number }>,
-        query: string,
-      ) => Array<{ _id: string }>;
-    }).rankTypoTolerantHits(
+    const ranked = (
+      service as unknown as {
+        rankTypoTolerantHits: (
+          hits: Array<{ _id: string; _score?: number }>,
+          query: string,
+        ) => Array<{ _id: string }>;
+      }
+    ).rankTypoTolerantHits(
       [
         {
           _id: "posting-low",
@@ -763,15 +767,11 @@ describe("PostingsPublicSearchService", () => {
     expect(helper.computeEditDistanceWithinLimit("north", "zzzzz", 1)).toBe(
       null,
     );
-    expect(
-      helper.countWeightedTokenMatches(undefined, "north", 1, 2),
-    ).toBe(0);
+    expect(helper.countWeightedTokenMatches(undefined, "north", 1, 2)).toBe(0);
     expect(
       helper.countWeightedTokenMatches("north north", "north", 1, 1.5),
     ).toBe(3);
-    expect(
-      helper.countWeightedTokenMatches("camera", "north", 1, 1.5),
-    ).toBe(0);
+    expect(helper.countWeightedTokenMatches("camera", "north", 1, 1.5)).toBe(0);
     expect(
       helper.collectSearchableTerms({
         _source: {

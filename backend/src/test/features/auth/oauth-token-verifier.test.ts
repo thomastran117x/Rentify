@@ -40,7 +40,8 @@ function createToken(overrides?: {
     email: "user@example.com",
     ...overrides?.payload,
   });
-  const signature = overrides?.signature ?? Buffer.from("sig").toString("base64url");
+  const signature =
+    overrides?.signature ?? Buffer.from("sig").toString("base64url");
 
   return `${header}.${payload}.${signature}`;
 }
@@ -56,9 +57,11 @@ function createJwksResponse(keys: unknown[]) {
 }
 
 function readVerifierCache() {
-  return (OAuthTokenVerifier as unknown as {
-    jwksCache: Map<string, unknown>;
-  }).jwksCache;
+  return (
+    OAuthTokenVerifier as unknown as {
+      jwksCache: Map<string, unknown>;
+    }
+  ).jwksCache;
 }
 
 describe("OAuthTokenVerifier", () => {
@@ -79,14 +82,20 @@ describe("OAuthTokenVerifier", () => {
       nonce: "nonce-1",
     };
 
-    await expect(verifier.verifyIdToken("bad-token", options)).rejects.toBeInstanceOf(
-      BadRequestError,
-    );
     await expect(
-      verifier.verifyIdToken(`bad.${encodeSegment({ sub: "user-1" })}.sig`, options),
+      verifier.verifyIdToken("bad-token", options),
     ).rejects.toBeInstanceOf(BadRequestError);
     await expect(
-      verifier.verifyIdToken(`${encodeSegment({ alg: "RS256" })}.bad.sig`, options),
+      verifier.verifyIdToken(
+        `bad.${encodeSegment({ sub: "user-1" })}.sig`,
+        options,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    await expect(
+      verifier.verifyIdToken(
+        `${encodeSegment({ alg: "RS256" })}.bad.sig`,
+        options,
+      ),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 
@@ -138,7 +147,8 @@ describe("OAuthTokenVerifier", () => {
   });
 
   it("verifies a valid token with a matching RSA JWK and caches the fetched key set", async () => {
-    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock }).fetch;
+    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
+      .fetch;
     fetchMock.mockResolvedValue(
       createJwksResponse([
         {
@@ -182,7 +192,8 @@ describe("OAuthTokenVerifier", () => {
   });
 
   it("supports x5c certificate keys and rejects invalid signatures", async () => {
-    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock }).fetch;
+    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
+      .fetch;
     fetchMock.mockResolvedValue(
       createJwksResponse([
         {
@@ -209,7 +220,8 @@ describe("OAuthTokenVerifier", () => {
   });
 
   it("rejects missing signing keys and unsupported signing key material", async () => {
-    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock }).fetch;
+    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
+      .fetch;
     const verifier = new OAuthTokenVerifier();
 
     fetchMock.mockResolvedValueOnce(
@@ -259,7 +271,8 @@ describe("OAuthTokenVerifier", () => {
   });
 
   it("retries transient JWKS failures before succeeding", async () => {
-    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock }).fetch;
+    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
+      .fetch;
     fetchMock
       .mockResolvedValueOnce({
         status: 500,
@@ -281,7 +294,10 @@ describe("OAuthTokenVerifier", () => {
       maxDelayMs: 1,
     });
     jest
-      .spyOn(verifier as unknown as { sleep(delayMs: number): Promise<void> }, "sleep")
+      .spyOn(
+        verifier as unknown as { sleep(delayMs: number): Promise<void> },
+        "sleep",
+      )
       .mockResolvedValue(undefined);
 
     await expect(
@@ -299,14 +315,18 @@ describe("OAuthTokenVerifier", () => {
   });
 
   it("fails closed when JWKS fetching returns non-transient or empty results", async () => {
-    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock }).fetch;
+    const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
+      .fetch;
     const verifier = new OAuthTokenVerifier({
       maxRetries: 1,
       initialDelayMs: 1,
       maxDelayMs: 1,
     });
     jest
-      .spyOn(verifier as unknown as { sleep(delayMs: number): Promise<void> }, "sleep")
+      .spyOn(
+        verifier as unknown as { sleep(delayMs: number): Promise<void> },
+        "sleep",
+      )
       .mockResolvedValue(undefined);
 
     fetchMock.mockResolvedValueOnce({
@@ -324,9 +344,7 @@ describe("OAuthTokenVerifier", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
 
     readVerifierCache().clear();
-    fetchMock.mockResolvedValueOnce(
-      createJwksResponse([]),
-    );
+    fetchMock.mockResolvedValueOnce(createJwksResponse([]));
 
     await expect(
       verifier.verifyIdToken(createToken(), {

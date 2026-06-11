@@ -65,9 +65,7 @@ function createBookingRequestPersistence(
   };
 }
 
-function createBookingRequestInput(
-  overrides: Record<string, unknown> = {},
-) {
+function createBookingRequestInput(overrides: Record<string, unknown> = {}) {
   return {
     postingId: "posting-1",
     renterId: "renter-1",
@@ -1080,8 +1078,12 @@ describe("BookingsRepository", () => {
     };
     const repository = new BookingsRepository(database as never);
 
-    await expect(repository.decline("booking-1", "org-1", null)).resolves.toBeNull();
-    await expect(repository.decline("booking-1", "org-1", null)).resolves.toBeNull();
+    await expect(
+      repository.decline("booking-1", "org-1", null),
+    ).resolves.toBeNull();
+    await expect(
+      repository.decline("booking-1", "org-1", null),
+    ).resolves.toBeNull();
     expect(updateMany).not.toHaveBeenCalled();
   });
 
@@ -1425,10 +1427,7 @@ describe("BookingsRepository", () => {
   });
 
   it.each([
-    [
-      "cannot find the booking request",
-      null,
-    ],
+    ["cannot find the booking request", null],
     [
       "the booking request is already in a terminal status",
       {

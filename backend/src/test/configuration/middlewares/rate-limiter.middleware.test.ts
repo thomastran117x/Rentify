@@ -93,7 +93,9 @@ function createApp(
   app.post("/auth/oauth/google/link", (context) => context.json({ ok: true }));
   app.delete("/auth/oauth/google", (context) => context.json({ ok: true }));
   app.post("/payments/:id/refunds", (context) => context.json({ ok: true }));
-  app.post("/payments/webhooks/square", (context) => context.json({ ok: true }));
+  app.post("/payments/webhooks/square", (context) =>
+    context.json({ ok: true }),
+  );
   app.post("/postings", (context) => context.json({ ok: true }));
 
   return { app, cacheEval, verifyAccessToken, requestLogger };
@@ -272,7 +274,9 @@ describe("rateLimiterMiddleware", () => {
   });
 
   it("uses token-bucket headers on payment webhook routes", async () => {
-    const { app, cacheEval } = createApp(jest.fn().mockResolvedValue([1, 119, 0]));
+    const { app, cacheEval } = createApp(
+      jest.fn().mockResolvedValue([1, 119, 0]),
+    );
     const response = await app.request(
       "http://rent.test/payments/webhooks/square",
       {

@@ -1843,7 +1843,9 @@ describe("PostingsRepository", () => {
         }>,
         nextPhotos: Array<Record<string, unknown>>,
       ) => Array<Record<string, unknown>>;
-      collectBlockedRanges: (posting: ReturnType<typeof createPostingPersistence>) => Array<Record<string, string>>;
+      collectBlockedRanges: (
+        posting: ReturnType<typeof createPostingPersistence>,
+      ) => Array<Record<string, string>>;
       extractSearchableAttributes: (
         family: string,
         subtype: string,
@@ -1853,13 +1855,17 @@ describe("PostingsRepository", () => {
         variant: { family: string; subtype: string },
         details: Record<string, unknown>,
       ) => Record<string, unknown>;
-      readPostingDetails: (posting: Record<string, unknown>) => Record<string, unknown>;
+      readPostingDetails: (
+        posting: Record<string, unknown>,
+      ) => Record<string, unknown>;
       resolveDetailsColumnName: (family?: string) => string;
       orderBatchResult: <TRecord extends { id: string }>(
         ids: string[],
         records: TRecord[],
       ) => { postings: TRecord[]; missingIds: string[] };
-      readMysqlLockResult: (value: bigint | number | boolean | null | undefined) => boolean;
+      readMysqlLockResult: (
+        value: bigint | number | boolean | null | undefined,
+      ) => boolean;
       readNumberLike: (value: bigint | number | null | undefined) => number;
     };
 
@@ -1976,7 +1982,9 @@ describe("PostingsRepository", () => {
             endAt: new Date("2026-06-02T00:00:00.000Z"),
             holdExpiresAt: new Date("2026-06-03T00:00:00.000Z"),
             convertedAt: null,
-            conversionReservationExpiresAt: new Date("2026-06-04T00:00:00.000Z"),
+            conversionReservationExpiresAt: new Date(
+              "2026-06-04T00:00:00.000Z",
+            ),
           },
           {
             id: "booking-declined",
@@ -2010,23 +2018,15 @@ describe("PostingsRepository", () => {
     ]);
 
     expect(
-      repository.extractSearchableAttributes(
-        "place",
-        "car",
-        {
-          guest_capacity: 2,
-        },
-      ),
+      repository.extractSearchableAttributes("place", "car", {
+        guest_capacity: 2,
+      }),
     ).toEqual({});
     expect(
-      repository.extractSearchableAttributes(
-        "equipment",
-        "camera",
-        {
-          brand: "Canon",
-          hidden: "ignore",
-        },
-      ),
+      repository.extractSearchableAttributes("equipment", "camera", {
+        brand: "Canon",
+        hidden: "ignore",
+      }),
     ).toEqual({
       brand: "Canon",
     });
