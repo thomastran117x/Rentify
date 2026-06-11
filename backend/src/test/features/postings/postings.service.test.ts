@@ -3,16 +3,17 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { RequestValidationError } from "@/configuration/validation/request";
+import {
+  MAX_BATCH_IDS,
+  isPostingPubliclyVisible,
+  toPublicPostingRecord,
+} from "@/features/postings/postings.model";
 import type {
   PostingAvailabilityBlockInput,
   PostingAvailabilityBlockRecord,
   PostingRecord,
   PublicPostingRecord,
   UpsertPostingInput,
-} from "@/features/postings/postings.model";
-import {
-  isPostingPubliclyVisible,
-  toPublicPostingRecord,
 } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -552,6 +553,16 @@ function getValidationDetails(
     path: string;
     message: string;
   }>;
+}
+
+function captureError(action: () => unknown): unknown {
+  try {
+    action();
+  } catch (error) {
+    return error;
+  }
+
+  return null;
 }
 
 describe("PostingsService", () => {
@@ -1803,6 +1814,661 @@ describe("PostingsService", () => {
       {
         path: "attr.guest_capacity",
         message: "Numeric attributes must be valid numbers.",
+      },
+    ]);
+  });
+
+  it("surfaces missing-row conflicts for write operations after authorization succeeds", async () => {
+    const updateRepository = new FakePostingsRepository();
+    updateRepository.update = jest.fn(async () => null) as never;
+    const updateService = createService(updateRepository);
+
+    await expect(
+      updateService.update("posting-1", "owner-1", createValidInput()),
+    ).rejects.toThrow("Posting could not be found.");
+
+    const blockRepository = new FakePostingsRepository();
+    blockRepository.updateOwnerAvailabilityBlock = jest.fn(
+      async () => null,
+    ) as never;
+    const blockService = createService(blockRepository);
+
+    await expect(
+      blockService.updateOwnerAvailabilityBlock(
+        "posting-1",
+        "owner-1",
+        "block-1",
+        {
+          startAt: "2026-05-04T00:00:00.000Z",
+          endAt: "2026-05-05T00:00:00.000Z",
+        },
+      ),
+    ).rejects.toThrow(
+      "This availability block changed before the update could be completed.",
+    );
+
+    const deleteRepository = new FakePostingsRepository();
+    deleteRepository.deleteResult = false;
+    const deleteService = createService(deleteRepository);
+
+    await expect(
+      deleteService.deleteOwnerAvailabilityBlock(
+        "posting-1",
+        "owner-1",
+        "block-1",
+      ),
+    ).rejects.toThrow("Availability block could not be found.");
+
+    const publishRepository = new FakePostingsRepository();
+    publishRepository.publish = jest.fn(async () => null) as never;
+    const publishService = createService(publishRepository);
+
+    await expect(
+      publishService.publish("posting-1", "owner-1"),
+    ).rejects.toThrow("Posting could not be found.");
+
+    const pauseRepository = new FakePostingsRepository();
+    pauseRepository.posting = {
+      ...pauseRepository.posting,
+      status: "published",
+      publishedAt: "2026-04-21T00:00:00.000Z",
+    };
+    pauseRepository.pause = jest.fn(async () => null) as never;
+    const pauseService = createService(pauseRepository);
+
+    await expect(
+      pauseService.pause("posting-1", "owner-1"),
+    ).rejects.toThrow("Posting could not be found.");
+
+    const unpauseRepository = new FakePostingsRepository();
+    unpauseRepository.posting = {
+      ...unpauseRepository.posting,
+      status: "paused",
+      pausedAt: "2026-04-23T00:00:00.000Z",
+      publishedAt: "2026-04-21T00:00:00.000Z",
+    };
+    unpauseRepository.unpause = jest.fn(async () => null) as never;
+    const unpauseService = createService(unpauseRepository);
+
+    await expect(
+      unpauseService.unpause("posting-1", "owner-1"),
+    ).rejects.toThrow("Posting could not be found.");
+  });
+
+  it("covers posting draft and asset validation helper branches", async () => {
+    const service = createService(
+      new FakePostingsRepository(),
+    ) as unknown as {
+      normalizePhotos: (photos: Array<Record<string, unknown>>) => unknown[];
+      normalizeAvailabilityBlocks: (
+        blocks: PostingAvailabilityBlockInput[],
+      ) => PostingAvailabilityBlockInput[];
+      assertManagedBlob: (blobUrl: string, blobName: string) => void;
+      assertCanPublish: (posting: PostingRecord) => void;
+      assertPublishableDraftShape: (input: UpsertPostingInput) => void;
+      normalizeBatchIds: (ids: string[]) => string[];
+    };
+
+    expect(() => service.normalizePhotos([])).toThrow(
+      "At least one photo is required.",
+    );
+    expect(() =>
+      service.normalizePhotos(
+        Array.from({ length: 11 }, (_, index) => ({
+          blobUrl: `https://example.blob.core.windows.net/postings/photo-${index}.jpg`,
+          blobName: `postings/photo-${index}.jpg`,
+          position: index,
+        })),
+      ),
+    ).toThrow("A posting can include at most");
+    expect(() =>
+      service.normalizePhotos([
+        {
+          blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+          blobName: "postings/photo-1.jpg",
+          position: 0,
+        },
+        {
+          blobUrl: "https://example.blob.core.windows.net/postings/photo-2.jpg",
+          blobName: "postings/photo-2.jpg",
+          position: 0,
+        },
+      ]),
+    ).toThrow("Photo positions must be unique.");
+    expect(() =>
+      service.normalizePhotos([
+        {
+          blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+          blobName: "postings/photo-1.jpg",
+          thumbnailBlobUrl:
+            "https://example.blob.core.windows.net/postings/photo-1-thumb.jpg",
+          position: 0,
+        },
+      ]),
+    ).toThrow(
+      "Thumbnail blob URL and thumbnail blob name must be provided together.",
+    );
+    expect(() =>
+      service.normalizeAvailabilityBlocks([
+        {
+          startAt: "2026-05-03T00:00:00.000Z",
+          endAt: "2026-05-03T00:00:00.000Z",
+        },
+      ]),
+    ).toThrow("Availability block dates must define a valid, non-empty range.");
+    expect(() =>
+      service.normalizeAvailabilityBlocks([
+        {
+          startAt: "2026-05-01T00:00:00.000Z",
+          endAt: "2026-05-03T00:00:00.000Z",
+        },
+        {
+          startAt: "2026-05-02T00:00:00.000Z",
+          endAt: "2026-05-04T00:00:00.000Z",
+        },
+      ]),
+    ).toThrow("Availability blocks may not overlap.");
+
+    Object.assign(service as object, {
+      blobService: {
+        isConfigured: () => false,
+        isManagedBlobUrl: () => true,
+      },
+    });
+    expect(() =>
+      service.assertManagedBlob("https://example.test/blob", "blob"),
+    ).toThrow("Posting photos require Azure Blob Storage");
+
+    Object.assign(service as object, {
+      blobService: {
+        isConfigured: () => true,
+        isManagedBlobUrl: () => false,
+      },
+    });
+    expect(() =>
+      service.assertManagedBlob("https://example.test/blob", "blob"),
+    ).toThrow("Posting photo URLs must match");
+
+    const validPosting = buildPostingRecord(createValidInput());
+    expect(() =>
+      service.assertCanPublish({
+        ...validPosting,
+        photos: [],
+      }),
+    ).toThrow("Published postings must include between 1 and 10 photos.");
+    expect(() =>
+      service.assertCanPublish({
+        ...validPosting,
+        pricing: {
+          ...validPosting.pricing,
+          daily: {
+            amount: 0,
+          },
+        },
+      }),
+    ).toThrow("Published postings must include a valid daily price.");
+    expect(() =>
+      service.assertCanPublish({
+        ...validPosting,
+        location: {
+          ...validPosting.location,
+          latitude: 91,
+        },
+      }),
+    ).toThrow("Published postings must include a valid latitude.");
+    expect(() =>
+      service.assertCanPublish({
+        ...validPosting,
+        location: {
+          ...validPosting.location,
+          longitude: 181,
+        },
+      }),
+    ).toThrow("Published postings must include a valid longitude.");
+
+    const validInput = createValidInput();
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        name: "   ",
+      }),
+    ).toThrow("Posting name is required.");
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        description: "   ",
+      }),
+    ).toThrow("Posting description is required.");
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        pricing: {
+          ...validInput.pricing,
+          daily: {
+            amount: 0,
+          },
+        },
+      }),
+    ).toThrow("Posting daily pricing is required.");
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        location: {
+          ...validInput.location,
+          latitude: -91,
+        },
+      }),
+    ).toThrow("Latitude must be between -90 and 90.");
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        location: {
+          ...validInput.location,
+          longitude: 181,
+        },
+      }),
+    ).toThrow("Longitude must be between -180 and 180.");
+    expect(() =>
+      service.assertPublishableDraftShape({
+        ...validInput,
+        maxBookingDurationDays: 0,
+      }),
+    ).toThrow("Maximum booking duration must be an integer between 1 and");
+
+    expect(() => service.normalizeBatchIds([])).toThrow(
+      "At least one posting id is required.",
+    );
+    expect(() =>
+      service.normalizeBatchIds(
+        Array.from({ length: MAX_BATCH_IDS + 1 }, (_, index) => `posting-${index}`),
+      ),
+    ).toThrow("At most");
+  });
+
+  it("covers search attribute normalization helpers across supported kinds", async () => {
+    const service = createService(
+      new FakePostingsRepository(),
+    ) as unknown as {
+      normalizeSearchAttributeFilters: (
+        filters: Array<Record<string, unknown>> | undefined,
+        family?: string,
+        subtype?: string,
+      ) => unknown;
+    };
+
+    expect(
+      service.normalizeSearchAttributeFilters(
+        [
+          {
+            key: "guest_capacity",
+            value: 1,
+          },
+        ],
+        undefined,
+        undefined,
+      ),
+    ).toBeUndefined();
+    const invalidVariantError = captureError(() =>
+      service.normalizeSearchAttributeFilters(
+        [
+          {
+            key: "guest_capacity",
+            value: 1,
+          },
+        ],
+        "place",
+        "car",
+      ),
+    );
+    expect(invalidVariantError).toBeInstanceOf(RequestValidationError);
+    expect((invalidVariantError as RequestValidationError).details).toEqual([
+      {
+        path: "attr",
+        message: "Attribute filters require a valid family and subtype.",
+      },
+    ]);
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "property_type",
+                value: ["condo"],
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("String attributes support a single exact value only.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "property_type",
+                value: true,
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("String attributes require a string value.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "amenities",
+                min: 1,
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Array attributes require one or more exact values.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "amenities",
+                value: ["wifi", true],
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Array attributes require string values.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "pet_friendly",
+                min: 1,
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Boolean attributes support an exact true/false value only.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "pet_friendly",
+                value: "maybe",
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Boolean attributes must be true or false.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "guest_capacity",
+                value: [1, 2],
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe(
+      "Numeric attributes support a single exact value or a min/max range.",
+    );
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "guest_capacity",
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Numeric attributes require an exact value or a min/max range.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "guest_capacity",
+                min: 5,
+                max: 2,
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Attribute minimum cannot exceed attribute maximum.");
+    expect(
+      (
+        captureError(() =>
+          service.normalizeSearchAttributeFilters(
+            [
+              {
+                key: "guest_capacity",
+                value: "2.5",
+              },
+            ],
+            "place",
+            "entire_place",
+          ),
+        ) as RequestValidationError
+      ).details?.[0]?.message,
+    ).toBe("Integer attributes must be whole numbers.");
+
+    expect(
+      service.normalizeSearchAttributeFilters(
+        [
+          {
+            key: "pet_friendly",
+            value: " yes ",
+          },
+          {
+            key: "amenities",
+            value: [" WiFi ", "desk", "wifi"],
+          },
+          {
+            key: "guest_capacity",
+            min: "2",
+            max: "4",
+          },
+        ],
+        "place",
+        "entire_place",
+      ),
+    ).toEqual([
+      {
+        key: "pet_friendly",
+        value: true,
+      },
+      {
+        key: "amenities",
+        value: ["wifi", "desk"],
+      },
+      {
+        key: "guest_capacity",
+        min: 2,
+        max: 4,
+      },
+    ]);
+  });
+
+  it("covers posting detail normalization helpers across supported kinds", async () => {
+    const service = createService(
+      new FakePostingsRepository(),
+    ) as unknown as {
+      normalizeSearchableAttributeValue: (
+        key: string,
+        value: unknown,
+        definition: {
+          kind: "string" | "number" | "integer" | "boolean" | "stringArray";
+          min?: number;
+          max?: number;
+        },
+      ) => unknown;
+    };
+
+    expect(
+      service.normalizeSearchableAttributeValue("property_type", "  condo  ", {
+        kind: "string",
+      }),
+    ).toBe("condo");
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("property_type", 1, {
+            kind: "string",
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.property_type",
+        message: "Detail must be a string.",
+      },
+    ]);
+
+    expect(
+      service.normalizeSearchableAttributeValue(
+        "amenities",
+        [" wifi ", "desk", "wifi"],
+        {
+          kind: "stringArray",
+        },
+      ),
+    ).toEqual(["wifi", "desk"]);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("amenities", "wifi", {
+            kind: "stringArray",
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.amenities",
+        message: "Detail must be an array of strings.",
+      },
+    ]);
+
+    expect(
+      service.normalizeSearchableAttributeValue("furnished", true, {
+        kind: "boolean",
+      }),
+    ).toBe(true);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("furnished", "yes", {
+            kind: "boolean",
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.furnished",
+        message: "Detail must be a boolean.",
+      },
+    ]);
+
+    expect(
+      service.normalizeSearchableAttributeValue("guest_capacity", 2, {
+        kind: "integer",
+        min: 1,
+        max: 10,
+      }),
+    ).toBe(2);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("guest_capacity", "2", {
+            kind: "number",
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.guest_capacity",
+        message: "Detail must be a number.",
+      },
+    ]);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("guest_capacity", 2.5, {
+            kind: "integer",
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.guest_capacity",
+        message: "Detail must be an integer.",
+      },
+    ]);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("guest_capacity", 0, {
+            kind: "integer",
+            min: 1,
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.guest_capacity",
+        message: "Detail must be at least 1.",
+      },
+    ]);
+    expect(
+      getValidationDetails(
+        captureError(() =>
+          service.normalizeSearchableAttributeValue("guest_capacity", 11, {
+            kind: "integer",
+            max: 10,
+          }),
+        ),
+      ),
+    ).toEqual([
+      {
+        path: "details.guest_capacity",
+        message: "Detail must be at most 10.",
       },
     ]);
   });

@@ -7,6 +7,7 @@ jest.mock("@/configuration/resources/rabbitmq", () => ({
 }));
 
 function createMockChannel() {
+  const eventHandlers = new Map<string, () => void>();
   let consumeHandler:
     | ((
         message: {
@@ -40,9 +41,14 @@ function createMockChannel() {
       close: jest.fn(async () => undefined),
       ack: jest.fn(),
       nack: jest.fn(),
-      on: jest.fn(),
+      on: jest.fn((event: string, handler: () => void) => {
+        eventHandlers.set(event, handler);
+      }),
     },
     getConsumeHandler: () => consumeHandler,
+    emit: (event: string) => {
+      eventHandlers.get(event)?.();
+    },
   };
 }
 
@@ -264,6 +270,20 @@ describe("RecommendationActivityQueueService", () => {
     expect(channel.close).toHaveBeenCalled();
   });
 
+  it("ignores null broker deliveries", async () => {
+    const { channel, getConsumeHandler } = createMockChannel();
+    mockCreateRabbitMqChannel.mockResolvedValue(channel);
+    const onMessage = jest.fn(async () => undefined);
+    const service = new RecommendationActivityQueueService();
+
+    await service.consumeActivityEvents(1, onMessage);
+    await getConsumeHandler?.()?.(null);
+
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(channel.ack).not.toHaveBeenCalled();
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
   it("requeues messages when the worker throws before ack handling", async () => {
     const { channel, getConsumeHandler } = createMockChannel();
     mockCreateRabbitMqChannel.mockResolvedValue(channel);
@@ -285,5 +305,101 @@ describe("RecommendationActivityQueueService", () => {
 
     expect(channel.nack).toHaveBeenCalledWith(message, false, true);
     expect(channel.ack).not.toHaveBeenCalled();
+  });
+
+  it("recreates the publisher channel after a confirm failure", async () => {
+    const first = createMockChannel();
+    const second = createMockChannel();
+    first.channel.waitForConfirms = jest.fn(async () => {
+      throw new Error("confirm failed");
+    });
+    mockCreateRabbitMqChannel
+      .mockResolvedValueOnce(first.channel)
+      .mockResolvedValueOnce(second.channel);
+    const service = new RecommendationActivityQueueService();
+
+    await expect(service.publishActivityEvent(createEventPayload())).rejects.toThrow(
+      "confirm failed",
+    );
+
+    await service.publishActivityEvent(
+      createEventPayload({ eventId: "event-2" }),
+    );
+
+    expect(mockCreateRabbitMqChannel).toHaveBeenCalledTimes(2);
+    expect(second.channel.publish).toHaveBeenCalledWith(
+      "recommendation-activity.exchange",
+      "main",
+      expect.any(Buffer),
+      expect.objectContaining({
+        messageId: "event-2",
+      }),
+    );
+  });
+
+  it("recreates the publisher channel after broker close and error events", async () => {
+    const first = createMockChannel();
+    const second = createMockChannel();
+    const third = createMockChannel();
+    mockCreateRabbitMqChannel
+      .mockResolvedValueOnce(first.channel)
+      .mockResolvedValueOnce(second.channel)
+      .mockResolvedValueOnce(third.channel);
+    const service = new RecommendationActivityQueueService();
+
+    await service.publishActivityEvent(createEventPayload());
+    first.emit("close");
+    await service.publishActivityEvent(
+      createEventPayload({ eventId: "event-2" }),
+    );
+    second.emit("error");
+    await service.publishActivityEvent(
+      createEventPayload({ eventId: "event-3" }),
+    );
+
+    expect(mockCreateRabbitMqChannel).toHaveBeenCalledTimes(3);
+    expect(third.channel.publish).toHaveBeenCalledWith(
+      "recommendation-activity.exchange",
+      "main",
+      expect.any(Buffer),
+      expect.objectContaining({
+        messageId: "event-3",
+      }),
+    );
+  });
+
+  it("clears the cached topology promise when publisher setup fails", async () => {
+    const first = createMockChannel();
+    const second = createMockChannel();
+    first.channel.assertExchange = jest.fn(async () => {
+      throw new Error("topology failed");
+    });
+    mockCreateRabbitMqChannel
+      .mockResolvedValueOnce(first.channel)
+      .mockResolvedValueOnce(second.channel);
+    const service = new RecommendationActivityQueueService();
+
+    await expect(
+      service.publishDeadLetterPayload({ raw: true }),
+    ).rejects.toThrow("topology failed");
+
+    await expect(
+      service.publishDeadLetterPayload(
+        { raw: "retry" },
+        {
+          messageId: "dead-2",
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(mockCreateRabbitMqChannel).toHaveBeenCalledTimes(2);
+    expect(second.channel.publish).toHaveBeenCalledWith(
+      "recommendation-activity.exchange",
+      "dead-letter",
+      expect.any(Buffer),
+      expect.objectContaining({
+        messageId: "dead-2",
+      }),
+    );
   });
 });

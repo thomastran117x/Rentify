@@ -1714,4 +1714,428 @@ describe("PostingsRepository", () => {
       }),
     );
   });
+
+  it("lists, finds, updates, and deletes owner availability blocks", async () => {
+    const transaction = {
+      postingAvailabilityBlock: {
+        updateMany: jest
+          .fn()
+          .mockResolvedValueOnce({
+            count: 1,
+          })
+          .mockResolvedValueOnce({
+            count: 0,
+          }),
+        findUniqueOrThrow: jest.fn(async () => ({
+          id: "block-1",
+          startAt: new Date("2026-06-02T00:00:00.000Z"),
+          endAt: new Date("2026-06-04T00:00:00.000Z"),
+          note: null,
+          createdAt: new Date("2026-05-20T12:00:00.000Z"),
+          updatedAt: new Date("2026-05-20T12:10:00.000Z"),
+        })),
+        deleteMany: jest
+          .fn()
+          .mockResolvedValueOnce({
+            count: 1,
+          })
+          .mockResolvedValueOnce({
+            count: 0,
+          }),
+        findMany: jest.fn(async () => [
+          {
+            id: "block-1",
+            startAt: new Date("2026-06-01T00:00:00.000Z"),
+            endAt: new Date("2026-06-03T00:00:00.000Z"),
+            note: "Owner stay",
+            createdAt: new Date("2026-05-20T12:00:00.000Z"),
+            updatedAt: new Date("2026-05-20T12:00:00.000Z"),
+          },
+        ]),
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: "block-1",
+            startAt: new Date("2026-06-01T00:00:00.000Z"),
+            endAt: new Date("2026-06-03T00:00:00.000Z"),
+            note: "Owner stay",
+            createdAt: new Date("2026-05-20T12:00:00.000Z"),
+            updatedAt: new Date("2026-05-20T12:00:00.000Z"),
+          })
+          .mockResolvedValueOnce(null),
+      },
+      searchReindexRun: {
+        findFirst: jest.fn(async () => null),
+      },
+      postingSearchOutbox: {
+        createMany: jest.fn(async () => undefined),
+      },
+    };
+    const repository = new PostingsRepository({
+      postingAvailabilityBlock: transaction.postingAvailabilityBlock,
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as never);
+
+    await expect(
+      repository.listOwnerAvailabilityBlocks("posting-1"),
+    ).resolves.toEqual([
+      {
+        id: "block-1",
+        startAt: "2026-06-01T00:00:00.000Z",
+        endAt: "2026-06-03T00:00:00.000Z",
+        note: "Owner stay",
+        createdAt: "2026-05-20T12:00:00.000Z",
+        updatedAt: "2026-05-20T12:00:00.000Z",
+      },
+    ]);
+    await expect(
+      repository.findOwnerAvailabilityBlock("posting-1", "block-1"),
+    ).resolves.toEqual({
+      id: "block-1",
+      startAt: "2026-06-01T00:00:00.000Z",
+      endAt: "2026-06-03T00:00:00.000Z",
+      note: "Owner stay",
+      createdAt: "2026-05-20T12:00:00.000Z",
+      updatedAt: "2026-05-20T12:00:00.000Z",
+    });
+    await expect(
+      repository.findOwnerAvailabilityBlock("posting-1", "missing-block"),
+    ).resolves.toBeNull();
+
+    await expect(
+      repository.updateOwnerAvailabilityBlock("posting-1", "block-1", {
+        startAt: "2026-06-02T00:00:00.000Z",
+        endAt: "2026-06-04T00:00:00.000Z",
+      }),
+    ).resolves.toEqual({
+      id: "block-1",
+      startAt: "2026-06-02T00:00:00.000Z",
+      endAt: "2026-06-04T00:00:00.000Z",
+      note: undefined,
+      createdAt: "2026-05-20T12:00:00.000Z",
+      updatedAt: "2026-05-20T12:10:00.000Z",
+    });
+    await expect(
+      repository.updateOwnerAvailabilityBlock("posting-1", "missing-block", {
+        startAt: "2026-06-02T00:00:00.000Z",
+        endAt: "2026-06-04T00:00:00.000Z",
+      }),
+    ).resolves.toBeNull();
+
+    await expect(
+      repository.deleteOwnerAvailabilityBlock("posting-1", "block-1"),
+    ).resolves.toBe(true);
+    await expect(
+      repository.deleteOwnerAvailabilityBlock("posting-1", "missing-block"),
+    ).resolves.toBe(false);
+  });
+
+  it("covers posting repository helper branches for photos, ranges, and detail columns", async () => {
+    const repository = new PostingsRepository({} as never) as unknown as {
+      mergePhotosWithExisting: (
+        existingPhotos: Array<{
+          blobUrl: string;
+          blobName: string;
+          thumbnailBlobUrl: string | null;
+          thumbnailBlobName: string | null;
+        }>,
+        nextPhotos: Array<Record<string, unknown>>,
+      ) => Array<Record<string, unknown>>;
+      collectBlockedRanges: (posting: ReturnType<typeof createPostingPersistence>) => Array<Record<string, string>>;
+      extractSearchableAttributes: (
+        family: string,
+        subtype: string,
+        attributes: Record<string, unknown>,
+      ) => Record<string, unknown>;
+      toPostingDetailsColumns: (
+        variant: { family: string; subtype: string },
+        details: Record<string, unknown>,
+      ) => Record<string, unknown>;
+      readPostingDetails: (posting: Record<string, unknown>) => Record<string, unknown>;
+      resolveDetailsColumnName: (family?: string) => string;
+      orderBatchResult: <TRecord extends { id: string }>(
+        ids: string[],
+        records: TRecord[],
+      ) => { postings: TRecord[]; missingIds: string[] };
+      readMysqlLockResult: (value: bigint | number | boolean | null | undefined) => boolean;
+      readNumberLike: (value: bigint | number | null | undefined) => number;
+    };
+
+    expect(
+      repository.mergePhotosWithExisting(
+        [
+          {
+            blobUrl: "https://example.test/photo-1.jpg",
+            blobName: "postings/photo-1.jpg",
+            thumbnailBlobUrl: "https://example.test/photo-1.webp",
+            thumbnailBlobName: "postings/thumbnails/photo-1.webp",
+          },
+          {
+            blobUrl: "https://example.test/photo-2.jpg",
+            blobName: "postings/photo-2.jpg",
+            thumbnailBlobUrl: null,
+            thumbnailBlobName: null,
+          },
+        ],
+        [
+          {
+            blobUrl: "https://example.test/photo-1.jpg",
+            blobName: "postings/photo-1.jpg",
+            position: 0,
+          },
+          {
+            blobUrl: "https://example.test/photo-2.jpg",
+            blobName: "postings/photo-2.jpg",
+            thumbnailBlobUrl: "https://example.test/photo-2.webp",
+            thumbnailBlobName: "postings/thumbnails/photo-2.webp",
+            position: 1,
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        blobUrl: "https://example.test/photo-1.jpg",
+        blobName: "postings/photo-1.jpg",
+        thumbnailBlobUrl: "https://example.test/photo-1.webp",
+        thumbnailBlobName: "postings/thumbnails/photo-1.webp",
+        position: 0,
+      },
+      {
+        blobUrl: "https://example.test/photo-2.jpg",
+        blobName: "postings/photo-2.jpg",
+        thumbnailBlobUrl: "https://example.test/photo-2.webp",
+        thumbnailBlobName: "postings/thumbnails/photo-2.webp",
+        position: 1,
+      },
+    ]);
+
+    const blockedRanges = repository.collectBlockedRanges(
+      createPostingPersistence({
+        availabilityBlocks: [
+          {
+            id: "block-owner",
+            postingId: "posting-1",
+            startAt: new Date("2026-05-21T00:00:00.000Z"),
+            endAt: new Date("2026-05-22T00:00:00.000Z"),
+            note: "Owner stay",
+            source: "owner",
+            bookingRequestHold: null,
+            createdAt: new Date("2026-05-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+          },
+          {
+            id: "block-hold",
+            postingId: "posting-1",
+            startAt: new Date("2026-05-23T00:00:00.000Z"),
+            endAt: new Date("2026-05-24T00:00:00.000Z"),
+            note: null,
+            source: "booking_hold",
+            bookingRequestHold: {
+              status: "awaiting_payment",
+              convertedAt: null,
+              holdExpiresAt: new Date("2026-05-25T00:00:00.000Z"),
+            },
+            createdAt: new Date("2026-05-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+          },
+        ],
+        bookingRequests: [
+          {
+            id: "booking-valid",
+            status: "pending",
+            startAt: new Date("2026-05-26T00:00:00.000Z"),
+            endAt: new Date("2026-05-27T00:00:00.000Z"),
+            holdExpiresAt: new Date("2026-05-28T00:00:00.000Z"),
+            convertedAt: null,
+            conversionReservationExpiresAt: null,
+          },
+          {
+            id: "booking-converted",
+            status: "pending",
+            startAt: new Date("2026-05-28T00:00:00.000Z"),
+            endAt: new Date("2026-05-29T00:00:00.000Z"),
+            holdExpiresAt: new Date("2026-05-30T00:00:00.000Z"),
+            convertedAt: new Date("2026-05-28T01:00:00.000Z"),
+            conversionReservationExpiresAt: null,
+          },
+          {
+            id: "booking-expired",
+            status: "pending",
+            startAt: new Date("2026-05-30T00:00:00.000Z"),
+            endAt: new Date("2026-05-31T00:00:00.000Z"),
+            holdExpiresAt: new Date("2026-05-19T00:00:00.000Z"),
+            convertedAt: null,
+            conversionReservationExpiresAt: null,
+          },
+          {
+            id: "booking-reserved",
+            status: "pending",
+            startAt: new Date("2026-06-01T00:00:00.000Z"),
+            endAt: new Date("2026-06-02T00:00:00.000Z"),
+            holdExpiresAt: new Date("2026-06-03T00:00:00.000Z"),
+            convertedAt: null,
+            conversionReservationExpiresAt: new Date("2026-06-04T00:00:00.000Z"),
+          },
+          {
+            id: "booking-declined",
+            status: "declined",
+            startAt: new Date("2026-06-05T00:00:00.000Z"),
+            endAt: new Date("2026-06-06T00:00:00.000Z"),
+            holdExpiresAt: new Date("2026-06-07T00:00:00.000Z"),
+            convertedAt: null,
+            conversionReservationExpiresAt: null,
+          },
+        ],
+      }),
+    );
+    expect(blockedRanges).toEqual([
+      expect.objectContaining({
+        startAt: "2026-05-21T00:00:00.000Z",
+        source: "availability_block",
+      }),
+      expect.objectContaining({
+        startAt: "2026-05-23T00:00:00.000Z",
+        source: "availability_block",
+      }),
+      expect.objectContaining({
+        startAt: "2026-05-26T00:00:00.000Z",
+        source: "booking_request",
+      }),
+      expect.objectContaining({
+        startAt: "2026-05-26T00:00:00.000Z",
+        source: "renting",
+      }),
+    ]);
+
+    expect(
+      repository.extractSearchableAttributes(
+        "place",
+        "car",
+        {
+          guest_capacity: 2,
+        },
+      ),
+    ).toEqual({});
+    expect(
+      repository.extractSearchableAttributes(
+        "equipment",
+        "camera",
+        {
+          brand: "Canon",
+          hidden: "ignore",
+        },
+      ),
+    ).toEqual({
+      brand: "Canon",
+    });
+
+    expect(
+      repository.toPostingDetailsColumns(
+        {
+          family: "equipment",
+          subtype: "camera",
+        },
+        {
+          brand: "Canon",
+        },
+      ),
+    ).toMatchObject({
+      placeDetails: Prisma.DbNull,
+      equipmentDetails: {
+        brand: "Canon",
+      },
+      vehicleDetails: Prisma.DbNull,
+    });
+    expect(
+      repository.toPostingDetailsColumns(
+        {
+          family: "vehicle",
+          subtype: "car",
+        },
+        {
+          make: "Toyota",
+        },
+      ),
+    ).toMatchObject({
+      placeDetails: Prisma.DbNull,
+      equipmentDetails: Prisma.DbNull,
+      vehicleDetails: {
+        make: "Toyota",
+      },
+    });
+    expect(
+      repository.readPostingDetails(
+        createPostingPersistence({
+          family: "equipment",
+          subtype: "camera",
+          placeDetails: null,
+          equipmentDetails: {
+            brand: "Canon",
+            model: "R5",
+            condition: "Used",
+            power_source: "battery",
+            weight_lb: 2.2,
+            includes_delivery: true,
+          },
+        }),
+      ),
+    ).toMatchObject({
+      brand: "Canon",
+      model: "R5",
+    });
+    expect(
+      repository.readPostingDetails(
+        createPostingPersistence({
+          family: "vehicle",
+          subtype: "car",
+          placeDetails: null,
+          vehicleDetails: {
+            make: "Toyota",
+            model: "Corolla",
+            year: 2022,
+            seats: 5,
+            transmission: "automatic",
+            fuel_type: "gasoline",
+            license_class: "G",
+          },
+        }),
+      ),
+    ).toMatchObject({
+      make: "Toyota",
+      model: "Corolla",
+    });
+
+    expect(repository.resolveDetailsColumnName("equipment")).toBe(
+      "equipment_details",
+    );
+    expect(repository.resolveDetailsColumnName("vehicle")).toBe(
+      "vehicle_details",
+    );
+    expect(repository.resolveDetailsColumnName(undefined)).toBe(
+      "place_details",
+    );
+    expect(
+      repository.orderBatchResult(
+        ["posting-2", "missing", "posting-1"],
+        [
+          { id: "posting-1", name: "one" },
+          { id: "posting-2", name: "two" },
+        ],
+      ),
+    ).toEqual({
+      postings: [
+        { id: "posting-2", name: "two" },
+        { id: "posting-1", name: "one" },
+      ],
+      missingIds: ["missing"],
+    });
+    expect(repository.readMysqlLockResult(1n)).toBe(true);
+    expect(repository.readMysqlLockResult(1)).toBe(true);
+    expect(repository.readMysqlLockResult(false)).toBe(false);
+    expect(repository.readNumberLike(4n)).toBe(4);
+    expect(repository.readNumberLike(7)).toBe(7);
+    expect(repository.readNumberLike(null)).toBe(0);
+  });
 });

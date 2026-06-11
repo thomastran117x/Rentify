@@ -331,6 +331,151 @@ describe("RecommendationPrecomputeService", () => {
       }),
     ]);
   });
+
+  it("marks malformed user refresh jobs for retry when userId is missing", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        {
+          ...createUserRefreshJob("user-missing"),
+          userId: undefined,
+        },
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    const processed = await service.processBatch(5);
+
+    expect(processed).toBe(1);
+    expect(repository.markRefreshJobProcessed).not.toHaveBeenCalled();
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-user-missing",
+      1,
+      "User recommendation refresh job is missing a userId.",
+    );
+  });
+
+  it("marks unsupported refresh job types for retry", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        {
+          ...createUserRefreshJob("user-unsupported"),
+          id: "job-unsupported",
+          jobType: "unknown_refresh",
+        },
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    await service.processBatch(5);
+
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-unsupported",
+      1,
+      "Unsupported recommendation refresh job type: unknown_refresh",
+    );
+  });
+
+  it("marks popular refresh jobs missing segment metadata for retry", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        {
+          ...createPopularRefreshJob("family", "place"),
+          id: "job-missing-segment",
+          segmentType: undefined,
+          segmentValue: undefined,
+        },
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    await service.processBatch(5);
+
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-missing-segment",
+      1,
+      "Popular recommendation refresh job is missing segment metadata.",
+    );
+  });
+
+  it("marks invalid family segments for retry", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        {
+          ...createPopularRefreshJob("family", "invalid-family"),
+          id: "job-invalid-family",
+          segmentValue: "invalid-family",
+        },
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    await service.processBatch(5);
+
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-invalid-family",
+      1,
+      "Invalid family recommendation segment: invalid-family",
+    );
+  });
+
+  it("marks invalid family_subtype segments for retry", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        {
+          ...createPopularRefreshJob("family_subtype", "place:not-real"),
+          id: "job-invalid-family-subtype",
+          segmentValue: "place:not-real",
+        },
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    await service.processBatch(5);
+
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-invalid-family-subtype",
+      1,
+      "Invalid family_subtype recommendation segment: place:not-real",
+    );
+  });
+
+  it("falls back to a generic retry message for non-Error failures", async () => {
+    const repository = createRepositoryMock({
+      claimRefreshJobBatch: jest.fn(async () => [
+        createUserRefreshJob("user-unknown-error"),
+      ]),
+      listPublishedPopularSegments: jest.fn(async () => []),
+      listPopularSnapshotFreshness: jest.fn(async () => []),
+      enqueueRefreshJobs: jest.fn(async () => undefined),
+      listUserActivityRows: jest.fn(async () => {
+        throw "boom";
+      }),
+    });
+    const service = new RecommendationPrecomputeService(repository as never);
+
+    await service.processBatch(5);
+
+    expect(repository.markRefreshJobRetry).toHaveBeenCalledWith(
+      "job-user-unknown-error",
+      1,
+      "Unknown recommendation precompute error.",
+    );
+  });
 });
 
 function createRepositoryMock(overrides: Record<string, unknown>) {

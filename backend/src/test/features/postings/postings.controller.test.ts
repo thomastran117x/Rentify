@@ -33,6 +33,50 @@ function createPlaceDetails() {
   };
 }
 
+function createPostingBody() {
+  return {
+    variant: {
+      family: "place",
+      subtype: "entire_place",
+    },
+    name: "Test posting",
+    description: "Nice place",
+    pricing: {
+      currency: "cad",
+      daily: {
+        amount: 100,
+      },
+    },
+    photos: [
+      {
+        blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+        blobName: "postings/photo-1.jpg",
+        position: 0,
+      },
+    ],
+    tags: ["camera"],
+    details: createPlaceDetails(),
+    availabilityStatus: "available",
+    availabilityNotes: "Available soon",
+    maxBookingDurationDays: 7,
+    availabilityBlocks: [
+      {
+        startAt: "2026-05-01T00:00:00.000Z",
+        endAt: "2026-05-03T00:00:00.000Z",
+        note: "Cleaning",
+      },
+    ],
+    location: {
+      latitude: 43.7,
+      longitude: -79.4,
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      postalCode: "M5H 2N2",
+    },
+  };
+}
+
 function createContext(options?: {
   body?: unknown;
   url?: string;
@@ -423,6 +467,104 @@ describe("PostingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("creates drafts from validated request bodies", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const createDraft = jest.fn(async () => ({
+      id: "posting-1",
+      status: "draft",
+    }));
+    const controller = createController({
+      createDraft,
+    });
+    const context = createContext({
+      body: createPostingBody(),
+    });
+
+    const response = await controller.create(context);
+
+    expect(createDraft).toHaveBeenCalledWith(
+      "owner-1",
+      expect.objectContaining({
+        organizationId: "",
+        availabilityBlocks: [
+          {
+            startAt: "2026-05-01T00:00:00.000Z",
+            endAt: "2026-05-03T00:00:00.000Z",
+            note: "Cleaning",
+          },
+        ],
+        location: expect.objectContaining({
+          postalCode: "M5H 2N2",
+        }),
+      }),
+    );
+    expect(response.status).toBe(201);
+  });
+
+  it("updates drafts from validated request bodies and omits availability blocks", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const update = jest.fn(async () => ({
+      id: "posting-1",
+      status: "draft",
+    }));
+    const controller = createController({
+      update,
+    });
+    const context = createContext({
+      params: {
+        id: "posting-1",
+      },
+      body: {
+        variant: {
+          family: "place",
+          subtype: "entire_place",
+        },
+        name: "Updated posting",
+        description: "Still nice",
+        pricing: {
+          currency: "cad",
+          daily: {
+            amount: 120,
+          },
+        },
+        photos: [
+          {
+            blobUrl:
+              "https://example.blob.core.windows.net/postings/photo-1.jpg",
+            blobName: "postings/photo-1.jpg",
+            position: 0,
+          },
+        ],
+        tags: ["camera"],
+        details: createPlaceDetails(),
+        availabilityStatus: "available",
+        availabilityNotes: null,
+        maxBookingDurationDays: null,
+        location: {
+          latitude: 43.7,
+          longitude: -79.4,
+          city: "Toronto",
+          region: "Ontario",
+          country: "Canada",
+        },
+      },
+    });
+
+    const response = await controller.update(context);
+
+    expect(update).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      expect.objectContaining({
+        availabilityBlocks: [],
+        location: expect.objectContaining({
+          postalCode: undefined,
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+  });
+
   it("rejects create requests that omit the required variant", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const createDraft = jest.fn();
@@ -711,6 +853,29 @@ describe("PostingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("routes availability block deletion and returns 204", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const deleteOwnerAvailabilityBlock = jest.fn(async () => undefined);
+    const controller = createController({
+      deleteOwnerAvailabilityBlock,
+    });
+    const context = createContext({
+      params: {
+        id: "posting-1",
+        blockId: "block-1",
+      },
+    });
+
+    const response = await controller.deleteAvailabilityBlock(context);
+
+    expect(deleteOwnerAvailabilityBlock).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      "block-1",
+    );
+    expect(response.status).toBe(204);
+  });
+
   it("routes pause and unpause with posting id and owner id", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const pause = jest.fn(async () => ({
@@ -747,6 +912,55 @@ describe("PostingsController", () => {
     expect(unpauseResponse.status).toBe(200);
   });
 
+  it("publishes and archives postings while emitting lifecycle activity", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const publishPostingLifecycle = jest.fn(async () => undefined);
+    const controller = createController(
+      {
+        publish: jest.fn(async () => ({
+          id: "posting-1",
+          status: "published",
+        })),
+        archive: jest.fn(async () => ({
+          id: "posting-1",
+          status: "archived",
+        })),
+      },
+      {
+        recommendationActivityPublisher: {
+          publishPostingLifecycle,
+        },
+      },
+    );
+    const context = createContext({
+      params: {
+        id: "posting-1",
+      },
+    });
+
+    const publishResponse = await controller.publish(context);
+    const archiveResponse = await controller.archive(context);
+
+    expect(publishPostingLifecycle).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        eventType: "posting_published",
+        actorUserId: "owner-1",
+        requestId: "request-1",
+      }),
+    );
+    expect(publishPostingLifecycle).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        eventType: "posting_archived",
+        actorUserId: "owner-1",
+        requestId: "request-1",
+      }),
+    );
+    expect(publishResponse.status).toBe(200);
+    expect(archiveResponse.status).toBe(200);
+  });
+
   it("allows authenticated org members to list availability blocks", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims({ role: "user" }));
     const listOwnerAvailabilityBlocks = jest.fn(async () => ({
@@ -773,6 +987,232 @@ describe("PostingsController", () => {
       "posting-1",
       "owner-1",
     );
+  });
+
+  it("lists the caller's postings and parses owner query filters", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const listByOwner = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 2,
+        pageSize: 5,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    }));
+    const controller = createController({
+      listByOwner,
+    });
+    const context = createContext({
+      url: "https://example.test/postings/mine?page=2&pageSize=5&status=paused",
+    });
+
+    const response = await controller.listMine(context);
+
+    expect(listByOwner).toHaveBeenCalledWith("owner-1", {
+      page: 2,
+      pageSize: 5,
+      status: "paused",
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("routes batch and autocomplete queries", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const batchByOwner = jest.fn(async () => ({
+      postings: [],
+      missingIds: [],
+    }));
+    const batchPublic = jest.fn(async () => ({
+      postings: [],
+      missingIds: [],
+    }));
+    const autocompletePublic = jest.fn(async () => ({
+      suggestions: [],
+    }));
+    const controller = createController(
+      {
+        batchByOwner,
+        batchPublic,
+      },
+      {
+        autocomplete: {
+          autocompletePublic,
+        },
+      },
+    );
+
+    const mineResponse = await controller.batchMine(
+      createContext({
+        url: "https://example.test/postings/mine/batch?ids=posting-1,posting-2&ids=posting-3",
+      }),
+    );
+    const publicResponse = await controller.batchPublic(
+      createContext({
+        url: "https://example.test/postings/batch?ids=posting-4&ids=posting-5",
+      }),
+    );
+    const autocompleteResponse = await controller.autocomplete(
+      createContext({
+        url: "https://example.test/postings/autocomplete?q= loft &family=place&subtype=entire_place&limit=8",
+      }),
+    );
+
+    expect(batchByOwner).toHaveBeenCalledWith("owner-1", [
+      "posting-1",
+      "posting-2",
+      "posting-3",
+    ]);
+    expect(batchPublic).toHaveBeenCalledWith(["posting-4", "posting-5"]);
+    expect(autocompletePublic).toHaveBeenCalledWith({
+      query: "loft",
+      family: "place",
+      subtype: "entire_place",
+      limit: 8,
+    });
+    expect(mineResponse.status).toBe(200);
+    expect(publicResponse.status).toBe(200);
+    expect(autocompleteResponse.status).toBe(200);
+  });
+
+  it("routes analytics and review endpoints with parsed inputs", async () => {
+    mockRequireJwtAuth.mockResolvedValue(createClaims());
+    const getOwnerSummary = jest.fn(async () => ({ window: "30d" }));
+    const listOwnerPostingsAnalytics = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 3,
+        pageSize: 7,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    }));
+    const getPostingAnalyticsDetail = jest.fn(async () => ({
+      postingId: "posting-1",
+      window: "all",
+      granularity: "hour",
+      buckets: [],
+    }));
+    const list = jest.fn(async () => ({
+      reviews: [],
+      summary: {
+        averageRating: 0,
+        reviewCount: 0,
+      },
+      pagination: {
+        page: 2,
+        pageSize: 4,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    }));
+    const create = jest.fn(async () => ({ id: "review-1" }));
+    const updateOwn = jest.fn(async () => ({ id: "review-1" }));
+    const controller = createController(
+      {},
+      {
+        analytics: {
+          getOwnerSummary,
+          listOwnerPostingsAnalytics,
+          getPostingAnalyticsDetail,
+        },
+        reviews: {
+          list,
+          create,
+          updateOwn,
+        },
+      },
+    );
+
+    const summaryResponse = await controller.analyticsSummary(
+      createContext({
+        url: "https://example.test/postings/analytics/summary?window=30d",
+      }),
+    );
+    const analyticsResponse = await controller.analyticsPostings(
+      createContext({
+        url: "https://example.test/postings/analytics/postings?window=all&page=3&pageSize=7",
+      }),
+    );
+    const detailResponse = await controller.analyticsById(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        url: "https://example.test/postings/posting-1/analytics?window=all&granularity=hour",
+      }),
+    );
+    const listReviewsResponse = await controller.listReviews(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        url: "https://example.test/postings/posting-1/reviews?page=2&pageSize=4",
+      }),
+    );
+    const createReviewResponse = await controller.createReview(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        body: {
+          rating: 5,
+          title: "Great stay",
+          comment: "Exactly as described.",
+        },
+      }),
+    );
+    const updateReviewResponse = await controller.updateOwnReview(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+        body: {
+          rating: 4,
+          title: "Updated",
+          comment: "Still good.",
+        },
+      }),
+    );
+
+    expect(getOwnerSummary).toHaveBeenCalledWith("owner-1", "30d");
+    expect(listOwnerPostingsAnalytics).toHaveBeenCalledWith({
+      actorUserId: "owner-1",
+      organizationId: "",
+      page: 3,
+      pageSize: 7,
+      window: "all",
+    });
+    expect(getPostingAnalyticsDetail).toHaveBeenCalledWith({
+      actorUserId: "owner-1",
+      organizationId: "",
+      postingId: "posting-1",
+      window: "all",
+      granularity: "hour",
+    });
+    expect(list).toHaveBeenCalledWith("posting-1", 2, 4);
+    expect(create).toHaveBeenCalledWith("posting-1", "owner-1", {
+      rating: 5,
+      title: "Great stay",
+      comment: "Exactly as described.",
+    });
+    expect(updateOwn).toHaveBeenCalledWith("posting-1", "owner-1", {
+      rating: 4,
+      title: "Updated",
+      comment: "Still good.",
+    });
+    expect(summaryResponse.status).toBe(200);
+    expect(analyticsResponse.status).toBe(200);
+    expect(detailResponse.status).toBe(200);
+    expect(listReviewsResponse.status).toBe(200);
+    expect(createReviewResponse.status).toBe(201);
+    expect(updateReviewResponse.status).toBe(200);
   });
 
   it("tracks search click activity and returns 202", async () => {
@@ -843,6 +1283,41 @@ describe("PostingsController", () => {
 
     expect(trackPublicView).toHaveBeenCalledTimes(1);
     expect(publishPostingView).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+  });
+
+  it("skips public analytics side effects for authenticated managed posting reads", async () => {
+    mockGetOptionalJwtAuth.mockResolvedValue(createClaims());
+    const trackPublicView = jest.fn(async () => undefined);
+    const publishPostingView = jest.fn(async () => undefined);
+    const controller = createController(
+      {
+        getById: jest.fn(async () => ({
+          id: "posting-1",
+          organizationId: "org-1",
+          status: "draft",
+        })),
+      },
+      {
+        analytics: {
+          trackPublicView,
+        },
+        recommendationActivityPublisher: {
+          publishPostingView,
+        },
+      },
+    );
+    const context = createContext({
+      params: {
+        id: "posting-1",
+      },
+      url: "https://example.test/postings/posting-1",
+    });
+
+    const response = await controller.getById(context);
+
+    expect(trackPublicView).not.toHaveBeenCalled();
+    expect(publishPostingView).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 });

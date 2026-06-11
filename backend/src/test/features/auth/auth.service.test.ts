@@ -1412,4 +1412,340 @@ describe("AuthService", () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
+
+  it("locks local sign-in immediately when a locked attempt record already exists", async () => {
+    const service = createService({
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? {
+              failedAttempts: 5,
+              lockedAt: "2026-01-02T00:00:00.000Z",
+            }
+          : null,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: "missing@example.com",
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("This sign-in is locked.");
+  });
+
+  it("sends an unlock code when a failed local sign-in reaches the lock threshold", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    let unlockEmailInput:
+      | {
+          to: string;
+          unlockCode: string;
+          firstName?: string;
+        }
+      | undefined;
+    const service = createService({
+      findUserByEmail: async () => user,
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? {
+              failedAttempts: 4,
+            }
+          : null,
+      issueOtp: async () => ({
+        code: "654321",
+      }),
+      sendLoginUnlockEmail: async (input) => {
+        unlockEmailInput = input;
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: user.email,
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("This sign-in is locked.");
+
+    expect(unlockEmailInput).toEqual({
+      to: user.email,
+      unlockCode: "654321",
+      firstName: user.firstName,
+    });
+  });
+
+  it("rejects local sign-in for unverified users after a correct password check", async () => {
+    const user = {
+      ...createUser(),
+      emailVerified: false,
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    let clearedKey: string | undefined;
+    const service = createService({
+      findUserByEmail: async () => user,
+      cacheDelete: async (key) => {
+        clearedKey = key;
+        return true;
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: user.email,
+        password: "CorrectHorseBatteryStaple1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("Please verify your email address before signing in.");
+
+    expect(clearedKey).toBe("auth:local-login-attempts:user@example.com");
+  });
+
+  it("resets passwords for eligible local accounts and issues a fresh session", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    let updatedPasswordHash: string | undefined;
+    let rotatedUserId: string | undefined;
+    let clearedKey: string | undefined;
+    const service = createService({
+      findUserByEmail: async () => user,
+      updatePasswordHash: async (userId, passwordHash) => {
+        rotatedUserId = userId;
+        updatedPasswordHash = passwordHash;
+      },
+      cacheDelete: async (key) => {
+        clearedKey = key;
+        return true;
+      },
+    });
+
+    const result = await service.resetPassword({
+      client: createClient(),
+      email: user.email,
+      code: "123456",
+      newPassword: "AnotherStrongPassword1!",
+      deviceId: "device-1",
+    });
+
+    expect(rotatedUserId).toBe(user.id);
+    expect(updatedPasswordHash).toBeDefined();
+    await expect(
+      bcrypt.compare("AnotherStrongPassword1!", updatedPasswordHash ?? ""),
+    ).resolves.toBe(true);
+    expect(clearedKey).toBe("auth:local-login-attempts:user@example.com");
+    expect(result.refreshToken).toBe("refresh-token");
+  });
+
+  it("changes passwords for eligible local accounts and rejects reusing the current password", async () => {
+    const passwordHash = await bcrypt.hash("CorrectHorseBatteryStaple1!", 4);
+    const user = {
+      ...createUser(),
+      passwordHash,
+    };
+    let updatedPasswordHash: string | undefined;
+    const service = createService({
+      findUserById: async () => user,
+      updatePasswordHash: async (_userId, nextPasswordHash) => {
+        updatedPasswordHash = nextPasswordHash;
+      },
+    });
+
+    await expect(
+      service.changePassword({
+        userId: user.id,
+        client: createClient(),
+        currentPassword: "CorrectHorseBatteryStaple1!",
+        newPassword: "CorrectHorseBatteryStaple1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const result = await service.changePassword({
+      userId: user.id,
+      client: createClient(),
+      currentPassword: "CorrectHorseBatteryStaple1!",
+      newPassword: "AnotherStrongPassword1!",
+      deviceId: "device-1",
+    });
+
+    await expect(
+      bcrypt.compare("AnotherStrongPassword1!", updatedPasswordHash ?? ""),
+    ).resolves.toBe(true);
+    expect(result.accessToken).toBe("access-token");
+  });
+
+  it("activates an existing unverified user from pending signup state during email verification", async () => {
+    const pendingPasswordHash = await bcrypt.hash(
+      "CorrectHorseBatteryStaple1!",
+      4,
+    );
+    const existingUser = {
+      ...createUser(),
+      id: "user-activate",
+      email: "pending@example.com",
+      emailVerified: false,
+    };
+    let activatedUserId: string | undefined;
+    let deletedPendingKey: string | undefined;
+    const service = createService({
+      findUserByEmail: async () => existingUser,
+      cacheGetJson: async () => ({
+        email: "pending@example.com",
+        passwordHash: pendingPasswordHash,
+        firstName: "Pending",
+        lastName: "User",
+        deviceId: "device-1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }),
+      activatePendingLocalUser: async (userId, input) => {
+        activatedUserId = userId;
+        return {
+          ...existingUser,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          passwordHash: input.passwordHash,
+          emailVerified: true,
+        };
+      },
+      cacheDelete: async (key) => {
+        deletedPendingKey = key;
+        return true;
+      },
+    });
+
+    const result = await service.verifyEmail({
+      client: createClient(),
+      email: "pending@example.com",
+      code: "123456",
+      deviceId: "device-1",
+    });
+
+    expect(activatedUserId).toBe("user-activate");
+    expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
+    expect(result.user.emailVerified).toBe(true);
+  });
+
+  it("covers auth helper branches for provider verification, cooldown swallowing, and user profile mapping", async () => {
+    const service = createService();
+    Object.assign(service as object, {
+      microsoftOAuthService: {
+        verify: async () => ({
+          email: "microsoft@example.com",
+          provider: "microsoft",
+          providerUserId: "ms-user-1",
+          emailVerified: true,
+        }),
+      },
+      appleOAuthService: {
+        verify: async () => ({
+          email: "apple@example.com",
+          provider: "apple",
+          providerUserId: "apple-user-1",
+          emailVerified: true,
+        }),
+      },
+    });
+    const helper = service as unknown as {
+      sendPublicVerificationCode(recipient: {
+        email: string;
+        firstName?: string;
+      }): Promise<void>;
+      sendPasswordResetCode(user: AuthUserRecord): Promise<void>;
+      sendLocalLoginUnlockCode(user: AuthUserRecord | null): Promise<void>;
+      requireEligibleLocalPasswordUser(
+        user: AuthUserRecord | null,
+        defaultMessage: string,
+      ): AuthUserRecord;
+      redactEmail(email: string): string;
+      toUserProfile(user: AuthUserRecord): Record<string, unknown>;
+    };
+    const cooldownError = Object.assign(new Error("Cooldown"), {
+      name: "TooManyRequestError",
+    });
+
+    await expect(
+      service.microsoftAuthenticate({
+        client: createClient(),
+        nonce: "nonce-1",
+        code: "code-1",
+        codeVerifier: "verifier-1",
+        deviceId: "device-1",
+      }),
+    ).resolves.toMatchObject({
+      user: {
+        email: "microsoft@example.com",
+      },
+    });
+    await expect(
+      service.appleAuthenticate({
+        client: createClient(),
+        nonce: "nonce-1",
+        code: "code-1",
+        codeVerifier: "verifier-1",
+        deviceId: "device-1",
+      }),
+    ).resolves.toMatchObject({
+      user: {
+        email: "apple@example.com",
+      },
+    });
+
+    jest
+      .spyOn(service as unknown as { sendVerificationCode(): Promise<void> }, "sendVerificationCode")
+      .mockRejectedValueOnce(cooldownError);
+    await expect(
+      helper.sendPublicVerificationCode({
+        email: "user@example.com",
+        firstName: "Test",
+      }),
+    ).resolves.toBeUndefined();
+
+    Object.assign(service as object, {
+      otpService: {
+        issue: async () => {
+          throw cooldownError;
+        },
+      },
+    });
+    await expect(helper.sendPasswordResetCode(createUser())).resolves.toBeUndefined();
+    await expect(helper.sendLocalLoginUnlockCode(createUser())).resolves.toBeUndefined();
+    await expect(helper.sendLocalLoginUnlockCode(null)).resolves.toBeUndefined();
+    expect(() =>
+      helper.requireEligibleLocalPasswordUser(null, "Missing account."),
+    ).toThrow(BadRequestError);
+    expect(
+      helper.redactEmail("invalid-email-without-domain"),
+    ).toBe("redacted");
+    expect(
+      helper.toUserProfile({
+        ...createUser(),
+        preferredOrganizationId: "org-2",
+        organizationMemberships: [
+          {
+            organizationId: "org-1",
+            organizationName: "Northwind",
+            role: "operator",
+          },
+          {
+            organizationId: "org-2",
+            organizationName: "Acme",
+            role: "manager",
+          },
+        ],
+      } as AuthUserRecord),
+    ).toMatchObject({
+      activeOrganization: {
+        id: "org-2",
+        name: "Acme",
+        role: "manager",
+      },
+      organizationMembershipCount: 2,
+    });
+  });
 });

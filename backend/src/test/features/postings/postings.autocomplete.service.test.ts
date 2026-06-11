@@ -1,4 +1,5 @@
 import { ElasticsearchUnavailableError } from "@/configuration/resources/elasticsearch";
+import { ElasticsearchCircuitOpenError } from "@/configuration/resources/elasticsearch";
 import {
   publicAutocompletePostingsQuerySchema,
   type PostingAutocompleteInput,
@@ -328,6 +329,181 @@ describe("PostingsPublicAutocompleteService", () => {
       { value: "toronto", kind: "tag" },
       { value: "Toronto, Ontario", kind: "location" },
     ]);
+  });
+
+  it("falls back to the database when the Elasticsearch circuit is open", async () => {
+    const autocompletePublicFallback = jest.fn(
+      async (input: PostingAutocompleteInput) => [
+        {
+          name: "Toronto Loft",
+          tags: ["toronto"],
+          location: {
+            city: "Toronto",
+          },
+          publishedAt: "2026-05-01T00:00:00.000Z",
+          createdAt: "2026-05-01T00:00:00.000Z",
+        },
+      ],
+    );
+    const service = new PostingsPublicAutocompleteService(
+      {
+        autocompletePublicFallback,
+      } as unknown as PostingsRepository,
+      {
+        getPostingsIndexName: () => "postings-test",
+        requestJson: jest.fn(async () => {
+          throw new ElasticsearchCircuitOpenError(
+            "Elasticsearch circuit is open.",
+          );
+        }),
+        isEnabled: () => true,
+      } as never,
+    );
+
+    const result = await service.autocompletePublic({
+      query: " tor ",
+      limit: 6,
+    });
+
+    expect(result).toEqual({
+      query: "tor",
+      source: "database",
+      suggestions: [
+        { value: "Toronto Loft", kind: "name" },
+        { value: "toronto", kind: "tag" },
+      ],
+    });
+    expect(autocompletePublicFallback).toHaveBeenCalledWith({
+      query: "tor",
+      limit: 6,
+    });
+  });
+
+  it("clamps Elasticsearch candidate limits between the configured minimum and maximum", async () => {
+    const { requestJson, service } = createElasticsearchAutocompleteService({
+      hits: {
+        hits: [
+          {
+            _id: "posting-1",
+            _source: {
+              name: "Toronto Loft",
+              tags: ["toronto"],
+              location: {
+                city: "Toronto",
+              },
+              publishedAt: "2026-05-01T00:00:00.000Z",
+              createdAt: "2026-05-01T00:00:00.000Z",
+            },
+          },
+        ],
+      },
+    });
+
+    await service.autocompletePublic({
+      query: "tor",
+      limit: 1,
+    });
+    await service.autocompletePublic({
+      query: "tor",
+      limit: 8,
+    });
+
+    expect(readAutocompleteRequestBody(requestJson, 0)).toMatchObject({
+      size: 12,
+    });
+    expect(readAutocompleteRequestBody(requestJson, 1)).toMatchObject({
+      size: 40,
+    });
+  });
+
+  it("covers autocomplete helper ranking, formatting, and fuzzy guard branches", () => {
+    const { service } = createElasticsearchAutocompleteService();
+    const helper = service as unknown as {
+      rankSuggestions(
+        documents: Array<{
+          name?: string;
+          tags: string[];
+          location: {
+            city?: string;
+            region?: string;
+            country?: string;
+          };
+          publishedAt?: string;
+          createdAt?: string;
+        }>,
+        query: string,
+        limit: number,
+        mode: "strict" | "tolerant",
+      ): Array<{ value: string; kind: string }>;
+      formatLocationSuggestion(location: {
+        city?: string;
+        region?: string;
+        country?: string;
+      }): string;
+      matchesNormalizedQuery(
+        normalizedValue: string,
+        normalizedQuery: string,
+        mode: "strict" | "tolerant",
+      ): boolean;
+      resolveCandidateLimit(limit: number): number;
+      toTimestamp(value?: string): number;
+      resolveFuzzyDistance(normalizedQuery: string): number;
+    };
+
+    expect(helper.resolveCandidateLimit(1)).toBe(12);
+    expect(helper.resolveCandidateLimit(8)).toBe(40);
+    expect(helper.toTimestamp()).toBe(0);
+    expect(helper.toTimestamp("not-a-date")).toBe(0);
+    expect(helper.resolveFuzzyDistance("to")).toBe(-1);
+    expect(helper.resolveFuzzyDistance("north")).toBe(1);
+    expect(helper.resolveFuzzyDistance("toronto")).toBe(2);
+    expect(helper.matchesNormalizedQuery("camera", "to", "tolerant")).toBe(
+      false,
+    );
+    expect(
+      helper.rankSuggestions(
+        [
+          {
+            name: "   ",
+            tags: ["apricot"],
+            location: {},
+            createdAt: "invalid",
+          },
+          {
+            tags: ["apple"],
+            location: {
+              city: " Toronto ",
+            },
+            createdAt: "2026-05-02T00:00:00.000Z",
+          },
+          {
+            tags: ["azure", "atlas"],
+            location: {
+              country: " Canada ",
+            },
+            createdAt: "2026-05-02T00:00:00.000Z",
+          },
+        ],
+        "a",
+        10,
+        "strict",
+      ),
+    ).toEqual([
+      { value: "apricot", kind: "tag" },
+      { value: "apple", kind: "tag" },
+      { value: "atlas", kind: "tag" },
+      { value: "azure", kind: "tag" },
+    ]);
+    expect(
+      helper.formatLocationSuggestion({
+        city: " Toronto ",
+      }),
+    ).toBe("Toronto");
+    expect(
+      helper.formatLocationSuggestion({
+        country: " Canada ",
+      }),
+    ).toBe("Canada");
   });
 });
 
