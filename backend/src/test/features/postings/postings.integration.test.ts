@@ -13,6 +13,8 @@ import type { JwtClaims } from "@/features/auth/token/token.service";
 import { PostingsController } from "@/features/postings/postings.controller";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import BadRequestError from "@/errors/http/bad-request.error";
+import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { createPatPrincipal } from "../../support/integration-app";
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
@@ -138,6 +140,9 @@ class FakeRequestContainer implements ServiceContainer {
     private readonly tokenService: {
       verifyAccessToken(token: string): Promise<JwtClaims>;
     },
+    private readonly personalAccessTokenService: {
+      authenticateToken(token: string): Promise<ReturnType<typeof createPatPrincipal>>;
+    },
   ) {}
 
   resolve<TValue>(token: unknown): TValue {
@@ -147,6 +152,10 @@ class FakeRequestContainer implements ServiceContainer {
 
     if (token === containerTokens.tokenService) {
       return this.tokenService as TValue;
+    }
+
+    if (token === containerTokens.personalAccessTokenService) {
+      return this.personalAccessTokenService as TValue;
     }
 
     if (token === containerTokens.contentSanitizationService) {
@@ -361,10 +370,17 @@ function createApp() {
         });
       }
 
-      throw new Error("Invalid access token signature.");
+      throw new UnauthorizedError("Invalid access token signature.");
     }),
   };
-  const container = new FakeRequestContainer(controller, tokenService);
+  const personalAccessTokenService = {
+    authenticateToken: jest.fn(async () => createPatPrincipal()),
+  };
+  const container = new FakeRequestContainer(
+    controller,
+    tokenService,
+    personalAccessTokenService,
+  );
   const app = new Hono<AppBindings>();
 
   app.use("*", clientContextMiddleware);
@@ -384,6 +400,7 @@ function createApp() {
     postingsReviewsService,
     recommendationActivityPublisher,
     tokenService,
+    personalAccessTokenService,
   };
 }
 
@@ -951,5 +968,345 @@ describe("Postings integration", () => {
         code: "BAD_REQUEST",
       },
     });
+  });
+
+  it("covers postings validation edge cases across create, search, autocomplete, batch, reviews, and availability routes", async () => {
+    const { app } = createApp();
+
+    const invalidCreateResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
+      {
+        method: "POST",
+        headers: ownerHeaders(),
+        body: JSON.stringify({
+          ...createPostingBody(),
+          extraField: true,
+        }),
+      },
+    );
+    const invalidUpdateResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        method: "PUT",
+        headers: ownerHeaders(),
+        body: JSON.stringify({
+          ...createUpdatePostingBody(),
+          location: {
+            ...createUpdatePostingBody().location,
+            latitude: 999,
+          },
+        }),
+      },
+    );
+    const invalidAutocompleteResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/autocomplete?q=l&limit=9")}`,
+    );
+    const invalidBatchResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/batch")}`,
+    );
+    const invalidAttributeRangeResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings?attr.capacity.min=10&attr.capacity.max=5")}`,
+    );
+    const invalidAttributeNumberResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings?attr.capacity.min=abc")}`,
+    );
+    const invalidReviewResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/reviews")}`,
+      {
+        method: "POST",
+        headers: userHeaders(),
+        body: JSON.stringify({
+          rating: 6,
+          title: "Too high",
+        }),
+      },
+    );
+    const invalidAvailabilityRouteResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks/block%201")}`,
+      {
+        method: "DELETE",
+        headers: ownerHeaders(),
+      },
+    );
+
+    for (const response of [
+      invalidCreateResponse,
+      invalidUpdateResponse,
+      invalidAutocompleteResponse,
+      invalidBatchResponse,
+      invalidAttributeRangeResponse,
+      invalidAttributeNumberResponse,
+      invalidReviewResponse,
+      invalidAvailabilityRouteResponse,
+    ]) {
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+      });
+    }
+  });
+
+  it("handles optional auth and PAT posting edge cases", async () => {
+    const {
+      app,
+      postingsService,
+      postingsAnalyticsService,
+      recommendationActivityPublisher,
+      personalAccessTokenService,
+    } = createApp();
+
+    const authenticatedDetailResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        headers: {
+          authorization: "Bearer owner-token",
+        },
+      },
+    );
+    const patReadResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/me?page=1&pageSize=20")}`,
+      {
+        headers: {
+          authorization:
+            "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+        },
+      },
+    );
+    personalAccessTokenService.authenticateToken.mockResolvedValueOnce(
+      createPatPrincipal({
+        scopes: ["mcp:read"],
+      }),
+    );
+    const patWriteDeniedResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
+      {
+        method: "POST",
+        headers: {
+          authorization:
+            "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(createPostingBody()),
+      },
+    );
+
+    expect(authenticatedDetailResponse.status).toBe(200);
+    expect(postingsService.getById).toHaveBeenCalledWith("posting-1", "owner-1");
+    expect(postingsAnalyticsService.trackPublicView).not.toHaveBeenCalled();
+    expect(recommendationActivityPublisher.publishPostingView).not.toHaveBeenCalled();
+
+    expect(patReadResponse.status).toBe(200);
+    expect(postingsService.listByOwner).toHaveBeenCalledWith("pat-user-1", {
+      page: 1,
+      pageSize: 20,
+      status: undefined,
+    });
+
+    expect(patWriteDeniedResponse.status).toBe(403);
+    await expect(patWriteDeniedResponse.json()).resolves.toEqual({
+      success: false,
+      message: "Personal access token does not include the required scope.",
+      data: null,
+      error: {
+        code: "FORBIDDEN",
+        details: {
+          requiredScope: "mcp:write",
+          scopes: ["mcp:read"],
+        },
+      },
+      meta: {
+        requestId: "unknown",
+      },
+    });
+  });
+
+  it("parses complex search filters and deduplicates batch ids before calling services", async () => {
+    const { app, postingsService } = createApp();
+
+    const searchResponse = await app.request(
+      `http://rent.test${buildApiPath(
+        "/postings?page=3&pageSize=4&q=studio&family=place&subtype=workspace&tags=wifi,loft&tags=parking&availabilityStatus=available&minDailyPrice=100&maxDailyPrice=250&latitude=43.7&longitude=-79.4&radiusKm=25&startAt=2026-06-10T00:00:00.000Z&endAt=2026-06-12T00:00:00.000Z&sort=nearest&attr.guest_capacity.min=2&attr.guest_capacity.max=6&attr.amenities=wifi&attr.amenities=parking",
+      )}`,
+    );
+    const batchMineResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/me/batch?ids=posting-1,posting-1,posting-2")}`,
+      {
+        headers: ownerHeaders(),
+      },
+    );
+    const batchPublicResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/batch?ids=posting-1,posting-1,posting-2")}`,
+    );
+
+    expect(searchResponse.status).toBe(200);
+    expect(batchMineResponse.status).toBe(200);
+    expect(batchPublicResponse.status).toBe(200);
+
+    expect(postingsService.searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 3,
+        pageSize: 4,
+        query: "studio",
+        family: "place",
+        subtype: "workspace",
+        tags: ["wifi", "loft", "parking"],
+        availabilityStatus: "available",
+        minDailyPrice: 100,
+        maxDailyPrice: 250,
+        geo: {
+          latitude: 43.7,
+          longitude: -79.4,
+          radiusKm: 25,
+        },
+        availabilityWindow: {
+          startAt: "2026-06-10T00:00:00.000Z",
+          endAt: "2026-06-12T00:00:00.000Z",
+        },
+        sort: "nearest",
+        attributeFilters: expect.arrayContaining([
+          {
+            key: "guest_capacity",
+            min: 2,
+            max: 6,
+          },
+          {
+            key: "amenities",
+            value: ["wifi", "parking"],
+          },
+        ]),
+      }),
+    );
+    expect(postingsService.batchByOwner).toHaveBeenCalledWith("owner-1", [
+      "posting-1",
+      "posting-2",
+    ]);
+    expect(postingsService.batchPublic).toHaveBeenCalledWith([
+      "posting-1",
+      "posting-2",
+    ]);
+  });
+
+  it("returns authorization and validation failures for optional-auth public postings endpoints", async () => {
+    const { app } = createApp();
+
+    const invalidDetailAuthResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        headers: {
+          authorization: "Bearer broken-token",
+        },
+      },
+    );
+    const invalidSearchClickAuthResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/activity/search-click")}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer broken-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          searchSessionId: "search-1",
+          query: "loft",
+          family: "place",
+          subtype: "workspace",
+          page: 1,
+          position: 0,
+        }),
+      },
+    );
+    const invalidReviewsQueryResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/reviews?page=0&pageSize=99")}`,
+    );
+    const invalidAvailabilityBodyResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks")}`,
+      {
+        method: "POST",
+        headers: ownerHeaders(),
+        body: JSON.stringify({
+          startAt: "not-a-date",
+          endAt: "2026-06-03T00:00:00.000Z",
+        }),
+      },
+    );
+
+    expect(invalidDetailAuthResponse.status).toBe(401);
+    await expect(invalidDetailAuthResponse.json()).resolves.toEqual({
+      success: false,
+      message: "Invalid access token signature.",
+      data: null,
+      error: {
+        code: "UNAUTHORIZED",
+      },
+      meta: {
+        requestId: "unknown",
+      },
+    });
+
+    expect(invalidSearchClickAuthResponse.status).toBe(401);
+    await expect(invalidSearchClickAuthResponse.json()).resolves.toEqual({
+      success: false,
+      message: "Invalid access token signature.",
+      data: null,
+      error: {
+        code: "UNAUTHORIZED",
+      },
+      meta: {
+        requestId: "unknown",
+      },
+    });
+
+    expect(invalidReviewsQueryResponse.status).toBe(400);
+    await expect(invalidReviewsQueryResponse.json()).resolves.toMatchObject({
+      success: false,
+      message: "Request query validation failed.",
+      error: {
+        code: "VALIDATION_ERROR",
+      },
+    });
+
+    expect(invalidAvailabilityBodyResponse.status).toBe(400);
+    await expect(invalidAvailabilityBodyResponse.json()).resolves.toMatchObject({
+      success: false,
+      message: "Request body validation failed.",
+      error: {
+        code: "VALIDATION_ERROR",
+      },
+    });
+  });
+
+  it("still tracks views for authenticated requests when the service returns a public posting record shape", async () => {
+    const {
+      app,
+      postingsService,
+      postingsAnalyticsService,
+      recommendationActivityPublisher,
+    } = createApp();
+    const { organizationId, ...publicPosting } = createPosting();
+    void organizationId;
+    postingsService.getById.mockResolvedValueOnce(publicPosting);
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        headers: {
+          authorization: "Bearer owner-token",
+          "x-forwarded-for": "127.0.0.1",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(postingsAnalyticsService.trackPublicView).toHaveBeenCalledWith(
+      publicPosting,
+      expect.any(Object),
+      "owner-1",
+    );
+    expect(recommendationActivityPublisher.publishPostingView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        posting: publicPosting,
+        actorUserId: "owner-1",
+      }),
+    );
   });
 });

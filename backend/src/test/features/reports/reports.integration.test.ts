@@ -232,4 +232,40 @@ describe("Reports integration", () => {
       }),
     );
   });
+
+  it("covers moderation detail and assignment endpoints", async () => {
+    const { app, reportsService } = createApp();
+
+    const detailResponse = await app.request(
+      `http://rent.test${buildApiPath("/moderation/reports/report-1")}`,
+      {
+        headers: {
+          authorization: "Bearer moderator-token",
+        },
+      },
+    );
+    const assignResponse = await app.request(
+      `http://rent.test${buildApiPath("/moderation/reports/report-1/assignment")}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer moderator-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          assignedModeratorId: "moderator-2",
+        }),
+      },
+    );
+
+    expect(detailResponse.status).toBe(200);
+    expect(assignResponse.status).toBe(200);
+    expect(reportsService.getModerationDetail).toHaveBeenCalledWith("report-1");
+    expect(reportsService.assign).toHaveBeenCalledWith({
+      actorUserId: "moderator-1",
+      actorRole: "moderator",
+      reportId: "report-1",
+      assignedModeratorId: "moderator-2",
+    });
+  });
 });
