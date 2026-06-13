@@ -27,7 +27,9 @@ describe("OpenAPI documentation", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/yaml; charset=UTF-8",
     );
-    await expect(response.text()).resolves.toBe(await readOpenApiYamlSpecFile());
+    await expect(response.text()).resolves.toBe(
+      await readOpenApiYamlSpecFile(),
+    );
   });
 
   it("serves the canonical openapi json file through the API route", async () => {
@@ -43,6 +45,8 @@ describe("OpenAPI documentation", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/json; charset=UTF-8",
     );
-    await expect(response.text()).resolves.toBe(await readOpenApiJsonSpecFile());
+    await expect(response.text()).resolves.toBe(
+      await readOpenApiJsonSpecFile(),
+    );
   });
 });

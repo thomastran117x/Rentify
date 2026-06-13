@@ -1,10 +1,17 @@
-import { writeOpenApiJsonSpecFile, writeOpenApiYamlSpecFile } from "@/openapi/file";
+import {
+  writeOpenApiJsonSpecFile,
+  writeOpenApiYamlSpecFile,
+} from "@/openapi/file";
 import {
   runOpenApiChecks,
   validateOpenApiRouteCoverage,
   validateOpenApiDocumentStructure,
 } from "@/openapi/validation";
-import { buildOpenApiDocument, buildOpenApiJson, buildOpenApiYaml } from "@/openapi/spec";
+import {
+  buildOpenApiDocument,
+  buildOpenApiJson,
+  buildOpenApiYaml,
+} from "@/openapi/spec";
 
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));

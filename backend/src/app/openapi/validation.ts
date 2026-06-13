@@ -1,7 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import yaml from "js-yaml";
-import { buildOpenApiDocument, buildOpenApiJson, buildOpenApiYaml } from "@/openapi/spec";
+import {
+  buildOpenApiDocument,
+  buildOpenApiJson,
+  buildOpenApiYaml,
+} from "@/openapi/spec";
 import {
   getOpenApiJsonSpecFilePath,
   getOpenApiYamlSpecFilePath,

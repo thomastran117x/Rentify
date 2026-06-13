@@ -1,4 +1,7 @@
-import { readOpenApiJsonSpecFile, readOpenApiYamlSpecFile } from "@/openapi/file";
+import {
+  readOpenApiJsonSpecFile,
+  readOpenApiYamlSpecFile,
+} from "@/openapi/file";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 import {
   getApiRoutePrefix,

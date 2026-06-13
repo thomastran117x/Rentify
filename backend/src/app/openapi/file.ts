@@ -26,12 +26,16 @@ export async function readOpenApiJsonSpecFile(): Promise<string> {
   return readFile(getOpenApiJsonSpecFilePath(), "utf8");
 }
 
-export async function writeOpenApiYamlSpecFile(contents: string): Promise<void> {
+export async function writeOpenApiYamlSpecFile(
+  contents: string,
+): Promise<void> {
   await mkdir(resolve(process.cwd(), "openapi"), { recursive: true });
   await writeFile(getOpenApiYamlSpecFilePath(), contents, "utf8");
 }
 
-export async function writeOpenApiJsonSpecFile(contents: string): Promise<void> {
+export async function writeOpenApiJsonSpecFile(
+  contents: string,
+): Promise<void> {
   await mkdir(resolve(process.cwd(), "openapi"), { recursive: true });
   await writeFile(getOpenApiJsonSpecFilePath(), contents, "utf8");
 }
