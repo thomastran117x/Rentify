@@ -25,7 +25,8 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 - [../backend/README.md](../backend/README.md): backend scripts, workers, seeds, and API notes
 - [../frontend/README.md](../frontend/README.md): frontend envs, app areas, and test scripts
-- [../backend/openapi/openapi.yaml](../backend/openapi/openapi.yaml): committed OpenAPI spec
+- [../backend/openapi/openapi.yaml](../backend/openapi/openapi.yaml): committed OpenAPI YAML spec
+- [../backend/openapi/openapi.json](../backend/openapi/openapi.json): committed OpenAPI JSON spec
 
 ## Suggested Reading Order
 

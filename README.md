@@ -35,6 +35,7 @@ Once the stack is up:
 - backend API: `http://localhost:8040/api/v1`
 - health check: `http://localhost:8040/api/v1/health`
 - OpenAPI YAML: `http://localhost:8040/api/v1/openapi.yaml`
+- OpenAPI JSON: `http://localhost:8040/api/v1/openapi.json`
 - RabbitMQ management: `http://localhost:15672`
 
 ## Seeded Accounts
@@ -112,7 +113,7 @@ The backend returns a shared JSON envelope:
 }
 ```
 
-The committed API spec lives at [backend/openapi/openapi.yaml](./backend/openapi/openapi.yaml).
+The committed API specs live at [backend/openapi/openapi.yaml](./backend/openapi/openapi.yaml) and [backend/openapi/openapi.json](./backend/openapi/openapi.json).
 
 ## Documentation
 

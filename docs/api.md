@@ -7,13 +7,15 @@ This document is intentionally lightweight. The source of truth for Rentify endp
 Use one of these references instead of duplicating route docs by hand:
 
 - committed spec: [../backend/openapi/openapi.yaml](../backend/openapi/openapi.yaml)
+- committed JSON spec: [../backend/openapi/openapi.json](../backend/openapi/openapi.json)
 - local served spec: `http://localhost:8040/api/v1/openapi.yaml`
+- local served JSON spec: `http://localhost:8040/api/v1/openapi.json`
 - local API base: `http://localhost:8040/api/v1`
 - local health check: `http://localhost:8040/api/v1/health`
 
 ## Why This Page Is Small
 
-Rentify's API surface changes often enough that hand-maintained endpoint lists drift quickly. Keeping the OpenAPI YAML as the canonical reference makes it easier to:
+Rentify's API surface changes often enough that hand-maintained endpoint lists drift quickly. Keeping the generated OpenAPI artifacts as the canonical reference makes it easier to:
 
 - document every route in one place
 - keep request and response shapes aligned with code
@@ -45,7 +47,7 @@ npm run openapi:check
 npm run openapi:generate
 ```
 
-Use `openapi:check` to confirm the committed spec matches the current backend routes and schemas. Use `openapi:generate` when backend API changes are intentional and the spec needs to be refreshed.
+Use `openapi:check` to confirm the committed YAML and JSON specs match the current backend routes and schemas. Use `openapi:generate` when backend API changes are intentional and the specs need to be refreshed.
 
 ## Related Docs
 
