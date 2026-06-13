@@ -5,6 +5,7 @@ import type { AppBindings } from "@/configuration/http/bindings";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
+import { RequestValidationError } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import { environment } from "@/configuration/environment";
 import { accepted, ok } from "@/configuration/http/responses";
@@ -66,6 +67,7 @@ import {
   unlockLocalLoginRequestSchema,
   verifyEmailRequestSchema,
 } from "@/features/auth/auth.model";
+import { ZodError } from "zod";
 
 export class AuthController {
   constructor(
@@ -455,7 +457,22 @@ export class AuthController {
     context: Context<AppBindings>,
   ): OAuthProvider {
     const provider = requireSafeRouteParam(context, "provider");
-    return oauthProviderSchema.parse(provider);
+
+    try {
+      return oauthProviderSchema.parse(provider);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new RequestValidationError(
+          "Route parameter validation failed.",
+          error.issues.map((issue) => ({
+            path: "provider",
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
+    }
   }
 
   private resolveDeviceId(

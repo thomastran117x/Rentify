@@ -1140,7 +1140,12 @@ describe("AuthController", () => {
           },
         }),
       ),
-    ).rejects.toHaveProperty("name", "ZodError");
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: "RequestValidationError",
+        message: "Route parameter validation failed.",
+      }),
+    );
 
     expect(authService.unlinkOAuthProvider).not.toHaveBeenCalled();
   });
