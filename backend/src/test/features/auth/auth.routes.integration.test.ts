@@ -196,7 +196,11 @@ function createApp() {
   const registry = new Map<unknown, unknown>([
     [
       containerTokens.authController,
-      new AuthController(authService as never, captchaService as never, {} as never),
+      new AuthController(
+        authService as never,
+        captchaService as never,
+        {} as never,
+      ),
     ],
     [
       containerTokens.personalAccessTokenController,
@@ -556,16 +560,18 @@ describe("Auth routes integration", () => {
 
   it("returns structured validation and authorization failures for auth edge cases", async () => {
     const { app, authService, personalAccessTokenService } = createApp();
-    authService.refresh.mockImplementationOnce(async (input: { refreshToken?: string }) => {
-      if (!input.refreshToken) {
-        throw new BadRequestError("Refresh token is required.");
-      }
+    authService.refresh.mockImplementationOnce(
+      async (input: { refreshToken?: string }) => {
+        if (!input.refreshToken) {
+          throw new BadRequestError("Refresh token is required.");
+        }
 
-      return createSessionResult({
-        accessToken: "refreshed-access-token",
-        refreshToken: "refreshed-refresh-token",
-      });
-    });
+        return createSessionResult({
+          accessToken: "refreshed-access-token",
+          refreshToken: "refreshed-refresh-token",
+        });
+      },
+    );
 
     const invalidSchemeResponse = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/change")}`,
@@ -677,7 +683,9 @@ describe("Auth routes integration", () => {
         requestId: "unknown",
       },
     });
-    expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(1);
+    expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(
+      1,
+    );
   });
 
   it("rejects invalid local auth and oauth bodies before captcha or auth services run", async () => {

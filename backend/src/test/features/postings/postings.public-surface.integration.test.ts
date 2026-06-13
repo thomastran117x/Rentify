@@ -105,8 +105,11 @@ function createApp() {
 
 describe("Postings public surface integration", () => {
   it("covers autocomplete and recommendations endpoints", async () => {
-    const { app, postingsPublicAutocompleteService, recommendationQueryService } =
-      createApp();
+    const {
+      app,
+      postingsPublicAutocompleteService,
+      recommendationQueryService,
+    } = createApp();
 
     const autocompleteResponse = await app.request(
       `http://rent.test${buildApiPath("/postings/autocomplete?q=lo&limit=5")}`,
@@ -117,14 +120,14 @@ describe("Postings public surface integration", () => {
 
     expect(autocompleteResponse.status).toBe(200);
     expect(recommendationsResponse.status).toBe(200);
-    expect(postingsPublicAutocompleteService.autocompletePublic).toHaveBeenCalledWith(
-      {
-        query: "lo",
-        family: undefined,
-        subtype: undefined,
-        limit: 5,
-      },
-    );
+    expect(
+      postingsPublicAutocompleteService.autocompletePublic,
+    ).toHaveBeenCalledWith({
+      query: "lo",
+      family: undefined,
+      subtype: undefined,
+      limit: 5,
+    });
     expect(recommendationQueryService.getRecommendations).toHaveBeenCalledWith(
       {
         page: 1,

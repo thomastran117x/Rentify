@@ -85,7 +85,6 @@ function createApp() {
       }
 
       throw new UnauthorizedError("Invalid access token signature.");
-
     }),
   };
 

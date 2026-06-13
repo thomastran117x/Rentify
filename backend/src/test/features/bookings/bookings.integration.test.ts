@@ -230,9 +230,9 @@ describe("Bookings integration", () => {
         guestCount: 2,
       }),
     );
-    expect(recommendationActivityPublisher.publishBookingRequestCreated).toHaveBeenCalledTimes(
-      1,
-    );
+    expect(
+      recommendationActivityPublisher.publishBookingRequestCreated,
+    ).toHaveBeenCalledTimes(1);
     expect(bookingsService.quote).toHaveBeenCalledWith(
       expect.objectContaining({
         postingId: "posting-1",
@@ -629,9 +629,9 @@ describe("Bookings integration", () => {
       contactEmail: "taylor@example.com",
       contactPhoneNumber: null,
     });
-    expect(recommendationActivityPublisher.publishBookingRequestCreated).toHaveBeenCalledTimes(
-      1,
-    );
+    expect(
+      recommendationActivityPublisher.publishBookingRequestCreated,
+    ).toHaveBeenCalledTimes(1);
     expect(bookingsService.quote).toHaveBeenCalledWith({
       postingId: "posting-1",
       renterId: "user-1",

@@ -130,7 +130,10 @@ function createApp() {
       containerTokens.profileController,
       new ProfileController(profileService as never),
     ],
-    [containerTokens.searchController, new SearchController(searchService as never)],
+    [
+      containerTokens.searchController,
+      new SearchController(searchService as never),
+    ],
     [containerTokens.tokenService, tokenService],
   ]);
 
@@ -192,7 +195,9 @@ describe("Misc integration", () => {
         contentType: "text/plain",
       }),
     );
-    expect(blobService.readLocalBlob).toHaveBeenCalledWith("postings/photo.jpg");
+    expect(blobService.readLocalBlob).toHaveBeenCalledWith(
+      "postings/photo.jpg",
+    );
   });
 
   it("covers profile listing and signed-in profile endpoints", async () => {

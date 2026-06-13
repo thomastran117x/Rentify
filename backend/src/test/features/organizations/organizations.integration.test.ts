@@ -345,7 +345,9 @@ describe("Organizations integration", () => {
     });
 
     expect(invalidOrganizationRouteResponse.status).toBe(400);
-    await expect(invalidOrganizationRouteResponse.json()).resolves.toMatchObject({
+    await expect(
+      invalidOrganizationRouteResponse.json(),
+    ).resolves.toMatchObject({
       success: false,
       message: "Route parameter validation failed.",
       error: {
@@ -388,6 +390,8 @@ describe("Organizations integration", () => {
         requestId: "unknown",
       },
     });
-    expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(1);
+    expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });

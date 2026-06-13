@@ -191,9 +191,9 @@ describe("Rentings integration", () => {
       bookingRequestId: "booking-1",
       actorUserId: "owner-1",
     });
-    expect(recommendationActivityPublisher.publishRentingConfirmed).toHaveBeenCalledTimes(
-      1,
-    );
+    expect(
+      recommendationActivityPublisher.publishRentingConfirmed,
+    ).toHaveBeenCalledTimes(1);
     expect(rentingsService.listMine).toHaveBeenCalledWith({
       userId: "user-1",
       page: 1,

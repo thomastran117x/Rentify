@@ -8,15 +8,11 @@ import type { AppBindings } from "@/configuration/http/bindings";
 import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
-import type {
-  PersonalAccessTokenPrincipal,
-} from "@/features/auth/auth.principal";
+import type { PersonalAccessTokenPrincipal } from "@/features/auth/auth.principal";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
-export function createJwtClaims(
-  overrides: Partial<JwtClaims> = {},
-): JwtClaims {
+export function createJwtClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
     sub: "user-1",
     email: "user@example.com",

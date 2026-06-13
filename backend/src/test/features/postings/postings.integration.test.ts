@@ -141,7 +141,9 @@ class FakeRequestContainer implements ServiceContainer {
       verifyAccessToken(token: string): Promise<JwtClaims>;
     },
     private readonly personalAccessTokenService: {
-      authenticateToken(token: string): Promise<ReturnType<typeof createPatPrincipal>>;
+      authenticateToken(
+        token: string,
+      ): Promise<ReturnType<typeof createPatPrincipal>>;
     },
   ) {}
 
@@ -1091,9 +1093,14 @@ describe("Postings integration", () => {
     );
 
     expect(authenticatedDetailResponse.status).toBe(200);
-    expect(postingsService.getById).toHaveBeenCalledWith("posting-1", "owner-1");
+    expect(postingsService.getById).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+    );
     expect(postingsAnalyticsService.trackPublicView).not.toHaveBeenCalled();
-    expect(recommendationActivityPublisher.publishPostingView).not.toHaveBeenCalled();
+    expect(
+      recommendationActivityPublisher.publishPostingView,
+    ).not.toHaveBeenCalled();
 
     expect(patReadResponse.status).toBe(200);
     expect(postingsService.listByOwner).toHaveBeenCalledWith("pat-user-1", {
@@ -1266,13 +1273,15 @@ describe("Postings integration", () => {
     });
 
     expect(invalidAvailabilityBodyResponse.status).toBe(400);
-    await expect(invalidAvailabilityBodyResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request body validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
+    await expect(invalidAvailabilityBodyResponse.json()).resolves.toMatchObject(
+      {
+        success: false,
+        message: "Request body validation failed.",
+        error: {
+          code: "VALIDATION_ERROR",
+        },
       },
-    });
+    );
   });
 
   it("still tracks views for authenticated requests when the service returns a public posting record shape", async () => {
@@ -1302,7 +1311,9 @@ describe("Postings integration", () => {
       expect.any(Object),
       "owner-1",
     );
-    expect(recommendationActivityPublisher.publishPostingView).toHaveBeenCalledWith(
+    expect(
+      recommendationActivityPublisher.publishPostingView,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         posting: publicPosting,
         actorUserId: "owner-1",
