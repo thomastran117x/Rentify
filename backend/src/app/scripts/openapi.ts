@@ -1,11 +1,10 @@
-import { buildOpenApiYaml } from "@/openapi/spec";
-import { writeOpenApiSpecFile } from "@/openapi/file";
+import { writeOpenApiJsonSpecFile, writeOpenApiYamlSpecFile } from "@/openapi/file";
 import {
   runOpenApiChecks,
   validateOpenApiRouteCoverage,
   validateOpenApiDocumentStructure,
 } from "@/openapi/validation";
-import { buildOpenApiDocument } from "@/openapi/spec";
+import { buildOpenApiDocument, buildOpenApiJson, buildOpenApiYaml } from "@/openapi/spec";
 
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
@@ -16,7 +15,10 @@ async function main(): Promise<void> {
   await validateOpenApiRouteCoverage(document);
 
   if (shouldWrite) {
-    await writeOpenApiSpecFile(buildOpenApiYaml());
+    await Promise.all([
+      writeOpenApiYamlSpecFile(buildOpenApiYaml()),
+      writeOpenApiJsonSpecFile(buildOpenApiJson()),
+    ]);
   }
 
   await runOpenApiChecks();

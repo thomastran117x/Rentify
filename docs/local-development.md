@@ -27,6 +27,7 @@ This boots:
 - backend API: `http://localhost:8040/api/v1`
 - backend health: `http://localhost:8040/api/v1/health`
 - OpenAPI YAML: `http://localhost:8040/api/v1/openapi.yaml`
+- OpenAPI JSON: `http://localhost:8040/api/v1/openapi.json`
 - MySQL: `localhost:3307`
 - Redis: `localhost:6380`
 - Elasticsearch: `http://localhost:9201`

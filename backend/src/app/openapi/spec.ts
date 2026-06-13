@@ -1065,6 +1065,36 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/openapi.json",
+      operationId: "getOpenApiJson",
+      summary: "Download the canonical OpenAPI JSON",
+      description:
+        "Returns the same `backend/openapi/openapi.json` file that is committed to the repository and copied into the backend container.",
+      tags: ["system"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      responses: {
+        "200": {
+          description: "The canonical OpenAPI JSON document.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+              },
+              example: {
+                openapi: "3.1.0",
+              },
+            },
+          },
+        },
+        ...commonErrors([500]),
+      },
+    },
+    {
       method: "post",
       path: "/auth/local/login",
       operationId: "localLogin",
@@ -6523,4 +6553,11 @@ export function buildOpenApiYaml(): string {
     lineWidth: -1,
     sortKeys: false,
   })}`.replace(/\r\n/g, "\n");
+}
+
+export function buildOpenApiJson(): string {
+  return `${JSON.stringify(buildOpenApiDocument(), null, 2)}\n`.replace(
+    /\r\n/g,
+    "\n",
+  );
 }

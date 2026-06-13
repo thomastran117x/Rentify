@@ -2,14 +2,18 @@ import { Hono } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 
 const mockPingDatabase = jest.fn();
-const mockReadOpenApiSpecFile = jest.fn();
+const mockReadOpenApiYamlSpecFile = jest.fn();
+const mockReadOpenApiJsonSpecFile = jest.fn();
 
 jest.mock("@/configuration/resources/database", () => ({
   pingDatabase: (...args: unknown[]) => mockPingDatabase(...args),
 }));
 
 jest.mock("@/openapi/file", () => ({
-  readOpenApiSpecFile: (...args: unknown[]) => mockReadOpenApiSpecFile(...args),
+  readOpenApiYamlSpecFile: (...args: unknown[]) =>
+    mockReadOpenApiYamlSpecFile(...args),
+  readOpenApiJsonSpecFile: (...args: unknown[]) =>
+    mockReadOpenApiJsonSpecFile(...args),
 }));
 
 function createApp() {
@@ -121,7 +125,7 @@ describe("systemRouteModule", () => {
   });
 
   it("streams the canonical OpenAPI document", async () => {
-    mockReadOpenApiSpecFile.mockResolvedValueOnce("openapi: 3.1.0\n");
+    mockReadOpenApiYamlSpecFile.mockResolvedValueOnce("openapi: 3.1.0\n");
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
@@ -137,5 +141,24 @@ describe("systemRouteModule", () => {
     );
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.text()).resolves.toBe("openapi: 3.1.0\n");
+  });
+
+  it("streams the canonical OpenAPI JSON document", async () => {
+    mockReadOpenApiJsonSpecFile.mockResolvedValueOnce('{"openapi":"3.1.0"}\n');
+    const { systemRouteModule } = await import(
+      "@/configuration/bootstrap/routes/modules/system.routes"
+    );
+    const app = createApp();
+
+    systemRouteModule.register(app, {} as never);
+
+    const response = await app.request("http://rent.test/openapi.json");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "application/json; charset=UTF-8",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toBe('{"openapi":"3.1.0"}\n');
   });
 });

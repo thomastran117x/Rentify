@@ -1,8 +1,13 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import yaml from "js-yaml";
-import { buildOpenApiDocument, buildOpenApiYaml } from "@/openapi/spec";
-import { getOpenApiSpecFilePath, readOpenApiSpecFile } from "@/openapi/file";
+import { buildOpenApiDocument, buildOpenApiJson, buildOpenApiYaml } from "@/openapi/spec";
+import {
+  getOpenApiJsonSpecFilePath,
+  getOpenApiYamlSpecFilePath,
+  readOpenApiJsonSpecFile,
+  readOpenApiYamlSpecFile,
+} from "@/openapi/file";
 
 const ROUTE_MODULE_DIRECTORY = resolve(
   process.cwd(),
@@ -352,17 +357,30 @@ export async function validateOpenApiRouteCoverage(
 
 export async function validateOpenApiFileContents(): Promise<void> {
   const expectedYaml = buildOpenApiYaml();
-  const actualYaml = await readOpenApiSpecFile();
+  const actualYaml = await readOpenApiYamlSpecFile();
 
   if (actualYaml !== expectedYaml) {
     throw new Error(
-      `OpenAPI YAML file is stale. Regenerate ${getOpenApiSpecFilePath()}.`,
+      `OpenAPI YAML file is stale. Regenerate ${getOpenApiYamlSpecFilePath()}.`,
     );
   }
 
-  const parsed = yaml.load(actualYaml);
-  assertRecord(parsed, "OpenAPI YAML must parse to an object.");
-  validateOpenApiDocumentStructure(parsed);
+  const parsedYaml = yaml.load(actualYaml);
+  assertRecord(parsedYaml, "OpenAPI YAML must parse to an object.");
+  validateOpenApiDocumentStructure(parsedYaml);
+
+  const expectedJson = buildOpenApiJson();
+  const actualJson = await readOpenApiJsonSpecFile();
+
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `OpenAPI JSON file is stale. Regenerate ${getOpenApiJsonSpecFilePath()}.`,
+    );
+  }
+
+  const parsedJson = JSON.parse(actualJson) as unknown;
+  assertRecord(parsedJson, "OpenAPI JSON must parse to an object.");
+  validateOpenApiDocumentStructure(parsedJson);
 }
 
 export async function runOpenApiChecks(): Promise<void> {

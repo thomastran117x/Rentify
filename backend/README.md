@@ -25,7 +25,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 - route modules are composed under `/api/v1`
 - controllers delegate to feature services and repositories
 - Prisma migrations live in `prisma/migrations`
-- committed OpenAPI lives in `openapi/openapi.yaml`
+- committed OpenAPI lives in `openapi/openapi.yaml` and `openapi/openapi.json`
 - API responses use a shared envelope with `success`, `message`, `data`, `error`, and `meta`
 
 ## Recommended Startup
@@ -90,7 +90,8 @@ npm run dev:recommendation-precompute-worker
 - API base: `http://localhost:8040/api/v1`
 - health: `http://localhost:8040/api/v1/health`
 - OpenAPI YAML: `http://localhost:8040/api/v1/openapi.yaml`
-- committed spec: [openapi/openapi.yaml](./openapi/openapi.yaml)
+- OpenAPI JSON: `http://localhost:8040/api/v1/openapi.json`
+- committed specs: [openapi/openapi.yaml](./openapi/openapi.yaml), [openapi/openapi.json](./openapi/openapi.json)
 
 ## Database and Seeds
 

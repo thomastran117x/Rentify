@@ -1,4 +1,4 @@
-import { readOpenApiSpecFile } from "@/openapi/file";
+import { readOpenApiJsonSpecFile, readOpenApiYamlSpecFile } from "@/openapi/file";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 import {
   getApiRoutePrefix,
@@ -60,12 +60,24 @@ export const systemRouteModule: RouteModule = {
     });
 
     app.get("/openapi.yaml", async () => {
-      const body = await readOpenApiSpecFile();
+      const body = await readOpenApiYamlSpecFile();
 
       return new Response(body, {
         status: 200,
         headers: {
           "content-type": "application/yaml; charset=UTF-8",
+          "cache-control": "no-store",
+        },
+      });
+    });
+
+    app.get("/openapi.json", async () => {
+      const body = await readOpenApiJsonSpecFile();
+
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=UTF-8",
           "cache-control": "no-store",
         },
       });
