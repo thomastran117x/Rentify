@@ -214,7 +214,7 @@ class GoogleOAuthService {
         operation,
         reason: this.isAbortError(error)
           ? "timeout"
-          : this.readNodeErrorCode(error) ?? "network-error",
+          : (this.readNodeErrorCode(error) ?? "network-error"),
       },
     );
   }

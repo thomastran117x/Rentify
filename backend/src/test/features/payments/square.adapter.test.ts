@@ -463,5 +463,4 @@ describe("SquarePaymentAdapter", () => {
       retryable: false,
     });
   });
-
 });

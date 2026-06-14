@@ -400,7 +400,7 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     mapped.status = this.isAbortError(error) ? 504 : 503;
     mapped.code = this.isAbortError(error)
       ? "ETIMEDOUT"
-      : this.readNodeErrorCode(error) ?? "PROVIDER_NETWORK_ERROR";
+      : (this.readNodeErrorCode(error) ?? "PROVIDER_NETWORK_ERROR");
     return mapped;
   }
 
