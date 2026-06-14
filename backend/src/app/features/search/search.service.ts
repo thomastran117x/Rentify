@@ -9,6 +9,7 @@ import { PostingsSearchIndexService } from "@/features/postings/search/index.ser
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type {
   CleanupRetainedSearchIndicesResult,
+  SearchAliasStatus,
   SearchIndexJobPayload,
   SearchQueueCounts,
   ReplayDeadLetteredSearchOutboxResult,
@@ -84,10 +85,9 @@ export class SearchService {
           throw new ConflictError("A search reindex run is already active.");
         }
 
-        await this.postingsSearchIndexService.ensureLiveIndex();
-        const targetIndexName =
-          await this.postingsSearchIndexService.createVersionedIndex();
-        return createSearchReindexRun(targetIndexName);
+        return createSearchReindexRun(
+          this.postingsSearchIndexService.buildVersionedIndexName(),
+        );
       },
     );
 
@@ -156,9 +156,7 @@ export class SearchService {
       lagMetrics,
       queueInspection,
     ] = await Promise.all([
-      this.postingsSearchIndexService.isElasticsearchEnabled()
-        ? this.postingsSearchIndexService.getAliasStatus()
-        : Promise.resolve(this.createDisabledAliasHealth()),
+      this.readAliasHealth(),
       this.postingsRepository.findActiveSearchReindexRun(),
       this.postingsRepository.findLatestSearchReindexRun(),
       this.postingsRepository.getSearchOutboxLagMetrics(),
@@ -624,6 +622,9 @@ export class SearchService {
     run: SearchReindexRunRecord,
     batchSize: number,
   ): Promise<void> {
+    await this.postingsSearchIndexService.createVersionedIndex(
+      run.targetIndexName,
+    );
     const totalPostings =
       await this.postingsRepository.countPublishedPostingsForIndexing(
         run.sourceSnapshotAt,
@@ -765,6 +766,34 @@ export class SearchService {
     };
   }
 
+  private async readAliasHealth(): Promise<SearchAliasStatus> {
+    if (!this.postingsSearchIndexService.isElasticsearchEnabled()) {
+      return this.createDisabledAliasHealth();
+    }
+
+    try {
+      return await this.postingsSearchIndexService.getAliasStatus();
+    } catch (error) {
+      this.logger.warn(
+        "Search status using degraded alias health because Elasticsearch is unavailable.",
+        undefined,
+        error,
+      );
+
+      return {
+        state: "unavailable",
+        readAlias: this.postingsSearchIndexService.getReadAliasName(),
+        writeAlias: this.postingsSearchIndexService.getWriteAliasName(),
+        readTargets: [],
+        writeTargets: [],
+        message:
+          error instanceof Error
+            ? error.message
+            : "Elasticsearch is unavailable.",
+      };
+    }
+  }
+
   private readReindexDurationMs(
     run: SearchReindexRunRecord,
   ): number | undefined {
@@ -862,7 +891,21 @@ export class SearchService {
     };
 
     if (attempt >= maxAttempts) {
-      await this.searchQueueService.publishDeadLetterJob(nextPayload);
+      try {
+        await this.searchQueueService.publishDeadLetterJob(nextPayload);
+      } catch (publishError) {
+        this.logger.error(
+          "Failed to publish search index job to the dead-letter queue.",
+          {
+            outboxId: job.id,
+            postingId: job.postingId,
+            attempt,
+          },
+          publishError,
+        );
+        throw publishError;
+      }
+
       await this.postingsRepository.markSearchOutboxDeadLettered(
         job.id,
         errorMessage,
@@ -870,7 +913,20 @@ export class SearchService {
       return;
     }
 
-    await this.searchQueueService.publishRetryJob(nextPayload, attempt);
+    try {
+      await this.searchQueueService.publishRetryJob(nextPayload, attempt);
+    } catch (publishError) {
+      this.logger.error(
+        "Failed to publish search index job retry.",
+        {
+          outboxId: job.id,
+          postingId: job.postingId,
+          attempt,
+        },
+        publishError,
+      );
+      throw publishError;
+    }
   }
 
   private logStaleOutboxJob(job: PostingSearchOutboxRecord): void {

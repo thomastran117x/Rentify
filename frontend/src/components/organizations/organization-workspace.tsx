@@ -8,7 +8,6 @@ import {
   organizationsApi,
   type CreateOrganizationInviteInput,
   type OrganizationDetailResult,
-  type OrganizationMembershipSummary,
   type OrganizationRole,
   type OrganizationWorkspaceResult,
 } from "@/lib/organizations/api";

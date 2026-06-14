@@ -68,6 +68,7 @@ export interface SearchAliasStatus {
     | "missing_read_alias"
     | "missing_write_alias"
     | "ready"
+    | "unavailable"
     | "inconsistent";
   readAlias: string;
   writeAlias: string;

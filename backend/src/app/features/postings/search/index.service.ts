@@ -94,10 +94,15 @@ export class PostingsSearchIndexService {
     }
   }
 
-  async createVersionedIndex(): Promise<string> {
-    const indexName = this.createVersionedIndexName();
+  async createVersionedIndex(
+    indexName = this.createVersionedIndexName(),
+  ): Promise<string> {
     await this.createConcreteIndex(indexName);
     return indexName;
+  }
+
+  buildVersionedIndexName(): string {
+    return this.createVersionedIndexName();
   }
 
   async deleteConcreteIndex(indexName: string): Promise<void> {

@@ -1,5 +1,7 @@
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 import BadRequestError from "@/errors/http/bad-request.error";
+import BadGatewayError from "@/errors/http/bad-gateway.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-guard";
@@ -10,6 +12,7 @@ import type {
 
 const MICROSOFT_JWKS_ALLOWED_HOSTS = ["login.microsoftonline.com"];
 const MICROSOFT_TOKEN_ALLOWED_HOSTS = ["login.microsoftonline.com"];
+const MICROSOFT_TOKEN_TIMEOUT_MS = 5_000;
 
 interface MicrosoftTokenResponse {
   id_token?: string;
@@ -170,21 +173,46 @@ class MicrosoftOAuthService {
       body.set("client_secret", clientSecret);
     }
 
-    const response = await fetch(
-      assertTrustedOutboundUrl(tokenUrl, {
-        allowedHosts: MICROSOFT_TOKEN_ALLOWED_HOSTS,
-      }),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          accept: "application/json",
-        },
-        body,
-      },
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      MICROSOFT_TOKEN_TIMEOUT_MS,
     );
+    let response: Response;
 
-    const payload = (await response.json()) as MicrosoftTokenResponse;
+    try {
+      response = await fetch(
+        assertTrustedOutboundUrl(tokenUrl, {
+          allowedHosts: MICROSOFT_TOKEN_ALLOWED_HOSTS,
+        }),
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            accept: "application/json",
+          },
+          body,
+          signal: controller.signal,
+        },
+      );
+    } catch (error) {
+      throw this.toProviderUnavailableError(error, "token-exchange");
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const payload = await this.readTokenResponse(response);
+
+    if (response.status >= 500) {
+      throw new ServiceNotAvaliableError(
+        "Microsoft authorization service is currently unavailable.",
+        {
+          provider: "microsoft",
+          status: response.status,
+          reason: payload.error ?? "provider-server-error",
+        },
+      );
+    }
 
     if (!response.ok) {
       throw new UnauthorizedError(
@@ -201,6 +229,66 @@ class MicrosoftOAuthService {
     }
 
     return payload.id_token;
+  }
+
+  private async readTokenResponse(
+    response: Response,
+  ): Promise<MicrosoftTokenResponse> {
+    try {
+      return (await response.json()) as MicrosoftTokenResponse;
+    } catch {
+      throw new BadGatewayError(
+        "Microsoft authorization service returned an invalid response.",
+        {
+          provider: "microsoft",
+          status: response.status,
+        },
+      );
+    }
+  }
+
+  private toProviderUnavailableError(
+    error: unknown,
+    operation: string,
+  ): ServiceNotAvaliableError {
+    return new ServiceNotAvaliableError(
+      "Microsoft authorization service is currently unavailable.",
+      {
+        provider: "microsoft",
+        operation,
+        reason: this.isAbortError(error)
+          ? "timeout"
+          : this.readNodeErrorCode(error) ?? "network-error",
+      },
+    );
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === "AbortError";
+  }
+
+  private readNodeErrorCode(error: unknown): string | undefined {
+    const directCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+
+    if (typeof directCode === "string") {
+      return directCode;
+    }
+
+    if (typeof error !== "object" || error === null || !("cause" in error)) {
+      return undefined;
+    }
+
+    const cause = (error as { cause?: unknown }).cause;
+
+    if (typeof cause !== "object" || cause === null || !("code" in cause)) {
+      return undefined;
+    }
+
+    const code = (cause as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
   }
 }
 

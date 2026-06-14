@@ -1,5 +1,7 @@
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 import BadRequestError from "@/errors/http/bad-request.error";
+import BadGatewayError from "@/errors/http/bad-gateway.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-guard";
@@ -13,6 +15,7 @@ const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 const GOOGLE_JWKS_ALLOWED_HOSTS = ["www.googleapis.com"];
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_TOKEN_ALLOWED_HOSTS = ["oauth2.googleapis.com"];
+const GOOGLE_TOKEN_TIMEOUT_MS = 5_000;
 
 interface GoogleTokenResponse {
   id_token?: string;
@@ -126,21 +129,46 @@ class GoogleOAuthService {
       body.set("client_secret", clientSecret);
     }
 
-    const response = await fetch(
-      assertTrustedOutboundUrl(GOOGLE_TOKEN_URL, {
-        allowedHosts: GOOGLE_TOKEN_ALLOWED_HOSTS,
-      }),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          accept: "application/json",
-        },
-        body,
-      },
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      GOOGLE_TOKEN_TIMEOUT_MS,
     );
+    let response: Response;
 
-    const payload = (await response.json()) as GoogleTokenResponse;
+    try {
+      response = await fetch(
+        assertTrustedOutboundUrl(GOOGLE_TOKEN_URL, {
+          allowedHosts: GOOGLE_TOKEN_ALLOWED_HOSTS,
+        }),
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            accept: "application/json",
+          },
+          body,
+          signal: controller.signal,
+        },
+      );
+    } catch (error) {
+      throw this.toProviderUnavailableError(error, "token-exchange");
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const payload = await this.readTokenResponse(response);
+
+    if (response.status >= 500) {
+      throw new ServiceNotAvaliableError(
+        "Google authorization service is currently unavailable.",
+        {
+          provider: "google",
+          status: response.status,
+          reason: payload.error ?? "provider-server-error",
+        },
+      );
+    }
 
     if (!response.ok) {
       throw new UnauthorizedError(
@@ -157,6 +185,66 @@ class GoogleOAuthService {
     }
 
     return payload.id_token;
+  }
+
+  private async readTokenResponse(
+    response: Response,
+  ): Promise<GoogleTokenResponse> {
+    try {
+      return (await response.json()) as GoogleTokenResponse;
+    } catch {
+      throw new BadGatewayError(
+        "Google authorization service returned an invalid response.",
+        {
+          provider: "google",
+          status: response.status,
+        },
+      );
+    }
+  }
+
+  private toProviderUnavailableError(
+    error: unknown,
+    operation: string,
+  ): ServiceNotAvaliableError {
+    return new ServiceNotAvaliableError(
+      "Google authorization service is currently unavailable.",
+      {
+        provider: "google",
+        operation,
+        reason: this.isAbortError(error)
+          ? "timeout"
+          : this.readNodeErrorCode(error) ?? "network-error",
+      },
+    );
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === "AbortError";
+  }
+
+  private readNodeErrorCode(error: unknown): string | undefined {
+    const directCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+
+    if (typeof directCode === "string") {
+      return directCode;
+    }
+
+    if (typeof error !== "object" || error === null || !("cause" in error)) {
+      return undefined;
+    }
+
+    const cause = (error as { cause?: unknown }).cause;
+
+    if (typeof cause !== "object" || cause === null || !("code" in cause)) {
+      return undefined;
+    }
+
+    const code = (cause as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
   }
 }
 
