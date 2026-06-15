@@ -22,6 +22,8 @@ type SquareApiErrorResponse = {
   }>;
 };
 
+const SQUARE_REQUEST_TIMEOUT_MS = 5_000;
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -269,6 +271,18 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
         error instanceof Error ? error.message : "Square request failed.";
       const codeValue = (error as { code?: unknown }).code;
       const code = typeof codeValue === "string" ? codeValue : undefined;
+      if (code === "INVALID_PROVIDER_RESPONSE") {
+        if (typeof status === "number" && (status >= 500 || status === 429)) {
+          return classifyHttpError(status, message, code);
+        }
+
+        return {
+          category: "permanent",
+          code,
+          message,
+          retryable: false,
+        };
+      }
       return classifyHttpError(
         typeof status === "number" ? status : undefined,
         message,
@@ -285,6 +299,7 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
       "ECONNRESET",
       "ECONNREFUSED",
       "ETIMEDOUT",
+      "ABORT_ERR",
       "EPIPE",
     ]);
     const category: PaymentFailureCategory =
@@ -303,19 +318,32 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     path: string,
     init: RequestInit,
   ): Promise<{ body: Record<string, unknown>; requestId?: string }> {
-    const response = await fetch(`${this.apiBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Square-Version": "2026-01-15",
-        ...(init.headers ?? {}),
-      },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      SQUARE_REQUEST_TIMEOUT_MS,
+    );
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.apiBaseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          "Square-Version": "2026-01-15",
+          ...(init.headers ?? {}),
+        },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw this.toSquareTransportError(error);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const requestId = response.headers.get("x-request-id") ?? undefined;
     const text = await response.text();
-    const body =
-      text.length > 0 ? (JSON.parse(text) as Record<string, unknown>) : {};
+    const body = this.parseSquareResponseBody(text, response.status);
 
     if (!response.ok) {
       const error = new Error(
@@ -335,6 +363,77 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
       body,
       requestId,
     };
+  }
+
+  private parseSquareResponseBody(
+    text: string,
+    status: number,
+  ): Record<string, unknown> {
+    if (text.length === 0) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      const error = new Error(
+        "Square returned an invalid JSON response.",
+      ) as Error & {
+        status?: number;
+        code?: string;
+      };
+      error.status = status;
+      error.code = "INVALID_PROVIDER_RESPONSE";
+      throw error;
+    }
+  }
+
+  private toSquareTransportError(error: unknown): Error & {
+    status?: number;
+    code?: string;
+  } {
+    const mapped = new Error(
+      this.isAbortError(error)
+        ? "Square request timed out."
+        : "Square request failed before receiving a response.",
+    ) as Error & {
+      status?: number;
+      code?: string;
+    };
+
+    mapped.status = this.isAbortError(error) ? 504 : 503;
+    mapped.code = this.isAbortError(error)
+      ? "ETIMEDOUT"
+      : (this.readNodeErrorCode(error) ?? "PROVIDER_NETWORK_ERROR");
+    return mapped;
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === "AbortError";
+  }
+
+  private readNodeErrorCode(error: unknown): string | undefined {
+    const directCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+
+    if (typeof directCode === "string") {
+      return directCode;
+    }
+
+    if (typeof error !== "object" || error === null || !("cause" in error)) {
+      return undefined;
+    }
+
+    const cause = (error as { cause?: unknown }).cause;
+
+    if (typeof cause !== "object" || cause === null || !("code" in cause)) {
+      return undefined;
+    }
+
+    const code = (cause as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
   }
 
   private readSquareErrorMessage(

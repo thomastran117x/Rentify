@@ -225,6 +225,23 @@ describe("PostingsSearchIndexService", () => {
     );
   });
 
+  it("treats an existing versioned index as a successful create", async () => {
+    const service = new PostingsSearchIndexService(
+      createClient({
+        requestJson: jest.fn(async () => {
+          throw new ElasticsearchRequestError(
+            400,
+            'Elasticsearch request failed with status 400: {"error":{"type":"resource_already_exists_exception"}}',
+          );
+        }),
+      }) as never,
+    );
+
+    await expect(
+      service.createVersionedIndex("postings-test_vexisting"),
+    ).resolves.toBe("postings-test_vexisting");
+  });
+
   it("throws when alias state is inconsistent", async () => {
     const service = new PostingsSearchIndexService(
       createClient({

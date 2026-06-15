@@ -400,4 +400,100 @@ describe("SquarePaymentAdapter", () => {
       }),
     ).rejects.toThrow("Square rejected the checkout request.");
   });
+
+  it("classifies Square transport failures as transient provider outages", async () => {
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNREFUSED" },
+      }),
+    );
+    const adapter = new SquarePaymentAdapter();
+
+    let thrown: unknown;
+    try {
+      await adapter.createPaymentSession({
+        idempotencyKey: "idem-network",
+        amount: 10,
+        currency: "CAD",
+        bookingRequestId: "booking-network",
+        paymentId: "payment-network",
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(adapter.classifyError(thrown)).toEqual({
+      category: "transient",
+      code: "ECONNREFUSED",
+      message: "Square request failed before receiving a response.",
+      retryable: true,
+    });
+  });
+
+  it("classifies invalid Square JSON on successful responses as an unretryable provider response issue", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("not-json", {
+        status: 200,
+        headers: {
+          "x-request-id": "request-invalid-json",
+        },
+      }),
+    );
+    const adapter = new SquarePaymentAdapter();
+
+    let thrown: unknown;
+    try {
+      await adapter.createPaymentSession({
+        idempotencyKey: "idem-invalid-json",
+        amount: 10,
+        currency: "CAD",
+        bookingRequestId: "booking-invalid-json",
+        paymentId: "payment-invalid-json",
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(adapter.classifyError(thrown)).toEqual({
+      category: "permanent",
+      code: "INVALID_PROVIDER_RESPONSE",
+      message: "Square returned an invalid JSON response.",
+      retryable: false,
+    });
+  });
+
+  it("classifies invalid Square JSON on transient HTTP failures as retryable", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("<html>gateway unavailable</html>", {
+        status: 502,
+        headers: {
+          "x-request-id": "request-invalid-json-502",
+        },
+      }),
+    );
+    const adapter = new SquarePaymentAdapter();
+
+    let thrown: unknown;
+    try {
+      await adapter.createPaymentSession({
+        idempotencyKey: "idem-invalid-json-502",
+        amount: 10,
+        currency: "CAD",
+        bookingRequestId: "booking-invalid-json-502",
+        paymentId: "payment-invalid-json-502",
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(adapter.classifyError(thrown)).toEqual({
+      category: "transient",
+      code: "INVALID_PROVIDER_RESPONSE",
+      message: "Square returned an invalid JSON response.",
+      retryable: true,
+    });
+  });
 });

@@ -94,10 +94,21 @@ export class PostingsSearchIndexService {
     }
   }
 
-  async createVersionedIndex(): Promise<string> {
-    const indexName = this.createVersionedIndexName();
-    await this.createConcreteIndex(indexName);
+  async createVersionedIndex(
+    indexName = this.createVersionedIndexName(),
+  ): Promise<string> {
+    try {
+      await this.createConcreteIndex(indexName);
+    } catch (error) {
+      if (!this.isIndexAlreadyExistsError(error)) {
+        throw error;
+      }
+    }
     return indexName;
+  }
+
+  buildVersionedIndexName(): string {
+    return this.createVersionedIndexName();
   }
 
   async deleteConcreteIndex(indexName: string): Promise<void> {
@@ -400,6 +411,14 @@ export class PostingsSearchIndexService {
       method: "PUT",
       body: JSON.stringify(this.buildIndexConfiguration()),
     });
+  }
+
+  private isIndexAlreadyExistsError(error: unknown): boolean {
+    return (
+      error instanceof ElasticsearchRequestError &&
+      error.status === 400 &&
+      error.message.toLowerCase().includes("resource_already_exists_exception")
+    );
   }
 
   private async setAliases(

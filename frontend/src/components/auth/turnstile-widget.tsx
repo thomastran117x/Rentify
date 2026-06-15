@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { publicEnv } from "@/lib/env";
 
@@ -52,10 +52,10 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
   const shouldUseLocalBypass =
     !publicEnv.turnstileSiteKey || (hasError && canUseLoopbackBypass);
 
-  function handleTurnstileLoadFailure() {
+  const handleTurnstileLoadFailure = useCallback(() => {
     setHasError(true);
     onChange(canUseLoopbackBypass ? LOCAL_CAPTCHA_BYPASS_TOKEN : "");
-  }
+  }, [canUseLoopbackBypass, onChange]);
 
   function disposeWidget() {
     if (!widgetIdRef.current || !window.turnstile?.remove) {
@@ -115,7 +115,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     return () => {
       disposeWidget();
     };
-  }, [scriptLoaded, onChange]);
+  }, [handleTurnstileLoadFailure, scriptLoaded, onChange]);
 
   useEffect(() => {
     if (hasError || value || !widgetIdRef.current || !window.turnstile) {

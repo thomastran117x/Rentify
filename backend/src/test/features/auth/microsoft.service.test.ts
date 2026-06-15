@@ -11,6 +11,7 @@ jest.mock("@/configuration/environment", () => {
 });
 
 import BadRequestError from "@/errors/http/bad-request.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 
@@ -181,6 +182,37 @@ describe("MicrosoftOAuthService", () => {
       }),
     ).rejects.toMatchObject<Partial<UnauthorizedError>>({
       message: "Microsoft ID token is missing required claims.",
+    });
+  });
+
+  it("maps Microsoft token endpoint infrastructure failures to service unavailable", async () => {
+    setEnvironment({
+      MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
+      MICROSOFT_OAUTH_TENANT: "consumers",
+    });
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ETIMEDOUT" },
+      }),
+    );
+    const service = new MicrosoftOAuthService({
+      verifyIdToken: jest.fn(),
+    } as never);
+
+    await expect(
+      service.verify({
+        code: "auth-code",
+        codeVerifier: "pkce-verifier",
+        nonce: "nonce-6",
+      }),
+    ).rejects.toMatchObject<Partial<ServiceNotAvaliableError>>({
+      status: 503,
+      code: "SERVICE_NOT_AVALIABLE",
+      message: "Microsoft authorization service is currently unavailable.",
+      details: expect.objectContaining({
+        provider: "microsoft",
+        reason: "ETIMEDOUT",
+      }),
     });
   });
 });

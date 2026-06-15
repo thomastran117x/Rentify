@@ -11,6 +11,7 @@ jest.mock("@/configuration/environment", () => {
 });
 
 import BadRequestError from "@/errors/http/bad-request.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 
@@ -178,6 +179,67 @@ describe("GoogleOAuthService", () => {
       }),
     ).rejects.toMatchObject<Partial<UnauthorizedError>>({
       message: "Google account email is not verified.",
+    });
+  });
+
+  it("maps Google token endpoint infrastructure failures to service unavailable", async () => {
+    setEnvironment({
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+    });
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNRESET" },
+      }),
+    );
+    const service = new GoogleOAuthService({
+      verifyIdToken: jest.fn(),
+    } as never);
+
+    await expect(
+      service.verify({
+        code: "auth-code",
+        codeVerifier: "pkce-verifier",
+        nonce: "nonce-5",
+      }),
+    ).rejects.toMatchObject<Partial<ServiceNotAvaliableError>>({
+      status: 503,
+      code: "SERVICE_NOT_AVALIABLE",
+      message: "Google authorization service is currently unavailable.",
+      details: expect.objectContaining({
+        provider: "google",
+        reason: "ECONNRESET",
+      }),
+    });
+  });
+
+  it("maps Google token endpoint server errors to service unavailable", async () => {
+    setEnvironment({
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+    });
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "temporarily_unavailable" }), {
+        status: 503,
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+    const service = new GoogleOAuthService({
+      verifyIdToken: jest.fn(),
+    } as never);
+
+    await expect(
+      service.verify({
+        code: "auth-code",
+        codeVerifier: "pkce-verifier",
+        nonce: "nonce-6",
+      }),
+    ).rejects.toMatchObject<Partial<ServiceNotAvaliableError>>({
+      status: 503,
+      details: expect.objectContaining({
+        provider: "google",
+        status: 503,
+      }),
     });
   });
 });

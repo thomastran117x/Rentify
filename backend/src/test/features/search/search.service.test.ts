@@ -32,6 +32,7 @@ describe("SearchService", () => {
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
+      buildVersionedIndexName: jest.fn(() => "postings_v2"),
     } as never;
     const service = new SearchService(
       postingsRepository,
@@ -42,8 +43,11 @@ describe("SearchService", () => {
     const result = await service.startReindex();
 
     expect(withSearchReindexStartLock).toHaveBeenCalledTimes(1);
-    expect(postingsSearchService.ensureLiveIndex).toHaveBeenCalledTimes(1);
-    expect(postingsSearchService.createVersionedIndex).toHaveBeenCalledTimes(1);
+    expect(postingsSearchService.ensureLiveIndex).not.toHaveBeenCalled();
+    expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
+    expect(postingsSearchService.buildVersionedIndexName).toHaveBeenCalledTimes(
+      1,
+    );
     expect(createSearchReindexRun).toHaveBeenCalledWith("postings_v2");
     expect(result).toMatchObject({
       id: "run-1",
@@ -146,6 +150,64 @@ describe("SearchService", () => {
       deadLetter: { ready: 0, consumers: 0 },
     });
     expect(searchQueueService.getQueueCounts).not.toHaveBeenCalled();
+  });
+
+  it("reports degraded alias health instead of failing status when Elasticsearch is unavailable", async () => {
+    const postingsRepository = {
+      findActiveSearchReindexRun: jest.fn(async () => null),
+      findLatestSearchReindexRun: jest.fn(async () => null),
+      getSearchOutboxLagMetrics: jest.fn(async () => ({
+        unpublishedCount: 0,
+        unpublishedOldestAgeMs: null,
+        publishedNotIndexedCount: 0,
+        publishedNotIndexedOldestAgeMs: null,
+        deadLetteredByOperation: {
+          upsert: 0,
+          delete: 0,
+          barrier: 0,
+        },
+      })),
+    } as never;
+    const postingsSearchService = {
+      isElasticsearchEnabled: () => true,
+      getAliasStatus: jest.fn(async () => {
+        throw new Error("Elasticsearch is down");
+      }),
+      getReadAliasName: () => "postings-read",
+      getWriteAliasName: () => "postings-write",
+      getCircuitBreakerState: () => ({
+        state: "open" as const,
+        consecutiveFailures: 3,
+        failureThreshold: 3,
+        cooldownMs: 30_000,
+      }),
+    } as never;
+    const searchQueueService = {
+      getQueueCounts: jest.fn(async () => ({
+        main: { ready: 0, consumers: 0 },
+        retry1: { ready: 0, consumers: 0 },
+        retry2: { ready: 0, consumers: 0 },
+        retry3: { ready: 0, consumers: 0 },
+        deadLetter: { ready: 0, consumers: 0 },
+      })),
+    } as never;
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
+
+    const status = await service.getStatus();
+
+    expect(status.aliases.health).toEqual({
+      state: "unavailable",
+      readAlias: "postings-read",
+      writeAlias: "postings-write",
+      readTargets: [],
+      writeTargets: [],
+      message: "Elasticsearch is down",
+    });
+    expect(status.queueInspection).toEqual({ ok: true });
   });
 
   it("returns reindex runs by id from the repository", async () => {
@@ -681,9 +743,126 @@ describe("SearchService", () => {
     expect(searchQueueService.publishRetryJob).not.toHaveBeenCalled();
   });
 
+  it("propagates retry publication failures so the worker can nack the original message", async () => {
+    const incrementSearchOutboxAttempt = jest.fn(async () => 1);
+    const publishRetryJob = jest.fn(async () => {
+      throw new Error("retry queue unavailable");
+    });
+    const markSearchOutboxDeadLettered = jest.fn(async () => undefined);
+    const service = new SearchService(
+      {
+        getSearchOutboxById: jest.fn(async () => ({
+          id: "outbox-retry-failure",
+          postingId: null,
+          reindexRunId: undefined,
+          operation: "upsert",
+          dedupeKey: "outbox-retry-failure",
+          attempts: 0,
+          publishAttempts: 0,
+          availableAt: "2026-04-27T00:00:00.000Z",
+          createdAt: "2026-04-27T00:00:00.000Z",
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        })),
+        incrementSearchOutboxAttempt,
+        markSearchOutboxDeadLettered,
+      } as never,
+      {} as never,
+      {
+        publishRetryJob,
+        publishDeadLetterJob: jest.fn(async () => undefined),
+      } as never,
+    );
+
+    await expect(
+      service.processIndexJob(
+        {
+          outboxId: "outbox-retry-failure",
+          eventId: "outbox-retry-failure",
+          dedupeKey: "outbox-retry-failure",
+          operation: "upsert",
+          jobType: "upsert",
+          postingId: null,
+          targetIndexScope: "live",
+          occurredAt: "2026-04-27T00:00:00.000Z",
+          attempt: 0,
+        },
+        3,
+      ),
+    ).rejects.toThrow("retry queue unavailable");
+
+    expect(incrementSearchOutboxAttempt).toHaveBeenCalledWith(
+      "outbox-retry-failure",
+      "Search outbox job is missing a posting id.",
+    );
+    expect(publishRetryJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outboxId: "outbox-retry-failure",
+        attempt: 1,
+      }),
+      1,
+    );
+    expect(markSearchOutboxDeadLettered).not.toHaveBeenCalled();
+  });
+
+  it("does not mark index jobs dead-lettered when dead-letter publication fails", async () => {
+    const markSearchOutboxDeadLettered = jest.fn(async () => undefined);
+    const publishDeadLetterJob = jest.fn(async () => {
+      throw new Error("dead-letter queue unavailable");
+    });
+    const service = new SearchService(
+      {
+        getSearchOutboxById: jest.fn(async () => ({
+          id: "outbox-dead-letter-failure",
+          postingId: null,
+          reindexRunId: undefined,
+          operation: "delete",
+          dedupeKey: "outbox-dead-letter-failure",
+          attempts: 2,
+          publishAttempts: 0,
+          availableAt: "2026-04-27T00:00:00.000Z",
+          createdAt: "2026-04-27T00:00:00.000Z",
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        })),
+        incrementSearchOutboxAttempt: jest.fn(async () => 3),
+        markSearchOutboxDeadLettered,
+      } as never,
+      {} as never,
+      {
+        publishRetryJob: jest.fn(async () => undefined),
+        publishDeadLetterJob,
+      } as never,
+    );
+
+    await expect(
+      service.processIndexJob(
+        {
+          outboxId: "outbox-dead-letter-failure",
+          eventId: "outbox-dead-letter-failure",
+          dedupeKey: "outbox-dead-letter-failure",
+          operation: "delete",
+          jobType: "delete",
+          postingId: null,
+          targetIndexScope: "live",
+          occurredAt: "2026-04-27T00:00:00.000Z",
+          attempt: 2,
+        },
+        3,
+      ),
+    ).rejects.toThrow("dead-letter queue unavailable");
+
+    expect(publishDeadLetterJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outboxId: "outbox-dead-letter-failure",
+        attempt: 3,
+      }),
+    );
+    expect(markSearchOutboxDeadLettered).not.toHaveBeenCalled();
+  });
+
   it("heartbeats reindex processing and clears waiting runs for the next poll", async () => {
     const touchSearchReindexRunProcessing = jest.fn(async () => undefined);
     const clearSearchReindexRunProcessing = jest.fn(async () => undefined);
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest
         .fn()
@@ -712,7 +891,7 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         }),
       countPublishedPostingsForIndexing: jest.fn(async () => 2),
-      markSearchReindexRunRunning: jest.fn(async () => undefined),
+      markSearchReindexRunRunning,
       findLatestCompletedSearchReindexRun: jest.fn(async () => null),
       listPublishedForIndexingBatch: jest
         .fn()
@@ -735,6 +914,7 @@ describe("SearchService", () => {
     } as never;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => undefined),
     } as never;
     const searchQueueService = {
@@ -750,13 +930,60 @@ describe("SearchService", () => {
     await service.processReindexRuns(200);
 
     expect(
-      postingsRepository.countPublishedPostingsForIndexing,
-    ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
-    expect(
       postingsRepository.listPublishedForIndexingBatch,
     ).toHaveBeenCalledWith(200, undefined, "2026-04-27T00:00:00.000Z");
     expect(touchSearchReindexRunProcessing).toHaveBeenCalled();
+    expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
+    expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
     expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
+  });
+
+  it("creates and marks pending reindex runs before indexing", async () => {
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
+    const postingsRepository = {
+      claimNextSearchReindexRun: jest.fn(async () => ({
+        id: "run-1",
+        status: "pending",
+        targetIndexName: "postings_v2",
+        sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
+        totalPostings: 0,
+        indexedPostings: 0,
+        failedPostings: 0,
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+      })),
+      countPublishedPostingsForIndexing: jest.fn(async () => 2),
+      markSearchReindexRunRunning,
+      listPublishedForIndexingBatch: jest.fn(async () => []),
+      enqueueSearchReindexBarrier: jest.fn(async () => undefined),
+    } as never;
+    const postingsSearchService = {
+      ensureLiveIndex: jest.fn(async () => undefined),
+      createVersionedIndex: jest.fn(async () => "postings_v2"),
+    } as never;
+    const searchQueueService = {
+      ensureTopology: jest.fn(async () => undefined),
+    } as never;
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
+
+    const processed = await service.processReindexRuns(200);
+
+    expect(processed).toBe(1);
+    expect(postingsSearchService.createVersionedIndex).toHaveBeenCalledWith(
+      "postings_v2",
+    );
+    expect(
+      postingsRepository.countPublishedPostingsForIndexing,
+    ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
+    expect(markSearchReindexRunRunning).toHaveBeenCalledWith("run-1", 2);
+    expect(postingsRepository.enqueueSearchReindexBarrier).toHaveBeenCalledWith(
+      "run-1",
+      "postings_v2",
+    );
   });
 
   it("fails waiting reindex runs when the barrier dead-letters", async () => {
@@ -809,6 +1036,8 @@ describe("SearchService", () => {
   it("retries transient reindex failures without failing the run", async () => {
     const clearSearchReindexRunProcessing = jest.fn(async () => undefined);
     const markSearchReindexRunFailed = jest.fn(async () => undefined);
+    const countPublishedPostingsForIndexing = jest.fn(async () => 1);
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
         id: "run-1",
@@ -822,8 +1051,8 @@ describe("SearchService", () => {
         createdAt: "2026-04-27T00:00:00.000Z",
         updatedAt: "2026-04-27T00:00:00.000Z",
       })),
-      countPublishedPostingsForIndexing: jest.fn(async () => 1),
-      markSearchReindexRunRunning: jest.fn(async () => undefined),
+      countPublishedPostingsForIndexing,
+      markSearchReindexRunRunning,
       listPublishedForIndexingBatch: jest
         .fn()
         .mockResolvedValueOnce([
@@ -838,6 +1067,7 @@ describe("SearchService", () => {
     } as never;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => {
         throw new Error("amqp broker unavailable");
       }),
@@ -854,6 +1084,9 @@ describe("SearchService", () => {
     const processed = await service.processReindexRuns(100);
 
     expect(processed).toBe(0);
+    expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
+    expect(countPublishedPostingsForIndexing).not.toHaveBeenCalled();
+    expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
     expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
     expect(markSearchReindexRunFailed).not.toHaveBeenCalled();
   });
