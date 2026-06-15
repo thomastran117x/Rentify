@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PublicPostingAutocompleteError,
   fetchPublicPostingAutocomplete,
+  searchPublicPostings,
 } from "./search";
 
 describe("fetchPublicPostingAutocomplete", () => {
@@ -117,5 +118,109 @@ describe("fetchPublicPostingAutocomplete", () => {
         },
       ),
     ).rejects.toBe(abortError);
+  });
+
+  it("searches postings safely during server rendering", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              postings: [
+                {
+                  id: "posting-1",
+                  name: "Beltline Designer Flat",
+                  description: "Sunlit flat with polished interiors.",
+                  variant: {
+                    family: "place",
+                    subtype: "entire_place",
+                  },
+                  pricing: {
+                    currency: "CAD",
+                    daily: {
+                      amount: 210,
+                    },
+                  },
+                  location: {
+                    city: "Calgary",
+                    region: "Alberta",
+                    country: "Canada",
+                  },
+                  tags: ["beltline"],
+                  availabilityStatus: "available",
+                },
+              ],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                total: 1,
+                totalPages: 1,
+                hasNextPage: false,
+                hasPreviousPage: false,
+              },
+              source: "database",
+            },
+            error: null,
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const originalWindow = globalThis.window;
+    const originalDocument = globalThis.document;
+    const originalNavigator = globalThis.navigator;
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const result = await searchPublicPostings({
+        q: "Beltline Designer Flat",
+        page: 1,
+        pageSize: 20,
+        sort: "relevance",
+      });
+
+      expect(result.postings[0]?.name).toBe("Beltline Designer Flat");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8040/api/v1/postings?q=Beltline+Designer+Flat&page=1&pageSize=20&sort=relevance",
+        expect.objectContaining({
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      );
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: originalDocument,
+      });
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
   });
 });

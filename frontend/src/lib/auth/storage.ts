@@ -1,5 +1,3 @@
-"use client";
-
 import type { StoredAuthSession } from "@/lib/auth/types";
 
 const SESSION_STORAGE_KEY = "rentify.auth.session";
