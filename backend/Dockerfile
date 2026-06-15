@@ -8,7 +8,7 @@ RUN npm ci
 FROM deps AS build
 COPY openapi ./openapi
 COPY prisma ./prisma
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.app.json tsconfig.base.json ./
 COPY src ./src
 RUN npm run prisma:generate
 RUN npm run build

@@ -5,6 +5,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "security",
   "blob",
   "profile",
+  "feedbacks",
   "auth-core",
   "auth-otp",
   "auth-oauth",

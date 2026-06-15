@@ -30,6 +30,8 @@ tags:
     description: 'Organization memberships, invitations, active-org switching, and member management.'
   - name: profiles
     description: Public profile browsing and current-user profile management.
+  - name: feedback
+    description: Public app feedback submission with optional authenticated context.
   - name: blob
     description: Blob upload target creation.
   - name: postings
@@ -5250,6 +5252,63 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /feedback:
+    post:
+      operationId: createAppFeedback
+      summary: Submit app feedback
+      description: Creates an app feedback submission. Anonymous callers must include a valid `captchaToken`; signed-in callers may submit without captcha and will have their session user context attached automatically.
+      tags:
+        - feedback
+      x-rentify-permissions:
+        authMode: public-or-session-bearer
+        minimumRole: null
+        patAllowed: false
+        captcha: Required for anonymous callers only.
+      requestBody:
+        required: true
+        description: Feedback submission payload. `captchaToken` is required only when the request is anonymous.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppFeedbackRequest'
+            example:
+              name: Taylor Morgan
+              email: taylor@example.com
+              category: feature_request
+              message: A saved-search shortcut on the contact or home experience would make it easier to return to promising rentals.
+              captchaToken: turnstile-token
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppFeedbackSubmissionReceipt'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Feedback submitted successfully.
+                data:
+                  id: feedback-1
+                  category: feature_request
+                  createdAt: '2026-06-15T12:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /reports:
     post:
       operationId: createReport
@@ -10325,6 +10384,52 @@ components:
         availableRentPostingsCount:
           type: integer
           minimum: 0
+    FeedbackCategory:
+      type: string
+      enum:
+        - bug_report
+        - feature_request
+        - usability
+        - praise
+        - other
+    CreateAppFeedbackRequest:
+      type: object
+      required:
+        - name
+        - email
+        - category
+        - message
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        email:
+          type: string
+          format: email
+        category:
+          $ref: '#/components/schemas/FeedbackCategory'
+        message:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        captchaToken:
+          type: string
+          description: Required when the request is anonymous. Signed-in callers may omit this field.
+    AppFeedbackSubmissionReceipt:
+      type: object
+      required:
+        - id
+        - category
+        - createdAt
+      properties:
+        id:
+          type: string
+        category:
+          $ref: '#/components/schemas/FeedbackCategory'
+        createdAt:
+          type: string
+          format: date-time
     Pagination:
       type: object
       required:

@@ -31,6 +31,7 @@ model User {
   personalAccessTokens PersonalAccessToken[]
   recommendationProfile UserRecommendationProfile?
   recommendationSnapshot UserRecommendationSnapshot?
+  feedbacks               Feedback[]
   filedContentReports    ContentReport[]      @relation("ContentReportReporter")
   assignedContentReports ContentReport[]      @relation("ContentReportAssignee")
   contentReportEvents    ContentReportEvent[] @relation("ContentReportEventActor")
@@ -690,6 +691,22 @@ model PostingReview {
   @@map("posting_reviews")
 }
 
+model Feedback {
+  id        String           @id @db.VarChar(36)
+  userId    String?          @map("user_id") @db.VarChar(36)
+  name      String           @db.VarChar(160)
+  email     String           @db.VarChar(255)
+  category  FeedbackCategory
+  message   String           @db.VarChar(2000)
+  createdAt DateTime         @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([category, createdAt])
+  @@map("feedback")
+}
+
 model ContentReport {
   id                 String               @id @db.VarChar(36)
   reporterId         String               @map("reporter_id") @db.VarChar(36)
@@ -864,6 +881,14 @@ enum PostingStatus {
   published
   paused
   archived
+}
+
+enum FeedbackCategory {
+  bug_report
+  feature_request
+  usability
+  praise
+  other
 }
 
 enum ReportSubjectType {

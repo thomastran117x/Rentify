@@ -5,6 +5,7 @@ import { authOtpRegistrationModule } from "@/configuration/container/registratio
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { bookingsRegistrationModule } from "@/configuration/container/registrations/modules/bookings";
+import { feedbacksRegistrationModule } from "@/configuration/container/registrations/modules/feedbacks";
 import { organizationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations";
 import { paymentsRegistrationModule } from "@/configuration/container/registrations/modules/payments";
 import { postingsAnalyticsRegistrationModule } from "@/configuration/container/registrations/modules/postings-analytics";
@@ -34,6 +35,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   securityRegistrationModule,
   blobRegistrationModule,
   profileRegistrationModule,
+  feedbacksRegistrationModule,
   authCoreRegistrationModule,
   authOtpRegistrationModule,
   authOauthRegistrationModule,
