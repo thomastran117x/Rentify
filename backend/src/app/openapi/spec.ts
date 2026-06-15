@@ -456,6 +456,11 @@ const reportsListExample = {
   source: "elasticsearch",
   query: "wire transfer",
 };
+const feedbackReceiptExample = {
+  id: "feedback-1",
+  category: "feature_request",
+  createdAt: "2026-06-15T12:00:00.000Z",
+};
 const analyticsSummaryExample = {
   window: "7d",
   totals: {
@@ -3068,6 +3073,42 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/feedback",
+      operationId: "createAppFeedback",
+      summary: "Submit app feedback",
+      description:
+        "Creates an app feedback submission. Anonymous callers must include a valid `captchaToken`; signed-in callers may submit without captcha and will have their session user context attached automatically.",
+      tags: ["feedback"],
+      permissions: {
+        authMode: "public-or-session-bearer",
+        minimumRole: null,
+        patAllowed: false,
+        captcha: "Required for anonymous callers only.",
+      },
+      requestBody: requestBody(
+        "CreateAppFeedbackRequest",
+        {
+          name: "Taylor Morgan",
+          email: "taylor@example.com",
+          category: "feature_request",
+          message:
+            "A saved-search shortcut on the contact or home experience would make it easier to return to promising rentals.",
+          captchaToken: "turnstile-token",
+        },
+        "Feedback submission payload. `captchaToken` is required only when the request is anonymous.",
+      ),
+      responses: {
+        "201": successResponse(
+          201,
+          "Feedback submitted successfully.",
+          "AppFeedbackSubmissionReceipt",
+          feedbackReceiptExample,
+        ),
+        ...commonErrors([400, 401, 429, 500]),
       },
     },
     {
@@ -5822,6 +5863,34 @@ function buildComponents(): Record<string, unknown> {
           availableRentPostingsCount: { type: "integer", minimum: 0 },
         },
       },
+      FeedbackCategory: {
+        type: "string",
+        enum: ["bug_report", "feature_request", "usability", "praise", "other"],
+      },
+      CreateAppFeedbackRequest: {
+        type: "object",
+        required: ["name", "email", "category", "message"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 160 },
+          email: { type: "string", format: "email" },
+          category: schemaRef("FeedbackCategory"),
+          message: { type: "string", minLength: 10, maxLength: 2000 },
+          captchaToken: {
+            type: "string",
+            description:
+              "Required when the request is anonymous. Signed-in callers may omit this field.",
+          },
+        },
+      },
+      AppFeedbackSubmissionReceipt: {
+        type: "object",
+        required: ["id", "category", "createdAt"],
+        properties: {
+          id: { type: "string" },
+          category: schemaRef("FeedbackCategory"),
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
       Pagination: {
         type: "object",
         required: [
@@ -6512,6 +6581,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "profiles",
         description:
           "Public profile browsing and current-user profile management.",
+      },
+      {
+        name: "feedback",
+        description:
+          "Public app feedback submission with optional authenticated context.",
       },
       { name: "blob", description: "Blob upload target creation." },
       {

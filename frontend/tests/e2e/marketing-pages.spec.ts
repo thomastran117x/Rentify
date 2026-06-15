@@ -63,40 +63,35 @@ test("marketing pages render and remain navigable", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("contact form shows validation and local success state", async ({
-  page,
-}) => {
+test("contact form shows validation and success state", async ({ page }) => {
   await page.goto("/contact");
 
-  await page.getByRole("button", { name: "Send inquiry" }).click();
+  await page.getByRole("button", { name: "Send feedback" }).click();
 
   await expect(page.getByText("Please enter your name.")).toBeVisible();
   await expect(
     page.getByText("Please enter your email address."),
   ).toBeVisible();
-  await expect(
-    page.getByText("Please share a few project details."),
-  ).toBeVisible();
+  await expect(page.getByText("Please share your feedback.")).toBeVisible();
 
   await page.getByRole("textbox", { name: /^Name/ }).fill("Taylor Morgan");
   await page
     .getByRole("textbox", { name: /^Email/ })
     .fill("taylor@example.com");
   await page
-    .getByRole("textbox", { name: /^Company or portfolio/ })
-    .fill("Northline Rentals");
+    .getByRole("combobox", { name: /^Feedback type/ })
+    .selectOption({ label: "Feature request" });
   await page
-    .getByRole("combobox", { name: /^Focus area/ })
-    .selectOption("Listing as an owner");
-  await page
-    .getByRole("textbox", { name: /^Project notes/ })
-    .fill("We want help understanding the owner experience and support pages.");
+    .getByRole("textbox", { name: /^What should the team know/ })
+    .fill(
+      "We want saved searches so renters can return to promising listings.",
+    );
 
-  await page.getByRole("button", { name: "Send inquiry" }).click();
+  await page.getByRole("button", { name: "Send feedback" }).click();
 
   await expect(
     page.getByText(
-      "Thanks. Your inquiry has been captured locally and is ready for backend integration next.",
+      "Thanks. Your feature request has been sent to the Rentify team.",
     ),
   ).toBeVisible();
 });

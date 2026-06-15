@@ -11,6 +11,7 @@ export const ROUTE_MODULE_IDS = [
   "organizations",
   "blob",
   "profiles",
+  "feedbacks",
   "reports",
   "moderation-reports",
   "search-admin",

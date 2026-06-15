@@ -22,6 +22,9 @@ import { CacheService } from "@/features/cache/cache.service";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 import { EmailQueueService } from "@/features/email/email.queue.service";
 import { EmailService } from "@/features/email/email.service";
+import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
+import { FeedbacksRepository } from "@/features/feedbacks/feedbacks.repository";
+import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
@@ -77,6 +80,13 @@ export const containerTokens = {
     "EmailDeliveryService",
   ),
   emailService: createServiceToken<EmailService>("EmailService"),
+  feedbacksRepository: createServiceToken<FeedbacksRepository>(
+    "FeedbacksRepository",
+  ),
+  feedbacksService: createServiceToken<FeedbacksService>("FeedbacksService"),
+  feedbacksController: createServiceToken<FeedbacksController>(
+    "FeedbacksController",
+  ),
   organizationsRepository: createServiceToken<OrganizationsRepository>(
     "OrganizationsRepository",
   ),

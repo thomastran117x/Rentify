@@ -14,6 +14,7 @@ import {
 import { AuthController } from "@/features/auth/auth.controller";
 import { BlobController } from "@/features/blob/blob.controller";
 import { BookingsController } from "@/features/bookings/bookings.controller";
+import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PostingsController } from "@/features/postings/postings.controller";
 import { ProfileController } from "@/features/profile/profile.controller";
@@ -58,6 +59,9 @@ describe("container registrations", () => {
       );
       expect(scope.resolve(containerTokens.reportsController)).toBeInstanceOf(
         ReportsController,
+      );
+      expect(scope.resolve(containerTokens.feedbacksController)).toBeInstanceOf(
+        FeedbacksController,
       );
       expect(
         scope.resolve(containerTokens.recommendationsController),
