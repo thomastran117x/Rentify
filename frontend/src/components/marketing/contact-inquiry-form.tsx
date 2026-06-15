@@ -4,10 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { ApiError } from "@/lib/api/types";
-import {
-  feedbackApi,
-  type FeedbackCategory,
-} from "@/lib/feedback/api";
+import { feedbackApi, type FeedbackCategory } from "@/lib/feedback/api";
 
 interface FeedbackValues {
   name: string;

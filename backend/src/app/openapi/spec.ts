@@ -5865,13 +5865,7 @@ function buildComponents(): Record<string, unknown> {
       },
       FeedbackCategory: {
         type: "string",
-        enum: [
-          "bug_report",
-          "feature_request",
-          "usability",
-          "praise",
-          "other",
-        ],
+        enum: ["bug_report", "feature_request", "usability", "praise", "other"],
       },
       CreateAppFeedbackRequest: {
         type: "object",

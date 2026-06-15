@@ -63,9 +63,7 @@ test("marketing pages render and remain navigable", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("contact form shows validation and success state", async ({
-  page,
-}) => {
+test("contact form shows validation and success state", async ({ page }) => {
   await page.goto("/contact");
 
   await page.getByRole("button", { name: "Send feedback" }).click();
@@ -74,9 +72,7 @@ test("contact form shows validation and success state", async ({
   await expect(
     page.getByText("Please enter your email address."),
   ).toBeVisible();
-  await expect(
-    page.getByText("Please share your feedback."),
-  ).toBeVisible();
+  await expect(page.getByText("Please share your feedback.")).toBeVisible();
 
   await page.getByRole("textbox", { name: /^Name/ }).fill("Taylor Morgan");
   await page
@@ -87,7 +83,9 @@ test("contact form shows validation and success state", async ({
     .selectOption({ label: "Feature request" });
   await page
     .getByRole("textbox", { name: /^What should the team know/ })
-    .fill("We want saved searches so renters can return to promising listings.");
+    .fill(
+      "We want saved searches so renters can return to promising listings.",
+    );
 
   await page.getByRole("button", { name: "Send feedback" }).click();
 

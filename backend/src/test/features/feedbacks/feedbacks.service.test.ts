@@ -3,15 +3,13 @@ import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 describe("FeedbacksService", () => {
   it("normalizes feedback input and returns a submission receipt", async () => {
     const create = jest.fn(
-      async (
-        input: {
-          userId?: string;
-          name: string;
-          email: string;
-          category: string;
-          message: string;
-        },
-      ) => ({
+      async (input: {
+        userId?: string;
+        name: string;
+        email: string;
+        category: string;
+        message: string;
+      }) => ({
         id: "feedback-1",
         ...input,
         createdAt: "2026-06-15T12:00:00.000Z",

@@ -63,29 +63,28 @@ class FakeRequestContainer implements ServiceContainer {
 }
 
 function createApp() {
-  const feedbackCreate = jest
-    .fn(
-      async ({
-        data,
-      }: {
-        data: {
-          userId?: string | null;
-          name: string;
-          email: string;
-          category: string;
-          message: string;
-        };
-      }) => ({
-        id: "feedback-1",
-        userId: data.userId ?? null,
-        name: data.name,
-        email: data.email,
-        category: data.category,
-        message: data.message,
-        createdAt: new Date("2026-06-15T12:00:00.000Z"),
-        updatedAt: new Date("2026-06-15T12:00:00.000Z"),
-      }),
-    );
+  const feedbackCreate = jest.fn(
+    async ({
+      data,
+    }: {
+      data: {
+        userId?: string | null;
+        name: string;
+        email: string;
+        category: string;
+        message: string;
+      };
+    }) => ({
+      id: "feedback-1",
+      userId: data.userId ?? null,
+      name: data.name,
+      email: data.email,
+      category: data.category,
+      message: data.message,
+      createdAt: new Date("2026-06-15T12:00:00.000Z"),
+      updatedAt: new Date("2026-06-15T12:00:00.000Z"),
+    }),
+  );
   const feedbacksRepository = new FeedbacksRepository({
     feedback: {
       create: feedbackCreate,
@@ -93,13 +92,11 @@ function createApp() {
   } as never);
   const feedbacksService = new FeedbacksService(feedbacksRepository);
   const captchaService = {
-    verify: jest.fn(
-      async ({ token }: { token?: string }) => ({
-        success: token === "turnstile-token",
-        failOpen: false,
-        errors: token === "turnstile-token" ? [] : ["invalid-input-response"],
-      }),
-    ),
+    verify: jest.fn(async ({ token }: { token?: string }) => ({
+      success: token === "turnstile-token",
+      failOpen: false,
+      errors: token === "turnstile-token" ? [] : ["invalid-input-response"],
+    })),
   };
   const controller = new FeedbacksController(
     feedbacksService,

@@ -67,9 +67,7 @@ describe("ContactInquiryForm", () => {
     expect(
       screen.getByText("Please enter your email address."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Please share your feedback."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Please share your feedback.")).toBeInTheDocument();
     expect(
       screen.getByText("Complete the verification before sending feedback."),
     ).toBeInTheDocument();
@@ -198,7 +196,9 @@ describe("ContactInquiryForm", () => {
     expect(
       await screen.findByText("Please complete the verification again."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Captcha verification failed.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Captcha verification failed."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Captcha missing")).toBeInTheDocument();
   });
 });

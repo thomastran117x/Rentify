@@ -44,8 +44,8 @@ export default function ContactPage() {
             Bugs, ideas, and friction
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Share the workflow, page, or moment that needs attention so the
-            team can prioritize the next improvements with better context.
+            Share the workflow, page, or moment that needs attention so the team
+            can prioritize the next improvements with better context.
           </p>
         </div>
       }

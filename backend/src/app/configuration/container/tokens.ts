@@ -80,11 +80,13 @@ export const containerTokens = {
     "EmailDeliveryService",
   ),
   emailService: createServiceToken<EmailService>("EmailService"),
-  feedbacksRepository:
-    createServiceToken<FeedbacksRepository>("FeedbacksRepository"),
+  feedbacksRepository: createServiceToken<FeedbacksRepository>(
+    "FeedbacksRepository",
+  ),
   feedbacksService: createServiceToken<FeedbacksService>("FeedbacksService"),
-  feedbacksController:
-    createServiceToken<FeedbacksController>("FeedbacksController"),
+  feedbacksController: createServiceToken<FeedbacksController>(
+    "FeedbacksController",
+  ),
   organizationsRepository: createServiceToken<OrganizationsRepository>(
     "OrganizationsRepository",
   ),

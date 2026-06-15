@@ -20,7 +20,10 @@ class FeedbacksController {
 
   create = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await getOptionalJwtAuth(context);
-    const body = await parseRequestBody(context, createAppFeedbackRequestSchema);
+    const body = await parseRequestBody(
+      context,
+      createAppFeedbackRequestSchema,
+    );
 
     if (!auth) {
       await this.verifyCaptcha(context, body.captchaToken);
