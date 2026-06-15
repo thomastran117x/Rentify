@@ -3,9 +3,9 @@ import { MarketingPageShell } from "@/components/marketing/marketing-page-shell"
 import { ContactInquiryForm } from "@/components/marketing/contact-inquiry-form";
 
 export const metadata: Metadata = {
-  title: "Contact | Rentify",
+  title: "Contact & Feedback | Rentify",
   description:
-    "Contact Rentify for renter support, owner questions, partnerships, or trust and safety issues.",
+    "Contact Rentify for support and share product feedback about the app experience.",
 };
 
 const contactChannels = [
@@ -17,9 +17,9 @@ const contactChannels = [
 export default function ContactPage() {
   return (
     <MarketingPageShell
-      eyebrow="Contact"
-      title="Reach out when you need help finding, listing, or managing a rental."
-      description="Use this page for renter support, owner onboarding questions, partnership requests, or policy and accessibility help."
+      eyebrow="Contact and feedback"
+      title="Reach out for support, and tell us how the Rentify app can improve."
+      description="Use this page for renter support, owner onboarding questions, partnerships, policy help, or product feedback about what is working and what needs attention."
       accent="rgba(66,109,86,0.24)"
       ctaLabel="Browse rentals"
       ctaHref="/postings"
@@ -32,20 +32,20 @@ export default function ContactPage() {
       ]}
       stats={[
         { label: "Response target", value: "1 business day" },
-        { label: "Support tracks", value: "4" },
-        { label: "Coverage", value: "Renter + owner" },
+        { label: "Feedback modes", value: "5" },
+        { label: "Coverage", value: "Support + product" },
       ]}
       aside={
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
-            Response window
+            Product signal
           </p>
           <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
-            1 business day
+            Bugs, ideas, and friction
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Best for booking questions, owner setup, partnerships, and any issue
-            where you need a real answer from the team.
+            Share the workflow, page, or moment that needs attention so the
+            team can prioritize the next improvements with better context.
           </p>
         </div>
       }
