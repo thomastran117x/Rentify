@@ -29,7 +29,9 @@ test("server-rendered postings search and detail pages load without client bound
   await expect(
     page.getByRole("heading", { name: "Beltline Designer Flat" }),
   ).toBeVisible();
-  await expect(page.getByText("We couldn't load this posting right now.")).toHaveCount(0);
+  await expect(
+    page.getByText("We couldn't load this posting right now."),
+  ).toHaveCount(0);
 
   await page.reload();
 
@@ -37,7 +39,9 @@ test("server-rendered postings search and detail pages load without client bound
     page.getByRole("heading", { name: "Beltline Designer Flat" }),
   ).toBeVisible();
   expect(
-    consoleErrors.some((entry) => entry.includes("Attempted to call getDeviceId")),
+    consoleErrors.some((entry) =>
+      entry.includes("Attempted to call getDeviceId"),
+    ),
   ).toBe(false);
 });
 
@@ -49,10 +53,14 @@ test("server-rendered postings search shows the normal empty state for no matche
   await page.goto("/postings?q=zzzz-nonexistent-rentify");
 
   await expect(
-    page.getByText("No postings matched your search. Try broadening your filters."),
+    page.getByText(
+      "No postings matched your search. Try broadening your filters.",
+    ),
   ).toBeVisible();
   await expect(page.getByText("Fetch error")).toHaveCount(0);
   expect(
-    consoleErrors.some((entry) => entry.includes("Attempted to call getDeviceId")),
+    consoleErrors.some((entry) =>
+      entry.includes("Attempted to call getDeviceId"),
+    ),
   ).toBe(false);
 });
