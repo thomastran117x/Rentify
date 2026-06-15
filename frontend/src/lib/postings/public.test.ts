@@ -162,4 +162,104 @@ describe("fetchPublicPostingDetail", () => {
       },
     });
   });
+
+  it("loads posting detail safely during server rendering", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              id: "posting-3",
+              organizationId: "org-1",
+              status: "published",
+              variant: {
+                family: "place",
+                subtype: "entire_place",
+              },
+              name: "Beltline Designer Flat",
+              description: "A bright designer flat in Calgary's Beltline.",
+              pricing: {
+                currency: "CAD",
+                daily: {
+                  amount: 210,
+                },
+              },
+              pricingCurrency: "CAD",
+              photos: [],
+              tags: ["beltline", "design"],
+              details: {},
+              availabilityStatus: "available",
+              effectiveMaxBookingDurationDays: 14,
+              availabilityBlocks: [],
+              location: {
+                city: "Calgary",
+                region: "Alberta",
+                country: "Canada",
+                latitude: 51.0447,
+                longitude: -114.0719,
+              },
+              createdAt: "2026-05-01T00:00:00.000Z",
+              updatedAt: "2026-05-01T00:00:00.000Z",
+            },
+            error: null,
+            meta: {
+              requestId: "request-4",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const originalWindow = globalThis.window;
+    const originalDocument = globalThis.document;
+    const originalNavigator = globalThis.navigator;
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const posting = await fetchPublicPostingDetail("posting-3");
+
+      expect(posting.name).toBe("Beltline Designer Flat");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8040/api/v1/postings/posting-3",
+        expect.objectContaining({
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      );
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: originalDocument,
+      });
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
+  });
 });

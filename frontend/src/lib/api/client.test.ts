@@ -38,7 +38,9 @@ describe("api client", () => {
         role: "user",
       },
     });
-    document.cookie = "csrf_token=client-csrf-token";
+    if (typeof document !== "undefined") {
+      document.cookie = "csrf_token=client-csrf-token";
+    }
   });
 
   afterEach(() => {
@@ -287,5 +289,82 @@ describe("api client", () => {
         }),
       }),
     );
+  });
+
+  it("sends public requests safely during server rendering", async () => {
+    vi.resetModules();
+    vi.doUnmock("@/lib/auth/device");
+    vi.doUnmock("@/lib/auth/storage");
+
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              ok: true,
+            },
+            error: null,
+            meta: {
+              requestId: "request-7",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const originalWindow = globalThis.window;
+    const originalDocument = globalThis.document;
+    const originalNavigator = globalThis.navigator;
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const { publicJson } = await import("./client");
+      const result = await publicJson<{ ok: true }>("GET", "/postings");
+
+      expect(result).toEqual({
+        ok: true,
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8040/api/v1/postings",
+        expect.objectContaining({
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      );
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: originalDocument,
+      });
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
   });
 });

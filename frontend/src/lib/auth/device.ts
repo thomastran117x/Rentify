@@ -1,5 +1,3 @@
-"use client";
-
 const DEVICE_STORAGE_KEY = "rentify.auth.device-id";
 
 function createDeviceId(): string {
