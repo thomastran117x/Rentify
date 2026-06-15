@@ -272,6 +272,10 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
       const codeValue = (error as { code?: unknown }).code;
       const code = typeof codeValue === "string" ? codeValue : undefined;
       if (code === "INVALID_PROVIDER_RESPONSE") {
+        if (typeof status === "number" && (status >= 500 || status === 429)) {
+          return classifyHttpError(status, message, code);
+        }
+
         return {
           category: "permanent",
           code,

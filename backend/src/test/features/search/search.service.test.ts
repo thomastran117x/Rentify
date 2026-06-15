@@ -862,6 +862,7 @@ describe("SearchService", () => {
   it("heartbeats reindex processing and clears waiting runs for the next poll", async () => {
     const touchSearchReindexRunProcessing = jest.fn(async () => undefined);
     const clearSearchReindexRunProcessing = jest.fn(async () => undefined);
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest
         .fn()
@@ -890,7 +891,7 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         }),
       countPublishedPostingsForIndexing: jest.fn(async () => 2),
-      markSearchReindexRunRunning: jest.fn(async () => undefined),
+      markSearchReindexRunRunning,
       findLatestCompletedSearchReindexRun: jest.fn(async () => null),
       listPublishedForIndexingBatch: jest
         .fn()
@@ -929,16 +930,60 @@ describe("SearchService", () => {
     await service.processReindexRuns(200);
 
     expect(
-      postingsRepository.countPublishedPostingsForIndexing,
-    ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
-    expect(
       postingsRepository.listPublishedForIndexingBatch,
     ).toHaveBeenCalledWith(200, undefined, "2026-04-27T00:00:00.000Z");
     expect(touchSearchReindexRunProcessing).toHaveBeenCalled();
+    expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
+    expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
+    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
+  });
+
+  it("creates and marks pending reindex runs before indexing", async () => {
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
+    const postingsRepository = {
+      claimNextSearchReindexRun: jest.fn(async () => ({
+        id: "run-1",
+        status: "pending",
+        targetIndexName: "postings_v2",
+        sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
+        totalPostings: 0,
+        indexedPostings: 0,
+        failedPostings: 0,
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+      })),
+      countPublishedPostingsForIndexing: jest.fn(async () => 2),
+      markSearchReindexRunRunning,
+      listPublishedForIndexingBatch: jest.fn(async () => []),
+      enqueueSearchReindexBarrier: jest.fn(async () => undefined),
+    } as never;
+    const postingsSearchService = {
+      ensureLiveIndex: jest.fn(async () => undefined),
+      createVersionedIndex: jest.fn(async () => "postings_v2"),
+    } as never;
+    const searchQueueService = {
+      ensureTopology: jest.fn(async () => undefined),
+    } as never;
+    const service = new SearchService(
+      postingsRepository,
+      postingsSearchService,
+      searchQueueService,
+    );
+
+    const processed = await service.processReindexRuns(200);
+
+    expect(processed).toBe(1);
     expect(postingsSearchService.createVersionedIndex).toHaveBeenCalledWith(
       "postings_v2",
     );
-    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
+    expect(
+      postingsRepository.countPublishedPostingsForIndexing,
+    ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
+    expect(markSearchReindexRunRunning).toHaveBeenCalledWith("run-1", 2);
+    expect(postingsRepository.enqueueSearchReindexBarrier).toHaveBeenCalledWith(
+      "run-1",
+      "postings_v2",
+    );
   });
 
   it("fails waiting reindex runs when the barrier dead-letters", async () => {
@@ -991,6 +1036,8 @@ describe("SearchService", () => {
   it("retries transient reindex failures without failing the run", async () => {
     const clearSearchReindexRunProcessing = jest.fn(async () => undefined);
     const markSearchReindexRunFailed = jest.fn(async () => undefined);
+    const countPublishedPostingsForIndexing = jest.fn(async () => 1);
+    const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
         id: "run-1",
@@ -1004,8 +1051,8 @@ describe("SearchService", () => {
         createdAt: "2026-04-27T00:00:00.000Z",
         updatedAt: "2026-04-27T00:00:00.000Z",
       })),
-      countPublishedPostingsForIndexing: jest.fn(async () => 1),
-      markSearchReindexRunRunning: jest.fn(async () => undefined),
+      countPublishedPostingsForIndexing,
+      markSearchReindexRunRunning,
       listPublishedForIndexingBatch: jest
         .fn()
         .mockResolvedValueOnce([
@@ -1037,6 +1084,9 @@ describe("SearchService", () => {
     const processed = await service.processReindexRuns(100);
 
     expect(processed).toBe(0);
+    expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
+    expect(countPublishedPostingsForIndexing).not.toHaveBeenCalled();
+    expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
     expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
     expect(markSearchReindexRunFailed).not.toHaveBeenCalled();
   });

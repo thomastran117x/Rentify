@@ -622,17 +622,19 @@ export class SearchService {
     run: SearchReindexRunRecord,
     batchSize: number,
   ): Promise<void> {
-    await this.postingsSearchIndexService.createVersionedIndex(
-      run.targetIndexName,
-    );
-    const totalPostings =
-      await this.postingsRepository.countPublishedPostingsForIndexing(
-        run.sourceSnapshotAt,
+    if (run.status === "pending") {
+      await this.postingsSearchIndexService.createVersionedIndex(
+        run.targetIndexName,
       );
-    await this.postingsRepository.markSearchReindexRunRunning(
-      run.id,
-      totalPostings,
-    );
+      const totalPostings =
+        await this.postingsRepository.countPublishedPostingsForIndexing(
+          run.sourceSnapshotAt,
+        );
+      await this.postingsRepository.markSearchReindexRunRunning(
+        run.id,
+        totalPostings,
+      );
+    }
 
     let cursorId: string | undefined;
     let indexedPostings = 0;
