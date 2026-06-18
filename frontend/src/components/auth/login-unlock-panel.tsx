@@ -4,17 +4,9 @@ import { useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ApiClientError } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
-
-interface ApiErrorShape {
-  status?: number;
-  message?: string;
-  body?: {
-    error?: string;
-    code?: string;
-    details?: unknown;
-  };
-}
 
 interface LoginUnlockPanelProps {
   email: string;
@@ -26,43 +18,35 @@ function getUnlockFailureResult(error: unknown): {
   generalError: string | null;
   fieldError?: string;
 } {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as
-    | { retryAfterSeconds?: number }
-    | undefined;
+  if (error instanceof ApiClientError) {
+    const { status, message, details } = error;
+    const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
-  if (status === 400) {
-    return {
-      generalError: null,
-      fieldError: message || "Enter the 6-digit unlock code from your email.",
-    };
-  }
+    if (status === 400) {
+      return {
+        generalError: null,
+        fieldError: message || "Enter the 6-digit unlock code from your email.",
+      };
+    }
 
-  if (status === 429) {
-    const retryAfterSeconds = details?.retryAfterSeconds;
+    if (status === 429) {
+      const retryAfterSeconds = retryDetails?.retryAfterSeconds;
 
-    return {
-      generalError: retryAfterSeconds
-        ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message ||
-          "A new unlock code was sent recently. Please wait before retrying.",
-      fieldError: undefined,
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-      fieldError: undefined,
-    };
+      return {
+        generalError: retryAfterSeconds
+          ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
+          : message ||
+            "A new unlock code was sent recently. Please wait before retrying.",
+        fieldError: undefined,
+      };
+    }
   }
 
   return {
-    generalError:
-      "We couldn't unlock sign-in right now. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "unlock sign-in",
+      fallback: "We couldn't unlock sign-in right now. Please try again.",
+    }),
     fieldError: undefined,
   };
 }
@@ -71,62 +55,54 @@ function getResendUnlockFailureResult(error: unknown): {
   generalError: string | null;
   fieldError?: string;
 } {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as
-    | { retryAfterSeconds?: number }
-    | undefined;
+  if (error instanceof ApiClientError) {
+    const { status, code, message, details } = error;
+    const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError:
-            "Please complete the security check before requesting another unlock code.",
-          fieldError: "Complete the verification to continue.",
-        };
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldError: "Please complete the verification again.",
-        };
-      default:
-        return {
-          generalError:
-            message || "We couldn't send another unlock code right now.",
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before requesting another unlock code.",
+            fieldError: "Complete the verification to continue.",
+          };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldError: "Please complete the verification again.",
+          };
+        default:
+          return {
+            generalError:
+              message || "We couldn't send another unlock code right now.",
+          };
+      }
+    }
+
+    if (status === 429) {
+      const retryAfterSeconds = retryDetails?.retryAfterSeconds;
+
+      return {
+        generalError: retryAfterSeconds
+          ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
+          : message ||
+            "A new unlock code was sent recently. Please wait before retrying.",
+        fieldError: undefined,
+      };
     }
   }
 
-  if (status === 429) {
-    const retryAfterSeconds = details?.retryAfterSeconds;
-
-    return {
-      generalError: retryAfterSeconds
-        ? `A new unlock code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message ||
-          "A new unlock code was sent recently. Please wait before retrying.",
-      fieldError: undefined,
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-      fieldError: undefined,
-    };
-  }
-
   return {
-    generalError:
-      "We couldn't resend an unlock code right now. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "resend the unlock code",
+      fallback:
+        "We couldn't resend the unlock code right now. Please try again.",
+    }),
     fieldError: undefined,
   };
 }

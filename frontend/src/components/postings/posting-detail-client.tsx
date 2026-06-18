@@ -17,6 +17,7 @@ import {
 import { ReportDialog } from "@/components/reports/report-dialog";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { PostingDetailGallery } from "@/components/postings/posting-detail-gallery";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   fetchPublicPostingReviews,
   type ListPublicPostingReviewsResult,
@@ -83,9 +84,11 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
       .catch((error) => {
         if (active) {
           setReviewsError(
-            error instanceof Error
-              ? error.message
-              : "Reviews could not be loaded right now.",
+            getApiErrorMessage(error, {
+              action: "load reviews for this posting",
+              fallback:
+                "We couldn't load reviews for this posting right now. Please try again.",
+            }),
           );
         }
       })

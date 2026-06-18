@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
-import { ApiError } from "@/lib/api/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ApiClientError } from "@/lib/api/types";
 import { feedbackApi, type FeedbackCategory } from "@/lib/feedback/api";
 
 interface FeedbackValues {
@@ -210,7 +211,11 @@ export function ContactInquiryForm() {
         `Thanks. Your ${getCategoryLabel(result.category).toLowerCase()} has been sent to the Rentify team.`,
       );
     } catch (error) {
-      if (error instanceof ApiError) {
+      const preserveClientMessage =
+        error instanceof ApiClientError &&
+        error.message === "Captcha verification failed.";
+
+      if (error instanceof ApiClientError) {
         const nextFieldErrors: FeedbackErrors = {
           name: readDetailMessage(error.details, "name"),
           email: readDetailMessage(error.details, "email"),
@@ -234,13 +239,16 @@ export function ContactInquiryForm() {
             ...nextFieldErrors,
           }));
         }
-
-        setSubmitError(error.message);
-      } else {
-        setSubmitError(
-          "We couldn't send your feedback right now. Please try again.",
-        );
       }
+
+      setSubmitError(
+        getApiErrorMessage(error, {
+          action: "send your feedback",
+          fallback:
+            "We couldn't send your feedback right now. Please try again.",
+          preserveClientMessage,
+        }),
+      );
     } finally {
       setIsSubmitting(false);
     }

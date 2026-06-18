@@ -1,4 +1,5 @@
 import { buildPathWithQuery, publicJson } from "@/lib/api/client";
+import { toApiDebug } from "@/lib/api/debug";
 import { ApiError } from "@/lib/api/types";
 
 export type PostingSort =
@@ -123,11 +124,10 @@ export class PublicPostingAutocompleteError extends Error {
 export async function searchPublicPostings(
   params: PublicPostingSearchParams,
 ): Promise<PublicPostingSearchResult> {
+  const requestUrl = buildPathWithQuery("/postings", params);
+
   try {
-    return await publicJson<PublicPostingSearchResult>(
-      "GET",
-      buildPathWithQuery("/postings", params),
-    );
+    return await publicJson<PublicPostingSearchResult>("GET", requestUrl);
   } catch (error) {
     if (error instanceof PublicPostingSearchError) {
       throw error;
@@ -135,21 +135,17 @@ export async function searchPublicPostings(
 
     if (error instanceof ApiError) {
       const typedError = new PublicPostingSearchError(error.message, {
-        requestUrl: buildPathWithQuery("/postings", params),
+        requestUrl,
         params,
-        status: error.status,
-        responseBody: error.details,
+        ...toApiDebug(error),
       });
       console.error("Public postings search request failed", typedError.debug);
       throw typedError;
     }
 
     const debug = {
-      requestUrl: buildPathWithQuery("/postings", params),
+      requestUrl,
       params,
-      ...(error instanceof Error && "status" in error
-        ? { status: Number(error.status) }
-        : {}),
       causeMessage:
         error instanceof Error ? error.message : "Unknown fetch failure.",
     };
@@ -168,6 +164,8 @@ export async function fetchPublicPostingAutocomplete(
     signal?: AbortSignal;
   },
 ): Promise<PublicPostingAutocompleteResult> {
+  const requestUrl = buildPathWithQuery("/postings/autocomplete", params);
+
   if (options?.signal?.aborted) {
     throw new DOMException("The operation was aborted.", "AbortError");
   }
@@ -175,7 +173,7 @@ export async function fetchPublicPostingAutocomplete(
   try {
     return await publicJson<PublicPostingAutocompleteResult>(
       "GET",
-      buildPathWithQuery("/postings/autocomplete", params),
+      requestUrl,
       undefined,
       undefined,
       options?.signal,
@@ -191,17 +189,16 @@ export async function fetchPublicPostingAutocomplete(
 
     if (error instanceof ApiError) {
       throw new PublicPostingAutocompleteError(error.message, {
-        requestUrl: buildPathWithQuery("/postings/autocomplete", params),
+        requestUrl,
         params,
-        status: error.status,
-        responseBody: error.details,
+        ...toApiDebug(error),
       });
     }
 
     throw new PublicPostingAutocompleteError(
       "Unable to load posting suggestions.",
       {
-        requestUrl: buildPathWithQuery("/postings/autocomplete", params),
+        requestUrl,
         params,
         causeMessage:
           error instanceof Error ? error.message : "Unknown fetch failure.",

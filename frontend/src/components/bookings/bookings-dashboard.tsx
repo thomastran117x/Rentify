@@ -18,7 +18,7 @@ import {
   canReadOrganizationPostings,
   isOwnerRole,
 } from "@/lib/auth/roles";
-import { ApiError } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { bookingsApi } from "@/lib/bookings/api";
 import type {
   BookingCancellationQuoteResult,
@@ -971,10 +971,11 @@ export function BookingsDashboard() {
         if (active) {
           setBanner({
             tone: "error",
-            text:
-              error instanceof ApiError
-                ? error.message
-                : "Bookings could not be loaded right now.",
+            text: getApiErrorMessage(error, {
+              action: "load your bookings",
+              fallback:
+                "We couldn't load your bookings right now. Please try again.",
+            }),
           });
         }
       } finally {
@@ -1023,10 +1024,11 @@ export function BookingsDashboard() {
     } catch (error) {
       setBanner({
         tone: "error",
-        text:
-          error instanceof ApiError
-            ? error.message
-            : "Cancellation details could not be loaded.",
+        text: getApiErrorMessage(error, {
+          action: "load cancellation details",
+          fallback:
+            "We couldn't load cancellation details right now. Please try again.",
+        }),
       });
     } finally {
       setQuotePendingId(null);
@@ -1057,10 +1059,11 @@ export function BookingsDashboard() {
     } catch (error) {
       setBanner({
         tone: "error",
-        text:
-          error instanceof ApiError
-            ? error.message
-            : "Booking cancellation could not be completed.",
+        text: getApiErrorMessage(error, {
+          action: "cancel that booking",
+          fallback:
+            "We couldn't cancel that booking right now. Please try again.",
+        }),
       });
     } finally {
       setCancelPendingId(null);
@@ -1070,6 +1073,7 @@ export function BookingsDashboard() {
   async function runRentingMutation(
     pendingKey: string,
     request: () => Promise<void>,
+    action: string,
     successText: string,
     fallbackErrorText: string,
   ) {
@@ -1086,7 +1090,10 @@ export function BookingsDashboard() {
     } catch (error) {
       setBanner({
         tone: "error",
-        text: error instanceof ApiError ? error.message : fallbackErrorText,
+        text: getApiErrorMessage(error, {
+          action,
+          fallback: fallbackErrorText,
+        }),
       });
     } finally {
       setRentingMutationPendingKey(null);
@@ -1104,6 +1111,7 @@ export function BookingsDashboard() {
           returnInstructions: draft?.returnInstructions?.trim() ?? "",
         });
       },
+      "save renting instructions",
       "Renting instructions updated.",
       "Renting instructions could not be updated.",
     );
@@ -1115,6 +1123,7 @@ export function BookingsDashboard() {
       async () => {
         await bookingsApi.markRentingCheckInReady(rentingId);
       },
+      "mark this renting as check-in ready",
       "Renting marked as check-in ready.",
       "Renting could not be marked as check-in ready.",
     );
@@ -1126,6 +1135,7 @@ export function BookingsDashboard() {
       async () => {
         await bookingsApi.markRentingCheckInComplete(rentingId);
       },
+      "confirm check-in for this renting",
       "Renting check-in confirmed.",
       "Renting check-in could not be confirmed.",
     );
@@ -1137,6 +1147,7 @@ export function BookingsDashboard() {
       async () => {
         await bookingsApi.completeRentingReturn(rentingId);
       },
+      "confirm the return for this renting",
       "Renting return confirmed.",
       "Renting return could not be confirmed.",
     );
@@ -1157,6 +1168,7 @@ export function BookingsDashboard() {
           [rentingId]: { reason: "", details: "" },
         }));
       },
+      "open a dispute for this renting",
       "Renting dispute opened.",
       "Renting dispute could not be opened.",
     );

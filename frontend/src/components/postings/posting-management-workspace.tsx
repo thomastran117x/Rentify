@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { blobApi } from "@/lib/blob/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   canManageOrganizationPostings,
   canReadOrganizationPostings,
@@ -316,9 +317,11 @@ export function PostingManagementWorkspace() {
       } catch (nextError) {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "Posting management could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load your posting workspace",
+              fallback:
+                "We couldn't load your posting workspace right now. Please try again.",
+            }),
           );
         }
       } finally {
@@ -411,9 +414,12 @@ export function PostingManagementWorkspace() {
       );
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Posting could not be saved.",
+        getApiErrorMessage(nextError, {
+          action: "save this posting",
+          fallback:
+            "We couldn't save this posting right now. Please try again.",
+          preserveUnknownErrorMessage: true,
+        }),
       );
     } finally {
       setSaving(false);
@@ -447,9 +453,11 @@ export function PostingManagementWorkspace() {
       setMessage(`Posting ${action} action completed.`);
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Posting lifecycle action failed.",
+        getApiErrorMessage(nextError, {
+          action: `update this posting's ${action} status`,
+          fallback:
+            "We couldn't update this posting's status right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);

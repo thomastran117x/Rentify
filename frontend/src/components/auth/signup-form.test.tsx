@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
+import { ApiClientError, ApiServerError } from "@/lib/auth/types";
 import {
   resetRouterMocks,
   routerReplaceMock,
@@ -206,12 +207,17 @@ describe("SignupForm", () => {
 
   it("maps conflict responses to the email field", async () => {
     const user = userEvent.setup();
-    signupMock.mockRejectedValue({
-      status: 409,
-      body: {
-        error: "Account already exists.",
-      },
-    });
+    signupMock.mockRejectedValue(
+      new ApiClientError("Account already exists.", {
+        code: "ACCOUNT_EXISTS",
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 409,
+      }),
+    );
 
     render(<SignupForm />);
 
@@ -232,15 +238,28 @@ describe("SignupForm", () => {
 
   it("maps captcha failures and server failures to user-facing messages", async () => {
     const user = userEvent.setup();
-    signupMock.mockRejectedValueOnce({
-      status: 400,
-      body: {
+    signupMock.mockRejectedValueOnce(
+      new ApiClientError("Captcha verification failed.", {
         code: "CAPTCHA_INVALID",
-      },
-    });
-    signupMock.mockRejectedValueOnce({
-      status: 500,
-    });
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 400,
+      }),
+    );
+    signupMock.mockRejectedValueOnce(
+      new ApiServerError("Internal server error.", {
+        code: "INTERNAL_ERROR",
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 500,
+      }),
+    );
 
     render(<SignupForm />);
 
@@ -264,7 +283,7 @@ describe("SignupForm", () => {
 
     expect(
       await screen.findByText(
-        "Something went wrong on our side. Please try again in a moment.",
+        "Rentify is having trouble right now, so we couldn't create your account. Please try again in a moment.",
       ),
     ).toBeInTheDocument();
   });

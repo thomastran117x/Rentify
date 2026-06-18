@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { canReadOrganizationPostings } from "@/lib/auth/roles";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   AnalyticsCard,
   buildDashboardDiagnostics,
@@ -124,9 +125,11 @@ export function OwnerDashboard() {
       } catch (error) {
         if (active) {
           setOverviewError(
-            error instanceof Error
-              ? error.message
-              : "Analytics could not be loaded.",
+            getApiErrorMessage(error, {
+              action: "load your analytics overview",
+              fallback:
+                "We couldn't load your analytics overview right now. Please try again.",
+            }),
           );
         }
       } finally {
@@ -208,9 +211,11 @@ export function OwnerDashboard() {
       } catch (error) {
         if (active) {
           setDetailError(
-            error instanceof Error
-              ? error.message
-              : "Trend data could not be loaded.",
+            getApiErrorMessage(error, {
+              action: "load posting trend data",
+              fallback:
+                "We couldn't load posting trend data right now. Please try again.",
+            }),
           );
         }
       } finally {

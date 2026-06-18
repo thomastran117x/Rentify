@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { toApiDebug } from "../api/debug.ts";
 import {
   buildPathWithQuery,
   optionalAuthJson,
@@ -115,11 +116,10 @@ export class PublicPostingDetailError extends Error {
 export async function fetchPublicPostingDetail(
   postingId: string,
 ): Promise<PublicPostingDetail> {
+  const requestUrl = `/postings/${encodeURIComponent(postingId)}`;
+
   try {
-    return await optionalAuthJson<PublicPostingDetail>(
-      "GET",
-      `/postings/${encodeURIComponent(postingId)}`,
-    );
+    return await optionalAuthJson<PublicPostingDetail>("GET", requestUrl);
   } catch (error) {
     if (error instanceof PublicPostingDetailError) {
       throw error;
@@ -127,19 +127,15 @@ export async function fetchPublicPostingDetail(
 
     if (error instanceof ApiError) {
       throw new PublicPostingDetailError(error.message, {
-        requestUrl: `/postings/${encodeURIComponent(postingId)}`,
+        requestUrl,
         postingId,
-        status: error.status,
-        responseBody: error.details,
+        ...toApiDebug(error),
       });
     }
 
     throw new PublicPostingDetailError("Unable to load posting.", {
-      requestUrl: `/postings/${encodeURIComponent(postingId)}`,
+      requestUrl,
       postingId,
-      ...(error instanceof Error && "status" in error
-        ? { status: Number(error.status) }
-        : {}),
       causeMessage:
         error instanceof Error ? error.message : "Unknown fetch failure.",
     });
@@ -184,14 +180,16 @@ export async function fetchPublicPostingReviews(
   page = 1,
   pageSize = 5,
 ): Promise<ListPublicPostingReviewsResult> {
+  const requestUrl = buildPathWithQuery(
+    `/postings/${encodeURIComponent(postingId)}/reviews`,
+    {
+      page,
+      pageSize,
+    },
+  );
+
   try {
-    return await publicJson<ListPublicPostingReviewsResult>(
-      "GET",
-      buildPathWithQuery(`/postings/${encodeURIComponent(postingId)}/reviews`, {
-        page,
-        pageSize,
-      }),
-    );
+    return await publicJson<ListPublicPostingReviewsResult>("GET", requestUrl);
   } catch (error) {
     if (error instanceof PublicPostingDetailError) {
       throw error;
@@ -199,31 +197,15 @@ export async function fetchPublicPostingReviews(
 
     if (error instanceof ApiError) {
       throw new PublicPostingDetailError(error.message, {
-        requestUrl: buildPathWithQuery(
-          `/postings/${encodeURIComponent(postingId)}/reviews`,
-          {
-            page,
-            pageSize,
-          },
-        ),
+        requestUrl,
         postingId,
-        status: error.status,
-        responseBody: error.details,
+        ...toApiDebug(error),
       });
     }
 
     throw new PublicPostingDetailError("Unable to load posting reviews.", {
-      requestUrl: buildPathWithQuery(
-        `/postings/${encodeURIComponent(postingId)}/reviews`,
-        {
-          page,
-          pageSize,
-        },
-      ),
+      requestUrl,
       postingId,
-      ...(error instanceof Error && "status" in error
-        ? { status: Number(error.status) }
-        : {}),
       causeMessage:
         error instanceof Error ? error.message : "Unknown fetch failure.",
     });

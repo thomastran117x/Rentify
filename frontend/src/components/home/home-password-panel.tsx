@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
-import { ApiError } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ApiClientError } from "@/lib/auth/types";
 
 interface PasswordErrors {
   currentPassword?: string;
@@ -76,7 +77,7 @@ export function HomePasswordPanel() {
       setErrors({});
       setMessage("Password updated. Other sessions were signed out.");
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof ApiClientError) {
         if (error.status === 401) {
           setErrors((current) => ({
             ...current,
@@ -86,13 +87,24 @@ export function HomePasswordPanel() {
         }
 
         if (error.status === 409) {
-          setMessage(error.message);
+          setMessage(
+            getApiErrorMessage(error, {
+              action: "update your password",
+              fallback:
+                "We couldn't update your password right now. Please try again.",
+              preserveClientMessage: true,
+            }),
+          );
           return;
         }
       }
 
       setMessage(
-        "We couldn't update your password right now. Please try again.",
+        getApiErrorMessage(error, {
+          action: "update your password",
+          fallback:
+            "We couldn't update your password right now. Please try again.",
+        }),
       );
     } finally {
       setPending(false);

@@ -5,3 +5,4 @@ mcp/node_modules
 mcp/dist
 mcp/coverage
 tmp/
+.playwright-mcp/

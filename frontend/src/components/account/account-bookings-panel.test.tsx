@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiNetworkError } from "@/lib/auth/types";
 import type {
   BookingCancellationQuoteResult,
   BookingRequestRecord,
@@ -250,12 +251,23 @@ describe("AccountBookingsPanel", () => {
   });
 
   it("shows a fallback message when bookings cannot be loaded", async () => {
-    listMineMock.mockRejectedValue(new Error("network failed"));
+    listMineMock.mockRejectedValue(
+      new ApiNetworkError("Unable to reach the server.", {
+        code: "NETWORK_ERROR",
+        request: {
+          method: "GET",
+          path: "/bookings/me",
+          requestUrl: "http://localhost:8040/api/v1/bookings/me",
+        },
+      }),
+    );
 
     render(<AccountBookingsPanel role="user" />);
 
     expect(
-      await screen.findByText("Bookings could not be loaded right now."),
+      await screen.findByText(
+        "We couldn't load your bookings because we couldn't reach Rentify. Check your connection and try again.",
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -72,6 +72,9 @@ describe("fetchPublicPostingAutocomplete", () => {
               data: null,
               error: {
                 code: "VALIDATION_ERROR",
+                details: {
+                  q: "too_short",
+                },
               },
             }),
             {
@@ -93,6 +96,30 @@ describe("fetchPublicPostingAutocomplete", () => {
       message: "Validation failed.",
       debug: {
         status: 400,
+        responseBody: {
+          q: "too_short",
+        },
+      },
+    });
+  });
+
+  it("preserves network failure details in the domain error debug payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    await expect(
+      searchPublicPostings({
+        q: "toronto loft",
+      }),
+    ).rejects.toMatchObject<Partial<Error & { debug: unknown }>>({
+      message: "Unable to reach the server.",
+      debug: {
+        requestUrl: "/postings?q=toronto+loft",
+        causeMessage: "fetch failed",
       },
     });
   });

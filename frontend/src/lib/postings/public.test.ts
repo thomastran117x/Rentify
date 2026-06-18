@@ -163,6 +163,25 @@ describe("fetchPublicPostingDetail", () => {
     });
   });
 
+  it("preserves network failure details in the domain error debug payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    await expect(fetchPublicPostingDetail("posting-9")).rejects.toMatchObject<
+      Partial<PublicPostingDetailError>
+    >({
+      message: "Unable to reach the server.",
+      debug: {
+        requestUrl: "/postings/posting-9",
+        causeMessage: "fetch failed",
+      },
+    });
+  });
+
   it("loads posting detail safely during server rendering", async () => {
     const fetchMock = vi.fn(
       async () =>

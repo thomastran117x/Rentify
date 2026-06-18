@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
   type PreviewOrganizationInviteResult,
@@ -59,9 +60,11 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
       } catch (nextError) {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "This invitation could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load this invitation",
+              fallback:
+                "We couldn't load this invitation right now. Please try again.",
+            }),
           );
         }
       } finally {
@@ -93,9 +96,11 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
       router.replace("/organizations");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "This invitation could not be accepted.",
+        getApiErrorMessage(nextError, {
+          action: "accept this invitation",
+          fallback:
+            "We couldn't accept this invitation right now. Please try again.",
+        }),
       );
     } finally {
       setPending(false);

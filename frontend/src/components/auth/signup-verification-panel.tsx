@@ -7,18 +7,12 @@ import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
-import type { SignupVerificationPendingResult } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import {
+  ApiClientError,
+  type SignupVerificationPendingResult,
+} from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
-
-interface ApiErrorShape {
-  status?: number;
-  message?: string;
-  body?: {
-    error?: string;
-    code?: string;
-    details?: unknown;
-  };
-}
 
 type VerificationFailureResult = {
   generalError: string | null;
@@ -28,112 +22,98 @@ type VerificationFailureResult = {
 function getVerificationFailureResult(
   error: unknown,
 ): VerificationFailureResult {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as
-    | { retryAfterSeconds?: number }
-    | undefined;
+  if (error instanceof ApiClientError) {
+    const { status, message, details } = error;
+    const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
-  if (status === 400) {
-    return {
-      generalError: null,
-      fieldError:
-        message || "Enter the 6-digit verification code from your email.",
-    };
-  }
+    if (status === 400) {
+      return {
+        generalError: null,
+        fieldError:
+          message || "Enter the 6-digit verification code from your email.",
+      };
+    }
 
-  if (status === 409) {
-    return {
-      generalError:
-        message ||
-        "This email has already been verified. Try signing in instead.",
-      fieldError: undefined,
-    };
-  }
+    if (status === 409) {
+      return {
+        generalError:
+          message ||
+          "This email has already been verified. Try signing in instead.",
+        fieldError: undefined,
+      };
+    }
 
-  if (status === 429) {
-    const retryAfterSeconds = details?.retryAfterSeconds;
+    if (status === 429) {
+      const retryAfterSeconds = retryDetails?.retryAfterSeconds;
 
-    return {
-      generalError: retryAfterSeconds
-        ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message ||
-          "A verification code was sent recently. Please wait before retrying.",
-      fieldError: undefined,
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-      fieldError: undefined,
-    };
+      return {
+        generalError: retryAfterSeconds
+          ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
+          : message ||
+            "A verification code was sent recently. Please wait before retrying.",
+        fieldError: undefined,
+      };
+    }
   }
 
   return {
-    generalError:
-      "We couldn't verify your email right now. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "verify your email",
+      fallback: "We couldn't verify your email right now. Please try again.",
+    }),
     fieldError: undefined,
   };
 }
 
 function getResendFailureResult(error: unknown): VerificationFailureResult {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as
-    | { retryAfterSeconds?: number }
-    | undefined;
+  if (error instanceof ApiClientError) {
+    const { status, code, message, details } = error;
+    const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError:
-            "Please complete the security check before requesting another code.",
-          fieldError: "Complete the verification to continue.",
-        };
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldError: "Please complete the verification again.",
-        };
-      default:
-        return {
-          generalError:
-            message || "We couldn't send another verification code right now.",
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before requesting another code.",
+            fieldError: "Complete the verification to continue.",
+          };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldError: "Please complete the verification again.",
+          };
+        default:
+          return {
+            generalError:
+              message ||
+              "We couldn't send another verification code right now.",
+          };
+      }
+    }
+
+    if (status === 429) {
+      const retryAfterSeconds = retryDetails?.retryAfterSeconds;
+
+      return {
+        generalError: retryAfterSeconds
+          ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
+          : message ||
+            "A verification code was sent recently. Please wait before retrying.",
+      };
     }
   }
 
-  if (status === 429) {
-    const retryAfterSeconds = details?.retryAfterSeconds;
-
-    return {
-      generalError: retryAfterSeconds
-        ? `A verification code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message ||
-          "A verification code was sent recently. Please wait before retrying.",
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-    };
-  }
-
   return {
-    generalError:
-      "We couldn't resend the verification code right now. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "resend the verification code",
+      fallback:
+        "We couldn't resend the verification code right now. Please try again.",
+    }),
   };
 }
 

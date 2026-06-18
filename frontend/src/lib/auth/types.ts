@@ -1,10 +1,23 @@
 export type {
+  ApiRequestContext,
   ApiErrorPayload,
   ApiErrorResponse,
   ApiResponse,
   ApiResponseMeta,
 } from "@/lib/api/types";
-export { ApiError } from "@/lib/api/types";
+export {
+  ApiClientError,
+  ApiError,
+  ApiNetworkError,
+  ApiProtocolError,
+  ApiRateLimitError,
+  ApiServerError,
+  isApiClientError,
+  isApiNetworkError,
+  isApiProtocolError,
+  isApiRateLimitError,
+  isApiServerError,
+} from "@/lib/api/types";
 
 export interface ActiveOrganizationSummary {
   id: string;
