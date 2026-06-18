@@ -355,7 +355,8 @@ export function AccountBookingsPanel({
       setMessage(
         getApiErrorMessage(error, {
           action: "load your bookings",
-          fallback: "We couldn't load your bookings right now. Please try again.",
+          fallback:
+            "We couldn't load your bookings right now. Please try again.",
         }),
       );
     } finally {

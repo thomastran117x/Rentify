@@ -90,7 +90,8 @@ function getResendFailureResult(error: unknown): VerificationFailureResult {
         default:
           return {
             generalError:
-              message || "We couldn't send another verification code right now.",
+              message ||
+              "We couldn't send another verification code right now.",
           };
       }
     }

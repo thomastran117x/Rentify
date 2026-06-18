@@ -94,11 +94,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isAbortError(error: unknown): boolean {
-  return (
-    isRecord(error) &&
-    "name" in error &&
-    error.name === "AbortError"
-  );
+  return isRecord(error) && "name" in error && error.name === "AbortError";
 }
 
 function toNetworkError(
@@ -124,7 +120,9 @@ function toUnreadableResponseError(
   const options = {
     cause: error,
     code:
-      response.status >= 500 ? "INVALID_SERVER_RESPONSE" : "INVALID_API_RESPONSE",
+      response.status >= 500
+        ? "INVALID_SERVER_RESPONSE"
+        : "INVALID_API_RESPONSE",
     details:
       error instanceof Error ? { causeMessage: error.message } : undefined,
     request,
@@ -260,7 +258,9 @@ export function toApiError(
         : "The API returned an invalid error response.";
     const options = {
       code:
-        response.status >= 500 ? "INVALID_SERVER_RESPONSE" : "INVALID_API_RESPONSE",
+        response.status >= 500
+          ? "INVALID_SERVER_RESPONSE"
+          : "INVALID_API_RESPONSE",
       details: payload ?? undefined,
       request,
       status: response.status,

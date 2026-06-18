@@ -310,7 +310,8 @@ export function OrganizationWorkspace() {
       setError(
         getApiErrorMessage(nextError, {
           action: "remove that member",
-          fallback: "We couldn't remove that member right now. Please try again.",
+          fallback:
+            "We couldn't remove that member right now. Please try again.",
         }),
       );
     } finally {

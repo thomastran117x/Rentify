@@ -385,7 +385,13 @@ describe("api client", () => {
     const { publicJson } = await import("./client");
 
     await expect(
-      publicJson("GET", "/health", undefined, undefined, new AbortController().signal),
+      publicJson(
+        "GET",
+        "/health",
+        undefined,
+        undefined,
+        new AbortController().signal,
+      ),
     ).rejects.toBe(abortError);
   });
 

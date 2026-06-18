@@ -95,7 +95,8 @@ export function HomePasswordPanel() {
       setMessage(
         getApiErrorMessage(error, {
           action: "update your password",
-          fallback: "We couldn't update your password right now. Please try again.",
+          fallback:
+            "We couldn't update your password right now. Please try again.",
         }),
       );
     } finally {

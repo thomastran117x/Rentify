@@ -171,9 +171,9 @@ describe("fetchPublicPostingDetail", () => {
       }),
     );
 
-    await expect(
-      fetchPublicPostingDetail("posting-9"),
-    ).rejects.toMatchObject<Partial<PublicPostingDetailError>>({
+    await expect(fetchPublicPostingDetail("posting-9")).rejects.toMatchObject<
+      Partial<PublicPostingDetailError>
+    >({
       message: "Unable to reach the server.",
       debug: {
         requestUrl: "/postings/posting-9",

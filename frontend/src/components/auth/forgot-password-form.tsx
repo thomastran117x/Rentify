@@ -7,10 +7,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
-import {
-  ApiClientError,
-  type AuthResponseBody,
-} from "@/lib/auth/types";
+import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface RequestErrors {

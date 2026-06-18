@@ -62,7 +62,8 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
           setError(
             getApiErrorMessage(nextError, {
               action: "load this invitation",
-              fallback: "We couldn't load this invitation right now. Please try again.",
+              fallback:
+                "We couldn't load this invitation right now. Please try again.",
             }),
           );
         }

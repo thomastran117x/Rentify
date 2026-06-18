@@ -104,8 +104,7 @@ describe("HomePasswordPanel", () => {
         request: {
           method: "POST",
           path: "/auth/local/password/change",
-          requestUrl:
-            "http://localhost:8040/api/v1/auth/local/password/change",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/password/change",
         },
         status: 401,
       }),

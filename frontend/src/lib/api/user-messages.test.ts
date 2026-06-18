@@ -81,10 +81,14 @@ describe("api user messages", () => {
 
   it("preserves useful non-api errors for local validation paths", () => {
     expect(
-      getApiErrorMessage(new Error("Upload at least one photo before saving."), {
-        action: "save this posting",
-        fallback: "We couldn't save this posting right now. Please try again.",
-      }),
+      getApiErrorMessage(
+        new Error("Upload at least one photo before saving."),
+        {
+          action: "save this posting",
+          fallback:
+            "We couldn't save this posting right now. Please try again.",
+        },
+      ),
     ).toBe("Upload at least one photo before saving.");
   });
 });

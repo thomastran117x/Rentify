@@ -25,8 +25,7 @@ function getUnlockFailureResult(error: unknown): {
     if (status === 400) {
       return {
         generalError: null,
-        fieldError:
-          message || "Enter the 6-digit unlock code from your email.",
+        fieldError: message || "Enter the 6-digit unlock code from your email.",
       };
     }
 

@@ -140,7 +140,8 @@ export default function AccountPage() {
       setMessage(
         getApiErrorMessage(error, {
           action: `unlink ${providerLabels[provider]}`,
-          fallback: "We couldn't unlink that provider right now. Please try again.",
+          fallback:
+            "We couldn't unlink that provider right now. Please try again.",
         }),
       );
     } finally {

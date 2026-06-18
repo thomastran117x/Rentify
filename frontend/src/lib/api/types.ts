@@ -68,7 +68,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClientError extends ApiError {
-  public declare readonly status: number;
+  declare public readonly status: number;
 
   constructor(
     message: string,
@@ -80,7 +80,7 @@ export class ApiClientError extends ApiError {
 }
 
 export class ApiServerError extends ApiError {
-  public declare readonly status: number;
+  declare public readonly status: number;
 
   constructor(
     message: string,

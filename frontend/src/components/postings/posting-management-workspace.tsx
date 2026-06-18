@@ -416,7 +416,8 @@ export function PostingManagementWorkspace() {
       setError(
         getApiErrorMessage(nextError, {
           action: "save this posting",
-          fallback: "We couldn't save this posting right now. Please try again.",
+          fallback:
+            "We couldn't save this posting right now. Please try again.",
         }),
       );
     } finally {

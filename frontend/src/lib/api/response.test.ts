@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ApiClientError,
-  ApiProtocolError,
-} from "@/lib/api/types";
+import { ApiClientError, ApiProtocolError } from "@/lib/api/types";
 import { readJson, toApiError, unwrapApiResponse } from "./response";
 
 describe("api response helpers", () => {

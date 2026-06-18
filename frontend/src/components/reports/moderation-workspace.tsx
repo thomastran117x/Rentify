@@ -142,7 +142,8 @@ export function ModerationWorkspace() {
           setError(
             getApiErrorMessage(nextError, {
               action: "load the report queue",
-              fallback: "We couldn't load the report queue right now. Please try again.",
+              fallback:
+                "We couldn't load the report queue right now. Please try again.",
             }),
           );
         }
