@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError } from "@/lib/auth/types";
+import { ApiClientError } from "@/lib/auth/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePasswordPanel } from "./home-password-panel";
 
@@ -99,7 +99,16 @@ describe("HomePasswordPanel", () => {
   it("maps incorrect current passwords to the field error", async () => {
     const user = userEvent.setup();
     changePasswordMock.mockRejectedValue(
-      new ApiError("Unauthorized", "UNAUTHORIZED", 401),
+      new ApiClientError("Unauthorized", {
+        code: "UNAUTHORIZED",
+        request: {
+          method: "POST",
+          path: "/auth/local/password/change",
+          requestUrl:
+            "http://localhost:8040/api/v1/auth/local/password/change",
+        },
+        status: 401,
+      }),
     );
 
     render(<HomePasswordPanel />);

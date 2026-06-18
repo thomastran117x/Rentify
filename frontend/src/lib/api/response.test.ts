@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ApiError } from "@/lib/auth/types";
+import {
+  ApiClientError,
+  ApiProtocolError,
+} from "@/lib/api/types";
 import { readJson, toApiError, unwrapApiResponse } from "./response";
 
 describe("api response helpers", () => {
@@ -38,12 +41,13 @@ describe("api response helpers", () => {
   });
 
   it("throws when an API envelope is missing its data payload", () => {
+    expect(() => unwrapApiResponse(null)).toThrow(ApiProtocolError);
     expect(() => unwrapApiResponse(null)).toThrow(
-      "API response payload did not include a data envelope.",
+      "API response payload did not include a valid data envelope.",
     );
   });
 
-  it("creates ApiError instances from failure payloads", () => {
+  it("creates ApiClientError instances from failure payloads", () => {
     const response = new Response(null, {
       status: 422,
     });
@@ -58,7 +62,7 @@ describe("api response helpers", () => {
       },
     });
 
-    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toBeInstanceOf(ApiClientError);
     expect(error.message).toBe("Validation failed.");
     expect(error.code).toBe("VALIDATION_ERROR");
     expect(error.status).toBe(422);

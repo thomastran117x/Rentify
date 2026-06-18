@@ -229,6 +229,166 @@ describe("api client", () => {
     );
   });
 
+  it("maps 4xx responses to ApiClientError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Validation failed.",
+              data: null,
+              error: {
+                code: "VALIDATION_ERROR",
+                details: {
+                  email: "invalid",
+                },
+              },
+              meta: {
+                requestId: "request-6a",
+              },
+            }),
+            {
+              status: 422,
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/profiles")).rejects.toMatchObject({
+      name: "ApiClientError",
+      message: "Validation failed.",
+      code: "VALIDATION_ERROR",
+      status: 422,
+      request: {
+        method: "GET",
+        path: "/profiles",
+        requestUrl: "http://localhost:8040/api/v1/profiles",
+      },
+    });
+  });
+
+  it("maps 5xx responses to ApiServerError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Server exploded.",
+              data: null,
+              error: {
+                code: "INTERNAL_SERVER_ERROR",
+              },
+              meta: {
+                requestId: "request-6b",
+              },
+            }),
+            {
+              status: 500,
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/health")).rejects.toMatchObject({
+      name: "ApiServerError",
+      message: "Server exploded.",
+      code: "INTERNAL_SERVER_ERROR",
+      status: 500,
+    });
+  });
+
+  it("maps fetch rejections to ApiNetworkError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/health")).rejects.toMatchObject({
+      name: "ApiNetworkError",
+      message: "Unable to reach the server.",
+      code: "NETWORK_ERROR",
+      request: {
+        method: "GET",
+        path: "/health",
+        requestUrl: "http://localhost:8040/api/v1/health",
+      },
+    });
+  });
+
+  it("maps malformed success envelopes to ApiProtocolError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              message: "ok",
+              meta: {
+                requestId: "request-6c",
+              },
+            }),
+            {
+              status: 200,
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/health")).rejects.toMatchObject({
+      name: "ApiProtocolError",
+      message: "API response payload did not include a valid data envelope.",
+      code: "INVALID_API_RESPONSE",
+      request: {
+        method: "GET",
+        path: "/health",
+      },
+    });
+  });
+
+  it("does not reclassify abort errors", async () => {
+    const abortError = new DOMException(
+      "The operation was aborted.",
+      "AbortError",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw abortError;
+      }),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(
+      publicJson("GET", "/health", undefined, undefined, new AbortController().signal),
+    ).rejects.toBe(abortError);
+  });
+
   it("returns raw text payloads for text requests", async () => {
     const fetchMock = vi.fn(
       async () =>

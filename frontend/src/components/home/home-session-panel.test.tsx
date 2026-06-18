@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError } from "@/lib/auth/types";
+import { ApiClientError } from "@/lib/auth/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeSessionPanel } from "./home-session-panel";
 
@@ -85,7 +85,17 @@ describe("HomeSessionPanel", () => {
       },
       clearSession,
     });
-    logoutMock.mockRejectedValue(new ApiError("Expired", "UNAUTHORIZED", 401));
+    logoutMock.mockRejectedValue(
+      new ApiClientError("Expired", {
+        code: "UNAUTHORIZED",
+        request: {
+          method: "POST",
+          path: "/auth/logout",
+          requestUrl: "http://localhost:8040/api/v1/auth/logout",
+        },
+        status: 401,
+      }),
+    );
 
     render(<HomeSessionPanel />);
 

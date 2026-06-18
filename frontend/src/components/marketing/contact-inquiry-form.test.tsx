@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ContactInquiryForm } from "./contact-inquiry-form";
-import { ApiError } from "@/lib/api/types";
+import { ApiClientError } from "@/lib/api/types";
 
 const { createFeedbackMock, useAuthMock } = vi.hoisted(() => ({
   createFeedbackMock: vi.fn(),
@@ -173,7 +173,15 @@ describe("ContactInquiryForm", () => {
 
   it("surfaces backend failures and clears captcha when verification fails", async () => {
     createFeedbackMock.mockRejectedValue(
-      new ApiError("Captcha verification failed.", "BAD_REQUEST", 400),
+      new ApiClientError("Captcha verification failed.", {
+        code: "BAD_REQUEST",
+        request: {
+          method: "POST",
+          path: "/feedback",
+          requestUrl: "http://localhost:8040/api/v1/feedback",
+        },
+        status: 400,
+      }),
     );
 
     render(<ContactInquiryForm />);
