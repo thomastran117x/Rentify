@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
+import { cx } from "./utils";
 
 export type ErrorTone = "info" | "warning" | "error";
 
@@ -69,10 +70,6 @@ const ERROR_TONE_DEFINITIONS: Record<ErrorTone, ErrorToneDefinition> = {
     fieldText: "text-rose-700",
   },
 };
-
-export function cx(...values: Array<string | false | null | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
 
 export function getErrorToneDefinition(tone: ErrorTone): ErrorToneDefinition {
   return ERROR_TONE_DEFINITIONS[tone];

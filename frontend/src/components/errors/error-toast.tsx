@@ -3,10 +3,10 @@
 import type { ReactNode } from "react";
 import {
   ErrorToneIcon,
-  cx,
   getErrorToneDefinition,
   type ErrorTone,
 } from "./tone";
+import { cx } from "./utils";
 
 export interface ErrorToastProps {
   tone?: ErrorTone;

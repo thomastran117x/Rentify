@@ -67,6 +67,39 @@ function ModalHarness({
   );
 }
 
+function ModalRaceHarness({ onPrimary }: { onPrimary: () => void | Promise<void> }) {
+  const { pendingCount, showErrorModal } = useErrorModal();
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          showErrorModal({
+            tone: "error",
+            title: "Same issue",
+            message: "First copy",
+            actionLabel: "Acknowledge",
+            onAction: onPrimary,
+            dedupeKey: "same-issue",
+          });
+          showErrorModal({
+            tone: "error",
+            title: "Same issue",
+            message: "Second copy",
+            actionLabel: "Acknowledge",
+            onAction: onPrimary,
+            dedupeKey: "same-issue",
+          });
+        }}
+      >
+        Trigger race
+      </button>
+      <p>Pending count: {pendingCount}</p>
+    </div>
+  );
+}
+
 describe("ErrorActionModalProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -112,6 +145,20 @@ describe("ErrorActionModalProvider", () => {
     );
   });
 
+  it("deduplicates back-to-back same-key calls before React flushes state", () => {
+    render(
+      <ErrorActionModalProvider>
+        <ModalRaceHarness onPrimary={vi.fn()} />
+      </ErrorActionModalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Trigger race" }));
+
+    expect(screen.getByText("Pending count: 1")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Repeated 2 times");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Second copy");
+  });
+
   it("fires retry callbacks and dismisses the issue on success", async () => {
     const retrySpy = vi.fn();
 
@@ -153,6 +200,48 @@ describe("ErrorActionModalProvider", () => {
     });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows visible feedback when the primary action fails", async () => {
+    const primarySpy = vi.fn().mockRejectedValue(new Error("Network is down."));
+
+    render(
+      <ErrorActionModalProvider>
+        <ModalHarness onPrimary={primarySpy} onRetry={vi.fn()} />
+      </ErrorActionModalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toHaveTextContent("Action failed");
+      expect(screen.getByRole("dialog")).toHaveTextContent("Network is down.");
+      expect(screen.getByRole("button", { name: "Acknowledge" })).toBeEnabled();
+    });
+  });
+
+  it("shows visible feedback when retry fails", async () => {
+    const retrySpy = vi
+      .fn()
+      .mockRejectedValue(new Error("Retry request could not reach the server."));
+
+    render(
+      <ErrorActionModalProvider>
+        <ModalHarness onPrimary={vi.fn()} onRetry={retrySpy} />
+      </ErrorActionModalProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open second" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry request" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toHaveTextContent("Action failed");
+      expect(screen.getByRole("dialog")).toHaveTextContent(
+        "Retry request could not reach the server.",
+      );
+      expect(screen.getByRole("button", { name: "Retry request" })).toBeEnabled();
+    });
   });
 
   it("focuses the modal when opened, ignores overlay clicks, and restores focus after escape", async () => {

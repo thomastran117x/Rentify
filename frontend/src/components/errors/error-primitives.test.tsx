@@ -203,4 +203,46 @@ describe("error primitives", () => {
     expect(dialog).toHaveTextContent("Repeated 2 times");
     expect(within(dialog).getByText("Pending issues")).toBeInTheDocument();
   });
+
+  it("restores focus when the modal unmounts while still open", async () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Return focus";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const { unmount } = render(
+      <ErrorActionModal
+        open
+        issue={{
+          id: "issue-1",
+          tone: "error",
+          title: "First issue",
+          message: "The original request failed.",
+          actionLabel: "Acknowledge",
+          occurrenceCount: 1,
+        }}
+        issues={[
+          {
+            id: "issue-1",
+            tone: "error",
+            title: "First issue",
+            message: "The original request failed.",
+            actionLabel: "Acknowledge",
+            occurrenceCount: 1,
+          },
+        ]}
+        onSelectIssue={vi.fn()}
+        onAction={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    unmount();
+
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+
+    trigger.remove();
+  });
 });

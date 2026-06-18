@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -65,21 +66,25 @@ export function ErrorActionModalProvider({
   const stateRef = useRef(state);
   const nextIdRef = useRef(0);
   const [busyAction, setBusyAction] = useState<"action" | "retry" | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
-  const updateState = useCallback(
+  const commitState = useCallback(
     (updater: (current: ErrorModalState) => ErrorModalState) => {
-      setState((current) => {
-        const next = updater(current);
-        stateRef.current = next;
-        return next;
-      });
+      const next = updater(stateRef.current);
+      stateRef.current = next;
+      setState(next);
+      return next;
     },
     [],
   );
 
+  useEffect(() => {
+    setOperationError(null);
+  }, [state.activeId]);
+
   const dismissErrorModal = useCallback(
     (id: string) => {
-      updateState((current) => {
+      commitState((current) => {
         const remainingIssues = current.issues.filter((issue) => issue.id !== id);
         const nextActiveId =
           current.activeId === id
@@ -93,13 +98,14 @@ export function ErrorActionModalProvider({
           issues: remainingIssues,
         };
       });
+      setOperationError(null);
     },
-    [updateState],
+    [commitState],
   );
 
   const selectErrorModal = useCallback(
     (id: string) => {
-      updateState((current) => {
+      commitState((current) => {
         if (!current.issues.some((issue) => issue.id === id)) {
           return current;
         }
@@ -109,8 +115,9 @@ export function ErrorActionModalProvider({
           activeId: id,
         };
       });
+      setOperationError(null);
     },
-    [updateState],
+    [commitState],
   );
 
   const showErrorModal = useCallback(
@@ -146,13 +153,14 @@ export function ErrorActionModalProvider({
           updatedAt: now,
         };
 
-        updateState((current) => ({
+        commitState((current) => ({
           activeId: updatedIssue.id,
           issues: [
             updatedIssue,
             ...current.issues.filter((issue) => issue.id !== updatedIssue.id),
           ],
         }));
+        setOperationError(null);
 
         return updatedIssue.id;
       }
@@ -175,48 +183,96 @@ export function ErrorActionModalProvider({
         updatedAt: now,
       };
 
-      updateState((current) => ({
+      commitState((current) => ({
         activeId: id,
         issues: [issue, ...current.issues],
       }));
+      setOperationError(null);
 
       return id;
     },
-    [updateState],
+    [commitState],
   );
 
-  const activeIssue =
-    state.issues.find((issue) => issue.id === state.activeId) ?? state.issues[0] ?? null;
+  const activeIssue = useMemo(
+    () =>
+      state.issues.find((issue) => issue.id === state.activeId) ??
+      state.issues[0] ??
+      null,
+    [state.activeId, state.issues],
+  );
+
+  const getHandlerFailureMessage = useCallback(
+    (error: unknown, fallback: string) => {
+      if (error instanceof Error) {
+        const trimmedMessage = error.message.trim();
+
+        if (trimmedMessage.length > 0) {
+          return trimmedMessage;
+        }
+      }
+
+      return fallback;
+    },
+    [],
+  );
+
+  const runIssueHandler = useCallback(
+    async (kind: "action" | "retry") => {
+      const currentIssue = activeIssue;
+
+      if (!currentIssue) {
+        return;
+      }
+
+      const handler = kind === "action" ? currentIssue.onAction : currentIssue.onRetry;
+
+      if (!handler) {
+        return;
+      }
+
+      const fallbackMessage =
+        kind === "action"
+          ? "We couldn't complete that action. Please try again."
+          : "We couldn't retry that action. Please try again.";
+
+      try {
+        setOperationError(null);
+        setBusyAction(kind);
+        await Promise.resolve(handler());
+        dismissErrorModal(currentIssue.id);
+      } catch (error) {
+        console.error(
+          kind === "action" ? "Modal action failed." : "Modal retry failed.",
+          error,
+        );
+        setOperationError(getHandlerFailureMessage(error, fallbackMessage));
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [activeIssue, dismissErrorModal, getHandlerFailureMessage],
+  );
 
   const handleIssueAction = useCallback(async () => {
     if (!activeIssue) {
       return;
     }
 
-    try {
-      setBusyAction("action");
-      await Promise.resolve(activeIssue.onAction());
-      dismissErrorModal(activeIssue.id);
-    } catch (error) {
-      console.error("Modal action failed.", error);
-    } finally {
-      setBusyAction(null);
-    }
-  }, [activeIssue, dismissErrorModal]);
+    await runIssueHandler("action");
+  }, [activeIssue, runIssueHandler]);
 
   const handleIssueRetry = useCallback(async () => {
     if (!activeIssue?.onRetry) {
       return;
     }
 
-    try {
-      setBusyAction("retry");
-      await Promise.resolve(activeIssue.onRetry());
+    await runIssueHandler("retry");
+  }, [activeIssue, runIssueHandler]);
+
+  const handleClose = useCallback(() => {
+    if (activeIssue) {
       dismissErrorModal(activeIssue.id);
-    } catch (error) {
-      console.error("Modal retry failed.", error);
-    } finally {
-      setBusyAction(null);
     }
   }, [activeIssue, dismissErrorModal]);
 
@@ -247,12 +303,9 @@ export function ErrorActionModalProvider({
         onSelectIssue={selectErrorModal}
         onAction={handleIssueAction}
         onRetry={activeIssue?.retryLabel && activeIssue.onRetry ? handleIssueRetry : undefined}
-        onClose={() => {
-          if (activeIssue) {
-            dismissErrorModal(activeIssue.id);
-          }
-        }}
+        onClose={handleClose}
         busyAction={busyAction}
+        operationError={operationError}
       />
     </ErrorActionModalContext.Provider>
   );

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, type ReactNode } from "react";
+import { FormErrorMessage } from "./form-error-message";
 import {
   ErrorToneIcon,
-  cx,
   getErrorToneDefinition,
   type ErrorTone,
 } from "./tone";
+import { cx } from "./utils";
 
 export interface ErrorActionModalIssue {
   id: string;
@@ -28,6 +29,7 @@ interface ErrorActionModalProps {
   onRetry?: () => void;
   onClose: () => void;
   busyAction?: "action" | "retry" | null;
+  operationError?: string | null;
 }
 
 function getFocusableElements(root: HTMLElement) {
@@ -51,17 +53,31 @@ export function ErrorActionModal({
   onRetry,
   onClose,
   busyAction = null,
+  operationError = null,
 }: ErrorActionModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
+  const restoreFocus = useCallback(() => {
+    if (!restoreFocusRef.current) {
+      return;
+    }
+
+    try {
+      restoreFocusRef.current.focus();
+    } catch {
+      // Ignore focus restoration if the original element no longer exists.
+    } finally {
+      restoreFocusRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (!open || !dialogRef.current) {
-      if (!open && restoreFocusRef.current) {
-        restoreFocusRef.current.focus();
-        restoreFocusRef.current = null;
+      if (!open) {
+        restoreFocus();
       }
 
       return;
@@ -73,7 +89,9 @@ export function ErrorActionModal({
 
     const [firstFocusableElement] = getFocusableElements(dialogRef.current);
     (firstFocusableElement ?? dialogRef.current).focus();
-  }, [issue?.id, open]);
+  }, [issue?.id, open, restoreFocus]);
+
+  useEffect(() => restoreFocus, [restoreFocus]);
 
   useEffect(() => {
     if (!open || !dialogRef.current) {
@@ -172,6 +190,14 @@ export function ErrorActionModal({
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              {operationError ? (
+                <div className="w-full">
+                  <FormErrorMessage
+                    title="Action failed"
+                    message={operationError}
+                  />
+                </div>
+              ) : null}
               {issue.retryLabel && onRetry ? (
                 <button
                   type="button"
