@@ -183,9 +183,9 @@ function resolveErrorDetails(
 
   if (isNetworkFailure) {
     return {
-      title: "Could not reach the search server",
+      title: "Search is temporarily unavailable",
       description:
-        "The API server is unreachable. Check that the backend is running and that INTERNAL_API_BASE_URL is configured correctly.",
+        "We couldn't reach Rentify search. Check your connection and try again.",
     };
   }
 
@@ -199,22 +199,22 @@ function resolveErrorDetails(
 
   if (debug?.status !== undefined && debug.status >= 500) {
     return {
-      title: "Search server error",
+      title: "Search is temporarily unavailable",
       description:
-        `The server returned ${debug.status} ${debug.statusText ?? ""}. This is likely temporary - try again in a moment.`.trim(),
+        "Rentify search is having trouble right now. Please try again in a moment.",
     };
   }
 
   if (debug?.status !== undefined) {
     return {
-      title: `Unexpected response (${debug.status})`,
-      description: message,
+      title: "Search results could not be loaded",
+      description: message || "Please review your filters and try again.",
     };
   }
 
   return {
-    title: "Unable to load postings",
-    description: message,
+    title: "Search results could not be loaded",
+    description: message || "Please try again in a moment.",
   };
 }
 

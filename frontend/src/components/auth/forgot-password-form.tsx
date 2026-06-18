@@ -6,7 +6,11 @@ import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
-import type { AuthResponseBody } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import {
+  ApiClientError,
+  type AuthResponseBody,
+} from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface RequestErrors {
@@ -19,16 +23,6 @@ interface ResetErrors {
   newPassword?: string;
   confirmPassword?: string;
   captchaToken?: string;
-}
-
-interface ApiErrorShape {
-  status?: number;
-  message?: string;
-  body?: {
-    error?: string;
-    code?: string;
-    details?: unknown;
-  };
 }
 
 function validateRequest(values: {
@@ -80,50 +74,44 @@ function getRequestFailureResult(error: unknown): {
   generalError: string | null;
   fieldErrors?: Partial<RequestErrors>;
 } {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
+  if (error instanceof ApiClientError) {
+    const { status, code, message } = error;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError:
-            "Please complete the security check before requesting a reset code.",
-          fieldErrors: {
-            captchaToken: "Complete the verification to continue.",
-          },
-        };
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldErrors: {
-            captchaToken: "Please complete the verification again.",
-          },
-        };
-      default:
-        return {
-          generalError:
-            message || "We couldn't start password reset right now.",
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before requesting a reset code.",
+            fieldErrors: {
+              captchaToken: "Complete the verification to continue.",
+            },
+          };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldErrors: {
+              captchaToken: "Please complete the verification again.",
+            },
+          };
+        default:
+          return {
+            generalError:
+              message || "We couldn't start password reset right now.",
+          };
+      }
     }
   }
 
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-    };
-  }
-
   return {
-    generalError:
-      "We couldn't start password reset. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "start password reset",
+      fallback: "We couldn't start password reset right now. Please try again.",
+    }),
   };
 }
 
@@ -131,72 +119,64 @@ function getResetFailureResult(error: unknown): {
   generalError: string | null;
   fieldErrors?: Partial<ResetErrors>;
 } {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
-  const details = apiError?.body?.details as
-    | { retryAfterSeconds?: number }
-    | undefined;
+  if (error instanceof ApiClientError) {
+    const { status, code, message, details } = error;
+    const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError:
-            "Please complete the security check before requesting another reset code.",
-          fieldErrors: {
-            captchaToken: "Complete the verification to continue.",
-          },
-        };
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldErrors: {
-            captchaToken: "Please complete the verification again.",
-          },
-        };
-      default:
-        return {
-          generalError: null,
-          fieldErrors: {
-            code: message || "Reset code is invalid or has expired.",
-          },
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before requesting another reset code.",
+            fieldErrors: {
+              captchaToken: "Complete the verification to continue.",
+            },
+          };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldErrors: {
+              captchaToken: "Please complete the verification again.",
+            },
+          };
+        default:
+          return {
+            generalError: null,
+            fieldErrors: {
+              code: message || "Reset code is invalid or has expired.",
+            },
+          };
+      }
+    }
+
+    if (status === 409) {
+      return {
+        generalError:
+          message || "This account is not eligible for password reset.",
+      };
+    }
+
+    if (status === 429) {
+      const retryAfterSeconds = retryDetails?.retryAfterSeconds;
+      return {
+        generalError: retryAfterSeconds
+          ? `A reset code was sent recently. Try again in ${retryAfterSeconds} seconds.`
+          : message ||
+            "A reset code was sent recently. Please wait before retrying.",
+      };
     }
   }
 
-  if (status === 409) {
-    return {
-      generalError:
-        message || "This account is not eligible for password reset.",
-    };
-  }
-
-  if (status === 429) {
-    const retryAfterSeconds = details?.retryAfterSeconds;
-    return {
-      generalError: retryAfterSeconds
-        ? `A reset code was sent recently. Try again in ${retryAfterSeconds} seconds.`
-        : message ||
-          "A reset code was sent recently. Please wait before retrying.",
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-    };
-  }
-
   return {
-    generalError:
-      "We couldn't reset your password right now. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "reset your password",
+      fallback: "We couldn't reset your password right now. Please try again.",
+    }),
   };
 }
 

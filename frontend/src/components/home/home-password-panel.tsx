@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { authApi } from "@/lib/auth/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiError } from "@/lib/auth/types";
 
 interface PasswordErrors {
@@ -92,7 +93,10 @@ export function HomePasswordPanel() {
       }
 
       setMessage(
-        "We couldn't update your password right now. Please try again.",
+        getApiErrorMessage(error, {
+          action: "update your password",
+          fallback: "We couldn't update your password right now. Please try again.",
+        }),
       );
     } finally {
       setPending(false);

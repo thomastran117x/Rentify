@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiError } from "@/lib/api/types";
 import { feedbackApi, type FeedbackCategory } from "@/lib/feedback/api";
 
@@ -235,10 +236,20 @@ export function ContactInquiryForm() {
           }));
         }
 
-        setSubmitError(error.message);
+        setSubmitError(
+          getApiErrorMessage(error, {
+            action: "send your feedback",
+            fallback:
+              "We couldn't send your feedback right now. Please try again.",
+          }),
+        );
       } else {
         setSubmitError(
-          "We couldn't send your feedback right now. Please try again.",
+          getApiErrorMessage(error, {
+            action: "send your feedback",
+            fallback:
+              "We couldn't send your feedback right now. Please try again.",
+          }),
         );
       }
     } finally {

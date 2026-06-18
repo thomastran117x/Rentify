@@ -13,7 +13,8 @@ import type {
   BookingRequestRecord,
   BookingRequestsListResult,
 } from "@/lib/bookings/types";
-import { ApiError, type AuthResponseUser } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import type { AuthResponseUser } from "@/lib/auth/types";
 import {
   canManageOrganizationPostings,
   canReadOrganizationPostings,
@@ -352,9 +353,10 @@ export function AccountBookingsPanel({
       setOwnerBookings(owned);
     } catch (error) {
       setMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Bookings could not be loaded right now.",
+        getApiErrorMessage(error, {
+          action: "load your bookings",
+          fallback: "We couldn't load your bookings right now. Please try again.",
+        }),
       );
     } finally {
       setLoading(false);
@@ -386,9 +388,11 @@ export function AccountBookingsPanel({
         }
 
         setMessage(
-          error instanceof ApiError
-            ? error.message
-            : "Bookings could not be loaded right now.",
+          getApiErrorMessage(error, {
+            action: "load your bookings",
+            fallback:
+              "We couldn't load your bookings right now. Please try again.",
+          }),
         );
       } finally {
         if (active) {
@@ -416,9 +420,11 @@ export function AccountBookingsPanel({
       }));
     } catch (error) {
       setMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Cancellation details could not be loaded.",
+        getApiErrorMessage(error, {
+          action: "load cancellation details",
+          fallback:
+            "We couldn't load cancellation details right now. Please try again.",
+        }),
       );
     } finally {
       setQuotePendingId(null);
@@ -445,9 +451,11 @@ export function AccountBookingsPanel({
       await refreshBookings();
     } catch (error) {
       setMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Booking cancellation could not be completed.",
+        getApiErrorMessage(error, {
+          action: "cancel that booking",
+          fallback:
+            "We couldn't cancel that booking right now. Please try again.",
+        }),
       );
     } finally {
       setCancelPendingId(null);

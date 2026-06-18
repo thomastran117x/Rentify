@@ -9,7 +9,8 @@ import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
-import type { AuthResponseBody } from "@/lib/auth/types";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface LoginErrors {
@@ -42,16 +43,6 @@ function validateLogin(values: {
   return errors;
 }
 
-interface ApiErrorShape {
-  status?: number;
-  message?: string;
-  body?: {
-    error?: string;
-    code?: string;
-    details?: unknown;
-  };
-}
-
 type LoginFailureResult = {
   generalError: string | null;
   fieldErrors?: Partial<LoginErrors>;
@@ -59,108 +50,97 @@ type LoginFailureResult = {
 };
 
 function getLoginFailureResult(error: unknown): LoginFailureResult {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
+  if (error instanceof ApiClientError) {
+    const { status, code, message } = error;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError: "Please complete the security check before signing in.",
-          fieldErrors: {
-            captchaToken: "Complete the verification to continue.",
-          },
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before signing in.",
+            fieldErrors: {
+              captchaToken: "Complete the verification to continue.",
+            },
+          };
 
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldErrors: {
-            captchaToken: "Please complete the verification again.",
-          },
-        };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldErrors: {
+              captchaToken: "Please complete the verification again.",
+            },
+          };
 
-      case "VALIDATION_ERROR":
-      case "INVALID_REQUEST":
-        return {
-          generalError: message || "Please review the form and try again.",
-        };
+        case "VALIDATION_ERROR":
+        case "INVALID_REQUEST":
+          return {
+            generalError: message || "Please review the form and try again.",
+          };
 
-      default:
-        return {
-          generalError:
-            message || "Your sign-in request was invalid. Please try again.",
-        };
+        default:
+          return {
+            generalError:
+              message || "Your sign-in request was invalid. Please try again.",
+          };
+      }
     }
-  }
 
-  if (status === 401) {
-    switch (code) {
-      case "INVALID_CREDENTIALS":
-      case "INVALID_EMAIL_OR_PASSWORD":
-      case "AUTHENTICATION_FAILED":
-      default:
-        return {
-          generalError: "The email or password you entered is incorrect.",
-        };
+    if (status === 401) {
+      return {
+        generalError: "The email or password you entered is incorrect.",
+      };
     }
-  }
 
-  if (status === 409) {
-    switch (code) {
-      case "EMAIL_NOT_VERIFIED":
-      case "ACCOUNT_NOT_VERIFIED":
-        return {
-          generalError:
-            "Your account has not been verified yet. Please verify your email before signing in.",
-        };
+    if (status === 409) {
+      switch (code) {
+        case "EMAIL_NOT_VERIFIED":
+        case "ACCOUNT_NOT_VERIFIED":
+          return {
+            generalError:
+              "Your account has not been verified yet. Please verify your email before signing in.",
+          };
 
-      case "AUTH_PROVIDER_MISMATCH":
-        return {
-          generalError:
-            "This account uses a different sign-in method. Use the original provider you signed up with.",
-        };
+        case "AUTH_PROVIDER_MISMATCH":
+          return {
+            generalError:
+              "This account uses a different sign-in method. Use the original provider you signed up with.",
+          };
 
-      case "ACCOUNT_DISABLED":
-      case "ACCOUNT_LOCKED":
-      case "ACCOUNT_SUSPENDED":
-        return {
-          generalError:
-            "This account is currently unavailable. Please contact support if you believe this is a mistake.",
-        };
+        case "ACCOUNT_DISABLED":
+        case "ACCOUNT_LOCKED":
+        case "ACCOUNT_SUSPENDED":
+          return {
+            generalError:
+              "This account is currently unavailable. Please contact support if you believe this is a mistake.",
+          };
 
-      default:
-        return {
-          generalError: message || "There is a problem with this account.",
-        };
+        default:
+          return {
+            generalError: message || "There is a problem with this account.",
+          };
+      }
     }
-  }
 
-  if (status === 423) {
-    return {
-      generalError:
-        message ||
-        "This sign-in is locked. Use the code from your email to unlock it.",
-      unlockRequired: true,
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-    };
+    if (status === 423) {
+      return {
+        generalError:
+          message ||
+          "This sign-in is locked. Use the code from your email to unlock it.",
+        unlockRequired: true,
+      };
+    }
   }
 
   return {
-    generalError:
-      "We couldn't complete sign in. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "sign you in",
+      fallback: "We couldn't sign you in right now. Please try again.",
+    }),
   };
 }
 

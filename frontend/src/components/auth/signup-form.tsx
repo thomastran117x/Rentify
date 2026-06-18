@@ -8,10 +8,12 @@ import { SignupVerificationPanel } from "@/components/auth/signup-verification-p
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type {
   AuthResponseBody,
   SignupVerificationPendingResult,
 } from "@/lib/auth/types";
+import { ApiClientError } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface SignupErrors {
@@ -66,85 +68,69 @@ function validateSignup(values: {
   return errors;
 }
 
-interface ApiErrorShape {
-  status?: number;
-  message?: string;
-  body?: {
-    error?: string;
-    code?: string;
-    details?: unknown;
-  };
-}
-
 type SignupFailureResult = {
   generalError: string | null;
   fieldErrors?: Partial<SignupErrors>;
 };
 
 function getSignupFailureResult(error: unknown): SignupFailureResult {
-  const apiError = error as ApiErrorShape | undefined;
-  const status = apiError?.status;
-  const code = apiError?.body?.code;
-  const message = apiError?.body?.error ?? apiError?.message;
+  if (error instanceof ApiClientError) {
+    const { status, code, message } = error;
 
-  if (status === 400) {
-    switch (code) {
-      case "CAPTCHA_REQUIRED":
-      case "CAPTCHA_MISSING":
-        return {
-          generalError:
-            "Please complete the security check before creating your account.",
-          fieldErrors: {
-            captchaToken: "Complete the verification to continue.",
-          },
-        };
+    if (status === 400) {
+      switch (code) {
+        case "CAPTCHA_REQUIRED":
+        case "CAPTCHA_MISSING":
+          return {
+            generalError:
+              "Please complete the security check before creating your account.",
+            fieldErrors: {
+              captchaToken: "Complete the verification to continue.",
+            },
+          };
 
-      case "CAPTCHA_INVALID":
-      case "CAPTCHA_EXPIRED":
-      case "TURNSTILE_VALIDATION_FAILED":
-        return {
-          generalError:
-            "The security check expired or failed. Please try again.",
-          fieldErrors: {
-            captchaToken: "Please complete the verification again.",
-          },
-        };
+        case "CAPTCHA_INVALID":
+        case "CAPTCHA_EXPIRED":
+        case "TURNSTILE_VALIDATION_FAILED":
+          return {
+            generalError:
+              "The security check expired or failed. Please try again.",
+            fieldErrors: {
+              captchaToken: "Please complete the verification again.",
+            },
+          };
 
-      case "VALIDATION_ERROR":
-      case "INVALID_REQUEST":
-        return {
-          generalError: message || "Please review the form and try again.",
-        };
+        case "VALIDATION_ERROR":
+        case "INVALID_REQUEST":
+          return {
+            generalError: message || "Please review the form and try again.",
+          };
 
-      default:
-        return {
-          generalError:
-            message || "Your sign-up request was invalid. Please try again.",
-        };
+        default:
+          return {
+            generalError:
+              message || "Your sign-up request was invalid. Please try again.",
+          };
+      }
+    }
+
+    if (status === 409) {
+      return {
+        generalError:
+          message ||
+          "An account with this email already exists. Try signing in instead.",
+        fieldErrors: {
+          email: "This email is already in use.",
+        },
+      };
     }
   }
 
-  if (status === 409) {
-    return {
-      generalError:
-        message ||
-        "An account with this email already exists. Try signing in instead.",
-      fieldErrors: {
-        email: "This email is already in use.",
-      },
-    };
-  }
-
-  if (status !== undefined && status >= 500) {
-    return {
-      generalError:
-        "Something went wrong on our side. Please try again in a moment.",
-    };
-  }
-
   return {
-    generalError:
-      "We couldn't complete sign up. Check your connection and try again.",
+    generalError: getApiErrorMessage(error, {
+      action: "create your account",
+      fallback: "We couldn't create your account right now. Please try again.",
+    }),
   };
 }
 

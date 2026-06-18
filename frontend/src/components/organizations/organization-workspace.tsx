@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
   type CreateOrganizationInviteInput,
@@ -114,9 +115,11 @@ export function OrganizationWorkspace() {
       } catch (nextError) {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "Organization workspace could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load your organization workspace",
+              fallback:
+                "We couldn't load your organization workspace right now. Please try again.",
+            }),
           );
         }
       } finally {
@@ -163,9 +166,11 @@ export function OrganizationWorkspace() {
       setMessage("Active organization updated.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Active organization could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "switch your active organization",
+          fallback:
+            "We couldn't switch your active organization right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);
@@ -187,9 +192,11 @@ export function OrganizationWorkspace() {
       setMessage("Organization name updated.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Organization name could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "rename this organization",
+          fallback:
+            "We couldn't rename this organization right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);
@@ -216,9 +223,11 @@ export function OrganizationWorkspace() {
       setMessage("Invitation sent.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Invitation could not be sent.",
+        getApiErrorMessage(nextError, {
+          action: "send that invitation",
+          fallback:
+            "We couldn't send that invitation right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);
@@ -240,9 +249,11 @@ export function OrganizationWorkspace() {
       setMessage("Invitation revoked.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Invitation could not be revoked.",
+        getApiErrorMessage(nextError, {
+          action: "revoke that invitation",
+          fallback:
+            "We couldn't revoke that invitation right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);
@@ -271,9 +282,11 @@ export function OrganizationWorkspace() {
       setMessage("Member role updated.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Member role could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "update that member's role",
+          fallback:
+            "We couldn't update that member's role right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);
@@ -295,9 +308,10 @@ export function OrganizationWorkspace() {
       setMessage("Member removed.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Member could not be removed.",
+        getApiErrorMessage(nextError, {
+          action: "remove that member",
+          fallback: "We couldn't remove that member right now. Please try again.",
+        }),
       );
     } finally {
       setSaving(false);

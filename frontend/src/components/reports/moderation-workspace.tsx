@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { isModeratorRole } from "@/lib/auth/roles";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   reportsApi,
   type ContentReportDetailRecord,
@@ -139,9 +140,10 @@ export function ModerationWorkspace() {
       .catch((nextError) => {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "Reports could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load the report queue",
+              fallback: "We couldn't load the report queue right now. Please try again.",
+            }),
           );
         }
       })
@@ -184,9 +186,11 @@ export function ModerationWorkspace() {
       .catch((nextError) => {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "Report details could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load report details",
+              fallback:
+                "We couldn't load report details right now. Please try again.",
+            }),
           );
         }
       })
@@ -225,9 +229,11 @@ export function ModerationWorkspace() {
       setMessage("Report assigned.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Assignment could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "update the report assignment",
+          fallback:
+            "We couldn't update the report assignment right now. Please try again.",
+        }),
       );
     } finally {
       setMutationPending(false);
@@ -251,9 +257,11 @@ export function ModerationWorkspace() {
       setMessage("Report unassigned.");
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Assignment could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "update the report assignment",
+          fallback:
+            "We couldn't update the report assignment right now. Please try again.",
+        }),
       );
     } finally {
       setMutationPending(false);
@@ -283,9 +291,11 @@ export function ModerationWorkspace() {
       setMessage(`Report moved to ${humanizeValue(nextStatus).toLowerCase()}.`);
     } catch (nextError) {
       setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Status could not be updated.",
+        getApiErrorMessage(nextError, {
+          action: "update the report status",
+          fallback:
+            "We couldn't update the report status right now. Please try again.",
+        }),
       );
     } finally {
       setMutationPending(false);

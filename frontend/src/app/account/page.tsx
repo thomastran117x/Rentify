@@ -10,8 +10,8 @@ import {
 import { useAuth } from "@/components/auth/auth-context";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
-  ApiError,
   type LinkedOAuthProvidersResult,
   type OAuthProvider as LinkedOAuthProvider,
   type PersonalAccessTokenSummary,
@@ -82,9 +82,15 @@ export default function AccountPage() {
           setProviders(result);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setMessage("Connected providers could not be loaded.");
+          setMessage(
+            getApiErrorMessage(error, {
+              action: "load your connected providers",
+              fallback:
+                "We couldn't load your connected providers right now. Please try again.",
+            }),
+          );
         }
       });
 
@@ -95,9 +101,15 @@ export default function AccountPage() {
           setPersonalAccessTokens(result.tokens);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setTokenMessage("Personal access tokens could not be loaded.");
+          setTokenMessage(
+            getApiErrorMessage(error, {
+              action: "load your personal access tokens",
+              fallback:
+                "We couldn't load your personal access tokens right now. Please try again.",
+            }),
+          );
         }
       });
 
@@ -126,9 +138,10 @@ export default function AccountPage() {
       setMessage(`${providerLabels[provider]} was unlinked.`);
     } catch (error) {
       setMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Provider could not be unlinked right now.",
+        getApiErrorMessage(error, {
+          action: `unlink ${providerLabels[provider]}`,
+          fallback: "We couldn't unlink that provider right now. Please try again.",
+        }),
       );
     } finally {
       setPendingUnlink(null);
@@ -163,9 +176,11 @@ export default function AccountPage() {
       );
     } catch (error) {
       setTokenMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Personal access token could not be created right now.",
+        getApiErrorMessage(error, {
+          action: "create a personal access token",
+          fallback:
+            "We couldn't create that personal access token right now. Please try again.",
+        }),
       );
     } finally {
       setPendingTokenCreate(false);
@@ -189,9 +204,11 @@ export default function AccountPage() {
       setTokenMessage("Personal access token revoked.");
     } catch (error) {
       setTokenMessage(
-        error instanceof ApiError
-          ? error.message
-          : "Personal access token could not be revoked right now.",
+        getApiErrorMessage(error, {
+          action: "revoke that personal access token",
+          fallback:
+            "We couldn't revoke that personal access token right now. Please try again.",
+        }),
       );
     } finally {
       setPendingTokenRevoke(null);

@@ -4,6 +4,10 @@ import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "./login-form";
 import {
+  ApiClientError,
+  ApiNetworkError,
+} from "@/lib/auth/types";
+import {
   resetRouterMocks,
   routerReplaceMock,
 } from "@/test/mocks/next-navigation";
@@ -179,12 +183,17 @@ describe("LoginForm", () => {
 
   it("maps invalid credential failures to a friendly message", async () => {
     const user = userEvent.setup();
-    loginMock.mockRejectedValue({
-      status: 401,
-      body: {
+    loginMock.mockRejectedValue(
+      new ApiClientError("Unauthorized", {
         code: "INVALID_CREDENTIALS",
-      },
-    });
+        request: {
+          method: "POST",
+          path: "/auth/local/login",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+        },
+        status: 401,
+      }),
+    );
 
     render(<LoginForm nextPath="/dashboard" />);
 
@@ -202,12 +211,17 @@ describe("LoginForm", () => {
 
   it("maps captcha failures to field-level messaging", async () => {
     const user = userEvent.setup();
-    loginMock.mockRejectedValue({
-      status: 400,
-      body: {
+    loginMock.mockRejectedValue(
+      new ApiClientError("Captcha verification failed.", {
         code: "CAPTCHA_INVALID",
-      },
-    });
+        request: {
+          method: "POST",
+          path: "/auth/local/login",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+        },
+        status: 400,
+      }),
+    );
 
     render(<LoginForm nextPath="/dashboard" />);
 
@@ -227,10 +241,17 @@ describe("LoginForm", () => {
 
   it("switches to unlock mode for locked-account responses", async () => {
     const user = userEvent.setup();
-    loginMock.mockRejectedValue({
-      status: 423,
-      message: "Locked",
-    });
+    loginMock.mockRejectedValue(
+      new ApiClientError("Locked", {
+        code: "LOGIN_LOCKED",
+        request: {
+          method: "POST",
+          path: "/auth/local/login",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+        },
+        status: 423,
+      }),
+    );
 
     render(<LoginForm nextPath="/dashboard" />);
 
@@ -240,6 +261,32 @@ describe("LoginForm", () => {
 
     expect(
       await screen.findByText("Unlock panel for person@example.com"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a shared network message when sign-in cannot reach the api", async () => {
+    const user = userEvent.setup();
+    loginMock.mockRejectedValue(
+      new ApiNetworkError("Unable to reach the server.", {
+        code: "NETWORK_ERROR",
+        request: {
+          method: "POST",
+          path: "/auth/local/login",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+        },
+      }),
+    );
+
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText(
+        "We couldn't sign you in because we couldn't reach Rentify. Check your connection and try again.",
+      ),
     ).toBeInTheDocument();
   });
 });

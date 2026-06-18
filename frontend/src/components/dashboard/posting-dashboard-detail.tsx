@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { canReadOrganizationPostings } from "@/lib/auth/roles";
+import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   AnalyticsCard,
   buildDashboardDiagnostics,
@@ -96,9 +97,11 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
       } catch (nextError) {
         if (active) {
           setError(
-            nextError instanceof Error
-              ? nextError.message
-              : "Posting analytics could not be loaded.",
+            getApiErrorMessage(nextError, {
+              action: "load posting analytics",
+              fallback:
+                "We couldn't load posting analytics right now. Please try again.",
+            }),
           );
         }
       } finally {
