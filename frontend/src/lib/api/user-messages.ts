@@ -1,5 +1,5 @@
 import {
-  ApiError,
+  ApiClientError,
   isApiNetworkError,
   isApiProtocolError,
   isApiServerError,
@@ -50,8 +50,8 @@ export function getApiErrorMessage(
     action,
     fallback,
     productName,
-    preserveClientMessage = true,
-    preserveUnknownErrorMessage = true,
+    preserveClientMessage = false,
+    preserveUnknownErrorMessage = false,
   }: ApiErrorMessageOptions,
 ): string {
   const sharedMessage = getSharedApiErrorMessage(error, {
@@ -63,7 +63,7 @@ export function getApiErrorMessage(
     return sharedMessage;
   }
 
-  if (preserveClientMessage && error instanceof ApiError) {
+  if (preserveClientMessage && error instanceof ApiClientError) {
     return readMessage(error.message) ?? fallback;
   }
 

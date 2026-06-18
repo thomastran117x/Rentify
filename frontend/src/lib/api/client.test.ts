@@ -311,6 +311,86 @@ describe("api client", () => {
     });
   });
 
+  it("maps 429 responses to ApiRateLimitError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Too many requests.",
+              data: null,
+              error: {
+                code: "RATE_LIMITED",
+                details: {
+                  retryAfterSeconds: 30,
+                },
+              },
+              meta: {
+                requestId: "request-6b-1",
+              },
+            }),
+            {
+              status: 429,
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/health")).rejects.toMatchObject({
+      name: "ApiRateLimitError",
+      message: "Too many requests.",
+      code: "RATE_LIMITED",
+      status: 429,
+    });
+  });
+
+  it("maps unexpected redirect responses to ApiProtocolError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Temporary redirect.",
+              data: null,
+              error: {
+                code: "TEMP_REDIRECT",
+              },
+              meta: {
+                requestId: "request-6b-2",
+              },
+            }),
+            {
+              status: 302,
+              headers: {
+                "content-type": "application/json",
+              },
+            },
+          ),
+      ),
+    );
+
+    const { publicJson } = await import("./client");
+
+    await expect(publicJson("GET", "/health")).rejects.toMatchObject({
+      name: "ApiProtocolError",
+      message: "The API returned an unexpected status code.",
+      code: "INVALID_API_STATUS",
+      status: 302,
+      details: {
+        status: 302,
+      },
+    });
+  });
+
   it("maps fetch rejections to ApiNetworkError", async () => {
     vi.stubGlobal(
       "fetch",

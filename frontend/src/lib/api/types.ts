@@ -79,6 +79,18 @@ export class ApiClientError extends ApiError {
   }
 }
 
+export class ApiRateLimitError extends ApiClientError {
+  declare public readonly status: 429;
+
+  constructor(
+    message: string,
+    options: Omit<ApiErrorOptions, "status"> & { status: 429 },
+  ) {
+    super(message, options);
+    this.name = "ApiRateLimitError";
+  }
+}
+
 export class ApiServerError extends ApiError {
   declare public readonly status: number;
 
@@ -107,6 +119,10 @@ export class ApiProtocolError extends ApiError {
 
 export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError;
+}
+
+export function isApiRateLimitError(error: unknown): error is ApiRateLimitError {
+  return error instanceof ApiRateLimitError;
 }
 
 export function isApiServerError(error: unknown): error is ApiServerError {

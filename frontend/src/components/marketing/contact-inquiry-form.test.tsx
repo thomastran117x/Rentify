@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ContactInquiryForm } from "./contact-inquiry-form";
-import { ApiClientError } from "@/lib/api/types";
+import { ApiClientError, ApiServerError } from "@/lib/api/types";
 
 const { createFeedbackMock, useAuthMock } = vi.hoisted(() => ({
   createFeedbackMock: vi.fn(),
@@ -208,5 +208,48 @@ describe("ContactInquiryForm", () => {
       screen.getByText("Captcha verification failed."),
     ).toBeInTheDocument();
     expect(screen.getByText("Captcha missing")).toBeInTheDocument();
+  });
+
+  it("does not apply field errors from shared server failures", async () => {
+    createFeedbackMock.mockRejectedValue(
+      new ApiServerError("Temporarily unavailable.", {
+        code: "INTERNAL_SERVER_ERROR",
+        request: {
+          method: "POST",
+          path: "/feedback",
+          requestUrl: "http://localhost:8040/api/v1/feedback",
+        },
+        status: 503,
+        details: {
+          email: ["Should not appear on the form."],
+        },
+      }),
+    );
+
+    render(<ContactInquiryForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Jane Doe" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "What should the team know?" }),
+      {
+        target: { value: "The contact page crashes after login redirect." },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Complete captcha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+
+    expect(
+      await screen.findByText(
+        "Rentify is having trouble right now, so we couldn't send your feedback. Please try again in a moment.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Should not appear on the form."),
+    ).not.toBeInTheDocument();
   });
 });

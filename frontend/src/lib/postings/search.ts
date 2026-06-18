@@ -1,4 +1,5 @@
 import { buildPathWithQuery, publicJson } from "@/lib/api/client";
+import { toApiDebug } from "@/lib/api/debug";
 import { ApiError } from "@/lib/api/types";
 
 export type PostingSort =
@@ -118,20 +119,6 @@ export class PublicPostingAutocompleteError extends Error {
     super(message);
     this.name = "PublicPostingAutocompleteError";
   }
-}
-
-function toApiDebug(error: ApiError): {
-  status?: number;
-  responseBody?: unknown;
-  causeMessage?: string;
-} {
-  return {
-    ...(error.status !== undefined ? { status: error.status } : {}),
-    ...(error.details !== undefined ? { responseBody: error.details } : {}),
-    ...(error.cause instanceof Error
-      ? { causeMessage: error.cause.message }
-      : {}),
-  };
 }
 
 export async function searchPublicPostings(

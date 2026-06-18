@@ -11,6 +11,7 @@ import {
   ApiError,
   ApiNetworkError,
   ApiProtocolError,
+  ApiRateLimitError,
   ApiServerError,
   type ApiRequestContext,
   type ApiErrorResponse,
@@ -108,19 +109,27 @@ function toNetworkError(
   });
 }
 
+function isSharedFailureStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function isClientFailureStatus(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 429;
+}
+
 function toUnreadableResponseError(
   response: Response,
   request: ApiRequestContext,
   error: unknown,
 ): ApiProtocolError | ApiServerError {
   const message =
-    response.status >= 500
+    isSharedFailureStatus(response.status)
       ? "The server returned an unreadable response."
       : "The API returned an unreadable response.";
   const options = {
     cause: error,
     code:
-      response.status >= 500
+      isSharedFailureStatus(response.status)
         ? "INVALID_SERVER_RESPONSE"
         : "INVALID_API_RESPONSE",
     details:
@@ -129,7 +138,7 @@ function toUnreadableResponseError(
     status: response.status,
   };
 
-  return response.status >= 500
+  return isSharedFailureStatus(response.status)
     ? new ApiServerError(message, options)
     : new ApiProtocolError(message, options);
 }
@@ -253,12 +262,12 @@ export function toApiError(
 ): ApiError {
   if (!isApiErrorResponse(payload)) {
     const message =
-      response.status >= 500
+      isSharedFailureStatus(response.status)
         ? "The server returned an invalid error response."
         : "The API returned an invalid error response.";
     const options = {
       code:
-        response.status >= 500
+        isSharedFailureStatus(response.status)
           ? "INVALID_SERVER_RESPONSE"
           : "INVALID_API_RESPONSE",
       details: payload ?? undefined,
@@ -266,7 +275,7 @@ export function toApiError(
       status: response.status,
     };
 
-    return response.status >= 500
+    return isSharedFailureStatus(response.status)
       ? new ApiServerError(message, options)
       : new ApiProtocolError(message, options);
   }
@@ -278,9 +287,30 @@ export function toApiError(
     status: response.status,
   };
 
-  return response.status >= 500
-    ? new ApiServerError(payload.message, options)
-    : new ApiClientError(payload.message, options);
+  if (response.status === 429) {
+    return new ApiRateLimitError(payload.message, {
+      ...options,
+      status: 429,
+    });
+  }
+
+  if (response.status >= 500) {
+    return new ApiServerError(payload.message, options);
+  }
+
+  if (isClientFailureStatus(response.status)) {
+    return new ApiClientError(payload.message, options);
+  }
+
+  return new ApiProtocolError("The API returned an unexpected status code.", {
+    code: "INVALID_API_STATUS",
+    details: {
+      payload,
+      status: response.status,
+    },
+    request,
+    status: response.status,
+  });
 }
 
 export function buildQuery<TParams extends object>(params: TParams): string {

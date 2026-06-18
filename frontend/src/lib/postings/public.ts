@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { toApiDebug } from "../api/debug.ts";
 import {
   buildPathWithQuery,
   optionalAuthJson,
@@ -110,20 +111,6 @@ export class PublicPostingDetailError extends Error {
     this.name = "PublicPostingDetailError";
     this.debug = debug;
   }
-}
-
-function toApiDebug(error: ApiError): {
-  status?: number;
-  responseBody?: unknown;
-  causeMessage?: string;
-} {
-  return {
-    ...(error.status !== undefined ? { status: error.status } : {}),
-    ...(error.details !== undefined ? { responseBody: error.details } : {}),
-    ...(error.cause instanceof Error
-      ? { causeMessage: error.cause.message }
-      : {}),
-  };
 }
 
 export async function fetchPublicPostingDetail(

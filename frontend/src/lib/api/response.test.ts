@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ApiClientError, ApiProtocolError } from "@/lib/api/types";
+import {
+  ApiClientError,
+  ApiProtocolError,
+  ApiRateLimitError,
+} from "@/lib/api/types";
 import { readJson, toApiError, unwrapApiResponse } from "./response";
 
 describe("api response helpers", () => {
@@ -66,5 +70,26 @@ describe("api response helpers", () => {
     expect(error.details).toEqual({
       email: "invalid",
     });
+  });
+
+  it("creates ApiRateLimitError instances from 429 payloads", () => {
+    const response = new Response(null, {
+      status: 429,
+    });
+
+    const error = toApiError(response, {
+      message: "Too many requests.",
+      error: {
+        code: "RATE_LIMITED",
+        details: {
+          retryAfterSeconds: 30,
+        },
+      },
+    });
+
+    expect(error).toBeInstanceOf(ApiRateLimitError);
+    expect(error.message).toBe("Too many requests.");
+    expect(error.code).toBe("RATE_LIMITED");
+    expect(error.status).toBe(429);
   });
 });

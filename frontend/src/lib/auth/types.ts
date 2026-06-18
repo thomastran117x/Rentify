@@ -10,10 +10,12 @@ export {
   ApiError,
   ApiNetworkError,
   ApiProtocolError,
+  ApiRateLimitError,
   ApiServerError,
   isApiClientError,
   isApiNetworkError,
   isApiProtocolError,
+  isApiRateLimitError,
   isApiServerError,
 } from "@/lib/api/types";
 

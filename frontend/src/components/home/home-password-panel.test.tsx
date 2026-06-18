@@ -124,4 +124,35 @@ describe("HomePasswordPanel", () => {
       await screen.findByText("Current password is incorrect."),
     ).toBeInTheDocument();
   });
+
+  it("preserves the vetted conflict message for password reuse", async () => {
+    const user = userEvent.setup();
+    changePasswordMock.mockRejectedValue(
+      new ApiClientError("New password must be different from the current password.", {
+        code: "CONFLICT",
+        request: {
+          method: "POST",
+          path: "/auth/local/password/change",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/password/change",
+        },
+        status: 409,
+      }),
+    );
+
+    render(<HomePasswordPanel />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    await user.type(screen.getByLabelText("New password"), "current-pass");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "current-pass",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      await screen.findByText(
+        "New password must be different from the current password.",
+      ),
+    ).toBeInTheDocument();
+  });
 });

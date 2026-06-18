@@ -63,7 +63,7 @@ describe("api user messages", () => {
     );
   });
 
-  it("preserves client-side api messages so feature code can own 4xx behavior", () => {
+  it("falls back for client-side api messages unless a caller opts in", () => {
     const error = new ApiClientError("That invitation is no longer active.", {
       code: "INVITE_EXPIRED",
       request,
@@ -76,10 +76,10 @@ describe("api user messages", () => {
         fallback:
           "We couldn't accept this invitation right now. Please try again.",
       }),
-    ).toBe("That invitation is no longer active.");
+    ).toBe("We couldn't accept this invitation right now. Please try again.");
   });
 
-  it("preserves useful non-api errors for local validation paths", () => {
+  it("falls back for unknown errors unless a caller opts in", () => {
     expect(
       getApiErrorMessage(
         new Error("Upload at least one photo before saving."),
@@ -87,6 +87,37 @@ describe("api user messages", () => {
           action: "save this posting",
           fallback:
             "We couldn't save this posting right now. Please try again.",
+        },
+      ),
+    ).toBe("We couldn't save this posting right now. Please try again.");
+  });
+
+  it("preserves client-side api messages when a caller explicitly opts in", () => {
+    const error = new ApiClientError("That invitation is no longer active.", {
+      code: "INVITE_EXPIRED",
+      request,
+      status: 409,
+    });
+
+    expect(
+      getApiErrorMessage(error, {
+        action: "accept this invitation",
+        fallback:
+          "We couldn't accept this invitation right now. Please try again.",
+        preserveClientMessage: true,
+      }),
+    ).toBe("That invitation is no longer active.");
+  });
+
+  it("preserves useful local validation errors when a caller explicitly opts in", () => {
+    expect(
+      getApiErrorMessage(
+        new Error("Upload at least one photo before saving."),
+        {
+          action: "save this posting",
+          fallback:
+            "We couldn't save this posting right now. Please try again.",
+          preserveUnknownErrorMessage: true,
         },
       ),
     ).toBe("Upload at least one photo before saving.");

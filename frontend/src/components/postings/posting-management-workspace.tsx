@@ -418,6 +418,7 @@ export function PostingManagementWorkspace() {
           action: "save this posting",
           fallback:
             "We couldn't save this posting right now. Please try again.",
+          preserveUnknownErrorMessage: true,
         }),
       );
     } finally {
