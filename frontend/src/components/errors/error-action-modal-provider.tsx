@@ -85,7 +85,9 @@ export function ErrorActionModalProvider({
   const dismissErrorModal = useCallback(
     (id: string) => {
       commitState((current) => {
-        const remainingIssues = current.issues.filter((issue) => issue.id !== id);
+        const remainingIssues = current.issues.filter(
+          (issue) => issue.id !== id,
+        );
         const nextActiveId =
           current.activeId === id
             ? (remainingIssues[0]?.id ?? null)
@@ -135,7 +137,9 @@ export function ErrorActionModalProvider({
       const now = Date.now();
       const existingIssue =
         dedupeKey !== undefined
-          ? stateRef.current.issues.find((issue) => issue.dedupeKey === dedupeKey)
+          ? stateRef.current.issues.find(
+              (issue) => issue.dedupeKey === dedupeKey,
+            )
           : undefined;
 
       if (existingIssue) {
@@ -225,7 +229,8 @@ export function ErrorActionModalProvider({
         return;
       }
 
-      const handler = kind === "action" ? currentIssue.onAction : currentIssue.onRetry;
+      const handler =
+        kind === "action" ? currentIssue.onAction : currentIssue.onRetry;
 
       if (!handler) {
         return;
@@ -302,7 +307,11 @@ export function ErrorActionModalProvider({
         issues={state.issues}
         onSelectIssue={selectErrorModal}
         onAction={handleIssueAction}
-        onRetry={activeIssue?.retryLabel && activeIssue.onRetry ? handleIssueRetry : undefined}
+        onRetry={
+          activeIssue?.retryLabel && activeIssue.onRetry
+            ? handleIssueRetry
+            : undefined
+        }
         onClose={handleClose}
         busyAction={busyAction}
         operationError={operationError}

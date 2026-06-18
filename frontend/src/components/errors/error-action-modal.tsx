@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, type ReactNode } from "react";
 import { FormErrorMessage } from "./form-error-message";
-import {
-  ErrorToneIcon,
-  getErrorToneDefinition,
-  type ErrorTone,
-} from "./tone";
+import { ErrorToneIcon, getErrorToneDefinition, type ErrorTone } from "./tone";
 import { cx } from "./utils";
 
 export interface ErrorActionModalIssue {
@@ -83,7 +79,10 @@ export function ErrorActionModal({
       return;
     }
 
-    if (!restoreFocusRef.current && document.activeElement instanceof HTMLElement) {
+    if (
+      !restoreFocusRef.current &&
+      document.activeElement instanceof HTMLElement
+    ) {
       restoreFocusRef.current = document.activeElement;
     }
 
@@ -122,7 +121,8 @@ export function ErrorActionModal({
       }
 
       const firstFocusableElement = focusableElements[0]!;
-      const lastFocusableElement = focusableElements[focusableElements.length - 1]!;
+      const lastFocusableElement =
+        focusableElements[focusableElements.length - 1]!;
       const activeElement = document.activeElement;
 
       if (event.shiftKey && activeElement === firstFocusableElement) {
@@ -166,7 +166,12 @@ export function ErrorActionModal({
             <div className="flex flex-wrap items-start gap-3">
               <ErrorToneIcon tone={issue.tone} icon={issue.icon} />
               <div className="min-w-0 flex-1">
-                <p className={cx("text-xs font-semibold uppercase tracking-[0.18em]", definition.iconText)}>
+                <p
+                  className={cx(
+                    "text-xs font-semibold uppercase tracking-[0.18em]",
+                    definition.iconText,
+                  )}
+                >
                   {definition.label} requiring attention
                 </p>
                 <h2
@@ -178,11 +183,19 @@ export function ErrorActionModal({
                 >
                   {issue.title}
                 </h2>
-                <p id={descriptionId} className={cx("mt-3 text-sm leading-7", definition.mutedText)}>
+                <p
+                  id={descriptionId}
+                  className={cx("mt-3 text-sm leading-7", definition.mutedText)}
+                >
                   {issue.message}
                 </p>
                 {issue.occurrenceCount > 1 ? (
-                  <p className={cx("mt-3 text-xs font-medium uppercase tracking-[0.14em]", definition.iconText)}>
+                  <p
+                    className={cx(
+                      "mt-3 text-xs font-medium uppercase tracking-[0.14em]",
+                      definition.iconText,
+                    )}
+                  >
                     Repeated {issue.occurrenceCount} times
                   </p>
                 ) : null}
@@ -240,7 +253,9 @@ export function ErrorActionModal({
 
               <div className="mt-4 grid gap-2">
                 {issues.map((pendingIssue) => {
-                  const pendingDefinition = getErrorToneDefinition(pendingIssue.tone);
+                  const pendingDefinition = getErrorToneDefinition(
+                    pendingIssue.tone,
+                  );
                   const isActive = pendingIssue.id === issue.id;
 
                   return (
@@ -252,7 +267,8 @@ export function ErrorActionModal({
                       className={cx(
                         "rounded-[1.15rem] border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2",
                         pendingDefinition.issueButton,
-                        isActive && cx("ring-2", pendingDefinition.issueButtonActive),
+                        isActive &&
+                          cx("ring-2", pendingDefinition.issueButtonActive),
                       )}
                     >
                       <div className="flex items-start gap-3">

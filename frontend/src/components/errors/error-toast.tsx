@@ -1,11 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  ErrorToneIcon,
-  getErrorToneDefinition,
-  type ErrorTone,
-} from "./tone";
+import { ErrorToneIcon, getErrorToneDefinition, type ErrorTone } from "./tone";
 import { cx } from "./utils";
 
 export interface ErrorToastProps {
@@ -42,11 +38,22 @@ export function ErrorToast({
         <ErrorToneIcon tone={tone} icon={icon} />
         <div className="min-w-0 flex-1">
           {title ? (
-            <p className={cx("font-semibold tracking-[-0.01em]", definition.panelText)}>
+            <p
+              className={cx(
+                "font-semibold tracking-[-0.01em]",
+                definition.panelText,
+              )}
+            >
               {title}
             </p>
           ) : null}
-          <p className={cx("text-sm leading-6", title ? "mt-1" : undefined, definition.mutedText)}>
+          <p
+            className={cx(
+              "text-sm leading-6",
+              title ? "mt-1" : undefined,
+              definition.mutedText,
+            )}
+          >
             {message}
           </p>
         </div>

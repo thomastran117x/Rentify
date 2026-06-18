@@ -1,6 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorActionModal, type ErrorActionModalIssue } from "./error-action-modal";
+import {
+  ErrorActionModal,
+  type ErrorActionModalIssue,
+} from "./error-action-modal";
 import { ErrorToast } from "./error-toast";
 import { FieldErrorMessage } from "./field-error-message";
 import { FormErrorMessage } from "./form-error-message";
@@ -127,7 +136,9 @@ describe("error primitives", () => {
     const backdrop = dialog.parentElement;
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Retry request" })).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Retry request" }),
+      ).toHaveFocus();
     });
 
     fireEvent.click(backdrop!);

@@ -2,11 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorToastProvider, useErrorToast } from "./error-toast-provider";
 
-function ToastHarness({
-  onAction,
-}: {
-  onAction: () => void | Promise<void>;
-}) {
+function ToastHarness({ onAction }: { onAction: () => void | Promise<void> }) {
   const { showError } = useErrorToast();
 
   return (

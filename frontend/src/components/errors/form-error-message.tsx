@@ -36,11 +36,22 @@ export function FormErrorMessage({
       <ErrorToneIcon tone={tone} icon={icon} />
       <div className="min-w-0">
         {title ? (
-          <p className={cx("font-semibold tracking-[-0.01em]", definition.panelText)}>
+          <p
+            className={cx(
+              "font-semibold tracking-[-0.01em]",
+              definition.panelText,
+            )}
+          >
             {title}
           </p>
         ) : null}
-        <p className={cx(title ? "mt-1" : undefined, "leading-6", definition.mutedText)}>
+        <p
+          className={cx(
+            title ? "mt-1" : undefined,
+            "leading-6",
+            definition.mutedText,
+          )}
+        >
           {message}
         </p>
       </div>

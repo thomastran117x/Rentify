@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ErrorActionModalProvider,
@@ -67,7 +73,11 @@ function ModalHarness({
   );
 }
 
-function ModalRaceHarness({ onPrimary }: { onPrimary: () => void | Promise<void> }) {
+function ModalRaceHarness({
+  onPrimary,
+}: {
+  onPrimary: () => void | Promise<void>;
+}) {
   const { pendingCount, showErrorModal } = useErrorModal();
 
   return (
@@ -224,7 +234,9 @@ describe("ErrorActionModalProvider", () => {
   it("shows visible feedback when retry fails", async () => {
     const retrySpy = vi
       .fn()
-      .mockRejectedValue(new Error("Retry request could not reach the server."));
+      .mockRejectedValue(
+        new Error("Retry request could not reach the server."),
+      );
 
     render(
       <ErrorActionModalProvider>
@@ -240,7 +252,9 @@ describe("ErrorActionModalProvider", () => {
       expect(screen.getByRole("dialog")).toHaveTextContent(
         "Retry request could not reach the server.",
       );
-      expect(screen.getByRole("button", { name: "Retry request" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Retry request" }),
+      ).toBeEnabled();
     });
   });
 

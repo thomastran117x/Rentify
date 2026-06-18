@@ -1,4 +1,7 @@
-export { ErrorActionModal, type ErrorActionModalIssue } from "./error-action-modal";
+export {
+  ErrorActionModal,
+  type ErrorActionModalIssue,
+} from "./error-action-modal";
 export {
   ErrorActionModalProvider,
   useErrorModal,
