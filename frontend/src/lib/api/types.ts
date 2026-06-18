@@ -121,7 +121,9 @@ export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError;
 }
 
-export function isApiRateLimitError(error: unknown): error is ApiRateLimitError {
+export function isApiRateLimitError(
+  error: unknown,
+): error is ApiRateLimitError {
   return error instanceof ApiRateLimitError;
 }
 

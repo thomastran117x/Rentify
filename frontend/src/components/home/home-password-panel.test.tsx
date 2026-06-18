@@ -128,15 +128,19 @@ describe("HomePasswordPanel", () => {
   it("preserves the vetted conflict message for password reuse", async () => {
     const user = userEvent.setup();
     changePasswordMock.mockRejectedValue(
-      new ApiClientError("New password must be different from the current password.", {
-        code: "CONFLICT",
-        request: {
-          method: "POST",
-          path: "/auth/local/password/change",
-          requestUrl: "http://localhost:8040/api/v1/auth/local/password/change",
+      new ApiClientError(
+        "New password must be different from the current password.",
+        {
+          code: "CONFLICT",
+          request: {
+            method: "POST",
+            path: "/auth/local/password/change",
+            requestUrl:
+              "http://localhost:8040/api/v1/auth/local/password/change",
+          },
+          status: 409,
         },
-        status: 409,
-      }),
+      ),
     );
 
     render(<HomePasswordPanel />);

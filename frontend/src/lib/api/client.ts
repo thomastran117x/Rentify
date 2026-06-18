@@ -122,16 +122,14 @@ function toUnreadableResponseError(
   request: ApiRequestContext,
   error: unknown,
 ): ApiProtocolError | ApiServerError {
-  const message =
-    isSharedFailureStatus(response.status)
-      ? "The server returned an unreadable response."
-      : "The API returned an unreadable response.";
+  const message = isSharedFailureStatus(response.status)
+    ? "The server returned an unreadable response."
+    : "The API returned an unreadable response.";
   const options = {
     cause: error,
-    code:
-      isSharedFailureStatus(response.status)
-        ? "INVALID_SERVER_RESPONSE"
-        : "INVALID_API_RESPONSE",
+    code: isSharedFailureStatus(response.status)
+      ? "INVALID_SERVER_RESPONSE"
+      : "INVALID_API_RESPONSE",
     details:
       error instanceof Error ? { causeMessage: error.message } : undefined,
     request,
@@ -261,15 +259,13 @@ export function toApiError(
   request: ApiRequestContext = UNKNOWN_REQUEST_CONTEXT,
 ): ApiError {
   if (!isApiErrorResponse(payload)) {
-    const message =
-      isSharedFailureStatus(response.status)
-        ? "The server returned an invalid error response."
-        : "The API returned an invalid error response.";
+    const message = isSharedFailureStatus(response.status)
+      ? "The server returned an invalid error response."
+      : "The API returned an invalid error response.";
     const options = {
-      code:
-        isSharedFailureStatus(response.status)
-          ? "INVALID_SERVER_RESPONSE"
-          : "INVALID_API_RESPONSE",
+      code: isSharedFailureStatus(response.status)
+        ? "INVALID_SERVER_RESPONSE"
+        : "INVALID_API_RESPONSE",
       details: payload ?? undefined,
       request,
       status: response.status,
