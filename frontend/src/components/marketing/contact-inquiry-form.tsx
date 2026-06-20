@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
+import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError } from "@/lib/api/types";
 import { feedbackApi, type FeedbackCategory } from "@/lib/feedback/api";
@@ -268,11 +269,11 @@ export function ContactInquiryForm() {
             value={values.name}
             onChange={(event) => updateValue("name", event.target.value)}
             placeholder="Your name"
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? "contact-name-error" : undefined}
             className={getFieldClassName(Boolean(errors.name))}
           />
-          {errors.name ? (
-            <span className="text-xs text-rose-700">{errors.name}</span>
-          ) : null}
+          <FieldErrorMessage id="contact-name-error" message={errors.name} />
         </label>
 
         <label className="grid gap-2 text-sm text-slate-600">
@@ -282,11 +283,11 @@ export function ContactInquiryForm() {
             value={values.email}
             onChange={(event) => updateValue("email", event.target.value)}
             placeholder="you@example.com"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "contact-email-error" : undefined}
             className={getFieldClassName(Boolean(errors.email))}
           />
-          {errors.email ? (
-            <span className="text-xs text-rose-700">{errors.email}</span>
-          ) : null}
+          <FieldErrorMessage id="contact-email-error" message={errors.email} />
         </label>
       </div>
 
@@ -298,6 +299,10 @@ export function ContactInquiryForm() {
             onChange={(event) =>
               updateValue("category", event.target.value as FeedbackCategory)
             }
+            aria-invalid={Boolean(errors.category)}
+            aria-describedby={
+              errors.category ? "contact-category-error" : undefined
+            }
             className={getFieldClassName(Boolean(errors.category))}
           >
             {CATEGORY_OPTIONS.map((option) => (
@@ -306,9 +311,10 @@ export function ContactInquiryForm() {
               </option>
             ))}
           </select>
-          {errors.category ? (
-            <span className="text-xs text-rose-700">{errors.category}</span>
-          ) : null}
+          <FieldErrorMessage
+            id="contact-category-error"
+            message={errors.category}
+          />
         </label>
 
         <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
@@ -324,6 +330,10 @@ export function ContactInquiryForm() {
           value={values.message}
           onChange={(event) => updateValue("message", event.target.value)}
           placeholder="Share the workflow, page, or problem you hit, plus anything that would make the app better."
+          aria-invalid={Boolean(errors.message)}
+          aria-describedby={
+            errors.message ? "contact-message-error" : undefined
+          }
           className={[
             "rounded-[1.5rem] border bg-white/90 px-4 py-3 text-slate-900 outline-none transition",
             errors.message
@@ -331,9 +341,10 @@ export function ContactInquiryForm() {
               : "border-slate-200 focus:border-violet-300 focus:bg-white",
           ].join(" ")}
         />
-        {errors.message ? (
-          <span className="text-xs text-rose-700">{errors.message}</span>
-        ) : null}
+        <FieldErrorMessage
+          id="contact-message-error"
+          message={errors.message}
+        />
       </label>
 
       {isAuthenticated && session ? (
@@ -353,9 +364,11 @@ export function ContactInquiryForm() {
       )}
 
       {submitError ? (
-        <div className="mt-5 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
-          {submitError}
-        </div>
+        <FormErrorMessage
+          className="mt-5"
+          title="Couldn't send your feedback"
+          message={submitError}
+        />
       ) : null}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">

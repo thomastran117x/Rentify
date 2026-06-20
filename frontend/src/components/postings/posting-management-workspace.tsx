@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -275,6 +276,7 @@ function buildLifecycleActions(status: PostingStatus): Array<{
 export function PostingManagementWorkspace() {
   const router = useRouter();
   const { status, session } = useAuth();
+  const { showErrorModal } = useErrorModal();
   const [postings, setPostings] = useState<PostingRecord[]>([]);
   const [form, setForm] = useState<PostingFormState>(createDefaultFormState());
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(
@@ -342,6 +344,47 @@ export function PostingManagementWorkspace() {
   const canRead = canReadOrganizationPostings(activeOrganization);
   const canManage = canManageOrganizationPostings(activeOrganization);
 
+  async function savePostingRequest() {
+    let nextPhotos = form.photos;
+
+    if (selectedFile) {
+      nextPhotos = [await uploadManagedPhoto(selectedFile)];
+    }
+
+    const payload = buildPayload({
+      ...form,
+      photos: nextPhotos,
+    });
+    const saved = form.postingId
+      ? await postingsApi.update(form.postingId, payload)
+      : await postingsApi.create(payload);
+
+    await refresh(saved.id);
+    setMessage(
+      form.postingId
+        ? "Posting updated for your active organization."
+        : "Draft created for your active organization.",
+    );
+  }
+
+  async function lifecycleActionRequest(
+    postingId: string,
+    action: "publish" | "pause" | "unpause" | "archive",
+  ) {
+    if (action === "publish") {
+      await postingsApi.publish(postingId);
+    } else if (action === "pause") {
+      await postingsApi.pausePosting(postingId);
+    } else if (action === "unpause") {
+      await postingsApi.unpausePosting(postingId);
+    } else {
+      await postingsApi.archive(postingId);
+    }
+
+    await refresh(postingId);
+    setMessage(`Posting ${action} action completed.`);
+  }
+
   async function refresh(preferredPostingId?: string | null) {
     const result = await postingsApi.listMine();
     const nextPostingId =
@@ -392,35 +435,23 @@ export function PostingManagementWorkspace() {
     setMessage(null);
 
     try {
-      let nextPhotos = form.photos;
-
-      if (selectedFile) {
-        nextPhotos = [await uploadManagedPhoto(selectedFile)];
-      }
-
-      const payload = buildPayload({
-        ...form,
-        photos: nextPhotos,
-      });
-      const saved = form.postingId
-        ? await postingsApi.update(form.postingId, payload)
-        : await postingsApi.create(payload);
-
-      await refresh(saved.id);
-      setMessage(
-        form.postingId
-          ? "Posting updated for your active organization."
-          : "Draft created for your active organization.",
-      );
+      await savePostingRequest();
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "save this posting",
-          fallback:
-            "We couldn't save this posting right now. Please try again.",
-          preserveUnknownErrorMessage: true,
-        }),
-      );
+      const message = getApiErrorMessage(nextError, {
+        action: "save this posting",
+        fallback: "We couldn't save this posting right now. Please try again.",
+        preserveUnknownErrorMessage: true,
+      });
+
+      showErrorModal({
+        title: "Couldn't save posting",
+        message,
+        actionLabel: "Keep editing",
+        onAction: () => {},
+        retryLabel: "Retry save",
+        onRetry: savePostingRequest,
+        dedupeKey: `posting-save-${form.postingId ?? "draft"}`,
+      });
     } finally {
       setSaving(false);
     }
@@ -439,26 +470,23 @@ export function PostingManagementWorkspace() {
     setMessage(null);
 
     try {
-      if (action === "publish") {
-        await postingsApi.publish(postingId);
-      } else if (action === "pause") {
-        await postingsApi.pausePosting(postingId);
-      } else if (action === "unpause") {
-        await postingsApi.unpausePosting(postingId);
-      } else {
-        await postingsApi.archive(postingId);
-      }
-
-      await refresh(postingId);
-      setMessage(`Posting ${action} action completed.`);
+      await lifecycleActionRequest(postingId, action);
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: `update this posting's ${action} status`,
-          fallback:
-            "We couldn't update this posting's status right now. Please try again.",
-        }),
-      );
+      const message = getApiErrorMessage(nextError, {
+        action: `update this posting's ${action} status`,
+        fallback:
+          "We couldn't update this posting's status right now. Please try again.",
+      });
+
+      showErrorModal({
+        title: "Couldn't update posting status",
+        message,
+        actionLabel: "Keep editing",
+        onAction: () => {},
+        retryLabel: `Retry ${action}`,
+        onRetry: () => lifecycleActionRequest(postingId, action),
+        dedupeKey: `posting-lifecycle-${postingId}-${action}`,
+      });
     } finally {
       setSaving(false);
     }
@@ -579,9 +607,11 @@ export function PostingManagementWorkspace() {
             </p>
           ) : null}
           {error ? (
-            <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
-            </p>
+            <FormErrorMessage
+              className="mt-5"
+              title="Couldn't load posting workspace"
+              message={error}
+            />
           ) : null}
         </section>
 

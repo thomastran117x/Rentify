@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import {
   reportsApi,
   type ReportReasonCode,
@@ -54,7 +55,11 @@ export function ReportDialog({
   const [reasonCode, setReasonCode] = useState<ReportReasonCode>("spam");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    title?: string;
+    description?: string;
+  }>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,7 +67,8 @@ export function ReportDialog({
     setReasonCode("spam");
     setTitle("");
     setDescription("");
-    setError(null);
+    setFieldErrors({});
+    setSubmitError(null);
   }
 
   function handleTriggerClick() {
@@ -79,19 +85,25 @@ export function ReportDialog({
     event.preventDefault();
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
+    const nextFieldErrors: { title?: string; description?: string } = {};
 
     if (trimmedTitle.length < 3 || trimmedTitle.length > 120) {
-      setError("Title must be between 3 and 120 characters.");
-      return;
+      nextFieldErrors.title = "Title must be between 3 and 120 characters.";
     }
 
     if (trimmedDescription.length < 10 || trimmedDescription.length > 2000) {
-      setError("Description must be between 10 and 2000 characters.");
+      nextFieldErrors.description =
+        "Description must be between 10 and 2000 characters.";
+    }
+
+    setFieldErrors(nextFieldErrors);
+
+    if (Object.keys(nextFieldErrors).length > 0) {
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
 
     try {
       await reportsApi.create({
@@ -107,7 +119,7 @@ export function ReportDialog({
         `${subjectLabel} was reported for ${getReasonLabel(reasonCode).toLowerCase()}.`,
       );
     } catch (nextError) {
-      setError(
+      setSubmitError(
         nextError instanceof Error
           ? nextError.message
           : "The report could not be submitted.",
@@ -154,7 +166,8 @@ export function ReportDialog({
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  setError(null);
+                  setFieldErrors({});
+                  setSubmitError(null);
                 }}
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
               >
@@ -184,10 +197,25 @@ export function ReportDialog({
                 <span className="font-medium">Title</span>
                 <input
                   value={title}
-                  onChange={(event) => setTitle(event.target.value)}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      title: undefined,
+                    }));
+                    setSubmitError(null);
+                  }}
+                  aria-invalid={Boolean(fieldErrors.title)}
+                  aria-describedby={
+                    fieldErrors.title ? "report-title-error" : undefined
+                  }
                   className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   maxLength={120}
                   placeholder="Short summary of the issue"
+                />
+                <FieldErrorMessage
+                  id="report-title-error"
+                  message={fieldErrors.title}
                 />
               </label>
 
@@ -195,18 +223,36 @@ export function ReportDialog({
                 <span className="font-medium">Description</span>
                 <textarea
                   value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      description: undefined,
+                    }));
+                    setSubmitError(null);
+                  }}
                   rows={6}
                   maxLength={2000}
+                  aria-invalid={Boolean(fieldErrors.description)}
+                  aria-describedby={
+                    fieldErrors.description
+                      ? "report-description-error"
+                      : undefined
+                  }
                   className="rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
                   placeholder="Describe the behavior, context, and why it violates the rules."
                 />
+                <FieldErrorMessage
+                  id="report-description-error"
+                  message={fieldErrors.description}
+                />
               </label>
 
-              {error ? (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  {error}
-                </p>
+              {submitError ? (
+                <FormErrorMessage
+                  title="Couldn't submit report"
+                  message={submitError}
+                />
               ) : null}
 
               <div className="flex flex-wrap items-center justify-end gap-3">
@@ -214,7 +260,8 @@ export function ReportDialog({
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    setError(null);
+                    setFieldErrors({});
+                    setSubmitError(null);
                   }}
                   className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >

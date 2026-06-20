@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrganizationWorkspace } from "./organization-workspace";
+import { ApiNetworkError } from "@/lib/api/types";
 import {
   resetRouterMocks,
   routerReplaceMock,
@@ -9,12 +10,14 @@ import {
 
 const {
   useAuthMock,
+  showErrorMock,
   getMineMock,
   getByIdMock,
   setActiveMock,
   createInviteMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
+  showErrorMock: vi.fn(),
   getMineMock: vi.fn(),
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
@@ -29,6 +32,24 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
+}));
+
+vi.mock("@/components/errors", () => ({
+  FormErrorMessage: ({
+    title,
+    message,
+  }: {
+    title?: string;
+    message?: string;
+  }) => (
+    <div>
+      {title ? <p>{title}</p> : null}
+      {message ? <p>{message}</p> : null}
+    </div>
+  ),
+  useErrorToast: () => ({
+    showError: showErrorMock,
+  }),
 }));
 
 vi.mock("@/lib/organizations/api", () => ({
@@ -165,5 +186,44 @@ describe("OrganizationWorkspace", () => {
     expect(
       await screen.findByText("No organization access yet"),
     ).toBeInTheDocument();
+  });
+
+  it("routes invite failures through the global error toast", async () => {
+    const user = userEvent.setup();
+    createInviteMock.mockRejectedValue(
+      new ApiNetworkError("Unable to reach the server.", {
+        code: "NETWORK_ERROR",
+        request: {
+          method: "POST",
+          path: "/organizations/org-1/invitations",
+          requestUrl:
+            "http://localhost:8040/api/v1/organizations/org-1/invitations",
+        },
+      }),
+    );
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.type(
+      screen.getByPlaceholderText("teammate@example.com"),
+      "teammate@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "Send invite" }));
+
+    await waitFor(() => {
+      expect(showErrorMock).toHaveBeenCalledWith({
+        title: "Couldn't send invitation",
+        message:
+          "We couldn't send that invitation because we couldn't reach Rentify. Check your connection and try again.",
+        tone: "error",
+      });
+      expect(screen.getByText("Couldn't send invitation")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "We couldn't send that invitation because we couldn't reach Rentify. Check your connection and try again.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 });

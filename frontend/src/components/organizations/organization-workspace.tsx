@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { FormErrorMessage, useErrorToast } from "@/components/errors";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -55,6 +56,7 @@ function OrganizationEmptyState() {
 export function OrganizationWorkspace() {
   const router = useRouter();
   const { status, session } = useAuth();
+  const { showError } = useErrorToast();
   const [workspace, setWorkspace] =
     useState<OrganizationWorkspaceResult | null>(null);
   const [detail, setDetail] = useState<OrganizationDetailResult | null>(null);
@@ -63,12 +65,33 @@ export function OrganizationWorkspace() {
   >(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [errorTitle, setErrorTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] =
     useState<CreateOrganizationInviteInput["role"]>("operator");
+
+  function showWorkspaceToast(title: string, message: string) {
+    showError({
+      title,
+      message,
+      tone: "error",
+    });
+  }
+
+  function getWorkspaceActionError(
+    nextError: unknown,
+    action: string,
+    fallback: string,
+  ) {
+    return getApiErrorMessage(nextError, {
+      action,
+      fallback,
+      preserveClientMessage: true,
+    });
+  }
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -85,6 +108,7 @@ export function OrganizationWorkspace() {
 
     async function loadWorkspace() {
       setLoading(true);
+      setErrorTitle(null);
       setError(null);
 
       try {
@@ -114,6 +138,7 @@ export function OrganizationWorkspace() {
         });
       } catch (nextError) {
         if (active) {
+          setErrorTitle("Couldn't load organization workspace");
           setError(
             getApiErrorMessage(nextError, {
               action: "load your organization workspace",
@@ -157,6 +182,7 @@ export function OrganizationWorkspace() {
 
   async function handleSelectOrganization(organizationId: string) {
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -165,13 +191,14 @@ export function OrganizationWorkspace() {
       await refresh(organizationId);
       setMessage("Active organization updated.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "switch your active organization",
-          fallback:
-            "We couldn't switch your active organization right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "switch your active organization",
+        "We couldn't switch your active organization right now. Please try again.",
       );
+      setErrorTitle("Couldn't switch organizations");
+      setError(message);
+      showWorkspaceToast("Couldn't switch organizations", message);
     } finally {
       setSaving(false);
     }
@@ -183,6 +210,7 @@ export function OrganizationWorkspace() {
     }
 
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -191,13 +219,14 @@ export function OrganizationWorkspace() {
       await refresh(detail.organization.id);
       setMessage("Organization name updated.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "rename this organization",
-          fallback:
-            "We couldn't rename this organization right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "rename this organization",
+        "We couldn't rename this organization right now. Please try again.",
       );
+      setErrorTitle("Couldn't rename organization");
+      setError(message);
+      showWorkspaceToast("Couldn't rename organization", message);
     } finally {
       setSaving(false);
     }
@@ -209,6 +238,7 @@ export function OrganizationWorkspace() {
     }
 
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -222,13 +252,14 @@ export function OrganizationWorkspace() {
       setInviteRole(detail.viewerRole === "manager" ? "operator" : inviteRole);
       setMessage("Invitation sent.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "send that invitation",
-          fallback:
-            "We couldn't send that invitation right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "send that invitation",
+        "We couldn't send that invitation right now. Please try again.",
       );
+      setErrorTitle("Couldn't send invitation");
+      setError(message);
+      showWorkspaceToast("Couldn't send invitation", message);
     } finally {
       setSaving(false);
     }
@@ -240,6 +271,7 @@ export function OrganizationWorkspace() {
     }
 
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -248,13 +280,14 @@ export function OrganizationWorkspace() {
       await refresh(detail.organization.id);
       setMessage("Invitation revoked.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "revoke that invitation",
-          fallback:
-            "We couldn't revoke that invitation right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "revoke that invitation",
+        "We couldn't revoke that invitation right now. Please try again.",
       );
+      setErrorTitle("Couldn't revoke invitation");
+      setError(message);
+      showWorkspaceToast("Couldn't revoke invitation", message);
     } finally {
       setSaving(false);
     }
@@ -269,6 +302,7 @@ export function OrganizationWorkspace() {
     }
 
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -281,13 +315,14 @@ export function OrganizationWorkspace() {
       await refresh(detail.organization.id);
       setMessage("Member role updated.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "update that member's role",
-          fallback:
-            "We couldn't update that member's role right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "update that member's role",
+        "We couldn't update that member's role right now. Please try again.",
       );
+      setErrorTitle("Couldn't update member role");
+      setError(message);
+      showWorkspaceToast("Couldn't update member role", message);
     } finally {
       setSaving(false);
     }
@@ -299,6 +334,7 @@ export function OrganizationWorkspace() {
     }
 
     setSaving(true);
+    setErrorTitle(null);
     setError(null);
     setMessage(null);
 
@@ -307,13 +343,14 @@ export function OrganizationWorkspace() {
       await refresh(detail.organization.id);
       setMessage("Member removed.");
     } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "remove that member",
-          fallback:
-            "We couldn't remove that member right now. Please try again.",
-        }),
+      const message = getWorkspaceActionError(
+        nextError,
+        "remove that member",
+        "We couldn't remove that member right now. Please try again.",
       );
+      setErrorTitle("Couldn't remove member");
+      setError(message);
+      showWorkspaceToast("Couldn't remove member", message);
     } finally {
       setSaving(false);
     }
@@ -380,9 +417,7 @@ export function OrganizationWorkspace() {
         </section>
 
         {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
-            {error}
-          </div>
+          <FormErrorMessage title={errorTitle ?? undefined} message={error} />
         ) : null}
 
         {message ? (

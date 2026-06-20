@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+const resourceIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const organizationRoleSchema = z.enum([
   "primary_manager",
   "manager",
@@ -17,7 +20,10 @@ export type OrganizationInviteStatus = z.infer<
   typeof organizationInviteStatusSchema
 >;
 
-export const organizationResourceIdSchema = z.uuid();
+export const organizationResourceIdSchema = z
+  .string()
+  .trim()
+  .regex(resourceIdPattern, "Invalid organization resource id.");
 export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
 
 export const updateOrganizationRequestSchema = z.object({
