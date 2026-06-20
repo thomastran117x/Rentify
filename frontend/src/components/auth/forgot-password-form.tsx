@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
+import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -330,7 +331,10 @@ export function ForgotPasswordForm() {
     return (
       <form className="space-y-5" onSubmit={handleRequestSubmit}>
         {generalError ? (
-          <div className={theme.auth.errorPanel}>{generalError}</div>
+          <FormErrorMessage
+            title="Couldn't send a reset code"
+            message={generalError}
+          />
         ) : null}
 
         <div className="space-y-2">
@@ -343,6 +347,12 @@ export function ForgotPasswordForm() {
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
+            aria-invalid={Boolean(requestErrors.email)}
+            aria-describedby={
+              requestErrors.email
+                ? "forgot-password-request-email-error"
+                : undefined
+            }
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 ${
@@ -354,7 +364,10 @@ export function ForgotPasswordForm() {
             }`}
           />
           {requestErrors.email ? (
-            <p className={theme.auth.fieldErrorText}>{requestErrors.email}</p>
+            <FieldErrorMessage
+              id="forgot-password-request-email-error"
+              message={requestErrors.email}
+            />
           ) : (
             <p className={theme.auth.fieldText}>
               We will email a reset code if this account can use local password
@@ -393,11 +406,14 @@ export function ForgotPasswordForm() {
 
       <form className="space-y-5" onSubmit={handleResetSubmit}>
         {generalError ? (
-          <div className={theme.auth.errorPanel}>{generalError}</div>
+          <FormErrorMessage
+            title="Couldn't reset your password"
+            message={generalError}
+          />
         ) : null}
 
         {resentMessage ? (
-          <div className={theme.auth.infoPanel}>{resentMessage}</div>
+          <FormErrorMessage tone="info" message={resentMessage} />
         ) : null}
 
         <div className="space-y-2">
@@ -412,6 +428,10 @@ export function ForgotPasswordForm() {
             autoComplete="one-time-code"
             maxLength={6}
             placeholder="123456"
+            aria-invalid={Boolean(resetErrors.code)}
+            aria-describedby={
+              resetErrors.code ? "forgot-password-code-error" : undefined
+            }
             value={code}
             onChange={(event) =>
               setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
@@ -424,9 +444,10 @@ export function ForgotPasswordForm() {
                   : theme.auth.fieldDefault
             }`}
           />
-          {resetErrors.code ? (
-            <p className={theme.auth.fieldErrorText}>{resetErrors.code}</p>
-          ) : null}
+          <FieldErrorMessage
+            id="forgot-password-code-error"
+            message={resetErrors.code}
+          />
         </div>
 
         <div className="space-y-2">
@@ -439,6 +460,12 @@ export function ForgotPasswordForm() {
             type="password"
             autoComplete="new-password"
             placeholder="At least 8 characters"
+            aria-invalid={Boolean(resetErrors.newPassword)}
+            aria-describedby={
+              resetErrors.newPassword
+                ? "forgot-password-new-password-error"
+                : undefined
+            }
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 ${
@@ -449,11 +476,10 @@ export function ForgotPasswordForm() {
                   : theme.auth.fieldDefault
             }`}
           />
-          {resetErrors.newPassword ? (
-            <p className={theme.auth.fieldErrorText}>
-              {resetErrors.newPassword}
-            </p>
-          ) : null}
+          <FieldErrorMessage
+            id="forgot-password-new-password-error"
+            message={resetErrors.newPassword}
+          />
         </div>
 
         <div className="space-y-2">
@@ -466,6 +492,12 @@ export function ForgotPasswordForm() {
             type="password"
             autoComplete="new-password"
             placeholder="Repeat your new password"
+            aria-invalid={Boolean(resetErrors.confirmPassword)}
+            aria-describedby={
+              resetErrors.confirmPassword
+                ? "forgot-password-confirm-password-error"
+                : undefined
+            }
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 ${
@@ -476,11 +508,10 @@ export function ForgotPasswordForm() {
                   : theme.auth.fieldDefault
             }`}
           />
-          {resetErrors.confirmPassword ? (
-            <p className={theme.auth.fieldErrorText}>
-              {resetErrors.confirmPassword}
-            </p>
-          ) : null}
+          <FieldErrorMessage
+            id="forgot-password-confirm-password-error"
+            message={resetErrors.confirmPassword}
+          />
         </div>
 
         <button

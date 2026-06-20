@@ -6,6 +6,7 @@ import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { SignupVerificationPanel } from "@/components/auth/signup-verification-panel";
 import { useAuth } from "@/components/auth/auth-context";
+import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -260,6 +261,7 @@ interface SignupFieldProps {
   id: string;
   label: string;
   error?: string;
+  errorId?: string;
   hasValue: boolean;
   activeClassName: string;
   icon: React.ReactNode;
@@ -270,6 +272,7 @@ function SignupField({
   id,
   label,
   error,
+  errorId,
   hasValue,
   activeClassName,
   icon,
@@ -294,7 +297,7 @@ function SignupField({
         {children}
       </div>
 
-      {error ? <p className={theme.auth.fieldErrorText}>{error}</p> : null}
+      <FieldErrorMessage id={errorId ?? `${id}-error`} message={error} />
     </div>
   );
 }
@@ -431,7 +434,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         {generalError ? (
-          <div className={theme.auth.errorPanel}>{generalError}</div>
+          <FormErrorMessage
+            title="Couldn't create your account"
+            message={generalError}
+          />
         ) : null}
 
         <div className={theme.auth.fieldGroup}>
@@ -447,6 +453,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
               id="firstName"
               label="First name"
               error={errors.firstName}
+              errorId="signup-first-name-error"
               hasValue={firstNameHasValue}
               activeClassName={theme.auth.fieldActive}
               icon={
@@ -461,6 +468,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 type="text"
                 autoComplete="given-name"
                 placeholder="Jane"
+                aria-invalid={Boolean(errors.firstName)}
+                aria-describedby={
+                  errors.firstName ? "signup-first-name-error" : undefined
+                }
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
                 className={theme.auth.fieldInput}
@@ -471,6 +482,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
               id="lastName"
               label="Last name"
               error={errors.lastName}
+              errorId="signup-last-name-error"
               hasValue={lastNameHasValue}
               activeClassName={theme.auth.fieldActive}
               icon={
@@ -485,6 +497,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 type="text"
                 autoComplete="family-name"
                 placeholder="Doe"
+                aria-invalid={Boolean(errors.lastName)}
+                aria-describedby={
+                  errors.lastName ? "signup-last-name-error" : undefined
+                }
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
                 className={theme.auth.fieldInput}
@@ -506,6 +522,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
               id="email"
               label="Email"
               error={errors.email}
+              errorId="signup-email-error"
               hasValue={emailHasValue}
               activeClassName={theme.auth.fieldActive}
               icon={
@@ -520,6 +537,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={
+                  errors.email ? "signup-email-error" : undefined
+                }
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className={theme.auth.fieldInput}
@@ -551,6 +572,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
                     placeholder="At least 8 characters"
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={
+                      errors.password ? "signup-password-error" : undefined
+                    }
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className={theme.auth.fieldInputWithAction}
@@ -570,7 +595,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 </div>
 
                 {errors.password ? (
-                  <p className={theme.auth.fieldErrorText}>{errors.password}</p>
+                  <FieldErrorMessage
+                    id="signup-password-error"
+                    message={errors.password}
+                  />
                 ) : (
                   <p className={theme.auth.fieldText}>
                     Use 8 or more characters for a stronger account.
@@ -605,6 +633,12 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
                     placeholder="Repeat your password"
+                    aria-invalid={Boolean(errors.confirmPassword)}
+                    aria-describedby={
+                      errors.confirmPassword
+                        ? "signup-confirm-password-error"
+                        : undefined
+                    }
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     className={theme.auth.fieldInputWithAction}
@@ -626,9 +660,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 </div>
 
                 {errors.confirmPassword ? (
-                  <p className={theme.auth.fieldErrorText}>
-                    {errors.confirmPassword}
-                  </p>
+                  <FieldErrorMessage
+                    id="signup-confirm-password-error"
+                    message={errors.confirmPassword}
+                  />
                 ) : (
                   <p className={theme.auth.fieldText}>
                     Re-enter your password to confirm there are no typos.

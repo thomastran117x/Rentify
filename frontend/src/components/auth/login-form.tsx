@@ -7,6 +7,7 @@ import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
+import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -246,6 +247,7 @@ interface LoginFieldProps {
   id: string;
   label: string;
   error?: string;
+  errorId?: string;
   hasValue: boolean;
   icon: React.ReactNode;
   iconClassName: string;
@@ -256,6 +258,7 @@ function LoginField({
   id,
   label,
   error,
+  errorId,
   hasValue,
   icon,
   iconClassName,
@@ -280,7 +283,7 @@ function LoginField({
         {children}
       </div>
 
-      {error ? <p className={theme.auth.fieldErrorText}>{error}</p> : null}
+      <FieldErrorMessage id={errorId ?? `${id}-error`} message={error} />
     </div>
   );
 }
@@ -403,13 +406,17 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         {generalError ? (
-          <div className={theme.auth.errorPanel}>{generalError}</div>
+          <FormErrorMessage
+            title="Couldn't sign you in"
+            message={generalError}
+          />
         ) : null}
 
         <LoginField
           id="email"
           label="Email"
           error={errors.email}
+          errorId="login-email-error"
           hasValue={emailHasValue}
           iconClassName={theme.auth.fieldActive}
           icon={
@@ -424,6 +431,8 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "login-email-error" : undefined}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className={theme.auth.fieldInput}
@@ -460,6 +469,10 @@ export function LoginForm({ nextPath }: LoginFormProps) {
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               placeholder="Enter your password"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={
+                errors.password ? "login-password-error" : undefined
+              }
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className={theme.auth.fieldInputWithAction}
@@ -476,9 +489,10 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             </button>
           </div>
 
-          {errors.password ? (
-            <p className={theme.auth.fieldErrorText}>{errors.password}</p>
-          ) : null}
+          <FieldErrorMessage
+            id="login-password-error"
+            message={errors.password}
+          />
         </div>
 
         <AuthCaptchaPanel

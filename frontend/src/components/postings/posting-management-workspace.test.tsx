@@ -1,11 +1,20 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PostingManagementWorkspace } from "./posting-management-workspace";
 
-const { replaceMock, listMineMock, getPostingMock } = vi.hoisted(() => ({
+const {
+  replaceMock,
+  listMineMock,
+  getPostingMock,
+  useAuthMock,
+  showErrorModalMock,
+} = vi.hoisted(() => ({
   replaceMock: vi.fn(),
   listMineMock: vi.fn(),
   getPostingMock: vi.fn(),
+  useAuthMock: vi.fn(),
+  showErrorModalMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -15,29 +24,21 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
-  useAuth: () => ({
-    status: "authenticated",
-    session: {
-      accessToken: "token",
-      device: {
-        known: true,
-        knownByIp: true,
-      },
-      user: {
-        id: "user-1",
-        email: "user@example.com",
-        username: "user",
-        role: "user",
-        organizationMembershipCount: 1,
-        activeOrganization: {
-          id: "org-1",
-          name: "Org 1",
-          role: "operator",
-        },
-      },
-    },
-  }),
+  useAuth: useAuthMock,
 }));
+
+vi.mock("@/components/errors", async () => {
+  const actual = await vi.importActual<typeof import("@/components/errors")>(
+    "@/components/errors",
+  );
+
+  return {
+    ...actual,
+    useErrorModal: () => ({
+      showErrorModal: showErrorModalMock,
+    }),
+  };
+});
 
 vi.mock("@/lib/postings/api", () => ({
   postingsApi: {
@@ -61,6 +62,28 @@ vi.mock("@/lib/blob/api", () => ({
 describe("PostingManagementWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: {
+        accessToken: "token",
+        device: {
+          known: true,
+          knownByIp: true,
+        },
+        user: {
+          id: "user-1",
+          email: "user@example.com",
+          username: "user",
+          role: "user",
+          organizationMembershipCount: 1,
+          activeOrganization: {
+            id: "org-1",
+            name: "Org 1",
+            role: "operator",
+          },
+        },
+      },
+    });
     listMineMock.mockResolvedValue({
       postings: [
         {
@@ -161,5 +184,52 @@ describe("PostingManagementWorkspace", () => {
     expect(
       screen.queryByRole("button", { name: "Create draft" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens the shared error modal when a manager saves without a photo", async () => {
+    const user = userEvent.setup();
+
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: {
+        accessToken: "token",
+        device: {
+          known: true,
+          knownByIp: true,
+        },
+        user: {
+          id: "user-1",
+          email: "manager@example.com",
+          username: "manager",
+          role: "owner",
+          organizationMembershipCount: 1,
+          activeOrganization: {
+            id: "org-1",
+            name: "Org 1",
+            role: "manager",
+          },
+        },
+      },
+    });
+
+    render(<PostingManagementWorkspace />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Create draft" }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+
+    expect(showErrorModalMock).toHaveBeenCalledWith({
+      title: "Couldn't save posting",
+      message: "Upload at least one photo before saving.",
+      actionLabel: "Keep editing",
+      onAction: expect.any(Function),
+      retryLabel: "Retry save",
+      onRetry: expect.any(Function),
+      dedupeKey: "posting-save-draft",
+    });
   });
 });
