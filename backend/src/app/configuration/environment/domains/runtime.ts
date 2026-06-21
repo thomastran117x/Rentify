@@ -245,6 +245,16 @@ export function buildWorkerConfig(
         min: 1,
       }),
     },
+    sms: {
+      prefetch: parseNumber(raw, "SMS_WORKER_PREFETCH", 10, errors, {
+        integer: true,
+        min: 1,
+      }),
+      maxAttempts: parseNumber(raw, "SMS_MAX_ATTEMPTS", 8, errors, {
+        integer: true,
+        min: 1,
+      }),
+    },
     analytics: {
       pollIntervalMs: parseNumber(
         raw,
@@ -480,3 +490,5 @@ export function validateRuntimeConfig(
     errors.push("POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO must be less than 1.");
   }
 }
+
+

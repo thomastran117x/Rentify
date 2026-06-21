@@ -21,6 +21,7 @@ export const ROUTE_MODULE_IDS = [
   "postings-availability",
   "postings-activity",
   "bookings",
+  "sms",
   "payments",
   "rentings",
   "postings-public",
@@ -36,3 +37,5 @@ export interface RouteModule {
   id: RouteModuleId;
   register(app: Hono<AppBindings>, helpers: RouteModuleHelpers): void;
 }
+
+

@@ -160,6 +160,7 @@ describe("EnvironmentManager", () => {
     expect(manager.getTokenConfig()).toBe(environment.auth);
     expect(manager.getDatabaseConfig()).toBe(environment.database);
     expect(manager.getEmailConfig()).toBe(environment.email);
+    expect(manager.getSmsConfig()).toBe(environment.sms);
     expect(manager.getCaptchaConfig()).toBe(environment.captcha);
     expect(manager.getGoogleOAuthConfig()).toBe(environment.oauth.google);
     expect(manager.getMicrosoftOAuthConfig()).toBe(environment.oauth.microsoft);
@@ -179,6 +180,7 @@ describe("EnvironmentManager", () => {
       environment.workers.searchReindex,
     );
     expect(manager.getEmailWorkerConfig()).toBe(environment.workers.email);
+    expect(manager.getSmsWorkerConfig()).toBe(environment.workers.sms);
     expect(manager.getAnalyticsWorkerConfig()).toBe(
       environment.workers.analytics,
     );
@@ -290,3 +292,5 @@ describe("EnvironmentManager", () => {
     ).toThrow("Missing required environment variable: MISSING_REQUIRED_KEY");
   });
 });
+
+

@@ -19,6 +19,7 @@ import {
   buildElasticsearchConfig,
   buildRabbitMqConfig,
   buildRedisConfig,
+  buildSmsConfig,
   buildSquareConfig,
   validateInfrastructureConfig,
 } from "@/configuration/environment/domains/infrastructure";
@@ -106,6 +107,7 @@ export function parseEnvironmentState(
       personalAccessTokenSecret,
     ),
     email: buildEmailConfig(raw, gmailUser, gmailAppPassword),
+    sms: buildSmsConfig(raw, errors),
     captcha: buildCaptchaConfig(raw),
     cors: buildCorsConfig(raw),
     csrf: buildCsrfConfig(raw),
@@ -149,3 +151,6 @@ export function parseEnvironmentState(
 export function parseEnvironment(source: NodeJS.ProcessEnv): AppEnvironment {
   return parseEnvironmentState(source).config;
 }
+
+
+

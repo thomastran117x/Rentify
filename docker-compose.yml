@@ -21,6 +21,14 @@ x-backend-environment: &backend-environment
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3040}
   APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3040}
   GMAIL_USER: ${GMAIL_USER}
+  SMS_PROVIDER: ${SMS_PROVIDER:-noop}
+  SMS_FROM_NUMBER: ${SMS_FROM_NUMBER:-}
+  SMS_WEBHOOK_PUBLIC_URL: ${SMS_WEBHOOK_PUBLIC_URL:-http://127.0.0.1:8040/api/v1/sms/webhooks/telnyx}
+  SMS_WORKER_PREFETCH: ${SMS_WORKER_PREFETCH:-10}
+  SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-8}
+  TELNYX_API_KEY: ${TELNYX_API_KEY:-}
+  TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
+  TELNYX_MESSAGING_PROFILE_ID: ${TELNYX_MESSAGING_PROFILE_ID:-}
   GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
   ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
   REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
@@ -229,6 +237,16 @@ services:
     volumes: *backend-log-volume
     command: ["node", "dist/workers/email/email-delivery.worker.js"]
 
+  sms-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-sms-worker
+    restart: unless-stopped
+    depends_on: *rabbitmq-worker-depends-on
+    environment: *backend-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/sms/sms-delivery.worker.js"]
+
   log-consumer-worker:
     build: *backend-build
     image: rent-backend:local
@@ -345,3 +363,5 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
+
+

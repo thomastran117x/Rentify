@@ -17,6 +17,7 @@ import {
 import { feedbacksRouteModule } from "@/configuration/bootstrap/routes/modules/feedbacks.routes";
 import { organizationsRouteModule } from "@/configuration/bootstrap/routes/modules/organizations.routes";
 import { paymentsRouteModule } from "@/configuration/bootstrap/routes/modules/payments.routes";
+import { smsRouteModule } from "@/configuration/bootstrap/routes/modules/sms.routes";
 import {
   postingsActivityRouteModule,
   postingsAnalyticsRouteModule,
@@ -58,6 +59,7 @@ export const routeModuleRegistry: RouteModule[] = [
   postingsAvailabilityRouteModule,
   postingsActivityRouteModule,
   bookingsRouteModule,
+  smsRouteModule,
   paymentsRouteModule,
   rentingsRouteModule,
   postingsPublicRouteModule,
@@ -98,3 +100,6 @@ export function registerRouteModule(
 ): void {
   routeModule.register(app, routeModuleHelpers);
 }
+
+
+

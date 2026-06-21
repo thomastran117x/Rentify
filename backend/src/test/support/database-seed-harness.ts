@@ -27,6 +27,9 @@ export function applyDatabaseSeedTestEnvironment(
   process.env.GMAIL_USER = process.env.GMAIL_USER ?? "seed-test@example.com";
   process.env.GMAIL_APP_PASSWORD =
     process.env.GMAIL_APP_PASSWORD ?? "seed-test-password";
+  process.env.SMS_PROVIDER = process.env.SMS_PROVIDER ?? "noop";
+  process.env.SMS_WORKER_PREFETCH = process.env.SMS_WORKER_PREFETCH ?? "10";
+  process.env.SMS_MAX_ATTEMPTS = process.env.SMS_MAX_ATTEMPTS ?? "8";
   process.env.SQUARE_ACCESS_TOKEN =
     process.env.SQUARE_ACCESS_TOKEN ?? "seed-test-square-token";
   process.env.SQUARE_LOCATION_ID =
@@ -62,3 +65,4 @@ export async function bootstrapSeedTestDatabase(
 export async function teardownSeedTestDatabase(): Promise<void> {
   await disconnectDatabase();
 }
+

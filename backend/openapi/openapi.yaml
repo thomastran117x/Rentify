@@ -16,6 +16,7 @@ info:
     - Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.
     - Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.
     - `POST /payments/webhooks/square` uses the `x-square-hmacsha256-signature` header instead of bearer authentication.
+    - `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.
 servers:
   - url: 'http://localhost:8040/api/v1'
     description: Local Docker backend
@@ -40,6 +41,8 @@ tags:
     description: 'Booking request creation, review, and dashboards.'
   - name: payments
     description: 'Payment sessions, refunds, payouts, and provider webhooks.'
+  - name: sms
+    description: Outbound SMS delivery infrastructure and provider webhook ingestion.
   - name: rentings
     description: Booking-to-renting conversion and renting lifecycle management.
   - name: admin-search
@@ -8124,6 +8127,71 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /sms/webhooks/telnyx:
+    post:
+      operationId: handleTelnyxSmsWebhook
+      summary: Handle a Telnyx SMS webhook
+      description: Processes a Telnyx messaging webhook. The `telnyx-signature-ed25519` and `telnyx-timestamp` headers are required and verified against the raw request body.
+      tags:
+        - sms
+      security:
+        - telnyxWebhookSignature: []
+          telnyxWebhookTimestamp: []
+      x-rentify-permissions:
+        authMode: webhook-signature
+        minimumRole: null
+        patAllowed: false
+      requestBody:
+        required: true
+        description: Telnyx messaging webhook payload.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              data:
+                id: event-1
+                event_type: message.sent
+                occurred_at: '2026-06-21T12:00:00.000Z'
+                payload:
+                  id: telnyx-message-1
+                  direction: outbound
+                  from:
+                    phone_number: '+14165550199'
+                  to:
+                    - phone_number: '+14165550100'
+                      status: queued
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActionOkResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: SMS webhook processed successfully.
+                data:
+                  ok: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/payments/{id}':
     get:
       operationId: getPaymentById
@@ -9357,6 +9425,14 @@ components:
       type: apiKey
       in: header
       name: x-square-hmacsha256-signature
+    telnyxWebhookSignature:
+      type: apiKey
+      in: header
+      name: telnyx-signature-ed25519
+    telnyxWebhookTimestamp:
+      type: apiKey
+      in: header
+      name: telnyx-timestamp
   responses:
     BadRequest:
       description: Bad request.

@@ -204,6 +204,10 @@ function isPaymentWebhookRoute(request: Request, pathname: string): boolean {
   return request.method === "POST" && pathname === "/payments/webhooks/square";
 }
 
+function isSmsWebhookRoute(request: Request, pathname: string): boolean {
+  return request.method === "POST" && pathname === "/sms/webhooks/telnyx";
+}
+
 export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
   const pathname = stripApiRoutePrefix(new URL(request.url).pathname);
 
@@ -259,6 +263,18 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     return createPolicy(request, {
       id: "payments-webhook",
       bucketKey: `${request.method}:payments-webhook`,
+      strategy: "token-bucket",
+      limit: 120,
+      windowSeconds: 60,
+      bucketCapacity: 120,
+      refillTokensPerSecond: 2,
+    });
+  }
+
+  if (isSmsWebhookRoute(request, pathname)) {
+    return createPolicy(request, {
+      id: "sms-webhook",
+      bucketKey: `${request.method}:sms-webhook`,
       strategy: "token-bucket",
       limit: 120,
       windowSeconds: 60,
@@ -567,3 +583,7 @@ export const rateLimiterMiddleware = createMiddleware<AppBindings>(
     await next();
   },
 );
+
+
+
+

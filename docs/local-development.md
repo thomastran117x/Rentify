@@ -18,6 +18,8 @@ This boots:
 - Elasticsearch
 - RabbitMQ
 - backend API
+- email worker
+- SMS worker
 - frontend web app
 
 ## Local URLs
@@ -44,6 +46,7 @@ Important behaviors:
 - frontend `NEXT_PUBLIC_*` values are injected during Docker image build
 - `INTERNAL_API_BASE_URL` is used by the frontend server runtime inside Docker
 - explicit shell or Docker-provided variables override local file defaults
+- SMS defaults to the local `noop` adapter unless you intentionally configure real Telnyx credentials
 
 Optional local overrides outside Docker:
 
@@ -131,3 +134,6 @@ npm run test:e2e
 - If the frontend is using stale public env values, rebuild with `docker compose up --build`.
 - If auth behavior seems broken after a provider change, verify both backend provider settings and matching frontend public client IDs.
 - If you want a clean reseed of fixture-owned data, use `npm run seed -- --refresh` from `backend/`.
+
+
+

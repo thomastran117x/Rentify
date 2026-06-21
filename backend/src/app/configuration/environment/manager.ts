@@ -92,6 +92,10 @@ export class EnvironmentManager {
     return this.get().email;
   }
 
+  getSmsConfig(): AppEnvironment["sms"] {
+    return this.get().sms;
+  }
+
   getCaptchaConfig(): AppEnvironment["captcha"] {
     return this.get().captcha;
   }
@@ -142,6 +146,10 @@ export class EnvironmentManager {
 
   getEmailWorkerConfig(): AppEnvironment["workers"]["email"] {
     return this.get().workers.email;
+  }
+
+  getSmsWorkerConfig(): AppEnvironment["workers"]["sms"] {
+    return this.get().workers.sms;
   }
 
   getAnalyticsWorkerConfig(): AppEnvironment["workers"]["analytics"] {
@@ -238,3 +246,6 @@ export function getOptionalEnvironmentVariable(
 ): string | undefined {
   return environment.getOptionalEnvironmentVariable(name);
 }
+
+
+
