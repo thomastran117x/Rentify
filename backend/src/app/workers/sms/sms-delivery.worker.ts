@@ -35,6 +35,8 @@ export async function bootstrapSmsDeliveryWorker(): Promise<void> {
             const attempt = payload.attempt + 1;
             const errorMessage =
               error instanceof Error ? error.message : "Unknown SMS delivery error.";
+            const classification = smsDeliveryService.classifyError(error);
+            const shouldRetry = classification.retryable && attempt < maxAttempts;
 
             workerLogger.error(
               "Failed to deliver SMS job.",
@@ -42,11 +44,14 @@ export async function bootstrapSmsDeliveryWorker(): Promise<void> {
                 jobId: payload.jobId,
                 kind: payload.kind,
                 attempt,
+                errorCategory: classification.category,
+                errorCode: classification.code,
+                retryable: classification.retryable,
               },
               error,
             );
 
-            if (attempt >= maxAttempts) {
+            if (!shouldRetry) {
               await smsQueueService.publishDeadLetterJob({
                 ...payload,
                 attempt,
@@ -57,11 +62,13 @@ export async function bootstrapSmsDeliveryWorker(): Promise<void> {
 
             channel.ack(message);
 
-            if (attempt >= maxAttempts) {
+            if (!shouldRetry) {
               workerLogger.error("SMS job moved to dead-letter queue.", {
                 jobId: payload.jobId,
                 kind: payload.kind,
                 error: errorMessage,
+                errorCategory: classification.category,
+                errorCode: classification.code,
               });
             }
           }

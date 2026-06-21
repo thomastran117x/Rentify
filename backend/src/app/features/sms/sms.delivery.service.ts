@@ -1,4 +1,8 @@
-import type { SmsJobPayload, SmsProviderSendResult } from "@/features/sms/sms.model";
+import type {
+  SmsJobPayload,
+  SmsProviderErrorInfo,
+  SmsProviderSendResult,
+} from "@/features/sms/sms.model";
 import type { SmsProviderAdapter } from "@/features/sms/sms-provider";
 
 export class SmsDeliveryService {
@@ -9,5 +13,9 @@ export class SmsDeliveryService {
       case "message":
         return this.smsProvider.sendMessage(payload.input);
     }
+  }
+
+  classifyError(error: unknown): SmsProviderErrorInfo {
+    return this.smsProvider.classifyError(error);
   }
 }

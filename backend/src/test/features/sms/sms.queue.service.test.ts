@@ -16,6 +16,7 @@ function createChannel() {
     waitForConfirms: jest.fn(async () => undefined),
     close: jest.fn(async () => undefined),
     prefetch: jest.fn(async () => undefined),
+    ack: jest.fn(),
     consume: jest.fn(
       async (
         _queue: string,
@@ -177,6 +178,7 @@ describe("SmsQueueService", () => {
         }),
         "utf8",
       ),
+      properties: {},
     } as ConsumeMessage);
 
     expect(onMessage).toHaveBeenCalledWith(
@@ -213,7 +215,45 @@ describe("SmsQueueService", () => {
     expect(channel.nack).not.toHaveBeenCalled();
   });
 
-  it("nacks malformed messages and worker failures for redelivery", async () => {
+  it("dead-letters malformed messages instead of requeueing them forever", async () => {
+    const channel = createChannel();
+    mockCreateRabbitMqChannel.mockResolvedValue(channel);
+    const service = new SmsQueueService();
+    const onMessage = jest.fn(async () => undefined);
+
+    await service.consumeSmsJobs(1, onMessage);
+
+    const malformedMessage = {
+      content: Buffer.from("{bad json", "utf8"),
+      properties: {
+        contentType: "application/json",
+        messageId: "bad-message",
+        headers: {
+          source: "test",
+        },
+      },
+    } as ConsumeMessage;
+    await createChannel.lastHandler?.(malformedMessage);
+
+    expect(channel.publish).toHaveBeenCalledWith(
+      "sms.delivery.exchange",
+      "dead-letter",
+      malformedMessage.content,
+      expect.objectContaining({
+        contentType: "application/json",
+        messageId: "bad-message",
+        headers: expect.objectContaining({
+          source: "test",
+          deadLetterReason: "invalid_json",
+        }),
+      }),
+    );
+    expect(channel.ack).toHaveBeenCalledWith(malformedMessage);
+    expect(channel.nack).not.toHaveBeenCalled();
+    expect(onMessage).not.toHaveBeenCalled();
+  });
+
+  it("still nacks unexpected consumer failures for redelivery", async () => {
     const channel = createChannel();
     mockCreateRabbitMqChannel.mockResolvedValue(channel);
     const service = new SmsQueueService();
@@ -222,11 +262,6 @@ describe("SmsQueueService", () => {
       .mockRejectedValueOnce(new Error("worker failed"));
 
     await service.consumeSmsJobs(1, onMessage);
-
-    const malformedMessage = {
-      content: Buffer.from("{bad json", "utf8"),
-    } as ConsumeMessage;
-    await createChannel.lastHandler?.(malformedMessage);
 
     const validMessage = {
       content: Buffer.from(
@@ -242,10 +277,10 @@ describe("SmsQueueService", () => {
         }),
         "utf8",
       ),
+      properties: {},
     } as ConsumeMessage;
     await createChannel.lastHandler?.(validMessage);
 
-    expect(channel.nack).toHaveBeenCalledWith(malformedMessage, false, true);
     expect(channel.nack).toHaveBeenCalledWith(validMessage, false, true);
   });
 });

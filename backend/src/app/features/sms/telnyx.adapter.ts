@@ -294,11 +294,24 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
   }
 
   classifyError(error: unknown): SmsProviderErrorInfo {
+    const message = error instanceof Error ? error.message : "Telnyx request failed.";
+    const codeValue =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+    const code = typeof codeValue === "string" ? codeValue : undefined;
+
+    if (code === "ETIMEDOUT" || code === "ABORT_ERR") {
+      return {
+        category: "unknown",
+        code,
+        message,
+        retryable: false,
+      };
+    }
+
     if (typeof error === "object" && error !== null && "status" in error) {
       const status = (error as { status?: unknown }).status;
-      const message = error instanceof Error ? error.message : "Telnyx request failed.";
-      const codeValue = (error as { code?: unknown }).code;
-      const code = typeof codeValue === "string" ? codeValue : undefined;
 
       if (typeof status === "number") {
         if (status === 429 || status >= 500) {
@@ -321,16 +334,9 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
       }
     }
 
-    const codeValue =
-      typeof error === "object" && error !== null && "code" in error
-        ? (error as { code?: unknown }).code
-        : undefined;
-    const code = typeof codeValue === "string" ? codeValue : undefined;
     const transientCodes = new Set([
       "ECONNRESET",
       "ECONNREFUSED",
-      "ETIMEDOUT",
-      "ABORT_ERR",
       "EPIPE",
       "PROVIDER_NETWORK_ERROR",
     ]);
@@ -338,7 +344,7 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     return {
       category: code && transientCodes.has(code) ? "transient" : "unknown",
       code,
-      message: error instanceof Error ? error.message : "Telnyx request failed.",
+      message,
       retryable: true,
     };
   }
@@ -561,3 +567,4 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     }));
   }
 }
+

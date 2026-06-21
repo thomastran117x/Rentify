@@ -155,7 +155,7 @@ describe("TelnyxSmsAdapter", () => {
     });
   });
 
-  it("classifies retryable and permanent provider errors", () => {
+  it("classifies retryable, permanent, and ambiguous timeout errors", () => {
     const adapter = new TelnyxSmsAdapter({
       publicKey: generateKeyPairSync("ed25519").publicKey
         .export({ type: "spki", format: "pem" })
@@ -187,6 +187,20 @@ describe("TelnyxSmsAdapter", () => {
       category: "permanent",
       code: "INVALID_TO",
       message: "Invalid destination",
+      retryable: false,
+    });
+
+    expect(
+      adapter.classifyError(
+        Object.assign(new Error("Telnyx request timed out."), {
+          status: 504,
+          code: "ETIMEDOUT",
+        }),
+      ),
+    ).toEqual({
+      category: "unknown",
+      code: "ETIMEDOUT",
+      message: "Telnyx request timed out.",
       retryable: false,
     });
   });

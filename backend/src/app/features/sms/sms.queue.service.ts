@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Channel, ConsumeMessage } from "amqplib";
+import type { Channel, ConfirmChannel, ConsumeMessage } from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
 import type {
@@ -68,9 +68,25 @@ export class SmsQueueService {
         }
 
         try {
-          const payload = JSON.parse(
-            message.content.toString("utf8"),
-          ) as SmsJobPayload;
+          let payload: SmsJobPayload;
+
+          try {
+            payload = JSON.parse(
+              message.content.toString("utf8"),
+            ) as SmsJobPayload;
+          } catch (error) {
+            smsQueueLogger.error(
+              "SMS worker received an invalid JSON payload.",
+              {
+                messageId: message.properties.messageId,
+              },
+              error,
+            );
+            await this.publishMalformedMessage(channel, message, error);
+            channel.ack(message);
+            return;
+          }
+
           await onMessage(payload, message, channel);
         } catch (error) {
           smsQueueLogger.error(
@@ -112,6 +128,26 @@ export class SmsQueueService {
     } finally {
       await channel.close();
     }
+  }
+
+  private async publishMalformedMessage(
+    channel: ConfirmChannel,
+    message: ConsumeMessage,
+    error: unknown,
+  ): Promise<void> {
+    channel.publish(this.exchangeName, "dead-letter", message.content, {
+      persistent: true,
+      contentType: message.properties.contentType || "application/json",
+      messageId: message.properties.messageId,
+      timestamp: Date.now(),
+      headers: {
+        ...(message.properties.headers ?? {}),
+        deadLetterReason: "invalid_json",
+        deadLetterError:
+          error instanceof Error ? error.message : "Invalid JSON payload.",
+      },
+    });
+    await channel.waitForConfirms();
   }
 
   private async assertTopology(channel: Channel): Promise<void> {
