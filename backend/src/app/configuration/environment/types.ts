@@ -295,6 +295,7 @@ export interface AppEnvironment {
   routeModules: {
     disabledIds: RouteModuleId[];
   };
+  features: Record<string, { enabled: boolean }>;
   rabbitmq: {
     url?: string;
   };

@@ -208,6 +208,7 @@ describe("EnvironmentManager", () => {
     expect(manager.getBlobStorageConfig()).toBe(environment.blobStorage);
     expect(manager.getLoggingConfig()).toBe(environment.logging);
     expect(manager.getRouteModulesConfig()).toBe(environment.routeModules);
+    expect(manager.getFeaturesConfig()).toBe(environment.features);
     expect(manager.getRabbitMqConfig()).toBe(environment.rabbitmq);
     expect(manager.getElasticsearchConfig()).toBe(environment.elasticsearch);
     expect(manager.getSquareConfig()).toBe(environment.square);

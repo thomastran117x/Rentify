@@ -196,6 +196,10 @@ export class EnvironmentManager {
     return this.get().routeModules;
   }
 
+  getFeaturesConfig(): AppEnvironment["features"] {
+    return this.get().features;
+  }
+
   getRabbitMqConfig(): AppEnvironment["rabbitmq"] {
     return this.get().rabbitmq;
   }

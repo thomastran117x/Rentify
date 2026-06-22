@@ -1,11 +1,16 @@
 import { Hono } from "hono";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
+import { filterRouteModules } from "@/configuration/bootstrap/routes/registry";
 import {
   containerTokens,
   type ServiceContainer,
 } from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
 import type { AppBindings } from "@/configuration/http/bindings";
+import type {
+  RouteModule,
+  RouteModuleId,
+} from "@/configuration/bootstrap/routes/types";
 
 class FakeRequestContainer implements ServiceContainer {
   constructor(private readonly services: Map<unknown, unknown>) {}
@@ -289,5 +294,76 @@ describe("mountRoutes", () => {
       route: "getById",
       id: "org-123",
     });
+  });
+});
+
+function makeModule(id: RouteModuleId, featureId?: string): RouteModule {
+  return {
+    id,
+    featureId,
+    register: () => {},
+  };
+}
+
+describe("filterRouteModules", () => {
+  it("includes all modules when nothing is disabled", () => {
+    const modules = [makeModule("blob"), makeModule("profiles")];
+    const result = filterRouteModules(modules, new Set(), {});
+    expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
+  });
+
+  it("excludes modules whose id is in the disabled set", () => {
+    const modules = [makeModule("blob"), makeModule("profiles")];
+    const result = filterRouteModules(
+      modules,
+      new Set<RouteModuleId>(["blob"]),
+      {},
+    );
+    expect(result.map((m) => m.id)).toEqual(["profiles"]);
+  });
+
+  it("excludes modules whose feature is explicitly disabled", () => {
+    const modules = [
+      makeModule("blob", "file-uploads"),
+      makeModule("profiles"),
+    ];
+    const result = filterRouteModules(modules, new Set(), {
+      "file-uploads": { enabled: false },
+    });
+    expect(result.map((m) => m.id)).toEqual(["profiles"]);
+  });
+
+  it("includes modules whose feature is explicitly enabled", () => {
+    const modules = [
+      makeModule("blob", "file-uploads"),
+      makeModule("profiles"),
+    ];
+    const result = filterRouteModules(modules, new Set(), {
+      "file-uploads": { enabled: true },
+    });
+    expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
+  });
+
+  it("blocks modules whose featureId has no entry in the features config (opt-in default)", () => {
+    const modules = [makeModule("blob", "undeclared-feature")];
+    const result = filterRouteModules(modules, new Set(), {});
+    expect(result.map((m) => m.id)).toEqual([]);
+  });
+
+  it("disabling by route module id and by feature flag are independent", () => {
+    const modules = [
+      makeModule("blob", "file-uploads"),
+      makeModule("profiles", "user-profiles"),
+      makeModule("feedbacks"),
+    ];
+    const result = filterRouteModules(
+      modules,
+      new Set<RouteModuleId>(["feedbacks"]),
+      {
+        "file-uploads": { enabled: false },
+        "user-profiles": { enabled: true },
+      },
+    );
+    expect(result.map((m) => m.id)).toEqual(["profiles"]);
   });
 });

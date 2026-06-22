@@ -73,23 +73,52 @@ export function getDisabledRouteModuleIds(): Set<RouteModuleId> {
   return new Set(environment.getRouteModulesConfig().disabledIds);
 }
 
-export function getEnabledRouteModules(): RouteModule[] {
-  const disabledRouteModuleIds = getDisabledRouteModuleIds();
+export function filterRouteModules(
+  modules: RouteModule[],
+  disabledIds: Set<RouteModuleId>,
+  features: Record<string, { enabled: boolean }>,
+): RouteModule[] {
+  return modules.filter((module) => {
+    if (disabledIds.has(module.id)) return false;
+    if (module.featureId && features[module.featureId]?.enabled !== true)
+      return false;
+    return true;
+  });
+}
 
-  return routeModuleRegistry.filter(
-    (routeModule) => !disabledRouteModuleIds.has(routeModule.id),
+export function getEnabledRouteModules(): RouteModule[] {
+  return filterRouteModules(
+    routeModuleRegistry,
+    getDisabledRouteModuleIds(),
+    environment.getFeaturesConfig(),
   );
 }
 
 export function logRouteComposition(): void {
-  const disabledRouteModuleIds = Array.from(getDisabledRouteModuleIds());
-  const mountedRouteModuleIds = routeModuleRegistry
-    .map((routeModule) => routeModule.id)
-    .filter((routeModuleId) => !disabledRouteModuleIds.includes(routeModuleId));
+  const disabledIds = getDisabledRouteModuleIds();
+  const features = environment.getFeaturesConfig();
+
+  const mountedRouteModuleIds: RouteModuleId[] = [];
+  const disabledRouteModuleIds: RouteModuleId[] = [];
+  const featureGatedRouteModuleIds: RouteModuleId[] = [];
+
+  for (const module of routeModuleRegistry) {
+    if (disabledIds.has(module.id)) {
+      disabledRouteModuleIds.push(module.id);
+    } else if (
+      module.featureId &&
+      features[module.featureId]?.enabled !== true
+    ) {
+      featureGatedRouteModuleIds.push(module.id);
+    } else {
+      mountedRouteModuleIds.push(module.id);
+    }
+  }
 
   routesLogger.info("Route modules composed.", {
     apiRoutePrefix: getApiRoutePrefix(),
     disabledRouteModules: disabledRouteModuleIds,
+    featureGatedRouteModules: featureGatedRouteModuleIds,
     mountedRouteModules: mountedRouteModuleIds,
   });
 }

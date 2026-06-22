@@ -23,6 +23,7 @@ import {
   buildSquareConfig,
   validateInfrastructureConfig,
 } from "@/configuration/environment/domains/infrastructure";
+import { buildFeaturesConfig } from "@/configuration/environment/domains/features";
 import {
   buildPostingsCacheConfig,
   buildRateLimiterConfig,
@@ -119,6 +120,7 @@ export function parseEnvironmentState(
     blobStorage: buildBlobStorageConfig(raw, errors),
     logging: buildLoggingConfig(raw, nodeEnv),
     routeModules: buildRouteModulesConfig(raw, errors),
+    features: buildFeaturesConfig(source),
     rabbitmq: buildRabbitMqConfig(raw),
     elasticsearch: buildElasticsearchConfig(raw, errors),
     square: buildSquareConfig(
