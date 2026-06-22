@@ -27,8 +27,6 @@ export type RawEnvironmentValues = {
   DATABASE_SLOW_QUERY_THRESHOLD_MS?: string;
   DATABASE_URL?: string;
   DISABLED_ROUTE_MODULES?: string;
-  // Feature flags: add FEATURE_<NAME>_ENABLED for each declared feature.
-  // Example: FEATURE_SEARCH_V2_ENABLED?: string;
   ELASTICSEARCH_ENABLED?: string;
   ELASTICSEARCH_CIRCUIT_BREAKER_COOLDOWN_MS?: string;
   ELASTICSEARCH_CIRCUIT_BREAKER_FAILURE_THRESHOLD?: string;

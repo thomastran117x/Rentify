@@ -120,7 +120,7 @@ export function parseEnvironmentState(
     blobStorage: buildBlobStorageConfig(raw, errors),
     logging: buildLoggingConfig(raw, nodeEnv),
     routeModules: buildRouteModulesConfig(raw, errors),
-    features: buildFeaturesConfig(raw),
+    features: buildFeaturesConfig(source),
     rabbitmq: buildRabbitMqConfig(raw),
     elasticsearch: buildElasticsearchConfig(raw, errors),
     square: buildSquareConfig(

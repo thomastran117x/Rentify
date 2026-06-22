@@ -1,25 +1,30 @@
 import { parseBoolean } from "@/configuration/environment/shared";
-import type {
-  AppEnvironment,
-  RawEnvironmentValues,
-} from "@/configuration/environment/types";
+import type { AppEnvironment } from "@/configuration/environment/types";
 
-// Add feature entries here as features are developed, following this pattern:
+// Reads all FEATURE_<NAME>_ENABLED env vars from the original process environment
+// and converts them into the features config map.
 //
-//   "feature-name": { enabled: parseBoolean(raw.FEATURE_<NAME>_ENABLED, false) },
+// Feature IDs are derived by lowercasing the name segment and replacing underscores
+// with hyphens: FEATURE_SEARCH_V2_ENABLED → "search-v2".
 //
-// Also add the corresponding FEATURE_<NAME>_ENABLED?: string key to RawEnvironmentValues.
-// Use false as the default — features are opt-in (disabled unless explicitly enabled).
+// Env var convention: FEATURE_<NAME>_ENABLED=true|false  (default: false — opt-in)
+// The feature ID must match the featureId on the corresponding RouteModule.
 //
-// Env var convention: FEATURE_<NAME>_ENABLED=true|false
-// Backend feature IDs use kebab-case and must match the featureId on the RouteModule.
-//
-// Example:
-//   "search-v2": { enabled: parseBoolean(raw.FEATURE_SEARCH_V2_ENABLED, false) },
+// No changes to RawEnvironmentValues or RAW_ENVIRONMENT_VARIABLE_NAMES are needed
+// when adding a new feature flag — just set the env var and tag the RouteModule.
 
 export function buildFeaturesConfig(
-  raw: RawEnvironmentValues,
+  source: NodeJS.ProcessEnv,
 ): AppEnvironment["features"] {
-  void raw; // remove when first feature is added
-  return {};
+  const features: AppEnvironment["features"] = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    const match = key.match(/^FEATURE_(.+)_ENABLED$/);
+    if (match) {
+      const featureId = match[1].toLowerCase().replace(/_/g, "-");
+      features[featureId] = { enabled: parseBoolean(value, false) };
+    }
+  }
+
+  return features;
 }
