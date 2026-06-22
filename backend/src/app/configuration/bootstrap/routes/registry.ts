@@ -80,7 +80,7 @@ export function filterRouteModules(
 ): RouteModule[] {
   return modules.filter((module) => {
     if (disabledIds.has(module.id)) return false;
-    if (module.featureId && features[module.featureId]?.enabled === false) return false;
+    if (module.featureId && features[module.featureId]?.enabled !== true) return false;
     return true;
   });
 }
@@ -94,19 +94,27 @@ export function getEnabledRouteModules(): RouteModule[] {
 }
 
 export function logRouteComposition(): void {
-  const enabledModuleIds = new Set(
-    getEnabledRouteModules().map((m) => m.id),
-  );
-  const mountedRouteModuleIds = routeModuleRegistry
-    .map((m) => m.id)
-    .filter((id) => enabledModuleIds.has(id));
-  const skippedRouteModuleIds = routeModuleRegistry
-    .map((m) => m.id)
-    .filter((id) => !enabledModuleIds.has(id));
+  const disabledIds = getDisabledRouteModuleIds();
+  const features = environment.getFeaturesConfig();
+
+  const mountedRouteModuleIds: RouteModuleId[] = [];
+  const disabledRouteModuleIds: RouteModuleId[] = [];
+  const featureGatedRouteModuleIds: RouteModuleId[] = [];
+
+  for (const module of routeModuleRegistry) {
+    if (disabledIds.has(module.id)) {
+      disabledRouteModuleIds.push(module.id);
+    } else if (module.featureId && features[module.featureId]?.enabled !== true) {
+      featureGatedRouteModuleIds.push(module.id);
+    } else {
+      mountedRouteModuleIds.push(module.id);
+    }
+  }
 
   routesLogger.info("Route modules composed.", {
     apiRoutePrefix: getApiRoutePrefix(),
-    skippedRouteModules: skippedRouteModuleIds,
+    disabledRouteModules: disabledRouteModuleIds,
+    featureGatedRouteModules: featureGatedRouteModuleIds,
     mountedRouteModules: mountedRouteModuleIds,
   });
 }

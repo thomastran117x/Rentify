@@ -1,5 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { isFeatureAccessible, type FeatureFlag } from "./features";
+import { flag, isFeatureAccessible, type FeatureFlag } from "./features";
+
+describe("flag", () => {
+  it("is disabled when the env var is absent or empty", () => {
+    expect(flag(undefined).enabled).toBe(false);
+    expect(flag("").enabled).toBe(false);
+    expect(flag("  ").enabled).toBe(false);
+  });
+
+  it("accepts the same truthy synonyms as the backend parseBoolean", () => {
+    expect(flag("true").enabled).toBe(true);
+    expect(flag("1").enabled).toBe(true);
+    expect(flag("yes").enabled).toBe(true);
+    expect(flag("on").enabled).toBe(true);
+  });
+
+  it("is case-insensitive for the enabled env var", () => {
+    expect(flag("TRUE").enabled).toBe(true);
+    expect(flag("True").enabled).toBe(true);
+    expect(flag("YES").enabled).toBe(true);
+  });
+
+  it("defaults access to 'all' when the access env var is absent", () => {
+    expect(flag("true").access).toBe("all");
+    expect(flag("true", undefined).access).toBe("all");
+    expect(flag("true", "anything-else").access).toBe("all");
+  });
+
+  it("sets access to 'internal' when the env var is 'internal' (case-insensitive)", () => {
+    expect(flag("true", "internal").access).toBe("internal");
+    expect(flag("true", "INTERNAL").access).toBe("internal");
+  });
+});
 
 describe("isFeatureAccessible", () => {
   describe("disabled feature", () => {

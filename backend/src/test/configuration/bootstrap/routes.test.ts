@@ -343,10 +343,10 @@ describe("filterRouteModules", () => {
     expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
   });
 
-  it("includes modules whose featureId has no entry in the features config", () => {
+  it("blocks modules whose featureId has no entry in the features config (opt-in default)", () => {
     const modules = [makeModule("blob", "undeclared-feature")];
     const result = filterRouteModules(modules, new Set(), {});
-    expect(result.map((m) => m.id)).toEqual(["blob"]);
+    expect(result.map((m) => m.id)).toEqual([]);
   });
 
   it("disabling by route module id and by feature flag are independent", () => {

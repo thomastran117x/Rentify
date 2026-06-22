@@ -7,9 +7,11 @@ export interface FeatureFlag {
   access: FeatureAccess;
 }
 
-function flag(enabledEnv?: string, accessEnv?: string): FeatureFlag {
+const TRUTHY = new Set(["true", "1", "yes", "on"]);
+
+export function flag(enabledEnv?: string, accessEnv?: string): FeatureFlag {
   return {
-    enabled: enabledEnv?.trim().toLowerCase() === "true",
+    enabled: TRUTHY.has(enabledEnv?.trim().toLowerCase() ?? ""),
     access: accessEnv?.trim().toLowerCase() === "internal" ? "internal" : "all",
   };
 }
