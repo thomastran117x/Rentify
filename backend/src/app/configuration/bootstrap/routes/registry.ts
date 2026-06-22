@@ -80,7 +80,8 @@ export function filterRouteModules(
 ): RouteModule[] {
   return modules.filter((module) => {
     if (disabledIds.has(module.id)) return false;
-    if (module.featureId && features[module.featureId]?.enabled !== true) return false;
+    if (module.featureId && features[module.featureId]?.enabled !== true)
+      return false;
     return true;
   });
 }
@@ -104,7 +105,10 @@ export function logRouteComposition(): void {
   for (const module of routeModuleRegistry) {
     if (disabledIds.has(module.id)) {
       disabledRouteModuleIds.push(module.id);
-    } else if (module.featureId && features[module.featureId]?.enabled !== true) {
+    } else if (
+      module.featureId &&
+      features[module.featureId]?.enabled !== true
+    ) {
       featureGatedRouteModuleIds.push(module.id);
     } else {
       mountedRouteModuleIds.push(module.id);

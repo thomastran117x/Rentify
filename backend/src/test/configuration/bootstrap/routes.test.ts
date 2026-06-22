@@ -1,15 +1,16 @@
 import { Hono } from "hono";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
-import {
-  filterRouteModules,
-} from "@/configuration/bootstrap/routes/registry";
+import { filterRouteModules } from "@/configuration/bootstrap/routes/registry";
 import {
   containerTokens,
   type ServiceContainer,
 } from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
 import type { AppBindings } from "@/configuration/http/bindings";
-import type { RouteModule, RouteModuleId } from "@/configuration/bootstrap/routes/types";
+import type {
+  RouteModule,
+  RouteModuleId,
+} from "@/configuration/bootstrap/routes/types";
 
 class FakeRequestContainer implements ServiceContainer {
   constructor(private readonly services: Map<unknown, unknown>) {}
@@ -358,7 +359,10 @@ describe("filterRouteModules", () => {
     const result = filterRouteModules(
       modules,
       new Set<RouteModuleId>(["feedbacks"]),
-      { "file-uploads": { enabled: false }, "user-profiles": { enabled: true } },
+      {
+        "file-uploads": { enabled: false },
+        "user-profiles": { enabled: true },
+      },
     );
     expect(result.map((m) => m.id)).toEqual(["profiles"]);
   });
