@@ -58,6 +58,3 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   bookingsRegistrationModule,
   rentingsRegistrationModule,
 ];
-
-
-

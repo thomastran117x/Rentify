@@ -117,6 +117,3 @@ describe("container registrations", () => {
     }
   });
 });
-
-
-

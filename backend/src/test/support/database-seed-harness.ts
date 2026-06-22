@@ -65,4 +65,3 @@ export async function bootstrapSeedTestDatabase(
 export async function teardownSeedTestDatabase(): Promise<void> {
   await disconnectDatabase();
 }
-

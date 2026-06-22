@@ -292,5 +292,3 @@ describe("EnvironmentManager", () => {
     ).toThrow("Missing required environment variable: MISSING_REQUIRED_KEY");
   });
 });
-
-

@@ -22,7 +22,9 @@ export async function bootstrapSmsDeliveryWorker(): Promise<void> {
     run: async ({ container }, lifecycle) => {
       const scope = container.createScope();
       const smsQueueService = scope.resolve(containerTokens.smsQueueService);
-      const smsDeliveryService = scope.resolve(containerTokens.smsDeliveryService);
+      const smsDeliveryService = scope.resolve(
+        containerTokens.smsDeliveryService,
+      );
       const { prefetch, maxAttempts } = environment.getSmsWorkerConfig();
 
       const stopConsuming = await smsQueueService.consumeSmsJobs(
@@ -34,9 +36,12 @@ export async function bootstrapSmsDeliveryWorker(): Promise<void> {
           } catch (error) {
             const attempt = payload.attempt + 1;
             const errorMessage =
-              error instanceof Error ? error.message : "Unknown SMS delivery error.";
+              error instanceof Error
+                ? error.message
+                : "Unknown SMS delivery error.";
             const classification = smsDeliveryService.classifyError(error);
-            const shouldRetry = classification.retryable && attempt < maxAttempts;
+            const shouldRetry =
+              classification.retryable && attempt < maxAttempts;
 
             workerLogger.error(
               "Failed to deliver SMS job.",

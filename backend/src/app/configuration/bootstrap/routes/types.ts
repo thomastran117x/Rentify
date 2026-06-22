@@ -37,5 +37,3 @@ export interface RouteModule {
   id: RouteModuleId;
   register(app: Hono<AppBindings>, helpers: RouteModuleHelpers): void;
 }
-
-

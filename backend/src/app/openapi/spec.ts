@@ -6707,4 +6707,3 @@ export function buildOpenApiJson(): string {
     "\n",
   );
 }
-

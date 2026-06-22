@@ -27,7 +27,10 @@ export class SmsService {
     rawBody: string,
     headers: SmsWebhookHeaders,
   ): Promise<SmsParsedWebhookEvent> {
-    const verification = this.smsProvider.verifyWebhookSignature(rawBody, headers);
+    const verification = this.smsProvider.verifyWebhookSignature(
+      rawBody,
+      headers,
+    );
 
     if (!verification.isValid) {
       this.logger.warn("SMS webhook signature verification failed.", {

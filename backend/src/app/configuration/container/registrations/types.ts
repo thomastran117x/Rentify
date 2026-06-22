@@ -35,5 +35,3 @@ export interface ContainerRegistrationModule {
   id: ContainerRegistrationModuleId;
   register(container: RootServiceContainer): void;
 }
-
-

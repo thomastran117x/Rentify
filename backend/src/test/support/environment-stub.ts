@@ -256,8 +256,3 @@ export function getEnvironment() {
 export function getOptionalEnvironmentVariable(name: string) {
   return process.env[name];
 }
-
-
-
-
-

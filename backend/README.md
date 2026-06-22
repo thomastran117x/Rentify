@@ -117,5 +117,3 @@ npm run test:db-seeds
 ```
 
 The test suite covers configuration, middleware, route registration, auth, postings, organizations, bookings, payments, rentings, reports, search, recommendations, seeds, and OpenAPI validation.
-
-

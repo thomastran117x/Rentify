@@ -86,7 +86,8 @@ export const containerTokens = {
   ),
   emailService: createServiceToken<EmailService>("EmailService"),
   smsQueueService: createServiceToken<SmsQueueService>("SmsQueueService"),
-  smsDeliveryService: createServiceToken<SmsDeliveryService>("SmsDeliveryService"),
+  smsDeliveryService:
+    createServiceToken<SmsDeliveryService>("SmsDeliveryService"),
   smsProvider: createServiceToken<SmsProviderAdapter>("SmsProvider"),
   smsService: createServiceToken<SmsService>("SmsService"),
   smsController: createServiceToken<SmsController>("SmsController"),
@@ -243,6 +244,3 @@ export const containerTokens = {
   postingsController:
     createServiceToken<PostingsController>("PostingsController"),
 } as const;
-
-
-

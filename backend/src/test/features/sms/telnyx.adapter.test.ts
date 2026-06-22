@@ -35,8 +35,7 @@ function createWebhookPayload(eventType: string) {
         to: [
           {
             phone_number: "+14165550100",
-            status:
-              eventType === "message.finalized" ? "delivered" : "queued",
+            status: eventType === "message.finalized" ? "delivered" : "queued",
           },
         ],
         errors:
@@ -96,8 +95,8 @@ describe("TelnyxSmsAdapter", () => {
       }),
     );
     const adapter = new TelnyxSmsAdapter({
-      publicKey: generateKeyPairSync("ed25519").publicKey
-        .export({ type: "spki", format: "pem" })
+      publicKey: generateKeyPairSync("ed25519")
+        .publicKey.export({ type: "spki", format: "pem" })
         .toString(),
     });
 
@@ -157,8 +156,8 @@ describe("TelnyxSmsAdapter", () => {
 
   it("classifies retryable, permanent, and ambiguous timeout errors", () => {
     const adapter = new TelnyxSmsAdapter({
-      publicKey: generateKeyPairSync("ed25519").publicKey
-        .export({ type: "spki", format: "pem" })
+      publicKey: generateKeyPairSync("ed25519")
+        .publicKey.export({ type: "spki", format: "pem" })
         .toString(),
     });
 
@@ -234,12 +233,16 @@ describe("TelnyxSmsAdapter", () => {
 
   it("parses supported sent, finalized, and received webhook events", () => {
     const adapter = new TelnyxSmsAdapter({
-      publicKey: generateKeyPairSync("ed25519").publicKey
-        .export({ type: "spki", format: "pem" })
+      publicKey: generateKeyPairSync("ed25519")
+        .publicKey.export({ type: "spki", format: "pem" })
         .toString(),
     });
 
-    expect(adapter.parseWebhookEvent(JSON.stringify(createWebhookPayload("message.sent")))).toMatchObject({
+    expect(
+      adapter.parseWebhookEvent(
+        JSON.stringify(createWebhookPayload("message.sent")),
+      ),
+    ).toMatchObject({
       eventId: "event-message.sent",
       eventType: "message.sent",
       direction: "outbound",
@@ -250,7 +253,11 @@ describe("TelnyxSmsAdapter", () => {
       errors: [],
     });
 
-    expect(adapter.parseWebhookEvent(JSON.stringify(createWebhookPayload("message.finalized")))).toMatchObject({
+    expect(
+      adapter.parseWebhookEvent(
+        JSON.stringify(createWebhookPayload("message.finalized")),
+      ),
+    ).toMatchObject({
       eventId: "event-message.finalized",
       eventType: "message.finalized",
       deliveryStatus: "delivered",
@@ -263,7 +270,11 @@ describe("TelnyxSmsAdapter", () => {
       ],
     });
 
-    expect(adapter.parseWebhookEvent(JSON.stringify(createWebhookPayload("message.received")))).toMatchObject({
+    expect(
+      adapter.parseWebhookEvent(
+        JSON.stringify(createWebhookPayload("message.received")),
+      ),
+    ).toMatchObject({
       eventId: "event-message.received",
       eventType: "message.received",
       direction: "inbound",

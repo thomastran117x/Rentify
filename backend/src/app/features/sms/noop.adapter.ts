@@ -22,7 +22,9 @@ export class NoopSmsAdapter implements SmsProviderAdapter {
     this.logger = loggerFactory.forClass(NoopSmsAdapter, "service");
   }
 
-  async sendMessage(input: SendSmsMessageInput): Promise<SmsProviderSendResult> {
+  async sendMessage(
+    input: SendSmsMessageInput,
+  ): Promise<SmsProviderSendResult> {
     const providerMessageId = `noop-sms-${randomUUID()}`;
 
     this.logger.info("SMS delivery skipped by noop adapter.", {
@@ -76,7 +78,12 @@ export class NoopSmsAdapter implements SmsProviderAdapter {
       occurredAt: this.readString(payload, ["data", "occurred_at"]),
       direction: this.readDirection(messagePayload),
       messageId: this.readString(payload, ["data", "payload", "id"]),
-      fromPhoneNumber: this.readString(payload, ["data", "payload", "from", "phone_number"]),
+      fromPhoneNumber: this.readString(payload, [
+        "data",
+        "payload",
+        "from",
+        "phone_number",
+      ]),
       toPhoneNumbers: this.readPhoneNumbers(messagePayload),
       deliveryStatus: this.readFirstToStatus(messagePayload),
       payload,
@@ -156,7 +163,9 @@ export class NoopSmsAdapter implements SmsProviderAdapter {
       .filter((item): item is string => typeof item === "string");
   }
 
-  private readFirstToStatus(payload: Record<string, unknown>): string | undefined {
+  private readFirstToStatus(
+    payload: Record<string, unknown>,
+  ): string | undefined {
     const recipients = payload.to;
 
     if (!Array.isArray(recipients) || recipients.length === 0) {

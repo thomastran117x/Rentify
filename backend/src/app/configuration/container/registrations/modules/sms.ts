@@ -24,9 +24,9 @@ export const smsRegistrationModule: ContainerRegistrationModule = {
       dependencies: [],
       resolve: () => {
         const provider = environment.getSmsConfig().provider;
-        return (provider === "telnyx"
-          ? new TelnyxSmsAdapter()
-          : new NoopSmsAdapter()) as SmsProviderAdapter;
+        return (
+          provider === "telnyx" ? new TelnyxSmsAdapter() : new NoopSmsAdapter()
+        ) as SmsProviderAdapter;
       },
     });
     container.register({
@@ -39,7 +39,10 @@ export const smsRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.smsService,
       lifetime: "scoped",
-      dependencies: [containerTokens.smsQueueService, containerTokens.smsProvider],
+      dependencies: [
+        containerTokens.smsQueueService,
+        containerTokens.smsProvider,
+      ],
       resolve: ({ resolve }) =>
         new SmsService(
           resolve(containerTokens.smsQueueService),

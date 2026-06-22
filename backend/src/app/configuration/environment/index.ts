@@ -22,4 +22,3 @@ export type {
   RefreshTokenMode,
   SmsProvider,
 } from "@/configuration/environment/types";
-

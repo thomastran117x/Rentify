@@ -124,7 +124,11 @@ describe("bootstrapSmsDeliveryWorker", () => {
 
   it("publishes retry jobs before the max attempts threshold", async () => {
     let consumeHandler:
-      | ((payload: any, message: unknown, channel: { ack: jest.Mock }) => Promise<void>)
+      | ((
+          payload: any,
+          message: unknown,
+          channel: { ack: jest.Mock },
+        ) => Promise<void>)
       | undefined;
     const smsQueueService = {
       consumeSmsJobs: jest.fn(async (_prefetch: number, handler) => {
@@ -199,7 +203,11 @@ describe("bootstrapSmsDeliveryWorker", () => {
 
   it("moves jobs to dead-letter after the max attempts threshold", async () => {
     let consumeHandler:
-      | ((payload: any, message: unknown, channel: { ack: jest.Mock }) => Promise<void>)
+      | ((
+          payload: any,
+          message: unknown,
+          channel: { ack: jest.Mock },
+        ) => Promise<void>)
       | undefined;
     const smsQueueService = {
       consumeSmsJobs: jest.fn(async (_prefetch: number, handler) => {
@@ -285,7 +293,11 @@ describe("bootstrapSmsDeliveryWorker", () => {
 
   it("moves permanently failed jobs directly to dead-letter", async () => {
     let consumeHandler:
-      | ((payload: any, message: unknown, channel: { ack: jest.Mock }) => Promise<void>)
+      | ((
+          payload: any,
+          message: unknown,
+          channel: { ack: jest.Mock },
+        ) => Promise<void>)
       | undefined;
     const smsQueueService = {
       consumeSmsJobs: jest.fn(async (_prefetch: number, handler) => {

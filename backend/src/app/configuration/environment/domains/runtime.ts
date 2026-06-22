@@ -490,5 +490,3 @@ export function validateRuntimeConfig(
     errors.push("POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO must be less than 1.");
   }
 }
-
-

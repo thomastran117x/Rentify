@@ -33,7 +33,10 @@ export class SmsQueueService {
     } as SmsJobPayload);
   }
 
-  async publishRetryJob(payload: SmsJobPayload, attempt: number): Promise<void> {
+  async publishRetryJob(
+    payload: SmsJobPayload,
+    attempt: number,
+  ): Promise<void> {
     const retryIndex = Math.min(
       Math.max(attempt - 1, 0),
       this.retryQueueNames.length - 1,

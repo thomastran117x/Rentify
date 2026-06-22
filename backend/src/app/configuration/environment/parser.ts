@@ -151,6 +151,3 @@ export function parseEnvironmentState(
 export function parseEnvironment(source: NodeJS.ProcessEnv): AppEnvironment {
   return parseEnvironmentState(source).config;
 }
-
-
-

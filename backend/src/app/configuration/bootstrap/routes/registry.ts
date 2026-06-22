@@ -100,6 +100,3 @@ export function registerRouteModule(
 ): void {
   routeModule.register(app, routeModuleHelpers);
 }
-
-
-

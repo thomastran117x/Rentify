@@ -35,7 +35,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isIndexable(value: unknown): value is Record<string, unknown> | unknown[] {
+function isIndexable(
+  value: unknown,
+): value is Record<string, unknown> | unknown[] {
   return isPlainObject(value) || Array.isArray(value);
 }
 
@@ -107,7 +109,9 @@ function readNestedArray(
   return Array.isArray(current) ? current : undefined;
 }
 
-function normalizeEventType(eventType: string): SmsParsedWebhookEvent["eventType"] {
+function normalizeEventType(
+  eventType: string,
+): SmsParsedWebhookEvent["eventType"] {
   switch (eventType) {
     case "message.received":
     case "message.sent":
@@ -132,18 +136,24 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     const environment = getEnvironment();
     this.apiKey = options.apiKey ?? environment.sms.telnyx.apiKey ?? "";
     this.fromNumber = options.fromNumber ?? environment.sms.fromNumber ?? "";
-    this.publicKey = options.publicKey ?? environment.sms.telnyx.publicKey ?? "";
+    this.publicKey =
+      options.publicKey ?? environment.sms.telnyx.publicKey ?? "";
     this.messagingProfileId =
-      options.messagingProfileId ?? environment.sms.telnyx.messagingProfileId ?? undefined;
+      options.messagingProfileId ??
+      environment.sms.telnyx.messagingProfileId ??
+      undefined;
     this.webhookPublicUrl =
       options.webhookPublicUrl ?? environment.sms.webhookPublicUrl ?? undefined;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs =
+      options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.timestampToleranceMs =
       options.timestampToleranceMs ?? DEFAULT_TIMESTAMP_TOLERANCE_MS;
     this.publicKeyObject = this.createVerificationKey(this.publicKey);
   }
 
-  async sendMessage(input: SendSmsMessageInput): Promise<SmsProviderSendResult> {
+  async sendMessage(
+    input: SendSmsMessageInput,
+  ): Promise<SmsProviderSendResult> {
     const webhookUrl =
       input.webhookContext?.webhookUrl ?? this.webhookPublicUrl ?? undefined;
     const payload: Record<string, unknown> = {
@@ -179,9 +189,18 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
 
     return {
       providerMessageId: readNestedString(response.body, ["data", "id"]),
-      providerStatus: readNestedString(response.body, ["data", "to", "0", "status"]),
+      providerStatus: readNestedString(response.body, [
+        "data",
+        "to",
+        "0",
+        "status",
+      ]),
       costAmount: readNestedNumber(response.body, ["data", "cost", "amount"]),
-      costCurrency: readNestedString(response.body, ["data", "cost", "currency"]),
+      costCurrency: readNestedString(response.body, [
+        "data",
+        "cost",
+        "currency",
+      ]),
       raw: response.body,
     };
   }
@@ -192,7 +211,8 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
   ): SmsWebhookVerificationResult {
     const payload = this.parseJsonRecord(rawBody);
     const eventId = readNestedString(payload, ["data", "id"]) ?? "unknown";
-    const eventType = readNestedString(payload, ["data", "event_type"]) ?? "unknown";
+    const eventType =
+      readNestedString(payload, ["data", "event_type"]) ?? "unknown";
     const signatureHeader = headers.signatureEd25519;
     const timestampHeader = headers.timestamp;
 
@@ -285,7 +305,12 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
       occurredAt: readNestedString(payload, ["data", "occurred_at"]),
       direction: this.readDirection(messagePayload),
       messageId: readNestedString(payload, ["data", "payload", "id"]),
-      fromPhoneNumber: readNestedString(payload, ["data", "payload", "from", "phone_number"]),
+      fromPhoneNumber: readNestedString(payload, [
+        "data",
+        "payload",
+        "from",
+        "phone_number",
+      ]),
       toPhoneNumbers: this.readPhoneNumbers(messagePayload),
       deliveryStatus: this.readFirstToStatus(messagePayload),
       payload,
@@ -294,7 +319,8 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
   }
 
   classifyError(error: unknown): SmsProviderErrorInfo {
-    const message = error instanceof Error ? error.message : "Telnyx request failed.";
+    const message =
+      error instanceof Error ? error.message : "Telnyx request failed.";
     const codeValue =
       typeof error === "object" && error !== null && "code" in error
         ? (error as { code?: unknown }).code
@@ -354,7 +380,10 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     init: RequestInit,
   ): Promise<{ body: Record<string, unknown> }> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      this.requestTimeoutMs,
+    );
     let response: Response;
 
     try {
@@ -391,7 +420,10 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     return { body };
   }
 
-  private parseResponseBody(text: string, status: number): Record<string, unknown> {
+  private parseResponseBody(
+    text: string,
+    status: number,
+  ): Record<string, unknown> {
     if (text.length === 0) {
       return {};
     }
@@ -454,7 +486,9 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     return decoded;
   }
 
-  private toTelnyxTransportError(error: unknown): Error & { status?: number; code?: string } {
+  private toTelnyxTransportError(
+    error: unknown,
+  ): Error & { status?: number; code?: string } {
     const mapped = new Error(
       this.isAbortError(error)
         ? "Telnyx request timed out."
@@ -467,7 +501,7 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     mapped.status = this.isAbortError(error) ? 504 : 503;
     mapped.code = this.isAbortError(error)
       ? "ETIMEDOUT"
-      : this.readNodeErrorCode(error) ?? "PROVIDER_NETWORK_ERROR";
+      : (this.readNodeErrorCode(error) ?? "PROVIDER_NETWORK_ERROR");
     return mapped;
   }
 
@@ -516,13 +550,18 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     body: Record<string, unknown>,
   ): { code?: string; detail?: string } | undefined {
     const errors = body.errors;
-    if (!Array.isArray(errors) || errors.length === 0 || !isPlainObject(errors[0])) {
+    if (
+      !Array.isArray(errors) ||
+      errors.length === 0 ||
+      !isPlainObject(errors[0])
+    ) {
       return undefined;
     }
 
     return {
       code: typeof errors[0].code === "string" ? errors[0].code : undefined,
-      detail: typeof errors[0].detail === "string" ? errors[0].detail : undefined,
+      detail:
+        typeof errors[0].detail === "string" ? errors[0].detail : undefined,
     };
   }
 
@@ -530,7 +569,9 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     payload: Record<string, unknown>,
   ): "inbound" | "outbound" | undefined {
     const direction = readNestedString(payload, ["direction"]);
-    return direction === "inbound" || direction === "outbound" ? direction : undefined;
+    return direction === "inbound" || direction === "outbound"
+      ? direction
+      : undefined;
   }
 
   private readPhoneNumbers(payload: Record<string, unknown>): string[] {
@@ -544,17 +585,23 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
       .filter((item): item is string => typeof item === "string");
   }
 
-  private readFirstToStatus(payload: Record<string, unknown>): string | undefined {
+  private readFirstToStatus(
+    payload: Record<string, unknown>,
+  ): string | undefined {
     const recipients = readNestedArray(payload, ["to"]);
     if (!recipients || recipients.length === 0) {
       return undefined;
     }
 
     const first = recipients[0];
-    return isPlainObject(first) && typeof first.status === "string" ? first.status : undefined;
+    return isPlainObject(first) && typeof first.status === "string"
+      ? first.status
+      : undefined;
   }
 
-  private readErrors(payload: Record<string, unknown>): SmsWebhookErrorDetail[] {
+  private readErrors(
+    payload: Record<string, unknown>,
+  ): SmsWebhookErrorDetail[] {
     const errors = readNestedArray(payload, ["errors"]);
     if (!errors) {
       return [];
@@ -567,4 +614,3 @@ export class TelnyxSmsAdapter implements SmsProviderAdapter {
     }));
   }
 }
-

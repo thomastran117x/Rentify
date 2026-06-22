@@ -246,6 +246,3 @@ export function getOptionalEnvironmentVariable(
 ): string | undefined {
   return environment.getOptionalEnvironmentVariable(name);
 }
-
-
-
