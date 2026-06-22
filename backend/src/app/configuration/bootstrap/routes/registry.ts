@@ -73,23 +73,40 @@ export function getDisabledRouteModuleIds(): Set<RouteModuleId> {
   return new Set(environment.getRouteModulesConfig().disabledIds);
 }
 
-export function getEnabledRouteModules(): RouteModule[] {
-  const disabledRouteModuleIds = getDisabledRouteModuleIds();
+export function filterRouteModules(
+  modules: RouteModule[],
+  disabledIds: Set<RouteModuleId>,
+  features: Record<string, { enabled: boolean }>,
+): RouteModule[] {
+  return modules.filter((module) => {
+    if (disabledIds.has(module.id)) return false;
+    if (module.featureId && features[module.featureId]?.enabled === false) return false;
+    return true;
+  });
+}
 
-  return routeModuleRegistry.filter(
-    (routeModule) => !disabledRouteModuleIds.has(routeModule.id),
+export function getEnabledRouteModules(): RouteModule[] {
+  return filterRouteModules(
+    routeModuleRegistry,
+    getDisabledRouteModuleIds(),
+    environment.getFeaturesConfig(),
   );
 }
 
 export function logRouteComposition(): void {
-  const disabledRouteModuleIds = Array.from(getDisabledRouteModuleIds());
+  const enabledModuleIds = new Set(
+    getEnabledRouteModules().map((m) => m.id),
+  );
   const mountedRouteModuleIds = routeModuleRegistry
-    .map((routeModule) => routeModule.id)
-    .filter((routeModuleId) => !disabledRouteModuleIds.includes(routeModuleId));
+    .map((m) => m.id)
+    .filter((id) => enabledModuleIds.has(id));
+  const skippedRouteModuleIds = routeModuleRegistry
+    .map((m) => m.id)
+    .filter((id) => !enabledModuleIds.has(id));
 
   routesLogger.info("Route modules composed.", {
     apiRoutePrefix: getApiRoutePrefix(),
-    disabledRouteModules: disabledRouteModuleIds,
+    skippedRouteModules: skippedRouteModuleIds,
     mountedRouteModules: mountedRouteModuleIds,
   });
 }

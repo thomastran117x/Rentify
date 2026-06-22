@@ -169,6 +169,18 @@ function readRouteModulesConfig() {
   };
 }
 
+function readFeaturesConfig() {
+  const features: Record<string, { enabled: boolean }> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    const match = key.match(/^FEATURE_(.+)_ENABLED$/);
+    if (match) {
+      const featureId = match[1].toLowerCase().replace(/_/g, "-");
+      features[featureId] = { enabled: readBoolean(value, false) };
+    }
+  }
+  return features;
+}
+
 export const environment = {
   isProduction(): boolean {
     return readNodeEnvironment() === "production";
@@ -221,6 +233,9 @@ export const environment = {
   getRouteModulesConfig() {
     return readRouteModulesConfig();
   },
+  getFeaturesConfig() {
+    return readFeaturesConfig();
+  },
   load() {
     return {
       auth: tokenConfig,
@@ -231,6 +246,7 @@ export const environment = {
       sms: smsConfig,
       oauth: oauthConfig,
       routeModules: readRouteModulesConfig(),
+      features: readFeaturesConfig(),
       rabbitmq: readRabbitMqConfig(),
       rateLimiter: rateLimiterConfig,
       server: {
