@@ -146,4 +146,86 @@ describe("SmsService", () => {
       message: "SMS webhook payload is invalid.",
     });
   });
+
+  it("logs a warning and succeeds for delivery_failed webhook events", async () => {
+    const event = {
+      ...createParsedWebhookEvent(),
+      deliveryStatus: "delivery_failed",
+      errors: [{ code: "30007" }],
+    };
+    const service = new SmsService(
+      {} as never,
+      {
+        verifyWebhookSignature: jest.fn(() => ({
+          isValid: true,
+          eventId: event.eventId,
+          eventType: event.eventType,
+          payload: event.payload,
+        })),
+        parseWebhookEvent: jest.fn(() => event),
+      } as never,
+    );
+
+    await expect(
+      service.processWebhook("{}", {
+        signatureEd25519: "good-signature",
+        timestamp: String(Math.floor(Date.now() / 1000)),
+      }),
+    ).resolves.toMatchObject({ deliveryStatus: "delivery_failed" });
+  });
+
+  it("logs a warning and succeeds for sending_failed webhook events", async () => {
+    const event = {
+      ...createParsedWebhookEvent(),
+      deliveryStatus: "sending_failed",
+      errors: [],
+    };
+    const service = new SmsService(
+      {} as never,
+      {
+        verifyWebhookSignature: jest.fn(() => ({
+          isValid: true,
+          eventId: event.eventId,
+          eventType: event.eventType,
+          payload: event.payload,
+        })),
+        parseWebhookEvent: jest.fn(() => event),
+      } as never,
+    );
+
+    await expect(
+      service.processWebhook("{}", {
+        signatureEd25519: "good-signature",
+        timestamp: String(Math.floor(Date.now() / 1000)),
+      }),
+    ).resolves.toMatchObject({ deliveryStatus: "sending_failed" });
+  });
+
+  it("logs a warning and succeeds for unsupported event types", async () => {
+    const event = {
+      ...createParsedWebhookEvent(),
+      eventType: "unsupported" as const,
+      deliveryStatus: "queued",
+      errors: [],
+    };
+    const service = new SmsService(
+      {} as never,
+      {
+        verifyWebhookSignature: jest.fn(() => ({
+          isValid: true,
+          eventId: event.eventId,
+          eventType: event.eventType,
+          payload: event.payload,
+        })),
+        parseWebhookEvent: jest.fn(() => event),
+      } as never,
+    );
+
+    await expect(
+      service.processWebhook("{}", {
+        signatureEd25519: "good-signature",
+        timestamp: String(Math.floor(Date.now() / 1000)),
+      }),
+    ).resolves.toMatchObject({ eventType: "unsupported" });
+  });
 });
