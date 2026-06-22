@@ -4583,6 +4583,62 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "post",
+      path: "/sms/webhooks/telnyx",
+      operationId: "handleTelnyxSmsWebhook",
+      summary: "Handle a Telnyx SMS webhook",
+      description:
+        "Processes a Telnyx messaging webhook. The `telnyx-signature-ed25519` and `telnyx-timestamp` headers are required and verified against the raw request body.",
+      tags: ["sms"],
+      security: [{ telnyxWebhookSignature: [], telnyxWebhookTimestamp: [] }],
+      permissions: {
+        authMode: "webhook-signature",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      requestBody: {
+        required: true,
+        description: "Telnyx messaging webhook payload.",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              additionalProperties: true,
+            },
+            example: {
+              data: {
+                id: "event-1",
+                event_type: "message.sent",
+                occurred_at: "2026-06-21T12:00:00.000Z",
+                payload: {
+                  id: "telnyx-message-1",
+                  direction: "outbound",
+                  from: {
+                    phone_number: "+14165550199",
+                  },
+                  to: [
+                    {
+                      phone_number: "+14165550100",
+                      status: "queued",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "SMS webhook processed successfully.",
+          "ActionOkResult",
+          actionOkExample,
+        ),
+        ...commonErrors([400, 403, 429, 500]),
+      },
+    },
+    {
       method: "get",
       path: "/payments/:id",
       operationId: "getPaymentById",
@@ -5107,6 +5163,16 @@ function buildComponents(): Record<string, unknown> {
         type: "apiKey",
         in: "header",
         name: "x-square-hmacsha256-signature",
+      },
+      telnyxWebhookSignature: {
+        type: "apiKey",
+        in: "header",
+        name: "telnyx-signature-ed25519",
+      },
+      telnyxWebhookTimestamp: {
+        type: "apiKey",
+        in: "header",
+        name: "telnyx-timestamp",
       },
     },
     responses: {
@@ -6551,6 +6617,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         "- Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.",
         "- Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.",
         "- `POST /payments/webhooks/square` uses the `x-square-hmacsha256-signature` header instead of bearer authentication.",
+        "- `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.",
       ].join("\n"),
     },
     servers: [
@@ -6601,6 +6668,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "payments",
         description:
           "Payment sessions, refunds, payouts, and provider webhooks.",
+      },
+      {
+        name: "sms",
+        description:
+          "Outbound SMS delivery infrastructure and provider webhook ingestion.",
       },
       {
         name: "rentings",

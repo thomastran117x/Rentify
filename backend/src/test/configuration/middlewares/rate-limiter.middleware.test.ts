@@ -96,6 +96,7 @@ function createApp(
   app.post("/payments/webhooks/square", (context) =>
     context.json({ ok: true }),
   );
+  app.post("/sms/webhooks/telnyx", (context) => context.json({ ok: true }));
   app.post("/postings", (context) => context.json({ ok: true }));
 
   return { app, cacheEval, verifyAccessToken, requestLogger };

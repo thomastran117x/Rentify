@@ -2,6 +2,7 @@ import type { RootServiceContainer } from "@/configuration/container/core";
 
 export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "shared",
+  "sms",
   "security",
   "blob",
   "profile",

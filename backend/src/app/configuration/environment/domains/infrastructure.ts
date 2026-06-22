@@ -7,6 +7,7 @@ import type {
   AppEnvironment,
   NodeEnvironment,
   RawEnvironmentValues,
+  SmsProvider,
 } from "@/configuration/environment/types";
 
 export function validateInfrastructureConfig(
@@ -202,5 +203,46 @@ export function buildSquareConfig(
       squareEnvironment === "production"
         ? "https://connect.squareup.com"
         : "https://connect.squareupsandbox.com",
+  };
+}
+
+export function buildSmsConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["sms"] {
+  const providerValue = raw.SMS_PROVIDER?.toLowerCase();
+  let provider: SmsProvider = "noop";
+
+  if (providerValue === undefined || providerValue === "noop") {
+    provider = "noop";
+  } else if (providerValue === "telnyx") {
+    provider = "telnyx";
+  } else {
+    errors.push("SMS_PROVIDER must be either noop or telnyx.");
+  }
+
+  if (provider === "telnyx") {
+    if (!raw.SMS_FROM_NUMBER) {
+      errors.push("SMS_FROM_NUMBER is required when SMS_PROVIDER is telnyx.");
+    }
+
+    if (!raw.TELNYX_API_KEY) {
+      errors.push("TELNYX_API_KEY is required when SMS_PROVIDER is telnyx.");
+    }
+
+    if (!raw.TELNYX_PUBLIC_KEY) {
+      errors.push("TELNYX_PUBLIC_KEY is required when SMS_PROVIDER is telnyx.");
+    }
+  }
+
+  return {
+    provider,
+    fromNumber: raw.SMS_FROM_NUMBER,
+    webhookPublicUrl: raw.SMS_WEBHOOK_PUBLIC_URL,
+    telnyx: {
+      apiKey: raw.TELNYX_API_KEY,
+      publicKey: raw.TELNYX_PUBLIC_KEY,
+      messagingProfileId: raw.TELNYX_MESSAGING_PROFILE_ID,
+    },
   };
 }

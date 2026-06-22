@@ -50,6 +50,17 @@ const squareConfig = {
   apiBaseUrl: "https://connect.squareupsandbox.com",
 };
 
+const smsConfig = {
+  provider: "noop" as const,
+  fromNumber: undefined,
+  webhookPublicUrl: undefined,
+  telnyx: {
+    apiKey: undefined,
+    publicKey: undefined,
+    messagingProfileId: undefined,
+  },
+};
+
 function readBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value == null) {
     return fallback;
@@ -180,8 +191,17 @@ export const environment = {
   getTokenConfig() {
     return tokenConfig;
   },
+  getSmsConfig() {
+    return smsConfig;
+  },
   getCaptchaConfig() {
     return captchaConfig;
+  },
+  getSmsWorkerConfig() {
+    return {
+      prefetch: 10,
+      maxAttempts: 8,
+    };
   },
   getRateLimiterConfig() {
     return rateLimiterConfig;
@@ -208,6 +228,7 @@ export const environment = {
       database: readDatabaseConfig(),
       elasticsearch: elasticsearchConfig,
       logging: readLoggingConfig(),
+      sms: smsConfig,
       oauth: oauthConfig,
       routeModules: readRouteModulesConfig(),
       rabbitmq: readRabbitMqConfig(),

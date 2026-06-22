@@ -68,6 +68,11 @@ import { RentingsService } from "@/features/rentings/rentings.service";
 import { SearchController } from "@/features/search/search.controller";
 import { SearchQueueService } from "@/features/search/search.queue.service";
 import { SearchService } from "@/features/search/search.service";
+import { SmsController } from "@/features/sms/sms.controller";
+import { SmsDeliveryService } from "@/features/sms/sms.delivery.service";
+import type { SmsProviderAdapter } from "@/features/sms/sms-provider";
+import { SmsQueueService } from "@/features/sms/sms.queue.service";
+import { SmsService } from "@/features/sms/sms.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { createServiceToken } from "@/configuration/container/core";
 import type { LoggerFactory } from "@/configuration/logging";
@@ -80,6 +85,12 @@ export const containerTokens = {
     "EmailDeliveryService",
   ),
   emailService: createServiceToken<EmailService>("EmailService"),
+  smsQueueService: createServiceToken<SmsQueueService>("SmsQueueService"),
+  smsDeliveryService:
+    createServiceToken<SmsDeliveryService>("SmsDeliveryService"),
+  smsProvider: createServiceToken<SmsProviderAdapter>("SmsProvider"),
+  smsService: createServiceToken<SmsService>("SmsService"),
+  smsController: createServiceToken<SmsController>("SmsController"),
   feedbacksRepository: createServiceToken<FeedbacksRepository>(
     "FeedbacksRepository",
   ),

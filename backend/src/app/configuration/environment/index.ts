@@ -20,4 +20,5 @@ export type {
   RateLimiterStrategy,
   RawEnvironmentValues,
   RefreshTokenMode,
+  SmsProvider,
 } from "@/configuration/environment/types";

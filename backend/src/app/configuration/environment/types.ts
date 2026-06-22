@@ -4,6 +4,7 @@ export type NodeEnvironment = "development" | "test" | "production";
 export type RefreshTokenMode = "stateless" | "stateful";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
+export type SmsProvider = "noop" | "telnyx";
 
 export type RawEnvironmentValues = {
   ACCESS_TOKEN_SECRET?: string;
@@ -38,6 +39,11 @@ export type RawEnvironmentValues = {
   EMAIL_MAX_ATTEMPTS?: string;
   EMAIL_FROM?: string;
   EMAIL_FROM_NAME?: string;
+  SMS_FROM_NUMBER?: string;
+  SMS_MAX_ATTEMPTS?: string;
+  SMS_PROVIDER?: string;
+  SMS_WEBHOOK_PUBLIC_URL?: string;
+  SMS_WORKER_PREFETCH?: string;
   FRONTEND_URL?: string;
   GMAIL_APP_PASSWORD?: string;
   GMAIL_USER?: string;
@@ -110,6 +116,9 @@ export type RawEnvironmentValues = {
   SQUARE_LOCATION_ID?: string;
   SQUARE_WEBHOOK_NOTIFICATION_URL?: string;
   SQUARE_WEBHOOK_SIGNATURE_KEY?: string;
+  TELNYX_API_KEY?: string;
+  TELNYX_MESSAGING_PROFILE_ID?: string;
+  TELNYX_PUBLIC_KEY?: string;
   TOKEN_AUDIENCE?: string;
   TOKEN_ISSUER?: string;
   TRUST_PROXY_HEADERS?: string;
@@ -151,6 +160,16 @@ export interface AppEnvironment {
     fromEmail: string;
     fromName: string;
     appBaseUrl: string;
+  };
+  sms: {
+    provider: SmsProvider;
+    fromNumber?: string;
+    webhookPublicUrl?: string;
+    telnyx: {
+      apiKey?: string;
+      publicKey?: string;
+      messagingProfileId?: string;
+    };
   };
   captcha: {
     secretKey?: string;
@@ -217,6 +236,10 @@ export interface AppEnvironment {
       batchSize: number;
     };
     email: {
+      prefetch: number;
+      maxAttempts: number;
+    };
+    sms: {
       prefetch: number;
       maxAttempts: number;
     };

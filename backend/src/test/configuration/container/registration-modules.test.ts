@@ -1,11 +1,17 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { postingsThumbnailRegistrationModule } from "@/configuration/container/registrations/modules/postings-thumbnail";
+import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
 import { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
 import { PostingThumbnailService } from "@/features/postings/thumbnail/thumbnail.service";
+import { NoopSmsAdapter } from "@/features/sms/noop.adapter";
+import { SmsController } from "@/features/sms/sms.controller";
+import { SmsDeliveryService } from "@/features/sms/sms.delivery.service";
+import { SmsQueueService } from "@/features/sms/sms.queue.service";
+import { SmsService } from "@/features/sms/sms.service";
 
 jest.mock("@/configuration/resources/database", () => ({
   getDatabaseClient: () => ({}),
@@ -103,5 +109,56 @@ describe("targeted container registration modules", () => {
 
     expect(queueService).toBeInstanceOf(PostingThumbnailQueueService);
     expect(thumbnailService).toBeInstanceOf(PostingThumbnailService);
+  });
+
+  it("registers and resolves the SMS service graph using the noop provider", () => {
+    const registrations: Array<{
+      token: unknown;
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    smsRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as never);
+
+    const find = (token: unknown) => {
+      const reg = registrations.find((r) => r.token === token);
+      expect(reg).toBeDefined();
+      return reg!;
+    };
+
+    const queueService = find(containerTokens.smsQueueService).resolve({
+      resolve: jest.fn(),
+    });
+    const provider = find(containerTokens.smsProvider).resolve({
+      resolve: jest.fn(),
+    });
+    const deliveryService = find(containerTokens.smsDeliveryService).resolve({
+      resolve: (token) => {
+        expect(token).toBe(containerTokens.smsProvider);
+        return provider;
+      },
+    });
+    const smsService = find(containerTokens.smsService).resolve({
+      resolve: (token) => {
+        if (token === containerTokens.smsQueueService) return queueService;
+        if (token === containerTokens.smsProvider) return provider;
+        throw new Error(`Unexpected token: ${String(token)}`);
+      },
+    });
+    const controller = find(containerTokens.smsController).resolve({
+      resolve: (token) => {
+        expect(token).toBe(containerTokens.smsService);
+        return smsService;
+      },
+    });
+
+    expect(queueService).toBeInstanceOf(SmsQueueService);
+    expect(provider).toBeInstanceOf(NoopSmsAdapter);
+    expect(deliveryService).toBeInstanceOf(SmsDeliveryService);
+    expect(smsService).toBeInstanceOf(SmsService);
+    expect(controller).toBeInstanceOf(SmsController);
   });
 });
