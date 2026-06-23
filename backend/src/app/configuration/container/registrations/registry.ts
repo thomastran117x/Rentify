@@ -2,6 +2,7 @@ import { authCoreRegistrationModule } from "@/configuration/container/registrati
 import { authDeviceRegistrationModule } from "@/configuration/container/registrations/modules/auth-device";
 import { authOauthRegistrationModule } from "@/configuration/container/registrations/modules/auth-oauth";
 import { authOtpRegistrationModule } from "@/configuration/container/registrations/modules/auth-otp";
+import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { bookingsRegistrationModule } from "@/configuration/container/registrations/modules/bookings";
@@ -40,6 +41,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   feedbacksRegistrationModule,
   authCoreRegistrationModule,
   authOtpRegistrationModule,
+  authMfaTotpRegistrationModule,
   authOauthRegistrationModule,
   authDeviceRegistrationModule,
   authPersonalAccessTokensRegistrationModule,

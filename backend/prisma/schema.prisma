@@ -39,6 +39,7 @@ model User {
   organizationMemberships OrganizationMembership[]
   organizationInvitationsSent OrganizationInvitation[] @relation("OrganizationInvitationInviter")
   acceptedOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationAccepter")
+  mfaTotp                UserMfaTotp?
 
   @@map("users")
 }
@@ -104,6 +105,22 @@ model OrganizationInvitation {
   @@index([email, status, expiresAt])
   @@index([invitedByUserId, createdAt])
   @@map("organization_invitations")
+}
+
+model UserMfaTotp {
+  id              String            @id @db.VarChar(36)
+  userId          String            @unique @map("user_id") @db.VarChar(36)
+  secretEncrypted String            @map("secret_encrypted") @db.Text
+  status          UserMfaTotpStatus @default(pending)
+  expiresAt       DateTime?         @map("expires_at") @db.DateTime(6)
+  lastUsedCounter BigInt?           @map("last_used_counter")
+  confirmedAt     DateTime?         @map("confirmed_at") @db.DateTime(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("user_mfa_totp")
 }
 
 model PersonalAccessToken {
@@ -1100,5 +1117,10 @@ enum PaymentLedgerEntryType {
   refund_issued
   payout_scheduled
   payout_released
+}
+
+enum UserMfaTotpStatus {
+  pending
+  active
 }
 
