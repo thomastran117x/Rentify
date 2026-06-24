@@ -27,6 +27,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "payments",
   "bookings",
   "rentings",
+  "feature-flags",
 ] as const;
 
 export type ContainerRegistrationModuleId =

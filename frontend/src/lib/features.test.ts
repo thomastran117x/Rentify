@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { flag, isFeatureAccessible, type FeatureFlag } from "./features";
+import {
+  flag,
+  isFeatureAccessible,
+  normalizeFeatureName,
+  type FeatureFlag,
+} from "./features";
+
+describe("normalizeFeatureName", () => {
+  it("strips FEATURE_ prefix and _ENABLED suffix", () => {
+    expect(normalizeFeatureName("FEATURE_TEST_FLAG_ENABLED")).toBe("test-flag");
+  });
+
+  it("lowercases and replaces underscores with hyphens", () => {
+    expect(normalizeFeatureName("test_flag")).toBe("test-flag");
+  });
+
+  it("passes through canonical kebab-case unchanged", () => {
+    expect(normalizeFeatureName("test-flag")).toBe("test-flag");
+  });
+
+  it("is case-insensitive for the FEATURE_ prefix and _ENABLED suffix", () => {
+    expect(normalizeFeatureName("feature_search_v2_enabled")).toBe("search-v2");
+  });
+});
 
 describe("flag", () => {
   it("is disabled when the env var is absent or empty", () => {

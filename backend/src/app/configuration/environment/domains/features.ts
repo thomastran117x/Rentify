@@ -13,6 +13,18 @@ import type { AppEnvironment } from "@/configuration/environment/types";
 // No changes to RawEnvironmentValues or RAW_ENVIRONMENT_VARIABLE_NAMES are needed
 // when adding a new feature flag — just set the env var and tag the RouteModule.
 
+// Converts any flag name form to canonical kebab-case:
+// "FEATURE_TEST_FLAG_ENABLED" → "test-flag"
+// "test_flag"                 → "test-flag"
+// "test-flag"                 → "test-flag"
+export function normalizeFeatureName(raw: string): string {
+  return raw
+    .replace(/^FEATURE_/i, "")
+    .replace(/_ENABLED$/i, "")
+    .toLowerCase()
+    .replace(/_/g, "-");
+}
+
 export function buildFeaturesConfig(
   source: NodeJS.ProcessEnv,
 ): AppEnvironment["features"] {
@@ -21,7 +33,7 @@ export function buildFeaturesConfig(
   for (const [key, value] of Object.entries(source)) {
     const match = key.match(/^FEATURE_(.+)_ENABLED$/);
     if (match) {
-      const featureId = match[1].toLowerCase().replace(/_/g, "-");
+      const featureId = normalizeFeatureName(key);
       features[featureId] = { enabled: parseBoolean(value, false) };
     }
   }
