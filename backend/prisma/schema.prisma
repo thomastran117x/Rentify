@@ -729,11 +729,13 @@ model FeatureFlag {
   name            String   @unique @db.VarChar(255)
   enabled         Boolean  @default(false)
   description     String?  @db.Text
+  group           String?  @map("group") @db.VarChar(100)
   createdByUserId String?  @map("created_by_user_id") @db.VarChar(36)
   updatedByUserId String?  @map("updated_by_user_id") @db.VarChar(36)
   createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(6)
 
+  @@index([group])
   @@map("feature_flags")
 }
 
@@ -745,6 +747,8 @@ model FeatureFlagAuditLog {
   newEnabled     Boolean? @map("new_enabled")
   oldDescription String?  @map("old_description") @db.Text
   newDescription String?  @map("new_description") @db.Text
+  oldGroup       String?  @map("old_group") @db.VarChar(100)
+  newGroup       String?  @map("new_group") @db.VarChar(100)
   actorUserId    String?  @map("actor_user_id") @db.VarChar(36)
   createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(6)
 

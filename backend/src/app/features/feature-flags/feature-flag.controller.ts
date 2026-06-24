@@ -6,7 +6,10 @@ import { parseRequestBody } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import { requireMinimumRole } from "@/features/auth/authorization";
 import type { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
-import { setFlagBodySchema } from "@/features/feature-flags/feature-flag.model";
+import {
+  type ListFlagsFilter,
+  setFlagBodySchema,
+} from "@/features/feature-flags/feature-flag.model";
 
 export class FeatureFlagController {
   constructor(private readonly featureFlagService: FeatureFlagService) {}
@@ -15,7 +18,18 @@ export class FeatureFlagController {
     const auth = await requireJwtAuth(context);
     requireMinimumRole(auth, "admin");
 
-    const flags = await this.featureFlagService.listAll();
+    const filter: ListFlagsFilter = {};
+    const enabledParam = context.req.query("enabled");
+    if (enabledParam === "true") filter.enabled = true;
+    else if (enabledParam === "false") filter.enabled = false;
+
+    const search = context.req.query("search")?.trim();
+    if (search) filter.search = search;
+
+    const group = context.req.query("group")?.trim();
+    if (group) filter.group = group;
+
+    const flags = await this.featureFlagService.listAll(filter);
     return ok(context, flags);
   };
 
@@ -30,6 +44,7 @@ export class FeatureFlagController {
       name,
       enabled: body.enabled,
       description: body.description,
+      group: body.group,
       actorUserId: auth.sub,
     });
 

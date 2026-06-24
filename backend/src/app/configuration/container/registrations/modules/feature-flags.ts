@@ -1,6 +1,7 @@
 import { environment } from "@/configuration/environment";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-cache.service";
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
 import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
@@ -15,6 +16,14 @@ export const featureFlagsRegistrationModule: ContainerRegistrationModule = {
       resolve: () => new FeatureFlagRepository(),
     });
 
+    container.register({
+      token: containerTokens.featureFlagCacheService,
+      lifetime: "singleton",
+      dependencies: [containerTokens.cacheService],
+      resolve: ({ resolve }) =>
+        new FeatureFlagCacheService(resolve(containerTokens.cacheService)),
+    });
+
     const envFeatures = environment.getFeaturesConfig();
 
     container.register({
@@ -22,12 +31,12 @@ export const featureFlagsRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [
         containerTokens.featureFlagRepository,
-        containerTokens.cacheService,
+        containerTokens.featureFlagCacheService,
       ],
       resolve: ({ resolve }) =>
         new FeatureFlagService(
           resolve(containerTokens.featureFlagRepository),
-          resolve(containerTokens.cacheService),
+          resolve(containerTokens.featureFlagCacheService),
           envFeatures,
         ),
     });

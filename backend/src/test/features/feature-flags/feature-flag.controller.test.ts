@@ -10,7 +10,9 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
 }));
 
-function createAuth(overrides: Partial<JwtAuthPrincipal> = {}): JwtAuthPrincipal {
+function createAuth(
+  overrides: Partial<JwtAuthPrincipal> = {},
+): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
     sub: "admin-1",
@@ -24,14 +26,18 @@ function createAuth(overrides: Partial<JwtAuthPrincipal> = {}): JwtAuthPrincipal
   };
 }
 
-function createContext(options: {
-  body?: unknown;
-  params?: Record<string, string>;
-} = {}) {
+function createContext(
+  options: {
+    body?: unknown;
+    params?: Record<string, string>;
+    query?: Record<string, string>;
+  } = {},
+) {
   const context = {
     req: {
       json: async () => options.body ?? {},
       param: (name: string) => options.params?.[name],
+      query: (name: string) => options.query?.[name],
     },
     get: (key: string) => {
       if (key === "requestId") return "request-1";
@@ -69,6 +75,59 @@ describe("FeatureFlagController", () => {
 
       expect(response.status).toBe(200);
       expect(body.data).toEqual([flag("test-flag", true)]);
+    });
+
+    it("passes enabled=true filter from query param", async () => {
+      const listAll = jest.fn(async () => []);
+      const controller = new FeatureFlagController({ listAll } as never);
+
+      await controller.list(createContext({ query: { enabled: "true" } }));
+
+      expect(listAll).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: true }),
+      );
+    });
+
+    it("passes enabled=false filter from query param", async () => {
+      const listAll = jest.fn(async () => []);
+      const controller = new FeatureFlagController({ listAll } as never);
+
+      await controller.list(createContext({ query: { enabled: "false" } }));
+
+      expect(listAll).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false }),
+      );
+    });
+
+    it("passes search filter from query param", async () => {
+      const listAll = jest.fn(async () => []);
+      const controller = new FeatureFlagController({ listAll } as never);
+
+      await controller.list(createContext({ query: { search: "payments" } }));
+
+      expect(listAll).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "payments" }),
+      );
+    });
+
+    it("passes group filter from query param", async () => {
+      const listAll = jest.fn(async () => []);
+      const controller = new FeatureFlagController({ listAll } as never);
+
+      await controller.list(createContext({ query: { group: "payments" } }));
+
+      expect(listAll).toHaveBeenCalledWith(
+        expect.objectContaining({ group: "payments" }),
+      );
+    });
+
+    it("passes no filter when no query params are set", async () => {
+      const listAll = jest.fn(async () => []);
+      const controller = new FeatureFlagController({ listAll } as never);
+
+      await controller.list(createContext());
+
+      expect(listAll).toHaveBeenCalledWith({});
     });
 
     it("rejects non-admin callers", async () => {
@@ -118,6 +177,22 @@ describe("FeatureFlagController", () => {
 
       expect(setFlag).toHaveBeenCalledWith(
         expect.objectContaining({ description: "my desc" }),
+      );
+    });
+
+    it("passes group when provided", async () => {
+      const setFlag = jest.fn(async () => flag("my-flag", true));
+      const controller = new FeatureFlagController({ setFlag } as never);
+
+      await controller.set(
+        createContext({
+          body: { enabled: true, group: "payments" },
+          params: { name: "my-flag" },
+        }),
+      );
+
+      expect(setFlag).toHaveBeenCalledWith(
+        expect.objectContaining({ group: "payments" }),
       );
     });
 

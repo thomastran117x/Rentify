@@ -26,6 +26,7 @@ export class FeatureFlagRepository extends BaseRepository {
     description?: string | null,
     createdByUserId?: string | null,
     updatedByUserId?: string | null,
+    group?: string | null,
   ): Promise<FeatureFlagRecord> {
     const row = await this.executeAsync(() =>
       this.prisma.featureFlag.upsert({
@@ -34,12 +35,14 @@ export class FeatureFlagRepository extends BaseRepository {
           name,
           enabled,
           description: description ?? null,
+          group: group ?? null,
           createdByUserId: createdByUserId ?? null,
           updatedByUserId: updatedByUserId ?? null,
         },
         update: {
           enabled,
           description: description ?? null,
+          group: group ?? null,
           updatedByUserId: updatedByUserId ?? null,
         },
       }),
@@ -63,6 +66,8 @@ export class FeatureFlagRepository extends BaseRepository {
           newEnabled: entry.newEnabled ?? null,
           oldDescription: entry.oldDescription ?? null,
           newDescription: entry.newDescription ?? null,
+          oldGroup: entry.oldGroup ?? null,
+          newGroup: entry.newGroup ?? null,
           actorUserId: entry.actorUserId ?? null,
         },
       }),
@@ -75,6 +80,7 @@ export class FeatureFlagRepository extends BaseRepository {
       name: row.name,
       enabled: row.enabled,
       description: row.description,
+      group: row.group,
       createdByUserId: row.createdByUserId,
       updatedByUserId: row.updatedByUserId,
       createdAt: row.createdAt.toISOString(),

@@ -6,6 +6,7 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
     name: "test-flag",
     enabled: true,
     description: null,
+    group: null,
     createdByUserId: null,
     updatedByUserId: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -14,13 +15,15 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createPrisma(overrides: Partial<{
-  featureFlagFindUnique: jest.Mock;
-  featureFlagFindMany: jest.Mock;
-  featureFlagUpsert: jest.Mock;
-  featureFlagDelete: jest.Mock;
-  featureFlagAuditLogCreate: jest.Mock;
-}> = {}) {
+function createPrisma(
+  overrides: Partial<{
+    featureFlagFindUnique: jest.Mock;
+    featureFlagFindMany: jest.Mock;
+    featureFlagUpsert: jest.Mock;
+    featureFlagDelete: jest.Mock;
+    featureFlagAuditLogCreate: jest.Mock;
+  }> = {},
+) {
   return {
     featureFlag: {
       findUnique: overrides.featureFlagFindUnique ?? jest.fn(async () => null),
@@ -40,7 +43,12 @@ describe("FeatureFlagRepository", () => {
     it("returns a mapped record when the row exists", async () => {
       const prisma = createPrisma({
         featureFlagFindUnique: jest.fn(async () =>
-          makeDbRow({ name: "test-flag", enabled: true, description: "desc" }),
+          makeDbRow({
+            name: "test-flag",
+            enabled: true,
+            description: "desc",
+            group: "payments",
+          }),
         ),
       });
       const repo = new FeatureFlagRepository(prisma as never);
@@ -51,6 +59,7 @@ describe("FeatureFlagRepository", () => {
       expect(result!.name).toBe("test-flag");
       expect(result!.enabled).toBe(true);
       expect(result!.description).toBe("desc");
+      expect(result!.group).toBe("payments");
       expect(result!.createdAt).toBe("2026-01-01T00:00:00.000Z");
     });
 
@@ -159,6 +168,30 @@ describe("FeatureFlagRepository", () => {
         }),
       );
     });
+
+    it("persists the group field when provided", async () => {
+      const upsert = jest.fn(async () => makeDbRow({ group: "payments" }));
+      const repo = new FeatureFlagRepository(
+        createPrisma({ featureFlagUpsert: upsert }) as never,
+      );
+
+      const result = await repo.upsert(
+        "my-flag",
+        true,
+        null,
+        null,
+        null,
+        "payments",
+      );
+
+      expect(upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ group: "payments" }),
+          update: expect.objectContaining({ group: "payments" }),
+        }),
+      );
+      expect(result.group).toBe("payments");
+    });
   });
 
   describe("deleteByName", () => {
@@ -217,8 +250,28 @@ describe("FeatureFlagRepository", () => {
           newEnabled: null,
           oldDescription: null,
           newDescription: null,
+          oldGroup: null,
+          newGroup: null,
           actorUserId: null,
         }),
+      });
+    });
+
+    it("persists oldGroup and newGroup in the audit log", async () => {
+      const create = jest.fn(async () => undefined);
+      const repo = new FeatureFlagRepository(
+        createPrisma({ featureFlagAuditLogCreate: create }) as never,
+      );
+
+      await repo.createAuditLog({
+        flagName: "test-flag",
+        action: "updated",
+        oldGroup: null,
+        newGroup: "payments",
+      });
+
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ oldGroup: null, newGroup: "payments" }),
       });
     });
   });

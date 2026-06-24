@@ -7,6 +7,7 @@ export interface ResolvedFeatureFlag {
   enabled: boolean;
   source: FeatureFlagSource;
   description?: string | null;
+  group: string | null;
 }
 
 export interface FeatureFlagRecord {
@@ -14,6 +15,7 @@ export interface FeatureFlagRecord {
   name: string;
   enabled: boolean;
   description: string | null;
+  group: string | null;
   createdByUserId: string | null;
   updatedByUserId: string | null;
   createdAt: string;
@@ -27,6 +29,8 @@ export interface CreateAuditLogInput {
   newEnabled?: boolean | null;
   oldDescription?: string | null;
   newDescription?: string | null;
+  oldGroup?: string | null;
+  newGroup?: string | null;
   actorUserId?: string | null;
 }
 
@@ -42,14 +46,22 @@ export const featureFlagNameSchema = z
 export const setFlagBodySchema = z.object({
   enabled: z.boolean(),
   description: z.string().max(1000).optional().nullable(),
+  group: z.string().min(1).max(100).optional().nullable(),
 });
 
 export type SetFlagBody = z.infer<typeof setFlagBodySchema>;
+
+export interface ListFlagsFilter {
+  enabled?: boolean;
+  search?: string;
+  group?: string;
+}
 
 export interface SetFlagInput {
   name: string;
   enabled: boolean;
   description?: string | null;
+  group?: string | null;
   actorUserId?: string;
 }
 

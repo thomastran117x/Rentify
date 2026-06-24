@@ -1,3 +1,4 @@
+import { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-cache.service";
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
 import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
@@ -254,6 +255,9 @@ export const containerTokens = {
     createServiceToken<PostingsController>("PostingsController"),
   featureFlagRepository: createServiceToken<FeatureFlagRepository>(
     "FeatureFlagRepository",
+  ),
+  featureFlagCacheService: createServiceToken<FeatureFlagCacheService>(
+    "FeatureFlagCacheService",
   ),
   featureFlagService:
     createServiceToken<FeatureFlagService>("FeatureFlagService"),

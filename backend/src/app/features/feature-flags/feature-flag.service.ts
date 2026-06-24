@@ -1,31 +1,21 @@
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { normalizeFeatureName } from "@/configuration/environment/domains/features";
-import type { CacheService } from "@/features/cache/cache.service";
+import type { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-cache.service";
 import type { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
 import type {
   DeleteFlagInput,
   DeleteFlagResult,
+  ListFlagsFilter,
   ResolvedFeatureFlag,
   SetFlagInput,
 } from "@/features/feature-flags/feature-flag.model";
 
-const REDIS_FLAG_KEY = (name: string) => `feature-flags:v1:${name}`;
-const REDIS_LIST_KEY = "feature-flags:v1:list";
-const REDIS_TTL_SECONDS = 60;
-const MEMORY_TTL_MS = 5_000;
-
-interface MemoryCacheEntry {
-  value: ResolvedFeatureFlag;
-  expiresAt: number;
-}
-
 export class FeatureFlagService {
   private readonly logger: Logger;
-  private readonly memoryCache = new Map<string, MemoryCacheEntry>();
 
   constructor(
     private readonly repository: FeatureFlagRepository,
-    private readonly cacheService: CacheService,
+    private readonly flagCache: FeatureFlagCacheService,
     private readonly envFeatures: Record<string, { enabled: boolean }>,
   ) {
     this.logger = loggerFactory.forClass("FeatureFlagService", "service");
@@ -39,44 +29,13 @@ export class FeatureFlagService {
   async resolveFlag(rawName: string): Promise<ResolvedFeatureFlag> {
     const name = normalizeFeatureName(rawName);
 
-    const memHit = this.memoryCache.get(name);
-    if (memHit && Date.now() < memHit.expiresAt) {
-      return memHit.value;
+    const cached = await this.flagCache.getFlag(name);
+    if (cached !== null) {
+      return cached;
     }
 
-    let resolved: ResolvedFeatureFlag | null = null;
-
-    try {
-      resolved = await this.cacheService.getJson<ResolvedFeatureFlag>(
-        REDIS_FLAG_KEY(name),
-      );
-    } catch (error) {
-      this.logger.warn(
-        "Feature flag Redis read failed, falling through to DB.",
-        { name },
-        error,
-      );
-    }
-
-    if (resolved === null) {
-      resolved = await this.resolveFromSource(name);
-
-      try {
-        await this.cacheService.setJson(
-          REDIS_FLAG_KEY(name),
-          resolved,
-          REDIS_TTL_SECONDS,
-        );
-      } catch {
-        // Redis down — continue without warming the cache
-      }
-    }
-
-    this.memoryCache.set(name, {
-      value: resolved,
-      expiresAt: Date.now() + MEMORY_TTL_MS,
-    });
-
+    const resolved = await this.resolveFromSource(name);
+    await this.flagCache.setFlag(name, resolved);
     return resolved;
   }
 
@@ -91,28 +50,10 @@ export class FeatureFlagService {
     return result;
   }
 
-  async listAll(): Promise<ResolvedFeatureFlag[]> {
-    let cached: ResolvedFeatureFlag[] | null = null;
-    try {
-      cached =
-        await this.cacheService.getJson<ResolvedFeatureFlag[]>(REDIS_LIST_KEY);
-    } catch {
-      // Redis down — proceed to DB
-    }
-
-    if (cached !== null) {
-      return cached;
-    }
-
-    const list = await this.buildMergedList();
-
-    try {
-      await this.cacheService.setJson(REDIS_LIST_KEY, list, REDIS_TTL_SECONDS);
-    } catch {
-      // Redis down — continue without caching
-    }
-
-    return list;
+  async listAll(filter?: ListFlagsFilter): Promise<ResolvedFeatureFlag[]> {
+    const cached = await this.flagCache.getList();
+    const full = cached ?? (await this.buildAndCacheList());
+    return this.applyFilter(full, filter);
   }
 
   async setFlag(input: SetFlagInput): Promise<ResolvedFeatureFlag> {
@@ -125,6 +66,7 @@ export class FeatureFlagService {
       input.description,
       existing === null ? input.actorUserId : undefined,
       input.actorUserId,
+      input.group,
     );
 
     await this.repository.createAuditLog({
@@ -134,16 +76,19 @@ export class FeatureFlagService {
       newEnabled: row.enabled,
       oldDescription: existing?.description ?? null,
       newDescription: row.description,
+      oldGroup: existing?.group ?? null,
+      newGroup: row.group,
       actorUserId: input.actorUserId,
     });
 
-    await this.invalidateCache(name);
+    await this.flagCache.invalidate(name);
 
     return {
       name,
       enabled: row.enabled,
       source: "db",
       description: row.description,
+      group: row.group,
     };
   }
 
@@ -161,10 +106,12 @@ export class FeatureFlagService {
         newEnabled: null,
         oldDescription: existing.description,
         newDescription: null,
+        oldGroup: existing.group,
+        newGroup: null,
         actorUserId: input.actorUserId,
       });
 
-      await this.invalidateCache(name);
+      await this.flagCache.invalidate(name);
     }
 
     const effective = await this.resolveFlag(name);
@@ -186,6 +133,7 @@ export class FeatureFlagService {
           enabled: row.enabled,
           source: "db",
           description: row.description,
+          group: row.group,
         };
       }
     } catch (error) {
@@ -203,10 +151,17 @@ export class FeatureFlagService {
         enabled: envEntry.enabled,
         source: "env",
         description: null,
+        group: null,
       };
     }
 
-    return { name, enabled: false, source: "default", description: null };
+    return {
+      name,
+      enabled: false,
+      source: "default",
+      description: null,
+      group: null,
+    };
   }
 
   private async safeDbFind(name: string) {
@@ -215,6 +170,40 @@ export class FeatureFlagService {
     } catch {
       return null;
     }
+  }
+
+  private applyFilter(
+    list: ResolvedFeatureFlag[],
+    filter?: ListFlagsFilter,
+  ): ResolvedFeatureFlag[] {
+    if (!filter) return list;
+
+    let result = list;
+
+    if (filter.enabled !== undefined) {
+      result = result.filter((f) => f.enabled === filter.enabled);
+    }
+
+    if (filter.search) {
+      const term = filter.search.toLowerCase().trim();
+      result = result.filter(
+        (f) =>
+          f.name.toLowerCase().includes(term) ||
+          (f.description?.toLowerCase().includes(term) ?? false),
+      );
+    }
+
+    if (filter.group !== undefined) {
+      result = result.filter((f) => f.group === filter.group);
+    }
+
+    return result;
+  }
+
+  private async buildAndCacheList(): Promise<ResolvedFeatureFlag[]> {
+    const list = await this.buildMergedList();
+    await this.flagCache.setList(list);
+    return list;
   }
 
   private async buildMergedList(): Promise<ResolvedFeatureFlag[]> {
@@ -233,6 +222,7 @@ export class FeatureFlagService {
           enabled: r.enabled,
           source: "db" as const,
           description: r.description,
+          group: r.group,
         },
       ]),
     );
@@ -244,23 +234,18 @@ export class FeatureFlagService {
         enabled,
         source: "env" as const,
         description: null,
+        group: null,
       }));
 
-    return [...dbMap.values(), ...envEntries].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }
-
-  private async invalidateCache(name: string): Promise<void> {
-    this.memoryCache.delete(name);
-
-    try {
-      await Promise.all([
-        this.cacheService.delete(REDIS_FLAG_KEY(name)),
-        this.cacheService.delete(REDIS_LIST_KEY),
-      ]);
-    } catch {
-      // Redis down — process-memory was already cleared; 5s TTL bounds any staleness
-    }
+    return [...dbMap.values(), ...envEntries].sort((a, b) => {
+      const ga = a.group;
+      const gb = b.group;
+      if (ga !== gb) {
+        if (ga === null) return 1;
+        if (gb === null) return -1;
+        return ga.localeCompare(gb);
+      }
+      return a.name.localeCompare(b.name);
+    });
   }
 }
