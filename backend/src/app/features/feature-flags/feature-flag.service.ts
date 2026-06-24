@@ -52,8 +52,9 @@ export class FeatureFlagService {
       );
     } catch (error) {
       this.logger.warn(
-        { name, error },
         "Feature flag Redis read failed, falling through to DB.",
+        { name },
+        error,
       );
     }
 
@@ -189,8 +190,9 @@ export class FeatureFlagService {
       }
     } catch (error) {
       this.logger.error(
-        { name, error },
         "Feature flag DB read failed, falling back to env/default.",
+        { name },
+        error,
       );
     }
 
@@ -220,7 +222,7 @@ export class FeatureFlagService {
     try {
       dbRows = await this.repository.listAll();
     } catch (error) {
-      this.logger.error({ error }, "Feature flag DB listAll failed.");
+      this.logger.error("Feature flag DB listAll failed.", undefined, error);
     }
 
     const dbMap = new Map(

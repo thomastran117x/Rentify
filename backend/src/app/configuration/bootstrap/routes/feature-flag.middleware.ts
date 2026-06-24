@@ -21,10 +21,10 @@ export function createFeatureFlagMiddleware(
     const enabled = await service.isEnabled(featureId);
 
     if (!enabled) {
-      logger.info(
-        { featureId, path: context.req.path },
-        "Feature-gated route blocked.",
-      );
+      logger.info("Feature-gated route blocked.", {
+        featureId,
+        path: context.req.path,
+      });
       throw new ResourceNotFoundError("Not found.");
     }
 

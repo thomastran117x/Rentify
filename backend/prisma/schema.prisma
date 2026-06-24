@@ -733,7 +733,6 @@ model FeatureFlag {
   updatedByUserId String?  @map("updated_by_user_id") @db.VarChar(36)
   createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(6)
-  auditLogs       FeatureFlagAuditLog[]
 
   @@map("feature_flags")
 }
@@ -748,7 +747,6 @@ model FeatureFlagAuditLog {
   newDescription String?  @map("new_description") @db.Text
   actorUserId    String?  @map("actor_user_id") @db.VarChar(36)
   createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  featureFlag    FeatureFlag? @relation(fields: [flagName], references: [name], onDelete: SetNull)
 
   @@index([flagName, createdAt])
   @@index([actorUserId, createdAt])
