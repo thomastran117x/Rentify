@@ -1,7 +1,10 @@
+import { Hono } from "hono";
 import { loggerFactory } from "@/configuration/logging";
 import { environment } from "@/configuration/environment";
 import { resolveHandler } from "@/configuration/bootstrap/routes/helpers";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
+import { createFeatureFlagMiddleware } from "@/configuration/bootstrap/routes/feature-flag.middleware";
+import type { AppBindings } from "@/configuration/http/bindings";
 import {
   authDevicesRouteModule,
   authLocalRouteModule,
@@ -32,6 +35,7 @@ import {
 } from "@/configuration/bootstrap/routes/modules/reports.routes";
 import { rentingsRouteModule } from "@/configuration/bootstrap/routes/modules/rentings.routes";
 import { systemRouteModule } from "@/configuration/bootstrap/routes/modules/system.routes";
+import { adminFeatureFlagsRouteModule } from "@/configuration/bootstrap/routes/modules/admin-feature-flags.routes";
 import type {
   RouteModule,
   RouteModuleHelpers,
@@ -63,6 +67,7 @@ export const routeModuleRegistry: RouteModule[] = [
   paymentsRouteModule,
   rentingsRouteModule,
   postingsPublicRouteModule,
+  adminFeatureFlagsRouteModule,
 ];
 
 const routeModuleHelpers: RouteModuleHelpers = {
@@ -76,41 +81,31 @@ export function getDisabledRouteModuleIds(): Set<RouteModuleId> {
 export function filterRouteModules(
   modules: RouteModule[],
   disabledIds: Set<RouteModuleId>,
-  features: Record<string, { enabled: boolean }>,
 ): RouteModule[] {
   return modules.filter((module) => {
     if (disabledIds.has(module.id)) return false;
-    if (module.featureId && features[module.featureId]?.enabled !== true)
-      return false;
     return true;
   });
 }
 
 export function getEnabledRouteModules(): RouteModule[] {
-  return filterRouteModules(
-    routeModuleRegistry,
-    getDisabledRouteModuleIds(),
-    environment.getFeaturesConfig(),
-  );
+  return filterRouteModules(routeModuleRegistry, getDisabledRouteModuleIds());
 }
 
 export function logRouteComposition(): void {
   const disabledIds = getDisabledRouteModuleIds();
-  const features = environment.getFeaturesConfig();
 
   const mountedRouteModuleIds: RouteModuleId[] = [];
   const disabledRouteModuleIds: RouteModuleId[] = [];
-  const featureGatedRouteModuleIds: RouteModuleId[] = [];
+  const dynamicFeatureGatedRouteModuleIds: RouteModuleId[] = [];
 
   for (const module of routeModuleRegistry) {
     if (disabledIds.has(module.id)) {
       disabledRouteModuleIds.push(module.id);
-    } else if (
-      module.featureId &&
-      features[module.featureId]?.enabled !== true
-    ) {
-      featureGatedRouteModuleIds.push(module.id);
     } else {
+      if (module.featureId) {
+        dynamicFeatureGatedRouteModuleIds.push(module.id);
+      }
       mountedRouteModuleIds.push(module.id);
     }
   }
@@ -118,14 +113,22 @@ export function logRouteComposition(): void {
   routesLogger.info("Route modules composed.", {
     apiRoutePrefix: getApiRoutePrefix(),
     disabledRouteModules: disabledRouteModuleIds,
-    featureGatedRouteModules: featureGatedRouteModuleIds,
+    dynamicFeatureGatedRouteModules: dynamicFeatureGatedRouteModuleIds,
     mountedRouteModules: mountedRouteModuleIds,
   });
 }
 
 export function registerRouteModule(
   routeModule: RouteModule,
-  app: Parameters<RouteModule["register"]>[0],
+  app: Hono<AppBindings>,
 ): void {
+  if (routeModule.featureId) {
+    const sub = new Hono<AppBindings>();
+    sub.use(createFeatureFlagMiddleware(routeModule.featureId));
+    routeModule.register(sub, routeModuleHelpers);
+    app.route("/", sub);
+    return;
+  }
+
   routeModule.register(app, routeModuleHelpers);
 }

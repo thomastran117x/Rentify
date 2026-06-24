@@ -1,3 +1,6 @@
+import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
+import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
+import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
 import { AuthController } from "@/features/auth/auth.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
@@ -249,4 +252,12 @@ export const containerTokens = {
   postingsService: createServiceToken<PostingsService>("PostingsService"),
   postingsController:
     createServiceToken<PostingsController>("PostingsController"),
+  featureFlagRepository: createServiceToken<FeatureFlagRepository>(
+    "FeatureFlagRepository",
+  ),
+  featureFlagService:
+    createServiceToken<FeatureFlagService>("FeatureFlagService"),
+  featureFlagController: createServiceToken<FeatureFlagController>(
+    "FeatureFlagController",
+  ),
 } as const;

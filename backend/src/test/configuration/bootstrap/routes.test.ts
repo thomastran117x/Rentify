@@ -308,7 +308,7 @@ function makeModule(id: RouteModuleId, featureId?: string): RouteModule {
 describe("filterRouteModules", () => {
   it("includes all modules when nothing is disabled", () => {
     const modules = [makeModule("blob"), makeModule("profiles")];
-    const result = filterRouteModules(modules, new Set(), {});
+    const result = filterRouteModules(modules, new Set());
     expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
   });
 
@@ -317,40 +317,20 @@ describe("filterRouteModules", () => {
     const result = filterRouteModules(
       modules,
       new Set<RouteModuleId>(["blob"]),
-      {},
     );
     expect(result.map((m) => m.id)).toEqual(["profiles"]);
   });
 
-  it("excludes modules whose feature is explicitly disabled", () => {
+  it("includes feature-gated modules regardless of featureId (gating is per-request, not startup)", () => {
     const modules = [
       makeModule("blob", "file-uploads"),
       makeModule("profiles"),
     ];
-    const result = filterRouteModules(modules, new Set(), {
-      "file-uploads": { enabled: false },
-    });
-    expect(result.map((m) => m.id)).toEqual(["profiles"]);
-  });
-
-  it("includes modules whose feature is explicitly enabled", () => {
-    const modules = [
-      makeModule("blob", "file-uploads"),
-      makeModule("profiles"),
-    ];
-    const result = filterRouteModules(modules, new Set(), {
-      "file-uploads": { enabled: true },
-    });
+    const result = filterRouteModules(modules, new Set());
     expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
   });
 
-  it("blocks modules whose featureId has no entry in the features config (opt-in default)", () => {
-    const modules = [makeModule("blob", "undeclared-feature")];
-    const result = filterRouteModules(modules, new Set(), {});
-    expect(result.map((m) => m.id)).toEqual([]);
-  });
-
-  it("disabling by route module id and by feature flag are independent", () => {
+  it("only DISABLED_ROUTE_MODULES excludes a module at startup", () => {
     const modules = [
       makeModule("blob", "file-uploads"),
       makeModule("profiles", "user-profiles"),
@@ -359,11 +339,7 @@ describe("filterRouteModules", () => {
     const result = filterRouteModules(
       modules,
       new Set<RouteModuleId>(["feedbacks"]),
-      {
-        "file-uploads": { enabled: false },
-        "user-profiles": { enabled: true },
-      },
     );
-    expect(result.map((m) => m.id)).toEqual(["profiles"]);
+    expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
   });
 });

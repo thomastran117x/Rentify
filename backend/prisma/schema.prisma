@@ -724,6 +724,37 @@ model Feedback {
   @@map("feedback")
 }
 
+model FeatureFlag {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique @db.VarChar(255)
+  enabled         Boolean  @default(false)
+  description     String?  @db.Text
+  createdByUserId String?  @map("created_by_user_id") @db.VarChar(36)
+  updatedByUserId String?  @map("updated_by_user_id") @db.VarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  auditLogs       FeatureFlagAuditLog[]
+
+  @@map("feature_flags")
+}
+
+model FeatureFlagAuditLog {
+  id             Int      @id @default(autoincrement())
+  flagName       String   @map("flag_name") @db.VarChar(255)
+  action         String   @db.VarChar(50)
+  oldEnabled     Boolean? @map("old_enabled")
+  newEnabled     Boolean? @map("new_enabled")
+  oldDescription String?  @map("old_description") @db.Text
+  newDescription String?  @map("new_description") @db.Text
+  actorUserId    String?  @map("actor_user_id") @db.VarChar(36)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  featureFlag    FeatureFlag? @relation(fields: [flagName], references: [name], onDelete: SetNull)
+
+  @@index([flagName, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("feature_flag_audit_logs")
+}
+
 model ContentReport {
   id                 String               @id @db.VarChar(36)
   reporterId         String               @map("reporter_id") @db.VarChar(36)
