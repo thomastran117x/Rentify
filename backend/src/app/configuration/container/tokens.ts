@@ -7,6 +7,7 @@ import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
+import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TotpService } from "@/features/auth/mfa/totp/totp.service";
@@ -122,6 +123,7 @@ export const containerTokens = {
   totpService: createServiceToken<TotpService>("TotpService"),
   mfaTotpRepository: createServiceToken<MfaTotpRepository>("MfaTotpRepository"),
   mfaTotpService: createServiceToken<MfaTotpService>("MfaTotpService"),
+  mfaTotpController: createServiceToken<MfaTotpController>("MfaTotpController"),
   oauthTokenVerifier:
     createServiceToken<OAuthTokenVerifier>("OAuthTokenVerifier"),
   googleOAuthService:

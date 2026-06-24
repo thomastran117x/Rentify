@@ -8,6 +8,7 @@ import type { AppBindings } from "@/configuration/http/bindings";
 import {
   authDevicesRouteModule,
   authLocalRouteModule,
+  authMfaTotpRouteModule,
   authOauthRouteModule,
   authPersonalAccessTokensRouteModule,
 } from "@/configuration/bootstrap/routes/modules/auth.routes";
@@ -50,6 +51,7 @@ export const routeModuleRegistry: RouteModule[] = [
   authOauthRouteModule,
   authDevicesRouteModule,
   authPersonalAccessTokensRouteModule,
+  authMfaTotpRouteModule,
   organizationsRouteModule,
   blobRouteModule,
   profilesRouteModule,

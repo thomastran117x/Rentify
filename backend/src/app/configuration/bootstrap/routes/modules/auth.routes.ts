@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { AuthController } from "@/features/auth/auth.controller";
+import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
@@ -161,6 +162,40 @@ export const authDevicesRouteModule: RouteModule = {
       resolveHandler<AuthController>(
         containerTokens.authController,
         "removeKnownDevice",
+      ),
+    );
+  },
+};
+
+export const authMfaTotpRouteModule: RouteModule = {
+  id: "auth-mfa-totp",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/auth/mfa/totp/status",
+      resolveHandler<MfaTotpController>(
+        containerTokens.mfaTotpController,
+        "getStatus",
+      ),
+    );
+    app.post(
+      "/auth/mfa/totp/begin",
+      resolveHandler<MfaTotpController>(
+        containerTokens.mfaTotpController,
+        "beginEnrollment",
+      ),
+    );
+    app.post(
+      "/auth/mfa/totp/confirm",
+      resolveHandler<MfaTotpController>(
+        containerTokens.mfaTotpController,
+        "confirmEnrollment",
+      ),
+    );
+    app.delete(
+      "/auth/mfa/totp",
+      resolveHandler<MfaTotpController>(
+        containerTokens.mfaTotpController,
+        "disable",
       ),
     );
   },

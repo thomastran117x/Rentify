@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TotpService } from "@/features/auth/mfa/totp/totp.service";
@@ -51,6 +52,13 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
           mfaTotpRepository: resolve(containerTokens.mfaTotpRepository),
           encryptionKey,
         }),
+    });
+    container.register({
+      token: containerTokens.mfaTotpController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.mfaTotpService],
+      resolve: ({ resolve }) =>
+        new MfaTotpController(resolve(containerTokens.mfaTotpService)),
     });
   },
 };
