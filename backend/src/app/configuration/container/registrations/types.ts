@@ -9,6 +9,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "feedbacks",
   "auth-core",
   "auth-otp",
+  "auth-mfa-totp",
   "auth-oauth",
   "auth-device",
   "auth-personal-access-tokens",

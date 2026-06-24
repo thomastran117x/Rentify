@@ -21,6 +21,7 @@ module.exports = {
       },
     ],
   },
+  setupFiles: ["<rootDir>/src/test/support/env-setup.cjs"],
   testPathIgnorePatterns: [
     "/node_modules/",
     "/dist/",
