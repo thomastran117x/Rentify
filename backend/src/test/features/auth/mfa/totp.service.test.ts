@@ -82,7 +82,9 @@ describe("TotpService", () => {
 
       for (const [counter, expectedCode] of Object.entries(RFC_HOTP_VECTORS)) {
         pinTime(Number(counter));
-        expect(service.verifyCode(RFC_SECRET, expectedCode)).toBe(Number(counter));
+        expect(service.verifyCode(RFC_SECRET, expectedCode)).toBe(
+          Number(counter),
+        );
       }
     });
   });

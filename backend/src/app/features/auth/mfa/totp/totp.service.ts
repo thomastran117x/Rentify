@@ -55,7 +55,11 @@ function counterToBuffer(counter: number): Buffer {
   return buf;
 }
 
-function computeHotp(secretBytes: Buffer, counter: number, digits: number): string {
+function computeHotp(
+  secretBytes: Buffer,
+  counter: number,
+  digits: number,
+): string {
   const hmac = createHmac("sha1", secretBytes)
     .update(counterToBuffer(counter))
     .digest();
@@ -137,7 +141,11 @@ export class TotpService {
     const counter = Math.floor(Date.now() / 1000 / this.stepInSeconds);
     const inputBuf = Buffer.from(normalizedCode);
 
-    for (let t = counter - this.windowSize; t <= counter + this.windowSize; t++) {
+    for (
+      let t = counter - this.windowSize;
+      t <= counter + this.windowSize;
+      t++
+    ) {
       const expected = computeHotp(secretBytes, t, this.digits);
 
       if (timingSafeEqual(Buffer.from(expected), inputBuf)) {

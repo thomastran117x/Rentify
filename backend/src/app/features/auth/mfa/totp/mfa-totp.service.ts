@@ -1,8 +1,4 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
@@ -127,7 +123,10 @@ export class MfaTotpService {
       throw new UnauthorizedError("MFA verification failed.");
     }
 
-    await this.mfaTotpRepository.updateLastUsedCounter(record.id, matchedCounter);
+    await this.mfaTotpRepository.updateLastUsedCounter(
+      record.id,
+      matchedCounter,
+    );
   }
 
   async disable(userId: string): Promise<void> {
