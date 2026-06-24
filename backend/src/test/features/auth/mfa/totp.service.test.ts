@@ -82,7 +82,7 @@ describe("TotpService", () => {
 
       for (const [counter, expectedCode] of Object.entries(RFC_HOTP_VECTORS)) {
         pinTime(Number(counter));
-        expect(service.verifyCode(RFC_SECRET, expectedCode)).toBe(true);
+        expect(service.verifyCode(RFC_SECRET, expectedCode)).toBe(Number(counter));
       }
     });
   });
@@ -134,41 +134,38 @@ describe("TotpService", () => {
   });
 
   describe("verifyCode", () => {
-    it("accepts the current step code (T+0)", () => {
+    it("returns the matched counter for a valid code at T+0", () => {
       const service = createService({ windowSize: 0 });
       pinTime(1);
       const expected = computeExpectedCode(RFC_SECRET, 1);
-      expect(service.verifyCode(RFC_SECRET, expected)).toBe(true);
+      expect(service.verifyCode(RFC_SECRET, expected)).toBe(1);
     });
 
-    it("accepts a code from the previous step (T-1) within window", () => {
+    it("returns T-1 counter when the matching code is from the previous step", () => {
       const service = createService({ windowSize: 1 });
       pinTime(2); // current counter = 2, T-1 = counter 1 → RFC vector "287082"
-      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[1])).toBe(true);
+      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[1])).toBe(1);
     });
 
-    it("accepts a code from the next step (T+1) within window", () => {
+    it("returns T+1 counter when the matching code is from the next step", () => {
       const service = createService({ windowSize: 1 });
       pinTime(1); // current counter = 1, T+1 = counter 2 → RFC vector "359152"
-      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[2])).toBe(true);
+      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[2])).toBe(2);
     });
 
-    it("rejects a code from T-2 when windowSize is 1", () => {
+    it("returns null for a code from T-2 when windowSize is 1", () => {
       const service = createService({ windowSize: 1 });
       pinTime(2); // current counter = 2, T-2 = counter 0 → "755224"
-      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[0])).toBe(false);
+      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[0])).toBeNull();
     });
 
-    it("rejects a code from T+2 when windowSize is 1", () => {
+    it("returns null for a code from T+2 when windowSize is 1", () => {
       const service = createService({ windowSize: 1 });
       pinTime(1); // current counter = 1, T+2 = counter 3 → "969429"
-      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[3])).toBe(false);
+      expect(service.verifyCode(RFC_SECRET, RFC_HOTP_VECTORS[3])).toBeNull();
     });
 
     it("accepts a leading-zero code correctly", () => {
-      // Counter 4 code is "338314" — find one with a leading zero by searching.
-      // computeExpectedCode is used to locate a known leading-zero code at a
-      // specific counter, which is then verified against the service.
       const service = createService({ windowSize: 0 });
       let leadingZeroCounter: number | undefined;
       let leadingZeroCode: string | undefined;
@@ -187,47 +184,59 @@ describe("TotpService", () => {
       expect(leadingZeroCode!.startsWith("0")).toBe(true);
 
       pinTime(leadingZeroCounter!);
-      expect(service.verifyCode(RFC_SECRET, leadingZeroCode!)).toBe(true);
+      expect(service.verifyCode(RFC_SECRET, leadingZeroCode!)).toBe(
+        leadingZeroCounter,
+      );
     });
 
-    it("returns false for a wrong code", () => {
+    it("returns null for a wrong code", () => {
       const service = createService();
       const { secret } = service.generateSecret("test");
-      expect(service.verifyCode(secret, "000000")).toBe(false);
+      expect(service.verifyCode(secret, "000000")).toBeNull();
     });
 
-    it("returns false for non-numeric input", () => {
+    it("returns null for non-numeric input", () => {
       const service = createService();
       const { secret } = service.generateSecret("test");
-      expect(service.verifyCode(secret, "abc123")).toBe(false);
-      expect(service.verifyCode(secret, "AAAAAA")).toBe(false);
+      expect(service.verifyCode(secret, "abc123")).toBeNull();
+      expect(service.verifyCode(secret, "AAAAAA")).toBeNull();
     });
 
-    it("returns false for codes of wrong length", () => {
+    it("returns null for codes of wrong length", () => {
       const service = createService();
       const { secret } = service.generateSecret("test");
-      expect(service.verifyCode(secret, "12345")).toBe(false);
-      expect(service.verifyCode(secret, "1234567")).toBe(false);
-      expect(service.verifyCode(secret, "")).toBe(false);
+      expect(service.verifyCode(secret, "12345")).toBeNull();
+      expect(service.verifyCode(secret, "1234567")).toBeNull();
+      expect(service.verifyCode(secret, "")).toBeNull();
     });
 
     it("accepts a lowercase base32 secret by normalising to uppercase", () => {
       const service = createService({ windowSize: 0 });
       pinTime(1);
       const expected = RFC_HOTP_VECTORS[1];
-      expect(service.verifyCode(RFC_SECRET.toLowerCase(), expected)).toBe(true);
+      expect(service.verifyCode(RFC_SECRET.toLowerCase(), expected)).toBe(1);
     });
 
-    it("returns false for a secret with invalid base32 characters", () => {
+    it("returns null for a secret with invalid base32 characters", () => {
       const service = createService();
-      expect(service.verifyCode("INVALID!@#SECRET", "123456")).toBe(false);
+      expect(service.verifyCode("INVALID!@#SECRET", "123456")).toBeNull();
     });
 
     it("trims surrounding whitespace from the code", () => {
       const service = createService({ windowSize: 0 });
       pinTime(1);
       const expected = RFC_HOTP_VECTORS[1];
-      expect(service.verifyCode(RFC_SECRET, ` ${expected} `)).toBe(true);
+      expect(service.verifyCode(RFC_SECRET, ` ${expected} `)).toBe(1);
+    });
+
+    it("uses this.digits for validation — does not throw when digits != 6", () => {
+      const service = new TotpService({
+        issuer: "Test",
+        digits: 8,
+        windowSize: 0,
+      });
+      // An 8-digit service must not throw on a 6-digit input — it returns null cleanly.
+      expect(service.verifyCode(RFC_SECRET, "123456")).toBeNull();
     });
   });
 });

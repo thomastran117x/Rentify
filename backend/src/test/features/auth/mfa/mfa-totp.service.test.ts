@@ -1,4 +1,5 @@
 import { createCipheriv, randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -37,17 +38,19 @@ function makeRecord(overrides: Partial<UserMfaTotp> = {}): UserMfaTotp {
 function createMocks() {
   const totpService: jest.Mocked<TotpService> = {
     generateSecret: jest.fn().mockReturnValue({
-      secret: "TESTSECRET",
+      secret: TEST_PLAIN_SECRET,
       uri: "otpauth://totp/Test%3Auser?secret=TESTSECRET&issuer=Test",
     }),
-    verifyCode: jest.fn().mockReturnValue(true),
+    // Returns a matched counter (number) by default — simulates a successful verify
+    verifyCode: jest.fn().mockReturnValue(56374060),
   } as unknown as jest.Mocked<TotpService>;
 
   const mfaTotpRepository = {
     findByUserId: jest.fn<Promise<UserMfaTotp | null>, [string]>().mockResolvedValue(null),
     createPending: jest.fn<Promise<UserMfaTotp>, [{ userId: string; secretEncrypted: string; expiresAt: Date }]>().mockResolvedValue(makeRecord()),
-    replacePending: jest.fn<Promise<UserMfaTotp>, [string, { secretEncrypted: string; expiresAt: Date }]>().mockResolvedValue(makeRecord()),
+    replacePending: jest.fn<Promise<number>, [string, { secretEncrypted: string; expiresAt: Date }]>().mockResolvedValue(1),
     activate: jest.fn<Promise<UserMfaTotp>, [string, Date]>().mockResolvedValue(makeRecord({ status: "active" })),
+    updateLastUsedCounter: jest.fn<Promise<void>, [string, number]>().mockResolvedValue(undefined),
     deleteByUserId: jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined),
   };
 
@@ -76,7 +79,7 @@ describe("MfaTotpService", () => {
       expect(mfaTotpRepository.createPending).toHaveBeenCalledWith(
         expect.objectContaining({ userId: "user-id" }),
       );
-      expect(result).toEqual({ secret: "TESTSECRET", uri: expect.any(String) });
+      expect(result).toEqual({ secret: TEST_PLAIN_SECRET, uri: expect.any(String) });
     });
 
     it("sets expiresAt approximately 15 minutes in the future", async () => {
@@ -111,6 +114,7 @@ describe("MfaTotpService", () => {
     it("replaces an existing pending record instead of creating a new one", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord({ id: "existing-id" }));
+      mfaTotpRepository.replacePending.mockResolvedValue(1);
 
       await service.beginEnrollment("user-id", "user@example.com");
 
@@ -119,6 +123,45 @@ describe("MfaTotpService", () => {
         expect.objectContaining({ expiresAt: expect.any(Date) }),
       );
       expect(mfaTotpRepository.createPending).not.toHaveBeenCalled();
+    });
+
+    it("throws ConflictError when replacePending returns 0 (record was concurrently activated)", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      mfaTotpRepository.replacePending.mockResolvedValue(0);
+
+      await expect(
+        service.beginEnrollment("user-id", "user@example.com"),
+      ).rejects.toMatchObject<Partial<ConflictError>>({
+        message: "MFA is already enabled.",
+      });
+    });
+
+    it("throws ConflictError when createPending fails with a unique constraint (concurrent enrollment)", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(null);
+
+      const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      mfaTotpRepository.createPending.mockRejectedValue(p2002);
+
+      await expect(
+        service.beginEnrollment("user-id", "user@example.com"),
+      ).rejects.toMatchObject<Partial<ConflictError>>({
+        message: "MFA enrollment is already in progress. Please try again.",
+      });
+    });
+
+    it("re-throws non-P2002 errors from createPending unchanged", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(null);
+      mfaTotpRepository.createPending.mockRejectedValue(new Error("DB down"));
+
+      await expect(
+        service.beginEnrollment("user-id", "user@example.com"),
+      ).rejects.toThrow("DB down");
     });
   });
 
@@ -174,10 +217,23 @@ describe("MfaTotpService", () => {
       expect(mfaTotpRepository.activate).not.toHaveBeenCalled();
     });
 
+    it("throws BadRequestError when expiresAt is null (treats null as expired)", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ expiresAt: null }),
+      );
+
+      await expect(
+        service.confirmEnrollment("user-id", "123456"),
+      ).rejects.toMatchObject<Partial<BadRequestError>>({
+        message: "MFA setup has expired. Please start over.",
+      });
+    });
+
     it("throws BadRequestError when the TOTP code is wrong", async () => {
       const { service, mfaTotpRepository, totpService } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
-      totpService.verifyCode.mockReturnValue(false);
+      totpService.verifyCode.mockReturnValue(null);
 
       await expect(
         service.confirmEnrollment("user-id", "000000"),
@@ -190,13 +246,18 @@ describe("MfaTotpService", () => {
   });
 
   describe("verifyCode", () => {
-    it("resolves when code is valid against the active record", async () => {
+    it("resolves and persists the matched counter when code is valid", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(
-        makeRecord({ status: "active" }),
+        makeRecord({ status: "active", lastUsedCounter: null }),
       );
 
       await expect(service.verifyCode("user-id", "123456")).resolves.toBeUndefined();
+
+      expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
+        "record-id",
+        56374060,
+      );
     });
 
     it("throws UnauthorizedError when no record exists", async () => {
@@ -226,13 +287,47 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.findByUserId.mockResolvedValue(
         makeRecord({ status: "active" }),
       );
-      totpService.verifyCode.mockReturnValue(false);
+      totpService.verifyCode.mockReturnValue(null);
 
       await expect(
         service.verifyCode("user-id", "000000"),
       ).rejects.toMatchObject<Partial<UnauthorizedError>>({
         message: "MFA verification failed.",
       });
+
+      expect(mfaTotpRepository.updateLastUsedCounter).not.toHaveBeenCalled();
+    });
+
+    it("throws UnauthorizedError when counter is not newer than lastUsedCounter (replay attack)", async () => {
+      const { service, mfaTotpRepository, totpService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active", lastUsedCounter: BigInt(56374060) }),
+      );
+      // verifyCode returns the same counter that was already stored
+      totpService.verifyCode.mockReturnValue(56374060);
+
+      await expect(
+        service.verifyCode("user-id", "123456"),
+      ).rejects.toMatchObject<Partial<UnauthorizedError>>({
+        message: "MFA verification failed.",
+      });
+
+      expect(mfaTotpRepository.updateLastUsedCounter).not.toHaveBeenCalled();
+    });
+
+    it("accepts a code from a newer counter even when lastUsedCounter is set", async () => {
+      const { service, mfaTotpRepository, totpService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active", lastUsedCounter: BigInt(56374059) }),
+      );
+      totpService.verifyCode.mockReturnValue(56374060);
+
+      await expect(service.verifyCode("user-id", "123456")).resolves.toBeUndefined();
+
+      expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
+        "record-id",
+        56374060,
+      );
     });
   });
 
@@ -279,9 +374,7 @@ describe("MfaTotpService", () => {
   });
 
   describe("secret encryption round-trip", () => {
-    it("stores and retrieves secrets without data loss (integration-style)", async () => {
-      // This test uses real AES-256-GCM encryption instead of mocks to verify
-      // that the encrypt/decrypt round-trip inside MfaTotpService is correct.
+    it("stores encrypted (not plaintext) secret and decrypts correctly on verify", async () => {
       const { service, mfaTotpRepository, totpService } = createMocks();
 
       let storedEncryptedSecret: string | undefined;
@@ -297,16 +390,13 @@ describe("MfaTotpService", () => {
           : null,
       );
 
-      // Step 1: begin enrollment — stores encrypted secret
       await service.beginEnrollment("user-id", "user@example.com");
 
       expect(storedEncryptedSecret).toBeDefined();
-      expect(storedEncryptedSecret).not.toContain("TESTSECRET");
+      expect(storedEncryptedSecret).not.toContain(TEST_PLAIN_SECRET);
 
-      // Step 2: confirm enrollment — decrypts and verifies
       await service.confirmEnrollment("user-id", "123456");
 
-      // The decrypted secret should have been passed to verifyCode
       expect(totpService.verifyCode).toHaveBeenCalledWith(TEST_PLAIN_SECRET, "123456");
     });
   });

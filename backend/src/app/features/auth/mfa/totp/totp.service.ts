@@ -93,12 +93,14 @@ export class TotpService {
   private readonly stepInSeconds: number;
   private readonly digits: number;
   private readonly windowSize: number;
+  private readonly codePattern: RegExp;
 
   constructor(options: TotpServiceOptions) {
     this.issuer = options.issuer;
     this.stepInSeconds = options.stepInSeconds ?? DEFAULTS.stepInSeconds;
     this.digits = options.digits ?? DEFAULTS.digits;
     this.windowSize = options.windowSize ?? DEFAULTS.windowSize;
+    this.codePattern = new RegExp(`^\\d{${this.digits}}$`);
   }
 
   generateSecret(accountName: string): GeneratedTotpSecret {
@@ -115,18 +117,21 @@ export class TotpService {
     return { secret, uri: `otpauth://totp/${label}?${params.toString()}` };
   }
 
-  verifyCode(secret: string, code: string): boolean {
+  // Returns the matched TOTP counter value on success, or null on failure.
+  // The caller can use the counter to enforce replay protection (reject codes
+  // at or below a stored lastUsedCounter).
+  verifyCode(secret: string, code: string): number | null {
     const normalizedCode = code.trim();
 
-    if (!/^\d{6}$/.test(normalizedCode)) {
-      return false;
+    if (!this.codePattern.test(normalizedCode)) {
+      return null;
     }
 
     let secretBytes: Buffer;
     try {
       secretBytes = base32Decode(secret);
     } catch {
-      return false;
+      return null;
     }
 
     const counter = Math.floor(Date.now() / 1000 / this.stepInSeconds);
@@ -136,10 +141,10 @@ export class TotpService {
       const expected = computeHotp(secretBytes, t, this.digits);
 
       if (timingSafeEqual(Buffer.from(expected), inputBuf)) {
-        return true;
+        return t;
       }
     }
 
-    return false;
+    return null;
   }
 }

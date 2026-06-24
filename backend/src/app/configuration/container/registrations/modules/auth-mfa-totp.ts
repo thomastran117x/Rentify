@@ -19,6 +19,10 @@ function resolveEncryptionKey(): Buffer {
 export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
   id: "auth-mfa-totp",
   register(container) {
+    // Validate the encryption key immediately at registration so a
+    // misconfigured deploy fails at startup, not on the first MFA API call.
+    const encryptionKey = resolveEncryptionKey();
+
     container.register({
       token: containerTokens.totpService,
       lifetime: "singleton",
@@ -45,7 +49,7 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
         new MfaTotpService({
           totpService: resolve(containerTokens.totpService),
           mfaTotpRepository: resolve(containerTokens.mfaTotpRepository),
-          encryptionKey: resolveEncryptionKey(),
+          encryptionKey,
         }),
     });
   },

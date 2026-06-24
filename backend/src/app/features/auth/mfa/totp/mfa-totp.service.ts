@@ -3,6 +3,7 @@ import {
   createDecipheriv,
   randomBytes,
 } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -45,16 +46,37 @@ export class MfaTotpService {
     const expiresAt = new Date(Date.now() + PENDING_TTL_MINUTES * 60 * 1000);
 
     if (existing?.status === "pending") {
-      await this.mfaTotpRepository.replacePending(existing.id, {
+      const updated = await this.mfaTotpRepository.replacePending(existing.id, {
         secretEncrypted,
         expiresAt,
       });
+
+      // The pending record was activated concurrently between our read and
+      // this update — treat it the same as if we'd found an active record.
+      if (updated === 0) {
+        throw new ConflictError("MFA is already enabled.");
+      }
     } else {
-      await this.mfaTotpRepository.createPending({
-        userId,
-        secretEncrypted,
-        expiresAt,
-      });
+      try {
+        await this.mfaTotpRepository.createPending({
+          userId,
+          secretEncrypted,
+          expiresAt,
+        });
+      } catch (error) {
+        // A concurrent request created a pending record between our read and
+        // this insert (unique constraint on userId). Treat this as a retriable
+        // condition — the client can re-call beginEnrollment to replace it.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new ConflictError(
+            "MFA enrollment is already in progress. Please try again.",
+          );
+        }
+        throw error;
+      }
     }
 
     return { secret, uri };
@@ -67,13 +89,14 @@ export class MfaTotpService {
       throw new BadRequestError("No pending MFA setup found.");
     }
 
-    if (record.expiresAt && record.expiresAt < new Date()) {
+    // Treat null expiresAt as expired — every pending record must have an expiry.
+    if (!record.expiresAt || record.expiresAt < new Date()) {
       throw new BadRequestError("MFA setup has expired. Please start over.");
     }
 
     const secret = this.decrypt(record.secretEncrypted);
 
-    if (!this.totpService.verifyCode(secret, code)) {
+    if (this.totpService.verifyCode(secret, code) === null) {
       throw new BadRequestError("Verification code is incorrect.");
     }
 
@@ -88,10 +111,23 @@ export class MfaTotpService {
     }
 
     const secret = this.decrypt(record.secretEncrypted);
+    const matchedCounter = this.totpService.verifyCode(secret, code);
 
-    if (!this.totpService.verifyCode(secret, code)) {
+    if (matchedCounter === null) {
       throw new UnauthorizedError("MFA verification failed.");
     }
+
+    // Replay protection: reject any code whose counter is not strictly newer
+    // than the last accepted one. lastUsedCounter is null for the first
+    // verification after enrollment.
+    const lastUsedCounter =
+      record.lastUsedCounter !== null ? Number(record.lastUsedCounter) : -1;
+
+    if (matchedCounter <= lastUsedCounter) {
+      throw new UnauthorizedError("MFA verification failed.");
+    }
+
+    await this.mfaTotpRepository.updateLastUsedCounter(record.id, matchedCounter);
   }
 
   async disable(userId: string): Promise<void> {
