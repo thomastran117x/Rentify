@@ -191,11 +191,18 @@ export const authMfaTotpRouteModule: RouteModule = {
         "confirmEnrollment",
       ),
     );
-    app.delete(
-      "/auth/mfa/totp",
+    app.post(
+      "/auth/mfa/totp/disable",
       resolveHandler<MfaTotpController>(
         containerTokens.mfaTotpController,
         "disable",
+      ),
+    );
+    app.delete(
+      "/auth/mfa/totp/pending",
+      resolveHandler<MfaTotpController>(
+        containerTokens.mfaTotpController,
+        "cancelEnrollment",
       ),
     );
   },

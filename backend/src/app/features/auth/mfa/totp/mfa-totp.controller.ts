@@ -6,6 +6,7 @@ import { parseRequestBody } from "@/configuration/validation/request";
 import {
   beginEnrollmentRequestSchema,
   confirmEnrollmentRequestSchema,
+  disableRequestSchema,
 } from "./mfa-totp.model";
 import type { MfaTotpService } from "./mfa-totp.service";
 
@@ -37,9 +38,19 @@ export class MfaTotpController {
 
   disable = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await requireSessionAuth(context);
+    const input = await parseRequestBody(context, disableRequestSchema);
+    // Verify the active TOTP code before removing the second factor — a stolen
+    // session alone is not sufficient to downgrade account security.
+    await this.mfaTotpService.verifyCode(auth.sub, input.code);
     await this.mfaTotpService.disable(auth.sub);
     return ok(context, { disabled: true as const }, {
       message: "Authenticator app disabled.",
     });
+  };
+
+  cancelEnrollment = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await requireSessionAuth(context);
+    await this.mfaTotpService.cancelEnrollment(auth.sub);
+    return ok(context, { cancelled: true as const });
   };
 }

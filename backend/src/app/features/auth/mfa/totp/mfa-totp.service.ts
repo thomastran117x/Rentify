@@ -42,15 +42,20 @@ export class MfaTotpService {
     const expiresAt = new Date(Date.now() + PENDING_TTL_MINUTES * 60 * 1000);
 
     if (existing?.status === "pending") {
-      const updated = await this.mfaTotpRepository.replacePending(existing.id, {
-        secretEncrypted,
-        expiresAt,
-      });
+      const updated = await this.mfaTotpRepository.replacePending(
+        existing.id,
+        { secretEncrypted, expiresAt },
+        existing.updatedAt,
+      );
 
-      // The pending record was activated concurrently between our read and
-      // this update — treat it the same as if we'd found an active record.
+      // count=0 means either:
+      // a) The record was concurrently activated → already enabled
+      // b) Another replacePending beat us (updatedAt changed) → stale secret
+      // Both cases require the client to retry to get a consistent secret.
       if (updated === 0) {
-        throw new ConflictError("MFA is already enabled.");
+        throw new ConflictError(
+          "Enrollment was updated concurrently. Please try again.",
+        );
       }
     } else {
       try {
@@ -91,12 +96,15 @@ export class MfaTotpService {
     }
 
     const secret = this.decrypt(record.secretEncrypted);
+    const matchedCounter = this.totpService.verifyCode(secret, code);
 
-    if (this.totpService.verifyCode(secret, code) === null) {
+    if (matchedCounter === null) {
       throw new BadRequestError("Verification code is incorrect.");
     }
 
-    await this.mfaTotpRepository.activate(record.id, new Date());
+    // Persist the confirmed counter as lastUsedCounter so the enrollment code
+    // cannot be replayed against verifyCode before the first login MFA check.
+    await this.mfaTotpRepository.activate(record.id, new Date(), matchedCounter);
   }
 
   async verifyCode(userId: string, code: string): Promise<void> {
@@ -131,6 +139,12 @@ export class MfaTotpService {
 
   async disable(userId: string): Promise<void> {
     await this.mfaTotpRepository.deleteByUserId(userId);
+  }
+
+  // Cancels an in-progress enrollment by deleting the pending record.
+  // A no-op if there is no pending record — leaves an active record untouched.
+  async cancelEnrollment(userId: string): Promise<void> {
+    await this.mfaTotpRepository.deleteByUserIdIfPending(userId);
   }
 
   async isEnabled(userId: string): Promise<boolean> {

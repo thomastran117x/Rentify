@@ -32,7 +32,16 @@ export const mfaTotpApi = {
     );
   },
 
-  disable(): Promise<{ disabled: true }> {
-    return deleteAuthenticatedJson<{ disabled: true }>("/auth/mfa/totp");
+  // Requires a current TOTP code — prevents a stolen session from silently
+  // removing the second factor.
+  disable(code: string): Promise<{ disabled: true }> {
+    return postAuthenticatedJson<{ disabled: true }, { code: string }>(
+      "/auth/mfa/totp/disable",
+      { code },
+    );
+  },
+
+  cancelEnrollment(): Promise<{ cancelled: true }> {
+    return deleteAuthenticatedJson<{ cancelled: true }>("/auth/mfa/totp/pending");
   },
 };

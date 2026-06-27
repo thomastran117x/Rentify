@@ -399,6 +399,7 @@ export class AuthController {
       rememberMe: input.rememberMe,
       client: context.get("client"),
       deviceId: this.resolveDeviceId(context, input.deviceId),
+      totpCode: input.totpCode,
     };
   }
 
@@ -430,6 +431,7 @@ export class AuthController {
       firstName: input.firstName,
       lastName: input.lastName,
       deviceId: this.resolveDeviceId(context, input.deviceId),
+      totpCode: input.totpCode,
     };
   }
 

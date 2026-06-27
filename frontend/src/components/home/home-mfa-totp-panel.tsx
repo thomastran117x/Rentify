@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { mfaTotpApi, type MfaTotpBeginResult } from "@/lib/auth/mfa-totp-api";
 
-type View = "loading" | "idle" | "setup";
+type View = "loading" | "idle" | "setup" | "disabling";
 
 function formatSecret(secret: string): string {
   return secret.match(/.{1,4}/g)?.join(" ") ?? secret;
@@ -18,10 +18,12 @@ export function HomeMfaTotpPanel() {
   const [enabled, setEnabled] = useState(false);
   const [enrollment, setEnrollment] = useState<MfaTotpBeginResult | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [code, setCode] = useState("");
+  const [enrollCode, setEnrollCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const codeInputRef = useRef<HTMLInputElement>(null);
+  const enrollCodeRef = useRef<HTMLInputElement>(null);
+  const disableCodeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -60,17 +62,18 @@ export function HomeMfaTotpPanel() {
       return;
     }
 
-    import("qrcode").then((QRCode) => {
-      QRCode.toDataURL(enrollment.uri, { width: 200, margin: 1 })
-        .then(setQrDataUrl)
-        .catch(() => setQrDataUrl(null));
-    }).catch(() => setQrDataUrl(null));
+    import("qrcode")
+      .then((QRCode) => {
+        QRCode.toDataURL(enrollment.uri, { width: 200, margin: 1 })
+          .then(setQrDataUrl)
+          .catch(() => setQrDataUrl(null));
+      })
+      .catch(() => setQrDataUrl(null));
   }, [enrollment?.uri]);
 
   useEffect(() => {
-    if (view === "setup") {
-      codeInputRef.current?.focus();
-    }
+    if (view === "setup") enrollCodeRef.current?.focus();
+    if (view === "disabling") disableCodeRef.current?.focus();
   }, [view]);
 
   async function handleBeginEnrollment() {
@@ -78,11 +81,9 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      const result = await mfaTotpApi.beginEnrollment(
-        session?.user.email,
-      );
+      const result = await mfaTotpApi.beginEnrollment(session?.user.email);
       setEnrollment(result);
-      setCode("");
+      setEnrollCode("");
       setView("setup");
     } catch (error) {
       setMessage(
@@ -90,6 +91,7 @@ export function HomeMfaTotpPanel() {
           action: "set up your authenticator app",
           fallback:
             "We couldn't start MFA setup right now. Please try again.",
+          preserveClientMessage: true,
         }),
       );
     } finally {
@@ -98,7 +100,7 @@ export function HomeMfaTotpPanel() {
   }
 
   async function handleConfirmEnrollment() {
-    if (!code.trim()) {
+    if (!enrollCode.trim()) {
       setMessage("Please enter the 6-digit code from your authenticator app.");
       return;
     }
@@ -107,13 +109,15 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      await mfaTotpApi.confirmEnrollment(code.trim());
+      await mfaTotpApi.confirmEnrollment(enrollCode.trim());
       setEnabled(true);
       setEnrollment(null);
       setQrDataUrl(null);
-      setCode("");
+      setEnrollCode("");
       setView("idle");
-      setMessage("Authenticator app enabled. Your account is now protected with MFA.");
+      setMessage(
+        "Authenticator app enabled. Your account is now protected with MFA.",
+      );
     } catch (error) {
       setMessage(
         getApiErrorMessage(error, {
@@ -127,30 +131,39 @@ export function HomeMfaTotpPanel() {
     }
   }
 
-  async function handleCancel() {
+  async function handleCancelEnrollment() {
     setPending(true);
     setMessage(null);
 
     try {
-      await mfaTotpApi.disable();
+      await mfaTotpApi.cancelEnrollment();
     } catch {
-      // Best-effort cleanup; the pending record will expire on its own.
+      // Best-effort cleanup; the pending record expires on its own after 15 min.
     } finally {
       setEnrollment(null);
       setQrDataUrl(null);
-      setCode("");
+      setEnrollCode("");
       setView("idle");
       setPending(false);
     }
   }
 
   async function handleDisable() {
+    if (!disableCode.trim()) {
+      setMessage(
+        "Please enter the 6-digit code from your authenticator app to confirm.",
+      );
+      return;
+    }
+
     setPending(true);
     setMessage(null);
 
     try {
-      await mfaTotpApi.disable();
+      await mfaTotpApi.disable(disableCode.trim());
       setEnabled(false);
+      setDisableCode("");
+      setView("idle");
       setMessage("Authenticator app disabled.");
     } catch (error) {
       setMessage(
@@ -158,6 +171,7 @@ export function HomeMfaTotpPanel() {
           action: "disable your authenticator app",
           fallback:
             "We couldn't disable your authenticator app right now. Please try again.",
+          preserveClientMessage: true,
         }),
       );
     } finally {
@@ -180,7 +194,8 @@ export function HomeMfaTotpPanel() {
             Authenticator app
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Use Google Authenticator, Microsoft Authenticator, or any TOTP-compatible app to generate login codes.
+            Use Google Authenticator, Microsoft Authenticator, or any
+            TOTP-compatible app to generate login codes.
           </p>
         </div>
       </div>
@@ -213,11 +228,15 @@ export function HomeMfaTotpPanel() {
             {enabled ? (
               <button
                 type="button"
-                onClick={() => void handleDisable()}
+                onClick={() => {
+                  setDisableCode("");
+                  setMessage(null);
+                  setView("disabling");
+                }}
                 disabled={pending}
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {pending ? "Disabling..." : "Disable"}
+                Disable
               </button>
             ) : (
               <button
@@ -229,6 +248,51 @@ export function HomeMfaTotpPanel() {
                 {pending ? "Setting up..." : "Set up"}
               </button>
             )}
+          </div>
+        </div>
+      ) : view === "disabling" ? (
+        <div className="mt-6 space-y-4">
+          <p className="text-sm text-slate-700">
+            Enter the current code from your authenticator app to confirm.
+          </p>
+          <input
+            ref={disableCodeRef}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={disableCode}
+            onChange={(event) =>
+              setDisableCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            placeholder="000000"
+            className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
+              disableCode.length === 6
+                ? "border-violet-300 ring-4 ring-violet-100"
+                : "border-slate-200 hover:border-violet-200"
+            }`}
+          />
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => void handleDisable()}
+              disabled={pending || disableCode.length !== 6}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-300 bg-rose-50 px-5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pending ? "Disabling..." : "Confirm disable"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDisableCode("");
+                setMessage(null);
+                setView("idle");
+              }}
+              disabled={pending}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       ) : (
@@ -252,9 +316,7 @@ export function HomeMfaTotpPanel() {
                 </div>
               )}
               <div className="space-y-2">
-                <p className="text-xs text-slate-600">
-                  Or enter this key manually:
-                </p>
+                <p className="text-xs text-slate-600">Or enter this key manually:</p>
                 <code className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900">
                   {enrollment ? formatSecret(enrollment.secret) : ""}
                 </code>
@@ -264,25 +326,27 @@ export function HomeMfaTotpPanel() {
 
           <div className="space-y-2">
             <label
-              htmlFor="totp-code"
+              htmlFor="totp-enroll-code"
               className="text-sm font-medium text-slate-700"
             >
               2. Enter the 6-digit code shown in your app
             </label>
             <input
-              id="totp-code"
-              ref={codeInputRef}
+              id="totp-enroll-code"
+              ref={enrollCodeRef}
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              value={code}
+              value={enrollCode}
               onChange={(event) =>
-                setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                setEnrollCode(
+                  event.target.value.replace(/\D/g, "").slice(0, 6),
+                )
               }
               placeholder="000000"
               className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
-                code.length === 6
+                enrollCode.length === 6
                   ? "border-violet-300 ring-4 ring-violet-100"
                   : "border-slate-200 hover:border-violet-200"
               }`}
@@ -293,14 +357,14 @@ export function HomeMfaTotpPanel() {
             <button
               type="button"
               onClick={() => void handleConfirmEnrollment()}
-              disabled={pending || code.length !== 6}
+              disabled={pending || enrollCode.length !== 6}
               className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? "Verifying..." : "Verify and enable"}
             </button>
             <button
               type="button"
-              onClick={() => void handleCancel()}
+              onClick={() => void handleCancelEnrollment()}
               disabled={pending}
               className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >

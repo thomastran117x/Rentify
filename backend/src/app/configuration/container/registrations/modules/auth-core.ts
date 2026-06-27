@@ -47,6 +47,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.microsoftOAuthService,
         containerTokens.appleOAuthService,
         containerTokens.cacheService,
+        containerTokens.mfaTotpService,
       ],
       resolve: ({ resolve }) =>
         new AuthService(
@@ -59,6 +60,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.microsoftOAuthService),
           resolve(containerTokens.appleOAuthService),
           resolve(containerTokens.cacheService),
+          resolve(containerTokens.mfaTotpService),
         ),
     });
     container.register({

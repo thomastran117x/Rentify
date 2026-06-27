@@ -83,6 +83,7 @@ export const localAuthenticateRequestSchema = z.object({
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
   rememberMe: z.boolean().optional(),
   deviceId: optionalTrimmedString,
+  totpCode: z.string().optional(),
 });
 
 export const oauthAuthenticateRequestSchema = z
@@ -95,6 +96,7 @@ export const oauthAuthenticateRequestSchema = z
     deviceId: optionalTrimmedString,
     firstName: optionalTrimmedString,
     lastName: optionalTrimmedString,
+    totpCode: z.string().optional(),
   })
   .superRefine((input, context) => {
     if (input.idToken) {
@@ -248,6 +250,7 @@ export interface LocalAuthenticateInput {
   password: string;
   rememberMe?: boolean;
   deviceId?: string;
+  totpCode?: string;
 }
 
 export interface LocalSignupInput {
@@ -269,6 +272,7 @@ export interface OAuthAuthenticateInput {
   deviceId?: string;
   firstName?: string;
   lastName?: string;
+  totpCode?: string;
 }
 
 export interface LinkOAuthProviderInput extends OAuthAuthenticateInput {
