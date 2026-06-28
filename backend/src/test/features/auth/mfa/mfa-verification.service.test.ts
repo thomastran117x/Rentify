@@ -412,6 +412,47 @@ describe("MfaVerificationService", () => {
     ).rejects.toBeInstanceOf(InvalidMfaCodeError);
   });
 
+  it("returns a prompt contract for TOTP challenges when an active factor exists", async () => {
+    const { service, otpService } = createService({
+      securityContext: createSecurityContext({
+        mfaTotp: {
+          status: "active",
+          updatedAt: "2026-06-27T15:20:00.000Z",
+          confirmedAt: "2026-06-27T15:10:00.000Z",
+        },
+      }),
+    });
+
+    await expect(
+      service.issueChallenge({
+        userId: "user-1",
+        sessionId: "session-1",
+        scope: MFA_MANAGEMENT_SCOPE,
+        factor: "totp",
+        client: { device: { type: "desktop", isMobile: false } },
+      }),
+    ).resolves.toEqual({
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "totp",
+      challengeId: null,
+      prompt: true,
+    });
+    expect(otpService.issue).not.toHaveBeenCalled();
+  });
+
+  it("fails preview when no active MFA email verification code exists", async () => {
+    const { service, otpService } = createService();
+    otpService.peek.mockResolvedValue(null);
+
+    await expect(
+      service.previewCurrentEmailOtp({
+        userId: "user-1",
+        sessionId: "session-1",
+        scope: MFA_MANAGEMENT_SCOPE,
+      }),
+    ).rejects.toThrow("No active MFA verification code is available.");
+  });
+
   it("blocks the preview helper in production", async () => {
     const { service } = createService();
     jest.spyOn(environment, "isProduction").mockReturnValue(true);
