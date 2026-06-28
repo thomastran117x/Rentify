@@ -56,6 +56,7 @@ export type RawEnvironmentValues = {
   MICROSOFT_OAUTH_CLIENT_ID?: string;
   MICROSOFT_OAUTH_CLIENT_IDS?: string;
   MICROSOFT_OAUTH_CLIENT_SECRET?: string;
+  MFA_TOTP_ENCRYPTION_KEY?: string;
   MICROSOFT_OAUTH_TENANT?: string;
   NODE_ENV?: string;
   PORT?: string;
@@ -153,6 +154,7 @@ export interface AppEnvironment {
     refreshTokenMode: RefreshTokenMode;
     refreshTokenCachePrefix: string;
     personalAccessTokenSecret: string;
+    mfaTotpEncryptionKey: string;
   };
   email: {
     gmailUser: string;

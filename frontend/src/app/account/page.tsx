@@ -8,6 +8,7 @@ import {
   type OAuthProvider,
 } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
+import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -393,6 +394,10 @@ export default function AccountPage() {
             </div>
           </section>
         ) : null}
+
+        <section className="lg:col-span-2">
+          <HomeMfaTotpPanel />
+        </section>
 
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start gap-4">

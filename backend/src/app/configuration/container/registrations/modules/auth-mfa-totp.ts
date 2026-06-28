@@ -1,27 +1,16 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { environment } from "@/configuration/environment";
+import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TotpService } from "@/features/auth/mfa/totp/totp.service";
 
-function resolveEncryptionKey(): Buffer {
-  const raw = process.env.MFA_TOTP_ENCRYPTION_KEY;
-
-  if (!raw || !/^[0-9a-fA-F]{64}$/.test(raw)) {
-    throw new Error(
-      "MFA_TOTP_ENCRYPTION_KEY must be a 64-character hex string (32 bytes).",
-    );
-  }
-
-  return Buffer.from(raw, "hex");
-}
-
 export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
   id: "auth-mfa-totp",
   register(container) {
-    // Validate the encryption key immediately at registration so a
-    // misconfigured deploy fails at startup, not on the first MFA API call.
-    const encryptionKey = resolveEncryptionKey();
+    const authConfig = environment.getTokenConfig();
+    const encryptionKey = Buffer.from(authConfig.mfaTotpEncryptionKey, "hex");
 
     container.register({
       token: containerTokens.totpService,
@@ -51,6 +40,13 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
           mfaTotpRepository: resolve(containerTokens.mfaTotpRepository),
           encryptionKey,
         }),
+    });
+    container.register({
+      token: containerTokens.mfaTotpController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.mfaTotpService],
+      resolve: ({ resolve }) =>
+        new MfaTotpController(resolve(containerTokens.mfaTotpService)),
     });
   },
 };

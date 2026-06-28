@@ -23,6 +23,8 @@ function encryptForTest(plaintext: string): string {
 
 const ENCRYPTED_TEST_SECRET = encryptForTest(TEST_PLAIN_SECRET);
 
+const EXISTING_UPDATED_AT = new Date("2024-01-01T00:00:00Z");
+
 function makeRecord(overrides: Partial<UserMfaTotp> = {}): UserMfaTotp {
   return {
     id: "record-id",
@@ -33,7 +35,7 @@ function makeRecord(overrides: Partial<UserMfaTotp> = {}): UserMfaTotp {
     lastUsedCounter: null,
     confirmedAt: null,
     createdAt: new Date(),
-    updatedAt: new Date(),
+    updatedAt: EXISTING_UPDATED_AT,
     ...overrides,
   };
 }
@@ -58,19 +60,24 @@ function createMocks() {
         [{ userId: string; secretEncrypted: string; expiresAt: Date }]
       >()
       .mockResolvedValue(makeRecord()),
+    // Now takes (id, data, expectedUpdatedAt)
     replacePending: jest
       .fn<
         Promise<number>,
-        [string, { secretEncrypted: string; expiresAt: Date }]
+        [string, { secretEncrypted: string; expiresAt: Date }, Date]
       >()
       .mockResolvedValue(1),
+    // Now takes (id, confirmedAt, lastUsedCounter)
     activate: jest
-      .fn<Promise<UserMfaTotp>, [string, Date]>()
+      .fn<Promise<UserMfaTotp>, [string, Date, number]>()
       .mockResolvedValue(makeRecord({ status: "active" })),
     updateLastUsedCounter: jest
       .fn<Promise<void>, [string, number]>()
       .mockResolvedValue(undefined),
     deleteByUserId: jest
+      .fn<Promise<void>, [string]>()
+      .mockResolvedValue(undefined),
+    deleteByUserIdIfPending: jest
       .fn<Promise<void>, [string]>()
       .mockResolvedValue(undefined),
   };
@@ -142,10 +149,10 @@ describe("MfaTotpService", () => {
       expect(mfaTotpRepository.replacePending).not.toHaveBeenCalled();
     });
 
-    it("replaces an existing pending record instead of creating a new one", async () => {
+    it("replaces an existing pending record and passes its updatedAt for version check", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(
-        makeRecord({ id: "existing-id" }),
+        makeRecord({ id: "existing-id", updatedAt: EXISTING_UPDATED_AT }),
       );
       mfaTotpRepository.replacePending.mockResolvedValue(1);
 
@@ -154,11 +161,12 @@ describe("MfaTotpService", () => {
       expect(mfaTotpRepository.replacePending).toHaveBeenCalledWith(
         "existing-id",
         expect.objectContaining({ expiresAt: expect.any(Date) }),
+        EXISTING_UPDATED_AT,
       );
       expect(mfaTotpRepository.createPending).not.toHaveBeenCalled();
     });
 
-    it("throws ConflictError when replacePending returns 0 (record was concurrently activated)", async () => {
+    it("throws ConflictError when replacePending returns 0 (concurrent update or activation)", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
       mfaTotpRepository.replacePending.mockResolvedValue(0);
@@ -166,7 +174,7 @@ describe("MfaTotpService", () => {
       await expect(
         service.beginEnrollment("user-id", "user@example.com"),
       ).rejects.toMatchObject<Partial<ConflictError>>({
-        message: "MFA is already enabled.",
+        message: "Enrollment was updated concurrently. Please try again.",
       });
     });
 
@@ -202,15 +210,18 @@ describe("MfaTotpService", () => {
   });
 
   describe("confirmEnrollment", () => {
-    it("activates the pending record when code is correct", async () => {
+    it("activates the pending record with the matched counter when code is correct", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
 
       await service.confirmEnrollment("user-id", "123456");
 
+      // activate must receive the matched counter so the enrollment code cannot
+      // be replayed against verifyCode before the first login MFA check.
       expect(mfaTotpRepository.activate).toHaveBeenCalledWith(
         "record-id",
         expect.any(Date),
+        56374060,
       );
     });
 
@@ -343,7 +354,6 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.findByUserId.mockResolvedValue(
         makeRecord({ status: "active", lastUsedCounter: BigInt(56374060) }),
       );
-      // verifyCode returns the same counter that was already stored
       totpService.verifyCode.mockReturnValue(56374060);
 
       await expect(
@@ -387,6 +397,28 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.deleteByUserId.mockResolvedValue(undefined);
 
       await expect(service.disable("user-id")).resolves.toBeUndefined();
+    });
+  });
+
+  describe("cancelEnrollment", () => {
+    it("deletes only the pending record, leaving active records untouched", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+
+      await service.cancelEnrollment("user-id");
+
+      expect(mfaTotpRepository.deleteByUserIdIfPending).toHaveBeenCalledWith(
+        "user-id",
+      );
+      expect(mfaTotpRepository.deleteByUserId).not.toHaveBeenCalled();
+    });
+
+    it("is a no-op when no record exists", async () => {
+      const { service, mfaTotpRepository } = createMocks();
+      mfaTotpRepository.deleteByUserIdIfPending.mockResolvedValue(undefined);
+
+      await expect(
+        service.cancelEnrollment("user-id"),
+      ).resolves.toBeUndefined();
     });
   });
 

@@ -14,6 +14,8 @@ function buildRequiredEnv(
     ACCESS_TOKEN_SECRET: "process-access-secret-value-with-32chars",
     REFRESH_TOKEN_SECRET: "process-refresh-secret-value-with-32ch",
     PERSONAL_ACCESS_TOKEN_SECRET: "process-personal-token-secret-32chars",
+    MFA_TOTP_ENCRYPTION_KEY:
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
     GMAIL_APP_PASSWORD: "process-password",
     SQUARE_ACCESS_TOKEN: "process-square-token",

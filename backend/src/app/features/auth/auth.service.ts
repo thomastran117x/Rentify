@@ -35,6 +35,7 @@ import {
   isStrongPassword,
 } from "@/features/auth/auth.model";
 import { OtpService } from "@/features/auth/otp/otp.service";
+import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -115,6 +116,7 @@ export class AuthService {
     private readonly microsoftOAuthService: MicrosoftOAuthService,
     private readonly appleOAuthService: AppleOAuthService,
     private readonly cacheService: CacheService,
+    private readonly mfaTotpService: MfaTotpService,
   ) {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
@@ -168,6 +170,8 @@ export class AuthService {
         "Please verify your email address before signing in.",
       );
     }
+
+    await this.requireMfaIfEnabled(user.id, input.totpCode);
 
     return this.authenticateVerifiedUser(user, input);
   }
@@ -899,6 +903,7 @@ export class AuthService {
     );
 
     if (linkedUser) {
+      await this.requireMfaIfEnabled(linkedUser.id, input.totpCode);
       return this.authenticateVerifiedUser(linkedUser, input);
     }
 
@@ -1068,6 +1073,25 @@ export class AuthService {
 
       throw error;
     }
+  }
+
+  private async requireMfaIfEnabled(
+    userId: string,
+    totpCode: string | undefined,
+  ): Promise<void> {
+    const mfaEnabled = await this.mfaTotpService.isEnabled(userId);
+
+    if (!mfaEnabled) {
+      return;
+    }
+
+    if (!totpCode) {
+      throw new UnauthorizedError("Authenticator code is required.", {
+        mfaRequired: true,
+      });
+    }
+
+    await this.mfaTotpService.verifyCode(userId, totpCode);
   }
 
   private async authenticateVerifiedUser(

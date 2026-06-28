@@ -29,16 +29,18 @@ export class MfaTotpRepository extends BaseRepository {
     );
   }
 
-  // Updates a pending record's secret and expiry. Only affects rows that are
-  // still pending — if the record was concurrently activated, returns 0 and the
-  // caller should treat that as a ConflictError.
+  // Updates a pending record's secret and expiry. The expectedUpdatedAt version
+  // check ensures two concurrent re-enrollments can't both succeed — the second
+  // writer sees count=0 (the first writer already changed updatedAt) and the
+  // caller must retry beginEnrollment.
   async replacePending(
     id: string,
     data: { secretEncrypted: string; expiresAt: Date },
+    expectedUpdatedAt: Date,
   ): Promise<number> {
     const result = await this.executeAsync(() =>
       this.prisma.userMfaTotp.updateMany({
-        where: { id, status: "pending" },
+        where: { id, status: "pending", updatedAt: expectedUpdatedAt },
         data: {
           secretEncrypted: data.secretEncrypted,
           status: "pending",
@@ -50,7 +52,11 @@ export class MfaTotpRepository extends BaseRepository {
     return result.count;
   }
 
-  async activate(id: string, confirmedAt: Date): Promise<UserMfaTotp> {
+  async activate(
+    id: string,
+    confirmedAt: Date,
+    lastUsedCounter: number,
+  ): Promise<UserMfaTotp> {
     return this.executeAsync(() =>
       this.prisma.userMfaTotp.update({
         where: { id },
@@ -58,6 +64,7 @@ export class MfaTotpRepository extends BaseRepository {
           status: "active",
           confirmedAt,
           expiresAt: null,
+          lastUsedCounter: BigInt(lastUsedCounter),
         },
       }),
     );
@@ -75,6 +82,15 @@ export class MfaTotpRepository extends BaseRepository {
   async deleteByUserId(userId: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.userMfaTotp.deleteMany({ where: { userId } }),
+    );
+  }
+
+  // Deletes only a pending record — leaves an active record untouched.
+  async deleteByUserIdIfPending(userId: string): Promise<void> {
+    await this.executeAsync(() =>
+      this.prisma.userMfaTotp.deleteMany({
+        where: { userId, status: "pending" },
+      }),
     );
   }
 }

@@ -67,6 +67,15 @@ export function parseEnvironmentState(
     "PERSONAL_ACCESS_TOKEN_SECRET",
     errors,
   );
+  const mfaTotpEncryptionKeyRaw = raw.MFA_TOTP_ENCRYPTION_KEY;
+  if (!mfaTotpEncryptionKeyRaw) {
+    errors.push("MFA_TOTP_ENCRYPTION_KEY is required.");
+  } else if (!/^[0-9a-fA-F]{64}$/.test(mfaTotpEncryptionKeyRaw)) {
+    errors.push(
+      "MFA_TOTP_ENCRYPTION_KEY must be a 64-character hex string (32 bytes).",
+    );
+  }
+  const mfaTotpEncryptionKey = mfaTotpEncryptionKeyRaw ?? "";
   const gmailUser = readRequiredString(raw, "GMAIL_USER", errors);
   const gmailAppPassword = readRequiredString(
     raw,
@@ -106,6 +115,7 @@ export function parseEnvironmentState(
       accessTokenSecret,
       refreshTokenSecret,
       personalAccessTokenSecret,
+      mfaTotpEncryptionKey,
     ),
     email: buildEmailConfig(raw, gmailUser, gmailAppPassword),
     sms: buildSmsConfig(raw, errors),

@@ -203,6 +203,8 @@ function createService(overrides?: {
     firstName?: string;
     lastName?: string;
   }>;
+  mfaIsEnabled?: (userId: string) => Promise<boolean>;
+  verifyTotpCode?: (userId: string, code: string) => Promise<void>;
   cacheGetJson?: (key: string) => Promise<unknown | null>;
   cacheDelete?: (key: string) => Promise<boolean>;
   cacheSetJson?: (
@@ -375,6 +377,10 @@ function createService(overrides?: {
   };
   const microsoftOAuthService = {};
   const appleOAuthService = {};
+  const mfaTotpService = {
+    isEnabled: overrides?.mfaIsEnabled ?? (async () => false),
+    verifyCode: overrides?.verifyTotpCode ?? (async () => {}),
+  };
   const cacheService = {
     getJson: jest.fn(async <TValue>(key: string) => {
       if (overrides?.cacheGetJson) {
@@ -424,6 +430,7 @@ function createService(overrides?: {
     microsoftOAuthService as never,
     appleOAuthService as never,
     cacheService as never,
+    mfaTotpService as never,
   );
 
   return service;

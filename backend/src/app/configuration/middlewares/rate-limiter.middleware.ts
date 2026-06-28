@@ -170,13 +170,27 @@ function createDefaultPolicy(request: Request): RateLimitPolicy {
 }
 
 function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
-  return (
+  if (
     request.method === "POST" &&
     (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
       pathname,
     ) ||
       /^\/auth\/oauth\/(google|microsoft|apple)$/.test(pathname))
-  );
+  ) {
+    return true;
+  }
+
+  // TOTP enrollment and verification — guessing codes is feasible at the global
+  // default rate (60/min) over the 15-minute pending window; apply the same
+  // tight bucket used for login.
+  if (
+    request.method === "POST" &&
+    /^\/auth\/mfa\/totp\/(begin|confirm|disable)$/.test(pathname)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function isAuthSessionRoute(request: Request, pathname: string): boolean {

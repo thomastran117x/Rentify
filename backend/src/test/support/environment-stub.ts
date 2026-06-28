@@ -9,6 +9,8 @@ const tokenConfig = {
   refreshTokenMode: "stateful" as const,
   refreshTokenCachePrefix: "auth:refresh",
   personalAccessTokenSecret: "test-personal-access-token-secret-32",
+  mfaTotpEncryptionKey:
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 };
 
 const captchaConfig = {
@@ -29,6 +31,14 @@ const elasticsearchConfig = {
 
 const oauthConfig = {
   google: {
+    audiences: [],
+    clientSecret: undefined,
+    frontendBaseUrl: "http://localhost:3000",
+  },
+  microsoft: {
+    audiences: [],
+    clientSecret: undefined,
+    tenant: "consumers",
     frontendBaseUrl: "http://localhost:3000",
   },
 };
@@ -44,6 +54,7 @@ const rateLimiterConfig = {
 
 const squareConfig = {
   accessToken: "square-test-access-token",
+  environment: "sandbox" as const,
   locationId: "square-test-location",
   webhookSignatureKey: "square-test-signature-key",
   webhookNotificationUrl: "http://localhost:8080/api/v1/payments/webhook",
