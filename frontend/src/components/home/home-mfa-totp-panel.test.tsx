@@ -63,6 +63,26 @@ vi.mock("qrcode", () => ({
 }));
 
 describe("HomeMfaTotpPanel", () => {
+  function createVerificationRequiredError(
+    availableFactors: Array<"email" | "totp"> = ["email"],
+  ) {
+    return new ApiClientError("Recent MFA verification is required.", {
+      code: "MFA_VERIFICATION_REQUIRED",
+      details: {
+        scope: "mfa-management",
+        availableFactors,
+        recommendedFactor: availableFactors[0] ?? null,
+        verifiedUntil: null,
+      },
+      request: {
+        method: "POST",
+        path: "/auth/mfa/totp/begin",
+        requestUrl: "http://localhost:3040/auth/mfa/totp/begin",
+      },
+      status: 401,
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthMock.mockReturnValue({
@@ -85,10 +105,12 @@ describe("HomeMfaTotpPanel", () => {
 
   it("starts enrollment after the user completes MFA verification", async () => {
     const user = userEvent.setup();
-    beginEnrollmentMock.mockResolvedValue({
-      secret: "ABCDEF123456",
-      uri: "otpauth://totp/Test",
-    });
+    beginEnrollmentMock
+      .mockRejectedValueOnce(createVerificationRequiredError())
+      .mockResolvedValueOnce({
+        secret: "ABCDEF123456",
+        uri: "otpauth://totp/Test",
+      });
 
     render(<HomeMfaTotpPanel />);
 
@@ -97,8 +119,10 @@ describe("HomeMfaTotpPanel", () => {
     await user.click(screen.getByRole("button", { name: "Approve verification" }));
 
     await waitFor(() => {
-      expect(beginEnrollmentMock).toHaveBeenCalledWith("user@example.com");
+      expect(beginEnrollmentMock).toHaveBeenCalledTimes(2);
+      expect(beginEnrollmentMock).toHaveBeenNthCalledWith(2, "user@example.com");
     });
+    expect(getOptionsMock).not.toHaveBeenCalled();
     expect(
       screen.getByText(/Scan this QR code with your authenticator app/i),
     ).toBeInTheDocument();
@@ -106,13 +130,7 @@ describe("HomeMfaTotpPanel", () => {
 
   it("shows the no-factor error instead of opening an empty dialog", async () => {
     const user = userEvent.setup();
-    getOptionsMock.mockResolvedValue({
-      scope: "mfa-management",
-      verified: false,
-      verifiedUntil: null,
-      availableFactors: [],
-      recommendedFactor: null,
-    });
+    beginEnrollmentMock.mockRejectedValueOnce(createVerificationRequiredError([]));
 
     render(<HomeMfaTotpPanel />);
 
@@ -125,22 +143,13 @@ describe("HomeMfaTotpPanel", () => {
     expect(
       screen.queryByRole("button", { name: "Approve verification" }),
     ).not.toBeInTheDocument();
+    expect(getOptionsMock).not.toHaveBeenCalled();
   });
 
   it("re-verifies once and retries the protected action on MFA_VERIFICATION_REQUIRED", async () => {
     const user = userEvent.setup();
     beginEnrollmentMock
-      .mockRejectedValueOnce(
-        new ApiClientError("Recent MFA verification is required.", {
-          code: "MFA_VERIFICATION_REQUIRED",
-          request: {
-            method: "POST",
-            path: "/auth/mfa/totp/begin",
-            requestUrl: "http://localhost:3040/auth/mfa/totp/begin",
-          },
-          status: 401,
-        }),
-      )
+      .mockRejectedValueOnce(createVerificationRequiredError())
       .mockResolvedValueOnce({
         secret: "ABCDEF123456",
         uri: "otpauth://totp/Test",
@@ -151,11 +160,10 @@ describe("HomeMfaTotpPanel", () => {
     await screen.findByText("Not enabled");
     await user.click(screen.getByRole("button", { name: "Set up" }));
     await user.click(screen.getByRole("button", { name: "Approve verification" }));
-    await user.click(screen.getByRole("button", { name: "Approve verification" }));
 
     await waitFor(() => {
       expect(beginEnrollmentMock).toHaveBeenCalledTimes(2);
-      expect(getOptionsMock).toHaveBeenCalledTimes(2);
     });
+    expect(getOptionsMock).not.toHaveBeenCalled();
   });
 });

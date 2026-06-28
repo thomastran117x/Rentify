@@ -1,4 +1,5 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
+import { environment } from "@/configuration/environment";
 import type { AuthController } from "@/features/auth/auth.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
@@ -192,13 +193,15 @@ export const authMfaVerificationRouteModule: RouteModule = {
         "confirmChallenge",
       ),
     );
-    app.get(
-      "/auth/mfa/verify/dev/otp",
-      resolveHandler<MfaVerificationController>(
-        containerTokens.mfaVerificationController,
-        "previewCurrentEmailOtp",
-      ),
-    );
+    if (!environment.isProduction()) {
+      app.get(
+        "/auth/mfa/verify/dev/otp",
+        resolveHandler<MfaVerificationController>(
+          containerTokens.mfaVerificationController,
+          "previewCurrentEmailOtp",
+        ),
+      );
+    }
   },
 };
 
@@ -269,3 +272,5 @@ export const authPersonalAccessTokensRouteModule: RouteModule = {
     );
   },
 };
+
+

@@ -1,5 +1,6 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
+import { environment } from "@/configuration/environment";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
@@ -13,6 +14,10 @@ function jsonHeaders(token = "user-token") {
 }
 
 describe("MFA verification routes integration", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   function createApp() {
     const mfaVerificationService = {
       getOptions: jest.fn(async () => ({
@@ -131,6 +136,38 @@ describe("MFA verification routes integration", () => {
       sessionId: "session-1",
       scope: "mfa-management",
     });
+  });
+
+  it("rejects unsupported challenge factors at the request boundary", async () => {
+    const { app, mfaVerificationService } = createApp();
+
+    const challengeResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/verify/challenge")}`,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "sms",
+        }),
+      },
+    );
+
+    expect(challengeResponse.status).toBe(400);
+    expect(mfaVerificationService.issueChallenge).not.toHaveBeenCalled();
+  });
+
+  it("does not register the preview route in production", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const { app, mfaVerificationService } = createApp();
+
+    const previewResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/verify/dev/otp?scope=mfa-management")}`,
+      { headers: jsonHeaders() },
+    );
+
+    expect(previewResponse.status).toBe(404);
+    expect(mfaVerificationService.previewCurrentEmailOtp).not.toHaveBeenCalled();
   });
 
   it("blocks protected totp routes before proof and allows them after proof", async () => {

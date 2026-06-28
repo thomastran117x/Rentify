@@ -232,6 +232,47 @@ describe("MfaVerificationService", () => {
     ).rejects.toThrow("cache write failed");
   });
 
+  it("clears confirm limiter state after a successful verification", async () => {
+    const { service, cache } = createService();
+    cache.jsonStore.set(
+      "auth:mfa-verify:confirm:user-1:session-1:mfa-management:email",
+      {
+        value: {
+          count: 3,
+          resetAt: Date.now() + 60_000,
+        },
+        ttlSeconds: 60,
+      },
+    );
+    cache.jsonStore.set(
+      "auth:mfa-verify:failures:user-1:session-1:mfa-management:email",
+      {
+        value: { count: 2 },
+        ttlSeconds: 600,
+      },
+    );
+
+    await service.confirmChallenge({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "email",
+      code: "123456",
+      client: { device: { type: "desktop", isMobile: false } },
+    });
+
+    expect(
+      cache.jsonStore.has(
+        "auth:mfa-verify:confirm:user-1:session-1:mfa-management:email",
+      ),
+    ).toBe(false);
+    expect(
+      cache.jsonStore.has(
+        "auth:mfa-verify:failures:user-1:session-1:mfa-management:email",
+      ),
+    ).toBe(false);
+  });
+
   it("isolates proofs by session and scope", async () => {
     const { service } = createService();
 
@@ -372,4 +413,6 @@ describe("MfaVerificationService", () => {
     ).rejects.toThrow("OTP preview is unavailable.");
   });
 });
+
+
 

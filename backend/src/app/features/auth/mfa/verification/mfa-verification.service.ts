@@ -216,7 +216,7 @@ export class MfaVerificationService {
       throw error;
     }
 
-    await this.clearFailedConfirmAttempts(input, factor);
+    await this.clearConfirmAttemptState(input, factor);
     const proof = await this.persistProof({
       factor,
       factorState,
@@ -547,7 +547,7 @@ export class MfaVerificationService {
     }
   }
 
-  private async clearFailedConfirmAttempts(
+  private async clearConfirmAttemptState(
     input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
@@ -627,4 +627,6 @@ export class MfaVerificationService {
     return createHash("sha256").update(value).digest("hex");
   }
 }
+
+
 
