@@ -4,7 +4,10 @@ import { environment } from "@/configuration/environment";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
-import { createJwtClaims, createRouteTestApp } from "../../../support/integration-app";
+import {
+  createJwtClaims,
+  createRouteTestApp,
+} from "../../../support/integration-app";
 
 function jsonHeaders(token = "user-token") {
   return {
@@ -50,7 +53,10 @@ describe("MFA verification routes integration", () => {
 
     const mfaTotpService = {
       isEnabled: jest.fn(async () => false),
-      beginEnrollment: jest.fn(async () => ({ secret: "secret", uri: "otpauth://test" })),
+      beginEnrollment: jest.fn(async () => ({
+        secret: "secret",
+        uri: "otpauth://test",
+      })),
       confirmEnrollment: jest.fn(async () => undefined),
       cancelEnrollment: jest.fn(async () => undefined),
       disable: jest.fn(async () => undefined),
@@ -167,7 +173,9 @@ describe("MFA verification routes integration", () => {
     );
 
     expect(previewResponse.status).toBe(404);
-    expect(mfaVerificationService.previewCurrentEmailOtp).not.toHaveBeenCalled();
+    expect(
+      mfaVerificationService.previewCurrentEmailOtp,
+    ).not.toHaveBeenCalled();
   });
 
   it("blocks protected totp routes before proof and allows them after proof", async () => {

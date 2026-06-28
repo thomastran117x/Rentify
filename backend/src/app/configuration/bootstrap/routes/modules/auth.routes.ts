@@ -272,5 +272,3 @@ export const authPersonalAccessTokensRouteModule: RouteModule = {
     );
   },
 };
-
-

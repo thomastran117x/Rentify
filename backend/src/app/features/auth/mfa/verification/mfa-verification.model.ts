@@ -74,4 +74,3 @@ export interface MfaVerificationPreviewResult {
   code: string;
   expiresInSeconds: number;
 }
-

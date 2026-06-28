@@ -43,7 +43,13 @@ vi.mock("@/lib/auth/mfa-verification-api", () => ({
 }));
 
 vi.mock("@/components/auth/mfa-verification-dialog", () => ({
-  MfaVerificationDialog: ({ onVerified, onCancel }: { onVerified: () => void; onCancel: () => void }) => (
+  MfaVerificationDialog: ({
+    onVerified,
+    onCancel,
+  }: {
+    onVerified: () => void;
+    onCancel: () => void;
+  }) => (
     <div>
       <button type="button" onClick={onVerified}>
         Approve verification
@@ -116,11 +122,16 @@ describe("HomeMfaTotpPanel", () => {
 
     await screen.findByText("Not enabled");
     await user.click(screen.getByRole("button", { name: "Set up" }));
-    await user.click(screen.getByRole("button", { name: "Approve verification" }));
+    await user.click(
+      screen.getByRole("button", { name: "Approve verification" }),
+    );
 
     await waitFor(() => {
       expect(beginEnrollmentMock).toHaveBeenCalledTimes(2);
-      expect(beginEnrollmentMock).toHaveBeenNthCalledWith(2, "user@example.com");
+      expect(beginEnrollmentMock).toHaveBeenNthCalledWith(
+        2,
+        "user@example.com",
+      );
     });
     expect(getOptionsMock).not.toHaveBeenCalled();
     expect(
@@ -130,7 +141,9 @@ describe("HomeMfaTotpPanel", () => {
 
   it("shows the no-factor error instead of opening an empty dialog", async () => {
     const user = userEvent.setup();
-    beginEnrollmentMock.mockRejectedValueOnce(createVerificationRequiredError([]));
+    beginEnrollmentMock.mockRejectedValueOnce(
+      createVerificationRequiredError([]),
+    );
 
     render(<HomeMfaTotpPanel />);
 
@@ -159,7 +172,9 @@ describe("HomeMfaTotpPanel", () => {
 
     await screen.findByText("Not enabled");
     await user.click(screen.getByRole("button", { name: "Set up" }));
-    await user.click(screen.getByRole("button", { name: "Approve verification" }));
+    await user.click(
+      screen.getByRole("button", { name: "Approve verification" }),
+    );
 
     await waitFor(() => {
       expect(beginEnrollmentMock).toHaveBeenCalledTimes(2);

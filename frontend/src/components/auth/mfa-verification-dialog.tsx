@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ShieldCheck, Mail, Smartphone, X } from "lucide-react";
 import { ApiClientError, isApiClientError } from "@/lib/api/types";
 import {
@@ -49,7 +44,10 @@ function selectInitialFactor(
   options: MfaVerificationOptionsResult,
   preferredFactor?: MfaVerificationFactor | null,
 ): MfaVerificationChallengeFactor | null {
-  if (isChallengeFactor(preferredFactor) && options.availableFactors.includes(preferredFactor)) {
+  if (
+    isChallengeFactor(preferredFactor) &&
+    options.availableFactors.includes(preferredFactor)
+  ) {
     return preferredFactor;
   }
 
@@ -73,9 +71,10 @@ export function MfaVerificationDialog({
   onVerified,
 }: MfaVerificationDialogProps) {
   const [options, setOptions] = useState(initialOptions);
-  const [selectedFactor, setSelectedFactor] = useState<MfaVerificationChallengeFactor | null>(
-    selectInitialFactor(initialOptions, preferredFactor),
-  );
+  const [selectedFactor, setSelectedFactor] =
+    useState<MfaVerificationChallengeFactor | null>(
+      selectInitialFactor(initialOptions, preferredFactor),
+    );
   const [emailCode, setEmailCode] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [challengeSent, setChallengeSent] = useState(false);
@@ -116,7 +115,10 @@ export function MfaVerificationDialog({
       return;
     }
 
-    if (!restoreFocusRef.current && document.activeElement instanceof HTMLElement) {
+    if (
+      !restoreFocusRef.current &&
+      document.activeElement instanceof HTMLElement
+    ) {
       restoreFocusRef.current = document.activeElement;
     }
 
@@ -182,7 +184,9 @@ export function MfaVerificationDialog({
   const cooldownActive =
     cooldownUntil !== null && new Date(cooldownUntil).getTime() > nowMs;
 
-  async function refreshOptions(nextPreferredFactor: MfaVerificationFactor | null = selectedFactor) {
+  async function refreshOptions(
+    nextPreferredFactor: MfaVerificationFactor | null = selectedFactor,
+  ) {
     const refreshed = await mfaVerificationApi.getOptions(scope);
     setOptions(refreshed);
     setSelectedFactor(selectInitialFactor(refreshed, nextPreferredFactor));
@@ -198,7 +202,8 @@ export function MfaVerificationDialog({
 
     return getApiErrorMessage(error, {
       action,
-      fallback: "We couldn't complete MFA verification right now. Please try again.",
+      fallback:
+        "We couldn't complete MFA verification right now. Please try again.",
       preserveClientMessage: true,
     });
   }
@@ -213,16 +218,24 @@ export function MfaVerificationDialog({
     setInfoMessage(null);
 
     try {
-      const result = await mfaVerificationApi.issueChallenge(scope, selectedFactor);
+      const result = await mfaVerificationApi.issueChallenge(
+        scope,
+        selectedFactor,
+      );
       if (result.factor === "email") {
         setChallengeSent(true);
         setCooldownUntil(result.cooldownUntil);
         setInfoMessage("Verification code sent to your email.");
       } else {
-        setInfoMessage("Enter the current 6-digit code from your authenticator app.");
+        setInfoMessage(
+          "Enter the current 6-digit code from your authenticator app.",
+        );
       }
     } catch (error) {
-      if (error instanceof ApiClientError && error.code === "MFA_FACTOR_UNAVAILABLE") {
+      if (
+        error instanceof ApiClientError &&
+        error.code === "MFA_FACTOR_UNAVAILABLE"
+      ) {
         await refreshOptions(selectedFactor);
       }
       setErrorMessage(readDialogError(error, "send your verification code"));
@@ -255,7 +268,10 @@ export function MfaVerificationDialog({
       );
       onVerified(result);
     } catch (error) {
-      if (error instanceof ApiClientError && error.code === "MFA_FACTOR_UNAVAILABLE") {
+      if (
+        error instanceof ApiClientError &&
+        error.code === "MFA_FACTOR_UNAVAILABLE"
+      ) {
         await refreshOptions(selectedFactor);
       }
       setErrorMessage(readDialogError(error, "verify your code"));
@@ -309,11 +325,18 @@ export function MfaVerificationDialog({
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
               <ShieldCheck className="h-6 w-6" aria-hidden="true" />
             </div>
-            <h2 id={titleId} className="mt-4 text-2xl font-semibold text-slate-950">
+            <h2
+              id={titleId}
+              className="mt-4 text-2xl font-semibold text-slate-950"
+            >
               Verify it&apos;s you
             </h2>
-            <p id={descriptionId} className="mt-2 text-sm leading-6 text-slate-600">
-              Recent MFA verification is required before we can change your account security settings.
+            <p
+              id={descriptionId}
+              className="mt-2 text-sm leading-6 text-slate-600"
+            >
+              Recent MFA verification is required before we can change your
+              account security settings.
             </p>
           </div>
           <button
@@ -340,42 +363,52 @@ export function MfaVerificationDialog({
 
         {unavailable ? (
           <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-            No verification methods are available for this account. Please contact support or recover access before changing MFA settings.
+            No verification methods are available for this account. Please
+            contact support or recover access before changing MFA settings.
           </div>
         ) : (
           <>
             <div className="mt-6 flex gap-3">
-              {options.availableFactors.filter(isChallengeFactor).map((factor) => {
-                const active = factor === selectedFactor;
-                return (
-                  <button
-                    key={factor}
-                    type="button"
-                    onClick={() => handleFactorSelect(factor)}
-                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                      active
-                        ? "border-slate-950 bg-slate-950 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    {factor === "email" ? <Mail className="h-4 w-4" aria-hidden="true" /> : <Smartphone className="h-4 w-4" aria-hidden="true" />}
-                    {factor === "email" ? "Email code" : "Authenticator code"}
-                  </button>
-                );
-              })}
+              {options.availableFactors
+                .filter(isChallengeFactor)
+                .map((factor) => {
+                  const active = factor === selectedFactor;
+                  return (
+                    <button
+                      key={factor}
+                      type="button"
+                      onClick={() => handleFactorSelect(factor)}
+                      className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                        active
+                          ? "border-slate-950 bg-slate-950 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      {factor === "email" ? (
+                        <Mail className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Smartphone className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {factor === "email" ? "Email code" : "Authenticator code"}
+                    </button>
+                  );
+                })}
             </div>
 
             {selectedFactor === "email" ? (
               <div className="mt-6 space-y-4">
                 <p className="text-sm text-slate-700">
-                  Send a 6-digit code to your verified email address, then enter it below.
+                  Send a 6-digit code to your verified email address, then enter
+                  it below.
                 </p>
                 <input
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   value={emailCode}
-                  onChange={(event) => setEmailCode(normalizeCode(event.target.value))}
+                  onChange={(event) =>
+                    setEmailCode(normalizeCode(event.target.value))
+                  }
                   onPaste={(event) => handleCodePaste(event, "email")}
                   placeholder="000000"
                   className={`h-14 w-full rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.35em] text-slate-900 outline-none transition ${
@@ -425,7 +458,9 @@ export function MfaVerificationDialog({
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   value={totpCode}
-                  onChange={(event) => setTotpCode(normalizeCode(event.target.value))}
+                  onChange={(event) =>
+                    setTotpCode(normalizeCode(event.target.value))
+                  }
                   onPaste={(event) => handleCodePaste(event, "totp")}
                   placeholder="000000"
                   className={`h-14 w-full rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.35em] text-slate-900 outline-none transition ${
@@ -460,4 +495,3 @@ export function MfaVerificationDialog({
     </div>
   );
 }
-

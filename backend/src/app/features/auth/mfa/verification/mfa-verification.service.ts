@@ -10,7 +10,10 @@ import MfaVerificationRequiredError from "@/errors/http/mfa-verification-require
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
-import type { AuthRepository, MfaVerificationSecurityContext } from "@/features/auth/auth.repository";
+import type {
+  AuthRepository,
+  MfaVerificationSecurityContext,
+} from "@/features/auth/auth.repository";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
@@ -72,7 +75,10 @@ export class MfaVerificationService {
   async getOptions(
     input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
   ): Promise<MfaVerificationOptionsResult> {
-    const factorState = await this.resolveFactorState(input.userId, input.scope);
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      input.scope,
+    );
     const proof = await this.readProof(input.sessionId, input.scope);
     const validatedProof = await this.validateProof({
       proof,
@@ -97,7 +103,10 @@ export class MfaVerificationService {
       client: ClientRequestContext;
     },
   ): Promise<MfaVerificationChallengeResult> {
-    const factorState = await this.resolveFactorState(input.userId, input.scope);
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      input.scope,
+    );
     const factor = this.requireUsableFactor(factorState, input.factor);
 
     await this.consumeWindowRateLimit({
@@ -109,7 +118,12 @@ export class MfaVerificationService {
     });
 
     if (factor === "email") {
-      const otpSubject = this.getOtpSubject(input.userId, input.sessionId, input.scope, factor);
+      const otpSubject = this.getOtpSubject(
+        input.userId,
+        input.sessionId,
+        input.scope,
+        factor,
+      );
 
       try {
         const issuedOtp = await this.options.otpService.issue({
@@ -180,7 +194,10 @@ export class MfaVerificationService {
       client: ClientRequestContext;
     },
   ): Promise<MfaVerificationConfirmResult> {
-    const factorState = await this.resolveFactorState(input.userId, input.scope);
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      input.scope,
+    );
     const factor = this.requireUsableFactor(factorState, input.factor);
 
     await this.assertConfirmLockNotActive(input, factor);
@@ -196,14 +213,22 @@ export class MfaVerificationService {
       if (factor === "email") {
         await this.options.otpService.verify({
           purpose: MFA_STEP_UP_OTP_PURPOSE,
-          subject: this.getOtpSubject(input.userId, input.sessionId, input.scope, factor),
+          subject: this.getOtpSubject(
+            input.userId,
+            input.sessionId,
+            input.scope,
+            factor,
+          ),
           code: input.code,
         });
       } else {
         await this.options.mfaTotpService.verifyCode(input.userId, input.code);
       }
     } catch (error) {
-      if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+      if (
+        error instanceof BadRequestError ||
+        error instanceof UnauthorizedError
+      ) {
         await this.recordFailedConfirmAttempt(input, factor);
         this.logSecurityEvent("MFA step-up failed", {
           ...input,
@@ -242,7 +267,10 @@ export class MfaVerificationService {
   async assertRecentVerification(
     input: VerificationRequestContext & { client?: ClientRequestContext },
   ): Promise<MfaVerificationProofRecord> {
-    const factorState = await this.resolveFactorState(input.userId, input.scope);
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      input.scope,
+    );
     const proof = await this.readProof(input.sessionId, input.scope);
     const validatedProof = await this.validateProof({
       proof,
@@ -277,7 +305,10 @@ export class MfaVerificationService {
       throw new BadRequestError("OTP preview is unavailable.");
     }
 
-    const factorState = await this.resolveFactorState(input.userId, input.scope);
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      input.scope,
+    );
 
     if (!factorState.availableFactors.includes("email")) {
       throw new MfaFactorUnavailableError();
@@ -285,11 +316,18 @@ export class MfaVerificationService {
 
     const preview = await this.options.otpService.peek({
       purpose: MFA_STEP_UP_OTP_PURPOSE,
-      subject: this.getOtpSubject(input.userId, input.sessionId, input.scope, "email"),
+      subject: this.getOtpSubject(
+        input.userId,
+        input.sessionId,
+        input.scope,
+        "email",
+      ),
     });
 
     if (!preview) {
-      throw new BadRequestError("No active MFA verification code is available.");
+      throw new BadRequestError(
+        "No active MFA verification code is available.",
+      );
     }
 
     return {
@@ -305,9 +343,10 @@ export class MfaVerificationService {
     scope: MfaVerificationScope,
   ): Promise<VerifiedFactorState> {
     this.assertSupportedScope(scope);
-    const securityContext = await this.options.authRepository.findMfaVerificationSecurityContextByUserId(
-      userId,
-    );
+    const securityContext =
+      await this.options.authRepository.findMfaVerificationSecurityContextByUserId(
+        userId,
+      );
 
     if (!securityContext) {
       throw new BadRequestError("User account could not be found.");
@@ -339,7 +378,9 @@ export class MfaVerificationService {
     };
   }
 
-  private assertSupportedScope(scope: string): asserts scope is MfaVerificationScope {
+  private assertSupportedScope(
+    scope: string,
+  ): asserts scope is MfaVerificationScope {
     if (scope !== MFA_MANAGEMENT_SCOPE) {
       throw new BadRequestError("Unsupported MFA verification scope.", {
         scope,
@@ -362,7 +403,9 @@ export class MfaVerificationService {
     return factor;
   }
 
-  private deriveSecurityVersion(context: MfaVerificationSecurityContext): string {
+  private deriveSecurityVersion(
+    context: MfaVerificationSecurityContext,
+  ): string {
     return createHash("sha256")
       .update(
         JSON.stringify({
@@ -451,7 +494,9 @@ export class MfaVerificationService {
       return input.proof;
     }
 
-    await this.options.cache.delete(this.getProofKey(input.sessionId, input.scope));
+    await this.options.cache.delete(
+      this.getProofKey(input.sessionId, input.scope),
+    );
     return null;
   }
 
@@ -473,8 +518,9 @@ export class MfaVerificationService {
     );
     const now = Date.now();
     const record =
-      (await this.options.cache.getJson<{ count: number; resetAt: number }>(key)) ??
-      null;
+      (await this.options.cache.getJson<{ count: number; resetAt: number }>(
+        key,
+      )) ?? null;
 
     if (record && record.resetAt > now && record.count >= input.limit) {
       const retryAfterSeconds = Math.max(
@@ -510,7 +556,12 @@ export class MfaVerificationService {
     input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
-    const key = this.getConfirmLockKey(input.userId, input.sessionId, input.scope, factor);
+    const key = this.getConfirmLockKey(
+      input.userId,
+      input.sessionId,
+      input.scope,
+      factor,
+    );
     const ttl = await this.options.cache.ttl(key);
 
     if (ttl > 0) {
@@ -524,9 +575,15 @@ export class MfaVerificationService {
     input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
-    const key = this.getFailedConfirmKey(input.userId, input.sessionId, input.scope, factor);
-    const existing =
-      (await this.options.cache.getJson<{ count: number }>(key)) ?? { count: 0 };
+    const key = this.getFailedConfirmKey(
+      input.userId,
+      input.sessionId,
+      input.scope,
+      factor,
+    );
+    const existing = (await this.options.cache.getJson<{ count: number }>(
+      key,
+    )) ?? { count: 0 };
     const nextCount = existing.count + 1;
 
     await this.options.cache.setJson(
@@ -537,7 +594,12 @@ export class MfaVerificationService {
 
     if (nextCount >= FAILED_CONFIRM_THRESHOLD) {
       await this.options.cache.set(
-        this.getConfirmLockKey(input.userId, input.sessionId, input.scope, factor),
+        this.getConfirmLockKey(
+          input.userId,
+          input.sessionId,
+          input.scope,
+          factor,
+        ),
         "1",
         FAILED_CONFIRM_LOCK_SECONDS,
       );
@@ -552,9 +614,25 @@ export class MfaVerificationService {
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
     await this.options.cache.deleteMany([
-      this.getFailedConfirmKey(input.userId, input.sessionId, input.scope, factor),
-      this.getConfirmLockKey(input.userId, input.sessionId, input.scope, factor),
-      this.getRateLimitKey("confirm", input.userId, input.sessionId, input.scope, factor),
+      this.getFailedConfirmKey(
+        input.userId,
+        input.sessionId,
+        input.scope,
+        factor,
+      ),
+      this.getConfirmLockKey(
+        input.userId,
+        input.sessionId,
+        input.scope,
+        factor,
+      ),
+      this.getRateLimitKey(
+        "confirm",
+        input.userId,
+        input.sessionId,
+        input.scope,
+        factor,
+      ),
     ]);
   }
 
@@ -627,6 +705,3 @@ export class MfaVerificationService {
     return createHash("sha256").update(value).digest("hex");
   }
 }
-
-
-

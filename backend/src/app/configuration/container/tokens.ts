@@ -126,8 +126,12 @@ export const containerTokens = {
   mfaTotpRepository: createServiceToken<MfaTotpRepository>("MfaTotpRepository"),
   mfaTotpService: createServiceToken<MfaTotpService>("MfaTotpService"),
   mfaTotpController: createServiceToken<MfaTotpController>("MfaTotpController"),
-  mfaVerificationService: createServiceToken<MfaVerificationService>("MfaVerificationService"),
-  mfaVerificationController: createServiceToken<MfaVerificationController>("MfaVerificationController"),
+  mfaVerificationService: createServiceToken<MfaVerificationService>(
+    "MfaVerificationService",
+  ),
+  mfaVerificationController: createServiceToken<MfaVerificationController>(
+    "MfaVerificationController",
+  ),
   oauthTokenVerifier:
     createServiceToken<OAuthTokenVerifier>("OAuthTokenVerifier"),
   googleOAuthService:
@@ -271,6 +275,3 @@ export const containerTokens = {
     "FeatureFlagController",
   ),
 } as const;
-
-
-

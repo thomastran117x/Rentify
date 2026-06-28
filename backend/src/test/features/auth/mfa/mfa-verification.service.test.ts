@@ -7,17 +7,19 @@ import { environment } from "@/configuration/environment";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
 
-function createSecurityContext(overrides: Partial<{
-  emailVerified: boolean;
-  tokenVersion: number;
-  updatedAt: string;
-  firstName?: string;
-  mfaTotp: {
-    status: string;
+function createSecurityContext(
+  overrides: Partial<{
+    emailVerified: boolean;
+    tokenVersion: number;
     updatedAt: string;
-    confirmedAt?: string;
-  } | null;
-}> = {}) {
+    firstName?: string;
+    mfaTotp: {
+      status: string;
+      updatedAt: string;
+      confirmedAt?: string;
+    } | null;
+  }> = {},
+) {
   return {
     id: "user-1",
     email: "user@example.com",
@@ -41,14 +43,20 @@ function createCache() {
       getJson: jest.fn(async <TValue>(key: string) => {
         return (jsonStore.get(key)?.value as TValue | undefined) ?? null;
       }),
-      setJson: jest.fn(async (key: string, value: unknown, ttlSeconds: number) => {
-        jsonStore.set(key, { value, ttlSeconds });
-      }),
+      setJson: jest.fn(
+        async (key: string, value: unknown, ttlSeconds: number) => {
+          jsonStore.set(key, { value, ttlSeconds });
+        },
+      ),
       set: jest.fn(async (key: string, value: string, ttlSeconds: number) => {
         valueStore.set(key, { value, ttlSeconds });
       }),
       ttl: jest.fn(async (key: string) => {
-        return jsonStore.get(key)?.ttlSeconds ?? valueStore.get(key)?.ttlSeconds ?? -1;
+        return (
+          jsonStore.get(key)?.ttlSeconds ??
+          valueStore.get(key)?.ttlSeconds ??
+          -1
+        );
       }),
       delete: jest.fn(async (key: string) => {
         const deletedJson = jsonStore.delete(key);
@@ -68,13 +76,15 @@ function createCache() {
   };
 }
 
-function createService(overrides: Partial<{
-  securityContext: ReturnType<typeof createSecurityContext>;
-}> = {}) {
+function createService(
+  overrides: Partial<{
+    securityContext: ReturnType<typeof createSecurityContext>;
+  }> = {},
+) {
   const cache = createCache();
   const authRepository = {
-    findMfaVerificationSecurityContextByUserId: jest.fn(async () =>
-      overrides.securityContext ?? createSecurityContext(),
+    findMfaVerificationSecurityContextByUserId: jest.fn(
+      async () => overrides.securityContext ?? createSecurityContext(),
     ),
   };
   const otpService = {
@@ -121,7 +131,10 @@ describe("MfaVerificationService", () => {
 
   it("returns an empty-factor options contract when no step-up factors are usable", async () => {
     const { service } = createService({
-      securityContext: createSecurityContext({ emailVerified: false, mfaTotp: null }),
+      securityContext: createSecurityContext({
+        emailVerified: false,
+        mfaTotp: null,
+      }),
     });
 
     await expect(
@@ -363,7 +376,6 @@ describe("MfaVerificationService", () => {
     });
   });
 
-
   it("maps OTP cooldowns to the stable challenge rate-limit error code", async () => {
     const { service, otpService } = createService();
     otpService.issue.mockRejectedValue(
@@ -413,6 +425,3 @@ describe("MfaVerificationService", () => {
     ).rejects.toThrow("OTP preview is unavailable.");
   });
 });
-
-
-

@@ -36,9 +36,12 @@ export function HomeMfaTotpPanel() {
   const [enrollCode, setEnrollCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [dialogState, setDialogState] = useState<VerificationDialogState | null>(null);
+  const [dialogState, setDialogState] =
+    useState<VerificationDialogState | null>(null);
   const enrollCodeRef = useRef<HTMLInputElement>(null);
-  const verificationResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const verificationResolverRef = useRef<((value: boolean) => void) | null>(
+    null,
+  );
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -104,7 +107,8 @@ export function HomeMfaTotpPanel() {
     initialOptions?: MfaVerificationOptionsResult,
   ) {
     try {
-      const options = initialOptions ?? await mfaVerificationApi.getOptions(MFA_SCOPE);
+      const options =
+        initialOptions ?? (await mfaVerificationApi.getOptions(MFA_SCOPE));
 
       if (options.verified) {
         return true;
@@ -150,11 +154,19 @@ export function HomeMfaTotpPanel() {
     try {
       return await action();
     } catch (error) {
-      if (!isApiClientError(error) || error.code !== "MFA_VERIFICATION_REQUIRED") {
+      if (
+        !isApiClientError(error) ||
+        error.code !== "MFA_VERIFICATION_REQUIRED"
+      ) {
         throw error;
       }
 
-      const details = error.details as Pick<MfaVerificationOptionsResult, "scope" | "availableFactors" | "recommendedFactor" | "verifiedUntil"> | undefined;
+      const details = error.details as
+        | Pick<
+            MfaVerificationOptionsResult,
+            "scope" | "availableFactors" | "recommendedFactor" | "verifiedUntil"
+          >
+        | undefined;
       const initialOptions: MfaVerificationOptionsResult | undefined = details
         ? { ...details, verified: false }
         : undefined;
@@ -244,7 +256,10 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      await runProtectedAction(() => mfaTotpApi.cancelEnrollment(), enabled ? "totp" : null);
+      await runProtectedAction(
+        () => mfaTotpApi.cancelEnrollment(),
+        enabled ? "totp" : null,
+      );
     } catch {
       // Best-effort cleanup; the pending record expires on its own after 15 min.
     } finally {
@@ -261,7 +276,10 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      const result = await runProtectedAction(() => mfaTotpApi.disable(), "totp");
+      const result = await runProtectedAction(
+        () => mfaTotpApi.disable(),
+        "totp",
+      );
 
       if (!result) {
         return;
@@ -398,7 +416,9 @@ export function HomeMfaTotpPanel() {
                 maxLength={6}
                 value={enrollCode}
                 onChange={(event) =>
-                  setEnrollCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  setEnrollCode(
+                    event.target.value.replace(/\D/g, "").slice(0, 6),
+                  )
                 }
                 placeholder="000000"
                 className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
@@ -444,4 +464,3 @@ export function HomeMfaTotpPanel() {
     </>
   );
 }
-

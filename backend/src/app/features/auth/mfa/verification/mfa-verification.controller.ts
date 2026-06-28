@@ -3,7 +3,10 @@ import { ZodError } from "zod";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { ok } from "@/configuration/http/responses";
 import { requireSessionAuth } from "@/configuration/middlewares/jwt-middleware";
-import { RequestValidationError, parseRequestBody } from "@/configuration/validation/request";
+import {
+  RequestValidationError,
+  parseRequestBody,
+} from "@/configuration/validation/request";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import {
   mfaVerificationChallengeRequestSchema,
@@ -13,7 +16,9 @@ import {
 import type { MfaVerificationService } from "./mfa-verification.service";
 
 export class MfaVerificationController {
-  constructor(private readonly mfaVerificationService: MfaVerificationService) {}
+  constructor(
+    private readonly mfaVerificationService: MfaVerificationService,
+  ) {}
 
   getOptions = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await requireSessionAuth(context);
@@ -44,7 +49,9 @@ export class MfaVerificationController {
     return ok(context, result);
   };
 
-  confirmChallenge = async (context: Context<AppBindings>): Promise<Response> => {
+  confirmChallenge = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await requireSessionAuth(context);
     const sessionId = this.requireSessionId(auth.sessionId);
     const input = await parseRequestBody(

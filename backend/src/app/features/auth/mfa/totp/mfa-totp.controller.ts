@@ -44,7 +44,12 @@ export class MfaTotpController {
       auth.sub,
       accountName,
     );
-    this.logMfaChangeEvent(context, auth.sub, auth.sessionId, "TOTP enrollment started");
+    this.logMfaChangeEvent(
+      context,
+      auth.sub,
+      auth.sessionId,
+      "TOTP enrollment started",
+    );
     return ok(context, result);
   };
 
@@ -61,7 +66,12 @@ export class MfaTotpController {
       confirmEnrollmentRequestSchema,
     );
     await this.mfaTotpService.confirmEnrollment(auth.sub, input.code);
-    this.logMfaChangeEvent(context, auth.sub, auth.sessionId, "TOTP enrollment confirmed");
+    this.logMfaChangeEvent(
+      context,
+      auth.sub,
+      auth.sessionId,
+      "TOTP enrollment confirmed",
+    );
     return ok(
       context,
       { confirmed: true as const },
@@ -98,7 +108,12 @@ export class MfaTotpController {
       MFA_MANAGEMENT_SCOPE,
     );
     await this.mfaTotpService.cancelEnrollment(auth.sub);
-    this.logMfaChangeEvent(context, auth.sub, auth.sessionId, "Pending TOTP enrollment cancelled");
+    this.logMfaChangeEvent(
+      context,
+      auth.sub,
+      auth.sessionId,
+      "Pending TOTP enrollment cancelled",
+    );
     return ok(context, { cancelled: true as const });
   };
 

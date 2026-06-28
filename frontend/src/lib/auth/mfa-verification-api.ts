@@ -1,7 +1,4 @@
-import {
-  buildPathWithQuery,
-  authenticatedJson,
-} from "@/lib/api/client";
+import { buildPathWithQuery, authenticatedJson } from "@/lib/api/client";
 
 export type MfaVerificationScope = "mfa-management";
 export type MfaVerificationFactor = "email" | "totp" | "sms";
@@ -61,11 +58,10 @@ export const mfaVerificationApi = {
     scope: MfaVerificationScope,
     factor: MfaVerificationFactor,
   ): Promise<MfaVerificationChallengeResult> {
-    return authenticatedJson<MfaVerificationChallengeResult, { scope: MfaVerificationScope; factor: MfaVerificationFactor }>(
-      "POST",
-      "/auth/mfa/verify/challenge",
-      { scope, factor },
-    );
+    return authenticatedJson<
+      MfaVerificationChallengeResult,
+      { scope: MfaVerificationScope; factor: MfaVerificationFactor }
+    >("POST", "/auth/mfa/verify/challenge", { scope, factor });
   },
 
   confirmChallenge(
@@ -75,7 +71,11 @@ export const mfaVerificationApi = {
   ): Promise<MfaVerificationConfirmResult> {
     return authenticatedJson<
       MfaVerificationConfirmResult,
-      { scope: MfaVerificationScope; factor: MfaVerificationFactor; code: string }
+      {
+        scope: MfaVerificationScope;
+        factor: MfaVerificationFactor;
+        code: string;
+      }
     >("POST", "/auth/mfa/verify/confirm", {
       scope,
       factor,

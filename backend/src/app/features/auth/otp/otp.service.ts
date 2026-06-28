@@ -198,4 +198,3 @@ export class OtpService {
     return `${localPart.slice(0, 1)}***@${domain}`;
   }
 }
-

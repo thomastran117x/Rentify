@@ -4,11 +4,13 @@ import { ApiClientError } from "@/lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MfaVerificationDialog } from "./mfa-verification-dialog";
 
-const { issueChallengeMock, confirmChallengeMock, getOptionsMock } = vi.hoisted(() => ({
-  issueChallengeMock: vi.fn(),
-  confirmChallengeMock: vi.fn(),
-  getOptionsMock: vi.fn(),
-}));
+const { issueChallengeMock, confirmChallengeMock, getOptionsMock } = vi.hoisted(
+  () => ({
+    issueChallengeMock: vi.fn(),
+    confirmChallengeMock: vi.fn(),
+    getOptionsMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/auth/mfa-verification-api", () => ({
   mfaVerificationApi: {
@@ -99,7 +101,9 @@ describe("MfaVerificationDialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /authenticator code/i }));
+    await user.click(
+      screen.getByRole("button", { name: /authenticator code/i }),
+    );
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
 
@@ -116,15 +120,18 @@ describe("MfaVerificationDialog", () => {
   it("refreshes factor options when the chosen factor becomes unavailable", async () => {
     const user = userEvent.setup();
     confirmChallengeMock.mockRejectedValue(
-      new ApiClientError("That verification method is not currently available.", {
-        code: "MFA_FACTOR_UNAVAILABLE",
-        request: {
-          method: "POST",
-          path: "/auth/mfa/verify/confirm",
-          requestUrl: "http://localhost:3040/auth/mfa/verify/confirm",
+      new ApiClientError(
+        "That verification method is not currently available.",
+        {
+          code: "MFA_FACTOR_UNAVAILABLE",
+          request: {
+            method: "POST",
+            path: "/auth/mfa/verify/confirm",
+            requestUrl: "http://localhost:3040/auth/mfa/verify/confirm",
+          },
+          status: 400,
         },
-        status: 400,
-      }),
+      ),
     );
     getOptionsMock.mockResolvedValue({
       ...baseOptions,
@@ -143,7 +150,9 @@ describe("MfaVerificationDialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /authenticator code/i }));
+    await user.click(
+      screen.getByRole("button", { name: /authenticator code/i }),
+    );
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
 
