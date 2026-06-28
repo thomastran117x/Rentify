@@ -13,7 +13,10 @@ const TEST_PLAIN_SECRET = "TESTSECRET";
 function encryptForTest(plaintext: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", TEST_ENCRYPTION_KEY, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
   const authTag = cipher.getAuthTag();
   return Buffer.concat([iv, authTag, encrypted]).toString("base64");
 }
@@ -48,13 +51,21 @@ function createMocks() {
   } as unknown as jest.Mocked<TotpService>;
 
   const mfaTotpRepository = {
-    findByUserId: jest.fn<Promise<UserMfaTotp | null>, [string]>().mockResolvedValue(null),
+    findByUserId: jest
+      .fn<Promise<UserMfaTotp | null>, [string]>()
+      .mockResolvedValue(null),
     createPending: jest
-      .fn<Promise<UserMfaTotp>, [{ userId: string; secretEncrypted: string; expiresAt: Date }]>()
+      .fn<
+        Promise<UserMfaTotp>,
+        [{ userId: string; secretEncrypted: string; expiresAt: Date }]
+      >()
       .mockResolvedValue(makeRecord()),
     // Now takes (id, data, expectedUpdatedAt)
     replacePending: jest
-      .fn<Promise<number>, [string, { secretEncrypted: string; expiresAt: Date }, Date]>()
+      .fn<
+        Promise<number>,
+        [string, { secretEncrypted: string; expiresAt: Date }, Date]
+      >()
       .mockResolvedValue(1),
     // Now takes (id, confirmedAt, lastUsedCounter)
     activate: jest
@@ -90,13 +101,21 @@ describe("MfaTotpService", () => {
       const { service, totpService, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
-      const result = await service.beginEnrollment("user-id", "user@example.com");
+      const result = await service.beginEnrollment(
+        "user-id",
+        "user@example.com",
+      );
 
-      expect(totpService.generateSecret).toHaveBeenCalledWith("user@example.com");
+      expect(totpService.generateSecret).toHaveBeenCalledWith(
+        "user@example.com",
+      );
       expect(mfaTotpRepository.createPending).toHaveBeenCalledWith(
         expect.objectContaining({ userId: "user-id" }),
       );
-      expect(result).toEqual({ secret: TEST_PLAIN_SECRET, uri: expect.any(String) });
+      expect(result).toEqual({
+        secret: TEST_PLAIN_SECRET,
+        uri: expect.any(String),
+      });
     });
 
     it("sets expiresAt approximately 15 minutes in the future", async () => {
@@ -108,7 +127,9 @@ describe("MfaTotpService", () => {
       const { expiresAt } = mfaTotpRepository.createPending.mock.calls[0][0];
       const after = Date.now();
 
-      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 14 * 60 * 1000);
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(
+        before + 14 * 60 * 1000,
+      );
       expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 16 * 60 * 1000);
     });
 
@@ -161,10 +182,13 @@ describe("MfaTotpService", () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
-      const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
-        code: "P2002",
-        clientVersion: "test",
-      });
+      const p2002 = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed",
+        {
+          code: "P2002",
+          clientVersion: "test",
+        },
+      );
       mfaTotpRepository.createPending.mockRejectedValue(p2002);
 
       await expect(
@@ -275,7 +299,9 @@ describe("MfaTotpService", () => {
         makeRecord({ status: "active", lastUsedCounter: null }),
       );
 
-      await expect(service.verifyCode("user-id", "123456")).resolves.toBeUndefined();
+      await expect(
+        service.verifyCode("user-id", "123456"),
+      ).resolves.toBeUndefined();
 
       expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
         "record-id",
@@ -296,7 +322,9 @@ describe("MfaTotpService", () => {
 
     it("throws UnauthorizedError when record status is pending (not active)", async () => {
       const { service, mfaTotpRepository } = createMocks();
-      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord({ status: "pending" }));
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "pending" }),
+      );
 
       await expect(
         service.verifyCode("user-id", "123456"),
@@ -344,7 +372,9 @@ describe("MfaTotpService", () => {
       );
       totpService.verifyCode.mockReturnValue(56374060);
 
-      await expect(service.verifyCode("user-id", "123456")).resolves.toBeUndefined();
+      await expect(
+        service.verifyCode("user-id", "123456"),
+      ).resolves.toBeUndefined();
 
       expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
         "record-id",
@@ -376,7 +406,9 @@ describe("MfaTotpService", () => {
 
       await service.cancelEnrollment("user-id");
 
-      expect(mfaTotpRepository.deleteByUserIdIfPending).toHaveBeenCalledWith("user-id");
+      expect(mfaTotpRepository.deleteByUserIdIfPending).toHaveBeenCalledWith(
+        "user-id",
+      );
       expect(mfaTotpRepository.deleteByUserId).not.toHaveBeenCalled();
     });
 
@@ -384,7 +416,9 @@ describe("MfaTotpService", () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.deleteByUserIdIfPending.mockResolvedValue(undefined);
 
-      await expect(service.cancelEnrollment("user-id")).resolves.toBeUndefined();
+      await expect(
+        service.cancelEnrollment("user-id"),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -400,7 +434,9 @@ describe("MfaTotpService", () => {
 
     it("returns false when the user has a pending record", async () => {
       const { service, mfaTotpRepository } = createMocks();
-      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord({ status: "pending" }));
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "pending" }),
+      );
 
       expect(await service.isEnabled("user-id")).toBe(false);
     });
@@ -437,7 +473,10 @@ describe("MfaTotpService", () => {
 
       await service.confirmEnrollment("user-id", "123456");
 
-      expect(totpService.verifyCode).toHaveBeenCalledWith(TEST_PLAIN_SECRET, "123456");
+      expect(totpService.verifyCode).toHaveBeenCalledWith(
+        TEST_PLAIN_SECRET,
+        "123456",
+      );
     });
   });
 });

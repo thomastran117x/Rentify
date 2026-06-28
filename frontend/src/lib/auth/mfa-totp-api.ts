@@ -42,6 +42,8 @@ export const mfaTotpApi = {
   },
 
   cancelEnrollment(): Promise<{ cancelled: true }> {
-    return deleteAuthenticatedJson<{ cancelled: true }>("/auth/mfa/totp/pending");
+    return deleteAuthenticatedJson<{ cancelled: true }>(
+      "/auth/mfa/totp/pending",
+    );
   },
 };

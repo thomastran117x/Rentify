@@ -19,21 +19,35 @@ export class MfaTotpController {
     return ok(context, { enabled });
   };
 
-  beginEnrollment = async (context: Context<AppBindings>): Promise<Response> => {
+  beginEnrollment = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await requireSessionAuth(context);
     const input = await parseRequestBody(context, beginEnrollmentRequestSchema);
     const accountName = input.accountName ?? auth.email ?? auth.sub;
-    const result = await this.mfaTotpService.beginEnrollment(auth.sub, accountName);
+    const result = await this.mfaTotpService.beginEnrollment(
+      auth.sub,
+      accountName,
+    );
     return ok(context, result);
   };
 
-  confirmEnrollment = async (context: Context<AppBindings>): Promise<Response> => {
+  confirmEnrollment = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await requireSessionAuth(context);
-    const input = await parseRequestBody(context, confirmEnrollmentRequestSchema);
+    const input = await parseRequestBody(
+      context,
+      confirmEnrollmentRequestSchema,
+    );
     await this.mfaTotpService.confirmEnrollment(auth.sub, input.code);
-    return ok(context, { confirmed: true as const }, {
-      message: "Authenticator app enabled.",
-    });
+    return ok(
+      context,
+      { confirmed: true as const },
+      {
+        message: "Authenticator app enabled.",
+      },
+    );
   };
 
   disable = async (context: Context<AppBindings>): Promise<Response> => {
@@ -43,12 +57,18 @@ export class MfaTotpController {
     // session alone is not sufficient to downgrade account security.
     await this.mfaTotpService.verifyCode(auth.sub, input.code);
     await this.mfaTotpService.disable(auth.sub);
-    return ok(context, { disabled: true as const }, {
-      message: "Authenticator app disabled.",
-    });
+    return ok(
+      context,
+      { disabled: true as const },
+      {
+        message: "Authenticator app disabled.",
+      },
+    );
   };
 
-  cancelEnrollment = async (context: Context<AppBindings>): Promise<Response> => {
+  cancelEnrollment = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
     const auth = await requireSessionAuth(context);
     await this.mfaTotpService.cancelEnrollment(auth.sub);
     return ok(context, { cancelled: true as const });

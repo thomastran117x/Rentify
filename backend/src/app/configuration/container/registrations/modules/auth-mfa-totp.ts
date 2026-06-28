@@ -9,10 +9,8 @@ import { TotpService } from "@/features/auth/mfa/totp/totp.service";
 export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
   id: "auth-mfa-totp",
   register(container) {
-    const encryptionKey = Buffer.from(
-      environment.auth.mfaTotpEncryptionKey,
-      "hex",
-    );
+    const authConfig = environment.getTokenConfig();
+    const encryptionKey = Buffer.from(authConfig.mfaTotpEncryptionKey, "hex");
 
     container.register({
       token: containerTokens.totpService,

@@ -104,7 +104,11 @@ export class MfaTotpService {
 
     // Persist the confirmed counter as lastUsedCounter so the enrollment code
     // cannot be replayed against verifyCode before the first login MFA check.
-    await this.mfaTotpRepository.activate(record.id, new Date(), matchedCounter);
+    await this.mfaTotpRepository.activate(
+      record.id,
+      new Date(),
+      matchedCounter,
+    );
   }
 
   async verifyCode(userId: string, code: string): Promise<void> {

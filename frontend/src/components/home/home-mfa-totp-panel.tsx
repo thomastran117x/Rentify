@@ -89,8 +89,7 @@ export function HomeMfaTotpPanel() {
       setMessage(
         getApiErrorMessage(error, {
           action: "set up your authenticator app",
-          fallback:
-            "We couldn't start MFA setup right now. Please try again.",
+          fallback: "We couldn't start MFA setup right now. Please try again.",
           preserveClientMessage: true,
         }),
       );
@@ -316,7 +315,9 @@ export function HomeMfaTotpPanel() {
                 </div>
               )}
               <div className="space-y-2">
-                <p className="text-xs text-slate-600">Or enter this key manually:</p>
+                <p className="text-xs text-slate-600">
+                  Or enter this key manually:
+                </p>
                 <code className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900">
                   {enrollment ? formatSecret(enrollment.secret) : ""}
                 </code>
@@ -340,9 +341,7 @@ export function HomeMfaTotpPanel() {
               maxLength={6}
               value={enrollCode}
               onChange={(event) =>
-                setEnrollCode(
-                  event.target.value.replace(/\D/g, "").slice(0, 6),
-                )
+                setEnrollCode(event.target.value.replace(/\D/g, "").slice(0, 6))
               }
               placeholder="000000"
               className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
