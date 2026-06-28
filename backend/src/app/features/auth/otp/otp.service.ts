@@ -29,6 +29,11 @@ export interface VerifyOtpInput {
   code: string;
 }
 
+export interface PeekOtpInput {
+  purpose: string;
+  subject: string;
+}
+
 export interface IssuedOtpResult {
   ttlInSeconds: number;
   resendAvailableInSeconds: number;
@@ -96,6 +101,28 @@ export class OtpService {
       code,
       ttlInSeconds: this.ttlInSeconds,
       resendAvailableInSeconds: this.resendCooldownInSeconds,
+    };
+  }
+
+  async peek(
+    input: PeekOtpInput,
+  ): Promise<{ code: string; expiresInSeconds: number } | null> {
+    const otpKey = this.getOtpKey(input);
+    const record = await this.cache.getJson<CachedOtpRecord>(otpKey);
+
+    if (!record) {
+      return null;
+    }
+
+    const ttl = await this.cache.ttl(otpKey);
+
+    if (ttl <= 0) {
+      return null;
+    }
+
+    return {
+      code: record.code,
+      expiresInSeconds: ttl,
     };
   }
 
@@ -171,3 +198,4 @@ export class OtpService {
     return `${localPart.slice(0, 1)}***@${domain}`;
   }
 }
+

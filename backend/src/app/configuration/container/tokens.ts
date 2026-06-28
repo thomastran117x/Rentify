@@ -11,6 +11,8 @@ import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller"
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TotpService } from "@/features/auth/mfa/totp/totp.service";
+import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
+import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -124,6 +126,8 @@ export const containerTokens = {
   mfaTotpRepository: createServiceToken<MfaTotpRepository>("MfaTotpRepository"),
   mfaTotpService: createServiceToken<MfaTotpService>("MfaTotpService"),
   mfaTotpController: createServiceToken<MfaTotpController>("MfaTotpController"),
+  mfaVerificationService: createServiceToken<MfaVerificationService>("MfaVerificationService"),
+  mfaVerificationController: createServiceToken<MfaVerificationController>("MfaVerificationController"),
   oauthTokenVerifier:
     createServiceToken<OAuthTokenVerifier>("OAuthTokenVerifier"),
   googleOAuthService:
@@ -267,3 +271,6 @@ export const containerTokens = {
     "FeatureFlagController",
   ),
 } as const;
+
+
+

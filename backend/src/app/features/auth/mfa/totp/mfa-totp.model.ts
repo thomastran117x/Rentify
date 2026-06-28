@@ -8,9 +8,7 @@ export const confirmEnrollmentRequestSchema = z.object({
   code: z.string().trim().min(1, "Code is required."),
 });
 
-export const disableRequestSchema = z.object({
-  code: z.string().trim().min(1, "Current authenticator code is required."),
-});
+export const disableRequestSchema = z.object({});
 
 export type BeginEnrollmentRequestBody = z.infer<
   typeof beginEnrollmentRequestSchema

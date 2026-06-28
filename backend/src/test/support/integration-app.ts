@@ -18,6 +18,7 @@ export function createJwtClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
+    sessionId: "session-1",
     tokenVersion: 1,
     iat: 1,
     exp: 9_999_999_999,
@@ -81,3 +82,4 @@ export function createRouteTestApp(
 
   return app;
 }
+

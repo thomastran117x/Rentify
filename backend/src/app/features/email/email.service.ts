@@ -6,6 +6,12 @@ export interface SendVerificationEmailInput {
   firstName?: string;
 }
 
+export interface SendMfaStepUpEmailInput {
+  to: string;
+  verificationCode: string;
+  firstName?: string;
+}
+
 export interface SendNewDeviceEmailInput {
   to: string;
   firstName?: string;
@@ -43,6 +49,10 @@ export class EmailService {
     input: SendVerificationEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("verification", input);
+  }
+
+  async sendMfaStepUpEmail(input: SendMfaStepUpEmailInput): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("mfa_step_up", input);
   }
 
   async sendNewDeviceEmail(input: SendNewDeviceEmailInput): Promise<void> {

@@ -44,9 +44,15 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.mfaTotpController,
       lifetime: "scoped",
-      dependencies: [containerTokens.mfaTotpService],
+      dependencies: [
+        containerTokens.mfaTotpService,
+        containerTokens.mfaVerificationService,
+      ],
       resolve: ({ resolve }) =>
-        new MfaTotpController(resolve(containerTokens.mfaTotpService)),
+        new MfaTotpController(
+          resolve(containerTokens.mfaTotpService),
+          resolve(containerTokens.mfaVerificationService),
+        ),
     });
   },
 };

@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { AuthController } from "@/features/auth/auth.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
+import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
@@ -162,6 +163,40 @@ export const authDevicesRouteModule: RouteModule = {
       resolveHandler<AuthController>(
         containerTokens.authController,
         "removeKnownDevice",
+      ),
+    );
+  },
+};
+
+export const authMfaVerificationRouteModule: RouteModule = {
+  id: "auth-mfa-verification",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/auth/mfa/verify/options",
+      resolveHandler<MfaVerificationController>(
+        containerTokens.mfaVerificationController,
+        "getOptions",
+      ),
+    );
+    app.post(
+      "/auth/mfa/verify/challenge",
+      resolveHandler<MfaVerificationController>(
+        containerTokens.mfaVerificationController,
+        "issueChallenge",
+      ),
+    );
+    app.post(
+      "/auth/mfa/verify/confirm",
+      resolveHandler<MfaVerificationController>(
+        containerTokens.mfaVerificationController,
+        "confirmChallenge",
+      ),
+    );
+    app.get(
+      "/auth/mfa/verify/dev/otp",
+      resolveHandler<MfaVerificationController>(
+        containerTokens.mfaVerificationController,
+        "previewCurrentEmailOtp",
       ),
     );
   },

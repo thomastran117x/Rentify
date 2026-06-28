@@ -44,6 +44,7 @@ x-backend-environment: &backend-environment
   MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT}
   GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
   GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+  MFA_TOTP_ENCRYPTION_KEY: ${MFA_TOTP_ENCRYPTION_KEY}
 
 x-frontend-public-environment: &frontend-public-environment
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8040/api/v1}
@@ -363,5 +364,4 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
-
 
