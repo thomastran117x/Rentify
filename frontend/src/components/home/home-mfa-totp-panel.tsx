@@ -99,9 +99,12 @@ export function HomeMfaTotpPanel() {
     };
   }, []);
 
-  async function ensureMfaProof(preferredFactor?: MfaVerificationFactor | null) {
+  async function ensureMfaProof(
+    preferredFactor?: MfaVerificationFactor | null,
+    initialOptions?: MfaVerificationOptionsResult,
+  ) {
     try {
-      const options = await mfaVerificationApi.getOptions(MFA_SCOPE);
+      const options = initialOptions ?? await mfaVerificationApi.getOptions(MFA_SCOPE);
 
       if (options.verified) {
         return true;
@@ -144,26 +147,25 @@ export function HomeMfaTotpPanel() {
     action: () => Promise<T>,
     preferredFactor?: MfaVerificationFactor | null,
   ): Promise<T | null> {
-    const verified = await ensureMfaProof(preferredFactor);
-
-    if (!verified) {
-      return null;
-    }
-
     try {
       return await action();
     } catch (error) {
-      if (isApiClientError(error) && error.code === "MFA_VERIFICATION_REQUIRED") {
-        const reverified = await ensureMfaProof(preferredFactor);
-
-        if (!reverified) {
-          return null;
-        }
-
-        return action();
+      if (!isApiClientError(error) || error.code !== "MFA_VERIFICATION_REQUIRED") {
+        throw error;
       }
 
-      throw error;
+      const details = error.details as Pick<MfaVerificationOptionsResult, "scope" | "availableFactors" | "recommendedFactor" | "verifiedUntil"> | undefined;
+      const initialOptions: MfaVerificationOptionsResult | undefined = details
+        ? { ...details, verified: false }
+        : undefined;
+
+      const verified = await ensureMfaProof(preferredFactor, initialOptions);
+
+      if (!verified) {
+        return null;
+      }
+
+      return action();
     }
   }
 

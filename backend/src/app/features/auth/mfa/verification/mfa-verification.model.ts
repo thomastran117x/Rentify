@@ -10,12 +10,12 @@ export const mfaVerificationChallengeFactorSchema = z.enum(["email", "totp"]);
 
 export const mfaVerificationChallengeRequestSchema = z.object({
   scope: mfaVerificationScopeSchema,
-  factor: mfaVerificationFactorSchema,
+  factor: mfaVerificationChallengeFactorSchema,
 });
 
 export const mfaVerificationConfirmRequestSchema = z.object({
   scope: mfaVerificationScopeSchema,
-  factor: mfaVerificationFactorSchema,
+  factor: mfaVerificationChallengeFactorSchema,
   code: z.string().trim().min(1, "Code is required."),
 });
 

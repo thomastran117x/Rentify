@@ -183,6 +183,7 @@ export class MfaVerificationService {
     const factorState = await this.resolveFactorState(input.userId, input.scope);
     const factor = this.requireUsableFactor(factorState, input.factor);
 
+    await this.assertConfirmLockNotActive(input, factor);
     await this.consumeWindowRateLimit({
       kind: "confirm",
       limit: CONFIRM_LIMIT,
@@ -190,7 +191,6 @@ export class MfaVerificationService {
       ...input,
       factor,
     });
-    await this.assertConfirmLockNotActive(input, factor);
 
     try {
       if (factor === "email") {
@@ -369,9 +369,10 @@ export class MfaVerificationService {
           email: context.email,
           emailVerified: context.emailVerified,
           tokenVersion: context.tokenVersion,
-          updatedAt: context.updatedAt,
-          // Ignore mutable usage metadata like updatedAt/lastUsedCounter so a
-          // successful TOTP step-up remains valid for the action it unlocks.
+          // Ignore mutable usage metadata (updatedAt, lastUsedCounter) so that
+          // unrelated account writes don't silently invalidate a valid proof.
+          // Security-relevant changes (email, emailVerified, tokenVersion) each
+          // invalidate the proof via the fields above.
           activeTotp:
             context.mfaTotp?.status === "active"
               ? {
@@ -553,6 +554,7 @@ export class MfaVerificationService {
     await this.options.cache.deleteMany([
       this.getFailedConfirmKey(input.userId, input.sessionId, input.scope, factor),
       this.getConfirmLockKey(input.userId, input.sessionId, input.scope, factor),
+      this.getRateLimitKey("confirm", input.userId, input.sessionId, input.scope, factor),
     ]);
   }
 
