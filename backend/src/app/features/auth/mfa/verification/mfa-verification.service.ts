@@ -18,6 +18,7 @@ import type { OtpService } from "@/features/auth/otp/otp.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
+import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import {
   MFA_MANAGEMENT_SCOPE,
   MFA_PROOF_TTL_MINUTES,
@@ -87,10 +88,13 @@ export class MfaVerificationService {
       factorState,
       userId: input.userId,
     });
+    const bypassEligible = isMfaBypassEligible(
+      factorState.securityContext.email,
+    );
 
     return {
       scope: input.scope,
-      verified: validatedProof !== null,
+      verified: bypassEligible || validatedProof !== null,
       verifiedUntil: validatedProof?.verifiedUntil ?? null,
       availableFactors: factorState.availableFactors,
       recommendedFactor: factorState.recommendedFactor,
@@ -271,6 +275,24 @@ export class MfaVerificationService {
       input.userId,
       input.scope,
     );
+
+    if (isMfaBypassEligible(factorState.securityContext.email)) {
+      const bypassProof = this.buildBypassProof({
+        userId: input.userId,
+        sessionId: input.sessionId,
+        scope: input.scope,
+        factorState,
+      });
+
+      this.logSecurityEvent("MFA bypass used", {
+        ...input,
+        factor: bypassProof.factor,
+        result: "bypass",
+      });
+
+      return bypassProof;
+    }
+
     const proof = await this.readProof(input.sessionId, input.scope);
     const validatedProof = await this.validateProof({
       proof,
@@ -459,6 +481,28 @@ export class MfaVerificationService {
     );
 
     return proof;
+  }
+
+  private buildBypassProof(input: {
+    userId: string;
+    sessionId: string;
+    scope: MfaVerificationScope;
+    factorState: VerifiedFactorState;
+  }): MfaVerificationProofRecord {
+    const verifiedAt = new Date();
+    const verifiedUntil = new Date(verifiedAt.getTime() + MFA_PROOF_TTL_MS);
+    const factor =
+      input.factorState.recommendedFactor === "totp" ? "totp" : "email";
+
+    return {
+      userId: input.userId,
+      sessionId: input.sessionId,
+      scope: input.scope,
+      factor,
+      verifiedAt: verifiedAt.toISOString(),
+      verifiedUntil: verifiedUntil.toISOString(),
+      securityVersion: input.factorState.securityVersion,
+    };
   }
 
   private async readProof(

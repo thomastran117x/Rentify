@@ -36,6 +36,7 @@ import {
 } from "@/features/auth/auth.model";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
+import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -171,7 +172,7 @@ export class AuthService {
       );
     }
 
-    await this.requireMfaIfEnabled(user.id, input.totpCode);
+    await this.requireMfaIfEnabled(user.id, user.email, input.totpCode);
 
     return this.authenticateVerifiedUser(user, input);
   }
@@ -903,7 +904,11 @@ export class AuthService {
     );
 
     if (linkedUser) {
-      await this.requireMfaIfEnabled(linkedUser.id, input.totpCode);
+      await this.requireMfaIfEnabled(
+        linkedUser.id,
+        linkedUser.email,
+        input.totpCode,
+      );
       return this.authenticateVerifiedUser(linkedUser, input);
     }
 
@@ -1077,8 +1082,13 @@ export class AuthService {
 
   private async requireMfaIfEnabled(
     userId: string,
+    email: string,
     totpCode: string | undefined,
   ): Promise<void> {
+    if (isMfaBypassEligible(email)) {
+      return;
+    }
+
     const mfaEnabled = await this.mfaTotpService.isEnabled(userId);
 
     if (!mfaEnabled) {

@@ -148,6 +148,8 @@ describe("EnvironmentManager", () => {
       FRONTEND_URL: "http://localhost:3041",
       CORS_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
       CSRF_ALLOWED_ORIGINS: "http://localhost:3041,http://localhost:3042",
+      MFA_BYPASS_EMAILS:
+        "OWNER1@rentify.local,owner1@rentify.local,user1@rentify.local",
     });
 
     const manager = new EnvironmentManager();
@@ -214,6 +216,22 @@ describe("EnvironmentManager", () => {
     expect(manager.getRabbitMqConfig()).toBe(environment.rabbitmq);
     expect(manager.getElasticsearchConfig()).toBe(environment.elasticsearch);
     expect(manager.getSquareConfig()).toBe(environment.square);
+    expect(environment.auth.mfaBypassEmails).toEqual([
+      "owner1@rentify.local",
+      "user1@rentify.local",
+    ]);
+  });
+
+  it("fails environment validation when MFA_BYPASS_EMAILS contains an invalid email", () => {
+    process.env = buildRequiredEnv({
+      MFA_BYPASS_EMAILS: "owner1@rentify.local,not-an-email",
+    });
+
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow(
+      "MFA_BYPASS_EMAILS contains an invalid email: not-an-email.",
+    );
   });
 
   it("reports production and test node environments correctly", () => {
