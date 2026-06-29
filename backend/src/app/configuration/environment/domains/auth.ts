@@ -14,6 +14,28 @@ import type {
   RawEnvironmentValues,
   RefreshTokenMode,
 } from "@/configuration/environment/types";
+import { z } from "zod";
+
+const environmentEmailSchema = z.email();
+
+function parseMfaBypassEmails(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): string[] {
+  const normalizedEntries = normalizeDelimitedList(raw.MFA_BYPASS_EMAILS).map(
+    (entry) => entry.toLowerCase(),
+  );
+  const dedupedEntries = Array.from(new Set(normalizedEntries));
+
+  return dedupedEntries.filter((entry) => {
+    if (!environmentEmailSchema.safeParse(entry).success) {
+      errors.push(`MFA_BYPASS_EMAILS contains an invalid email: ${entry}.`);
+      return false;
+    }
+
+    return true;
+  });
+}
 
 export function parseRefreshTokenMode(
   raw: RawEnvironmentValues,
@@ -44,6 +66,7 @@ export function buildAuthConfig(
   mfaTotpEncryptionKey: string,
 ): AppEnvironment["auth"] {
   return {
+    mfaBypassEmails: parseMfaBypassEmails(raw, errors),
     accessTokenSecret,
     refreshTokenSecret,
     accessTokenTtlSeconds: parseNumber(

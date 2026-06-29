@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { environment } from "@/configuration/environment";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
@@ -1510,6 +1511,93 @@ describe("AuthService", () => {
     ).rejects.toThrow("Please verify your email address before signing in.");
 
     expect(clearedKey).toBe("auth:local-login-attempts:user@example.com");
+  });
+
+  it("skips login MFA for allowlisted users outside production", async () => {
+    const user = {
+      ...createUser(),
+      email: "owner1@rentify.local",
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const verifyTotpCode = jest.fn(async () => undefined);
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["owner1@rentify.local"],
+    });
+    const service = createService({
+      findUserByEmail: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: user.email,
+        password: "CorrectHorseBatteryStaple1!",
+        deviceId: "device-1",
+      }),
+    ).resolves.toMatchObject({
+      user: { email: user.email },
+    });
+
+    expect(verifyTotpCode).not.toHaveBeenCalled();
+  });
+
+  it("still requires login MFA for non-allowlisted users", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["owner1@rentify.local"],
+    });
+    const service = createService({
+      findUserByEmail: async () => user,
+      mfaIsEnabled: async () => true,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: user.email,
+        password: "CorrectHorseBatteryStaple1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toMatchObject({
+      message: "Authenticator code is required.",
+    });
+  });
+
+  it("ignores the bypass allowlist in production", async () => {
+    const user = {
+      ...createUser(),
+      email: "owner1@rentify.local",
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["owner1@rentify.local"],
+    });
+    const service = createService({
+      findUserByEmail: async () => user,
+      mfaIsEnabled: async () => true,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        email: user.email,
+        password: "CorrectHorseBatteryStaple1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toMatchObject({
+      message: "Authenticator code is required.",
+    });
   });
 
   it("resets passwords for eligible local accounts and issues a fresh session", async () => {

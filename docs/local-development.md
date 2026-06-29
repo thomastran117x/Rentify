@@ -86,6 +86,23 @@ npm run seed -- --refresh
 
 Set `DATABASE_AUTO_SEED_REFRESH=true` if you want startup to refresh fixture-owned records automatically.
 
+## Seeded MFA Bypass
+
+In non-production only, MFA bypass can be enabled for specific accounts with `MFA_BYPASS_EMAILS`.
+
+- format: comma-delimited email list
+- normalization: trimmed, lowercased, de-duplicated
+- validation: every entry must be a valid email address
+- local default: Docker Compose preloads all current seeded fixture account emails
+
+Example:
+
+```bash
+MFA_BYPASS_EMAILS=owner1@rentify.local,user1@rentify.local
+```
+
+This bypass applies to both sign-in MFA and account-management step-up MFA, and it is ignored in `production`.
+
 ## Working Package-by-Package
 
 Backend only:

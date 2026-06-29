@@ -13,6 +13,7 @@ function createSecurityContext(
     tokenVersion: number;
     updatedAt: string;
     firstName?: string;
+    email?: string;
     mfaTotp: {
       status: string;
       updatedAt: string;
@@ -150,6 +151,41 @@ describe("MfaVerificationService", () => {
       availableFactors: [],
       recommendedFactor: null,
     });
+  });
+
+  it("treats allowlisted users as already verified in getOptions", async () => {
+    const { service } = createService({
+      securityContext: createSecurityContext({
+        email: "owner1@rentify.local",
+        mfaTotp: {
+          status: "active",
+          updatedAt: "2026-06-27T15:20:00.000Z",
+          confirmedAt: "2026-06-27T15:10:00.000Z",
+        },
+      }),
+    });
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["owner1@rentify.local"],
+    });
+
+    const options = await service.getOptions({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+    });
+
+    expect(options).toMatchObject({
+      scope: MFA_MANAGEMENT_SCOPE,
+      verified: true,
+      availableFactors: ["email", "totp"],
+      recommendedFactor: "totp",
+    });
+    expect(options.verifiedUntil).not.toBeNull();
+    expect(Date.parse(options.verifiedUntil as string)).toBeGreaterThan(
+      Date.now(),
+    );
   });
 
   it("recommends totp when an active authenticator factor exists", async () => {
@@ -332,6 +368,33 @@ describe("MfaVerificationService", () => {
       }),
     ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
   });
+
+  it("allows recent verification checks to pass for allowlisted users without stored proof", async () => {
+    const { service } = createService({
+      securityContext: createSecurityContext({
+        email: "owner1@rentify.local",
+      }),
+    });
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["owner1@rentify.local"],
+    });
+
+    await expect(
+      service.assertRecentVerification({
+        userId: "user-1",
+        sessionId: "session-1",
+        scope: MFA_MANAGEMENT_SCOPE,
+      }),
+    ).resolves.toMatchObject({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "email",
+    });
+  });
+
   it("keeps a TOTP proof valid when only usage metadata changes", async () => {
     const securityContext = createSecurityContext({
       mfaTotp: {
@@ -442,7 +505,7 @@ describe("MfaVerificationService", () => {
 
   it("fails preview when no active MFA email verification code exists", async () => {
     const { service, otpService } = createService();
-    otpService.peek.mockResolvedValue(null);
+    otpService.peek.mockResolvedValue(null as never);
 
     await expect(
       service.previewCurrentEmailOtp({

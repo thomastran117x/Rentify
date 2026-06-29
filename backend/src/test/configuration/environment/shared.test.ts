@@ -37,12 +37,16 @@ describe("environment shared helpers", () => {
     const raw = normalizeRawEnvironment({
       DATABASE_URL: " mysql://rent ",
       FRONTEND_URL: " https://rent.example ",
+      MFA_BYPASS_EMAILS: " owner1@rentify.local,user1@rentify.local ",
       UNKNOWN_KEY: "ignored",
       EMPTY_VALUE: "   ",
     } as NodeJS.ProcessEnv);
 
     expect(raw.DATABASE_URL).toBe("mysql://rent");
     expect(raw.FRONTEND_URL).toBe("https://rent.example");
+    expect(raw.MFA_BYPASS_EMAILS).toBe(
+      "owner1@rentify.local,user1@rentify.local",
+    );
     expect("UNKNOWN_KEY" in raw).toBe(false);
   });
 
