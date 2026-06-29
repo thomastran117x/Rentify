@@ -185,7 +185,9 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   // tight bucket used for login.
   if (
     request.method === "POST" &&
-    /^\/auth\/mfa\/totp\/(begin|confirm|disable)$/.test(pathname)
+    /^\/auth\/mfa\/(totp\/(begin|confirm|disable)|verify\/(challenge|confirm))$/.test(
+      pathname,
+    )
   ) {
     return true;
   }

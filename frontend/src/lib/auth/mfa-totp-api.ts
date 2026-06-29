@@ -32,12 +32,10 @@ export const mfaTotpApi = {
     );
   },
 
-  // Requires a current TOTP code — prevents a stolen session from silently
-  // removing the second factor.
-  disable(code: string): Promise<{ disabled: true }> {
-    return postAuthenticatedJson<{ disabled: true }, { code: string }>(
+  disable(): Promise<{ disabled: true }> {
+    return postAuthenticatedJson<{ disabled: true }, Record<string, never>>(
       "/auth/mfa/totp/disable",
-      { code },
+      {},
     );
   },
 

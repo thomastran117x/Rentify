@@ -9,6 +9,7 @@ import {
   authDevicesRouteModule,
   authLocalRouteModule,
   authMfaTotpRouteModule,
+  authMfaVerificationRouteModule,
   authOauthRouteModule,
   authPersonalAccessTokensRouteModule,
 } from "@/configuration/bootstrap/routes/modules/auth.routes";
@@ -51,6 +52,7 @@ export const routeModuleRegistry: RouteModule[] = [
   authOauthRouteModule,
   authDevicesRouteModule,
   authPersonalAccessTokensRouteModule,
+  authMfaVerificationRouteModule,
   authMfaTotpRouteModule,
   organizationsRouteModule,
   blobRouteModule,

@@ -1,12 +1,14 @@
 import { authCoreRegistrationModule } from "@/configuration/container/registrations/modules/auth-core";
 import { authDeviceRegistrationModule } from "@/configuration/container/registrations/modules/auth-device";
+import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
+import { authMfaVerificationRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-verification";
 import { authOauthRegistrationModule } from "@/configuration/container/registrations/modules/auth-oauth";
 import { authOtpRegistrationModule } from "@/configuration/container/registrations/modules/auth-otp";
-import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { bookingsRegistrationModule } from "@/configuration/container/registrations/modules/bookings";
 import { feedbacksRegistrationModule } from "@/configuration/container/registrations/modules/feedbacks";
+import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
 import { organizationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations";
 import { paymentsRegistrationModule } from "@/configuration/container/registrations/modules/payments";
 import { postingsAnalyticsRegistrationModule } from "@/configuration/container/registrations/modules/postings-analytics";
@@ -22,9 +24,8 @@ import { rentingsRegistrationModule } from "@/configuration/container/registrati
 import { reportsRegistrationModule } from "@/configuration/container/registrations/modules/reports";
 import { searchRegistrationModule } from "@/configuration/container/registrations/modules/search";
 import { securityRegistrationModule } from "@/configuration/container/registrations/modules/security";
-import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
 import { sharedRegistrationModule } from "@/configuration/container/registrations/modules/shared";
-import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
+import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 
 export { CONTAINER_REGISTRATION_MODULE_IDS } from "@/configuration/container/registrations/types";
@@ -42,6 +43,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   feedbacksRegistrationModule,
   authOtpRegistrationModule,
   authMfaTotpRegistrationModule,
+  authMfaVerificationRegistrationModule,
   authCoreRegistrationModule,
   authOauthRegistrationModule,
   authDeviceRegistrationModule,

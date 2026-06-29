@@ -5,6 +5,7 @@ import {
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendLoginUnlockEmailInput,
+  SendMfaStepUpEmailInput,
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
@@ -112,6 +113,9 @@ export class EmailDeliveryService {
       case "verification":
         await this.sendVerificationEmail(payload.input);
         return;
+      case "mfa_step_up":
+        await this.sendMfaStepUpEmail(payload.input);
+        return;
       case "new_device":
         await this.sendNewDeviceEmail(payload.input);
         return;
@@ -149,8 +153,36 @@ export class EmailDeliveryService {
       html: [
         `<p>Hi ${escapedGreetingName},</p>`,
         "<p>Welcome to Rent. Please verify your email address to finish setting up your account.</p>",
-        `<p>Your verification code is:</p><p style="font-size: 28px; font-weight: 700; letter-spacing: 0.3em;">${escapedVerificationCode}</p>`,
+        `<p>Your verification code is:</p><p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedVerificationCode}</p>`,
         "<p>This code expires soon. If you did not create this account, you can safely ignore this email.</p>",
+      ].join(""),
+    });
+  }
+
+  async sendMfaStepUpEmail(input: SendMfaStepUpEmailInput): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const escapedGreetingName = escapeHtml(greetingName);
+    const escapedVerificationCode = escapeHtml(input.verificationCode);
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Confirm your MFA security action",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        "Use this code to confirm the MFA-related change you just requested on your account.",
+        "",
+        `Verification code: ${input.verificationCode}`,
+        "",
+        "This code expires soon and only works for your current signed-in session.",
+        "If you did not request this action, you should review your account security.",
+      ].join("\n"),
+      html: [
+        `<p>Hi ${escapedGreetingName},</p>`,
+        "<p>Use this code to confirm the MFA-related change you just requested on your account.</p>",
+        `<p>Your verification code is:</p><p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedVerificationCode}</p>`,
+        "<p>This code expires soon and only works for your current signed-in session.</p>",
+        "<p>If you did not request this action, you should review your account security.</p>",
       ].join(""),
     });
   }
@@ -213,7 +245,7 @@ export class EmailDeliveryService {
         `<p>Hi ${escapedGreetingName},</p>`,
         "<p>We temporarily locked local sign-in after too many unsuccessful password attempts.</p>",
         "<p>Your unlock code is:</p>",
-        `<p style="font-size: 28px; font-weight: 700; letter-spacing: 0.3em;">${escapedUnlockCode}</p>`,
+        `<p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedUnlockCode}</p>`,
         "<p>Enter this code on the unlock screen to restore access.</p>",
         "<p>If this wasn't you, you can ignore this email and consider changing your password.</p>",
       ].join(""),
@@ -244,7 +276,7 @@ export class EmailDeliveryService {
         `<p>Hi ${escapedGreetingName},</p>`,
         "<p>We received a request to reset your password.</p>",
         "<p>Your reset code is:</p>",
-        `<p style="font-size: 28px; font-weight: 700; letter-spacing: 0.3em;">${escapedResetCode}</p>`,
+        `<p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedResetCode}</p>`,
         "<p>Enter this code to choose a new password.</p>",
         "<p>If you didn't request this, you can ignore this email.</p>",
       ].join(""),
@@ -278,7 +310,7 @@ export class EmailDeliveryService {
       html: [
         "<p>You have been invited to join an organization on Rent.</p>",
         `<p><strong>Organization:</strong> ${escapedOrganizationName}<br /><strong>Invited by:</strong> ${escapedInviterName}<br /><strong>Role:</strong> ${escapedRoleLabel}</p>`,
-        `<p><a href="${escapedInviteUrl}">Open this invite to review and accept it</a></p>`,
+        `<p><a href=\"${escapedInviteUrl}\">Open this invite to review and accept it</a></p>`,
         "<p>This invite expires in 7 days.</p>",
       ].join(""),
     });

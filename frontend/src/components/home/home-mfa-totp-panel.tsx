@@ -3,12 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { ScanLine } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import {
+  type MfaVerificationFactor,
+  type MfaVerificationOptionsResult,
+  type MfaVerificationScope,
+  mfaVerificationApi,
+} from "@/lib/auth/mfa-verification-api";
 import { mfaTotpApi, type MfaTotpBeginResult } from "@/lib/auth/mfa-totp-api";
 
-type View = "loading" | "idle" | "setup" | "disabling";
+type View = "loading" | "idle" | "setup";
 
-function formatSecret(secret: string): string {
+interface VerificationDialogState {
+  options: MfaVerificationOptionsResult;
+  preferredFactor?: MfaVerificationFactor | null;
+}
+
+const MFA_SCOPE: MfaVerificationScope = "mfa-management";
+
+function formatSecret(secret: string) {
   return secret.match(/.{1,4}/g)?.join(" ") ?? secret;
 }
 
@@ -19,11 +34,14 @@ export function HomeMfaTotpPanel() {
   const [enrollment, setEnrollment] = useState<MfaTotpBeginResult | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [enrollCode, setEnrollCode] = useState("");
-  const [disableCode, setDisableCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [dialogState, setDialogState] =
+    useState<VerificationDialogState | null>(null);
   const enrollCodeRef = useRef<HTMLInputElement>(null);
-  const disableCodeRef = useRef<HTMLInputElement>(null);
+  const verificationResolverRef = useRef<((value: boolean) => void) | null>(
+    null,
+  );
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -72,16 +90,111 @@ export function HomeMfaTotpPanel() {
   }, [enrollment?.uri]);
 
   useEffect(() => {
-    if (view === "setup") enrollCodeRef.current?.focus();
-    if (view === "disabling") disableCodeRef.current?.focus();
+    if (view === "setup") {
+      enrollCodeRef.current?.focus();
+    }
   }, [view]);
+
+  useEffect(() => {
+    return () => {
+      verificationResolverRef.current?.(false);
+      verificationResolverRef.current = null;
+    };
+  }, []);
+
+  async function ensureMfaProof(
+    preferredFactor?: MfaVerificationFactor | null,
+    initialOptions?: MfaVerificationOptionsResult,
+  ) {
+    try {
+      const options =
+        initialOptions ?? (await mfaVerificationApi.getOptions(MFA_SCOPE));
+
+      if (options.verified) {
+        return true;
+      }
+
+      if (options.availableFactors.length === 0) {
+        setMessage(
+          "We couldn't verify your identity because no MFA verification methods are available for this account. Please contact support before changing MFA settings.",
+        );
+        return false;
+      }
+
+      return await new Promise<boolean>((resolve) => {
+        verificationResolverRef.current = resolve;
+        setDialogState({
+          options,
+          preferredFactor,
+        });
+      });
+    } catch (error) {
+      setMessage(
+        getApiErrorMessage(error, {
+          action: "start MFA verification",
+          fallback:
+            "We couldn't start MFA verification right now. Please try again.",
+          preserveClientMessage: true,
+        }),
+      );
+      return false;
+    }
+  }
+
+  function closeDialogWith(result: boolean) {
+    setDialogState(null);
+    verificationResolverRef.current?.(result);
+    verificationResolverRef.current = null;
+  }
+
+  async function runProtectedAction<T>(
+    action: () => Promise<T>,
+    preferredFactor?: MfaVerificationFactor | null,
+  ): Promise<T | null> {
+    try {
+      return await action();
+    } catch (error) {
+      if (
+        !isApiClientError(error) ||
+        error.code !== "MFA_VERIFICATION_REQUIRED"
+      ) {
+        throw error;
+      }
+
+      const details = error.details as
+        | Pick<
+            MfaVerificationOptionsResult,
+            "scope" | "availableFactors" | "recommendedFactor" | "verifiedUntil"
+          >
+        | undefined;
+      const initialOptions: MfaVerificationOptionsResult | undefined = details
+        ? { ...details, verified: false }
+        : undefined;
+
+      const verified = await ensureMfaProof(preferredFactor, initialOptions);
+
+      if (!verified) {
+        return null;
+      }
+
+      return action();
+    }
+  }
 
   async function handleBeginEnrollment() {
     setPending(true);
     setMessage(null);
 
     try {
-      const result = await mfaTotpApi.beginEnrollment(session?.user.email);
+      const result = await runProtectedAction(
+        () => mfaTotpApi.beginEnrollment(session?.user.email),
+        enabled ? "totp" : null,
+      );
+
+      if (!result) {
+        return;
+      }
+
       setEnrollment(result);
       setEnrollCode("");
       setView("setup");
@@ -108,7 +221,15 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      await mfaTotpApi.confirmEnrollment(enrollCode.trim());
+      const result = await runProtectedAction(
+        () => mfaTotpApi.confirmEnrollment(enrollCode.trim()),
+        enabled ? "totp" : null,
+      );
+
+      if (!result) {
+        return;
+      }
+
       setEnabled(true);
       setEnrollment(null);
       setQrDataUrl(null);
@@ -135,7 +256,10 @@ export function HomeMfaTotpPanel() {
     setMessage(null);
 
     try {
-      await mfaTotpApi.cancelEnrollment();
+      await runProtectedAction(
+        () => mfaTotpApi.cancelEnrollment(),
+        enabled ? "totp" : null,
+      );
     } catch {
       // Best-effort cleanup; the pending record expires on its own after 15 min.
     } finally {
@@ -148,21 +272,20 @@ export function HomeMfaTotpPanel() {
   }
 
   async function handleDisable() {
-    if (!disableCode.trim()) {
-      setMessage(
-        "Please enter the 6-digit code from your authenticator app to confirm.",
-      );
-      return;
-    }
-
     setPending(true);
     setMessage(null);
 
     try {
-      await mfaTotpApi.disable(disableCode.trim());
+      const result = await runProtectedAction(
+        () => mfaTotpApi.disable(),
+        "totp",
+      );
+
+      if (!result) {
+        return;
+      }
+
       setEnabled(false);
-      setDisableCode("");
-      setView("idle");
       setMessage("Authenticator app disabled.");
     } catch (error) {
       setMessage(
@@ -183,195 +306,161 @@ export function HomeMfaTotpPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6">
-      <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
-          <ScanLine className="h-5 w-5" aria-hidden="true" />
+    <>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+            <ScanLine className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-950">
+              Authenticator app
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Use Google Authenticator, Microsoft Authenticator, or any
+              TOTP-compatible app to generate login codes.
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-950">
-            Authenticator app
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            Use Google Authenticator, Microsoft Authenticator, or any
-            TOTP-compatible app to generate login codes.
-          </p>
-        </div>
-      </div>
 
-      {message ? (
-        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          {message}
-        </div>
-      ) : null}
+        {message ? (
+          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {message}
+          </div>
+        ) : null}
 
-      {view === "loading" ? (
-        <div className="mt-6 text-sm text-slate-500">Loading...</div>
-      ) : view === "idle" ? (
-        <div className="mt-6">
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-slate-950">
-                {enabled ? "Enabled" : "Not enabled"}
-              </p>
+        {view === "loading" ? (
+          <div className="mt-6 text-sm text-slate-500">Loading...</div>
+        ) : view === "idle" ? (
+          <div className="mt-6">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-slate-950">
+                  {enabled ? "Enabled" : "Not enabled"}
+                </p>
+                {enabled ? (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Your account is protected with an authenticator app.
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Add an extra layer of security to your account.
+                  </p>
+                )}
+              </div>
               {enabled ? (
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Your account is protected with an authenticator app.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleDisable()}
+                  disabled={pending}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pending ? "Disabling..." : "Disable"}
+                </button>
               ) : (
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Add an extra layer of security to your account.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleBeginEnrollment()}
+                  disabled={pending}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pending ? "Setting up..." : "Set up"}
+                </button>
               )}
             </div>
-            {enabled ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDisableCode("");
-                  setMessage(null);
-                  setView("disabling");
-                }}
-                disabled={pending}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Disable
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleBeginEnrollment()}
-                disabled={pending}
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pending ? "Setting up..." : "Set up"}
-              </button>
-            )}
           </div>
-        </div>
-      ) : view === "disabling" ? (
-        <div className="mt-6 space-y-4">
-          <p className="text-sm text-slate-700">
-            Enter the current code from your authenticator app to confirm.
-          </p>
-          <input
-            ref={disableCodeRef}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={disableCode}
-            onChange={(event) =>
-              setDisableCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-            }
-            placeholder="000000"
-            className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
-              disableCode.length === 6
-                ? "border-violet-300 ring-4 ring-violet-100"
-                : "border-slate-200 hover:border-violet-200"
-            }`}
-          />
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => void handleDisable()}
-              disabled={pending || disableCode.length !== 6}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-300 bg-rose-50 px-5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {pending ? "Disabling..." : "Confirm disable"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDisableCode("");
-                setMessage(null);
-                setView("idle");
-              }}
-              disabled={pending}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-6 space-y-6">
-          <div>
-            <p className="text-sm font-medium text-slate-700">
-              1. Scan this QR code with your authenticator app
-            </p>
-            <div className="mt-3 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt="TOTP QR code"
-                  width={160}
-                  height={160}
-                  className="rounded-xl border border-slate-200 bg-white p-2"
-                />
-              ) : (
-                <div className="flex h-[160px] w-[160px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
-                  Generating...
+        ) : (
+          <div className="mt-6 space-y-6">
+            <div>
+              <p className="text-sm font-medium text-slate-700">
+                1. Scan this QR code with your authenticator app
+              </p>
+              <div className="mt-3 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="TOTP QR code"
+                    width={160}
+                    height={160}
+                    className="rounded-xl border border-slate-200 bg-white p-2"
+                  />
+                ) : (
+                  <div className="flex h-[160px] w-[160px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
+                    Generating...
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-600">
+                    Or enter this key manually:
+                  </p>
+                  <code className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900">
+                    {enrollment ? formatSecret(enrollment.secret) : ""}
+                  </code>
                 </div>
-              )}
-              <div className="space-y-2">
-                <p className="text-xs text-slate-600">
-                  Or enter this key manually:
-                </p>
-                <code className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900">
-                  {enrollment ? formatSecret(enrollment.secret) : ""}
-                </code>
               </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="totp-enroll-code"
-              className="text-sm font-medium text-slate-700"
-            >
-              2. Enter the 6-digit code shown in your app
-            </label>
-            <input
-              id="totp-enroll-code"
-              ref={enrollCodeRef}
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={enrollCode}
-              onChange={(event) =>
-                setEnrollCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              placeholder="000000"
-              className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
-                enrollCode.length === 6
-                  ? "border-violet-300 ring-4 ring-violet-100"
-                  : "border-slate-200 hover:border-violet-200"
-              }`}
-            />
-          </div>
+            <div className="space-y-2">
+              <label
+                htmlFor="totp-enroll-code"
+                className="text-sm font-medium text-slate-700"
+              >
+                2. Enter the 6-digit code shown in your app
+              </label>
+              <input
+                id="totp-enroll-code"
+                ref={enrollCodeRef}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={enrollCode}
+                onChange={(event) =>
+                  setEnrollCode(
+                    event.target.value.replace(/\D/g, "").slice(0, 6),
+                  )
+                }
+                placeholder="000000"
+                className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
+                  enrollCode.length === 6
+                    ? "border-violet-300 ring-4 ring-violet-100"
+                    : "border-slate-200 hover:border-violet-200"
+                }`}
+              />
+            </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => void handleConfirmEnrollment()}
-              disabled={pending || enrollCode.length !== 6}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pending ? "Verifying..." : "Verify and enable"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCancelEnrollment()}
-              disabled={pending}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cancel
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => void handleConfirmEnrollment()}
+                disabled={pending || enrollCode.length !== 6}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending ? "Verifying..." : "Verify and enable"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCancelEnrollment()}
+                disabled={pending}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </section>
+        )}
+      </section>
+
+      {dialogState ? (
+        <MfaVerificationDialog
+          open
+          initialOptions={dialogState.options}
+          preferredFactor={dialogState.preferredFactor}
+          scope={MFA_SCOPE}
+          onCancel={() => closeDialogWith(false)}
+          onVerified={() => closeDialogWith(true)}
+        />
+      ) : null}
+    </>
   );
 }
