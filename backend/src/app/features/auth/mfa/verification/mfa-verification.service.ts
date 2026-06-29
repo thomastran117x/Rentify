@@ -80,6 +80,17 @@ export class MfaVerificationService {
       input.userId,
       input.scope,
     );
+
+    if (isMfaBypassEligible(factorState.securityContext.email)) {
+      return {
+        scope: input.scope,
+        verified: true,
+        verifiedUntil: this.computeBypassVerifiedUntil(),
+        availableFactors: factorState.availableFactors,
+        recommendedFactor: factorState.recommendedFactor,
+      };
+    }
+
     const proof = await this.readProof(input.sessionId, input.scope);
     const validatedProof = await this.validateProof({
       proof,
@@ -88,13 +99,10 @@ export class MfaVerificationService {
       factorState,
       userId: input.userId,
     });
-    const bypassEligible = isMfaBypassEligible(
-      factorState.securityContext.email,
-    );
 
     return {
       scope: input.scope,
-      verified: bypassEligible || validatedProof !== null,
+      verified: validatedProof !== null,
       verifiedUntil: validatedProof?.verifiedUntil ?? null,
       availableFactors: factorState.availableFactors,
       recommendedFactor: factorState.recommendedFactor,
@@ -489,8 +497,6 @@ export class MfaVerificationService {
     scope: MfaVerificationScope;
     factorState: VerifiedFactorState;
   }): MfaVerificationProofRecord {
-    const verifiedAt = new Date();
-    const verifiedUntil = new Date(verifiedAt.getTime() + MFA_PROOF_TTL_MS);
     const factor =
       input.factorState.recommendedFactor === "totp" ? "totp" : "email";
 
@@ -499,10 +505,14 @@ export class MfaVerificationService {
       sessionId: input.sessionId,
       scope: input.scope,
       factor,
-      verifiedAt: verifiedAt.toISOString(),
-      verifiedUntil: verifiedUntil.toISOString(),
+      verifiedAt: new Date().toISOString(),
+      verifiedUntil: this.computeBypassVerifiedUntil(),
       securityVersion: input.factorState.securityVersion,
     };
+  }
+
+  private computeBypassVerifiedUntil(): string {
+    return new Date(Date.now() + MFA_PROOF_TTL_MS).toISOString();
   }
 
   private async readProof(

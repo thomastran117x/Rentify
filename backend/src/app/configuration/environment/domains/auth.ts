@@ -27,13 +27,14 @@ function parseMfaBypassEmails(
   );
   const dedupedEntries = Array.from(new Set(normalizedEntries));
 
-  for (const entry of dedupedEntries) {
+  return dedupedEntries.filter((entry) => {
     if (!environmentEmailSchema.safeParse(entry).success) {
       errors.push(`MFA_BYPASS_EMAILS contains an invalid email: ${entry}.`);
+      return false;
     }
-  }
 
-  return dedupedEntries;
+    return true;
+  });
 }
 
 export function parseRefreshTokenMode(

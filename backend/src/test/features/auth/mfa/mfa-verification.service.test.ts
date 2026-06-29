@@ -170,19 +170,22 @@ describe("MfaVerificationService", () => {
       mfaBypassEmails: ["owner1@rentify.local"],
     });
 
-    await expect(
-      service.getOptions({
-        userId: "user-1",
-        sessionId: "session-1",
-        scope: MFA_MANAGEMENT_SCOPE,
-      }),
-    ).resolves.toEqual({
+    const options = await service.getOptions({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+    });
+
+    expect(options).toMatchObject({
       scope: MFA_MANAGEMENT_SCOPE,
       verified: true,
-      verifiedUntil: null,
       availableFactors: ["email", "totp"],
       recommendedFactor: "totp",
     });
+    expect(options.verifiedUntil).not.toBeNull();
+    expect(Date.parse(options.verifiedUntil as string)).toBeGreaterThan(
+      Date.now(),
+    );
   });
 
   it("recommends totp when an active authenticator factor exists", async () => {

@@ -1086,6 +1086,12 @@ export class AuthService {
     totpCode: string | undefined,
   ): Promise<void> {
     if (isMfaBypassEligible(email)) {
+      this.logger.info("MFA bypass used", {
+        userId,
+        email: this.redactEmail(email),
+        result: "bypass",
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
