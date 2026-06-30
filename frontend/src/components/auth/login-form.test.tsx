@@ -15,12 +15,16 @@ const {
   loginMock,
   authApiRefreshMock,
   clearCaptchaTokenMock,
+  verifyDeviceMock,
+  getOptionsMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   loginMock: vi.fn(),
   authApiRefreshMock: vi.fn(),
   clearCaptchaTokenMock: vi.fn(),
+  verifyDeviceMock: vi.fn(),
+  getOptionsMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -53,6 +57,13 @@ vi.mock("@/lib/auth/api", () => ({
   authApi: {
     login: loginMock,
     refresh: authApiRefreshMock,
+    verifyDevice: verifyDeviceMock,
+  },
+}));
+
+vi.mock("@/lib/auth/mfa-verification-api", () => ({
+  mfaVerificationApi: {
+    getOptions: getOptionsMock,
   },
 }));
 
@@ -136,20 +147,24 @@ describe("LoginForm", () => {
 
   it("submits a normalized login request and redirects on success", async () => {
     const user = userEvent.setup();
-    const setSession = vi.fn();
-    useAuthMock.mockReturnValue({
-      status: "anonymous",
-      setSession,
+    // When setSession is called the auth context transitions to authenticated,
+    // which the useEffect picks up on the next re-render (triggered by setDevicePending).
+    const setSession = vi.fn().mockImplementation(() => {
+      useAuthMock.mockReturnValue({ status: "authenticated", setSession });
     });
+    useAuthMock.mockReturnValue({ status: "anonymous", setSession });
     useAuthCaptchaTokenMock.mockReturnValue([
       "captcha-token",
       vi.fn(),
       clearCaptchaTokenMock,
     ]);
+    // Unknown device forces the device-login MFA gate path, which calls
+    // setDevicePending(true/false) and causes the re-render that picks up
+    // the updated auth status.
     loginMock.mockResolvedValue({
       accessToken: "access-token",
       device: {
-        known: true,
+        known: false,
         knownByIp: false,
       },
       user: {
@@ -159,6 +174,14 @@ describe("LoginForm", () => {
         role: "user",
       },
     });
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: true,
+      verifiedUntil: null,
+      availableFactors: [],
+      recommendedFactor: null,
+    });
+    verifyDeviceMock.mockResolvedValue({});
 
     render(<LoginForm nextPath="/dashboard" />);
 
@@ -175,7 +198,9 @@ describe("LoginForm", () => {
     });
     expect(clearCaptchaTokenMock).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalled();
-    expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    });
   });
 
   it("maps invalid credential failures to a friendly message", async () => {

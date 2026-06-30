@@ -141,11 +141,15 @@ function createApp() {
     })),
   };
 
+  const mfaVerificationService = {
+    assertRecentVerification: jest.fn(async () => {}),
+  };
+
   const captchaService = {
     verify: jest.fn(async () => ({
       success: true,
       failOpen: false,
-      errors: [],
+      errors: [] as string[],
     })),
   };
 
@@ -200,6 +204,7 @@ function createApp() {
         authService as never,
         captchaService as never,
         {} as never,
+        mfaVerificationService as never,
       ),
     ],
     [
@@ -560,18 +565,9 @@ describe("Auth routes integration", () => {
 
   it("returns structured validation and authorization failures for auth edge cases", async () => {
     const { app, authService, personalAccessTokenService } = createApp();
-    authService.refresh.mockImplementationOnce(
-      async (input: { refreshToken?: string }) => {
-        if (!input.refreshToken) {
-          throw new BadRequestError("Refresh token is required.");
-        }
-
-        return createSessionResult({
-          accessToken: "refreshed-access-token",
-          refreshToken: "refreshed-refresh-token",
-        });
-      },
-    );
+    authService.refresh.mockImplementationOnce(async () => {
+      throw new BadRequestError("Refresh token is required.");
+    });
 
     const invalidSchemeResponse = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/change")}`,

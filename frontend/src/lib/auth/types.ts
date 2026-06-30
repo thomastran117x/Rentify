@@ -97,6 +97,11 @@ export interface SessionVerificationResult {
 export interface KnownDeviceRecord {
   id: string;
   label?: string;
+  deviceId: string;
+  type?: string;
+  platform?: string;
+  lastIpAddress?: string;
+  firstSeenAt?: string;
   lastSeenAt?: string;
   knownByIp?: boolean;
   current?: boolean;

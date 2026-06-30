@@ -72,7 +72,7 @@ function shouldIncludeJsonContentType(
   method: JsonRequestMethod,
   body: unknown,
 ): boolean {
-  return method !== "GET" && method !== "DELETE" && body !== undefined;
+  return method !== "GET" && body !== undefined;
 }
 
 function toRequestUrl(path: string): string {
