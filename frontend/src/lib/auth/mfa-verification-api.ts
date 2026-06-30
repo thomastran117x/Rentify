@@ -1,6 +1,6 @@
 import { buildPathWithQuery, authenticatedJson } from "@/lib/api/client";
 
-export type MfaVerificationScope = "mfa-management";
+export type MfaVerificationScope = "mfa-management" | "device-login";
 export type MfaVerificationFactor = "email" | "totp" | "sms";
 export type MfaVerificationChallengeFactor = "email" | "totp" | "sms";
 

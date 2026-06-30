@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
@@ -13,6 +13,11 @@ import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
+import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import {
+  mfaVerificationApi,
+  type MfaVerificationOptionsResult,
+} from "@/lib/auth/mfa-verification-api";
 
 interface LoginErrors {
   email?: string;
@@ -305,18 +310,65 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [unlockEmail, setUnlockEmail] = useState<string | null>(null);
+  const [devicePending, setDevicePending] = useState(false);
+  const [deviceMfaDialogOptions, setDeviceMfaDialogOptions] =
+    useState<MfaVerificationOptionsResult | null>(null);
+  const deviceMfaResolverRef = useRef<((verified: boolean) => void) | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !devicePending) {
       router.replace(nextPath);
     }
-  }, [nextPath, router, status]);
+  }, [nextPath, router, status, devicePending]);
+
+  async function completeLogin(session: AuthResponseBody) {
+    if (!session.device.known && !session.device.knownByIp) {
+      setDevicePending(true);
+      setSession(session);
+
+      try {
+        const options = await mfaVerificationApi.getOptions("device-login");
+
+        if (options.verified || options.availableFactors.length === 0) {
+          await authApi.verifyDevice().catch(() => {});
+        } else {
+          setDeviceMfaDialogOptions(options);
+          const verified = await new Promise<boolean>((resolve) => {
+            deviceMfaResolverRef.current = resolve;
+          });
+          setDeviceMfaDialogOptions(null);
+
+          if (verified) {
+            await authApi.verifyDevice().catch(() => {});
+          } else {
+            await authApi.logout().catch(() => {});
+            setDevicePending(false);
+            setGeneralError("Sign-in was cancelled. Please try again.");
+            return;
+          }
+        }
+      } catch {
+        // getOptions failed — proceed without MFA gate
+      }
+
+      setDevicePending(false);
+    } else {
+      setSession(session);
+      if (!session.device.known) {
+        authApi.verifyDevice().catch(() => {});
+      }
+    }
+  }
 
   function handleOAuthSuccess(session: AuthResponseBody) {
     setGeneralError(null);
     setUnlockEmail(null);
     setSession(session);
-    router.replace(nextPath);
+    if (!session.device.known) {
+      authApi.verifyDevice().catch(() => {});
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -341,8 +393,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       });
 
       clearCaptchaToken();
-      setSession(session);
-      router.replace(nextPath);
+      await completeLogin(session);
     } catch (error) {
       const failure = getLoginFailureResult(error);
 
@@ -371,7 +422,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
     );
   }
 
-  if (status === "authenticated") {
+  if (status === "authenticated" && !devicePending) {
     return null;
   }
 
@@ -393,6 +444,15 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   return (
     <div className="space-y-5">
+      {deviceMfaDialogOptions ? (
+        <MfaVerificationDialog
+          open={true}
+          initialOptions={deviceMfaDialogOptions}
+          scope="device-login"
+          onVerified={() => deviceMfaResolverRef.current?.(true)}
+          onCancel={() => deviceMfaResolverRef.current?.(false)}
+        />
+      ) : null}
       <AuthOAuthButtons
         onSuccess={handleOAuthSuccess}
         onError={setGeneralError}

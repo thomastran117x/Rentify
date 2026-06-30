@@ -1,10 +1,14 @@
 import { z } from "zod";
 
 export const MFA_MANAGEMENT_SCOPE = "mfa-management" as const;
+export const MFA_DEVICE_LOGIN_SCOPE = "device-login" as const;
 export const MFA_PROOF_TTL_MINUTES = 15;
 export const MFA_STEP_UP_OTP_PURPOSE = "mfa-step-up" as const;
 
-export const mfaVerificationScopeSchema = z.literal(MFA_MANAGEMENT_SCOPE);
+export const mfaVerificationScopeSchema = z.enum([
+  MFA_MANAGEMENT_SCOPE,
+  MFA_DEVICE_LOGIN_SCOPE,
+]);
 export const mfaVerificationFactorSchema = z.enum(["email", "totp", "sms"]);
 export const mfaVerificationChallengeFactorSchema = z.enum(["email", "totp"]);
 

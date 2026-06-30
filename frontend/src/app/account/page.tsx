@@ -116,10 +116,14 @@ export default function AccountPage() {
   const [pendingDeviceRemove, setPendingDeviceRemove] = useState<string | null>(
     null,
   );
+  const [confirmDeviceRemove, setConfirmDeviceRemove] = useState<string | null>(
+    null,
+  );
 
   // Security — disable account
   const [disableMessage, setDisableMessage] = useState<string | null>(null);
   const [disablePending, setDisablePending] = useState(false);
+  const [disableConfirm, setDisableConfirm] = useState(false);
 
   // Developer tab state
   const [personalAccessTokens, setPersonalAccessTokens] = useState<
@@ -178,23 +182,6 @@ export default function AccountPage() {
         }
       });
 
-    authApi
-      .listKnownDevices()
-      .then((result) => {
-        if (active) setDevices(result.devices);
-      })
-      .catch((error) => {
-        if (active) {
-          setDevicesMessage(
-            getApiErrorMessage(error, {
-              action: "load your registered devices",
-              fallback:
-                "We couldn't load your registered devices right now. Please try again.",
-            }),
-          );
-        }
-      });
-
     profilesApi
       .getMine()
       .then((result) => {
@@ -222,6 +209,33 @@ export default function AccountPage() {
       active = false;
     };
   }, [status]);
+
+  useEffect(() => {
+    if (!securityUnlocked) return;
+
+    let active = true;
+
+    authApi
+      .listKnownDevices()
+      .then((result) => {
+        if (active) setDevices(result.devices);
+      })
+      .catch((error) => {
+        if (active) {
+          setDevicesMessage(
+            getApiErrorMessage(error, {
+              action: "load your registered devices",
+              fallback:
+                "We couldn't load your registered devices right now. Please try again.",
+            }),
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [securityUnlocked]);
 
   const linkedProviderNames = useMemo(
     () =>
@@ -358,7 +372,7 @@ export default function AccountPage() {
 
     try {
       await authApi.removeKnownDevice(deviceId);
-      setDevices((current) => current.filter((d) => d.id !== deviceId));
+      setDevices((current) => current.filter((d) => d.deviceId !== deviceId));
       setDevicesMessage("Device removed.");
     } catch (error) {
       setDevicesMessage(
@@ -843,19 +857,49 @@ export default function AccountPage() {
                           Last seen {formatDateTime(device.lastSeenAt)}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleRemoveDevice(device.id)}
-                        disabled={
-                          Boolean(device.current) ||
-                          pendingDeviceRemove === device.id
-                        }
-                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {pendingDeviceRemove === device.id
-                          ? "Removing..."
-                          : "Remove"}
-                      </button>
+                      {confirmDeviceRemove === device.deviceId ? (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            Remove this device?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeviceRemove(null)}
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmDeviceRemove(null);
+                              void handleRemoveDevice(device.deviceId);
+                            }}
+                            disabled={
+                              pendingDeviceRemove === device.deviceId
+                            }
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {pendingDeviceRemove === device.deviceId
+                              ? "Removing..."
+                              : "Confirm"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmDeviceRemove(device.deviceId)
+                          }
+                          disabled={
+                            Boolean(device.current) ||
+                            pendingDeviceRemove === device.deviceId
+                          }
+                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -889,14 +933,43 @@ export default function AccountPage() {
                 </div>
               ) : null}
 
-              <button
-                type="button"
-                onClick={handleDisableAccount}
-                disabled={disablePending}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {disablePending ? "Disabling..." : "Disable account"}
-              </button>
+              {disableConfirm ? (
+                <div className="rounded-xl border border-rose-200 bg-white px-4 py-3">
+                  <p className="mb-3 text-sm font-medium text-slate-800">
+                    Are you sure? This will sign you out of all sessions and
+                    lock your account.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDisableConfirm(false)}
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDisableConfirm(false);
+                        handleDisableAccount();
+                      }}
+                      disabled={disablePending}
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-300 bg-rose-100 px-4 text-sm font-semibold text-rose-800 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {disablePending ? "Disabling..." : "Yes, disable account"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDisableConfirm(true)}
+                  disabled={disablePending}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {disablePending ? "Disabling..." : "Disable account"}
+                </button>
+              )}
             </div>
           </div>
         )}
