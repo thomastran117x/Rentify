@@ -129,20 +129,7 @@ export function HomePasswordPanel() {
   }
 
   return (
-    <section className="w-full max-w-xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]">
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Password
-        </p>
-        <h2 className="text-3xl font-semibold tracking-[-0.03em] text-slate-950">
-          Change password
-        </h2>
-        <p className="text-sm leading-6 text-slate-600">
-          Keep this device signed in while we revoke your other active sessions.
-        </p>
-      </div>
-
-      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" onSubmit={handleSubmit}>
         {message ? (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             {message}
@@ -238,6 +225,5 @@ export function HomePasswordPanel() {
           {pending ? "Updating password..." : "Update password"}
         </button>
       </form>
-    </section>
   );
 }

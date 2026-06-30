@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, KeyRound, Shield, Unlink, User } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  KeyRound,
+  Monitor,
+  Phone,
+  Shield,
+  Unlink,
+  User,
+} from "lucide-react";
 import {
   AuthOAuthButtons,
   type OAuthProvider,
@@ -13,6 +22,7 @@ import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
+  type KnownDeviceRecord,
   type LinkedOAuthProvidersResult,
   type OAuthProvider as LinkedOAuthProvider,
   type PersonalAccessTokenSummary,
@@ -47,6 +57,12 @@ function formatDateTime(value?: string): string {
   }).format(new Date(value));
 }
 
+function deviceLabel(device: KnownDeviceRecord): string {
+  if (device.label) return device.label;
+  const parts = [device.type, device.platform].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "Unknown device";
+}
+
 export default function AccountPage() {
   const { status, session } = useAuth();
 
@@ -58,20 +74,37 @@ export default function AccountPage() {
   // Profile tab state
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [profileUsername, setProfileUsername] = useState("");
-  const [profilePhone, setProfilePhone] = useState("");
   const [profileIsPrivate, setProfileIsPrivate] = useState(false);
   const [profilePersonalization, setProfilePersonalization] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [profilePending, setProfilePending] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
-  // Security tab state
+  // Security — password (managed by HomePasswordPanel internally)
+
+  // Security — OAuth providers
   const [providers, setProviders] = useState<LinkedOAuthProvidersResult | null>(
     null,
   );
   const [message, setMessage] = useState<string | null>(null);
   const [pendingUnlink, setPendingUnlink] =
     useState<LinkedOAuthProvider | null>(null);
+
+  // Security — phone number (SMS)
+  const [profilePhone, setProfilePhone] = useState("");
+  const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
+  const [phonePending, setPhonePending] = useState(false);
+
+  // Security — registered devices
+  const [devices, setDevices] = useState<KnownDeviceRecord[]>([]);
+  const [devicesMessage, setDevicesMessage] = useState<string | null>(null);
+  const [pendingDeviceRemove, setPendingDeviceRemove] = useState<string | null>(
+    null,
+  );
+
+  // Security — disable account
+  const [disableMessage, setDisableMessage] = useState<string | null>(null);
+  const [disablePending, setDisablePending] = useState(false);
 
   // Developer tab state
   const [personalAccessTokens, setPersonalAccessTokens] = useState<
@@ -99,9 +132,7 @@ export default function AccountPage() {
     authApi
       .linkedOAuthProviders()
       .then((result) => {
-        if (active) {
-          setProviders(result);
-        }
+        if (active) setProviders(result);
       })
       .catch((error) => {
         if (active) {
@@ -118,9 +149,7 @@ export default function AccountPage() {
     authApi
       .listPersonalAccessTokens()
       .then((result) => {
-        if (active) {
-          setPersonalAccessTokens(result.tokens);
-        }
+        if (active) setPersonalAccessTokens(result.tokens);
       })
       .catch((error) => {
         if (active) {
@@ -129,6 +158,23 @@ export default function AccountPage() {
               action: "load your personal access tokens",
               fallback:
                 "We couldn't load your personal access tokens right now. Please try again.",
+            }),
+          );
+        }
+      });
+
+    authApi
+      .listKnownDevices()
+      .then((result) => {
+        if (active) setDevices(result.devices);
+      })
+      .catch((error) => {
+        if (active) {
+          setDevicesMessage(
+            getApiErrorMessage(error, {
+              action: "load your registered devices",
+              fallback:
+                "We couldn't load your registered devices right now. Please try again.",
             }),
           );
         }
@@ -191,6 +237,97 @@ export default function AccountPage() {
     } finally {
       setPendingUnlink(null);
     }
+  }
+
+  async function handleSaveProfile() {
+    const normalizedUsername = profileUsername.trim();
+
+    if (!normalizedUsername) {
+      setProfileMessage("Username is required.");
+      return;
+    }
+
+    setProfilePending(true);
+    setProfileMessage(null);
+
+    try {
+      const result = await profilesApi.updateMine({
+        username: normalizedUsername,
+        isPrivate: profileIsPrivate,
+        recommendationPersonalizationEnabled: profilePersonalization,
+      });
+      setProfile(result);
+      setProfileUsername(result.username);
+      setProfileIsPrivate(result.isPrivate);
+      setProfilePersonalization(result.recommendationPersonalizationEnabled);
+      setProfileMessage("Profile saved.");
+    } catch (error) {
+      setProfileMessage(
+        getApiErrorMessage(error, {
+          action: "save your profile",
+          fallback:
+            "We couldn't save your profile right now. Please try again.",
+        }),
+      );
+    } finally {
+      setProfilePending(false);
+    }
+  }
+
+  async function handleSavePhone() {
+    if (!profile) return;
+
+    setPhonePending(true);
+    setPhoneMessage(null);
+
+    try {
+      const result = await profilesApi.updateMine({
+        username: profile.username,
+        phoneNumber: profilePhone.trim() || null,
+      });
+      setProfile(result);
+      setProfilePhone(result.phoneNumber ?? "");
+      setPhoneMessage("Phone number saved.");
+    } catch (error) {
+      setPhoneMessage(
+        getApiErrorMessage(error, {
+          action: "save your phone number",
+          fallback:
+            "We couldn't save your phone number right now. Please try again.",
+        }),
+      );
+    } finally {
+      setPhonePending(false);
+    }
+  }
+
+  async function handleRemoveDevice(deviceId: string) {
+    setPendingDeviceRemove(deviceId);
+    setDevicesMessage(null);
+
+    try {
+      await authApi.removeKnownDevice(deviceId);
+      setDevices((current) => current.filter((d) => d.id !== deviceId));
+      setDevicesMessage("Device removed.");
+    } catch (error) {
+      setDevicesMessage(
+        getApiErrorMessage(error, {
+          action: "remove that device",
+          fallback:
+            "We couldn't remove that device right now. Please try again.",
+        }),
+      );
+    } finally {
+      setPendingDeviceRemove(null);
+    }
+  }
+
+  function handleDisableAccount() {
+    setDisablePending(true);
+    setDisableMessage(
+      "Account deactivation is not yet available. Please contact support if you need to close your account.",
+    );
+    setDisablePending(false);
   }
 
   async function handleCreatePersonalAccessToken() {
@@ -257,43 +394,6 @@ export default function AccountPage() {
       );
     } finally {
       setPendingTokenRevoke(null);
-    }
-  }
-
-  async function handleSaveProfile() {
-    const normalizedUsername = profileUsername.trim();
-
-    if (!normalizedUsername) {
-      setProfileMessage("Username is required.");
-      return;
-    }
-
-    setProfilePending(true);
-    setProfileMessage(null);
-
-    try {
-      const result = await profilesApi.updateMine({
-        username: normalizedUsername,
-        phoneNumber: profilePhone.trim() || null,
-        isPrivate: profileIsPrivate,
-        recommendationPersonalizationEnabled: profilePersonalization,
-      });
-      setProfile(result);
-      setProfileUsername(result.username);
-      setProfilePhone(result.phoneNumber ?? "");
-      setProfileIsPrivate(result.isPrivate);
-      setProfilePersonalization(result.recommendationPersonalizationEnabled);
-      setProfileMessage("Profile saved.");
-    } catch (error) {
-      setProfileMessage(
-        getApiErrorMessage(error, {
-          action: "save your profile",
-          fallback:
-            "We couldn't save your profile right now. Please try again.",
-        }),
-      );
-    } finally {
-      setProfilePending(false);
     }
   }
 
@@ -365,7 +465,7 @@ export default function AccountPage() {
           ))}
         </div>
 
-        {/* Profile tab */}
+        {/* ── Profile tab ── */}
         {activeTab === "profile" && (
           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
             <div className="flex items-center gap-3">
@@ -386,31 +486,15 @@ export default function AccountPage() {
               </div>
             ) : null}
 
-            <div className="grid gap-4">
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Username</span>
-                <input
-                  value={profileUsername}
-                  onChange={(e) => setProfileUsername(e.target.value)}
-                  placeholder={profile?.username ?? "username"}
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">
-                  Phone number{" "}
-                  <span className="font-normal text-slate-400">(optional)</span>
-                </span>
-                <input
-                  type="tel"
-                  value={profilePhone}
-                  onChange={(e) => setProfilePhone(e.target.value)}
-                  placeholder="e.g. +1 555 000 0000"
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
-                />
-              </label>
-            </div>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium text-slate-700">Username</span>
+              <input
+                value={profileUsername}
+                onChange={(e) => setProfileUsername(e.target.value)}
+                placeholder={profile?.username ?? "username"}
+                className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
+              />
+            </label>
 
             <button
               type="button"
@@ -478,12 +562,12 @@ export default function AccountPage() {
           </div>
         )}
 
-        {/* Security tab */}
+        {/* ── Security tab ── */}
         {activeTab === "security" && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Password */}
-            <div>
-              <div className="mb-3 flex items-center gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
                   <Shield className="h-5 w-5" aria-hidden="true" />
                 </div>
@@ -494,7 +578,7 @@ export default function AccountPage() {
                   <p className="text-sm text-slate-500">
                     {providers?.hasPassword
                       ? "Password login enabled"
-                      : "No password set"}
+                      : "No password set — add one below"}
                   </p>
                 </div>
               </div>
@@ -503,7 +587,7 @@ export default function AccountPage() {
 
             {/* Login methods */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-xl font-semibold text-slate-950">
+              <h2 className="text-lg font-semibold text-slate-950">
                 Login methods
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -516,17 +600,17 @@ export default function AccountPage() {
                 </div>
               ) : null}
 
-              <div className="mt-5 grid gap-3">
+              <div className="mt-4 grid gap-3">
                 {providers?.providers.map((provider) => (
                   <div
                     key={provider.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <p className="font-medium text-slate-950">
+                      <p className="text-sm font-medium text-slate-950">
                         {providerLabels[provider.provider]}
                       </p>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="mt-0.5 text-xs text-slate-500">
                         {provider.providerEmail ?? "Provider email hidden"} —
                         linked {formatLinkedAt(provider.linkedAt)}
                       </p>
@@ -538,23 +622,29 @@ export default function AccountPage() {
                         !canUnlinkProvider ||
                         pendingUnlink === provider.provider
                       }
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       title={
                         canUnlinkProvider
                           ? `Unlink ${providerLabels[provider.provider]}`
                           : "Add another sign-in method before unlinking"
                       }
                     >
-                      <Unlink className="h-4 w-4" aria-hidden="true" />
+                      <Unlink className="h-3.5 w-3.5" aria-hidden="true" />
                       {pendingUnlink === provider.provider
                         ? "Unlinking..."
                         : "Unlink"}
                     </button>
                   </div>
                 ))}
+
+                {providers?.providers.length === 0 && (
+                  <p className="text-sm text-slate-500">
+                    No external providers linked.
+                  </p>
+                )}
               </div>
 
-              <div className="mt-5">
+              <div className="mt-4">
                 <AuthOAuthButtons
                   mode="link"
                   disabledProviders={
@@ -571,10 +661,163 @@ export default function AccountPage() {
 
             {/* Two-factor authentication */}
             <HomeMfaTotpPanel />
+
+            {/* Phone number (SMS verification) */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+                  <Phone className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Phone number
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Used for SMS verification when available
+                  </p>
+                </div>
+              </div>
+
+              {phoneMessage ? (
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  {phoneMessage}
+                </div>
+              ) : null}
+
+              <div className="flex gap-3">
+                <input
+                  type="tel"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="e.g. +1 555 000 0000"
+                  className="h-11 flex-1 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSavePhone()}
+                  disabled={phonePending || profile === null}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {phonePending ? "Saving..." : "Save"}
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-400">
+                SMS verification is coming soon. Your number will be used once
+                it&apos;s enabled.
+              </p>
+            </div>
+
+            {/* Registered devices */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                  <Monitor className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Registered devices
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Devices that have signed in to your account
+                  </p>
+                </div>
+              </div>
+
+              {devicesMessage ? (
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  {devicesMessage}
+                </div>
+              ) : null}
+
+              <div className="grid gap-3">
+                {devices.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-500">
+                    No registered devices found.
+                  </div>
+                ) : (
+                  devices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-slate-950">
+                            {deviceLabel(device)}
+                          </p>
+                          {device.current && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              This device
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {device.lastIpAddress
+                            ? `${device.lastIpAddress} · `
+                            : ""}
+                          Last seen {formatDateTime(device.lastSeenAt)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveDevice(device.id)}
+                        disabled={
+                          Boolean(device.current) ||
+                          pendingDeviceRemove === device.id
+                        }
+                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {pendingDeviceRemove === device.id
+                          ? "Removing..."
+                          : "Remove"}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Disable account */}
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700">
+                  <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Disable account
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    Lock your account and sign out of all sessions
+                  </p>
+                </div>
+              </div>
+
+              <p className="mb-4 text-sm text-slate-600">
+                Disabling your account will prevent login and hide your profile
+                from public listings. Contact support to re-enable it.
+              </p>
+
+              {disableMessage ? (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700">
+                  {disableMessage}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleDisableAccount}
+                disabled={disablePending}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {disablePending ? "Disabling..." : "Disable account"}
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Developer tab */}
+        {/* ── Developer tab ── */}
         {activeTab === "developer" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6">
             <div className="flex items-start gap-4">
