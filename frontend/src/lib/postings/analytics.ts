@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  authenticatedJson,
-  buildPathWithQuery,
-} from "@/lib/api/client";
+import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import { readStoredSession } from "@/lib/auth/storage";
 import { resolveApiBaseUrl } from "@/lib/env";
 

@@ -445,7 +445,9 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                     booking
                   </span>
                   {posting.minBookingDurationDays ? (
-                    <span>{posting.minBookingDurationDays} day minimum booking</span>
+                    <span>
+                      {posting.minBookingDurationDays} day minimum booking
+                    </span>
                   ) : null}
                   {posting.advanceNoticeDays != null ? (
                     <span>

@@ -166,12 +166,14 @@ function toFormState(posting: PostingRecord): PostingFormState {
     maxBookingDurationDays: posting.maxBookingDurationDays
       ? String(posting.maxBookingDurationDays)
       : "",
-    minBookingDurationDays: posting.minBookingDurationDays != null
-      ? String(posting.minBookingDurationDays)
-      : "",
-    advanceNoticeDays: posting.advanceNoticeDays != null
-      ? String(posting.advanceNoticeDays)
-      : "",
+    minBookingDurationDays:
+      posting.minBookingDurationDays != null
+        ? String(posting.minBookingDurationDays)
+        : "",
+    advanceNoticeDays:
+      posting.advanceNoticeDays != null
+        ? String(posting.advanceNoticeDays)
+        : "",
     cancellationPolicy: posting.cancellationPolicy ?? "",
     cancellationPolicyNotes: posting.cancellationPolicyNotes ?? "",
     instantBooking: posting.instantBooking ?? false,
@@ -238,7 +240,8 @@ function buildPayload(form: PostingFormState): UpsertPostingInput {
     advanceNoticeDays: form.advanceNoticeDays.trim()
       ? Number(form.advanceNoticeDays)
       : null,
-    cancellationPolicy: (form.cancellationPolicy as "flexible" | "moderate" | "strict") || null,
+    cancellationPolicy:
+      (form.cancellationPolicy as "flexible" | "moderate" | "strict") || null,
     cancellationPolicyNotes: form.cancellationPolicyNotes.trim() || null,
     instantBooking: form.instantBooking,
     location: {
@@ -288,7 +291,10 @@ function getCompletenessItems(
     { label: "At least 3 photos", done: form.photos.length >= 3 },
     { label: "At least 2 tags", done: tags.length >= 2 },
     { label: "Cancellation policy set", done: !!form.cancellationPolicy },
-    { label: "Availability notes added", done: !!form.availabilityNotes.trim() },
+    {
+      label: "Availability notes added",
+      done: !!form.availabilityNotes.trim(),
+    },
     {
       label: "Minimum booking duration",
       done: !!form.minBookingDurationDays.trim(),
@@ -297,7 +303,10 @@ function getCompletenessItems(
       label: "Maximum booking duration",
       done: !!form.maxBookingDurationDays.trim(),
     },
-    { label: "Advance notice configured", done: !!form.advanceNoticeDays.trim() },
+    {
+      label: "Advance notice configured",
+      done: !!form.advanceNoticeDays.trim(),
+    },
   ];
 }
 
@@ -344,8 +353,14 @@ export function PostingManagementWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [seasonalRules, setSeasonalRules] = useState<SeasonalPricingRule[]>([]);
-  const [seasonalForm, setSeasonalForm] = useState<SeasonalPricingRuleInput & { editingId: string | null }>({
-    editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0,
+  const [seasonalForm, setSeasonalForm] = useState<
+    SeasonalPricingRuleInput & { editingId: string | null }
+  >({
+    editingId: null,
+    name: "",
+    startDate: "",
+    endDate: "",
+    dailyAmount: 0,
   });
   const [seasonalError, setSeasonalError] = useState<string | null>(null);
 
@@ -404,7 +419,8 @@ export function PostingManagementWorkspace() {
   const activeOrganization = session?.user.activeOrganization;
   const canRead = canReadOrganizationPostings(activeOrganization);
   const canManage = canManageOrganizationPostings(activeOrganization);
-  const selectedPosting = postings.find((p) => p.id === selectedPostingId) ?? null;
+  const selectedPosting =
+    postings.find((p) => p.id === selectedPostingId) ?? null;
 
   async function savePostingRequest() {
     let nextPhotos = form.photos;
@@ -480,14 +496,22 @@ export function PostingManagementWorkspace() {
       throw new Error("Managed posting details were not available.");
     }
 
-    const rules = await postingsApi.listSeasonalPricing(postingId).catch(() => []);
+    const rules = await postingsApi
+      .listSeasonalPricing(postingId)
+      .catch(() => []);
 
     startTransition(() => {
       setSelectedPostingId(postingId);
       setForm(toFormState(nextPosting));
       setSelectedFile(null);
       setSeasonalRules(rules);
-      setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+      setSeasonalForm({
+        editingId: null,
+        name: "",
+        startDate: "",
+        endDate: "",
+        dailyAmount: 0,
+      });
       setSeasonalError(null);
     });
   }
@@ -566,7 +590,13 @@ export function PostingManagementWorkspace() {
     setError(null);
     setForm(createDefaultFormState());
     setSeasonalRules([]);
-    setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+    setSeasonalForm({
+      editingId: null,
+      name: "",
+      startDate: "",
+      endDate: "",
+      dailyAmount: 0,
+    });
     setSeasonalError(null);
   }
 
@@ -581,15 +611,35 @@ export function PostingManagementWorkspace() {
     };
     try {
       if (seasonalForm.editingId) {
-        const updated = await postingsApi.updateSeasonalPricingRule(selectedPostingId, seasonalForm.editingId, input);
-        setSeasonalRules((r) => r.map((x) => (x.id === updated.id ? updated : x)));
+        const updated = await postingsApi.updateSeasonalPricingRule(
+          selectedPostingId,
+          seasonalForm.editingId,
+          input,
+        );
+        setSeasonalRules((r) =>
+          r.map((x) => (x.id === updated.id ? updated : x)),
+        );
       } else {
-        const created = await postingsApi.createSeasonalPricingRule(selectedPostingId, input);
+        const created = await postingsApi.createSeasonalPricingRule(
+          selectedPostingId,
+          input,
+        );
         setSeasonalRules((r) => [...r, created]);
       }
-      setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+      setSeasonalForm({
+        editingId: null,
+        name: "",
+        startDate: "",
+        endDate: "",
+        dailyAmount: 0,
+      });
     } catch (err) {
-      setSeasonalError(getApiErrorMessage(err, { action: "save seasonal pricing rule", fallback: "Could not save rule." }));
+      setSeasonalError(
+        getApiErrorMessage(err, {
+          action: "save seasonal pricing rule",
+          fallback: "Could not save rule.",
+        }),
+      );
     }
   }
 
@@ -599,7 +649,12 @@ export function PostingManagementWorkspace() {
       await postingsApi.deleteSeasonalPricingRule(selectedPostingId, ruleId);
       setSeasonalRules((r) => r.filter((x) => x.id !== ruleId));
     } catch (err) {
-      setSeasonalError(getApiErrorMessage(err, { action: "delete seasonal pricing rule", fallback: "Could not delete rule." }));
+      setSeasonalError(
+        getApiErrorMessage(err, {
+          action: "delete seasonal pricing rule",
+          fallback: "Could not delete rule.",
+        }),
+      );
     }
   }
 
@@ -1010,7 +1065,8 @@ export function PostingManagementWorkspace() {
                   Seasonal Pricing
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Override the daily rate for specific date ranges (e.g. holidays, peak season).
+                  Override the daily rate for specific date ranges (e.g.
+                  holidays, peak season).
                 </p>
 
                 {seasonalRules.length > 0 ? (
@@ -1023,7 +1079,8 @@ export function PostingManagementWorkspace() {
                         <div className="min-w-0">
                           <p className="truncate font-medium">{rule.name}</p>
                           <p className="text-slate-500">
-                            {rule.startDate} → {rule.endDate} · ${rule.dailyAmount}/day
+                            {rule.startDate} → {rule.endDate} · $
+                            {rule.dailyAmount}/day
                           </p>
                         </div>
                         {canManage ? (
@@ -1056,10 +1113,13 @@ export function PostingManagementWorkspace() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-xs text-slate-400">No seasonal rules yet.</p>
+                  <p className="mt-3 text-xs text-slate-400">
+                    No seasonal rules yet.
+                  </p>
                 )}
 
-                {canManage && (seasonalForm.editingId || seasonalRules.length < 20) ? (
+                {canManage &&
+                (seasonalForm.editingId || seasonalRules.length < 20) ? (
                   <div className="mt-3 grid gap-2">
                     <p className="text-xs font-medium text-slate-600">
                       {seasonalForm.editingId ? "Edit rule" : "Add rule"}
@@ -1068,20 +1128,32 @@ export function PostingManagementWorkspace() {
                       type="text"
                       placeholder="Name (e.g. Summer Peak)"
                       value={seasonalForm.name}
-                      onChange={(e) => setSeasonalForm((s) => ({ ...s, name: e.target.value }))}
+                      onChange={(e) =>
+                        setSeasonalForm((s) => ({ ...s, name: e.target.value }))
+                      }
                       className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="date"
                         value={seasonalForm.startDate}
-                        onChange={(e) => setSeasonalForm((s) => ({ ...s, startDate: e.target.value }))}
+                        onChange={(e) =>
+                          setSeasonalForm((s) => ({
+                            ...s,
+                            startDate: e.target.value,
+                          }))
+                        }
                         className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
                       />
                       <input
                         type="date"
                         value={seasonalForm.endDate}
-                        onChange={(e) => setSeasonalForm((s) => ({ ...s, endDate: e.target.value }))}
+                        onChange={(e) =>
+                          setSeasonalForm((s) => ({
+                            ...s,
+                            endDate: e.target.value,
+                          }))
+                        }
                         className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
                       />
                     </div>
@@ -1091,7 +1163,12 @@ export function PostingManagementWorkspace() {
                       min={0}
                       step={0.01}
                       value={seasonalForm.dailyAmount || ""}
-                      onChange={(e) => setSeasonalForm((s) => ({ ...s, dailyAmount: Number(e.target.value) }))}
+                      onChange={(e) =>
+                        setSeasonalForm((s) => ({
+                          ...s,
+                          dailyAmount: Number(e.target.value),
+                        }))
+                      }
                       className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
                     />
                     {seasonalError ? (
@@ -1108,7 +1185,15 @@ export function PostingManagementWorkspace() {
                       {seasonalForm.editingId ? (
                         <button
                           type="button"
-                          onClick={() => setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 })}
+                          onClick={() =>
+                            setSeasonalForm({
+                              editingId: null,
+                              name: "",
+                              startDate: "",
+                              endDate: "",
+                              dailyAmount: 0,
+                            })
+                          }
                           className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
                           Cancel
@@ -1155,46 +1240,51 @@ export function PostingManagementWorkspace() {
               </span>
             </label>
 
-            {canManage && (!selectedPosting || selectedPosting.status === "draft") ? (
-              (() => {
-                const items = getCompletenessItems(form);
-                const done = items.filter((i) => i.done).length;
-                const pct = Math.round((done / items.length) * 100);
-                return (
-                  <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">
-                        Listing completeness
-                      </p>
-                      <p className="text-sm font-medium text-sky-600">{pct}%</p>
-                    </div>
-                    <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-sky-500 transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <ul className="space-y-1">
-                      {items.map((item) => (
-                        <li
-                          key={item.label}
-                          className="flex items-center gap-2 text-xs text-slate-600"
-                        >
-                          <span
-                            className={
-                              item.done ? "text-emerald-500" : "text-slate-300"
-                            }
+            {canManage &&
+            (!selectedPosting || selectedPosting.status === "draft")
+              ? (() => {
+                  const items = getCompletenessItems(form);
+                  const done = items.filter((i) => i.done).length;
+                  const pct = Math.round((done / items.length) * 100);
+                  return (
+                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-700">
+                          Listing completeness
+                        </p>
+                        <p className="text-sm font-medium text-sky-600">
+                          {pct}%
+                        </p>
+                      </div>
+                      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-sky-500 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <ul className="space-y-1">
+                        {items.map((item) => (
+                          <li
+                            key={item.label}
+                            className="flex items-center gap-2 text-xs text-slate-600"
                           >
-                            {item.done ? "✓" : "○"}
-                          </span>
-                          {item.label}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })()
-            ) : null}
+                            <span
+                              className={
+                                item.done
+                                  ? "text-emerald-500"
+                                  : "text-slate-300"
+                              }
+                            >
+                              {item.done ? "✓" : "○"}
+                            </span>
+                            {item.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()
+              : null}
 
             {canManage ? (
               <div className="mt-6 flex flex-wrap gap-3">
