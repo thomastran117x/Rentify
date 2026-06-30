@@ -56,6 +56,10 @@ export interface PublicPostingDetail {
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string;
   maxBookingDurationDays?: number;
+  minBookingDurationDays?: number;
+  advanceNoticeDays?: number;
+  cancellationPolicy?: "flexible" | "moderate" | "strict";
+  cancellationPolicyNotes?: string;
   effectiveMaxBookingDurationDays: number;
   availabilityBlocks: Array<{
     id: string;

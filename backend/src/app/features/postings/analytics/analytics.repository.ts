@@ -1473,6 +1473,42 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     return Math.ceil((clampedEnd - clampedStart) / MILLIS_PER_DAY);
   }
 
+  async listDailyAnalyticsForExport(
+    organizationId: string,
+    window: PostingAnalyticsWindow,
+  ): Promise<AnalyticsDailyExportRow[]> {
+    const range = this.createWindowRange(window);
+    const tableSql = this.dailyTableSql();
+
+    return this.executeAsync(() =>
+      this.prisma.$queryRaw<AnalyticsDailyExportRow[]>(Prisma.sql`
+        SELECT
+          ra.posting_id AS postingId,
+          p.name AS postingName,
+          ra.bucket_start AS date,
+          COALESCE(ra.search_impressions, 0) AS searchImpressions,
+          COALESCE(ra.search_clicks, 0) AS searchClicks,
+          COALESCE(ra.views, 0) AS views,
+          COALESCE(ra.unique_views, 0) AS uniqueViews,
+          COALESCE(ra.booking_requests, 0) AS bookingRequests,
+          COALESCE(ra.approved_requests, 0) AS approvedRequests,
+          COALESCE(ra.declined_requests, 0) AS declinedRequests,
+          COALESCE(ra.expired_requests, 0) AS expiredRequests,
+          COALESCE(ra.cancelled_requests, 0) AS cancelledRequests,
+          COALESCE(ra.payment_failed_requests, 0) AS paymentFailedRequests,
+          COALESCE(ra.confirmed_bookings, 0) AS confirmedBookings,
+          COALESCE(ra.estimated_confirmed_revenue, 0) AS estimatedConfirmedRevenue,
+          COALESCE(ra.refunded_revenue, 0) AS refundedRevenue
+        FROM ${tableSql} ra
+        INNER JOIN postings p ON p.id = ra.posting_id
+        WHERE p.organization_id = ${organizationId}
+          ${range.startAt ? Prisma.sql`AND ra.bucket_start >= ${range.startAt}` : Prisma.empty}
+          AND ra.bucket_start <= ${range.endAt}
+        ORDER BY p.name ASC, ra.bucket_start ASC
+      `),
+    );
+  }
+
   private safeDivide(numerator: number, denominator: number): number {
     if (
       !Number.isFinite(numerator) ||
@@ -1500,4 +1536,23 @@ interface CounterIncrements {
   confirmedBookings: number;
   estimatedConfirmedRevenue: Prisma.Decimal;
   refundedRevenue: Prisma.Decimal;
+}
+
+interface AnalyticsDailyExportRow {
+  postingId: string;
+  postingName: string;
+  date: Date;
+  searchImpressions: bigint | number;
+  searchClicks: bigint | number;
+  views: bigint | number;
+  uniqueViews: bigint | number;
+  bookingRequests: bigint | number;
+  approvedRequests: bigint | number;
+  declinedRequests: bigint | number;
+  expiredRequests: bigint | number;
+  cancelledRequests: bigint | number;
+  paymentFailedRequests: bigint | number;
+  confirmedBookings: bigint | number;
+  estimatedConfirmedRevenue: Prisma.Decimal | number | string;
+  refundedRevenue: Prisma.Decimal | number | string;
 }

@@ -8,6 +8,7 @@ import type {
   OwnerPostingsAnalyticsSummary,
   PostingAnalyticsDetail,
   PostingAnalyticsDetailInput,
+  PostingAnalyticsWindow,
 } from "@/features/postings/analytics/analytics.model";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import {
@@ -186,6 +187,62 @@ export class PostingsAnalyticsService {
     }
 
     return detail;
+  }
+
+  async exportAsCsv(
+    actorUserId: string,
+    window: PostingAnalyticsWindow,
+  ): Promise<string> {
+    const membership =
+      await this.organizationAccessService.requireActiveMembership(
+        actorUserId,
+        "Select or join an organization before exporting analytics.",
+      );
+
+    const rows = await this.analyticsRepository.listDailyAnalyticsForExport(
+      membership.organizationId,
+      window,
+    );
+
+    const headers = [
+      "date",
+      "postingId",
+      "postingName",
+      "searchImpressions",
+      "searchClicks",
+      "views",
+      "uniqueViews",
+      "bookingRequests",
+      "approvedRequests",
+      "declinedRequests",
+      "expiredRequests",
+      "cancelledRequests",
+      "paymentFailedRequests",
+      "confirmedBookings",
+      "estimatedConfirmedRevenue",
+      "refundedRevenue",
+    ];
+
+    const csvRows = rows.map((row) => [
+      row.date.toISOString().slice(0, 10),
+      row.postingId,
+      `"${row.postingName.replace(/"/g, '""')}"`,
+      Number(row.searchImpressions),
+      Number(row.searchClicks),
+      Number(row.views),
+      Number(row.uniqueViews),
+      Number(row.bookingRequests),
+      Number(row.approvedRequests),
+      Number(row.declinedRequests),
+      Number(row.expiredRequests),
+      Number(row.cancelledRequests),
+      Number(row.paymentFailedRequests),
+      Number(row.confirmedBookings),
+      Number(row.estimatedConfirmedRevenue),
+      Number(row.refundedRevenue),
+    ]);
+
+    return [headers.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
   }
 
   private createViewerHash(

@@ -39,6 +39,10 @@ interface PostingFormState {
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes: string;
   maxBookingDurationDays: string;
+  minBookingDurationDays: string;
+  advanceNoticeDays: string;
+  cancellationPolicy: string;
+  cancellationPolicyNotes: string;
   city: string;
   region: string;
   country: string;
@@ -113,6 +117,10 @@ function createDefaultFormState(): PostingFormState {
     availabilityStatus: "available",
     availabilityNotes: "",
     maxBookingDurationDays: "14",
+    minBookingDurationDays: "",
+    advanceNoticeDays: "",
+    cancellationPolicy: "",
+    cancellationPolicyNotes: "",
     city: "Toronto",
     region: "Ontario",
     country: "Canada",
@@ -154,6 +162,14 @@ function toFormState(posting: PostingRecord): PostingFormState {
     maxBookingDurationDays: posting.maxBookingDurationDays
       ? String(posting.maxBookingDurationDays)
       : "",
+    minBookingDurationDays: posting.minBookingDurationDays
+      ? String(posting.minBookingDurationDays)
+      : "",
+    advanceNoticeDays: posting.advanceNoticeDays
+      ? String(posting.advanceNoticeDays)
+      : "",
+    cancellationPolicy: posting.cancellationPolicy ?? "",
+    cancellationPolicyNotes: posting.cancellationPolicyNotes ?? "",
     city: posting.location.city,
     region: posting.location.region,
     country: posting.location.country,
@@ -211,6 +227,14 @@ function buildPayload(form: PostingFormState): UpsertPostingInput {
     maxBookingDurationDays: form.maxBookingDurationDays.trim()
       ? Number(form.maxBookingDurationDays)
       : null,
+    minBookingDurationDays: form.minBookingDurationDays.trim()
+      ? Number(form.minBookingDurationDays)
+      : null,
+    advanceNoticeDays: form.advanceNoticeDays.trim()
+      ? Number(form.advanceNoticeDays)
+      : null,
+    cancellationPolicy: (form.cancellationPolicy as "flexible" | "moderate" | "strict") || null,
+    cancellationPolicyNotes: form.cancellationPolicyNotes.trim() || null,
     location: {
       city: form.city.trim(),
       region: form.region.trim(),
@@ -817,6 +841,8 @@ export function PostingManagementWorkspace() {
                 ["Latitude", "latitude"],
                 ["Longitude", "longitude"],
                 ["Max booking days", "maxBookingDurationDays"],
+                ["Min booking days", "minBookingDurationDays"],
+                ["Advance notice (days)", "advanceNoticeDays"],
               ].map(([label, key]) => (
                 <label key={key} className="grid gap-2 text-sm">
                   <span className="font-medium text-slate-700">{label}</span>
@@ -833,6 +859,46 @@ export function PostingManagementWorkspace() {
                   />
                 </label>
               ))}
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <label className="grid gap-2 text-sm">
+                <span className="font-medium text-slate-700">
+                  Cancellation policy
+                </span>
+                <select
+                  value={form.cancellationPolicy}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      cancellationPolicy: event.target.value,
+                    }))
+                  }
+                  disabled={!canManage || saving}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                >
+                  <option value="">Not specified</option>
+                  <option value="flexible">Flexible</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="strict">Strict</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm sm:col-span-2">
+                <span className="font-medium text-slate-700">
+                  Cancellation policy notes
+                </span>
+                <input
+                  value={form.cancellationPolicyNotes}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      cancellationPolicyNotes: event.target.value,
+                    }))
+                  }
+                  disabled={!canManage || saving}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                />
+              </label>
             </div>
 
             <label className="mt-4 grid gap-2 text-sm">

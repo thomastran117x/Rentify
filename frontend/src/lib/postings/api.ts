@@ -76,6 +76,7 @@ export interface AvailabilityBlockInput {
 
 export type PostingStatus = "draft" | "published" | "paused" | "archived";
 export type PostingAvailabilityStatus = "available" | "limited" | "unavailable";
+export type PostingCancellationPolicy = "flexible" | "moderate" | "strict";
 export type PostingFamily = "place" | "equipment" | "vehicle";
 export type PostingDetailValue = string | number | boolean | string[];
 
@@ -124,6 +125,10 @@ export interface UpsertPostingInput {
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
+  minBookingDurationDays?: number | null;
+  advanceNoticeDays?: number | null;
+  cancellationPolicy?: PostingCancellationPolicy | null;
+  cancellationPolicyNotes?: string | null;
   location: PostingLocationInput;
   variant: PostingVariant;
   details: Record<string, PostingDetailValue>;

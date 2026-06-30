@@ -219,6 +219,10 @@ model Posting {
   availabilityStatus PostingAvailabilityStatus @map("availability_status")
   availabilityNotes String?                    @map("availability_notes") @db.VarChar(500)
   maxBookingDurationDays Int?                  @map("max_booking_duration_days")
+  minBookingDurationDays Int?                  @map("min_booking_duration_days")
+  advanceNoticeDays      Int?                  @map("advance_notice_days")
+  cancellationPolicy     PostingCancellationPolicy? @map("cancellation_policy")
+  cancellationPolicyNotes String?              @map("cancellation_policy_notes") @db.VarChar(500)
   latitude          Float
   longitude         Float
   city              String                     @db.VarChar(120)
@@ -1003,6 +1007,12 @@ enum PostingAvailabilityStatus {
   available
   limited
   unavailable
+}
+
+enum PostingCancellationPolicy {
+  flexible
+  moderate
+  strict
 }
 
 enum PostingAvailabilityBlockSource {

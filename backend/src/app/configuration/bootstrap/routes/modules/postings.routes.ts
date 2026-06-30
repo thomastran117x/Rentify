@@ -91,6 +91,13 @@ export const postingsAnalyticsRouteModule: RouteModule = {
       ),
     );
     app.get(
+      "/postings/analytics/export",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "exportAnalytics",
+      ),
+    );
+    app.get(
       "/postings/:id/analytics",
       resolveHandler<PostingsController>(
         containerTokens.postingsController,

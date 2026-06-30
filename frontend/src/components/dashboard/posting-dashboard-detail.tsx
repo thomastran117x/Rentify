@@ -43,6 +43,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | undefined>(
     undefined,
   );
@@ -146,6 +147,17 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
     [detail],
   );
 
+  async function handleExportCsv() {
+    setExporting(true);
+    try {
+      await postingsAnalyticsApi.exportCsv(windowValue);
+    } catch {
+      // silently fail — the file simply won't download
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (status === "loading" || loading) {
     return <LoadingDashboard />;
   }
@@ -241,6 +253,14 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                         lastUpdatedAt={lastUpdatedAt}
                         refreshing={refreshing}
                       />
+                      <button
+                        type="button"
+                        onClick={() => void handleExportCsv()}
+                        disabled={exporting}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {exporting ? "Exporting…" : "Export CSV"}
+                      </button>
                     </div>
                   </div>
                 </div>

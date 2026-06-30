@@ -306,6 +306,10 @@ function createApp() {
         };
       },
     ),
+    exportAsCsv: jest.fn(
+      async () =>
+        "date,postingId,postingName,searchImpressions\n2026-06-01,posting-1,Sunny loft,42",
+    ),
   };
 
   const postingsPublicAutocompleteService = {
@@ -906,6 +910,101 @@ describe("Postings integration", () => {
     expect(
       recommendationActivityPublisher.publishSearchClick,
     ).toHaveBeenCalledTimes(1);
+  });
+
+  it("exports analytics as CSV through the dedicated route", async () => {
+    const { app, postingsAnalyticsService } = createApp();
+
+    const defaultWindowResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/analytics/export")}`,
+      { headers: ownerHeaders() },
+    );
+    const thirtyDayResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/analytics/export?window=30d")}`,
+      { headers: ownerHeaders() },
+    );
+    const unauthenticatedResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/analytics/export")}`,
+    );
+
+    expect(defaultWindowResponse.status).toBe(200);
+    expect(defaultWindowResponse.headers.get("content-type")).toContain(
+      "text/csv",
+    );
+    expect(defaultWindowResponse.headers.get("content-disposition")).toContain(
+      "attachment",
+    );
+    const csvBody = await defaultWindowResponse.text();
+    expect(csvBody).toContain("date,postingId");
+
+    expect(thirtyDayResponse.status).toBe(200);
+    expect(postingsAnalyticsService.exportAsCsv).toHaveBeenCalledWith(
+      "owner-1",
+      "30d",
+    );
+
+    expect(unauthenticatedResponse.status).toBe(401);
+  });
+
+  it("passes new booking rule fields through to the service on create and update", async () => {
+    const { app, postingsService } = createApp();
+
+    const createBody = {
+      ...createPostingBody(),
+      minBookingDurationDays: 3,
+      advanceNoticeDays: 1,
+      cancellationPolicy: "flexible",
+      cancellationPolicyNotes: "Full refund within 24h.",
+    };
+
+    const createResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
+      {
+        method: "POST",
+        headers: ownerHeaders(),
+        body: JSON.stringify(createBody),
+      },
+    );
+
+    expect(createResponse.status).toBe(201);
+    expect(postingsService.createDraft).toHaveBeenCalledWith(
+      "owner-1",
+      expect.objectContaining({
+        minBookingDurationDays: 3,
+        advanceNoticeDays: 1,
+        cancellationPolicy: "flexible",
+        cancellationPolicyNotes: "Full refund within 24h.",
+      }),
+    );
+
+    const updateBody = {
+      ...createUpdatePostingBody(),
+      minBookingDurationDays: 2,
+      advanceNoticeDays: 0,
+      cancellationPolicy: "strict",
+      cancellationPolicyNotes: null,
+    };
+
+    const updateResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1")}`,
+      {
+        method: "PUT",
+        headers: ownerHeaders(),
+        body: JSON.stringify(updateBody),
+      },
+    );
+
+    expect(updateResponse.status).toBe(200);
+    expect(postingsService.update).toHaveBeenCalledWith(
+      "posting-1",
+      "owner-1",
+      expect.objectContaining({
+        minBookingDurationDays: 2,
+        advanceNoticeDays: 0,
+        cancellationPolicy: "strict",
+        cancellationPolicyNotes: null,
+      }),
+    );
   });
 
   it("returns structured failures for unauthorized access and invalid postings inputs", async () => {
