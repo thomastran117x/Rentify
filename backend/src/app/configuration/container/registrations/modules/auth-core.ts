@@ -5,6 +5,7 @@ import { AuthRepository } from "@/features/auth/auth.repository";
 import { AuthService } from "@/features/auth/auth.service";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { TokenService } from "@/features/auth/token/token.service";
+import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export const authCoreRegistrationModule: ContainerRegistrationModule = {
   id: "auth-core",
@@ -70,12 +71,14 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authService,
         containerTokens.captchaService,
         containerTokens.tokenService,
+        containerTokens.mfaVerificationService,
       ],
       resolve: ({ resolve }) =>
         new AuthController(
           resolve(containerTokens.authService),
           resolve(containerTokens.captchaService),
           resolve(containerTokens.tokenService),
+          resolve(containerTokens.mfaVerificationService),
         ),
     });
   },

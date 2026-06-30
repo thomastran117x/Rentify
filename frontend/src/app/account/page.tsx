@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ChevronDown,
   KeyRound,
+  Lock,
   Monitor,
   Phone,
   Shield,
@@ -17,6 +18,7 @@ import {
   type OAuthProvider,
 } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
+import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
@@ -27,6 +29,10 @@ import {
   type OAuthProvider as LinkedOAuthProvider,
   type PersonalAccessTokenSummary,
 } from "@/lib/auth/types";
+import {
+  mfaVerificationApi,
+  type MfaVerificationOptionsResult,
+} from "@/lib/auth/mfa-verification-api";
 import { profilesApi, type ProfileRecord } from "@/lib/profiles/api";
 
 const providerLabels: Record<LinkedOAuthProvider, string> = {
@@ -70,6 +76,15 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<
     "profile" | "security" | "developer"
   >("profile");
+
+  // Security tab MFA gate
+  const [securityUnlocked, setSecurityUnlocked] = useState(false);
+  const [securityChecking, setSecurityChecking] = useState(false);
+  const [verificationDialogOptions, setVerificationDialogOptions] =
+    useState<MfaVerificationOptionsResult | null>(null);
+  const verificationResolverRef = useRef<((value: boolean) => void) | null>(
+    null,
+  );
 
   // Profile tab state
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
@@ -274,6 +289,42 @@ export default function AccountPage() {
     }
   }
 
+  async function activateSecurityTab() {
+    setActiveTab("security");
+    if (securityUnlocked) return;
+
+    setSecurityChecking(true);
+    try {
+      const options = await mfaVerificationApi.getOptions("mfa-management");
+      if (options.verified) {
+        setSecurityUnlocked(true);
+      }
+    } catch {
+      // Gate will show naturally
+    } finally {
+      setSecurityChecking(false);
+    }
+  }
+
+  async function handleVerifyIdentity() {
+    let options: MfaVerificationOptionsResult;
+    try {
+      options = await mfaVerificationApi.getOptions("mfa-management");
+    } catch {
+      return;
+    }
+
+    const verified = await new Promise<boolean>((resolve) => {
+      verificationResolverRef.current = resolve;
+      setVerificationDialogOptions(options);
+    });
+
+    setVerificationDialogOptions(null);
+    if (verified) {
+      setSecurityUnlocked(true);
+    }
+  }
+
   async function handleSavePhone() {
     if (!profile) return;
 
@@ -449,7 +500,11 @@ export default function AccountPage() {
             <button
               key={tab}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() =>
+                tab === "security"
+                  ? void activateSecurityTab()
+                  : setActiveTab(tab)
+              }
               className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeTab === tab
                   ? "bg-slate-950 text-white shadow-sm"
@@ -562,8 +617,37 @@ export default function AccountPage() {
           </div>
         )}
 
-        {/* ── Security tab ── */}
-        {activeTab === "security" && (
+        {/* ── Security tab — MFA gate ── */}
+        {activeTab === "security" && !securityUnlocked && (
+          <div className="flex flex-col items-center gap-5 rounded-2xl border border-slate-200 bg-white px-8 py-14 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+              <Lock className="h-7 w-7" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">
+                Verify your identity
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                For your security, confirm your identity before accessing
+                security settings.
+              </p>
+            </div>
+            {securityChecking ? (
+              <p className="text-sm text-slate-500">Checking...</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleVerifyIdentity()}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Verify to continue
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── Security tab — content ── */}
+        {activeTab === "security" && securityUnlocked && (
           <div className="space-y-5">
             {/* Password */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -958,6 +1042,22 @@ export default function AccountPage() {
           </div>
         )}
       </div>
+
+      {verificationDialogOptions ? (
+        <MfaVerificationDialog
+          open
+          initialOptions={verificationDialogOptions}
+          scope="mfa-management"
+          onVerified={() => {
+            verificationResolverRef.current?.(true);
+            verificationResolverRef.current = null;
+          }}
+          onCancel={() => {
+            verificationResolverRef.current?.(false);
+            verificationResolverRef.current = null;
+          }}
+        />
+      ) : null}
     </main>
   );
 }

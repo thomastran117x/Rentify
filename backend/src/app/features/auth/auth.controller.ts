@@ -68,12 +68,16 @@ import {
   verifyEmailRequestSchema,
 } from "@/features/auth/auth.model";
 import { ZodError } from "zod";
+import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
+import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
+import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly captchaService: CaptchaService,
     private readonly tokenService: TokenService,
+    private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
   localAuthenticate = async (
@@ -169,7 +173,7 @@ export class AuthController {
   };
 
   changePassword = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
+    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
     const input = await parseRequestBody(context, changePasswordRequestSchema);
     const result = await this.authService.changePassword(
       this.toChangePasswordInput(context, input),
@@ -349,7 +353,7 @@ export class AuthController {
   };
 
   devices = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
+    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
     const result = await this.authService.devices({
       auth: context.get("auth"),
       client: context.get("client"),
@@ -360,7 +364,7 @@ export class AuthController {
   removeKnownDevice = async (
     context: Context<AppBindings>,
   ): Promise<Response> => {
-    await requireJwtAuth(context);
+    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
     const input = await parseRequestBody(
       context,
       removeKnownDeviceRequestSchema,
