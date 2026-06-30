@@ -21,6 +21,7 @@ export const ROUTE_MODULE_IDS = [
   "postings-analytics",
   "postings-reviews",
   "postings-availability",
+  "postings-seasonal-pricing",
   "postings-activity",
   "bookings",
   "sms",

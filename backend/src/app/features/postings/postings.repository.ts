@@ -2482,10 +2482,14 @@ export class PostingsRepository extends BaseRepository {
       maxBookingDurationDays: posting.maxBookingDurationDays ?? undefined,
       minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
       advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
-      cancellationPolicy: (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
+      cancellationPolicy:
+        (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
       cancellationPolicyNotes: posting.cancellationPolicyNotes ?? undefined,
       instantBooking: posting.instantBooking ?? false,
-      averageRating: posting.averageRating !== null && posting.averageRating !== undefined ? Number(posting.averageRating) : undefined,
+      averageRating:
+        posting.averageRating !== null && posting.averageRating !== undefined
+          ? Number(posting.averageRating)
+          : undefined,
       reviewCount: posting.reviewCount ?? 0,
       effectiveMaxBookingDurationDays:
         posting.maxBookingDurationDays ?? DEFAULT_MAX_BOOKING_DURATION_DAYS,
@@ -2540,9 +2544,13 @@ export class PostingsRepository extends BaseRepository {
         posting.availabilityStatus as PostingAvailabilityStatus,
       minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
       advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
-      cancellationPolicy: (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
+      cancellationPolicy:
+        (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
       instantBooking: posting.instantBooking ?? false,
-      averageRating: posting.averageRating !== null && posting.averageRating !== undefined ? Number(posting.averageRating) : undefined,
+      averageRating:
+        posting.averageRating !== null && posting.averageRating !== undefined
+          ? Number(posting.averageRating)
+          : undefined,
       reviewCount: posting.reviewCount ?? 0,
       searchableAttributes: this.extractSearchableAttributes(
         posting.family,

@@ -533,7 +533,7 @@ export class PostingsController {
       ruleId,
       auth.sub,
     );
-    return noContent(context);
+    return noContent();
   };
 
   private toUpsertInput(

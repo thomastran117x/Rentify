@@ -28,7 +28,9 @@ export class SeasonalPricingRepository extends BaseRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async create(input: UpsertSeasonalPricingInput): Promise<SeasonalPricingRecord> {
+  async create(
+    input: UpsertSeasonalPricingInput,
+  ): Promise<SeasonalPricingRecord> {
     const row = await this.database.postingSeasonalPricing.create({
       data: {
         id: randomUUID(),

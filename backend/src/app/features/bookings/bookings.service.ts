@@ -46,7 +46,10 @@ import { flowLockKeys, withFlowLocks } from "@/features/cache/cache-locks";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
-import type { PostingPricing, PostingRecord } from "@/features/postings/postings.model";
+import type {
+  PostingPricing,
+  PostingRecord,
+} from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
@@ -1881,7 +1884,11 @@ export class BookingsService {
       );
     }
 
-    const dateFailure = this.checkBookingDateConstraints(posting, startAt, durationDays);
+    const dateFailure = this.checkBookingDateConstraints(
+      posting,
+      startAt,
+      durationDays,
+    );
     if (dateFailure) {
       throw new BadRequestError(dateFailure.message);
     }
@@ -1964,7 +1971,11 @@ export class BookingsService {
       });
     }
 
-    const dateFailure = this.checkBookingDateConstraints(posting, startAt, durationDays);
+    const dateFailure = this.checkBookingDateConstraints(
+      posting,
+      startAt,
+      durationDays,
+    );
     if (dateFailure) {
       failureReasons.push(dateFailure);
     }
@@ -2261,8 +2272,12 @@ export class BookingsService {
     }
   }
 
-  private effectiveDailyRate(pricing: PostingPricing, durationDays: number): number {
-    if (durationDays >= 28 && pricing.monthly) return pricing.monthly.amount / 30;
+  private effectiveDailyRate(
+    pricing: PostingPricing,
+    durationDays: number,
+  ): number {
+    if (durationDays >= 28 && pricing.monthly)
+      return pricing.monthly.amount / 30;
     if (durationDays >= 7 && pricing.weekly) return pricing.weekly.amount / 7;
     return pricing.daily.amount;
   }
@@ -2293,7 +2308,9 @@ export class BookingsService {
     }
 
     if (durationDays >= 28 && pricing.monthly) {
-      return Math.round((pricing.monthly.amount / 30) * durationDays * 100) / 100;
+      return (
+        Math.round((pricing.monthly.amount / 30) * durationDays * 100) / 100
+      );
     }
     if (durationDays >= 7 && pricing.weekly) {
       return Math.round((pricing.weekly.amount / 7) * durationDays * 100) / 100;
@@ -2306,7 +2323,10 @@ export class BookingsService {
     startAt: Date,
     durationDays: number,
   ): BookingQuoteFailureReason | null {
-    if (posting.minBookingDurationDays && durationDays < posting.minBookingDurationDays) {
+    if (
+      posting.minBookingDurationDays &&
+      durationDays < posting.minBookingDurationDays
+    ) {
       return {
         code: "min_duration_not_met",
         field: "endAt",

@@ -33,7 +33,8 @@ export class SeasonalPricingService {
   ): Promise<SeasonalPricingRecord> {
     await this.requireManagedPosting(postingId, actorUserId, "write");
 
-    const count = await this.seasonalPricingRepository.countByPosting(postingId);
+    const count =
+      await this.seasonalPricingRepository.countByPosting(postingId);
     if (count >= MAX_SEASONAL_PRICING_RULES) {
       throw new BadRequestError(
         `A posting can have at most ${MAX_SEASONAL_PRICING_RULES} seasonal pricing rules.`,
@@ -57,15 +58,21 @@ export class SeasonalPricingService {
   ): Promise<SeasonalPricingRecord> {
     await this.requireManagedPosting(postingId, actorUserId, "write");
 
-    const updated = await this.seasonalPricingRepository.update(ruleId, postingId, {
-      name: body.name,
-      startDate: body.startDate,
-      endDate: body.endDate,
-      dailyAmount: body.dailyAmount,
-    });
+    const updated = await this.seasonalPricingRepository.update(
+      ruleId,
+      postingId,
+      {
+        name: body.name,
+        startDate: body.startDate,
+        endDate: body.endDate,
+        dailyAmount: body.dailyAmount,
+      },
+    );
 
     if (!updated) {
-      throw new ResourceNotFoundError("Seasonal pricing rule could not be found.");
+      throw new ResourceNotFoundError(
+        "Seasonal pricing rule could not be found.",
+      );
     }
 
     return updated;
@@ -78,9 +85,14 @@ export class SeasonalPricingService {
   ): Promise<void> {
     await this.requireManagedPosting(postingId, actorUserId, "write");
 
-    const deleted = await this.seasonalPricingRepository.delete(ruleId, postingId);
+    const deleted = await this.seasonalPricingRepository.delete(
+      ruleId,
+      postingId,
+    );
     if (!deleted) {
-      throw new ResourceNotFoundError("Seasonal pricing rule could not be found.");
+      throw new ResourceNotFoundError(
+        "Seasonal pricing rule could not be found.",
+      );
     }
   }
 
@@ -106,8 +118,12 @@ export class SeasonalPricingService {
 
     if (access === "write") {
       const managerRoles = ["primary_manager", "manager"] as const;
-      if (!managerRoles.includes(membership.role as (typeof managerRoles)[number])) {
-        throw new ForbiddenError("Only managers can modify seasonal pricing rules.");
+      if (
+        !managerRoles.includes(membership.role as (typeof managerRoles)[number])
+      ) {
+        throw new ForbiddenError(
+          "Only managers can modify seasonal pricing rules.",
+        );
       }
     }
 

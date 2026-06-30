@@ -3456,7 +3456,8 @@ function buildOperations(): OperationDefinition[] {
       path: "/postings/:id/seasonal-pricing",
       operationId: "listPostingSeasonalPricing",
       summary: "List seasonal pricing rules",
-      description: "Returns all seasonal pricing rules for the selected posting.",
+      description:
+        "Returns all seasonal pricing rules for the selected posting.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -3467,7 +3468,12 @@ function buildOperations(): OperationDefinition[] {
       },
       parameters: [routePathParam("id", "Posting identifier.", "posting-1")],
       responses: {
-        "200": successResponse(200, "Seasonal pricing rules retrieved.", "SeasonalPricingRuleList", []),
+        "200": successResponse(
+          200,
+          "Seasonal pricing rules retrieved.",
+          "SeasonalPricingRuleList",
+          [],
+        ),
         ...commonErrors([401, 403, 404, 429, 500]),
       },
     },
@@ -3476,7 +3482,8 @@ function buildOperations(): OperationDefinition[] {
       path: "/postings/:id/seasonal-pricing",
       operationId: "createPostingSeasonalPricingRule",
       summary: "Create a seasonal pricing rule",
-      description: "Creates a seasonal pricing rule for the selected posting. Max 20 rules per posting.",
+      description:
+        "Creates a seasonal pricing rule for the selected posting. Max 20 rules per posting.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -3493,16 +3500,21 @@ function buildOperations(): OperationDefinition[] {
         dailyAmount: 150,
       }),
       responses: {
-        "201": successResponse(201, "Seasonal pricing rule created.", "SeasonalPricingRule", {
-          id: "rule-1",
-          postingId: "posting-1",
-          name: "Summer Peak",
-          startDate: "2026-06-01",
-          endDate: "2026-08-31",
-          dailyAmount: 150,
-          createdAt: "2026-06-01T00:00:00.000Z",
-          updatedAt: "2026-06-01T00:00:00.000Z",
-        }),
+        "201": successResponse(
+          201,
+          "Seasonal pricing rule created.",
+          "SeasonalPricingRule",
+          {
+            id: "rule-1",
+            postingId: "posting-1",
+            name: "Summer Peak",
+            startDate: "2026-06-01",
+            endDate: "2026-08-31",
+            dailyAmount: 150,
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-01T00:00:00.000Z",
+          },
+        ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
@@ -3531,16 +3543,21 @@ function buildOperations(): OperationDefinition[] {
         dailyAmount: 175,
       }),
       responses: {
-        "200": successResponse(200, "Seasonal pricing rule updated.", "SeasonalPricingRule", {
-          id: "rule-1",
-          postingId: "posting-1",
-          name: "Summer Peak",
-          startDate: "2026-06-01",
-          endDate: "2026-08-31",
-          dailyAmount: 175,
-          createdAt: "2026-06-01T00:00:00.000Z",
-          updatedAt: "2026-06-02T00:00:00.000Z",
-        }),
+        "200": successResponse(
+          200,
+          "Seasonal pricing rule updated.",
+          "SeasonalPricingRule",
+          {
+            id: "rule-1",
+            postingId: "posting-1",
+            name: "Summer Peak",
+            startDate: "2026-06-01",
+            endDate: "2026-08-31",
+            dailyAmount: 175,
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-02T00:00:00.000Z",
+          },
+        ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },

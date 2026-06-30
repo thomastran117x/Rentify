@@ -66,4 +66,20 @@ describe("requestTimeoutMiddleware", () => {
       ok: true,
     });
   });
+
+  it("uses default timeout when REQUEST_TIMEOUT_MS is not set", async () => {
+    // REQUEST_TIMEOUT_MS is deleted in beforeEach — default (15 000 ms) applies.
+    const app = createApp();
+    const response = await app.request("http://rent.test/fast");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("falls back to default timeout when REQUEST_TIMEOUT_MS is not a valid integer", async () => {
+    process.env.REQUEST_TIMEOUT_MS = "not-a-number";
+    const app = createApp();
+    const response = await app.request("http://rent.test/fast");
+
+    expect(response.status).toBe(200);
+  });
 });

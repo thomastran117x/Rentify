@@ -317,8 +317,18 @@ export class PostingsPublicSearchService {
       filter.push({
         bool: {
           should: [
-            { range: { minBookingDurationDays: { lte: input.maxMinBookingDurationDays } } },
-            { bool: { must_not: { exists: { field: "minBookingDurationDays" } } } },
+            {
+              range: {
+                minBookingDurationDays: {
+                  lte: input.maxMinBookingDurationDays,
+                },
+              },
+            },
+            {
+              bool: {
+                must_not: { exists: { field: "minBookingDurationDays" } },
+              },
+            },
           ],
           minimum_should_match: 1,
         },

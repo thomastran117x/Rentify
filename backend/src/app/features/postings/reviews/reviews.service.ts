@@ -49,7 +49,10 @@ export class PostingsReviewsService {
       this.toUpsertInput(postingId, reviewerId, body),
     );
     await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(postingId);
     return review;
   }
@@ -75,7 +78,10 @@ export class PostingsReviewsService {
     }
 
     await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
-    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await invalidatePublicPostingProjection(
+      this.postingsPublicCacheService,
+      postingId,
+    );
     await this.postingsRepository.enqueueSearchSync(postingId);
     return review;
   }

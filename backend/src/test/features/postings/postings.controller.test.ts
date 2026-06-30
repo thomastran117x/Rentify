@@ -131,6 +131,7 @@ function createController(
     autocomplete?: Record<string, unknown>;
     analytics?: Record<string, unknown>;
     reviews?: Record<string, unknown>;
+    seasonalPricing?: Record<string, unknown>;
     recommendationActivityPublisher?: Record<string, unknown>;
   },
 ) {
@@ -139,7 +140,7 @@ function createController(
     (overrides?.autocomplete ?? {}) as never,
     (overrides?.analytics ?? {}) as never,
     (overrides?.reviews ?? {}) as never,
-    {} as never,
+    (overrides?.seasonalPricing ?? {}) as never,
     (overrides?.recommendationActivityPublisher ?? {}) as never,
   );
 }
@@ -1320,5 +1321,93 @@ describe("PostingsController", () => {
     expect(trackPublicView).not.toHaveBeenCalled();
     expect(publishPostingView).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
+  });
+
+  describe("seasonal pricing handlers", () => {
+    const rule = {
+      id: "rule-1",
+      postingId: "posting-1",
+      name: "Peak",
+      startDate: "2026-06-01",
+      endDate: "2026-08-31",
+      dailyAmount: 200,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const ruleBody = {
+      name: "Peak",
+      startDate: "2026-06-01",
+      endDate: "2026-08-31",
+      dailyAmount: 200,
+    };
+
+    beforeEach(() => {
+      mockRequireJwtAuth.mockResolvedValue(createClaims());
+    });
+
+    it("listSeasonalPricing — returns 200 with the rule list", async () => {
+      const list = jest.fn(async () => [rule]);
+      const controller = createController({}, { seasonalPricing: { list } });
+      const context = createContext({ params: { id: "posting-1" } });
+
+      const response = await controller.listSeasonalPricing(context);
+
+      expect(list).toHaveBeenCalledWith("posting-1", "owner-1");
+      expect(response.status).toBe(200);
+    });
+
+    it("createSeasonalPricingRule — returns 201 after delegating to service", async () => {
+      const create = jest.fn(async () => rule);
+      const controller = createController({}, { seasonalPricing: { create } });
+      const context = createContext({
+        params: { id: "posting-1" },
+        body: ruleBody,
+      });
+
+      const response = await controller.createSeasonalPricingRule(context);
+
+      expect(create).toHaveBeenCalledWith(
+        "posting-1",
+        "owner-1",
+        expect.objectContaining({ name: "Peak" }),
+      );
+      expect(response.status).toBe(201);
+    });
+
+    it("updateSeasonalPricingRule — returns 200 with the updated rule", async () => {
+      const update = jest.fn(async () => ({ ...rule, name: "Updated" }));
+      const controller = createController({}, { seasonalPricing: { update } });
+      const context = createContext({
+        params: { id: "posting-1", ruleId: "rule-1" },
+        body: { ...ruleBody, name: "Updated" },
+      });
+
+      const response = await controller.updateSeasonalPricingRule(context);
+
+      expect(update).toHaveBeenCalledWith(
+        "posting-1",
+        "rule-1",
+        "owner-1",
+        expect.objectContaining({ name: "Updated" }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("deleteSeasonalPricingRule — returns 204 after deleting the rule", async () => {
+      const del = jest.fn(async () => undefined);
+      const controller = createController(
+        {},
+        { seasonalPricing: { delete: del } },
+      );
+      const context = createContext({
+        params: { id: "posting-1", ruleId: "rule-1" },
+      });
+
+      const response = await controller.deleteSeasonalPricingRule(context);
+
+      expect(del).toHaveBeenCalledWith("posting-1", "rule-1", "owner-1");
+      expect(response.status).toBe(204);
+    });
   });
 });
