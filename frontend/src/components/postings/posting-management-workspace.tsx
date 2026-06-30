@@ -19,6 +19,8 @@ import {
   type PostingPhotoInput,
   type PostingRecord,
   type PostingStatus,
+  type SeasonalPricingRule,
+  type SeasonalPricingRuleInput,
   type UpsertPostingInput,
 } from "@/lib/postings/api";
 
@@ -273,6 +275,32 @@ async function uploadManagedPhoto(file: File): Promise<PostingPhotoInput> {
   };
 }
 
+function getCompletenessItems(
+  form: PostingFormState,
+): Array<{ label: string; done: boolean }> {
+  const tags = form.tags
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  return [
+    { label: "Description (100+ chars)", done: form.description.length >= 100 },
+    { label: "At least 3 photos", done: form.photos.length >= 3 },
+    { label: "At least 2 tags", done: tags.length >= 2 },
+    { label: "Cancellation policy set", done: !!form.cancellationPolicy },
+    { label: "Availability notes added", done: !!form.availabilityNotes.trim() },
+    {
+      label: "Minimum booking duration",
+      done: !!form.minBookingDurationDays.trim(),
+    },
+    {
+      label: "Maximum booking duration",
+      done: !!form.maxBookingDurationDays.trim(),
+    },
+    { label: "Advance notice configured", done: !!form.advanceNoticeDays.trim() },
+  ];
+}
+
 function buildLifecycleActions(status: PostingStatus): Array<{
   id: "publish" | "pause" | "unpause" | "archive";
   label: string;
@@ -315,6 +343,11 @@ export function PostingManagementWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [seasonalRules, setSeasonalRules] = useState<SeasonalPricingRule[]>([]);
+  const [seasonalForm, setSeasonalForm] = useState<SeasonalPricingRuleInput & { editingId: string | null }>({
+    editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0,
+  });
+  const [seasonalError, setSeasonalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -371,6 +404,7 @@ export function PostingManagementWorkspace() {
   const activeOrganization = session?.user.activeOrganization;
   const canRead = canReadOrganizationPostings(activeOrganization);
   const canManage = canManageOrganizationPostings(activeOrganization);
+  const selectedPosting = postings.find((p) => p.id === selectedPostingId) ?? null;
 
   async function savePostingRequest() {
     let nextPhotos = form.photos;
@@ -446,10 +480,15 @@ export function PostingManagementWorkspace() {
       throw new Error("Managed posting details were not available.");
     }
 
+    const rules = await postingsApi.listSeasonalPricing(postingId).catch(() => []);
+
     startTransition(() => {
       setSelectedPostingId(postingId);
       setForm(toFormState(nextPosting));
       setSelectedFile(null);
+      setSeasonalRules(rules);
+      setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+      setSeasonalError(null);
     });
   }
 
@@ -526,6 +565,42 @@ export function PostingManagementWorkspace() {
     setMessage(null);
     setError(null);
     setForm(createDefaultFormState());
+    setSeasonalRules([]);
+    setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+    setSeasonalError(null);
+  }
+
+  async function handleSeasonalSubmit() {
+    if (!selectedPostingId) return;
+    setSeasonalError(null);
+    const input: SeasonalPricingRuleInput = {
+      name: seasonalForm.name.trim(),
+      startDate: seasonalForm.startDate,
+      endDate: seasonalForm.endDate,
+      dailyAmount: Number(seasonalForm.dailyAmount),
+    };
+    try {
+      if (seasonalForm.editingId) {
+        const updated = await postingsApi.updateSeasonalPricingRule(selectedPostingId, seasonalForm.editingId, input);
+        setSeasonalRules((r) => r.map((x) => (x.id === updated.id ? updated : x)));
+      } else {
+        const created = await postingsApi.createSeasonalPricingRule(selectedPostingId, input);
+        setSeasonalRules((r) => [...r, created]);
+      }
+      setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 });
+    } catch (err) {
+      setSeasonalError(getApiErrorMessage(err, { action: "save seasonal pricing rule", fallback: "Could not save rule." }));
+    }
+  }
+
+  async function handleSeasonalDelete(ruleId: string) {
+    if (!selectedPostingId) return;
+    try {
+      await postingsApi.deleteSeasonalPricingRule(selectedPostingId, ruleId);
+      setSeasonalRules((r) => r.filter((x) => x.id !== ruleId));
+    } catch (err) {
+      setSeasonalError(getApiErrorMessage(err, { action: "delete seasonal pricing rule", fallback: "Could not delete rule." }));
+    }
   }
 
   function handleFamilyChange(family: PostingFamily) {
@@ -929,6 +1004,122 @@ export function PostingManagementWorkspace() {
               </div>
             </label>
 
+            {selectedPostingId ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-700">
+                  Seasonal Pricing
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Override the daily rate for specific date ranges (e.g. holidays, peak season).
+                </p>
+
+                {seasonalRules.length > 0 ? (
+                  <ul className="mt-3 space-y-2">
+                    {seasonalRules.map((rule) => (
+                      <li
+                        key={rule.id}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{rule.name}</p>
+                          <p className="text-slate-500">
+                            {rule.startDate} → {rule.endDate} · ${rule.dailyAmount}/day
+                          </p>
+                        </div>
+                        {canManage ? (
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSeasonalForm({
+                                  editingId: rule.id,
+                                  name: rule.name,
+                                  startDate: rule.startDate,
+                                  endDate: rule.endDate,
+                                  dailyAmount: rule.dailyAmount,
+                                })
+                              }
+                              className="text-sky-600 hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleSeasonalDelete(rule.id)}
+                              className="text-rose-500 hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-400">No seasonal rules yet.</p>
+                )}
+
+                {canManage && seasonalRules.length < 20 ? (
+                  <div className="mt-3 grid gap-2">
+                    <p className="text-xs font-medium text-slate-600">
+                      {seasonalForm.editingId ? "Edit rule" : "Add rule"}
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Name (e.g. Summer Peak)"
+                      value={seasonalForm.name}
+                      onChange={(e) => setSeasonalForm((s) => ({ ...s, name: e.target.value }))}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        value={seasonalForm.startDate}
+                        onChange={(e) => setSeasonalForm((s) => ({ ...s, startDate: e.target.value }))}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                      />
+                      <input
+                        type="date"
+                        value={seasonalForm.endDate}
+                        onChange={(e) => setSeasonalForm((s) => ({ ...s, endDate: e.target.value }))}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      placeholder="Daily amount"
+                      min={0}
+                      step={0.01}
+                      value={seasonalForm.dailyAmount || ""}
+                      onChange={(e) => setSeasonalForm((s) => ({ ...s, dailyAmount: Number(e.target.value) }))}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                    />
+                    {seasonalError ? (
+                      <p className="text-xs text-rose-600">{seasonalError}</p>
+                    ) : null}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSeasonalSubmit()}
+                        className="rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                      >
+                        {seasonalForm.editingId ? "Update" : "Add"}
+                      </button>
+                      {seasonalForm.editingId ? (
+                        <button
+                          type="button"
+                          onClick={() => setSeasonalForm({ editingId: null, name: "", startDate: "", endDate: "", dailyAmount: 0 })}
+                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <label className="mt-4 grid gap-2 text-sm">
               <span className="font-medium text-slate-700">
                 Variant details JSON
@@ -963,6 +1154,47 @@ export function PostingManagementWorkspace() {
                     : "Upload one image so the draft can be saved."}
               </span>
             </label>
+
+            {canManage && (!selectedPosting || selectedPosting.status === "draft") ? (
+              (() => {
+                const items = getCompletenessItems(form);
+                const done = items.filter((i) => i.done).length;
+                const pct = Math.round((done / items.length) * 100);
+                return (
+                  <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">
+                        Listing completeness
+                      </p>
+                      <p className="text-sm font-medium text-sky-600">{pct}%</p>
+                    </div>
+                    <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-sky-500 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <ul className="space-y-1">
+                      {items.map((item) => (
+                        <li
+                          key={item.label}
+                          className="flex items-center gap-2 text-xs text-slate-600"
+                        >
+                          <span
+                            className={
+                              item.done ? "text-emerald-500" : "text-slate-300"
+                            }
+                          >
+                            {item.done ? "✓" : "○"}
+                          </span>
+                          {item.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()
+            ) : null}
 
             {canManage ? (
               <div className="mt-6 flex flex-wrap gap-3">

@@ -37,6 +37,8 @@ export interface BookingQuoteFailureReason {
     | "posting_unavailable"
     | "invalid_dates"
     | "max_duration_exceeded"
+    | "min_duration_not_met"
+    | "advance_notice_not_met"
     | "invalid_guest_count"
     | "guest_count_exceeded"
     | "note_too_long"
@@ -56,6 +58,11 @@ export interface BookingQuoteResult {
   dailyPriceAmount: number;
   estimatedTotal: number | null;
   maxBookingDurationDays: number;
+  minBookingDurationDays: number | null;
+  advanceNoticeDays: number | null;
+  instantBooking: boolean;
+  cancellationPolicy: "flexible" | "moderate" | "strict" | null;
+  cancellationPolicyNotes: string | null;
   failureReasons: BookingQuoteFailureReason[];
 }
 
@@ -205,6 +212,24 @@ export interface TrackPostingSearchClickInput {
 
 function toIdsPath(path: string, ids: string[]): string {
   return buildPathWithQuery(path, { ids });
+}
+
+export interface SeasonalPricingRule {
+  id: string;
+  postingId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  dailyAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SeasonalPricingRuleInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+  dailyAmount: number;
 }
 
 export const postingsApi = {
@@ -479,6 +504,43 @@ export const postingsApi = {
       "POST",
       `/postings/${encodeURIComponent(postingId)}/booking-quote`,
       input,
+    );
+  },
+
+  listSeasonalPricing(postingId: string): Promise<SeasonalPricingRule[]> {
+    return authenticatedJson<SeasonalPricingRule[]>(
+      "GET",
+      `/postings/${encodeURIComponent(postingId)}/seasonal-pricing`,
+    );
+  },
+
+  createSeasonalPricingRule(
+    postingId: string,
+    input: SeasonalPricingRuleInput,
+  ): Promise<SeasonalPricingRule> {
+    return authenticatedJson<SeasonalPricingRule, SeasonalPricingRuleInput>(
+      "POST",
+      `/postings/${encodeURIComponent(postingId)}/seasonal-pricing`,
+      input,
+    );
+  },
+
+  updateSeasonalPricingRule(
+    postingId: string,
+    ruleId: string,
+    input: SeasonalPricingRuleInput,
+  ): Promise<SeasonalPricingRule> {
+    return authenticatedJson<SeasonalPricingRule, SeasonalPricingRuleInput>(
+      "PATCH",
+      `/postings/${encodeURIComponent(postingId)}/seasonal-pricing/${encodeURIComponent(ruleId)}`,
+      input,
+    );
+  },
+
+  deleteSeasonalPricingRule(postingId: string, ruleId: string): Promise<void> {
+    return authenticatedJson<void>(
+      "DELETE",
+      `/postings/${encodeURIComponent(postingId)}/seasonal-pricing/${encodeURIComponent(ruleId)}`,
     );
   },
 };

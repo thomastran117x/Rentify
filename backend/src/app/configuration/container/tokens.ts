@@ -64,6 +64,8 @@ import { PostingsAnalyticsService } from "@/features/postings/analytics/analytic
 import { PostingsController } from "@/features/postings/postings.controller";
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
+import { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
+import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 import { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 import { PostingsPublicAutocompleteService } from "@/features/postings/search/autocomplete.service";
@@ -232,6 +234,12 @@ export const containerTokens = {
   ),
   postingsReviewsService: createServiceToken<PostingsReviewsService>(
     "PostingsReviewsService",
+  ),
+  seasonalPricingRepository: createServiceToken<SeasonalPricingRepository>(
+    "SeasonalPricingRepository",
+  ),
+  seasonalPricingService: createServiceToken<SeasonalPricingService>(
+    "SeasonalPricingService",
   ),
   postingsPublicCacheService: createServiceToken<PostingsPublicCacheService>(
     "PostingsPublicCacheService",

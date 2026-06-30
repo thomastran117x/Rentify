@@ -30,6 +30,7 @@ import {
   postingsOwnerRouteModule,
   postingsPublicRouteModule,
   postingsReviewsRouteModule,
+  postingsSeasonalPricingRouteModule,
 } from "@/configuration/bootstrap/routes/modules/postings.routes";
 import {
   moderationReportsRouteModule,
@@ -65,6 +66,7 @@ export const routeModuleRegistry: RouteModule[] = [
   postingsAnalyticsRouteModule,
   postingsReviewsRouteModule,
   postingsAvailabilityRouteModule,
+  postingsSeasonalPricingRouteModule,
   postingsActivityRouteModule,
   bookingsRouteModule,
   smsRouteModule,

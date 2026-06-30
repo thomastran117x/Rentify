@@ -247,6 +247,7 @@ model Posting {
   dailyAnalytics    PostingAnalyticsDaily[]
   analyticsOutboxEntries PostingAnalyticsOutbox[]
   reviews           PostingReview[]
+  seasonalPricing   PostingSeasonalPricing[]
   bookingRequests   BookingRequest[]
   rentings          Renting[]
   payments          Payment[]
@@ -256,6 +257,22 @@ model Posting {
   @@index([status, family, subtype, publishedAt])
   @@index([country, region, city])
   @@map("postings")
+}
+
+model PostingSeasonalPricing {
+  id          String   @id @db.VarChar(36)
+  postingId   String   @map("posting_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  dailyAmount Decimal  @map("daily_amount") @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+
+  posting     Posting  @relation(fields: [postingId], references: [id], onDelete: Cascade)
+
+  @@index([postingId])
+  @@map("posting_seasonal_pricing")
 }
 
 model PostingPhoto {

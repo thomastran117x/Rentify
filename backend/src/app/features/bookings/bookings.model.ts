@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_BOOKING_DURATION_DAYS,
   MAX_PAGE_SIZE,
   postingPricingSchema,
+  type PostingCancellationPolicy,
 } from "@/features/postings/postings.model";
 
 export const MAX_BOOKING_NOTE_LENGTH = 1000;
@@ -460,6 +461,8 @@ export type BookingQuoteFailureCode =
   | "posting_unavailable"
   | "invalid_dates"
   | "max_duration_exceeded"
+  | "min_duration_not_met"
+  | "advance_notice_not_met"
   | "invalid_guest_count"
   | "guest_count_exceeded"
   | "note_too_long"
@@ -482,6 +485,11 @@ export interface BookingQuoteResult {
   dailyPriceAmount: number;
   estimatedTotal: number | null;
   maxBookingDurationDays: number;
+  minBookingDurationDays: number | null;
+  advanceNoticeDays: number | null;
+  instantBooking: boolean;
+  cancellationPolicy: PostingCancellationPolicy | null;
+  cancellationPolicyNotes: string | null;
   failureReasons: BookingQuoteFailureReason[];
 }
 

@@ -41,6 +41,11 @@ import {
 } from "@/features/postings/reviews/reviews.model";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import {
+  upsertSeasonalPricingSchema,
+  type UpsertSeasonalPricingBody,
+} from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
+import {
   listOwnerPostingsQuerySchema,
   ownerAvailabilityBlockRequestSchema,
   postingBatchIdsQuerySchema,
@@ -81,6 +86,7 @@ export class PostingsController {
     private readonly postingsPublicAutocompleteService: PostingsPublicAutocompleteService,
     private readonly postingsAnalyticsService: PostingsAnalyticsService,
     private readonly postingsReviewsService: PostingsReviewsService,
+    private readonly seasonalPricingService: SeasonalPricingService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
   ) {
     this.logger = loggerFactory.forClass(PostingsController, "controller");
@@ -472,6 +478,62 @@ export class PostingsController {
     return ok(context, result, {
       message: "Review updated successfully.",
     });
+  };
+
+  listSeasonalPricing = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const rules = await this.seasonalPricingService.list(
+      this.requireRouteId(context),
+      auth.sub,
+    );
+    return ok(context, rules);
+  };
+
+  createSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
+    const rule = await this.seasonalPricingService.create(
+      this.requireRouteId(context),
+      auth.sub,
+      body,
+    );
+    return created(context, rule, {
+      message: "Seasonal pricing rule created successfully.",
+    });
+  };
+
+  updateSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
+    const ruleId = requireSafeRouteParam(context, "ruleId");
+    const rule = await this.seasonalPricingService.update(
+      this.requireRouteId(context),
+      ruleId,
+      auth.sub,
+      body,
+    );
+    return ok(context, rule, {
+      message: "Seasonal pricing rule updated successfully.",
+    });
+  };
+
+  deleteSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const ruleId = requireSafeRouteParam(context, "ruleId");
+    await this.seasonalPricingService.delete(
+      this.requireRouteId(context),
+      ruleId,
+      auth.sub,
+    );
+    return noContent(context);
   };
 
   private toUpsertInput(

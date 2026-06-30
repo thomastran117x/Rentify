@@ -357,11 +357,19 @@ function createApp() {
     publishSearchClick: jest.fn(async () => undefined),
   };
 
+  const seasonalPricingService = {
+    list: jest.fn(async () => []),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+
   const controller = new PostingsController(
     postingsService as never,
     postingsPublicAutocompleteService as never,
     postingsAnalyticsService as never,
     postingsReviewsService as never,
+    seasonalPricingService as never,
     recommendationActivityPublisher as never,
   );
   const tokenService = {
