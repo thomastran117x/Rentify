@@ -6,6 +6,7 @@ import type {
 } from "@/features/auth/auth.model";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -16,12 +17,18 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 import type { Context } from "hono";
 
 const mockRequireJwtAuth = jest.fn();
+const mockRequireRecentMfaVerification = jest.fn();
 const mockGetCookie = jest.fn();
 const mockSetCookie = jest.fn();
 const mockDeleteCookie = jest.fn();
 
 jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
+}));
+
+jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
+  requireRecentMfaVerification: (...args: unknown[]) =>
+    mockRequireRecentMfaVerification(...args),
 }));
 
 jest.mock("hono/cookie", () => ({
@@ -46,7 +53,7 @@ function createClient(
   };
 }
 
-function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
+function createClaims(overrides: Partial<JwtClaims> = {}): JwtAuthPrincipal {
   return {
     sub: "user-1",
     email: "user@example.com",
@@ -55,6 +62,7 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
     tokenVersion: 2,
     iat: 1,
     exp: 9_999_999_999,
+    authMethod: "jwt",
     ...overrides,
   };
 }
@@ -347,12 +355,16 @@ function createController(overrides?: {
     ),
   };
   const tokenService = {};
+  const mfaVerificationService = {
+    assertRecentVerification: jest.fn(async () => {}),
+  };
 
   return {
     controller: new AuthController(
       authService as never,
       captchaService as never,
       tokenService as never,
+      mfaVerificationService as never,
     ),
     authService,
     captchaService,
@@ -362,6 +374,7 @@ function createController(overrides?: {
 describe("AuthController", () => {
   beforeEach(() => {
     mockRequireJwtAuth.mockReset();
+    mockRequireRecentMfaVerification.mockReset();
     mockGetCookie.mockReset();
     mockSetCookie.mockReset();
     mockDeleteCookie.mockReset();
@@ -845,7 +858,7 @@ describe("AuthController", () => {
       sub: "user-9",
       deviceId: "token-device-9",
     });
-    mockRequireJwtAuth.mockImplementation(
+    mockRequireRecentMfaVerification.mockImplementation(
       async (context: Context<AppBindings>) => {
         context.set("auth", auth);
         return auth;
@@ -870,7 +883,11 @@ describe("AuthController", () => {
 
     const response = await controller.changePassword(context);
 
-    expect(mockRequireJwtAuth).toHaveBeenCalledWith(context);
+    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
+      context,
+      expect.any(Object),
+      "mfa-management",
+    );
     expect(authService.changePassword).toHaveBeenCalledWith({
       userId: "user-9",
       client: context.get("client"),
@@ -970,7 +987,7 @@ describe("AuthController", () => {
     const auth = createClaims({
       sub: "user-12",
     });
-    mockRequireJwtAuth.mockImplementation(
+    mockRequireRecentMfaVerification.mockImplementation(
       async (context: Context<AppBindings>) => {
         context.set("auth", auth);
         return auth;
@@ -1161,6 +1178,7 @@ describe("AuthController", () => {
         return auth;
       },
     );
+    mockRequireRecentMfaVerification.mockResolvedValue(undefined);
     const { controller, authService } = createController();
 
     const verifyResponse = await controller.deviceVerify(

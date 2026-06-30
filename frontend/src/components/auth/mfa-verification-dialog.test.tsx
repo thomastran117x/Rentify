@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ApiClientError } from "@/lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MfaVerificationDialog } from "./mfa-verification-dialog";
+import type { MfaVerificationFactor } from "@/lib/auth/mfa-verification-api";
 
 const { issueChallengeMock, confirmChallengeMock, getOptionsMock } = vi.hoisted(
   () => ({
@@ -25,7 +26,7 @@ describe("MfaVerificationDialog", () => {
     scope: "mfa-management" as const,
     verified: false,
     verifiedUntil: null,
-    availableFactors: ["email", "totp"] as const,
+    availableFactors: ["email", "totp"] as MfaVerificationFactor[],
     recommendedFactor: "email" as const,
   };
 
@@ -102,7 +103,7 @@ describe("MfaVerificationDialog", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: /authenticator code/i }),
+      screen.getByRole("button", { name: /authenticator/i }),
     );
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
@@ -151,7 +152,7 @@ describe("MfaVerificationDialog", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: /authenticator code/i }),
+      screen.getByRole("button", { name: /authenticator/i }),
     );
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
@@ -160,7 +161,7 @@ describe("MfaVerificationDialog", () => {
       expect(getOptionsMock).toHaveBeenCalledWith("mfa-management");
     });
     expect(
-      screen.queryByRole("button", { name: /authenticator code/i }),
+      screen.queryByRole("button", { name: /authenticator/i }),
     ).not.toBeInTheDocument();
   });
 
