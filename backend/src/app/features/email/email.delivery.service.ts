@@ -458,10 +458,7 @@ export class EmailDeliveryService {
     ].join("");
   }
 
-  private buildAlertBox(
-    message: string,
-    variant: "warning" | "info",
-  ): string {
+  private buildAlertBox(message: string, variant: "warning" | "info"): string {
     const styles =
       variant === "warning"
         ? { bg: "#fff1f2", border: "#fecdd3", text: "#9f1239" }
