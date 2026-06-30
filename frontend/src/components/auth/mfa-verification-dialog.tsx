@@ -35,8 +35,10 @@ function FactorIcon({
   factor: MfaVerificationChallengeFactor;
   className?: string;
 }) {
-  if (factor === "email") return <Mail className={className} aria-hidden="true" />;
-  if (factor === "sms") return <MessageSquare className={className} aria-hidden="true" />;
+  if (factor === "email")
+    return <Mail className={className} aria-hidden="true" />;
+  if (factor === "sms")
+    return <MessageSquare className={className} aria-hidden="true" />;
   return <Smartphone className={className} aria-hidden="true" />;
 }
 
@@ -211,10 +213,7 @@ export function MfaVerificationDialog({
   const cooldownActive =
     cooldownUntil !== null && new Date(cooldownUntil).getTime() > nowMs;
   const cooldownSeconds = cooldownUntil
-    ? Math.max(
-        0,
-        Math.ceil((new Date(cooldownUntil).getTime() - nowMs) / 1000),
-      )
+    ? Math.max(0, Math.ceil((new Date(cooldownUntil).getTime() - nowMs) / 1000))
     : 0;
 
   // For email/SMS: two-step. For TOTP: show code immediately.
@@ -439,9 +438,8 @@ export function MfaVerificationDialog({
                 )}
                 {needsChallenge && (
                   <p className="text-sm text-slate-600">
-                    Check your{" "}
-                    {selectedFactor === "email" ? "email" : "phone"} for a
-                    6-digit code and enter it below.
+                    Check your {selectedFactor === "email" ? "email" : "phone"}{" "}
+                    for a 6-digit code and enter it below.
                   </p>
                 )}
                 <input

@@ -190,7 +190,9 @@ export default function AccountPage() {
           setProfileUsername(result.username);
           setProfilePhone(result.phoneNumber ?? "");
           setProfileIsPrivate(result.isPrivate);
-          setProfilePersonalization(result.recommendationPersonalizationEnabled);
+          setProfilePersonalization(
+            result.recommendationPersonalizationEnabled,
+          );
         }
       })
       .catch((error) => {
@@ -545,7 +547,9 @@ export default function AccountPage() {
                 <h2 className="text-xl font-semibold text-slate-950">
                   Profile
                 </h2>
-                <p className="text-sm text-slate-500">Your public information</p>
+                <p className="text-sm text-slate-500">
+                  Your public information
+                </p>
               </div>
             </div>
 
@@ -875,9 +879,7 @@ export default function AccountPage() {
                               setConfirmDeviceRemove(null);
                               void handleRemoveDevice(device.deviceId);
                             }}
-                            disabled={
-                              pendingDeviceRemove === device.deviceId
-                            }
+                            disabled={pendingDeviceRemove === device.deviceId}
                             className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {pendingDeviceRemove === device.deviceId

@@ -173,7 +173,11 @@ export class AuthController {
   };
 
   changePassword = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
+    await requireRecentMfaVerification(
+      context,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const input = await parseRequestBody(context, changePasswordRequestSchema);
     const result = await this.authService.changePassword(
       this.toChangePasswordInput(context, input),
@@ -353,7 +357,11 @@ export class AuthController {
   };
 
   devices = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
+    await requireRecentMfaVerification(
+      context,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const result = await this.authService.devices({
       auth: context.get("auth"),
       client: context.get("client"),
@@ -364,7 +372,11 @@ export class AuthController {
   removeKnownDevice = async (
     context: Context<AppBindings>,
   ): Promise<Response> => {
-    await requireRecentMfaVerification(context, this.mfaVerificationService, MFA_MANAGEMENT_SCOPE);
+    await requireRecentMfaVerification(
+      context,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const input = await parseRequestBody(
       context,
       removeKnownDeviceRequestSchema,
