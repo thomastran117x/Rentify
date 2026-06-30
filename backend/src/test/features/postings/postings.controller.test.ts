@@ -1326,13 +1326,8 @@ describe("PostingsController", () => {
   describe("exportAnalytics handler", () => {
     it("returns a text/csv response with the analytics export", async () => {
       mockRequireJwtAuth.mockResolvedValue(createClaims());
-      const exportAsCsv = jest.fn(
-        async () => "date,views\n2026-06-01,100\n",
-      );
-      const controller = createController(
-        {},
-        { analytics: { exportAsCsv } },
-      );
+      const exportAsCsv = jest.fn(async () => "date,views\n2026-06-01,100\n");
+      const controller = createController({}, { analytics: { exportAsCsv } });
       const context = createContext({
         url: "https://example.test/postings/analytics/export?window=7d",
       });
@@ -1356,9 +1351,9 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/analytics/summary?window=not_a_real_window",
       });
 
-      await expect(
-        controller.analyticsSummary(context),
-      ).rejects.toBeInstanceOf(RequestValidationError);
+      await expect(controller.analyticsSummary(context)).rejects.toBeInstanceOf(
+        RequestValidationError,
+      );
     });
   });
 
