@@ -444,6 +444,21 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                     {posting.effectiveMaxBookingDurationDays} day maximum
                     booking
                   </span>
+                  {posting.minBookingDurationDays ? (
+                    <span>
+                      {posting.minBookingDurationDays} day minimum booking
+                    </span>
+                  ) : null}
+                  {posting.advanceNoticeDays != null ? (
+                    <span>
+                      {posting.advanceNoticeDays === 0
+                        ? "Same-day booking allowed"
+                        : `${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice required`}
+                    </span>
+                  ) : null}
+                  {posting.instantBooking ? (
+                    <span className="text-sky-700">Instant booking</span>
+                  ) : null}
                 </div>
                 {posting.availabilityNotes ? (
                   <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
@@ -452,6 +467,18 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 ) : (
                   <p>No extra availability notes were added.</p>
                 )}
+                {posting.cancellationPolicy ? (
+                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                    <p className="font-medium capitalize">
+                      {posting.cancellationPolicy} cancellation policy
+                    </p>
+                    {posting.cancellationPolicyNotes ? (
+                      <p className="mt-1 text-slate-500">
+                        {posting.cancellationPolicyNotes}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </Panel>
 

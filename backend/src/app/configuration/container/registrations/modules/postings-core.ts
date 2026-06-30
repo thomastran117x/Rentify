@@ -3,6 +3,8 @@ import type { ContainerRegistrationModule } from "@/configuration/container/regi
 import { PostingsController } from "@/features/postings/postings.controller";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 import { PostingsService } from "@/features/postings/postings.service";
+import { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
+import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 
 export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
   id: "postings-core",
@@ -45,6 +47,27 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         ),
     });
     container.register({
+      token: containerTokens.seasonalPricingRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new SeasonalPricingRepository(),
+    });
+    container.register({
+      token: containerTokens.seasonalPricingService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.seasonalPricingRepository,
+        containerTokens.postingsRepository,
+        containerTokens.organizationAccessService,
+      ],
+      resolve: ({ resolve }) =>
+        new SeasonalPricingService(
+          resolve(containerTokens.seasonalPricingRepository),
+          resolve(containerTokens.postingsRepository),
+          resolve(containerTokens.organizationAccessService),
+        ),
+    });
+    container.register({
       token: containerTokens.postingsController,
       lifetime: "scoped",
       dependencies: [
@@ -52,6 +75,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsPublicAutocompleteService,
         containerTokens.postingsAnalyticsService,
         containerTokens.postingsReviewsService,
+        containerTokens.seasonalPricingService,
         containerTokens.recommendationActivityPublisher,
       ],
       resolve: ({ resolve }) =>
@@ -60,6 +84,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsPublicAutocompleteService),
           resolve(containerTokens.postingsAnalyticsService),
           resolve(containerTokens.postingsReviewsService),
+          resolve(containerTokens.seasonalPricingService),
           resolve(containerTokens.recommendationActivityPublisher),
         ),
     });

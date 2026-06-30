@@ -305,6 +305,36 @@ export class PostingsPublicSearchService {
       filter.push(...this.buildAttributeFilters(attributeFilter));
     }
 
+    if (input.cancellationPolicy !== undefined) {
+      filter.push({ term: { cancellationPolicy: input.cancellationPolicy } });
+    }
+
+    if (input.instantBooking !== undefined) {
+      filter.push({ term: { instantBooking: input.instantBooking } });
+    }
+
+    if (input.maxMinBookingDurationDays !== undefined) {
+      filter.push({
+        bool: {
+          should: [
+            {
+              range: {
+                minBookingDurationDays: {
+                  lte: input.maxMinBookingDurationDays,
+                },
+              },
+            },
+            {
+              bool: {
+                must_not: { exists: { field: "minBookingDurationDays" } },
+              },
+            },
+          ],
+          minimum_should_match: 1,
+        },
+      });
+    }
+
     if (
       input.minDailyPrice !== undefined ||
       input.maxDailyPrice !== undefined
@@ -638,6 +668,12 @@ export class PostingsPublicSearchService {
         }
 
         return this.buildStableRecencySort("desc");
+      case "highestRated":
+        return [
+          { averageRating: { order: "desc", missing: "_last" } },
+          { reviewCount: { order: "desc" } },
+          ...this.buildStableRecencySort("desc"),
+        ];
       case "newest":
         return this.buildStableRecencySort("desc");
       case "relevance":

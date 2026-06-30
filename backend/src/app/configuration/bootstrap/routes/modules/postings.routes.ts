@@ -91,6 +91,13 @@ export const postingsAnalyticsRouteModule: RouteModule = {
       ),
     );
     app.get(
+      "/postings/analytics/export",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "exportAnalytics",
+      ),
+    );
+    app.get(
       "/postings/:id/analytics",
       resolveHandler<PostingsController>(
         containerTokens.postingsController,
@@ -156,6 +163,40 @@ export const postingsAvailabilityRouteModule: RouteModule = {
       resolveHandler<PostingsController>(
         containerTokens.postingsController,
         "deleteAvailabilityBlock",
+      ),
+    );
+  },
+};
+
+export const postingsSeasonalPricingRouteModule: RouteModule = {
+  id: "postings-seasonal-pricing",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/postings/:id/seasonal-pricing",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listSeasonalPricing",
+      ),
+    );
+    app.post(
+      "/postings/:id/seasonal-pricing",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "createSeasonalPricingRule",
+      ),
+    );
+    app.patch(
+      "/postings/:id/seasonal-pricing/:ruleId",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "updateSeasonalPricingRule",
+      ),
+    );
+    app.delete(
+      "/postings/:id/seasonal-pricing/:ruleId",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "deleteSeasonalPricingRule",
       ),
     );
   },

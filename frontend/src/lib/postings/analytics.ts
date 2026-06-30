@@ -1,6 +1,8 @@
 "use client";
 
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
+import { readStoredSession } from "@/lib/auth/storage";
+import { resolveApiBaseUrl } from "@/lib/env";
 
 export type PostingAnalyticsWindow = "7d" | "30d" | "all";
 export type PostingAnalyticsGranularity = "hour" | "day";
@@ -151,5 +153,34 @@ export const postingsAnalyticsApi = {
         },
       ),
     );
+  },
+
+  async exportCsv(window: PostingAnalyticsWindow): Promise<void> {
+    const session = readStoredSession();
+    const url = `${resolveApiBaseUrl()}${buildPathWithQuery("/postings/analytics/export", { window })}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        accept: "text/csv",
+        ...(session?.accessToken
+          ? { authorization: `Bearer ${session.accessToken}` }
+          : {}),
+      },
+      credentials: "same-origin",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to export analytics.");
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `analytics-${window}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
   },
 };

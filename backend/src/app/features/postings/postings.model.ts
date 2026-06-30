@@ -15,6 +15,14 @@ export const MAX_PAGE_SIZE = 50;
 export const MAX_SEARCH_RESULT_WINDOW = 10_000;
 export const DEFAULT_MAX_BOOKING_DURATION_DAYS = 30;
 export const MAX_BOOKING_DURATION_DAYS_LIMIT = 365;
+export const MIN_BOOKING_DURATION_DAYS_LIMIT = 365;
+export const MAX_ADVANCE_NOTICE_DAYS_LIMIT = 365;
+
+export const postingCancellationPolicySchema = z.enum([
+  "flexible",
+  "moderate",
+  "strict",
+]);
 
 export const postingStatusSchema = z.enum([
   "draft",
@@ -43,6 +51,7 @@ export const postingSortSchema = z.enum([
   "nearest",
   "nameAsc",
   "nameDesc",
+  "highestRated",
 ]);
 
 const trimmedStringSchema = z.string().trim().min(1);
@@ -294,6 +303,25 @@ const sharedUpsertPostingRequestShape = {
     .max(MAX_BOOKING_DURATION_DAYS_LIMIT)
     .nullable()
     .optional(),
+  minBookingDurationDays: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MIN_BOOKING_DURATION_DAYS_LIMIT)
+    .nullable()
+    .optional(),
+  advanceNoticeDays: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_ADVANCE_NOTICE_DAYS_LIMIT)
+    .nullable()
+    .optional(),
+  cancellationPolicy: postingCancellationPolicySchema.nullable().optional(),
+  cancellationPolicyNotes: nullableTrimmedStringSchema.pipe(
+    z.string().trim().max(500).nullable().optional(),
+  ),
+  instantBooking: z.boolean().default(false),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -422,6 +450,9 @@ export const publicSearchPostingsQuerySchema = z
       .datetime("Search end time must be an ISO datetime.")
       .optional(),
     sort: postingSortSchema.default("relevance"),
+    cancellationPolicy: postingCancellationPolicySchema.optional(),
+    instantBooking: z.coerce.boolean().optional(),
+    maxMinBookingDurationDays: z.coerce.number().int().min(1).optional(),
   })
   .strict()
   .superRefine((query, context) => {
@@ -470,6 +501,9 @@ export const publicAutocompletePostingsQuerySchema = z
 export type PostingStatus = z.infer<typeof postingStatusSchema>;
 export type PostingAvailabilityStatus = z.infer<
   typeof postingAvailabilityStatusSchema
+>;
+export type PostingCancellationPolicy = z.infer<
+  typeof postingCancellationPolicySchema
 >;
 export type PostingFamily = z.infer<typeof postingFamilySchema>;
 export type PostingSubtype = z.infer<typeof postingSubtypeSchema>;
@@ -590,6 +624,13 @@ export interface PostingRecord {
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes?: string;
   maxBookingDurationDays?: number;
+  minBookingDurationDays?: number;
+  advanceNoticeDays?: number;
+  cancellationPolicy?: PostingCancellationPolicy;
+  cancellationPolicyNotes?: string;
+  instantBooking: boolean;
+  averageRating?: number;
+  reviewCount: number;
   effectiveMaxBookingDurationDays: number;
   availabilityBlocks: PostingAvailabilityBlockRecord[];
   location: PostingLocationRecord;
@@ -671,6 +712,11 @@ export interface UpsertPostingInput {
   availabilityStatus: PostingAvailabilityStatus;
   availabilityNotes?: string | null;
   maxBookingDurationDays?: number | null;
+  minBookingDurationDays?: number | null;
+  advanceNoticeDays?: number | null;
+  cancellationPolicy?: PostingCancellationPolicy | null;
+  cancellationPolicyNotes?: string | null;
+  instantBooking?: boolean | null;
   availabilityBlocks: PostingAvailabilityBlockInput[];
   location: PostingLocationRecord;
 }
@@ -720,6 +766,9 @@ export interface SearchPostingsInput {
   };
   attributeFilters?: SearchAttributeFilterInput[];
   sort: PostingSort;
+  cancellationPolicy?: PostingCancellationPolicy;
+  instantBooking?: boolean;
+  maxMinBookingDurationDays?: number;
 }
 
 export interface PostingSearchDocument {
@@ -728,6 +777,12 @@ export interface PostingSearchDocument {
   status: PostingStatus;
   variant: PostingVariant;
   name: string;
+  minBookingDurationDays?: number;
+  advanceNoticeDays?: number;
+  cancellationPolicy?: PostingCancellationPolicy;
+  instantBooking: boolean;
+  averageRating?: number;
+  reviewCount: number;
   description: string;
   tags: string[];
   availabilityStatus: PostingAvailabilityStatus;

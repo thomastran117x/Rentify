@@ -9,7 +9,8 @@ export type PostingSort =
   | "dailyPrice"
   | "nearest"
   | "nameAsc"
-  | "nameDesc";
+  | "nameDesc"
+  | "highestRated";
 
 export interface PublicPostingSearchParams {
   page?: number;
@@ -27,6 +28,9 @@ export interface PublicPostingSearchParams {
   radiusKm?: number;
   startAt?: string;
   endAt?: string;
+  cancellationPolicy?: "flexible" | "moderate" | "strict";
+  instantBooking?: boolean;
+  maxMinBookingDurationDays?: number;
 }
 
 export interface PublicPostingSearchResult {

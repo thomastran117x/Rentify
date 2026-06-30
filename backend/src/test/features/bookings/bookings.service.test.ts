@@ -311,6 +311,10 @@ function createService(options?: {
     assertCanManage: jest.fn(() => undefined),
   } as unknown as OrganizationAccessService;
 
+  const seasonalPricingRepository = {
+    findOverlappingForBooking: jest.fn(async () => []),
+  };
+
   const service = new BookingsService(
     bookingsRepository,
     postingsRepository,
@@ -321,6 +325,7 @@ function createService(options?: {
     paymentsRepository,
     paymentProvider,
     organizationAccessService,
+    seasonalPricingRepository as unknown as import("@/features/postings/seasonal-pricing/seasonal-pricing.repository").SeasonalPricingRepository,
   );
 
   return {

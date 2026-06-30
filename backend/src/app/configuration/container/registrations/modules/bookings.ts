@@ -26,6 +26,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.paymentsRepository,
         containerTokens.paymentProvider,
         containerTokens.organizationAccessService,
+        containerTokens.seasonalPricingRepository,
       ],
       resolve: ({ resolve }) =>
         new BookingsService(
@@ -38,6 +39,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.paymentsRepository),
           resolve(containerTokens.paymentProvider),
           resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.seasonalPricingRepository),
         ),
     });
     container.register({
