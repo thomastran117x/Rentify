@@ -2,7 +2,7 @@ import { buildPathWithQuery, authenticatedJson } from "@/lib/api/client";
 
 export type MfaVerificationScope = "mfa-management";
 export type MfaVerificationFactor = "email" | "totp" | "sms";
-export type MfaVerificationChallengeFactor = "email" | "totp";
+export type MfaVerificationChallengeFactor = "email" | "totp" | "sms";
 
 export interface MfaVerificationOptionsResult {
   scope: MfaVerificationScope;
@@ -19,6 +19,13 @@ export interface MfaVerificationEmailChallengeResult {
   cooldownUntil: string;
 }
 
+export interface MfaVerificationSmsChallengeResult {
+  scope: MfaVerificationScope;
+  factor: "sms";
+  challengeId: null;
+  cooldownUntil: string;
+}
+
 export interface MfaVerificationTotpChallengeResult {
   scope: MfaVerificationScope;
   factor: "totp";
@@ -28,6 +35,7 @@ export interface MfaVerificationTotpChallengeResult {
 
 export type MfaVerificationChallengeResult =
   | MfaVerificationEmailChallengeResult
+  | MfaVerificationSmsChallengeResult
   | MfaVerificationTotpChallengeResult;
 
 export interface MfaVerificationConfirmResult {
