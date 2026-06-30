@@ -102,9 +102,7 @@ describe("MfaVerificationDialog", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: /authenticator/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /authenticator/i }));
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
 
@@ -151,9 +149,7 @@ describe("MfaVerificationDialog", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: /authenticator/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /authenticator/i }));
     await user.type(screen.getByPlaceholderText("000000"), "654321");
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
 
