@@ -567,6 +567,13 @@ export class BookingsService {
           normalized.endAt,
         );
 
+        const updateSeasonalRules =
+          await this.seasonalPricingRepository.findOverlappingForBooking(
+            posting.id,
+            normalized.startAt,
+            normalized.endAt,
+          );
+
         const nextBookingRequest = await this.bookingsRepository.updatePending(
           lockedBookingRequest.id,
           input.renterId,
@@ -582,8 +589,12 @@ export class BookingsService {
             pricingCurrency: posting.pricing.currency,
             pricingSnapshot: posting.pricing,
             dailyPriceAmount: posting.pricing.daily.amount,
-            estimatedTotal:
-              posting.pricing.daily.amount * normalized.durationDays,
+            estimatedTotal: this.calculateEstimatedTotal(
+              posting.pricing,
+              normalized.durationDays,
+              normalized.startAt,
+              updateSeasonalRules,
+            ),
           },
         );
 

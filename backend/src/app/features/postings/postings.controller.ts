@@ -634,6 +634,18 @@ export class PostingsController {
         startAt: this.readOptionalQueryParam(url.searchParams, "startAt"),
         endAt: this.readOptionalQueryParam(url.searchParams, "endAt"),
         sort: this.readOptionalQueryParam(url.searchParams, "sort"),
+        cancellationPolicy: this.readOptionalQueryParam(
+          url.searchParams,
+          "cancellationPolicy",
+        ),
+        instantBooking: this.readOptionalQueryParam(
+          url.searchParams,
+          "instantBooking",
+        ),
+        maxMinBookingDurationDays: this.readOptionalQueryParam(
+          url.searchParams,
+          "maxMinBookingDurationDays",
+        ),
       });
       const attributeFilters = this.readAttributeFilters(url.searchParams);
 

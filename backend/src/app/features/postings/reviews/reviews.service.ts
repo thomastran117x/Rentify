@@ -8,8 +8,10 @@ import type {
   UpsertPostingReviewInput,
 } from "@/features/postings/reviews/reviews.model";
 import { isPostingPubliclyVisible } from "@/features/postings/postings.model";
+import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
@@ -19,6 +21,7 @@ export class PostingsReviewsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly rentingsRepository: RentingsRepository,
     private readonly organizationAccessService: OrganizationAccessService,
+    private readonly postingsPublicCacheService: PostingsPublicCacheService,
   ) {}
 
   async create(
@@ -46,6 +49,8 @@ export class PostingsReviewsService {
       this.toUpsertInput(postingId, reviewerId, body),
     );
     await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
+    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await this.postingsRepository.enqueueSearchSync(postingId);
     return review;
   }
 
@@ -70,6 +75,8 @@ export class PostingsReviewsService {
     }
 
     await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
+    await invalidatePublicPostingProjection(this.postingsPublicCacheService, postingId);
+    await this.postingsRepository.enqueueSearchSync(postingId);
     return review;
   }
 

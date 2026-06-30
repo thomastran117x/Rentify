@@ -139,6 +139,7 @@ function createController(
     (overrides?.autocomplete ?? {}) as never,
     (overrides?.analytics ?? {}) as never,
     (overrides?.reviews ?? {}) as never,
+    {} as never,
     (overrides?.recommendationActivityPublisher ?? {}) as never,
   );
 }

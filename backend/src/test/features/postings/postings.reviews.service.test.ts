@@ -25,6 +25,8 @@ class FakePostingsRepository {
       id,
     };
   }
+
+  async enqueueSearchSync(_postingId: string): Promise<void> {}
 }
 
 class FakePostingsReviewsRepository {
@@ -105,11 +107,16 @@ function createService(options?: {
   const organizationAccessService =
     options?.organizationAccessService ?? new FakeOrganizationAccessService();
 
+  const postingsPublicCacheService = {
+    invalidatePublic: jest.fn(async () => undefined),
+  };
+
   return new PostingsReviewsService(
     postingsReviewsRepository as unknown as PostingsReviewsRepository,
     postingsRepository as unknown as PostingsRepository,
     rentingsRepository as unknown as RentingsRepository,
     organizationAccessService as unknown as OrganizationAccessService,
+    postingsPublicCacheService as unknown as import("@/features/postings/postings.public-cache.service").PostingsPublicCacheService,
   );
 }
 

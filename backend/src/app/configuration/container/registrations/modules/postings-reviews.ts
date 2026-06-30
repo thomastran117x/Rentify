@@ -20,6 +20,7 @@ export const postingsReviewsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsRepository,
         containerTokens.rentingsRepository,
         containerTokens.organizationAccessService,
+        containerTokens.postingsPublicCacheService,
       ],
       resolve: ({ resolve }) =>
         new PostingsReviewsService(
@@ -27,6 +28,7 @@ export const postingsReviewsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.rentingsRepository),
           resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.postingsPublicCacheService),
         ),
     });
   },

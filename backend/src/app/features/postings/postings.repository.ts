@@ -2167,6 +2167,8 @@ export class PostingsRepository extends BaseRepository {
         return Prisma.sql`LOWER(name) ASC, published_at DESC, created_at DESC, id ASC`;
       case "nameDesc":
         return Prisma.sql`LOWER(name) DESC, published_at DESC, created_at DESC, id ASC`;
+      case "highestRated":
+        return Prisma.sql`average_rating DESC, review_count DESC, published_at DESC, created_at DESC, id ASC`;
       case "nearest":
         if (distanceExpression) {
           return Prisma.sql`${distanceExpression} ASC, published_at DESC, created_at DESC, id ASC`;
