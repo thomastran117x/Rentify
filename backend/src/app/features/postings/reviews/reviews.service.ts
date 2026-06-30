@@ -42,9 +42,11 @@ export class PostingsReviewsService {
       throw new ConflictError("You have already reviewed this posting.");
     }
 
-    return this.postingsReviewsRepository.create(
+    const review = await this.postingsReviewsRepository.create(
       this.toUpsertInput(postingId, reviewerId, body),
     );
+    await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
+    return review;
   }
 
   async updateOwn(
@@ -67,6 +69,7 @@ export class PostingsReviewsService {
       throw new ResourceNotFoundError("Review could not be found.");
     }
 
+    await this.postingsReviewsRepository.updatePostingRatingStats(postingId);
     return review;
   }
 

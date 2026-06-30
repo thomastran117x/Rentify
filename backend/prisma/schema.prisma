@@ -223,6 +223,9 @@ model Posting {
   advanceNoticeDays      Int?                  @map("advance_notice_days")
   cancellationPolicy     PostingCancellationPolicy? @map("cancellation_policy")
   cancellationPolicyNotes String?              @map("cancellation_policy_notes") @db.VarChar(500)
+  instantBooking    Boolean                    @default(false) @map("instant_booking")
+  averageRating     Decimal?                   @map("average_rating") @db.Decimal(3, 2)
+  reviewCount       Int                        @default(0) @map("review_count")
   latitude          Float
   longitude         Float
   city              String                     @db.VarChar(120)

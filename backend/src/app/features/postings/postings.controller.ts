@@ -496,6 +496,7 @@ export class PostingsController {
       advanceNoticeDays: body.advanceNoticeDays ?? null,
       cancellationPolicy: body.cancellationPolicy ?? null,
       cancellationPolicyNotes: body.cancellationPolicyNotes ?? null,
+      instantBooking: body.instantBooking ?? false,
       availabilityBlocks,
       location: {
         latitude: body.location.latitude,
@@ -688,6 +689,9 @@ export class PostingsController {
           : undefined,
       attributeFilters,
       sort: query.sort,
+      cancellationPolicy: query.cancellationPolicy,
+      instantBooking: query.instantBooking,
+      maxMinBookingDurationDays: query.maxMinBookingDurationDays,
     };
   }
 

@@ -64,6 +64,8 @@ function createPosting(overrides: Record<string, unknown> = {}) {
       region: "Ontario",
       country: "Canada",
     },
+    instantBooking: false,
+    reviewCount: 0,
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     publishedAt: "2026-05-01T00:00:00.000Z",

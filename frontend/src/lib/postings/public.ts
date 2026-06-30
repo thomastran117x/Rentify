@@ -60,6 +60,9 @@ export interface PublicPostingDetail {
   advanceNoticeDays?: number;
   cancellationPolicy?: "flexible" | "moderate" | "strict";
   cancellationPolicyNotes?: string;
+  instantBooking?: boolean;
+  averageRating?: number;
+  reviewCount?: number;
   effectiveMaxBookingDurationDays: number;
   availabilityBlocks: Array<{
     id: string;

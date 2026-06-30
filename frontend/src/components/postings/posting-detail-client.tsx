@@ -454,6 +454,9 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                         : `${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice required`}
                     </span>
                   ) : null}
+                  {posting.instantBooking ? (
+                    <span className="text-sky-700">Instant booking</span>
+                  ) : null}
                 </div>
                 {posting.availabilityNotes ? (
                   <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">

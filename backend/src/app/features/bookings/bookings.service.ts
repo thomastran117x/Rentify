@@ -46,7 +46,7 @@ import { flowLockKeys, withFlowLocks } from "@/features/cache/cache-locks";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
-import type { PostingRecord } from "@/features/postings/postings.model";
+import type { PostingPricing, PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -137,8 +137,10 @@ export class BookingsService {
               pricingCurrency: lockedPosting.pricing.currency,
               pricingSnapshot: lockedPosting.pricing,
               dailyPriceAmount: lockedPosting.pricing.daily.amount,
-              estimatedTotal:
-                lockedPosting.pricing.daily.amount * normalized.durationDays,
+              estimatedTotal: this.calculateEstimatedTotal(
+                lockedPosting.pricing,
+                normalized.durationDays,
+              ),
               holdExpiresAt: this.addHours(
                 new Date(),
                 PENDING_BOOKING_HOLD_HOURS,
@@ -153,6 +155,18 @@ export class BookingsService {
           );
         }
 
+        if (lockedPosting.instantBooking) {
+          const approved = await this.bookingsRepository.approve(
+            bookingRequest.id,
+            bookingRequest.organizationId,
+            null,
+            this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
+          );
+          if (approved) {
+            return { ...approved, autoApproved: true as const };
+          }
+        }
+
         return bookingRequest;
       },
       "Another request is already modifying this posting's booking availability. Please retry.",
@@ -164,6 +178,15 @@ export class BookingsService {
       occurredAt: created.createdAt,
       estimatedTotal: created.estimatedTotal,
     });
+
+    if ("autoApproved" in created && created.autoApproved) {
+      await this.postingsAnalyticsRepository.enqueueBookingApprovedEvent({
+        postingId: created.postingId,
+        organizationId: created.organizationId,
+        occurredAt: created.approvedAt ?? new Date().toISOString(),
+      });
+    }
+
     await invalidatePublicPostingProjection(
       this.postingsPublicCacheService,
       created.postingId,
@@ -177,7 +200,7 @@ export class BookingsService {
     const validation = await this.validateBookingRequest(input);
     const { posting, normalized } = validation;
     const estimatedTotal = normalized
-      ? posting.pricing.daily.amount * normalized.durationDays
+      ? this.calculateEstimatedTotal(posting.pricing, normalized.durationDays)
       : null;
 
     return {
@@ -2184,6 +2207,19 @@ export class BookingsService {
         "The requested dates are already reserved by an existing renting.",
       );
     }
+  }
+
+  private calculateEstimatedTotal(
+    pricing: PostingPricing,
+    durationDays: number,
+  ): number {
+    if (durationDays >= 28 && pricing.monthly) {
+      return Math.round((pricing.monthly.amount / 30) * durationDays * 100) / 100;
+    }
+    if (durationDays >= 7 && pricing.weekly) {
+      return Math.round((pricing.weekly.amount / 7) * durationDays * 100) / 100;
+    }
+    return pricing.daily.amount * durationDays;
   }
 
   private addHours(date: Date, hours: number): Date {

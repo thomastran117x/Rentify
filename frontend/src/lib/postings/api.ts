@@ -129,6 +129,7 @@ export interface UpsertPostingInput {
   advanceNoticeDays?: number | null;
   cancellationPolicy?: PostingCancellationPolicy | null;
   cancellationPolicyNotes?: string | null;
+  instantBooking?: boolean;
   location: PostingLocationInput;
   variant: PostingVariant;
   details: Record<string, PostingDetailValue>;

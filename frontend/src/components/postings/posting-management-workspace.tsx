@@ -43,6 +43,7 @@ interface PostingFormState {
   advanceNoticeDays: string;
   cancellationPolicy: string;
   cancellationPolicyNotes: string;
+  instantBooking: boolean;
   city: string;
   region: string;
   country: string;
@@ -121,6 +122,7 @@ function createDefaultFormState(): PostingFormState {
     advanceNoticeDays: "",
     cancellationPolicy: "",
     cancellationPolicyNotes: "",
+    instantBooking: false,
     city: "Toronto",
     region: "Ontario",
     country: "Canada",
@@ -170,6 +172,7 @@ function toFormState(posting: PostingRecord): PostingFormState {
       : "",
     cancellationPolicy: posting.cancellationPolicy ?? "",
     cancellationPolicyNotes: posting.cancellationPolicyNotes ?? "",
+    instantBooking: posting.instantBooking ?? false,
     city: posting.location.city,
     region: posting.location.region,
     country: posting.location.country,
@@ -235,6 +238,7 @@ function buildPayload(form: PostingFormState): UpsertPostingInput {
       : null,
     cancellationPolicy: (form.cancellationPolicy as "flexible" | "moderate" | "strict") || null,
     cancellationPolicyNotes: form.cancellationPolicyNotes.trim() || null,
+    instantBooking: form.instantBooking,
     location: {
       city: form.city.trim(),
       region: form.region.trim(),
@@ -900,6 +904,30 @@ export function PostingManagementWorkspace() {
                 />
               </label>
             </div>
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <input
+                type="checkbox"
+                checked={form.instantBooking}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    instantBooking: event.target.checked,
+                  }))
+                }
+                disabled={!canManage || saving}
+                className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded accent-sky-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  Enable instant booking
+                </p>
+                <p className="text-xs text-slate-500">
+                  Booking requests are automatically approved — no owner action
+                  required.
+                </p>
+              </div>
+            </label>
 
             <label className="mt-4 grid gap-2 text-sm">
               <span className="font-medium text-slate-700">

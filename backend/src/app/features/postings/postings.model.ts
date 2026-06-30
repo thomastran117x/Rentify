@@ -51,6 +51,7 @@ export const postingSortSchema = z.enum([
   "nearest",
   "nameAsc",
   "nameDesc",
+  "highestRated",
 ]);
 
 const trimmedStringSchema = z.string().trim().min(1);
@@ -320,6 +321,7 @@ const sharedUpsertPostingRequestShape = {
   cancellationPolicyNotes: nullableTrimmedStringSchema.pipe(
     z.string().trim().max(500).nullable().optional(),
   ),
+  instantBooking: z.boolean().default(false),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -448,6 +450,9 @@ export const publicSearchPostingsQuerySchema = z
       .datetime("Search end time must be an ISO datetime.")
       .optional(),
     sort: postingSortSchema.default("relevance"),
+    cancellationPolicy: postingCancellationPolicySchema.optional(),
+    instantBooking: z.coerce.boolean().optional(),
+    maxMinBookingDurationDays: z.coerce.number().int().min(1).optional(),
   })
   .strict()
   .superRefine((query, context) => {
@@ -623,6 +628,9 @@ export interface PostingRecord {
   advanceNoticeDays?: number;
   cancellationPolicy?: PostingCancellationPolicy;
   cancellationPolicyNotes?: string;
+  instantBooking: boolean;
+  averageRating?: number;
+  reviewCount: number;
   effectiveMaxBookingDurationDays: number;
   availabilityBlocks: PostingAvailabilityBlockRecord[];
   location: PostingLocationRecord;
@@ -708,6 +716,7 @@ export interface UpsertPostingInput {
   advanceNoticeDays?: number | null;
   cancellationPolicy?: PostingCancellationPolicy | null;
   cancellationPolicyNotes?: string | null;
+  instantBooking?: boolean | null;
   availabilityBlocks: PostingAvailabilityBlockInput[];
   location: PostingLocationRecord;
 }
@@ -757,6 +766,9 @@ export interface SearchPostingsInput {
   };
   attributeFilters?: SearchAttributeFilterInput[];
   sort: PostingSort;
+  cancellationPolicy?: PostingCancellationPolicy;
+  instantBooking?: boolean;
+  maxMinBookingDurationDays?: number;
 }
 
 export interface PostingSearchDocument {
@@ -765,6 +777,12 @@ export interface PostingSearchDocument {
   status: PostingStatus;
   variant: PostingVariant;
   name: string;
+  minBookingDurationDays?: number;
+  advanceNoticeDays?: number;
+  cancellationPolicy?: PostingCancellationPolicy;
+  instantBooking: boolean;
+  averageRating?: number;
+  reviewCount: number;
   description: string;
   tags: string[];
   availabilityStatus: PostingAvailabilityStatus;

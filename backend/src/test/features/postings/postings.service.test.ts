@@ -522,6 +522,8 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
       updatedAt: "2026-04-18T00:00:00.000Z",
     })),
     location: input.location,
+    instantBooking: input.instantBooking ?? false,
+    reviewCount: 0,
     publishedAt: undefined,
     pausedAt: undefined,
     archivedAt: undefined,

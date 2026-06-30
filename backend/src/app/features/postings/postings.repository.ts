@@ -2290,6 +2290,7 @@ export class PostingsRepository extends BaseRepository {
       advanceNoticeDays: input.advanceNoticeDays ?? null,
       cancellationPolicy: input.cancellationPolicy ?? null,
       cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
+      instantBooking: input.instantBooking ?? false,
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -2343,6 +2344,7 @@ export class PostingsRepository extends BaseRepository {
       advanceNoticeDays: input.advanceNoticeDays ?? null,
       cancellationPolicy: input.cancellationPolicy ?? null,
       cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
+      instantBooking: input.instantBooking ?? false,
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -2480,6 +2482,9 @@ export class PostingsRepository extends BaseRepository {
       advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
       cancellationPolicy: (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
       cancellationPolicyNotes: posting.cancellationPolicyNotes ?? undefined,
+      instantBooking: posting.instantBooking ?? false,
+      averageRating: posting.averageRating !== null && posting.averageRating !== undefined ? Number(posting.averageRating) : undefined,
+      reviewCount: posting.reviewCount ?? 0,
       effectiveMaxBookingDurationDays:
         posting.maxBookingDurationDays ?? DEFAULT_MAX_BOOKING_DURATION_DAYS,
       availabilityBlocks,
@@ -2531,6 +2536,12 @@ export class PostingsRepository extends BaseRepository {
       tags: Array.isArray(posting.tags) ? (posting.tags as string[]) : [],
       availabilityStatus:
         posting.availabilityStatus as PostingAvailabilityStatus,
+      minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
+      advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
+      cancellationPolicy: (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
+      instantBooking: posting.instantBooking ?? false,
+      averageRating: posting.averageRating !== null && posting.averageRating !== undefined ? Number(posting.averageRating) : undefined,
+      reviewCount: posting.reviewCount ?? 0,
       searchableAttributes: this.extractSearchableAttributes(
         posting.family,
         posting.subtype as PostingSubtype,

@@ -45,6 +45,10 @@ class FakePostingsReviewsRepository {
     return this.ownReview;
   }
 
+  async updatePostingRatingStats(): Promise<void> {
+    // no-op in tests
+  }
+
   async listByPosting() {
     return {
       reviews: [],
