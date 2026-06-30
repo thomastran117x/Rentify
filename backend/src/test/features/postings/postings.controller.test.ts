@@ -1323,6 +1323,45 @@ describe("PostingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  describe("exportAnalytics handler", () => {
+    it("returns a text/csv response with the analytics export", async () => {
+      mockRequireJwtAuth.mockResolvedValue(createClaims());
+      const exportAsCsv = jest.fn(
+        async () => "date,views\n2026-06-01,100\n",
+      );
+      const controller = createController(
+        {},
+        { analytics: { exportAsCsv } },
+      );
+      const context = createContext({
+        url: "https://example.test/postings/analytics/export?window=7d",
+      });
+
+      const response = await controller.exportAnalytics(context);
+
+      expect(exportAsCsv).toHaveBeenCalledWith("owner-1", "7d");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe(
+        "text/csv; charset=utf-8",
+      );
+      expect(response.headers.get("Content-Disposition")).toBe(
+        'attachment; filename="analytics.csv"',
+      );
+    });
+
+    it("throws a validation error when the window query param is not a recognised value", async () => {
+      mockRequireJwtAuth.mockResolvedValue(createClaims());
+      const controller = createController({}, { analytics: {} });
+      const context = createContext({
+        url: "https://example.test/postings/analytics/summary?window=not_a_real_window",
+      });
+
+      await expect(
+        controller.analyticsSummary(context),
+      ).rejects.toBeInstanceOf(RequestValidationError);
+    });
+  });
+
   describe("seasonal pricing handlers", () => {
     const rule = {
       id: "rule-1",
