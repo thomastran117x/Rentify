@@ -416,7 +416,7 @@ export class PostingsController {
     let window: PostingAnalyticsWindow;
     try {
       window = postingAnalyticsWindowSchema.parse(
-        url.searchParams.get("window") ?? "30d",
+        url.searchParams.get("window") ?? "7d",
       );
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");

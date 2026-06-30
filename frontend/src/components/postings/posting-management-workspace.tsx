@@ -166,10 +166,10 @@ function toFormState(posting: PostingRecord): PostingFormState {
     maxBookingDurationDays: posting.maxBookingDurationDays
       ? String(posting.maxBookingDurationDays)
       : "",
-    minBookingDurationDays: posting.minBookingDurationDays
+    minBookingDurationDays: posting.minBookingDurationDays != null
       ? String(posting.minBookingDurationDays)
       : "",
-    advanceNoticeDays: posting.advanceNoticeDays
+    advanceNoticeDays: posting.advanceNoticeDays != null
       ? String(posting.advanceNoticeDays)
       : "",
     cancellationPolicy: posting.cancellationPolicy ?? "",
@@ -1059,7 +1059,7 @@ export function PostingManagementWorkspace() {
                   <p className="mt-3 text-xs text-slate-400">No seasonal rules yet.</p>
                 )}
 
-                {canManage && seasonalRules.length < 20 ? (
+                {canManage && (seasonalForm.editingId || seasonalRules.length < 20) ? (
                   <div className="mt-3 grid gap-2">
                     <p className="text-xs font-medium text-slate-600">
                       {seasonalForm.editingId ? "Edit rule" : "Add rule"}

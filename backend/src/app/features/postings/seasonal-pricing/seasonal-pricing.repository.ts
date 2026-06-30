@@ -47,13 +47,8 @@ export class SeasonalPricingRepository extends BaseRepository {
     postingId: string,
     input: Omit<UpsertSeasonalPricingInput, "postingId">,
   ): Promise<SeasonalPricingRecord | null> {
-    const existing = await this.database.postingSeasonalPricing.findFirst({
+    const result = await this.database.postingSeasonalPricing.updateMany({
       where: { id, postingId },
-    });
-    if (!existing) return null;
-
-    const row = await this.database.postingSeasonalPricing.update({
-      where: { id },
       data: {
         name: input.name,
         startDate: new Date(input.startDate),
@@ -61,17 +56,19 @@ export class SeasonalPricingRepository extends BaseRepository {
         dailyAmount: input.dailyAmount,
       },
     });
-    return this.toRecord(row);
+    if (result.count === 0) return null;
+
+    const row = await this.database.postingSeasonalPricing.findFirst({
+      where: { id, postingId },
+    });
+    return row ? this.toRecord(row) : null;
   }
 
   async delete(id: string, postingId: string): Promise<boolean> {
-    const existing = await this.database.postingSeasonalPricing.findFirst({
+    const result = await this.database.postingSeasonalPricing.deleteMany({
       where: { id, postingId },
     });
-    if (!existing) return false;
-
-    await this.database.postingSeasonalPricing.delete({ where: { id } });
-    return true;
+    return result.count > 0;
   }
 
   async findOverlappingForBooking(

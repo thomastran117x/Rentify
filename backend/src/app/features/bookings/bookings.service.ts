@@ -171,9 +171,12 @@ export class BookingsService {
             null,
             this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
           );
-          if (approved) {
-            return { ...approved, autoApproved: true as const };
+          if (!approved) {
+            throw new ConflictError(
+              "Booking was created but could not be instantly approved. Please try again.",
+            );
           }
+          return { ...approved, autoApproved: true as const };
         }
 
         return bookingRequest;
@@ -181,6 +184,8 @@ export class BookingsService {
       "Another request is already modifying this posting's booking availability. Please retry.",
     );
 
+    // Fire booking_requested with the original pending record, then booking_approved separately
+    // so analytics pipelines always see a clean pending→approved state transition.
     await this.postingsAnalyticsRepository.enqueueBookingRequestedEvent({
       postingId: created.postingId,
       organizationId: created.organizationId,
@@ -1876,22 +1881,9 @@ export class BookingsService {
       );
     }
 
-    if (posting.minBookingDurationDays && durationDays < posting.minBookingDurationDays) {
-      throw new BadRequestError(
-        `Booking duration must be at least ${posting.minBookingDurationDays} day${posting.minBookingDurationDays === 1 ? "" : "s"}.`,
-      );
-    }
-
-    if (posting.advanceNoticeDays != null) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const minStart = new Date(today);
-      minStart.setUTCDate(today.getUTCDate() + posting.advanceNoticeDays);
-      if (startAt < minStart) {
-        throw new BadRequestError(
-          `This listing requires ${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice.`,
-        );
-      }
+    const dateFailure = this.checkBookingDateConstraints(posting, startAt, durationDays);
+    if (dateFailure) {
+      throw new BadRequestError(dateFailure.message);
     }
 
     const guestCount = this.resolveGuestCountOrThrow(input.guestCount, posting);
@@ -1972,34 +1964,9 @@ export class BookingsService {
       });
     }
 
-    if (posting.minBookingDurationDays && durationDays < posting.minBookingDurationDays) {
-      failureReasons.push({
-        code: "min_duration_not_met",
-        field: "endAt",
-        message: `Booking duration must be at least ${posting.minBookingDurationDays} day${posting.minBookingDurationDays === 1 ? "" : "s"}.`,
-        details: {
-          durationDays,
-          minBookingDurationDays: posting.minBookingDurationDays,
-        },
-      });
-    }
-
-    if (posting.advanceNoticeDays != null) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const minStart = new Date(today);
-      minStart.setUTCDate(today.getUTCDate() + posting.advanceNoticeDays);
-      if (startAt < minStart) {
-        failureReasons.push({
-          code: "advance_notice_not_met",
-          field: "startAt",
-          message: `This listing requires ${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice.`,
-          details: {
-            advanceNoticeDays: posting.advanceNoticeDays,
-            requiredStartDate: minStart.toISOString(),
-          },
-        });
-      }
+    const dateFailure = this.checkBookingDateConstraints(posting, startAt, durationDays);
+    if (dateFailure) {
+      failureReasons.push(dateFailure);
     }
 
     const guestCount = this.resolveGuestCountOrCollectFailures(
@@ -2313,10 +2280,14 @@ export class BookingsService {
         const day = new Date(startAt);
         day.setUTCDate(day.getUTCDate() + i);
         const dateStr = day.toISOString().slice(0, 10);
-        const rule = seasonalRules.find(
-          (r) => r.startDate <= dateStr && r.endDate >= dateStr,
-        );
-        total += rule ? rule.dailyAmount : baseDailyRate;
+        // When multiple rules overlap a day, prefer the one with the latest endDate
+        // (most specific/recent range wins). Round each addend to cents before summing
+        // to avoid IEEE 754 drift across many days.
+        const rule = seasonalRules
+          .filter((r) => r.startDate <= dateStr && r.endDate >= dateStr)
+          .sort((a, b) => (a.endDate < b.endDate ? 1 : -1))[0];
+        const dayRate = rule ? rule.dailyAmount : baseDailyRate;
+        total += Math.round(dayRate * 100) / 100;
       }
       return Math.round(total * 100) / 100;
     }
@@ -2327,7 +2298,45 @@ export class BookingsService {
     if (durationDays >= 7 && pricing.weekly) {
       return Math.round((pricing.weekly.amount / 7) * durationDays * 100) / 100;
     }
-    return pricing.daily.amount * durationDays;
+    return Math.round(pricing.daily.amount * durationDays * 100) / 100;
+  }
+
+  private checkBookingDateConstraints(
+    posting: PostingRecord,
+    startAt: Date,
+    durationDays: number,
+  ): BookingQuoteFailureReason | null {
+    if (posting.minBookingDurationDays && durationDays < posting.minBookingDurationDays) {
+      return {
+        code: "min_duration_not_met",
+        field: "endAt",
+        message: `Booking duration must be at least ${posting.minBookingDurationDays} day${posting.minBookingDurationDays === 1 ? "" : "s"}.`,
+        details: {
+          durationDays,
+          minBookingDurationDays: posting.minBookingDurationDays,
+        },
+      };
+    }
+
+    if (posting.advanceNoticeDays != null) {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const minStart = new Date(today);
+      minStart.setUTCDate(today.getUTCDate() + posting.advanceNoticeDays);
+      if (startAt < minStart) {
+        return {
+          code: "advance_notice_not_met",
+          field: "startAt",
+          message: `This listing requires ${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice.`,
+          details: {
+            advanceNoticeDays: posting.advanceNoticeDays,
+            requiredStartDate: minStart.toISOString(),
+          },
+        };
+      }
+    }
+
+    return null;
   }
 
   private addHours(date: Date, hours: number): Date {
