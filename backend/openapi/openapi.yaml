@@ -49,6 +49,10 @@ tags:
     description: Administrative search maintenance and telemetry routes.
   - name: moderation
     description: Safety reporting and moderator review workflows.
+  - name: admin-feature-flags
+    description: Administrative feature flag management.
+  - name: saved-searches
+    description: Saved search management and new-listing alert preferences.
 paths:
   /:
     get:
@@ -6128,6 +6132,256 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/seasonal-pricing':
+    get:
+      operationId: listPostingSeasonalPricing
+      summary: List seasonal pricing rules
+      description: Returns all seasonal pricing rules for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRuleList'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rules retrieved.
+                data: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createPostingSeasonalPricingRule
+      summary: Create a seasonal pricing rule
+      description: Creates a seasonal pricing rule for the selected posting. Max 20 rules per posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeasonalPricingRuleRequest'
+            example:
+              name: Summer Peak
+              startDate: '2026-06-01'
+              endDate: '2026-08-31'
+              dailyAmount: 150
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRule'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rule created.
+                data:
+                  id: rule-1
+                  postingId: posting-1
+                  name: Summer Peak
+                  startDate: '2026-06-01'
+                  endDate: '2026-08-31'
+                  dailyAmount: 150
+                  createdAt: '2026-06-01T00:00:00.000Z'
+                  updatedAt: '2026-06-01T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/seasonal-pricing/{ruleId}':
+    patch:
+      operationId: updatePostingSeasonalPricingRule
+      summary: Update a seasonal pricing rule
+      description: Updates a seasonal pricing rule for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+        - name: ruleId
+          in: path
+          required: true
+          description: Seasonal pricing rule identifier.
+          schema:
+            type: string
+          example: rule-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeasonalPricingRuleRequest'
+            example:
+              name: Summer Peak
+              startDate: '2026-06-01'
+              endDate: '2026-08-31'
+              dailyAmount: 175
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRule'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rule updated.
+                data:
+                  id: rule-1
+                  postingId: posting-1
+                  name: Summer Peak
+                  startDate: '2026-06-01'
+                  endDate: '2026-08-31'
+                  dailyAmount: 175
+                  createdAt: '2026-06-01T00:00:00.000Z'
+                  updatedAt: '2026-06-02T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deletePostingSeasonalPricingRule
+      summary: Delete a seasonal pricing rule
+      description: Deletes a seasonal pricing rule for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+        - name: ruleId
+          in: path
+          required: true
+          description: Seasonal pricing rule identifier.
+          schema:
+            type: string
+          example: rule-1
+      responses:
+        '204':
+          description: Seasonal pricing rule deleted successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/postings/{id}/activity/search-click':
     post:
       operationId: trackPostingSearchClick
@@ -9407,6 +9661,913 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/verify/options:
+    get:
+      operationId: getMfaVerificationOptions
+      summary: Get available MFA verification methods
+      description: Returns the MFA verification methods available to the authenticated user for the requested scope.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          description: MFA verification scope.
+          schema:
+            type: string
+            enum:
+              - mfa-management
+              - device-login
+          example: mfa-management
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaVerificationOptionsResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: MFA verification options retrieved.
+                data:
+                  available:
+                    - email
+                    - totp
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/verify/challenge:
+    post:
+      operationId: issueMfaVerificationChallenge
+      summary: Issue an MFA verification challenge
+      description: 'Initiates an MFA verification challenge for the requested scope and factor. For email, an OTP is dispatched to the user''s address.'
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationChallengeRequest'
+            example:
+              scope: mfa-management
+              factor: email
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaVerificationChallengeResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: MFA challenge issued.
+                data:
+                  factor: email
+                  expiresAt: '2026-06-30T01:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/verify/confirm:
+    post:
+      operationId: confirmMfaVerificationChallenge
+      summary: Confirm an MFA verification challenge
+      description: Validates the OTP or TOTP code for the given scope and factor and records a short-lived MFA proof token in the session.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationConfirmRequest'
+            example:
+              scope: mfa-management
+              factor: email
+              code: '123456'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaVerificationConfirmResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: MFA challenge confirmed. Proof token recorded in session.
+                data:
+                  verified: true
+                  proofExpiresAt: '2026-06-30T01:15:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/verify/dev/otp:
+    get:
+      operationId: previewMfaDevOtp
+      summary: Preview current MFA email OTP (dev only)
+      description: Returns the current in-flight MFA email OTP for the authenticated user and scope. Available in non-production environments only for development and testing purposes.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          description: MFA verification scope.
+          schema:
+            type: string
+            enum:
+              - mfa-management
+              - device-login
+          example: mfa-management
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaVerificationPreviewResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Current OTP retrieved.
+                data:
+                  code: '123456'
+                  expiresAt: '2026-06-30T01:05:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/totp/status:
+    get:
+      operationId: getMfaTotpStatus
+      summary: Get TOTP enrollment status
+      description: Returns whether TOTP (authenticator app) MFA is currently enabled for the authenticated user.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaTotpStatusResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: TOTP status retrieved.
+                data:
+                  enabled: false
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/totp/begin:
+    post:
+      operationId: beginMfaTotpEnrollment
+      summary: Begin TOTP enrollment
+      description: Generates a TOTP secret and provisioning URI for the authenticated user to scan with an authenticator app. Requires a recent MFA proof for the `mfa-management` scope.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaTotpBeginRequest'
+            example:
+              accountName: user@example.com
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaTotpBeginResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: TOTP enrollment started. Scan the QR code or enter the secret.
+                data:
+                  secret: JBSWY3DPEHPK3PXP
+                  uri: 'otpauth://totp/Rent:user%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Rent'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/totp/confirm:
+    post:
+      operationId: confirmMfaTotpEnrollment
+      summary: Confirm TOTP enrollment
+      description: Verifies a TOTP code against the pending secret to complete enrollment. Requires a recent MFA proof for the `mfa-management` scope.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaTotpConfirmRequest'
+            example:
+              code: '123456'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaTotpConfirmResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Authenticator app enabled.
+                data:
+                  confirmed: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/totp/disable:
+    post:
+      operationId: disableMfaTotp
+      summary: Disable TOTP MFA
+      description: Removes the TOTP factor from the authenticated user's account. Requires a recent MFA proof for the `mfa-management` scope.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaTotpDisableRequest'
+            example: {}
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaTotpDisableResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Authenticator app disabled.
+                data:
+                  disabled: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/totp/pending:
+    delete:
+      operationId: cancelMfaTotpEnrollment
+      summary: Cancel pending TOTP enrollment
+      description: Cancels an in-progress TOTP enrollment and discards the pending secret. Requires a recent MFA proof for the `mfa-management` scope.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MfaTotpCancelResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Pending TOTP enrollment cancelled.
+                data:
+                  cancelled: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/feature-flags:
+    get:
+      operationId: listFeatureFlags
+      summary: List feature flags
+      description: 'Returns all feature flags. Supports optional filtering by `enabled`, `search`, and `group` query parameters. Admin role required.'
+      tags:
+        - admin-feature-flags
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: enabled
+          in: query
+          required: false
+          description: Filter by enabled state.
+          schema:
+            type: boolean
+          example: true
+        - name: search
+          in: query
+          required: false
+          description: Filter by name substring.
+          schema:
+            type: string
+          example: email
+        - name: group
+          in: query
+          required: false
+          description: Filter by group name.
+          schema:
+            type: string
+          example: payments
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FeatureFlagList'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Feature flags retrieved.
+                data: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/admin/feature-flags/{name}':
+    put:
+      operationId: setFeatureFlag
+      summary: Create or update a feature flag
+      description: Creates or updates a feature flag by name. Admin role required.
+      tags:
+        - admin-feature-flags
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Feature flag name.
+          schema:
+            type: string
+          example: payments.new-checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetFeatureFlagRequest'
+            example:
+              enabled: true
+              description: Enables the new checkout flow for all users.
+              group: payments
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FeatureFlagRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Feature flag set.
+                data:
+                  id: 1
+                  name: payments.new-checkout
+                  enabled: true
+                  description: Enables the new checkout flow for all users.
+                  group: payments
+                  createdByUserId: user-1
+                  updatedByUserId: user-1
+                  createdAt: '2026-06-30T00:00:00.000Z'
+                  updatedAt: '2026-06-30T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteFeatureFlag
+      summary: Delete a feature flag
+      description: Permanently deletes a feature flag by name. Admin role required.
+      tags:
+        - admin-feature-flags
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Feature flag name.
+          schema:
+            type: string
+          example: payments.new-checkout
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FeatureFlagDeleteResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Feature flag deleted.
+                data:
+                  deleted: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /postings/analytics/export:
+    get:
+      operationId: exportPostingAnalytics
+      summary: Export owner analytics as CSV
+      description: Exports posting analytics for the authenticated owner as a CSV file for the selected reporting window.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+      parameters:
+        - name: window
+          in: query
+          required: false
+          description: Reporting window.
+          schema:
+            type: string
+            enum:
+              - 7d
+              - 30d
+              - all
+            default: 7d
+          example: 7d
+      responses:
+        '200':
+          description: Analytics exported as CSV.
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /saved-searches:
+    post:
+      operationId: createSavedSearch
+      summary: Create a saved search
+      description: Creates a new saved search for the authenticated user. Users may store up to 10 saved searches. Returns 409 when the cap is reached.
+      tags:
+        - saved-searches
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        description: Saved search payload. `searchParams` may be empty to match all new postings.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSavedSearchRequest'
+            example:
+              name: Cinema Cameras in Vancouver
+              searchParams:
+                family: equipment
+                city: Vancouver
+              alertEnabled: true
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedSearchRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Saved search created successfully.
+                data:
+                  id: ss-1
+                  userId: user-1
+                  name: Cinema Cameras in Vancouver
+                  searchParams:
+                    family: equipment
+                    city: Vancouver
+                  alertEnabled: true
+                  lastAlertSentAt: null
+                  createdAt: '2026-06-30T00:00:00.000Z'
+                  updatedAt: '2026-06-30T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: listSavedSearches
+      summary: List saved searches
+      description: 'Returns all saved searches belonging to the authenticated user, ordered by creation date ascending.'
+      tags:
+        - saved-searches
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedSearchList'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Saved searches retrieved successfully.
+                data: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/saved-searches/{id}':
+    patch:
+      operationId: updateSavedSearch
+      summary: Update a saved search
+      description: 'Updates the name, search parameters, or alert setting of an existing saved search. At least one field must be provided. Returns 403 when the authenticated user does not own the saved search.'
+      tags:
+        - saved-searches
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Saved search identifier.
+          schema:
+            type: string
+          example: ss-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSavedSearchRequest'
+            example:
+              name: Cinema Cameras in Toronto
+              alertEnabled: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedSearchRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Saved search updated successfully.
+                data:
+                  id: ss-1
+                  userId: user-1
+                  name: Cinema Cameras in Toronto
+                  searchParams:
+                    family: equipment
+                    city: Vancouver
+                  alertEnabled: false
+                  lastAlertSentAt: null
+                  createdAt: '2026-06-30T00:00:00.000Z'
+                  updatedAt: '2026-06-30T01:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteSavedSearch
+      summary: Delete a saved search
+      description: Permanently deletes a saved search. Returns 403 when the authenticated user does not own the saved search.
+      tags:
+        - saved-searches
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Saved search identifier.
+          schema:
+            type: string
+          example: ss-1
+      responses:
+        '204':
+          description: Saved search deleted successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   securitySchemes:
     bearerAuth:
@@ -10698,6 +11859,31 @@ components:
           format: date-time
         note:
           type: string
+    SeasonalPricingRule:
+      type: object
+      additionalProperties: true
+    SeasonalPricingRuleList:
+      type: array
+      items:
+        $ref: '#/components/schemas/SeasonalPricingRule'
+    SeasonalPricingRuleRequest:
+      type: object
+      required:
+        - name
+        - startDate
+        - endDate
+        - dailyAmount
+      properties:
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        dailyAmount:
+          type: number
     CreatePostingReviewRequest:
       type: object
       required:
@@ -11248,3 +12434,276 @@ components:
           type: integer
       required:
         - deleted
+    MfaVerificationOptionsResult:
+      type: object
+      additionalProperties: true
+    MfaVerificationChallengeRequest:
+      type: object
+      required:
+        - scope
+        - factor
+      properties:
+        scope:
+          type: string
+          enum:
+            - mfa-management
+            - device-login
+        factor:
+          type: string
+          enum:
+            - email
+            - totp
+    MfaVerificationChallengeResult:
+      type: object
+      additionalProperties: true
+    MfaVerificationConfirmRequest:
+      type: object
+      required:
+        - scope
+        - factor
+        - code
+      properties:
+        scope:
+          type: string
+          enum:
+            - mfa-management
+            - device-login
+        factor:
+          type: string
+          enum:
+            - email
+            - totp
+        code:
+          type: string
+    MfaVerificationConfirmResult:
+      type: object
+      additionalProperties: true
+    MfaVerificationPreviewResult:
+      type: object
+      additionalProperties: true
+    MfaTotpStatusResult:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+    MfaTotpBeginRequest:
+      type: object
+      properties:
+        accountName:
+          type: string
+          minLength: 1
+    MfaTotpBeginResult:
+      type: object
+      required:
+        - secret
+        - uri
+      properties:
+        secret:
+          type: string
+        uri:
+          type: string
+    MfaTotpConfirmRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+    MfaTotpConfirmResult:
+      type: object
+      required:
+        - confirmed
+      properties:
+        confirmed:
+          type: boolean
+          const: true
+    MfaTotpDisableRequest:
+      type: object
+      properties: {}
+    MfaTotpDisableResult:
+      type: object
+      required:
+        - disabled
+      properties:
+        disabled:
+          type: boolean
+          const: true
+    MfaTotpCancelResult:
+      type: object
+      required:
+        - cancelled
+      properties:
+        cancelled:
+          type: boolean
+          const: true
+    FeatureFlagRecord:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        enabled:
+          type: boolean
+        description:
+          oneOf:
+            - type: string
+            - type: 'null'
+        group:
+          oneOf:
+            - type: string
+            - type: 'null'
+        createdByUserId:
+          oneOf:
+            - type: string
+            - type: 'null'
+        updatedByUserId:
+          oneOf:
+            - type: string
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FeatureFlagList:
+      type: array
+      items:
+        $ref: '#/components/schemas/FeatureFlagRecord'
+    SetFeatureFlagRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        group:
+          type: string
+          minLength: 1
+          maxLength: 100
+          nullable: true
+    FeatureFlagDeleteResult:
+      type: object
+      required:
+        - deleted
+      properties:
+        deleted:
+          type: boolean
+          const: true
+    SavedSearchParamsSchema:
+      type: object
+      properties:
+        family:
+          type: string
+          enum:
+            - place
+            - equipment
+            - vehicle
+        subtype:
+          type: string
+          maxLength: 50
+        city:
+          type: string
+          maxLength: 120
+        minDailyPrice:
+          type: number
+          minimum: 0
+        maxDailyPrice:
+          type: number
+          minimum: 0
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+        availabilityStatus:
+          type: string
+          enum:
+            - available
+            - limited
+            - unavailable
+        instantBooking:
+          type: boolean
+        cancellationPolicy:
+          type: string
+          enum:
+            - flexible
+            - moderate
+            - strict
+      additionalProperties: false
+    SavedSearchRecord:
+      type: object
+      required:
+        - id
+        - userId
+        - name
+        - searchParams
+        - alertEnabled
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        searchParams:
+          $ref: '#/components/schemas/SavedSearchParamsSchema'
+        alertEnabled:
+          type: boolean
+        lastAlertSentAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SavedSearchList:
+      type: array
+      items:
+        $ref: '#/components/schemas/SavedSearchRecord'
+    CreateSavedSearchRequest:
+      type: object
+      required:
+        - name
+        - searchParams
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        searchParams:
+          $ref: '#/components/schemas/SavedSearchParamsSchema'
+        alertEnabled:
+          type: boolean
+          default: true
+    UpdateSavedSearchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        searchParams:
+          $ref: '#/components/schemas/SavedSearchParamsSchema'
+        alertEnabled:
+          type: boolean

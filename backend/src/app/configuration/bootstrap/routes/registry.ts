@@ -39,6 +39,7 @@ import {
 import { rentingsRouteModule } from "@/configuration/bootstrap/routes/modules/rentings.routes";
 import { systemRouteModule } from "@/configuration/bootstrap/routes/modules/system.routes";
 import { adminFeatureFlagsRouteModule } from "@/configuration/bootstrap/routes/modules/admin-feature-flags.routes";
+import { savedSearchesRouteModule } from "@/configuration/bootstrap/routes/modules/saved-searches.routes";
 import type {
   RouteModule,
   RouteModuleHelpers,
@@ -74,6 +75,7 @@ export const routeModuleRegistry: RouteModule[] = [
   rentingsRouteModule,
   postingsPublicRouteModule,
   adminFeatureFlagsRouteModule,
+  savedSearchesRouteModule,
 ];
 
 const routeModuleHelpers: RouteModuleHelpers = {

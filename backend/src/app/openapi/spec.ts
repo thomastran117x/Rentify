@@ -5245,6 +5245,512 @@ function buildOperations(): OperationDefinition[] {
         ...commonErrors([401, 403, 404, 429, 500]),
       },
     },
+    {
+      method: "get",
+      path: "/auth/mfa/verify/options",
+      operationId: "getMfaVerificationOptions",
+      summary: "Get available MFA verification methods",
+      description:
+        "Returns the MFA verification methods available to the authenticated user for the requested scope.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "scope",
+          { type: "string", enum: ["mfa-management", "device-login"] },
+          "MFA verification scope.",
+          "mfa-management",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "MFA verification options retrieved.",
+          "MfaVerificationOptionsResult",
+          { available: ["email", "totp"] },
+        ),
+        ...commonErrors([400, 401, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/verify/challenge",
+      operationId: "issueMfaVerificationChallenge",
+      summary: "Issue an MFA verification challenge",
+      description:
+        "Initiates an MFA verification challenge for the requested scope and factor. For email, an OTP is dispatched to the user's address.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaVerificationChallengeRequest", {
+        scope: "mfa-management",
+        factor: "email",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "MFA challenge issued.",
+          "MfaVerificationChallengeResult",
+          { factor: "email", expiresAt: "2026-06-30T01:00:00.000Z" },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/verify/confirm",
+      operationId: "confirmMfaVerificationChallenge",
+      summary: "Confirm an MFA verification challenge",
+      description:
+        "Validates the OTP or TOTP code for the given scope and factor and records a short-lived MFA proof token in the session.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaVerificationConfirmRequest", {
+        scope: "mfa-management",
+        factor: "email",
+        code: "123456",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "MFA challenge confirmed. Proof token recorded in session.",
+          "MfaVerificationConfirmResult",
+          { verified: true, proofExpiresAt: "2026-06-30T01:15:00.000Z" },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/verify/dev/otp",
+      operationId: "previewMfaDevOtp",
+      summary: "Preview current MFA email OTP (dev only)",
+      description:
+        "Returns the current in-flight MFA email OTP for the authenticated user and scope. Available in non-production environments only for development and testing purposes.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "scope",
+          { type: "string", enum: ["mfa-management", "device-login"] },
+          "MFA verification scope.",
+          "mfa-management",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Current OTP retrieved.",
+          "MfaVerificationPreviewResult",
+          { code: "123456", expiresAt: "2026-06-30T01:05:00.000Z" },
+        ),
+        ...commonErrors([400, 401, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/totp/status",
+      operationId: "getMfaTotpStatus",
+      summary: "Get TOTP enrollment status",
+      description:
+        "Returns whether TOTP (authenticator app) MFA is currently enabled for the authenticated user.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "TOTP status retrieved.",
+          "MfaTotpStatusResult",
+          { enabled: false },
+        ),
+        ...commonErrors([401, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/begin",
+      operationId: "beginMfaTotpEnrollment",
+      summary: "Begin TOTP enrollment",
+      description:
+        "Generates a TOTP secret and provisioning URI for the authenticated user to scan with an authenticator app. Requires a recent MFA proof for the `mfa-management` scope.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpBeginRequest", {
+        accountName: "user@example.com",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "TOTP enrollment started. Scan the QR code or enter the secret.",
+          "MfaTotpBeginResult",
+          {
+            secret: "JBSWY3DPEHPK3PXP",
+            uri: "otpauth://totp/Rent:user%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Rent",
+          },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/confirm",
+      operationId: "confirmMfaTotpEnrollment",
+      summary: "Confirm TOTP enrollment",
+      description:
+        "Verifies a TOTP code against the pending secret to complete enrollment. Requires a recent MFA proof for the `mfa-management` scope.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpConfirmRequest", { code: "123456" }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticator app enabled.",
+          "MfaTotpConfirmResult",
+          { confirmed: true },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/disable",
+      operationId: "disableMfaTotp",
+      summary: "Disable TOTP MFA",
+      description:
+        "Removes the TOTP factor from the authenticated user's account. Requires a recent MFA proof for the `mfa-management` scope.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpDisableRequest", {}),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticator app disabled.",
+          "MfaTotpDisableResult",
+          { disabled: true },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/auth/mfa/totp/pending",
+      operationId: "cancelMfaTotpEnrollment",
+      summary: "Cancel pending TOTP enrollment",
+      description:
+        "Cancels an in-progress TOTP enrollment and discards the pending secret. Requires a recent MFA proof for the `mfa-management` scope.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Pending TOTP enrollment cancelled.",
+          "MfaTotpCancelResult",
+          { cancelled: true },
+        ),
+        ...commonErrors([401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/feature-flags",
+      operationId: "listFeatureFlags",
+      summary: "List feature flags",
+      description:
+        "Returns all feature flags. Supports optional filtering by `enabled`, `search`, and `group` query parameters. Admin role required.",
+      tags: ["admin-feature-flags"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "enabled",
+          { type: "boolean" },
+          "Filter by enabled state.",
+          true,
+        ),
+        queryParam("search", { type: "string" }, "Filter by name substring.", "email"),
+        queryParam("group", { type: "string" }, "Filter by group name.", "payments"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Feature flags retrieved.",
+          "FeatureFlagList",
+          [],
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "put",
+      path: "/admin/feature-flags/:name",
+      operationId: "setFeatureFlag",
+      summary: "Create or update a feature flag",
+      description:
+        "Creates or updates a feature flag by name. Admin role required.",
+      tags: ["admin-feature-flags"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("name", "Feature flag name.", "payments.new-checkout")],
+      requestBody: requestBody("SetFeatureFlagRequest", {
+        enabled: true,
+        description: "Enables the new checkout flow for all users.",
+        group: "payments",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Feature flag set.",
+          "FeatureFlagRecord",
+          {
+            id: 1,
+            name: "payments.new-checkout",
+            enabled: true,
+            description: "Enables the new checkout flow for all users.",
+            group: "payments",
+            createdByUserId: "user-1",
+            updatedByUserId: "user-1",
+            createdAt: "2026-06-30T00:00:00.000Z",
+            updatedAt: "2026-06-30T00:00:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/admin/feature-flags/:name",
+      operationId: "deleteFeatureFlag",
+      summary: "Delete a feature flag",
+      description:
+        "Permanently deletes a feature flag by name. Admin role required.",
+      tags: ["admin-feature-flags"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("name", "Feature flag name.", "payments.new-checkout")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Feature flag deleted.",
+          "FeatureFlagDeleteResult",
+          { deleted: true },
+        ),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/analytics/export",
+      operationId: "exportPostingAnalytics",
+      summary: "Export owner analytics as CSV",
+      description:
+        "Exports posting analytics for the authenticated owner as a CSV file for the selected reporting window.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "owner",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "window",
+          { type: "string", enum: ["7d", "30d", "all"], default: "7d" },
+          "Reporting window.",
+          "7d",
+        ),
+      ],
+      responses: {
+        "200": {
+          description: "Analytics exported as CSV.",
+          content: {
+            "text/csv": {
+              schema: { type: "string" },
+            },
+          },
+        },
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/saved-searches",
+      operationId: "createSavedSearch",
+      summary: "Create a saved search",
+      description:
+        "Creates a new saved search for the authenticated user. Users may store up to 10 saved searches. Returns 409 when the cap is reached.",
+      tags: ["saved-searches"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody(
+        "CreateSavedSearchRequest",
+        {
+          name: "Cinema Cameras in Vancouver",
+          searchParams: { family: "equipment", city: "Vancouver" },
+          alertEnabled: true,
+        },
+        "Saved search payload. `searchParams` may be empty to match all new postings.",
+      ),
+      responses: {
+        "201": successResponse(
+          201,
+          "Saved search created successfully.",
+          "SavedSearchRecord",
+          {
+            id: "ss-1",
+            userId: "user-1",
+            name: "Cinema Cameras in Vancouver",
+            searchParams: { family: "equipment", city: "Vancouver" },
+            alertEnabled: true,
+            lastAlertSentAt: null,
+            createdAt: "2026-06-30T00:00:00.000Z",
+            updatedAt: "2026-06-30T00:00:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/saved-searches",
+      operationId: "listSavedSearches",
+      summary: "List saved searches",
+      description:
+        "Returns all saved searches belonging to the authenticated user, ordered by creation date ascending.",
+      tags: ["saved-searches"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Saved searches retrieved successfully.",
+          "SavedSearchList",
+          [],
+        ),
+        ...commonErrors([401, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/saved-searches/:id",
+      operationId: "updateSavedSearch",
+      summary: "Update a saved search",
+      description:
+        "Updates the name, search parameters, or alert setting of an existing saved search. At least one field must be provided. Returns 403 when the authenticated user does not own the saved search.",
+      tags: ["saved-searches"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Saved search identifier.", "ss-1")],
+      requestBody: requestBody("UpdateSavedSearchRequest", {
+        name: "Cinema Cameras in Toronto",
+        alertEnabled: false,
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Saved search updated successfully.",
+          "SavedSearchRecord",
+          {
+            id: "ss-1",
+            userId: "user-1",
+            name: "Cinema Cameras in Toronto",
+            searchParams: { family: "equipment", city: "Vancouver" },
+            alertEnabled: false,
+            lastAlertSentAt: null,
+            createdAt: "2026-06-30T00:00:00.000Z",
+            updatedAt: "2026-06-30T01:00:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/saved-searches/:id",
+      operationId: "deleteSavedSearch",
+      summary: "Delete a saved search",
+      description:
+        "Permanently deletes a saved search. Returns 403 when the authenticated user does not own the saved search.",
+      tags: ["saved-searches"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Saved search identifier.", "ss-1")],
+      responses: {
+        "204": noContentResponse("Saved search deleted successfully."),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
   ];
 }
 
@@ -6744,6 +7250,177 @@ function buildComponents(): Record<string, unknown> {
         },
         required: ["deleted"],
       },
+      MfaVerificationOptionsResult: {
+        type: "object",
+        additionalProperties: true,
+      },
+      MfaVerificationChallengeRequest: {
+        type: "object",
+        required: ["scope", "factor"],
+        properties: {
+          scope: { type: "string", enum: ["mfa-management", "device-login"] },
+          factor: { type: "string", enum: ["email", "totp"] },
+        },
+      },
+      MfaVerificationChallengeResult: {
+        type: "object",
+        additionalProperties: true,
+      },
+      MfaVerificationConfirmRequest: {
+        type: "object",
+        required: ["scope", "factor", "code"],
+        properties: {
+          scope: { type: "string", enum: ["mfa-management", "device-login"] },
+          factor: { type: "string", enum: ["email", "totp"] },
+          code: { type: "string" },
+        },
+      },
+      MfaVerificationConfirmResult: {
+        type: "object",
+        additionalProperties: true,
+      },
+      MfaVerificationPreviewResult: {
+        type: "object",
+        additionalProperties: true,
+      },
+      MfaTotpStatusResult: {
+        type: "object",
+        required: ["enabled"],
+        properties: {
+          enabled: { type: "boolean" },
+        },
+      },
+      MfaTotpBeginRequest: {
+        type: "object",
+        properties: {
+          accountName: { type: "string", minLength: 1 },
+        },
+      },
+      MfaTotpBeginResult: {
+        type: "object",
+        required: ["secret", "uri"],
+        properties: {
+          secret: { type: "string" },
+          uri: { type: "string" },
+        },
+      },
+      MfaTotpConfirmRequest: {
+        type: "object",
+        required: ["code"],
+        properties: {
+          code: { type: "string" },
+        },
+      },
+      MfaTotpConfirmResult: {
+        type: "object",
+        required: ["confirmed"],
+        properties: {
+          confirmed: { type: "boolean", const: true },
+        },
+      },
+      MfaTotpDisableRequest: {
+        type: "object",
+        properties: {},
+      },
+      MfaTotpDisableResult: {
+        type: "object",
+        required: ["disabled"],
+        properties: {
+          disabled: { type: "boolean", const: true },
+        },
+      },
+      MfaTotpCancelResult: {
+        type: "object",
+        required: ["cancelled"],
+        properties: {
+          cancelled: { type: "boolean", const: true },
+        },
+      },
+      FeatureFlagRecord: {
+        type: "object",
+        required: ["id", "name", "enabled", "createdAt", "updatedAt"],
+        properties: {
+          id: { type: "integer" },
+          name: { type: "string" },
+          enabled: { type: "boolean" },
+          description: { oneOf: [{ type: "string" }, { type: "null" }] },
+          group: { oneOf: [{ type: "string" }, { type: "null" }] },
+          createdByUserId: { oneOf: [{ type: "string" }, { type: "null" }] },
+          updatedByUserId: { oneOf: [{ type: "string" }, { type: "null" }] },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      FeatureFlagList: {
+        type: "array",
+        items: schemaRef("FeatureFlagRecord"),
+      },
+      SetFeatureFlagRequest: {
+        type: "object",
+        required: ["enabled"],
+        properties: {
+          enabled: { type: "boolean" },
+          description: { type: "string", maxLength: 1000, nullable: true },
+          group: { type: "string", minLength: 1, maxLength: 100, nullable: true },
+        },
+      },
+      FeatureFlagDeleteResult: {
+        type: "object",
+        required: ["deleted"],
+        properties: {
+          deleted: { type: "boolean", const: true },
+        },
+      },
+      SavedSearchParamsSchema: {
+        type: "object",
+        properties: {
+          family: { type: "string", enum: ["place", "equipment", "vehicle"] },
+          subtype: { type: "string", maxLength: 50 },
+          city: { type: "string", maxLength: 120 },
+          minDailyPrice: { type: "number", minimum: 0 },
+          maxDailyPrice: { type: "number", minimum: 0 },
+          tags: { type: "array", items: { type: "string", maxLength: 50 }, maxItems: 10 },
+          availabilityStatus: { type: "string", enum: ["available", "limited", "unavailable"] },
+          instantBooking: { type: "boolean" },
+          cancellationPolicy: { type: "string", enum: ["flexible", "moderate", "strict"] },
+        },
+        additionalProperties: false,
+      },
+      SavedSearchRecord: {
+        type: "object",
+        required: ["id", "userId", "name", "searchParams", "alertEnabled", "createdAt", "updatedAt"],
+        properties: {
+          id: { type: "string" },
+          userId: { type: "string" },
+          name: { type: "string" },
+          searchParams: schemaRef("SavedSearchParamsSchema"),
+          alertEnabled: { type: "boolean" },
+          lastAlertSentAt: { oneOf: [{ type: "string", format: "date-time" }, { type: "null" }] },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      SavedSearchList: {
+        type: "array",
+        items: schemaRef("SavedSearchRecord"),
+      },
+      CreateSavedSearchRequest: {
+        type: "object",
+        required: ["name", "searchParams"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          searchParams: schemaRef("SavedSearchParamsSchema"),
+          alertEnabled: { type: "boolean", default: true },
+        },
+      },
+      UpdateSavedSearchRequest: {
+        type: "object",
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          searchParams: schemaRef("SavedSearchParamsSchema"),
+          alertEnabled: { type: "boolean" },
+        },
+      },
     },
   };
 }
@@ -6837,6 +7514,14 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "moderation",
         description: "Safety reporting and moderator review workflows.",
+      },
+      {
+        name: "admin-feature-flags",
+        description: "Administrative feature flag management.",
+      },
+      {
+        name: "saved-searches",
+        description: "Saved search management and new-listing alert preferences.",
       },
     ],
     paths: buildDocumentPaths(),

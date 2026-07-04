@@ -275,6 +275,10 @@ export interface AppEnvironment {
       pollIntervalMs: number;
       batchSize: number;
     };
+    savedSearchAlert: {
+      pollIntervalMs: number;
+      batchSize: number;
+    };
   };
   postingsCache: {
     freshTtlSeconds: number;

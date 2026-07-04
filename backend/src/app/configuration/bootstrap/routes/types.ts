@@ -29,6 +29,7 @@ export const ROUTE_MODULE_IDS = [
   "rentings",
   "postings-public",
   "admin-feature-flags",
+  "saved-searches",
 ] as const;
 
 export type RouteModuleId = (typeof ROUTE_MODULE_IDS)[number];

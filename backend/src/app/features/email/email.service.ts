@@ -42,6 +42,13 @@ export interface SendOrganizationInviteEmailInput {
   token: string;
 }
 
+export interface SendSavedSearchAlertEmailInput {
+  to: string;
+  firstName?: string;
+  searchName: string;
+  postings: Array<{ id: string; name: string; city: string; postingPath: string }>;
+}
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -73,5 +80,11 @@ export class EmailService {
     input: SendOrganizationInviteEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("organization_invite", input);
+  }
+
+  async sendSavedSearchAlertEmail(
+    input: SendSavedSearchAlertEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("saved_search_alert", input);
   }
 }

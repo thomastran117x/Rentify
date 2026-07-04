@@ -1,3 +1,7 @@
+import { SavedSearchAlertService } from "@/features/saved-searches/saved-search-alert.service";
+import { SavedSearchesController } from "@/features/saved-searches/saved-searches.controller";
+import { SavedSearchesRepository } from "@/features/saved-searches/saved-searches.repository";
+import { SavedSearchesService } from "@/features/saved-searches/saved-searches.service";
 import { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-cache.service";
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
@@ -271,6 +275,18 @@ export const containerTokens = {
   postingsService: createServiceToken<PostingsService>("PostingsService"),
   postingsController:
     createServiceToken<PostingsController>("PostingsController"),
+  savedSearchesRepository: createServiceToken<SavedSearchesRepository>(
+    "SavedSearchesRepository",
+  ),
+  savedSearchesService: createServiceToken<SavedSearchesService>(
+    "SavedSearchesService",
+  ),
+  savedSearchesController: createServiceToken<SavedSearchesController>(
+    "SavedSearchesController",
+  ),
+  savedSearchAlertService: createServiceToken<SavedSearchAlertService>(
+    "SavedSearchAlertService",
+  ),
   featureFlagRepository: createServiceToken<FeatureFlagRepository>(
     "FeatureFlagRepository",
   ),

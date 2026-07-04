@@ -180,6 +180,10 @@ export class EnvironmentManager {
     return this.get().workers.payoutRelease;
   }
 
+  getSavedSearchAlertWorkerConfig(): AppEnvironment["workers"]["savedSearchAlert"] {
+    return this.get().workers.savedSearchAlert;
+  }
+
   getPostingsPublicCacheConfig(): AppEnvironment["postingsCache"] {
     return this.get().postingsCache;
   }

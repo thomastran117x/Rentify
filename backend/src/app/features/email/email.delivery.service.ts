@@ -9,6 +9,7 @@ import type {
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
+  SendSavedSearchAlertEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
 import nodemailer, { type Transporter } from "nodemailer";
@@ -127,6 +128,9 @@ export class EmailDeliveryService {
         return;
       case "organization_invite":
         await this.sendOrganizationInviteEmail(payload.input);
+        return;
+      case "saved_search_alert":
+        await this.sendSavedSearchAlertEmail(payload.input);
         return;
     }
   }
@@ -312,6 +316,48 @@ export class EmailDeliveryService {
         `<p><strong>Organization:</strong> ${escapedOrganizationName}<br /><strong>Invited by:</strong> ${escapedInviterName}<br /><strong>Role:</strong> ${escapedRoleLabel}</p>`,
         `<p><a href=\"${escapedInviteUrl}\">Open this invite to review and accept it</a></p>`,
         "<p>This invite expires in 7 days.</p>",
+      ].join(""),
+    });
+  }
+
+  async sendSavedSearchAlertEmail(
+    input: SendSavedSearchAlertEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const escapedGreetingName = escapeHtml(greetingName);
+    const escapedSearchName = escapeHtml(input.searchName);
+
+    const postingListText = input.postings
+      .map(
+        (p) =>
+          `- ${p.name} (${p.city})\n  ${this.appBaseUrl}${p.postingPath}`,
+      )
+      .join("\n");
+
+    const postingListHtml = input.postings
+      .map((p) => {
+        const url = `${this.appBaseUrl}${encodeURI(p.postingPath)}`;
+        return `<li><a href="${escapeHtml(url)}">${escapeHtml(p.name)}</a> — ${escapeHtml(p.city)}</li>`;
+      })
+      .join("");
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: `New matches for your saved search "${input.searchName}"`,
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        `New listings matching your saved search "${input.searchName}" are now available:`,
+        "",
+        postingListText,
+        "",
+        "Log in to Rent to view full details and book.",
+      ].join("\n"),
+      html: [
+        `<p>Hi ${escapedGreetingName},</p>`,
+        `<p>New listings matching your saved search <strong>${escapedSearchName}</strong> are now available:</p>`,
+        `<ul>${postingListHtml}</ul>`,
+        "<p>Log in to Rent to view full details and book.</p>",
       ].join(""),
     });
   }

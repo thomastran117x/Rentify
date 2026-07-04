@@ -24,6 +24,7 @@ import { rentingsRegistrationModule } from "@/configuration/container/registrati
 import { reportsRegistrationModule } from "@/configuration/container/registrations/modules/reports";
 import { searchRegistrationModule } from "@/configuration/container/registrations/modules/search";
 import { securityRegistrationModule } from "@/configuration/container/registrations/modules/security";
+import { savedSearchesRegistrationModule } from "@/configuration/container/registrations/modules/saved-searches";
 import { sharedRegistrationModule } from "@/configuration/container/registrations/modules/shared";
 import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
@@ -63,4 +64,5 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   bookingsRegistrationModule,
   rentingsRegistrationModule,
   featureFlagsRegistrationModule,
+  savedSearchesRegistrationModule,
 ];

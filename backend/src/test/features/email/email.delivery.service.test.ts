@@ -46,6 +46,9 @@ describe("EmailDeliveryService", () => {
     const inviteSpy = jest
       .spyOn(service, "sendOrganizationInviteEmail")
       .mockResolvedValue(undefined);
+    const alertSpy = jest
+      .spyOn(service, "sendSavedSearchAlertEmail")
+      .mockResolvedValue(undefined);
 
     await service.deliver({
       jobId: "job-1",
@@ -99,6 +102,25 @@ describe("EmailDeliveryService", () => {
       attempt: 1,
       occurredAt: "2026-06-11T00:00:00.000Z",
     });
+    await service.deliver({
+      jobId: "job-6",
+      kind: "saved_search_alert",
+      input: {
+        to: "renter@example.com",
+        firstName: "Alex",
+        searchName: "Cinema Cameras",
+        postings: [
+          {
+            id: "posting-1",
+            name: "Sony FX6",
+            city: "Vancouver",
+            postingPath: "/postings/posting-1",
+          },
+        ],
+      },
+      attempt: 1,
+      occurredAt: "2026-06-11T00:00:00.000Z",
+    });
 
     expect(verificationSpy).toHaveBeenCalledWith({
       to: "user@example.com",
@@ -122,6 +144,91 @@ describe("EmailDeliveryService", () => {
       role: "primary_manager",
       token: "invite-1",
     });
+    expect(alertSpy).toHaveBeenCalledWith({
+      to: "renter@example.com",
+      firstName: "Alex",
+      searchName: "Cinema Cameras",
+      postings: [
+        {
+          id: "posting-1",
+          name: "Sony FX6",
+          city: "Vancouver",
+          postingPath: "/postings/posting-1",
+        },
+      ],
+    });
+  });
+
+  it("renders saved-search alert emails with correct subject, listing, and links", async () => {
+    const transporter = createTransporterMock();
+    transporter.sendMail.mockResolvedValue(undefined);
+    const service = createService(transporter, {
+      appBaseUrl: "https://app.example.com",
+      fromName: "Rent Team",
+    });
+
+    await service.sendSavedSearchAlertEmail({
+      to: "renter@example.com",
+      firstName: "Alex",
+      searchName: "Cinema & Gear",
+      postings: [
+        {
+          id: "posting-1",
+          name: "Sony FX6 <Camera>",
+          city: "Vancouver",
+          postingPath: "/postings/posting-1",
+        },
+        {
+          id: "posting-2",
+          name: "Audio Kit",
+          city: "Toronto",
+          postingPath: "/postings/posting-2",
+        },
+      ],
+    });
+
+    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+    const call = transporter.sendMail.mock.calls[0]?.[0] as Record<string, string>;
+
+    expect(call["subject"]).toBe(
+      'New matches for your saved search "Cinema & Gear"',
+    );
+    expect(call["to"]).toBe("renter@example.com");
+    expect(call["text"]).toContain("Hi Alex,");
+    expect(call["text"]).toContain("Cinema & Gear");
+    expect(call["text"]).toContain("Sony FX6 <Camera>");
+    expect(call["text"]).toContain("Vancouver");
+    expect(call["text"]).toContain("https://app.example.com/postings/posting-1");
+    expect(call["html"]).toContain("Hi Alex,");
+    expect(call["html"]).toContain("Sony FX6 &lt;Camera&gt;");
+    expect(call["html"]).toContain(
+      "https://app.example.com/postings/posting-1",
+    );
+    expect(call["html"]).toContain(
+      "https://app.example.com/postings/posting-2",
+    );
+  });
+
+  it("uses default greeting when firstName is absent for alert emails", async () => {
+    const transporter = createTransporterMock();
+    transporter.sendMail.mockResolvedValue(undefined);
+    const service = createService(transporter);
+
+    await service.sendSavedSearchAlertEmail({
+      to: "renter@example.com",
+      searchName: "Cameras",
+      postings: [
+        {
+          id: "posting-1",
+          name: "Canon EOS",
+          city: "Montreal",
+          postingPath: "/postings/posting-1",
+        },
+      ],
+    });
+
+    const call = transporter.sendMail.mock.calls[0]?.[0] as Record<string, string>;
+    expect(call["text"]).toContain("Hi there,");
   });
 
   it("renders verification emails with escaped HTML and default greeting text", async () => {

@@ -4,6 +4,7 @@ import type {
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
+  SendSavedSearchAlertEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
 
@@ -13,7 +14,8 @@ export type EmailJobKind =
   | "new_device"
   | "login_unlock"
   | "password_reset"
-  | "organization_invite";
+  | "organization_invite"
+  | "saved_search_alert";
 
 export type EmailJobInputByKind = {
   verification: SendVerificationEmailInput;
@@ -22,6 +24,7 @@ export type EmailJobInputByKind = {
   login_unlock: SendLoginUnlockEmailInput;
   password_reset: SendPasswordResetEmailInput;
   organization_invite: SendOrganizationInviteEmailInput;
+  saved_search_alert: SendSavedSearchAlertEmailInput;
 };
 
 export type EmailJobPayload =
@@ -64,6 +67,13 @@ export type EmailJobPayload =
       jobId: string;
       kind: "organization_invite";
       input: SendOrganizationInviteEmailInput;
+      attempt: number;
+      occurredAt: string;
+    }
+  | {
+      jobId: string;
+      kind: "saved_search_alert";
+      input: SendSavedSearchAlertEmailInput;
       attempt: number;
       occurredAt: string;
     };

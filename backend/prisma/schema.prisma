@@ -32,6 +32,7 @@ model User {
   recommendationProfile UserRecommendationProfile?
   recommendationSnapshot UserRecommendationSnapshot?
   feedbacks               Feedback[]
+  savedSearches           SavedSearch[]
   filedContentReports    ContentReport[]      @relation("ContentReportReporter")
   assignedContentReports ContentReport[]      @relation("ContentReportAssignee")
   contentReportEvents    ContentReportEvent[] @relation("ContentReportEventActor")
@@ -932,6 +933,22 @@ model UserRecommendationSnapshot {
 
   @@index([generatedAt])
   @@map("user_recommendation_snapshots")
+}
+
+model SavedSearch {
+  id              String    @id @db.VarChar(36)
+  userId          String    @map("user_id") @db.VarChar(36)
+  name            String    @db.VarChar(120)
+  searchParams    Json      @map("search_params")
+  alertEnabled    Boolean   @default(true) @map("alert_enabled")
+  lastAlertSentAt DateTime? @map("last_alert_sent_at") @db.DateTime(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([alertEnabled, lastAlertSentAt])
+  @@map("saved_searches")
 }
 
 model PopularRecommendationSnapshot {

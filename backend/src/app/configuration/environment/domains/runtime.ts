@@ -385,6 +385,28 @@ export function buildWorkerConfig(
         min: 1,
       }),
     },
+    savedSearchAlert: {
+      pollIntervalMs: parseNumber(
+        raw,
+        "SAVED_SEARCH_ALERT_POLL_INTERVAL_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      batchSize: parseNumber(
+        raw,
+        "SAVED_SEARCH_ALERT_BATCH_SIZE",
+        50,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
   };
 }
 
