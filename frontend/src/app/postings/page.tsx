@@ -1159,6 +1159,7 @@ function SearchResults({
                       </p>
                       <Link
                         href={`/postings/${posting.id}`}
+                        prefetch={false}
                         className={theme.marketplace.paginationButton}
                       >
                         View details

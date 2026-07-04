@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PostingDetailClient } from "@/components/postings/posting-detail-client";
@@ -14,13 +15,26 @@ interface PostingDetailPageProps {
   }>;
 }
 
+// `generateMetadata` and the page render the detail route in separate scopes
+// (streaming metadata), so React's per-request fetch memoization does not
+// reliably dedupe their two `getPublicPostingDetail` calls — a single
+// navigation can hit the backend twice. Routing the server-side fetch through
+// the Data Cache collapses that to one backend call per navigation, and serves
+// repeat views from cache. Safe because the server fetch is always anonymous
+// (no session/cookies on the server) and therefore identical for every viewer.
+const loadPublicPostingDetail = unstable_cache(
+  (id: string) => getPublicPostingDetail(id),
+  ["public-posting-detail"],
+  { revalidate: 60, tags: ["public-posting-detail"] },
+);
+
 export async function generateMetadata({
   params,
 }: PostingDetailPageProps): Promise<Metadata> {
   const { id } = await params;
 
   try {
-    const posting = await getPublicPostingDetail(id);
+    const posting = await loadPublicPostingDetail(id);
 
     return {
       title: `${posting.name} | Rentify`,
@@ -49,7 +63,7 @@ export default async function PostingDetailPage({
   let posting;
 
   try {
-    posting = await getPublicPostingDetail(id);
+    posting = await loadPublicPostingDetail(id);
   } catch (error) {
     if (isPublicPostingDetailNotFoundError(error)) {
       notFound();
