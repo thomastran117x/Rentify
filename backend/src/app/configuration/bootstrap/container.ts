@@ -49,8 +49,23 @@ export function getContainer(): RootServiceContainer {
   return rootContainer;
 }
 
+export function setContainer(container: RootServiceContainer): void {
+  rootContainer = container;
+}
+
+export async function disposeContainer(): Promise<void> {
+  if (!rootContainer) {
+    return;
+  }
+
+  const container = rootContainer;
+  rootContainer = null;
+  await container.dispose();
+}
+
 export function getRequestContainer(
   context: Context<AppBindings>,
 ): ServiceContainer {
   return context.get("container");
 }
+
