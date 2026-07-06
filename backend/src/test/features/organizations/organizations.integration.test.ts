@@ -1,6 +1,12 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { createFixtureId } from "@/seeds/types";
-import { createAuthenticatedRequestContext, createPersistenceTestApp, resetPersistenceState, teardownPersistenceTestApp, type PersistenceTestApp } from "../../support/persistence-test-app";
+import {
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
 const ORGANIZATION_ID = createFixtureId(1040, 1);
 
@@ -26,14 +32,15 @@ describe("Organizations persistence integration", () => {
     const viewer = await createAuthenticatedRequestContext({
       email: "viewer1@rentify.local",
     });
-    const memberToUpdate = await persistenceApp.prisma.organizationMembership.findFirstOrThrow({
-      where: {
-        organizationId: ORGANIZATION_ID,
-        user: {
-          email: "user2@rentify.local",
+    const memberToUpdate =
+      await persistenceApp.prisma.organizationMembership.findFirstOrThrow({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          user: {
+            email: "user2@rentify.local",
+          },
         },
-      },
-    });
+      });
 
     const updateOrganizationResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}`)}`,
@@ -70,9 +77,12 @@ describe("Organizations persistence integration", () => {
     );
 
     expect(inviteViewerResponse.status).toBe(201);
-    const invitePayload = persistenceApp.stubs.emailQueueService.enqueueEmailJob.mock.calls.at(-1)?.[1] as {
-      token: string;
-    };
+    const invitePayload =
+      persistenceApp.stubs.emailQueueService.enqueueEmailJob.mock.calls.at(
+        -1,
+      )?.[1] as {
+        token: string;
+      };
     expect(invitePayload?.token).toBeTruthy();
 
     const acceptResponse = await persistenceApp.app.request(
@@ -84,12 +94,13 @@ describe("Organizations persistence integration", () => {
     );
 
     expect(acceptResponse.status).toBe(200);
-    const acceptedMembership = await persistenceApp.prisma.organizationMembership.findFirst({
-      where: {
-        organizationId: ORGANIZATION_ID,
-        userId: viewer.userId,
-      },
-    });
+    const acceptedMembership =
+      await persistenceApp.prisma.organizationMembership.findFirst({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          userId: viewer.userId,
+        },
+      });
     expect(acceptedMembership).toMatchObject({
       organizationId: ORGANIZATION_ID,
       userId: viewer.userId,
@@ -148,16 +159,17 @@ describe("Organizations persistence integration", () => {
     );
 
     expect(inviteExternalResponse.status).toBe(201);
-    const externalInvitation = await persistenceApp.prisma.organizationInvitation.findFirstOrThrow({
-      where: {
-        organizationId: ORGANIZATION_ID,
-        email: "manager@example.com",
-        status: "pending",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const externalInvitation =
+      await persistenceApp.prisma.organizationInvitation.findFirstOrThrow({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          email: "manager@example.com",
+          status: "pending",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     const revokeResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/invitations/${externalInvitation.id}`)}`,
@@ -184,11 +196,12 @@ describe("Organizations persistence integration", () => {
       email: "viewer1@rentify.local",
     });
 
-    const beforeOrganization = await persistenceApp.prisma.organization.findUniqueOrThrow({
-      where: {
-        id: ORGANIZATION_ID,
-      },
-    });
+    const beforeOrganization =
+      await persistenceApp.prisma.organization.findUniqueOrThrow({
+        where: {
+          id: ORGANIZATION_ID,
+        },
+      });
 
     const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}`)}`,
@@ -213,4 +226,3 @@ describe("Organizations persistence integration", () => {
     });
   });
 });
-

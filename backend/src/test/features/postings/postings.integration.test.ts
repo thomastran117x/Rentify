@@ -24,7 +24,8 @@ function buildCreatePostingBody() {
       subtype: "workspace",
     },
     name: "Persistence Test Workspace",
-    description: "Bright loft prepared for persistence-backed integration tests.",
+    description:
+      "Bright loft prepared for persistence-backed integration tests.",
     pricing: {
       currency: "cad",
       daily: {
@@ -285,15 +286,16 @@ describe("Postings persistence integration", () => {
     };
     const createdPostingId = createdPayload.data.id;
 
-    const createdPosting = await persistenceApp.prisma.posting.findUniqueOrThrow({
-      where: {
-        id: createdPostingId,
-      },
-      include: {
-        photos: true,
-        availabilityBlocks: true,
-      },
-    });
+    const createdPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: createdPostingId,
+        },
+        include: {
+          photos: true,
+          availabilityBlocks: true,
+        },
+      });
 
     expect(createdPosting).toMatchObject({
       id: createdPostingId,
@@ -324,14 +326,15 @@ describe("Postings persistence integration", () => {
     );
 
     expect(updateResponse.status).toBe(200);
-    const updatedPosting = await persistenceApp.prisma.posting.findUniqueOrThrow({
-      where: {
-        id: createdPostingId,
-      },
-      include: {
-        photos: true,
-      },
-    });
+    const updatedPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: createdPostingId,
+        },
+        include: {
+          photos: true,
+        },
+      });
     expect(updatedPosting).toMatchObject({
       name: "Persistence Test Workspace Updated",
       availabilityStatus: "limited",
@@ -360,15 +363,16 @@ describe("Postings persistence integration", () => {
         id: string;
       };
     };
-    const duplicatedPosting = await persistenceApp.prisma.posting.findUniqueOrThrow({
-      where: {
-        id: duplicatePayload.data.id,
-      },
-      include: {
-        photos: true,
-        availabilityBlocks: true,
-      },
-    });
+    const duplicatedPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: duplicatePayload.data.id,
+        },
+        include: {
+          photos: true,
+          availabilityBlocks: true,
+        },
+      });
     expect(duplicatedPosting).toMatchObject({
       status: "draft",
       name: SEED_POSTINGS[0]!.name,
@@ -476,11 +480,12 @@ describe("Postings persistence integration", () => {
     );
 
     expect(createAvailabilityResponse.status).toBe(201);
-    const createAvailabilityPayload = (await createAvailabilityResponse.json()) as {
-      data: {
-        id: string;
+    const createAvailabilityPayload =
+      (await createAvailabilityResponse.json()) as {
+        data: {
+          id: string;
+        };
       };
-    };
     const availabilityBlockId = createAvailabilityPayload.data.id;
 
     expect(
@@ -631,15 +636,16 @@ describe("Postings persistence integration", () => {
     );
 
     expect(createReviewResponse.status).toBe(201);
-    const createdReview = await persistenceApp.prisma.postingReview.findFirstOrThrow({
-      where: {
-        postingId: eligibleRenting.postingId,
-        reviewerId: reviewer.userId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const createdReview =
+      await persistenceApp.prisma.postingReview.findFirstOrThrow({
+        where: {
+          postingId: eligibleRenting.postingId,
+          reviewerId: reviewer.userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
     expect(createdReview).toMatchObject({
       rating: 5,
       title: "Great stay",
@@ -713,4 +719,3 @@ describe("Postings persistence integration", () => {
     expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
   });
 });
-

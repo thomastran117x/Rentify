@@ -68,4 +68,3 @@ export function getRequestContainer(
 ): ServiceContainer {
   return context.get("container");
 }
-

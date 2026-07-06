@@ -1,6 +1,12 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
-import { createAuthenticatedRequestContext, createPersistenceTestApp, resetPersistenceState, teardownPersistenceTestApp, type PersistenceTestApp } from "../../support/persistence-test-app";
+import {
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
 describe("Reports persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -85,15 +91,16 @@ describe("Reports persistence integration", () => {
 
     expect(createResponse.status).toBe(201);
 
-    const createdReport = await persistenceApp.prisma.contentReport.findFirstOrThrow({
-      where: {
-        reporterId: reporter.userId,
-        subjectId: postingId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const createdReport =
+      await persistenceApp.prisma.contentReport.findFirstOrThrow({
+        where: {
+          reporterId: reporter.userId,
+          subjectId: postingId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     const assignResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/moderation/reports/${createdReport.id}/assignment`)}`,
@@ -120,11 +127,12 @@ describe("Reports persistence integration", () => {
     expect(assignResponse.status).toBe(200);
     expect(statusResponse.status).toBe(200);
 
-    const updatedReport = await persistenceApp.prisma.contentReport.findUniqueOrThrow({
-      where: {
-        id: createdReport.id,
-      },
-    });
+    const updatedReport =
+      await persistenceApp.prisma.contentReport.findUniqueOrThrow({
+        where: {
+          id: createdReport.id,
+        },
+      });
     const events = await persistenceApp.prisma.contentReportEvent.findMany({
       where: {
         reportId: createdReport.id,
@@ -175,4 +183,3 @@ describe("Reports persistence integration", () => {
     expect(await persistenceApp.prisma.contentReport.count()).toBe(beforeCount);
   });
 });
-

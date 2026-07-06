@@ -7,7 +7,13 @@ import {
   REFRESH_TOKEN_COOKIE_NAME,
 } from "@/features/auth/auth.cookies";
 import type { OtpService } from "@/features/auth/otp/otp.service";
-import { createAuthenticatedRequestContext, createPersistenceTestApp, resetPersistenceState, teardownPersistenceTestApp, type PersistenceTestApp } from "../../support/persistence-test-app";
+import {
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
 function readCookieValue(setCookieHeader: string, name: string): string | null {
   const match = setCookieHeader.match(new RegExp(`${name}=([^;]+)`));
@@ -119,7 +125,9 @@ describe("Auth persistence integration", () => {
     );
 
     expect(loginResponse.status).toBe(200);
-    expect(await getRedisClient().scan("0", { MATCH: "auth:session:*", COUNT: 100 })).toBeTruthy();
+    expect(
+      await getRedisClient().scan("0", { MATCH: "auth:session:*", COUNT: 100 }),
+    ).toBeTruthy();
 
     const loginPayload = (await loginResponse.json()) as {
       data: {
@@ -127,7 +135,10 @@ describe("Auth persistence integration", () => {
       };
     };
     const setCookieHeader = loginResponse.headers.get("set-cookie") ?? "";
-    const refreshToken = readCookieValue(setCookieHeader, REFRESH_TOKEN_COOKIE_NAME);
+    const refreshToken = readCookieValue(
+      setCookieHeader,
+      REFRESH_TOKEN_COOKIE_NAME,
+    );
     const csrfToken = readCookieValue(setCookieHeader, CSRF_TOKEN_COOKIE_NAME);
 
     expect(refreshToken).toBeTruthy();
@@ -179,12 +190,15 @@ describe("Auth persistence integration", () => {
     );
 
     expect(changePasswordResponse.status).toBe(200);
-    const afterPasswordUser = await persistenceApp.prisma.user.findUniqueOrThrow({
-      where: {
-        id: user.userId,
-      },
-    });
-    expect(afterPasswordUser.tokenVersion).toBeGreaterThan(beforeUser.tokenVersion);
+    const afterPasswordUser =
+      await persistenceApp.prisma.user.findUniqueOrThrow({
+        where: {
+          id: user.userId,
+        },
+      });
+    expect(afterPasswordUser.tokenVersion).toBeGreaterThan(
+      beforeUser.tokenVersion,
+    );
     expect(afterPasswordUser.passwordHash).not.toBe(beforeUser.passwordHash);
 
     const refreshedUser = await createAuthenticatedRequestContext({
@@ -209,15 +223,16 @@ describe("Auth persistence integration", () => {
     );
 
     expect(createPatResponse.status).toBe(201);
-    const createdPat = await persistenceApp.prisma.personalAccessToken.findFirstOrThrow({
-      where: {
-        userId: user.userId,
-        name: "Rentify MCP",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const createdPat =
+      await persistenceApp.prisma.personalAccessToken.findFirstOrThrow({
+        where: {
+          userId: user.userId,
+          name: "Rentify MCP",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     const revokePatResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/auth/personal-access-tokens/${createdPat.id}`)}`,

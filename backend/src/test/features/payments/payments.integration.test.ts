@@ -160,15 +160,17 @@ describe("Payments persistence integration", () => {
         },
       }),
     ).toBe(beforeRefundCount + 1);
-    const persistedRefund = await persistenceApp.prisma.refund.findFirstOrThrow({
-      where: {
-        paymentId: managedPayment.id,
-        reason: "Partial goodwill refund",
+    const persistedRefund = await persistenceApp.prisma.refund.findFirstOrThrow(
+      {
+        where: {
+          paymentId: managedPayment.id,
+          reason: "Partial goodwill refund",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    );
 
     expect(persistedRefund.status).toBe("succeeded");
     expect(persistedRefund.squareRefundId).toEqual(expect.any(String));
@@ -345,4 +347,3 @@ describe("Payments persistence integration", () => {
     });
   });
 });
-

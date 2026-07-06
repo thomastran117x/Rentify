@@ -70,15 +70,16 @@ describe("Bookings persistence integration", () => {
 
     expect(createResponse.status).toBe(201);
 
-    const createdBooking = await persistenceApp.prisma.bookingRequest.findFirstOrThrow({
-      where: {
-        postingId: MUTABLE_POSTING_ID,
-        renterId: renter.userId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const createdBooking =
+      await persistenceApp.prisma.bookingRequest.findFirstOrThrow({
+        where: {
+          postingId: MUTABLE_POSTING_ID,
+          renterId: renter.userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     expect(createdBooking).toMatchObject({
       postingId: MUTABLE_POSTING_ID,
@@ -264,6 +265,8 @@ describe("Bookings persistence integration", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await persistenceApp.prisma.bookingRequest.count()).toBe(beforeCount);
+    expect(await persistenceApp.prisma.bookingRequest.count()).toBe(
+      beforeCount,
+    );
   });
 });

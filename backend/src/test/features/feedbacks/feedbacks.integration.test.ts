@@ -1,5 +1,11 @@
 import { buildApiPath } from "@/configuration/http/api-path";
-import { createAuthenticatedRequestContext, createPersistenceTestApp, resetPersistenceState, teardownPersistenceTestApp, type PersistenceTestApp } from "../../support/persistence-test-app";
+import {
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
 describe("Feedbacks persistence integration", () => {
   let persistenceApp: PersistenceTestApp;

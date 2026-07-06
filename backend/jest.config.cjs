@@ -21,5 +21,10 @@ module.exports = {
       },
     ],
   },
-  testPathIgnorePatterns: ["/node_modules/", "/dist/", "/src/test/db/"],
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/dist/",
+    "/src/test/db/",
+    "\.integration\.test\.ts$",
+  ],
 };

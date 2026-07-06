@@ -26,8 +26,9 @@ import type { TokenService } from "@/features/auth/token/token.service";
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import { SEED_DEVICES } from "@/seeds/fixtures/users";
 
-const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent";
-const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380";
+const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent_test";
+const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380/15";
+const SAFE_DATABASE_NAME_PATTERN = /(^|[_-])(test|ci|spec)([_-]|$)/i;
 const ACCESS_TOKEN_TTL_FALLBACK_SECONDS = 15 * 60;
 const REFRESH_TOKEN_TTL_FALLBACK_SECONDS = 30 * 24 * 60 * 60;
 
@@ -57,13 +58,22 @@ export interface PersistenceTestStubs {
     enqueueEmailJob: jest.Mock<Promise<void>, [string, unknown]>;
   };
   googleOAuthService: {
-    verify: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
+    verify: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
   };
   microsoftOAuthService: {
-    verify: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
+    verify: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
   };
   appleOAuthService: {
-    verify: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
+    verify: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
   };
   blobService: {
     isConfigured: jest.Mock<boolean, []>;
@@ -73,17 +83,32 @@ export interface PersistenceTestStubs {
     enqueuePostingThumbnailJob: jest.Mock<Promise<void>, [string]>;
   };
   postingsPublicAutocompleteService: {
-    autocompletePublic: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
+    autocompletePublic: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
   };
   recommendationActivityPublisher: {
-    publishPostingLifecycle: jest.Mock<Promise<void>, [Record<string, unknown>]>;
+    publishPostingLifecycle: jest.Mock<
+      Promise<void>,
+      [Record<string, unknown>]
+    >;
     publishPostingView: jest.Mock<Promise<void>, [Record<string, unknown>]>;
     publishSearchClick: jest.Mock<Promise<void>, [Record<string, unknown>]>;
-    publishBookingRequestCreated: jest.Mock<Promise<void>, [Record<string, unknown>]>;
-    publishRentingConfirmed: jest.Mock<Promise<void>, [Record<string, unknown>]>;
+    publishBookingRequestCreated: jest.Mock<
+      Promise<void>,
+      [Record<string, unknown>]
+    >;
+    publishRentingConfirmed: jest.Mock<
+      Promise<void>,
+      [Record<string, unknown>]
+    >;
   };
   postingsPublicSearchService: {
-    searchPublic: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
+    searchPublic: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
   };
   reportsSearchIndexService: {
     isElasticsearchEnabled: jest.Mock<boolean, []>;
@@ -97,10 +122,22 @@ export interface PersistenceTestStubs {
     bulkUpsertDocuments: jest.Mock<Promise<void>, [Record<string, unknown>[]]>;
   };
   paymentProvider: {
-    createPaymentSession: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
-    getPaymentStatus: jest.Mock<Promise<Record<string, unknown> | null>, [Record<string, unknown>]>;
-    createRefund: jest.Mock<Promise<Record<string, unknown>>, [Record<string, unknown>]>;
-    verifyWebhookSignature: jest.Mock<Record<string, unknown>, [string, string | undefined]>;
+    createPaymentSession: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
+    getPaymentStatus: jest.Mock<
+      Promise<Record<string, unknown> | null>,
+      [Record<string, unknown>]
+    >;
+    createRefund: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
+    verifyWebhookSignature: jest.Mock<
+      Record<string, unknown>,
+      [string, string | undefined]
+    >;
     classifyError: jest.Mock<Record<string, unknown>, [unknown]>;
   };
 }
@@ -141,14 +178,16 @@ export function applyPersistenceTestEnvironment(
     redisUrl?: string;
   } = {},
 ): void {
+  const databaseUrl = overrides.databaseUrl ?? DEFAULT_DATABASE_URL;
+  const redisUrl = overrides.redisUrl ?? DEFAULT_REDIS_URL;
+  const redisDb = getRedisDatabaseIndexFromUrl(redisUrl) ?? "15";
+
   process.env.NODE_ENV = "test";
-  process.env.DATABASE_URL =
-    overrides.databaseUrl ?? process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
-  process.env.REDIS_URL =
-    overrides.redisUrl ?? process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
+  process.env.DATABASE_URL = databaseUrl;
+  process.env.REDIS_URL = redisUrl;
   process.env.REDIS_HOST = process.env.REDIS_HOST ?? "127.0.0.1";
   process.env.REDIS_PORT = process.env.REDIS_PORT ?? "6380";
-  process.env.REDIS_DB = process.env.REDIS_DB ?? "0";
+  process.env.REDIS_DB = String(redisDb);
   process.env.DATABASE_AUTO_SEED_ENABLED = "false";
   process.env.DATABASE_AUTO_SEED_REFRESH = "false";
   process.env.ACCESS_TOKEN_SECRET =
@@ -185,6 +224,12 @@ export function applyPersistenceTestEnvironment(
     process.env.CAPTCHA_ALLOWED_HOSTS ?? "challenges.cloudflare.com";
   process.env.MFA_BYPASS_EMAILS =
     process.env.MFA_BYPASS_EMAILS ?? "user1@rentify.local";
+
+  assertSafePersistenceResetTargets({
+    databaseUrl,
+    redisUrl,
+    redisDb: String(redisDb),
+  });
 }
 
 export async function createPersistenceTestApp(
@@ -228,6 +273,12 @@ export async function teardownPersistenceTestApp(): Promise<void> {
 }
 
 export async function resetPersistenceState(): Promise<void> {
+  assertSafePersistenceResetTargets({
+    databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL,
+    redisDb: process.env.REDIS_DB,
+  });
+
   const prisma = getDatabaseClient();
   const redis = getRedisClient();
 
@@ -346,6 +397,67 @@ export async function createAuthenticatedRequestContext(input: {
         .join("; ");
     },
   };
+}
+
+function assertSafePersistenceResetTargets(input: {
+  databaseUrl?: string;
+  redisUrl?: string;
+  redisDb?: string;
+}): void {
+  const databaseUrl = input.databaseUrl?.trim();
+  const redisUrl = input.redisUrl?.trim();
+
+  if (!databaseUrl) {
+    throw new Error(
+      "Persistence tests require DATABASE_URL to point at an explicitly test-scoped database.",
+    );
+  }
+
+  const databaseName = getDatabaseNameFromUrl(databaseUrl);
+  if (!databaseName || !SAFE_DATABASE_NAME_PATTERN.test(databaseName)) {
+    throw new Error(
+      `Refusing to run persistence test resets against non-test database '${databaseName ?? databaseUrl}'. Use a test-scoped schema such as 'rent_test'.`,
+    );
+  }
+
+  if (!redisUrl) {
+    throw new Error(
+      "Persistence tests require REDIS_URL to point at an isolated Redis database.",
+    );
+  }
+
+  const redisDb =
+    input.redisDb?.trim() || getRedisDatabaseIndexFromUrl(redisUrl) || "0";
+  const redisDbNumber = Number.parseInt(redisDb, 10);
+  if (!Number.isInteger(redisDbNumber) || redisDbNumber <= 0) {
+    throw new Error(
+      `Refusing to flush Redis database '${redisDb}'. Use a non-zero, test-scoped Redis DB such as '${DEFAULT_REDIS_URL}'.`,
+    );
+  }
+}
+
+function getDatabaseNameFromUrl(databaseUrl: string): string | null {
+  try {
+    const parsedUrl = new URL(databaseUrl);
+    const databaseName = parsedUrl.pathname.replace(/^\/+/, "").trim();
+    return databaseName || null;
+  } catch {
+    throw new Error(
+      `Could not parse DATABASE_URL '${databaseUrl}' for persistence test safety checks.`,
+    );
+  }
+}
+
+function getRedisDatabaseIndexFromUrl(redisUrl: string): string | null {
+  try {
+    const parsedUrl = new URL(redisUrl);
+    const databaseIndex = parsedUrl.pathname.replace(/^\/+/, "").trim();
+    return databaseIndex || null;
+  } catch {
+    throw new Error(
+      `Could not parse REDIS_URL '${redisUrl}' for persistence test safety checks.`,
+    );
+  }
 }
 
 export function requirePersistenceApp(): PersistenceTestApp {
@@ -624,7 +736,3 @@ function registerDefaultPersistenceOverrides(
     resolve: () => stubs.paymentProvider as never,
   });
 }
-
-
-
-

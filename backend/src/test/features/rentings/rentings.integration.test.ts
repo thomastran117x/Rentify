@@ -32,7 +32,8 @@ async function loadPostingPricing(persistenceApp: PersistenceTestApp) {
 async function createConvertibleBookingFixture(
   persistenceApp: PersistenceTestApp,
 ) {
-  const { posting, dailyPriceAmount } = await loadPostingPricing(persistenceApp);
+  const { posting, dailyPriceAmount } =
+    await loadPostingPricing(persistenceApp);
   const renter = await persistenceApp.prisma.user.findUniqueOrThrow({
     where: {
       email: "viewer1@rentify.local",
@@ -75,7 +76,8 @@ async function createRentingFixture(
     status: "confirmed" | "completed";
   },
 ) {
-  const { posting, dailyPriceAmount } = await loadPostingPricing(persistenceApp);
+  const { posting, dailyPriceAmount } =
+    await loadPostingPricing(persistenceApp);
   const renter = await persistenceApp.prisma.user.findUniqueOrThrow({
     where: {
       email: "viewer1@rentify.local",
@@ -186,11 +188,12 @@ describe("Rentings persistence integration", () => {
 
     expect(response.status).toBe(201);
 
-    const booking = await persistenceApp.prisma.bookingRequest.findUniqueOrThrow({
-      where: {
-        id: fixture.bookingRequestId,
-      },
-    });
+    const booking =
+      await persistenceApp.prisma.bookingRequest.findUniqueOrThrow({
+        where: {
+          id: fixture.bookingRequestId,
+        },
+      });
     const renting = await persistenceApp.prisma.renting.findUnique({
       where: {
         bookingRequestId: fixture.bookingRequestId,
