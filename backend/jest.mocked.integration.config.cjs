@@ -1,9 +1,12 @@
-/** @type {import('jest').Config} */
+/** @type {import("jest").Config} */
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
   roots: ["<rootDir>/src/test"],
-  testMatch: ["**/*.test.ts"],
+  testMatch: [
+    "**/*.mocked.integration.test.ts",
+    "**/*.routes.integration.test.ts",
+  ],
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
     "^@/configuration/environment$":
@@ -13,7 +16,7 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/src/app/$1",
   },
   transform: {
-    "^.+\\.ts$": [
+    "^.+\.ts$": [
       "ts-jest",
       {
         useESM: true,
@@ -21,10 +24,5 @@ module.exports = {
       },
     ],
   },
-  testPathIgnorePatterns: [
-    "/node_modules/",
-    "/dist/",
-    "/src/test/db/",
-    "\.integration\.test\.ts$",
-  ],
+  testPathIgnorePatterns: ["/node_modules/", "/dist/", "/src/test/db/"],
 };

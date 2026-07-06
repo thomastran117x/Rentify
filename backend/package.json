@@ -42,6 +42,8 @@
     "test:unit": "jest --config jest.unit.config.cjs --runInBand",
     "test:unit:coverage": "jest --config jest.unit.config.cjs --runInBand --coverage",
     "test:integration": "jest --config jest.integration.config.cjs --runInBand",
+    "test:integration:mocked": "jest --config jest.mocked.integration.config.cjs --runInBand",
+    "test:integration:routes": "jest --config jest.mocked.integration.config.cjs --runInBand",
     "test:db-seeds": "jest --config jest.db-seeds.config.cjs --runInBand"
   },
   "prisma": {

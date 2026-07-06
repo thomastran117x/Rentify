@@ -240,13 +240,13 @@ jobs:
         run: npm run test:unit:coverage
 
   backend-integration:
-    name: Backend integration and database tests
+    name: Backend persistence integration and database tests
     runs-on: ubuntu-latest
     services:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_DATABASE: rent
+          MYSQL_DATABASE: rent_test
           MYSQL_USER: rent
           MYSQL_PASSWORD: rent
           MYSQL_ROOT_PASSWORD: root
@@ -258,14 +258,26 @@ jobs:
           --health-timeout=5s
           --health-retries=10
           --health-start-period=20s
+      redis:
+        image: redis:7.2
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=5s
     defaults:
       run:
         working-directory: backend
     env:
       NODE_ENV: test
-      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent
+      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent_test
+      REDIS_URL: redis://127.0.0.1:6380/15
       REDIS_HOST: 127.0.0.1
-      REDIS_PORT: "6379"
+      REDIS_PORT: "6380"
+      REDIS_DB: "15"
       ELASTICSEARCH_ENABLED: "false"
       RABBITMQ_URL: ""
       FRONTEND_URL: http://localhost:3040
@@ -295,11 +307,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run HTTP integration tests
-        run: npm run test:integration
-
       - name: Apply database migrations
         run: npm run prisma:migrate:deploy
+
+      - name: Run HTTP integration tests
+        run: npm run test:integration
 
       - name: Run database seed tests
         run: npm run test:db-seeds

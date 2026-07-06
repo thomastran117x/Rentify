@@ -1,1432 +1,721 @@
-import { Hono } from "hono";
-import { mountRoutes } from "@/configuration/bootstrap/routes";
+import { randomUUID } from "node:crypto";
 import { buildApiPath } from "@/configuration/http/api-path";
+import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import {
-  containerTokens,
-  type ServiceContainer,
-} from "@/configuration/bootstrap/container";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
-import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
-import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
-import type { JwtClaims } from "@/features/auth/token/token.service";
-import { PostingsController } from "@/features/postings/postings.controller";
-import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
-import BadRequestError from "@/errors/http/bad-request.error";
-import UnauthorizedError from "@/errors/http/unauthorized.error";
-import { createPatPrincipal } from "../../support/integration-app";
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
-function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
+function buildPostingPhoto(blobName: string) {
   return {
-    sub: "owner-1",
-    email: "owner@example.com",
-    role: "owner",
-    deviceId: "device-1",
-    tokenVersion: 1,
-    iat: 1,
-    exp: 9_999_999_999,
-    ...overrides,
+    blobUrl: `http://blob.test/uploads/${blobName}?blobName=${blobName}`,
+    blobName,
+    position: 0,
   };
 }
 
-function createPosting(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "posting-1",
-    organizationId: "org-1",
-    status: "published",
-    variant: {
-      family: "place",
-      subtype: "workspace",
-    },
-    name: "Sunny loft",
-    description: "Bright loft with workspace",
-    pricing: {
-      currency: "CAD",
-      daily: {
-        amount: 150,
-      },
-    },
-    pricingCurrency: "CAD",
-    photos: [],
-    tags: ["loft"],
-    details: {
-      guest_capacity: 4,
-      property_type: "loft",
-      amenities: ["wifi"],
-    },
-    availabilityStatus: "available",
-    effectiveMaxBookingDurationDays: 30,
-    availabilityBlocks: [],
-    location: {
-      latitude: 43.65,
-      longitude: -79.38,
-      city: "Toronto",
-      region: "Ontario",
-      country: "Canada",
-    },
-    instantBooking: false,
-    reviewCount: 0,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-    publishedAt: "2026-05-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function createAvailabilityBlock(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "block-1",
-    startAt: "2026-06-01T00:00:00.000Z",
-    endAt: "2026-06-03T00:00:00.000Z",
-    createdAt: "2026-05-01T00:00:00.000Z",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function createReview(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "review-1",
-    postingId: "posting-1",
-    reviewerId: "user-1",
-    rating: 5,
-    title: "Great stay",
-    comment: "Exactly as described.",
-    reviewer: {
-      username: "renter-one",
-    },
-    createdAt: "2026-05-01T00:00:00.000Z",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function createOwnerListingResult() {
-  return {
-    postings: [createPosting()],
-    pagination: {
-      page: 1,
-      pageSize: 20,
-      total: 1,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
-    status: "published",
-  };
-}
-
-function createPublicSearchResult(overrides: Record<string, unknown> = {}) {
-  return {
-    postings: [createPosting()],
-    pagination: {
-      page: 1,
-      pageSize: 20,
-      total: 1,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
-    source: "elasticsearch" as const,
-    query: "loft",
-    ...overrides,
-  };
-}
-
-class FakeRequestContainer implements ServiceContainer {
-  private readonly contentSanitizationService =
-    new ContentSanitizationService();
-
-  constructor(
-    private readonly postingsController: PostingsController,
-    private readonly tokenService: {
-      verifyAccessToken(token: string): Promise<JwtClaims>;
-    },
-    private readonly personalAccessTokenService: {
-      authenticateToken(
-        token: string,
-      ): Promise<ReturnType<typeof createPatPrincipal>>;
-    },
-  ) {}
-
-  resolve<TValue>(token: unknown): TValue {
-    if (token === containerTokens.postingsController) {
-      return this.postingsController as TValue;
-    }
-
-    if (token === containerTokens.tokenService) {
-      return this.tokenService as TValue;
-    }
-
-    if (token === containerTokens.personalAccessTokenService) {
-      return this.personalAccessTokenService as TValue;
-    }
-
-    if (token === containerTokens.contentSanitizationService) {
-      return this.contentSanitizationService as TValue;
-    }
-
-    throw new Error("Unsupported test container token.");
-  }
-
-  createScope(): ServiceContainer {
-    return this;
-  }
-
-  async dispose(): Promise<void> {}
-}
-
-function createApp() {
-  const postingsService = {
-    createDraft: jest.fn(async () => ({
-      ...createPosting({
-        status: "draft",
-      }),
-    })),
-    update: jest.fn(async () =>
-      createPosting({
-        name: "Updated name",
-      }),
-    ),
-    duplicate: jest.fn(async () =>
-      createPosting({
-        id: "posting-2",
-        status: "draft",
-      }),
-    ),
-    publish: jest.fn(async () => createPosting()),
-    pause: jest.fn(async () =>
-      createPosting({
-        status: "paused",
-        pausedAt: "2026-05-02T00:00:00.000Z",
-      }),
-    ),
-    unpause: jest.fn(async () => createPosting()),
-    archive: jest.fn(async () =>
-      createPosting({
-        status: "archived",
-        archivedAt: "2026-05-03T00:00:00.000Z",
-      }),
-    ),
-    getById: jest.fn(async () => createPosting()),
-    listByOwner: jest.fn(async () => createOwnerListingResult()),
-    batchByOwner: jest.fn(async () => ({
-      postings: [createPosting()],
-      missingIds: ["posting-missing"],
-    })),
-    batchPublic: jest.fn(async () => ({
-      postings: [createPosting()],
-      missingIds: ["posting-missing"],
-    })),
-    searchPublic: jest.fn(async () => ({
-      postings: [createPosting()],
-      pagination: {
-        page: 2,
-        pageSize: 5,
-        total: 6,
-        totalPages: 2,
-        hasNextPage: false,
-        hasPreviousPage: true,
-      },
-      source: "elasticsearch" as const,
-      query: "loft",
-    })),
-    listOwnerAvailabilityBlocks: jest.fn(async () => ({
-      availabilityBlocks: [createAvailabilityBlock()],
-    })),
-    createOwnerAvailabilityBlock: jest.fn(async () =>
-      createAvailabilityBlock(),
-    ),
-    updateOwnerAvailabilityBlock: jest.fn(async () =>
-      createAvailabilityBlock({
-        note: "Updated block",
-      }),
-    ),
-    deleteOwnerAvailabilityBlock: jest.fn(async () => undefined),
-  };
-
-  const postingsAnalyticsService = {
-    trackPublicView: jest.fn(async () => undefined),
-    trackSearchImpressions: jest.fn(async () => undefined),
-    trackSearchClick: jest.fn(async () => undefined),
-    getOwnerSummary: jest.fn(async () => ({
-      window: "30d",
-      totals: {
-        searchImpressions: 100,
-      },
-    })),
-    listOwnerPostingsAnalytics: jest.fn(async () => ({
-      window: "7d",
-      postings: [
-        {
-          postingId: "posting-1",
-          name: "Sunny loft",
-        },
-      ],
-      pagination: {
-        page: 1,
-        pageSize: 10,
-        total: 1,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-      dataAvailability: {
-        isPartial: false,
-      },
-      range: {
-        endAt: "2026-05-20T00:00:00.000Z",
-      },
-    })),
-    getPostingAnalyticsDetail: jest.fn(
-      async (input: { window: string; granularity: string }) => {
-        if (input.window !== "7d" && input.granularity === "hour") {
-          throw new BadRequestError(
-            "Hourly analytics are only supported for the 7d window.",
-          );
-        }
-
-        return {
-          postingId: "posting-1",
-          name: "Sunny loft",
-          status: "published",
-          window: input.window,
-          granularity: input.granularity,
-          totals: {
-            views: 10,
-          },
-          derivedMetrics: {
-            ctr: 0.2,
-          },
-          buckets: [],
-          dataAvailability: {
-            isPartial: false,
-          },
-          range: {
-            endAt: "2026-05-20T00:00:00.000Z",
-          },
-        };
-      },
-    ),
-    exportAsCsv: jest.fn(
-      async () =>
-        "date,postingId,postingName,searchImpressions\n2026-06-01,posting-1,Sunny loft,42",
-    ),
-  };
-
-  const postingsPublicAutocompleteService = {
-    autocompletePublic: jest.fn(async () => ({
-      query: "lo",
-      suggestions: [
-        {
-          value: "Sunny loft",
-          kind: "name" as const,
-        },
-      ],
-      source: "elasticsearch" as const,
-    })),
-  };
-
-  const postingsReviewsService = {
-    list: jest.fn(async () => ({
-      reviews: [createReview()],
-      summary: {
-        averageRating: 5,
-        reviewCount: 1,
-      },
-      pagination: {
-        page: 1,
-        pageSize: 20,
-        total: 1,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-    })),
-    create: jest.fn(async () => createReview()),
-    updateOwn: jest.fn(async () =>
-      createReview({
-        comment: "Updated review",
-      }),
-    ),
-  };
-
-  const recommendationActivityPublisher = {
-    publishPostingLifecycle: jest.fn(async () => undefined),
-    publishPostingView: jest.fn(async () => undefined),
-    publishSearchClick: jest.fn(async () => undefined),
-  };
-
-  const seasonalPricingService = {
-    list: jest.fn(async () => []),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  };
-
-  const controller = new PostingsController(
-    postingsService as never,
-    postingsPublicAutocompleteService as never,
-    postingsAnalyticsService as never,
-    postingsReviewsService as never,
-    seasonalPricingService as never,
-    recommendationActivityPublisher as never,
-  );
-  const tokenService = {
-    verifyAccessToken: jest.fn(async (token: string) => {
-      if (token === "owner-token") {
-        return createClaims();
-      }
-
-      if (token === "user-token") {
-        return createClaims({
-          sub: "user-1",
-          email: "user@example.com",
-          role: "user",
-        });
-      }
-
-      throw new UnauthorizedError("Invalid access token signature.");
-    }),
-  };
-  const personalAccessTokenService = {
-    authenticateToken: jest.fn(async () => createPatPrincipal()),
-  };
-  const container = new FakeRequestContainer(
-    controller,
-    tokenService,
-    personalAccessTokenService,
-  );
-  const app = new Hono<AppBindings>();
-
-  app.use("*", clientContextMiddleware);
-  app.use("*", async (context, next) => {
-    context.set("container", container);
-    await next();
-  });
-  app.use("*", outputFormatMiddleware);
-  app.onError(handleApplicationError);
-  mountRoutes(app);
-
-  return {
-    app,
-    postingsService,
-    postingsAnalyticsService,
-    postingsPublicAutocompleteService,
-    postingsReviewsService,
-    recommendationActivityPublisher,
-    tokenService,
-    personalAccessTokenService,
-  };
-}
-
-function ownerHeaders() {
-  return {
-    authorization: "Bearer owner-token",
-    "content-type": "application/json",
-  };
-}
-
-function userHeaders() {
-  return {
-    authorization: "Bearer user-token",
-    "content-type": "application/json",
-  };
-}
-
-function createPostingBody() {
+function buildCreatePostingBody() {
   return {
     variant: {
       family: "place",
       subtype: "workspace",
     },
-    name: "Sunny loft",
-    description: "Bright loft with workspace",
+    name: "Persistence Test Workspace",
+    description:
+      "Bright loft prepared for persistence-backed integration tests.",
     pricing: {
       currency: "cad",
       daily: {
-        amount: 150,
+        amount: 155,
+      },
+      hourly: {
+        amount: 32,
       },
     },
-    photos: [
-      {
-        blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
-        blobName: "postings/photo-1.jpg",
-        position: 0,
-      },
-    ],
-    tags: ["loft"],
+    photos: [buildPostingPhoto("postings/persistence-workspace.jpg")],
+    tags: ["Loft", "Workspace", "Test"],
     details: {
-      guest_capacity: 4,
+      guest_capacity: 6,
+      bedrooms: 0,
+      bathrooms: 1,
       property_type: "loft",
-      amenities: ["wifi"],
+      amenities: ["wifi", "whiteboard"],
+      pet_friendly: false,
+      parking: true,
     },
     availabilityStatus: "available",
-    availabilityBlocks: [],
+    availabilityNotes: "Open on weekdays.",
+    maxBookingDurationDays: 12,
+    minBookingDurationDays: 2,
+    advanceNoticeDays: 1,
+    cancellationPolicy: "moderate",
+    cancellationPolicyNotes: "Two days notice preferred.",
+    instantBooking: true,
+    availabilityBlocks: [
+      {
+        startAt: "2026-10-02T14:00:00.000Z",
+        endAt: "2026-10-03T14:00:00.000Z",
+        note: "Reserved for a photo shoot.",
+      },
+    ],
     location: {
-      latitude: 43.7,
-      longitude: -79.4,
+      latitude: 43.6511,
+      longitude: -79.347,
       city: "Toronto",
       region: "Ontario",
       country: "Canada",
+      postalCode: "M5A1A1",
     },
   };
 }
 
-function createUpdatePostingBody() {
-  const { availabilityBlocks, ...body } = createPostingBody();
-  void availabilityBlocks;
-  return body;
+function buildUpdatePostingBody() {
+  return {
+    variant: {
+      family: "place",
+      subtype: "workspace",
+    },
+    name: "Persistence Test Workspace Updated",
+    description: "Updated description after the draft is persisted.",
+    pricing: {
+      currency: "CAD",
+      daily: {
+        amount: 175,
+      },
+      weekly: {
+        amount: 960,
+      },
+    },
+    photos: [buildPostingPhoto("postings/persistence-workspace-updated.jpg")],
+    tags: ["updated", "workspace"],
+    details: {
+      guest_capacity: 8,
+      bedrooms: 0,
+      bathrooms: 1,
+      property_type: "studio",
+      amenities: ["wifi", "projector"],
+      pet_friendly: false,
+      parking: false,
+    },
+    availabilityStatus: "limited",
+    availabilityNotes: "Now limited to weekday afternoons.",
+    maxBookingDurationDays: 10,
+    minBookingDurationDays: 3,
+    advanceNoticeDays: 2,
+    cancellationPolicy: "strict",
+    cancellationPolicyNotes: "No same-day cancellations.",
+    instantBooking: false,
+    location: {
+      latitude: 43.7001,
+      longitude: -79.4012,
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      postalCode: "M4B1B3",
+    },
+  };
 }
 
-describe("Postings integration", () => {
-  it("serves public search and detail flows with real route wiring", async () => {
-    const {
-      app,
-      postingsService,
-      postingsAnalyticsService,
-      recommendationActivityPublisher,
-    } = createApp();
-
-    const searchResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings?page=2&pageSize=5&q=loft&family=place&subtype=workspace")}`,
-    );
-
-    expect(postingsService.searchPublic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page: 2,
-        pageSize: 5,
-        query: "loft",
-        family: "place",
-        subtype: "workspace",
-      }),
-    );
-    expect(
-      postingsAnalyticsService.trackSearchImpressions,
-    ).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "posting-1",
-      }),
-    ]);
-    expect(searchResponse.status).toBe(200);
-    await expect(searchResponse.json()).resolves.toEqual({
-      success: true,
-      data: {
-        postings: [expect.objectContaining({ id: "posting-1" })],
-        pagination: {
-          page: 2,
-          pageSize: 5,
-          total: 6,
-          totalPages: 2,
-          hasNextPage: false,
-          hasPreviousPage: true,
+async function findEligibleReviewScenario(persistenceApp: PersistenceTestApp) {
+  const completedRentings = await persistenceApp.prisma.renting.findMany({
+    where: {
+      status: "completed",
+    },
+    include: {
+      renter: true,
+      posting: {
+        include: {
+          organization: {
+            include: {
+              memberships: true,
+            },
+          },
         },
-        source: "elasticsearch",
-        query: "loft",
       },
-      error: null,
-      message: "Request completed successfully.",
-      meta: {
-        requestId: "unknown",
-        pagination: {
-          page: 2,
-          pageSize: 5,
-          total: 6,
-          totalPages: 2,
-          hasNextPage: false,
-          hasPreviousPage: true,
-        },
-        source: "elasticsearch",
-      },
-    });
-
-    const detailResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-    );
-
-    expect(postingsService.getById).toHaveBeenCalledWith(
-      "posting-1",
-      undefined,
-    );
-    expect(postingsAnalyticsService.trackPublicView).toHaveBeenCalledTimes(1);
-    expect(
-      recommendationActivityPublisher.publishPostingView,
-    ).toHaveBeenCalledTimes(1);
-    expect(detailResponse.status).toBe(200);
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
   });
 
-  it("preserves relevance-ranked public search results and metadata through the route layer", async () => {
-    const { app, postingsService, postingsAnalyticsService } = createApp();
-    postingsService.searchPublic.mockResolvedValueOnce(
-      createPublicSearchResult({
-        postings: [
-          createPosting({
-            id: "posting-exact",
-            name: "Saint-Roch Production Flat",
-            tags: ["quebec-city", "flat", "production"],
-            location: {
-              latitude: 46.81,
-              longitude: -71.22,
-              city: "Quebec City",
-              region: "Quebec",
-              country: "Canada",
-            },
-          }),
-          createPosting({
-            id: "posting-broad",
-            name: "Gastown Production Loft",
-            tags: ["vancouver", "loft", "production"],
-            location: {
-              latitude: 49.28,
-              longitude: -123.11,
-              city: "Vancouver",
-              region: "British Columbia",
-              country: "Canada",
-            },
-          }),
-        ],
-        pagination: {
-          page: 1,
-          pageSize: 20,
-          total: 2,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-        query: "Saint-Roch Production Flat",
-      }),
-    );
+  const eligibleRenting = completedRentings.find(
+    (renting) =>
+      !renting.posting.organization.memberships.some(
+        (membership) => membership.userId === renting.renterId,
+      ),
+  );
 
-    const response = await app.request(
-      `http://rent.test${buildApiPath("/postings?page=1&pageSize=20&q=Saint-Roch%20Production%20Flat")}`,
-    );
+  if (eligibleRenting) {
+    return eligibleRenting;
+  }
 
-    expect(postingsService.searchPublic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page: 1,
-        pageSize: 20,
-        query: "Saint-Roch Production Flat",
-        sort: "relevance",
-      }),
-    );
-    expect(
-      postingsAnalyticsService.trackSearchImpressions,
-    ).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "posting-exact",
-        name: "Saint-Roch Production Flat",
-      }),
-      expect.objectContaining({
-        id: "posting-broad",
-        name: "Gastown Production Loft",
-      }),
-    ]);
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: {
-        postings: [
-          {
-            id: "posting-exact",
-            name: "Saint-Roch Production Flat",
-          },
-          {
-            id: "posting-broad",
-            name: "Gastown Production Loft",
-          },
-        ],
-        pagination: {
-          page: 1,
-          pageSize: 20,
-          total: 2,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false,
+  const posting = await persistenceApp.prisma.posting.findUniqueOrThrow({
+    where: {
+      id: SEED_POSTINGS[0]!.id,
+    },
+    include: {
+      organization: {
+        include: {
+          memberships: true,
         },
-        source: "elasticsearch",
-        query: "Saint-Roch Production Flat",
       },
-      error: null,
-      message: "Request completed successfully.",
-      meta: {
-        requestId: "unknown",
-        pagination: {
-          page: 1,
-          pageSize: 20,
-          total: 2,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-        source: "elasticsearch",
-      },
-    });
+    },
+  });
+  const renter = await persistenceApp.prisma.user.findUniqueOrThrow({
+    where: {
+      email: "viewer1@rentify.local",
+    },
+  });
+  const pricing = posting.pricing as {
+    daily?: {
+      amount?: number;
+    };
+  };
+  const dailyPriceAmount = Number(pricing.daily?.amount ?? 0);
+  const durationDays = 2;
+  const bookingRequestId = randomUUID();
+  const rentingId = randomUUID();
+  const completedAt = new Date("2026-07-04T12:00:00.000Z");
+
+  await persistenceApp.prisma.bookingRequest.create({
+    data: {
+      id: bookingRequestId,
+      postingId: posting.id,
+      renterId: renter.id,
+      organizationId: posting.organizationId,
+      status: "paid",
+      startAt: new Date("2026-07-01T12:00:00.000Z"),
+      endAt: new Date("2026-07-03T12:00:00.000Z"),
+      durationDays,
+      guestCount: 2,
+      contactName: "Viewer One",
+      contactEmail: renter.email,
+      note: "Completed stay for review eligibility.",
+      pricingCurrency: posting.pricingCurrency,
+      pricingSnapshot: posting.pricing,
+      dailyPriceAmount,
+      estimatedTotal: dailyPriceAmount * durationDays,
+      approvedAt: new Date("2026-06-28T12:00:00.000Z"),
+      paymentRequiredAt: new Date("2026-06-29T12:00:00.000Z"),
+      holdExpiresAt: new Date("2026-06-30T12:00:00.000Z"),
+      convertedAt: new Date("2026-06-30T18:00:00.000Z"),
+    },
+  });
+  await persistenceApp.prisma.renting.create({
+    data: {
+      id: rentingId,
+      postingId: posting.id,
+      bookingRequestId,
+      renterId: renter.id,
+      organizationId: posting.organizationId,
+      status: "completed",
+      startAt: new Date("2026-07-01T12:00:00.000Z"),
+      endAt: new Date("2026-07-03T12:00:00.000Z"),
+      durationDays,
+      guestCount: 2,
+      pricingCurrency: posting.pricingCurrency,
+      pricingSnapshot: posting.pricing,
+      dailyPriceAmount,
+      estimatedTotal: dailyPriceAmount * durationDays,
+      confirmedAt: new Date("2026-06-30T18:00:00.000Z"),
+      pickupInstructions: "Meet at the front desk.",
+      returnInstructions: "Leave keys with the concierge.",
+      checkInReadyAt: new Date("2026-07-01T10:00:00.000Z"),
+      checkInCompletedAt: new Date("2026-07-01T12:30:00.000Z"),
+      returnDueAt: new Date("2026-07-03T12:00:00.000Z"),
+      completedAt,
+    },
   });
 
-  it("handles owner lifecycle, owner listings, and batch endpoints", async () => {
-    const { app, postingsService, recommendationActivityPublisher } =
-      createApp();
+  return persistenceApp.prisma.renting.findUniqueOrThrow({
+    where: {
+      id: rentingId,
+    },
+    include: {
+      renter: true,
+      posting: {
+        include: {
+          organization: {
+            include: {
+              memberships: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
 
-    const createResponse = await app.request(
+describe("Postings persistence integration", () => {
+  let persistenceApp: PersistenceTestApp;
+
+  beforeAll(async () => {
+    persistenceApp = await createPersistenceTestApp();
+  }, 180_000);
+
+  beforeEach(async () => {
+    await resetPersistenceState();
+  }, 180_000);
+
+  afterAll(async () => {
+    await teardownPersistenceTestApp();
+  }, 180_000);
+
+  it("persists posting creation, updates, duplication, and lifecycle transitions", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+
+    const createResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/postings")}`,
       {
         method: "POST",
-        headers: ownerHeaders(),
-        body: JSON.stringify(createPostingBody()),
+        headers: owner.headers(),
+        body: JSON.stringify(buildCreatePostingBody()),
       },
-    );
-    const updateResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        method: "PUT",
-        headers: ownerHeaders(),
-        body: JSON.stringify(createUpdatePostingBody()),
-      },
-    );
-    const duplicateResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/duplicate")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const publishResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/publish")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const pauseResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/pause")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const unpauseResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/unpause")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const archiveResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/archive")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const listMineResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/me?page=1&pageSize=20&status=published")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const batchMineResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/me/batch?ids=posting-1,posting-missing")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const batchPublicResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/batch?ids=posting-1,posting-missing")}`,
     );
 
     expect(createResponse.status).toBe(201);
+    const createdPayload = (await createResponse.json()) as {
+      data: {
+        id: string;
+      };
+    };
+    const createdPostingId = createdPayload.data.id;
+
+    const createdPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: createdPostingId,
+        },
+        include: {
+          photos: true,
+          availabilityBlocks: true,
+        },
+      });
+
+    expect(createdPosting).toMatchObject({
+      id: createdPostingId,
+      status: "draft",
+      name: "Persistence Test Workspace",
+      availabilityStatus: "available",
+      minBookingDurationDays: 2,
+      advanceNoticeDays: 1,
+      instantBooking: true,
+    });
+    expect(createdPosting.photos).toHaveLength(1);
+    expect(createdPosting.photos[0]).toMatchObject({
+      blobName: "postings/persistence-workspace.jpg",
+    });
+    expect(createdPosting.availabilityBlocks).toHaveLength(1);
+    expect(createdPosting.availabilityBlocks[0]).toMatchObject({
+      source: "owner",
+      note: "Reserved for a photo shoot.",
+    });
+
+    const updateResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${createdPostingId}`)}`,
+      {
+        method: "PUT",
+        headers: owner.headers(),
+        body: JSON.stringify(buildUpdatePostingBody()),
+      },
+    );
+
     expect(updateResponse.status).toBe(200);
+    const updatedPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: createdPostingId,
+        },
+        include: {
+          photos: true,
+        },
+      });
+    expect(updatedPosting).toMatchObject({
+      name: "Persistence Test Workspace Updated",
+      availabilityStatus: "limited",
+      minBookingDurationDays: 3,
+      cancellationPolicy: "strict",
+      instantBooking: false,
+      city: "Toronto",
+      postalCode: "M4B1B3",
+    });
+    expect(updatedPosting.photos[0]).toMatchObject({
+      blobName: "postings/persistence-workspace-updated.jpg",
+    });
+
+    const duplicateSourceId = SEED_POSTINGS[0]!.id;
+    const duplicateResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${duplicateSourceId}/duplicate`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+
     expect(duplicateResponse.status).toBe(201);
+    const duplicatePayload = (await duplicateResponse.json()) as {
+      data: {
+        id: string;
+      };
+    };
+    const duplicatedPosting =
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: duplicatePayload.data.id,
+        },
+        include: {
+          photos: true,
+          availabilityBlocks: true,
+        },
+      });
+    expect(duplicatedPosting).toMatchObject({
+      status: "draft",
+      name: SEED_POSTINGS[0]!.name,
+    });
+    expect(duplicatedPosting.photos.length).toBeGreaterThan(0);
+
+    const publishPostingId = SEED_POSTINGS[1]!.id;
+    const pausePostingId = SEED_POSTINGS[0]!.id;
+    const unpausePostingId = SEED_POSTINGS[4]!.id;
+    const archivePostingId = SEED_POSTINGS[5]!.id;
+
+    const publishResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${publishPostingId}/publish`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+    const pauseResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${pausePostingId}/pause`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+    const unpauseResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${unpausePostingId}/unpause`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+    const archiveResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${archivePostingId}/archive`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+
     expect(publishResponse.status).toBe(200);
     expect(pauseResponse.status).toBe(200);
     expect(unpauseResponse.status).toBe(200);
     expect(archiveResponse.status).toBe(200);
-    expect(listMineResponse.status).toBe(200);
-    expect(batchMineResponse.status).toBe(200);
-    expect(batchPublicResponse.status).toBe(200);
 
-    expect(postingsService.listByOwner).toHaveBeenCalledWith("owner-1", {
-      page: 1,
-      pageSize: 20,
+    expect(
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: publishPostingId,
+        },
+      }),
+    ).toMatchObject({
       status: "published",
+      publishedAt: expect.any(Date),
     });
-    expect(postingsService.batchByOwner).toHaveBeenCalledWith("owner-1", [
-      "posting-1",
-      "posting-missing",
-    ]);
-    expect(postingsService.batchPublic).toHaveBeenCalledWith([
-      "posting-1",
-      "posting-missing",
-    ]);
     expect(
-      recommendationActivityPublisher.publishPostingLifecycle,
-    ).toHaveBeenCalledTimes(4);
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: pausePostingId,
+        },
+      }),
+    ).toMatchObject({
+      status: "paused",
+      pausedAt: expect.any(Date),
+    });
+    expect(
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: unpausePostingId,
+        },
+      }),
+    ).toMatchObject({
+      status: "published",
+      pausedAt: null,
+    });
+    expect(
+      await persistenceApp.prisma.posting.findUniqueOrThrow({
+        where: {
+          id: archivePostingId,
+        },
+      }),
+    ).toMatchObject({
+      status: "archived",
+      archivedAt: expect.any(Date),
+    });
   });
 
-  it("handles availability, reviews, analytics, and search click flows", async () => {
-    const {
-      app,
-      postingsService,
-      postingsReviewsService,
-      postingsAnalyticsService,
-      recommendationActivityPublisher,
-    } = createApp();
+  it("persists availability blocks, seasonal pricing rules, and reviews", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const availabilityPostingId = SEED_POSTINGS[2]!.id;
 
-    const listAvailabilityResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const createAvailabilityResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks")}`,
+    const createAvailabilityResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${availabilityPostingId}/availability-blocks`)}`,
       {
         method: "POST",
-        headers: ownerHeaders(),
+        headers: owner.headers(),
         body: JSON.stringify({
-          startAt: "2026-06-01T00:00:00.000Z",
-          endAt: "2026-06-03T00:00:00.000Z",
-          note: "Maintenance",
-        }),
-      },
-    );
-    const updateAvailabilityResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks/block-1")}`,
-      {
-        method: "PUT",
-        headers: ownerHeaders(),
-        body: JSON.stringify({
-          startAt: "2026-06-02T00:00:00.000Z",
-          endAt: "2026-06-04T00:00:00.000Z",
-          note: "Updated block",
-        }),
-      },
-    );
-    const deleteAvailabilityResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks/block-1")}`,
-      {
-        method: "DELETE",
-        headers: ownerHeaders(),
-      },
-    );
-    const listReviewsResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/reviews")}`,
-    );
-    const createReviewResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/reviews")}`,
-      {
-        method: "POST",
-        headers: userHeaders(),
-        body: JSON.stringify({
-          rating: 5,
-          title: "Great stay",
-          comment: "Exactly as described.",
-        }),
-      },
-    );
-    const updateReviewResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/reviews/me")}`,
-      {
-        method: "PUT",
-        headers: userHeaders(),
-        body: JSON.stringify({
-          rating: 5,
-          title: "Great stay",
-          comment: "Updated review",
-        }),
-      },
-    );
-    const summaryResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/analytics/summary?window=30d")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const listAnalyticsResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/analytics/postings?window=7d&page=1&pageSize=10")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const detailAnalyticsResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/analytics?window=7d&granularity=day")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const searchClickResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/activity/search-click")}`,
-      {
-        method: "POST",
-        headers: userHeaders(),
-        body: JSON.stringify({
-          searchSessionId: "search-1",
-          query: "loft",
-          family: "place",
-          subtype: "workspace",
-          page: 1,
-          position: 0,
-          hasGeoFilter: false,
-          hasAvailabilityFilter: true,
+          startAt: "2026-11-02T15:00:00.000Z",
+          endAt: "2026-11-04T15:00:00.000Z",
+          note: "Owner vacation.",
         }),
       },
     );
 
-    expect(listAvailabilityResponse.status).toBe(200);
     expect(createAvailabilityResponse.status).toBe(201);
+    const createAvailabilityPayload =
+      (await createAvailabilityResponse.json()) as {
+        data: {
+          id: string;
+        };
+      };
+    const availabilityBlockId = createAvailabilityPayload.data.id;
+
+    expect(
+      await persistenceApp.prisma.postingAvailabilityBlock.findUniqueOrThrow({
+        where: {
+          id: availabilityBlockId,
+        },
+      }),
+    ).toMatchObject({
+      postingId: availabilityPostingId,
+      note: "Owner vacation.",
+      source: "owner",
+    });
+
+    const updateAvailabilityResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${availabilityPostingId}/availability-blocks/${availabilityBlockId}`)}`,
+      {
+        method: "PUT",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          startAt: "2026-11-03T15:00:00.000Z",
+          endAt: "2026-11-05T15:00:00.000Z",
+          note: "Updated owner vacation.",
+        }),
+      },
+    );
+
     expect(updateAvailabilityResponse.status).toBe(200);
-    expect(deleteAvailabilityResponse.status).toBe(204);
-    expect(listReviewsResponse.status).toBe(200);
-    expect(createReviewResponse.status).toBe(201);
-    expect(updateReviewResponse.status).toBe(200);
-    expect(summaryResponse.status).toBe(200);
-    expect(listAnalyticsResponse.status).toBe(200);
-    expect(detailAnalyticsResponse.status).toBe(200);
-    expect(searchClickResponse.status).toBe(202);
-
-    expect(postingsService.listOwnerAvailabilityBlocks).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
-    );
-    expect(postingsReviewsService.list).toHaveBeenCalledWith(
-      "posting-1",
-      1,
-      20,
-    );
-    expect(postingsReviewsService.create).toHaveBeenCalledWith(
-      "posting-1",
-      "user-1",
-      expect.objectContaining({
-        rating: 5,
-      }),
-    );
-    expect(postingsAnalyticsService.getOwnerSummary).toHaveBeenCalledWith(
-      "owner-1",
-      "30d",
-    );
     expect(
-      postingsAnalyticsService.listOwnerPostingsAnalytics,
-    ).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
-      window: "7d",
-      page: 1,
-      pageSize: 10,
-    });
-    expect(postingsAnalyticsService.trackSearchClick).toHaveBeenCalledWith(
-      "posting-1",
-      "user-1",
-    );
-    expect(
-      recommendationActivityPublisher.publishSearchClick,
-    ).toHaveBeenCalledTimes(1);
-  });
-
-  it("exports analytics as CSV through the dedicated route", async () => {
-    const { app, postingsAnalyticsService } = createApp();
-
-    const defaultWindowResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/analytics/export")}`,
-      { headers: ownerHeaders() },
-    );
-    const thirtyDayResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/analytics/export?window=30d")}`,
-      { headers: ownerHeaders() },
-    );
-    const unauthenticatedResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/analytics/export")}`,
-    );
-
-    expect(defaultWindowResponse.status).toBe(200);
-    expect(defaultWindowResponse.headers.get("content-type")).toContain(
-      "text/csv",
-    );
-    expect(defaultWindowResponse.headers.get("content-disposition")).toContain(
-      "attachment",
-    );
-    const csvBody = await defaultWindowResponse.text();
-    expect(csvBody).toContain("date,postingId");
-
-    expect(thirtyDayResponse.status).toBe(200);
-    expect(postingsAnalyticsService.exportAsCsv).toHaveBeenCalledWith(
-      "owner-1",
-      "30d",
-    );
-
-    expect(unauthenticatedResponse.status).toBe(401);
-  });
-
-  it("passes new booking rule fields through to the service on create and update", async () => {
-    const { app, postingsService } = createApp();
-
-    const createBody = {
-      ...createPostingBody(),
-      minBookingDurationDays: 3,
-      advanceNoticeDays: 1,
-      cancellationPolicy: "flexible",
-      cancellationPolicyNotes: "Full refund within 24h.",
-    };
-
-    const createResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-        body: JSON.stringify(createBody),
-      },
-    );
-
-    expect(createResponse.status).toBe(201);
-    expect(postingsService.createDraft).toHaveBeenCalledWith(
-      "owner-1",
-      expect.objectContaining({
-        minBookingDurationDays: 3,
-        advanceNoticeDays: 1,
-        cancellationPolicy: "flexible",
-        cancellationPolicyNotes: "Full refund within 24h.",
+      await persistenceApp.prisma.postingAvailabilityBlock.findUniqueOrThrow({
+        where: {
+          id: availabilityBlockId,
+        },
       }),
-    );
-
-    const updateBody = {
-      ...createUpdatePostingBody(),
-      minBookingDurationDays: 2,
-      advanceNoticeDays: 0,
-      cancellationPolicy: "strict",
-      cancellationPolicyNotes: null,
-    };
-
-    const updateResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        method: "PUT",
-        headers: ownerHeaders(),
-        body: JSON.stringify(updateBody),
-      },
-    );
-
-    expect(updateResponse.status).toBe(200);
-    expect(postingsService.update).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
-      expect.objectContaining({
-        minBookingDurationDays: 2,
-        advanceNoticeDays: 0,
-        cancellationPolicy: "strict",
-        cancellationPolicyNotes: null,
-      }),
-    );
-  });
-
-  it("returns structured failures for unauthorized access and invalid postings inputs", async () => {
-    const { app } = createApp();
-
-    const unauthorizedResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/me")}`,
-    );
-    const invalidQueryResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings?latitude=43.6532&radiusKm=12")}`,
-    );
-    const invalidRouteResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting%201/duplicate")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-      },
-    );
-    const invalidAnalyticsResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/analytics?window=30d&granularity=hour")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-
-    expect(unauthorizedResponse.status).toBe(401);
-    await expect(unauthorizedResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Authorization header is required.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
+    ).toMatchObject({
+      note: "Updated owner vacation.",
     });
 
-    expect(invalidQueryResponse.status).toBe(400);
-    await expect(invalidQueryResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request query validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidRouteResponse.status).toBe(400);
-    await expect(invalidRouteResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Route parameter validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidAnalyticsResponse.status).toBe(400);
-    await expect(invalidAnalyticsResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Hourly analytics are only supported for the 7d window.",
-      error: {
-        code: "BAD_REQUEST",
-      },
-    });
-  });
-
-  it("covers postings validation edge cases across create, search, autocomplete, batch, reviews, and availability routes", async () => {
-    const { app } = createApp();
-
-    const invalidCreateResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-        body: JSON.stringify({
-          ...createPostingBody(),
-          extraField: true,
-        }),
-      },
-    );
-    const invalidUpdateResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        method: "PUT",
-        headers: ownerHeaders(),
-        body: JSON.stringify({
-          ...createUpdatePostingBody(),
-          location: {
-            ...createUpdatePostingBody().location,
-            latitude: 999,
-          },
-        }),
-      },
-    );
-    const invalidAutocompleteResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/autocomplete?q=l&limit=9")}`,
-    );
-    const invalidBatchResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/batch")}`,
-    );
-    const invalidAttributeRangeResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings?attr.capacity.min=10&attr.capacity.max=5")}`,
-    );
-    const invalidAttributeNumberResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings?attr.capacity.min=abc")}`,
-    );
-    const invalidReviewResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/reviews")}`,
-      {
-        method: "POST",
-        headers: userHeaders(),
-        body: JSON.stringify({
-          rating: 6,
-          title: "Too high",
-        }),
-      },
-    );
-    const invalidAvailabilityRouteResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks/block%201")}`,
+    const deleteAvailabilityResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${availabilityPostingId}/availability-blocks/${availabilityBlockId}`)}`,
       {
         method: "DELETE",
-        headers: ownerHeaders(),
+        headers: owner.headers(),
       },
     );
 
-    for (const response of [
-      invalidCreateResponse,
-      invalidUpdateResponse,
-      invalidAutocompleteResponse,
-      invalidBatchResponse,
-      invalidAttributeRangeResponse,
-      invalidAttributeNumberResponse,
-      invalidReviewResponse,
-      invalidAvailabilityRouteResponse,
-    ]) {
-      expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toMatchObject({
-        success: false,
+    expect(deleteAvailabilityResponse.status).toBe(204);
+    expect(
+      await persistenceApp.prisma.postingAvailabilityBlock.findUnique({
+        where: {
+          id: availabilityBlockId,
+        },
+      }),
+    ).toBeNull();
+
+    const seasonalPricingPostingId = SEED_POSTINGS[0]!.id;
+    const createRuleResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${seasonalPricingPostingId}/seasonal-pricing`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          name: "Holiday Rush",
+          startDate: "2026-12-20",
+          endDate: "2026-12-31",
+          dailyAmount: 225,
+        }),
+      },
+    );
+
+    expect(createRuleResponse.status).toBe(201);
+    const createRulePayload = (await createRuleResponse.json()) as {
+      data: {
+        id: string;
+      };
+    };
+    const ruleId = createRulePayload.data.id;
+
+    expect(
+      await persistenceApp.prisma.postingSeasonalPricing.findUniqueOrThrow({
+        where: {
+          id: ruleId,
+        },
+      }),
+    ).toMatchObject({
+      postingId: seasonalPricingPostingId,
+      name: "Holiday Rush",
+    });
+
+    const updateRuleResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${seasonalPricingPostingId}/seasonal-pricing/${ruleId}`)}`,
+      {
+        method: "PATCH",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          name: "Holiday Rush Updated",
+          startDate: "2026-12-21",
+          endDate: "2027-01-02",
+          dailyAmount: 245,
+        }),
+      },
+    );
+
+    expect(updateRuleResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.postingSeasonalPricing.findUniqueOrThrow({
+        where: {
+          id: ruleId,
+        },
+      }),
+    ).toMatchObject({
+      name: "Holiday Rush Updated",
+    });
+
+    const deleteRuleResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${seasonalPricingPostingId}/seasonal-pricing/${ruleId}`)}`,
+      {
+        method: "DELETE",
+        headers: owner.headers(),
+      },
+    );
+
+    expect(deleteRuleResponse.status).toBe(204);
+    expect(
+      await persistenceApp.prisma.postingSeasonalPricing.findUnique({
+        where: {
+          id: ruleId,
+        },
+      }),
+    ).toBeNull();
+
+    const eligibleRenting = await findEligibleReviewScenario(persistenceApp);
+    const reviewer = await createAuthenticatedRequestContext({
+      email: eligibleRenting.renter.email,
+    });
+
+    const createReviewResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${eligibleRenting.postingId}/reviews`)}`,
+      {
+        method: "POST",
+        headers: reviewer.headers(),
+        body: JSON.stringify({
+          rating: 5,
+          title: "Great stay",
+          comment: "Everything matched the listing.",
+        }),
+      },
+    );
+
+    expect(createReviewResponse.status).toBe(201);
+    const createdReview =
+      await persistenceApp.prisma.postingReview.findFirstOrThrow({
+        where: {
+          postingId: eligibleRenting.postingId,
+          reviewerId: reviewer.userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
       });
-    }
+    expect(createdReview).toMatchObject({
+      rating: 5,
+      title: "Great stay",
+      comment: "Everything matched the listing.",
+    });
+
+    const updateReviewResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${eligibleRenting.postingId}/reviews/me`)}`,
+      {
+        method: "PUT",
+        headers: reviewer.headers(),
+        body: JSON.stringify({
+          rating: 4,
+          title: "Updated review",
+          comment: "The handoff was smooth and the space was clean.",
+        }),
+      },
+    );
+
+    expect(updateReviewResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.postingReview.findUniqueOrThrow({
+        where: {
+          postingId_reviewerId: {
+            postingId: eligibleRenting.postingId,
+            reviewerId: reviewer.userId,
+          },
+        },
+      }),
+    ).toMatchObject({
+      rating: 4,
+      title: "Updated review",
+      comment: "The handoff was smooth and the space was clean.",
+    });
   });
 
-  it("handles optional auth and PAT posting edge cases", async () => {
-    const {
-      app,
-      postingsService,
-      postingsAnalyticsService,
-      recommendationActivityPublisher,
-      personalAccessTokenService,
-    } = createApp();
+  it("does not persist invalid or forbidden posting writes", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const operator = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+    const beforeCount = await persistenceApp.prisma.posting.count();
 
-    const authenticatedDetailResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        headers: {
-          authorization: "Bearer owner-token",
-        },
-      },
-    );
-    const patReadResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/me?page=1&pageSize=20")}`,
-      {
-        headers: {
-          authorization:
-            "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-        },
-      },
-    );
-    personalAccessTokenService.authenticateToken.mockResolvedValueOnce(
-      createPatPrincipal({
-        scopes: ["mcp:read"],
-      }),
-    );
-    const patWriteDeniedResponse = await app.request(
+    const invalidCreateResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/postings")}`,
       {
         method: "POST",
-        headers: {
-          authorization:
-            "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(createPostingBody()),
-      },
-    );
-
-    expect(authenticatedDetailResponse.status).toBe(200);
-    expect(postingsService.getById).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
-    );
-    expect(postingsAnalyticsService.trackPublicView).not.toHaveBeenCalled();
-    expect(
-      recommendationActivityPublisher.publishPostingView,
-    ).not.toHaveBeenCalled();
-
-    expect(patReadResponse.status).toBe(200);
-    expect(postingsService.listByOwner).toHaveBeenCalledWith("pat-user-1", {
-      page: 1,
-      pageSize: 20,
-      status: undefined,
-    });
-
-    expect(patWriteDeniedResponse.status).toBe(403);
-    await expect(patWriteDeniedResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Personal access token does not include the required scope.",
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        details: {
-          requiredScope: "mcp:write",
-          scopes: ["mcp:read"],
-        },
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-  });
-
-  it("parses complex search filters and deduplicates batch ids before calling services", async () => {
-    const { app, postingsService } = createApp();
-
-    const searchResponse = await app.request(
-      `http://rent.test${buildApiPath(
-        "/postings?page=3&pageSize=4&q=studio&family=place&subtype=workspace&tags=wifi,loft&tags=parking&availabilityStatus=available&minDailyPrice=100&maxDailyPrice=250&latitude=43.7&longitude=-79.4&radiusKm=25&startAt=2026-06-10T00:00:00.000Z&endAt=2026-06-12T00:00:00.000Z&sort=nearest&attr.guest_capacity.min=2&attr.guest_capacity.max=6&attr.amenities=wifi&attr.amenities=parking",
-      )}`,
-    );
-    const batchMineResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/me/batch?ids=posting-1,posting-1,posting-2")}`,
-      {
-        headers: ownerHeaders(),
-      },
-    );
-    const batchPublicResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/batch?ids=posting-1,posting-1,posting-2")}`,
-    );
-
-    expect(searchResponse.status).toBe(200);
-    expect(batchMineResponse.status).toBe(200);
-    expect(batchPublicResponse.status).toBe(200);
-
-    expect(postingsService.searchPublic).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page: 3,
-        pageSize: 4,
-        query: "studio",
-        family: "place",
-        subtype: "workspace",
-        tags: ["wifi", "loft", "parking"],
-        availabilityStatus: "available",
-        minDailyPrice: 100,
-        maxDailyPrice: 250,
-        geo: {
-          latitude: 43.7,
-          longitude: -79.4,
-          radiusKm: 25,
-        },
-        availabilityWindow: {
-          startAt: "2026-06-10T00:00:00.000Z",
-          endAt: "2026-06-12T00:00:00.000Z",
-        },
-        sort: "nearest",
-        attributeFilters: expect.arrayContaining([
-          {
-            key: "guest_capacity",
-            min: 2,
-            max: 6,
-          },
-          {
-            key: "amenities",
-            value: ["wifi", "parking"],
-          },
-        ]),
-      }),
-    );
-    expect(postingsService.batchByOwner).toHaveBeenCalledWith("owner-1", [
-      "posting-1",
-      "posting-2",
-    ]);
-    expect(postingsService.batchPublic).toHaveBeenCalledWith([
-      "posting-1",
-      "posting-2",
-    ]);
-  });
-
-  it("returns authorization and validation failures for optional-auth public postings endpoints", async () => {
-    const { app } = createApp();
-
-    const invalidDetailAuthResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        headers: {
-          authorization: "Bearer broken-token",
-        },
-      },
-    );
-    const invalidSearchClickAuthResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/activity/search-click")}`,
-      {
-        method: "POST",
-        headers: {
-          authorization: "Bearer broken-token",
-          "content-type": "application/json",
-        },
+        headers: owner.headers(),
         body: JSON.stringify({
-          searchSessionId: "search-1",
-          query: "loft",
-          family: "place",
-          subtype: "workspace",
-          page: 1,
-          position: 0,
-        }),
-      },
-    );
-    const invalidReviewsQueryResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/reviews?page=0&pageSize=99")}`,
-    );
-    const invalidAvailabilityBodyResponse = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1/availability-blocks")}`,
-      {
-        method: "POST",
-        headers: ownerHeaders(),
-        body: JSON.stringify({
-          startAt: "not-a-date",
-          endAt: "2026-06-03T00:00:00.000Z",
+          ...buildCreatePostingBody(),
+          photos: [],
         }),
       },
     );
 
-    expect(invalidDetailAuthResponse.status).toBe(401);
-    await expect(invalidDetailAuthResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Invalid access token signature.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
+    expect(invalidCreateResponse.status).toBe(400);
+    expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
 
-    expect(invalidSearchClickAuthResponse.status).toBe(401);
-    await expect(invalidSearchClickAuthResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Invalid access token signature.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    expect(invalidReviewsQueryResponse.status).toBe(400);
-    await expect(invalidReviewsQueryResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request query validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidAvailabilityBodyResponse.status).toBe(400);
-    await expect(invalidAvailabilityBodyResponse.json()).resolves.toMatchObject(
+    const forbiddenCreateResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
       {
-        success: false,
-        message: "Request body validation failed.",
-        error: {
-          code: "VALIDATION_ERROR",
-        },
-      },
-    );
-  });
-
-  it("still tracks views for authenticated requests when the service returns a public posting record shape", async () => {
-    const {
-      app,
-      postingsService,
-      postingsAnalyticsService,
-      recommendationActivityPublisher,
-    } = createApp();
-    const { organizationId, ...publicPosting } = createPosting();
-    void organizationId;
-    postingsService.getById.mockResolvedValueOnce(publicPosting);
-
-    const response = await app.request(
-      `http://rent.test${buildApiPath("/postings/posting-1")}`,
-      {
-        headers: {
-          authorization: "Bearer owner-token",
-          "x-forwarded-for": "127.0.0.1",
-        },
+        method: "POST",
+        headers: operator.headers(),
+        body: JSON.stringify(buildCreatePostingBody()),
       },
     );
 
-    expect(response.status).toBe(200);
-    expect(postingsAnalyticsService.trackPublicView).toHaveBeenCalledWith(
-      publicPosting,
-      expect.any(Object),
-      "owner-1",
-    );
-    expect(
-      recommendationActivityPublisher.publishPostingView,
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        posting: publicPosting,
-        actorUserId: "owner-1",
-      }),
-    );
+    expect(forbiddenCreateResponse.status).toBe(403);
+    expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
   });
 });

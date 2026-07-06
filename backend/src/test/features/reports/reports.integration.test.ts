@@ -1,168 +1,42 @@
-import { Hono } from "hono";
-import { mountRoutes } from "@/configuration/bootstrap/routes";
 import { buildApiPath } from "@/configuration/http/api-path";
+import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import {
-  containerTokens,
-  type ServiceContainer,
-} from "@/configuration/bootstrap/container";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
-import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
-import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
-import type { JwtClaims } from "@/features/auth/token/token.service";
-import { ReportsController } from "@/features/reports/reports.controller";
-import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
-function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
-  return {
-    sub: "user-1",
-    email: "user@example.com",
-    role: "user",
-    deviceId: "device-1",
-    tokenVersion: 1,
-    iat: 1,
-    exp: 9_999_999_999,
-    ...overrides,
-  };
-}
+describe("Reports persistence integration", () => {
+  let persistenceApp: PersistenceTestApp;
 
-function createReport(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "report-1",
-    reporterId: "user-1",
-    subjectType: "posting",
-    subjectId: "posting-1",
-    reasonCode: "spam",
-    title: "Looks suspicious",
-    description: "This listing asks for payment outside the platform.",
-    status: "open",
-    createdAt: "2026-05-01T00:00:00.000Z",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-    reporter: {
-      id: "user-1",
-      email: "user@example.com",
-      role: "user",
-    },
-    subjectSnapshot: {
-      subjectType: "posting",
-      summaryText: "Posting snapshot",
-    },
-    ...overrides,
-  };
-}
+  beforeAll(async () => {
+    persistenceApp = await createPersistenceTestApp();
+  }, 180_000);
 
-class FakeRequestContainer implements ServiceContainer {
-  private readonly contentSanitizationService =
-    new ContentSanitizationService();
+  beforeEach(async () => {
+    await resetPersistenceState();
+  }, 180_000);
 
-  constructor(
-    private readonly reportsController: ReportsController,
-    private readonly tokenService: {
-      verifyAccessToken(token: string): Promise<JwtClaims>;
-    },
-  ) {}
+  afterAll(async () => {
+    await teardownPersistenceTestApp();
+  }, 180_000);
 
-  resolve<TValue>(token: unknown): TValue {
-    if (token === containerTokens.reportsController) {
-      return this.reportsController as TValue;
-    }
+  it("persists created reports for authenticated users", async () => {
+    const reporter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
 
-    if (token === containerTokens.tokenService) {
-      return this.tokenService as TValue;
-    }
-
-    if (token === containerTokens.contentSanitizationService) {
-      return this.contentSanitizationService as TValue;
-    }
-
-    throw new Error("Unsupported test container token.");
-  }
-
-  createScope(): ServiceContainer {
-    return this;
-  }
-
-  async dispose(): Promise<void> {}
-}
-
-function createApp() {
-  const reportsService = {
-    create: jest.fn(async () => createReport()),
-    listModeration: jest.fn(async () => ({
-      reports: [createReport()],
-      pagination: {
-        page: 1,
-        pageSize: 20,
-        total: 1,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-      source: "database" as const,
-    })),
-    getModerationDetail: jest.fn(async () => ({
-      ...createReport(),
-      events: [],
-    })),
-    assign: jest.fn(async () => createReport()),
-    updateStatus: jest.fn(async () =>
-      createReport({
-        status: "under_review",
-      }),
-    ),
-  };
-
-  const controller = new ReportsController(reportsService as never);
-  const tokenService = {
-    verifyAccessToken: jest.fn(async (token: string) => {
-      if (token === "user-token") {
-        return createClaims();
-      }
-
-      if (token === "moderator-token") {
-        return createClaims({
-          sub: "moderator-1",
-          email: "moderator@example.com",
-          role: "moderator",
-        });
-      }
-
-      throw new Error("Invalid access token signature.");
-    }),
-  };
-  const container = new FakeRequestContainer(controller, tokenService);
-  const app = new Hono<AppBindings>();
-
-  app.use("*", clientContextMiddleware);
-  app.use("*", async (context, next) => {
-    context.set("container", container);
-    await next();
-  });
-  app.use("*", outputFormatMiddleware);
-  app.onError(handleApplicationError);
-  mountRoutes(app);
-
-  return {
-    app,
-    reportsService,
-  };
-}
-
-describe("Reports integration", () => {
-  it("submits a report for authenticated users", async () => {
-    const { app, reportsService } = createApp();
-
-    const response = await app.request(
+    const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/reports")}`,
       {
         method: "POST",
-        headers: {
-          authorization: "Bearer user-token",
-          "content-type": "application/json",
-        },
+        headers: reporter.headers(),
         body: JSON.stringify({
           subjectType: "posting",
-          subjectId: "posting-1",
+          subjectId: postingId,
           reasonCode: "spam",
           title: "Looks suspicious",
           description: "This listing asks for payment outside the platform.",
@@ -171,50 +45,78 @@ describe("Reports integration", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(reportsService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reporterId: "user-1",
-        subjectType: "posting",
-      }),
-    );
+
+    const report = await persistenceApp.prisma.contentReport.findFirst({
+      where: {
+        reporterId: reporter.userId,
+        subjectId: postingId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    expect(report).toMatchObject({
+      reporterId: reporter.userId,
+      subjectType: "posting",
+      subjectId: postingId,
+      reasonCode: "spam",
+      status: "open",
+    });
   });
 
-  it("enforces moderator access for moderation queue routes", async () => {
-    const { app, reportsService } = createApp();
+  it("persists report assignment and status transitions", async () => {
+    const reporter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+    const moderator = await createAuthenticatedRequestContext({
+      email: "moderator1@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
 
-    const forbiddenResponse = await app.request(
-      `http://rent.test${buildApiPath("/moderation/reports")}`,
-      {
-        headers: {
-          authorization: "Bearer user-token",
-        },
-      },
-    );
-    const moderatorResponse = await app.request(
-      `http://rent.test${buildApiPath("/moderation/reports")}`,
-      {
-        headers: {
-          authorization: "Bearer moderator-token",
-        },
-      },
-    );
-
-    expect(forbiddenResponse.status).toBe(403);
-    expect(moderatorResponse.status).toBe(200);
-    expect(reportsService.listModeration).toHaveBeenCalled();
-  });
-
-  it("updates moderation status for moderator-authenticated requests", async () => {
-    const { app, reportsService } = createApp();
-
-    const response = await app.request(
-      `http://rent.test${buildApiPath("/moderation/reports/report-1/status")}`,
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/reports")}`,
       {
         method: "POST",
-        headers: {
-          authorization: "Bearer moderator-token",
-          "content-type": "application/json",
+        headers: reporter.headers(),
+        body: JSON.stringify({
+          subjectType: "posting",
+          subjectId: postingId,
+          reasonCode: "fraud_or_scam",
+          title: "Fake listing",
+          description: "The listing is requesting an off-platform deposit.",
+        }),
+      },
+    );
+
+    expect(createResponse.status).toBe(201);
+
+    const createdReport =
+      await persistenceApp.prisma.contentReport.findFirstOrThrow({
+        where: {
+          reporterId: reporter.userId,
+          subjectId: postingId,
         },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    const assignResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/moderation/reports/${createdReport.id}/assignment`)}`,
+      {
+        method: "POST",
+        headers: moderator.headers(),
+        body: JSON.stringify({
+          assignedModeratorId: moderator.userId,
+        }),
+      },
+    );
+    const statusResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/moderation/reports/${createdReport.id}/status`)}`,
+      {
+        method: "POST",
+        headers: moderator.headers(),
         body: JSON.stringify({
           status: "under_review",
           note: "Escalating for manual review.",
@@ -222,50 +124,62 @@ describe("Reports integration", () => {
       },
     );
 
-    expect(response.status).toBe(200);
-    expect(reportsService.updateStatus).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUserId: "moderator-1",
-        actorRole: "moderator",
-        reportId: "report-1",
-        status: "under_review",
-      }),
-    );
+    expect(assignResponse.status).toBe(200);
+    expect(statusResponse.status).toBe(200);
+
+    const updatedReport =
+      await persistenceApp.prisma.contentReport.findUniqueOrThrow({
+        where: {
+          id: createdReport.id,
+        },
+      });
+    const events = await persistenceApp.prisma.contentReportEvent.findMany({
+      where: {
+        reportId: createdReport.id,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    expect(updatedReport).toMatchObject({
+      id: createdReport.id,
+      assignedModeratorId: moderator.userId,
+      status: "under_review",
+    });
+    expect(events.some((event) => event.eventType === "assigned")).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.toStatus === "under_review" &&
+          ["status_changed", "note_added"].includes(event.eventType),
+      ),
+    ).toBe(true);
   });
 
-  it("covers moderation detail and assignment endpoints", async () => {
-    const { app, reportsService } = createApp();
+  it("does not persist owner self-report attempts against their own posting", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+    const beforeCount = await persistenceApp.prisma.contentReport.count();
 
-    const detailResponse = await app.request(
-      `http://rent.test${buildApiPath("/moderation/reports/report-1")}`,
-      {
-        headers: {
-          authorization: "Bearer moderator-token",
-        },
-      },
-    );
-    const assignResponse = await app.request(
-      `http://rent.test${buildApiPath("/moderation/reports/report-1/assignment")}`,
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/reports")}`,
       {
         method: "POST",
-        headers: {
-          authorization: "Bearer moderator-token",
-          "content-type": "application/json",
-        },
+        headers: owner.headers(),
         body: JSON.stringify({
-          assignedModeratorId: "moderator-2",
+          subjectType: "posting",
+          subjectId: postingId,
+          reasonCode: "spam",
+          title: "Should fail",
+          description: "Owners should not be able to report their own posting.",
         }),
       },
     );
 
-    expect(detailResponse.status).toBe(200);
-    expect(assignResponse.status).toBe(200);
-    expect(reportsService.getModerationDetail).toHaveBeenCalledWith("report-1");
-    expect(reportsService.assign).toHaveBeenCalledWith({
-      actorUserId: "moderator-1",
-      actorRole: "moderator",
-      reportId: "report-1",
-      assignedModeratorId: "moderator-2",
-    });
+    expect(response.status).toBe(403);
+    expect(await persistenceApp.prisma.contentReport.count()).toBe(beforeCount);
   });
 });
