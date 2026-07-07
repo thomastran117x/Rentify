@@ -325,18 +325,20 @@ export async function resetPersistenceState(): Promise<void> {
     `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${databaseName}' AND TABLE_TYPE = 'BASE TABLE'`,
   );
 
-  await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
-  try {
-    for (const table of tables) {
-      if (table.TABLE_NAME === "_prisma_migrations") {
-        continue;
-      }
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const table of tables) {
+        if (table.TABLE_NAME === "_prisma_migrations") {
+          continue;
+        }
 
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table.TABLE_NAME}\``);
+        await tx.$executeRawUnsafe(`DELETE FROM \`${table.TABLE_NAME}\``);
+      }
+    } finally {
+      await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
     }
-  } finally {
-    await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
-  }
+  });
 
   await runSeedOrchestrator({
     refresh: false,
