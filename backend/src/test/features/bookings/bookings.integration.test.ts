@@ -1,4 +1,5 @@
 import { buildApiPath } from "@/configuration/http/api-path";
+import type { RecommendationActivityEventPayload } from "@/features/recommendations/recommendation-activity.model";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
@@ -6,7 +7,9 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 
+const RECOMMENDATION_ACTIVITY_QUEUE_NAME = "recommendation-activity.main";
 const MUTABLE_POSTING_ID = "00000000-0000-0000-2000-000000000003";
 const APPROVAL_POSTING_ID = "00000000-0000-0000-2000-000000000001";
 
@@ -90,6 +93,28 @@ describe("Bookings persistence integration", () => {
       guestCount: 1,
     });
     expect(createdBooking.holdExpiresAt).toBeTruthy();
+
+    const bookingCreatedEvent =
+      await waitForRabbitMqPayload<RecommendationActivityEventPayload>(
+        persistenceApp.infra.rabbitMq,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+        (payload) =>
+          payload.eventType === "booking_request_created" &&
+          payload.postingId === MUTABLE_POSTING_ID &&
+          payload.actorUserId === renter.userId &&
+          payload.metadata?.bookingRequestId === createdBooking.id,
+      );
+    expect(bookingCreatedEvent).toMatchObject({
+      eventType: "booking_request_created",
+      postingId: MUTABLE_POSTING_ID,
+      actorUserId: renter.userId,
+      source: "booking_flow",
+      metadata: expect.objectContaining({
+        bookingRequestId: createdBooking.id,
+        guestCount: 1,
+        status: "pending",
+      }),
+    });
 
     const updateResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/booking-requests/${createdBooking.id}`)}`,

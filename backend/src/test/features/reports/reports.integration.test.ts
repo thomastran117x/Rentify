@@ -1,4 +1,6 @@
+import { containerTokens } from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
+import type { ContentReportSearchDocument } from "@/features/reports/reports.model";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import {
   createAuthenticatedRequestContext,
@@ -7,6 +9,18 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { waitForElasticsearchDocument } from "../../support/live-elasticsearch";
+
+async function processReportsSearchOutbox(
+  persistenceApp: PersistenceTestApp,
+  limit = 25,
+): Promise<number> {
+  const reportsService = persistenceApp.container.resolve<{
+    processSearchOutboxBatch(batchSize: number): Promise<number>;
+  }>(containerTokens.reportsService);
+
+  return reportsService.processSearchOutboxBatch(limit);
+}
 
 describe("Reports persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -46,7 +60,7 @@ describe("Reports persistence integration", () => {
 
     expect(response.status).toBe(201);
 
-    const report = await persistenceApp.prisma.contentReport.findFirst({
+    const report = await persistenceApp.prisma.contentReport.findFirstOrThrow({
       where: {
         reporterId: reporter.userId,
         subjectId: postingId,
@@ -63,7 +77,57 @@ describe("Reports persistence integration", () => {
       reasonCode: "spam",
       status: "open",
     });
-  });
+
+    const outboxEntries =
+      await persistenceApp.prisma.contentReportSearchOutbox.findMany({
+        where: {
+          reportId: report.id,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+    expect(outboxEntries).toHaveLength(1);
+    expect(outboxEntries[0]).toMatchObject({
+      operation: "upsert",
+      processedAt: null,
+      deadLetteredAt: null,
+    });
+
+    expect(await processReportsSearchOutbox(persistenceApp, 25)).toBe(1);
+
+    const indexedReport =
+      await waitForElasticsearchDocument<ContentReportSearchDocument>(
+        persistenceApp.infra.elasticsearch,
+        persistenceApp.infra.elasticsearch.reportsIndexName,
+        report.id,
+      );
+    expect(indexedReport).toMatchObject({
+      id: report.id,
+      subjectType: "posting",
+      subjectId: postingId,
+      reasonCode: "spam",
+      status: "open",
+      title: "Looks suspicious",
+      reporterId: reporter.userId,
+      reporterEmail: reporter.email,
+    });
+
+    expect(
+      await persistenceApp.prisma.contentReportSearchOutbox.findMany({
+        where: {
+          reportId: report.id,
+        },
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          processedAt: expect.any(Date),
+          deadLetteredAt: null,
+        }),
+      ]),
+    );
+  }, 180_000);
 
   it("persists report assignment and status transitions", async () => {
     const reporter = await createAuthenticatedRequestContext({
@@ -155,7 +219,52 @@ describe("Reports persistence integration", () => {
           ["status_changed", "note_added"].includes(event.eventType),
       ),
     ).toBe(true);
-  });
+
+    const outboxEntries =
+      await persistenceApp.prisma.contentReportSearchOutbox.findMany({
+        where: {
+          reportId: createdReport.id,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+    expect(outboxEntries).toHaveLength(3);
+    expect(outboxEntries.every((entry) => entry.processedAt === null)).toBe(
+      true,
+    );
+    expect(await processReportsSearchOutbox(persistenceApp, 25)).toBe(3);
+
+    const indexedReport =
+      await waitForElasticsearchDocument<ContentReportSearchDocument>(
+        persistenceApp.infra.elasticsearch,
+        persistenceApp.infra.elasticsearch.reportsIndexName,
+        createdReport.id,
+      );
+    expect(indexedReport).toMatchObject({
+      id: createdReport.id,
+      status: "under_review",
+      assignedModeratorId: moderator.userId,
+      assignedModeratorEmail: moderator.email,
+      reasonCode: "fraud_or_scam",
+      title: "Fake listing",
+    });
+
+    expect(
+      await persistenceApp.prisma.contentReportSearchOutbox.findMany({
+        where: {
+          reportId: createdReport.id,
+        },
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          processedAt: expect.any(Date),
+          deadLetteredAt: null,
+        }),
+      ]),
+    );
+  }, 180_000);
 
   it("does not persist owner self-report attempts against their own posting", async () => {
     const owner = await createAuthenticatedRequestContext({
@@ -181,5 +290,8 @@ describe("Reports persistence integration", () => {
 
     expect(response.status).toBe(403);
     expect(await persistenceApp.prisma.contentReport.count()).toBe(beforeCount);
-  });
+    expect(await persistenceApp.prisma.contentReportSearchOutbox.count()).toBe(
+      0,
+    );
+  }, 180_000);
 });

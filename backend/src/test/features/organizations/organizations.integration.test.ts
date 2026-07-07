@@ -1,4 +1,5 @@
 import { buildApiPath } from "@/configuration/http/api-path";
+import type { EmailJobPayload } from "@/features/email/email.model";
 import { createFixtureId } from "@/seeds/types";
 import {
   createAuthenticatedRequestContext,
@@ -7,8 +8,45 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
 
 const ORGANIZATION_ID = createFixtureId(1040, 1);
+const EMAIL_QUEUE_NAME = "email.delivery.main";
+
+async function readOrganizationInviteJob(
+  persistenceApp: PersistenceTestApp,
+  invitedEmail: string,
+): Promise<Extract<EmailJobPayload, { kind: "organization_invite" }>> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < 5_000) {
+    const messages = await peekRabbitMqMessages<EmailJobPayload>(
+      persistenceApp.infra.rabbitMq,
+      EMAIL_QUEUE_NAME,
+      25,
+    );
+    const invite = messages
+      .map((message) => message.payload)
+      .find(
+        (
+          payload,
+        ): payload is Extract<
+          EmailJobPayload,
+          { kind: "organization_invite" }
+        > =>
+          payload.kind === "organization_invite" &&
+          payload.input.to === invitedEmail,
+      );
+
+    if (invite) {
+      return invite;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Expected an organization invite email for ${invitedEmail}.`);
+}
 
 describe("Organizations persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -77,16 +115,14 @@ describe("Organizations persistence integration", () => {
     );
 
     expect(inviteViewerResponse.status).toBe(201);
-    const invitePayload =
-      persistenceApp.stubs.emailQueueService.enqueueEmailJob.mock.calls.at(
-        -1,
-      )?.[1] as {
-        token: string;
-      };
-    expect(invitePayload?.token).toBeTruthy();
+    const viewerInvite = await readOrganizationInviteJob(
+      persistenceApp,
+      "viewer1@rentify.local",
+    );
+    expect(viewerInvite.input.token).toBeTruthy();
 
     const acceptResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath(`/organizations/invitations/${invitePayload.token}/accept`)}`,
+      `http://rent.test${buildApiPath(`/organizations/invitations/${viewerInvite.input.token}/accept`)}`,
       {
         method: "POST",
         headers: viewer.headers(),
@@ -159,6 +195,13 @@ describe("Organizations persistence integration", () => {
     );
 
     expect(inviteExternalResponse.status).toBe(201);
+    const externalInvite = await readOrganizationInviteJob(
+      persistenceApp,
+      "manager@example.com",
+    );
+    expect(externalInvite.input.role).toBe("operator");
+    expect(externalInvite.input.organizationName).toBe("Northwind Studios");
+
     const externalInvitation =
       await persistenceApp.prisma.organizationInvitation.findFirstOrThrow({
         where: {
