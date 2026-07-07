@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildApiPath } from "@/configuration/http/api-path";
+import type { RecommendationActivityEventPayload } from "@/features/recommendations/recommendation-activity.model";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
@@ -7,7 +8,9 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 
+const RECOMMENDATION_ACTIVITY_QUEUE_NAME = "recommendation-activity.main";
 const OWNER_POSTING_ID = "00000000-0000-0000-2000-000000000001";
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -206,6 +209,28 @@ describe("Rentings persistence integration", () => {
     expect(renting).toMatchObject({
       bookingRequestId: fixture.bookingRequestId,
       status: "confirmed",
+    });
+
+    const rentingConfirmedEvent =
+      await waitForRabbitMqPayload<RecommendationActivityEventPayload>(
+        persistenceApp.infra.rabbitMq,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+        (payload) =>
+          payload.eventType === "renting_confirmed" &&
+          payload.postingId === OWNER_POSTING_ID &&
+          payload.metadata?.rentingId === renting?.id &&
+          payload.metadata?.bookingRequestId === fixture.bookingRequestId,
+      );
+    expect(rentingConfirmedEvent).toMatchObject({
+      eventType: "renting_confirmed",
+      postingId: OWNER_POSTING_ID,
+      actorUserId: renting?.renterId,
+      source: "renting_flow",
+      metadata: expect.objectContaining({
+        rentingId: renting?.id,
+        bookingRequestId: fixture.bookingRequestId,
+        guestCount: 2,
+      }),
     });
   });
 

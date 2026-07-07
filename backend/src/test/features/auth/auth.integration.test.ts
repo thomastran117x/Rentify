@@ -1,6 +1,7 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { getRedisClient } from "@/configuration/resources/redis";
+import type { EmailJobPayload } from "@/features/email/email.model";
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_HEADER_NAME,
@@ -14,6 +15,9 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
+
+const EMAIL_QUEUE_NAME = "email.delivery.main";
 
 function readCookieValue(setCookieHeader: string, name: string): string | null {
   const match = setCookieHeader.match(new RegExp(`${name}=([^;]+)`));
@@ -65,6 +69,20 @@ describe("Auth persistence integration", () => {
       }),
     ).toBeNull();
 
+    const verificationEmail = await waitForRabbitMqPayload<EmailJobPayload>(
+      persistenceApp.infra.rabbitMq,
+      EMAIL_QUEUE_NAME,
+      (payload) =>
+        payload.kind === "verification" && payload.input.to === email,
+    );
+    expect(verificationEmail).toMatchObject({
+      kind: "verification",
+      input: {
+        to: email,
+      },
+      attempt: 0,
+    });
+
     const otpService = persistenceApp.container.resolve<OtpService>(
       containerTokens.otpService,
     );
@@ -74,6 +92,9 @@ describe("Auth persistence integration", () => {
     });
 
     expect(verificationCode?.code).toBeTruthy();
+    expect(verificationEmail.input.verificationCode).toBe(
+      verificationCode?.code,
+    );
 
     const verifyResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/local/email/verify")}`,
