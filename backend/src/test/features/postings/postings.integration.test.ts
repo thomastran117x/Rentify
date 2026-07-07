@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { buildApiPath } from "@/configuration/http/api-path";
+import type { RecommendationActivityEventPayload } from "@/features/recommendations/recommendation-activity.model";
+import type { PostingThumbnailJobPayload } from "@/features/postings/thumbnail/thumbnail.model";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import {
   createAuthenticatedRequestContext,
@@ -8,6 +10,24 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
+
+const POSTING_THUMBNAIL_QUEUE_NAME = "postings.thumbnail.main";
+const RECOMMENDATION_ACTIVITY_QUEUE_NAME = "recommendation-activity.main";
+
+async function readQueuePayloads<TPayload>(
+  persistenceApp: PersistenceTestApp,
+  queueName: string,
+  count = 25,
+): Promise<TPayload[]> {
+  return (
+    await peekRabbitMqMessages<TPayload>(
+      persistenceApp.infra.rabbitMq,
+      queueName,
+      count,
+    )
+  ).map((message) => message.payload);
+}
 
 function buildPostingPhoto(blobName: string) {
   return {
@@ -458,6 +478,54 @@ describe("Postings persistence integration", () => {
       status: "archived",
       archivedAt: expect.any(Date),
     });
+
+    const thumbnailJobs = await readQueuePayloads<PostingThumbnailJobPayload>(
+      persistenceApp,
+      POSTING_THUMBNAIL_QUEUE_NAME,
+      10,
+    );
+    expect(thumbnailJobs).toHaveLength(5);
+    expect(
+      thumbnailJobs.filter((job) => job.postingId === createdPostingId),
+    ).toHaveLength(2);
+    expect(
+      thumbnailJobs.filter((job) => job.postingId === duplicatePayload.data.id),
+    ).toHaveLength(1);
+    expect(
+      thumbnailJobs.filter((job) => job.postingId === publishPostingId),
+    ).toHaveLength(1);
+    expect(
+      thumbnailJobs.filter((job) => job.postingId === unpausePostingId),
+    ).toHaveLength(1);
+    expect(thumbnailJobs.every((job) => job.attempt === 0)).toBe(true);
+
+    const recommendationEvents =
+      await readQueuePayloads<RecommendationActivityEventPayload>(
+        persistenceApp,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+        10,
+      );
+    expect(recommendationEvents).toHaveLength(4);
+    expect(recommendationEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          postingId: publishPostingId,
+          eventType: "posting_published",
+        }),
+        expect.objectContaining({
+          postingId: pausePostingId,
+          eventType: "posting_paused",
+        }),
+        expect.objectContaining({
+          postingId: unpausePostingId,
+          eventType: "posting_unpaused",
+        }),
+        expect.objectContaining({
+          postingId: archivePostingId,
+          eventType: "posting_archived",
+        }),
+      ]),
+    );
   });
 
   it("persists availability blocks, seasonal pricing rules, and reviews", async () => {

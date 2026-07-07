@@ -19,12 +19,34 @@ import {
   disconnectRedis,
   getRedisClient,
 } from "@/configuration/resources/redis";
-import { disconnectElasticsearch } from "@/configuration/resources/elasticsearch";
-import { disconnectRabbitMq } from "@/configuration/resources/rabbitmq";
+import {
+  connectElasticsearch,
+  disconnectElasticsearch,
+} from "@/configuration/resources/elasticsearch";
+import {
+  connectRabbitMq,
+  disconnectRabbitMq,
+} from "@/configuration/resources/rabbitmq";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import { SEED_DEVICES } from "@/seeds/fixtures/users";
+import {
+  assertElasticsearchAvailable,
+  assertSafeElasticsearchTarget,
+  createLiveElasticsearchConfig,
+  deleteElasticsearchIndicesByPrefix,
+  type LiveElasticsearchConfig,
+} from "./live-elasticsearch";
+import {
+  assertRabbitMqManagementAvailable,
+  assertSafeRabbitMqTarget,
+  createLiveRabbitMqConfig,
+  createRabbitMqTestVhost,
+  deleteRabbitMqTestVhost,
+  purgeRabbitMqQueues,
+  type LiveRabbitMqConfig,
+} from "./live-rabbitmq";
 
 const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent_test";
 const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380/15";
@@ -54,9 +76,6 @@ export interface PersistenceTestStubs {
       ]
     >;
   };
-  emailQueueService: {
-    enqueueEmailJob: jest.Mock<Promise<void>, [string, unknown]>;
-  };
   googleOAuthService: {
     verify: jest.Mock<
       Promise<Record<string, unknown>>,
@@ -79,28 +98,9 @@ export interface PersistenceTestStubs {
     isConfigured: jest.Mock<boolean, []>;
     isManagedBlobUrl: jest.Mock<boolean, [string, string]>;
   };
-  postingThumbnailQueueService: {
-    enqueuePostingThumbnailJob: jest.Mock<Promise<void>, [string]>;
-  };
   postingsPublicAutocompleteService: {
     autocompletePublic: jest.Mock<
       Promise<Record<string, unknown>>,
-      [Record<string, unknown>]
-    >;
-  };
-  recommendationActivityPublisher: {
-    publishPostingLifecycle: jest.Mock<
-      Promise<void>,
-      [Record<string, unknown>]
-    >;
-    publishPostingView: jest.Mock<Promise<void>, [Record<string, unknown>]>;
-    publishSearchClick: jest.Mock<Promise<void>, [Record<string, unknown>]>;
-    publishBookingRequestCreated: jest.Mock<
-      Promise<void>,
-      [Record<string, unknown>]
-    >;
-    publishRentingConfirmed: jest.Mock<
-      Promise<void>,
       [Record<string, unknown>]
     >;
   };
@@ -109,17 +109,6 @@ export interface PersistenceTestStubs {
       Promise<Record<string, unknown>>,
       [Record<string, unknown>]
     >;
-  };
-  reportsSearchIndexService: {
-    isElasticsearchEnabled: jest.Mock<boolean, []>;
-    ensureIndex: jest.Mock<Promise<void>, []>;
-    search: jest.Mock<
-      Promise<{ ids: string[]; total: number }>,
-      [Record<string, unknown>]
-    >;
-    upsertDocument: jest.Mock<Promise<void>, [Record<string, unknown>]>;
-    deleteDocument: jest.Mock<Promise<void>, [string]>;
-    bulkUpsertDocuments: jest.Mock<Promise<void>, [Record<string, unknown>[]]>;
   };
   paymentProvider: {
     createPaymentSession: jest.Mock<
@@ -163,14 +152,23 @@ export interface AuthenticatedRequestContext {
   cookieHeader(extraCookies?: Record<string, string>): string;
 }
 
+export interface PersistenceTestInfrastructure {
+  sessionId: string;
+  elasticsearch: LiveElasticsearchConfig;
+  rabbitMq: LiveRabbitMqConfig;
+}
+
 export interface PersistenceTestApp {
   app: ReturnType<typeof createApplication>;
   container: RootServiceContainer;
+  infra: PersistenceTestInfrastructure;
   prisma: ReturnType<typeof getDatabaseClient>;
   stubs: PersistenceTestStubs;
 }
 
 let activePersistenceApp: PersistenceTestApp | null = null;
+let activePersistenceInfrastructure: PersistenceTestInfrastructure | null = null;
+let activePersistenceInfrastructureReady = false;
 
 export function applyPersistenceTestEnvironment(
   overrides: {
@@ -178,6 +176,7 @@ export function applyPersistenceTestEnvironment(
     redisUrl?: string;
   } = {},
 ): void {
+  const infra = getOrCreatePersistenceInfrastructure();
   const databaseUrl = overrides.databaseUrl ?? DEFAULT_DATABASE_URL;
   const redisUrl = overrides.redisUrl ?? DEFAULT_REDIS_URL;
   const redisDb = getRedisDatabaseIndexFromUrl(redisUrl) ?? "15";
@@ -214,8 +213,13 @@ export function applyPersistenceTestEnvironment(
   process.env.SQUARE_WEBHOOK_NOTIFICATION_URL =
     process.env.SQUARE_WEBHOOK_NOTIFICATION_URL ??
     "http://localhost:8040/api/v1/payments/webhooks/square";
-  process.env.ELASTICSEARCH_ENABLED = "false";
-  process.env.RABBITMQ_URL = "";
+  process.env.ELASTICSEARCH_ENABLED = "true";
+  process.env.ELASTICSEARCH_URL = infra.elasticsearch.url;
+  process.env.ELASTICSEARCH_POSTINGS_INDEX =
+    infra.elasticsearch.postingsIndexName;
+  process.env.ELASTICSEARCH_REPORTS_INDEX =
+    infra.elasticsearch.reportsIndexName;
+  process.env.RABBITMQ_URL = infra.rabbitMq.amqpUrl;
   process.env.FRONTEND_URL =
     process.env.FRONTEND_URL ?? "http://localhost:3040";
   process.env.APP_BASE_URL =
@@ -229,16 +233,21 @@ export function applyPersistenceTestEnvironment(
     databaseUrl,
     redisUrl,
     redisDb: String(redisDb),
+    elasticsearch: infra.elasticsearch,
+    rabbitMq: infra.rabbitMq,
   });
 }
 
 export async function createPersistenceTestApp(
   options: PersistenceTestAppOptions = {},
 ): Promise<PersistenceTestApp> {
+  const infra = await initializePersistenceInfrastructure();
   applyPersistenceTestEnvironment(options);
   loadEnvironment();
   await connectDatabase();
   await connectRedis();
+  await connectElasticsearch();
+  await connectRabbitMq();
   await disposeContainer();
 
   const stubs = createPersistenceTestStubs();
@@ -253,6 +262,7 @@ export async function createPersistenceTestApp(
   const result = {
     app,
     container,
+    infra,
     prisma: getDatabaseClient(),
     stubs,
   } satisfies PersistenceTestApp;
@@ -262,7 +272,11 @@ export async function createPersistenceTestApp(
 }
 
 export async function teardownPersistenceTestApp(): Promise<void> {
+  const infra = activePersistenceInfrastructure;
+
   activePersistenceApp = null;
+  activePersistenceInfrastructure = null;
+  activePersistenceInfrastructureReady = false;
   await disposeContainer();
   await Promise.allSettled([
     disconnectRabbitMq(),
@@ -270,19 +284,32 @@ export async function teardownPersistenceTestApp(): Promise<void> {
     disconnectDatabase(),
     disconnectElasticsearch(),
   ]);
+
+  if (infra) {
+    await Promise.allSettled([
+      deleteRabbitMqTestVhost(infra.rabbitMq),
+      deleteElasticsearchIndicesByPrefix(infra.elasticsearch),
+    ]);
+  }
 }
 
 export async function resetPersistenceState(): Promise<void> {
+  const infra = requirePersistenceInfrastructure();
+
   assertSafePersistenceResetTargets({
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
     redisDb: process.env.REDIS_DB,
+    elasticsearch: infra.elasticsearch,
+    rabbitMq: infra.rabbitMq,
   });
 
   const prisma = getDatabaseClient();
   const redis = getRedisClient();
 
   await redis.flushDb();
+  await purgeRabbitMqQueues(infra.rabbitMq);
+  await deleteElasticsearchIndicesByPrefix(infra.elasticsearch);
 
   const currentDatabase = await prisma.$queryRawUnsafe<
     Array<{ name: string | null }>
@@ -403,6 +430,8 @@ function assertSafePersistenceResetTargets(input: {
   databaseUrl?: string;
   redisUrl?: string;
   redisDb?: string;
+  elasticsearch?: LiveElasticsearchConfig;
+  rabbitMq?: LiveRabbitMqConfig;
 }): void {
   const databaseUrl = input.databaseUrl?.trim();
   const redisUrl = input.redisUrl?.trim();
@@ -434,6 +463,14 @@ function assertSafePersistenceResetTargets(input: {
       `Refusing to flush Redis database '${redisDb}'. Use a non-zero, test-scoped Redis DB such as '${DEFAULT_REDIS_URL}'.`,
     );
   }
+
+  if (input.elasticsearch) {
+    assertSafeElasticsearchTarget(input.elasticsearch);
+  }
+
+  if (input.rabbitMq) {
+    assertSafeRabbitMqTarget(input.rabbitMq);
+  }
 }
 
 function getDatabaseNameFromUrl(databaseUrl: string): string | null {
@@ -458,6 +495,46 @@ function getRedisDatabaseIndexFromUrl(redisUrl: string): string | null {
       `Could not parse REDIS_URL '${redisUrl}' for persistence test safety checks.`,
     );
   }
+}
+
+function getOrCreatePersistenceInfrastructure(): PersistenceTestInfrastructure {
+  if (!activePersistenceInfrastructure) {
+    const sessionId = randomUUID();
+
+    activePersistenceInfrastructure = {
+      sessionId,
+      elasticsearch: createLiveElasticsearchConfig(sessionId),
+      rabbitMq: createLiveRabbitMqConfig(sessionId),
+    };
+  }
+
+  return activePersistenceInfrastructure;
+}
+
+function requirePersistenceInfrastructure(): PersistenceTestInfrastructure {
+  if (!activePersistenceInfrastructure) {
+    throw new Error(
+      "Persistence test infrastructure has not been initialized. Call createPersistenceTestApp() first.",
+    );
+  }
+
+  return activePersistenceInfrastructure;
+}
+
+async function initializePersistenceInfrastructure(): Promise<PersistenceTestInfrastructure> {
+  const infrastructure = getOrCreatePersistenceInfrastructure();
+
+  if (activePersistenceInfrastructureReady) {
+    return infrastructure;
+  }
+
+  await assertElasticsearchAvailable(infrastructure.elasticsearch);
+  await deleteElasticsearchIndicesByPrefix(infrastructure.elasticsearch);
+  await assertRabbitMqManagementAvailable(infrastructure.rabbitMq);
+  await createRabbitMqTestVhost(infrastructure.rabbitMq);
+
+  activePersistenceInfrastructureReady = true;
+  return infrastructure;
 }
 
 export function requirePersistenceApp(): PersistenceTestApp {
@@ -496,11 +573,6 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
             : ["missing-input-response"],
         };
       }),
-    },
-    emailQueueService: {
-      enqueueEmailJob: jest.fn(
-        async (_kind: string, _payload: unknown) => undefined,
-      ),
     },
     googleOAuthService: {
       verify: jest.fn(async (_input: Record<string, unknown>) => ({
@@ -546,32 +618,10 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         }
       }),
     },
-    postingThumbnailQueueService: {
-      enqueuePostingThumbnailJob: jest.fn(
-        async (_postingId: string) => undefined,
-      ),
-    },
     postingsPublicAutocompleteService: {
       autocompletePublic: jest.fn(async (_input: Record<string, unknown>) => ({
         items: [],
       })),
-    },
-    recommendationActivityPublisher: {
-      publishPostingLifecycle: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
-      publishPostingView: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
-      publishSearchClick: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
-      publishBookingRequestCreated: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
-      publishRentingConfirmed: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
     },
     postingsPublicSearchService: {
       searchPublic: jest.fn(async (_input: Record<string, unknown>) => ({
@@ -583,21 +633,6 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         hasNextPage: false,
         hasPreviousPage: false,
       })),
-    },
-    reportsSearchIndexService: {
-      isElasticsearchEnabled: jest.fn(() => false),
-      ensureIndex: jest.fn(async () => undefined),
-      search: jest.fn(async (_input: Record<string, unknown>) => ({
-        ids: [],
-        total: 0,
-      })),
-      upsertDocument: jest.fn(
-        async (_input: Record<string, unknown>) => undefined,
-      ),
-      deleteDocument: jest.fn(async (_id: string) => undefined),
-      bulkUpsertDocuments: jest.fn(
-        async (_documents: Record<string, unknown>[]) => undefined,
-      ),
     },
     paymentProvider: {
       createPaymentSession: jest.fn(async (input) => ({
@@ -670,12 +705,6 @@ function registerDefaultPersistenceOverrides(
     resolve: () => stubs.captchaService as never,
   });
   container.register({
-    token: containerTokens.emailQueueService,
-    lifetime: "singleton",
-    dependencies: [],
-    resolve: () => stubs.emailQueueService as never,
-  });
-  container.register({
     token: containerTokens.googleOAuthService,
     lifetime: "singleton",
     dependencies: [],
@@ -700,34 +729,16 @@ function registerDefaultPersistenceOverrides(
     resolve: () => stubs.blobService as never,
   });
   container.register({
-    token: containerTokens.postingThumbnailQueueService,
-    lifetime: "singleton",
-    dependencies: [],
-    resolve: () => stubs.postingThumbnailQueueService as never,
-  });
-  container.register({
     token: containerTokens.postingsPublicAutocompleteService,
     lifetime: "singleton",
     dependencies: [],
     resolve: () => stubs.postingsPublicAutocompleteService as never,
   });
   container.register({
-    token: containerTokens.recommendationActivityPublisher,
-    lifetime: "singleton",
-    dependencies: [],
-    resolve: () => stubs.recommendationActivityPublisher as never,
-  });
-  container.register({
     token: containerTokens.postingsPublicSearchService,
     lifetime: "singleton",
     dependencies: [],
     resolve: () => stubs.postingsPublicSearchService as never,
-  });
-  container.register({
-    token: containerTokens.reportsSearchIndexService,
-    lifetime: "singleton",
-    dependencies: [],
-    resolve: () => stubs.reportsSearchIndexService as never,
   });
   container.register({
     token: containerTokens.paymentProvider,
