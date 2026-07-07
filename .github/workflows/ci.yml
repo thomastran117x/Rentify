@@ -268,6 +268,31 @@ jobs:
           --health-timeout=5s
           --health-retries=10
           --health-start-period=5s
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9201:9200
+        options: >-
+          --health-cmd="curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=30s
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=20s
     defaults:
       run:
         working-directory: backend
@@ -278,8 +303,9 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: "6380"
       REDIS_DB: "15"
-      ELASTICSEARCH_ENABLED: "false"
-      RABBITMQ_URL: ""
+      ELASTICSEARCH_ENABLED: "true"
+      ELASTICSEARCH_URL: http://127.0.0.1:9201
+      RABBITMQ_URL: amqp://guest:guest@127.0.0.1:5672
       FRONTEND_URL: http://localhost:3040
       APP_BASE_URL: http://localhost:3040
       GMAIL_USER: ci@example.com
@@ -306,6 +332,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Wait for Elasticsearch and RabbitMQ management
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:9201 >/dev/null && curl -fsS -u guest:guest http://127.0.0.1:15672/api/overview >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Elasticsearch or RabbitMQ management did not become ready in time."
+          exit 1
 
       - name: Apply database migrations
         run: npm run prisma:migrate:deploy
