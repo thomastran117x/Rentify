@@ -30,7 +30,10 @@ async function readOrganizationInviteJob(
       .find(
         (
           payload,
-        ): payload is Extract<EmailJobPayload, { kind: "organization_invite" }> =>
+        ): payload is Extract<
+          EmailJobPayload,
+          { kind: "organization_invite" }
+        > =>
           payload.kind === "organization_invite" &&
           payload.input.to === invitedEmail,
       );

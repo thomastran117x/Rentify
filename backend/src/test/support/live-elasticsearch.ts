@@ -13,7 +13,9 @@ export interface LiveElasticsearchConfig {
 export function createLiveElasticsearchConfig(
   sessionId = randomUUID(),
 ): LiveElasticsearchConfig {
-  const normalizedSessionId = sessionId.replace(/[^a-z0-9-]/gi, "").toLowerCase();
+  const normalizedSessionId = sessionId
+    .replace(/[^a-z0-9-]/gi, "")
+    .toLowerCase();
   const indexPrefix = `${ELASTICSEARCH_TEST_PREFIX}${normalizedSessionId}`;
 
   const postingsIndexName = `${indexPrefix}-postings`;

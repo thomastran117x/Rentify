@@ -230,7 +230,9 @@ describe("Reports persistence integration", () => {
         },
       });
     expect(outboxEntries).toHaveLength(3);
-    expect(outboxEntries.every((entry) => entry.processedAt === null)).toBe(true);
+    expect(outboxEntries.every((entry) => entry.processedAt === null)).toBe(
+      true,
+    );
     expect(await processReportsSearchOutbox(persistenceApp, 25)).toBe(3);
 
     const indexedReport =
@@ -288,6 +290,8 @@ describe("Reports persistence integration", () => {
 
     expect(response.status).toBe(403);
     expect(await persistenceApp.prisma.contentReport.count()).toBe(beforeCount);
-    expect(await persistenceApp.prisma.contentReportSearchOutbox.count()).toBe(0);
+    expect(await persistenceApp.prisma.contentReportSearchOutbox.count()).toBe(
+      0,
+    );
   }, 180_000);
 });

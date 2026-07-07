@@ -41,8 +41,12 @@ export interface PeekedRabbitMqMessage<TPayload = unknown> {
   properties: Record<string, unknown>;
 }
 
-export function createLiveRabbitMqConfig(sessionId = randomUUID()): LiveRabbitMqConfig {
-  const normalizedSessionId = sessionId.replace(/[^a-z0-9-]/gi, "").toLowerCase();
+export function createLiveRabbitMqConfig(
+  sessionId = randomUUID(),
+): LiveRabbitMqConfig {
+  const normalizedSessionId = sessionId
+    .replace(/[^a-z0-9-]/gi, "")
+    .toLowerCase();
   const vhost = `${RABBITMQ_TEST_VHOST_PREFIX}${normalizedSessionId}`;
 
   return {
@@ -56,7 +60,10 @@ export function createLiveRabbitMqConfig(sessionId = randomUUID()): LiveRabbitMq
 
 export function assertSafeRabbitMqTarget(config: LiveRabbitMqConfig): void {
   const amqpUrl = parseUrl(config.amqpUrl, "RabbitMQ AMQP URL");
-  const managementUrl = parseUrl(config.managementUrl, "RabbitMQ management URL");
+  const managementUrl = parseUrl(
+    config.managementUrl,
+    "RabbitMQ management URL",
+  );
   const vhost = config.vhost.trim();
 
   if (!SAFE_RABBITMQ_HOSTS.has(amqpUrl.hostname)) {
@@ -204,7 +211,8 @@ export async function peekRabbitMqMessages<TPayload = unknown>(
     payload: normalizeRabbitMqPayload<TPayload>(message.payload),
     routingKey:
       typeof message.routing_key === "string" ? message.routing_key : undefined,
-    exchange: typeof message.exchange === "string" ? message.exchange : undefined,
+    exchange:
+      typeof message.exchange === "string" ? message.exchange : undefined,
     properties: message.properties ?? {},
   }));
 }

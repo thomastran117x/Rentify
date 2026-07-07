@@ -167,7 +167,8 @@ export interface PersistenceTestApp {
 }
 
 let activePersistenceApp: PersistenceTestApp | null = null;
-let activePersistenceInfrastructure: PersistenceTestInfrastructure | null = null;
+let activePersistenceInfrastructure: PersistenceTestInfrastructure | null =
+  null;
 let activePersistenceInfrastructureReady = false;
 
 export function applyPersistenceTestEnvironment(
