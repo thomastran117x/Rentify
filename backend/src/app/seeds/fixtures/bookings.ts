@@ -84,7 +84,9 @@ const SEED_DATE_RUNTIME_OFFSET_MS =
   SEED_DATE_TEMPLATE_ANCHOR;
 
 function toRuntimeDate(templateIso: string): string {
-  return new Date(Date.parse(templateIso) + SEED_DATE_RUNTIME_OFFSET_MS).toISOString();
+  return new Date(
+    Date.parse(templateIso) + SEED_DATE_RUNTIME_OFFSET_MS,
+  ).toISOString();
 }
 
 function createLedgerEntries(
