@@ -67,6 +67,28 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+// BOOKING_SPECS below encodes each booking's startAt/endAt as fixed dates in a
+// hardcoded May-Aug 2026 template calendar so the relative spacing between
+// specs (and thus their lifecycle semantics, e.g. how far a hold sits from
+// its expiry) is easy to read and edit. That template is translated to real
+// time at module-load by shifting every date by a constant offset, anchored
+// so the template's earliest date lands a few days after "now" - this keeps
+// the whole dataset perpetually valid instead of going stale once real time
+// catches up to the literals, which is what broke the payments integration
+// test (a booking's hold had actually expired by the time the test ran).
+const SEED_DATE_TEMPLATE_ANCHOR = Date.parse("2026-05-12T12:00:00.000Z");
+const SEED_DATE_RUNTIME_ANCHOR_BUFFER_DAYS = 3;
+const SEED_DATE_RUNTIME_OFFSET_MS =
+  Date.now() +
+  SEED_DATE_RUNTIME_ANCHOR_BUFFER_DAYS * 24 * 60 * 60 * 1000 -
+  SEED_DATE_TEMPLATE_ANCHOR;
+
+function toRuntimeDate(templateIso: string): string {
+  return new Date(
+    Date.parse(templateIso) + SEED_DATE_RUNTIME_OFFSET_MS,
+  ).toISOString();
+}
+
 function createLedgerEntries(
   index: number,
   currency: string,
@@ -458,11 +480,13 @@ function createRentingDisputeFixture(
 
 function createBookingFixture(spec: BookingSpec): SeedBookingFixture {
   const pricingCurrency = "CAD";
-  const durationDays = calculateDurationDays(spec.startAt, spec.endAt);
+  const startAt = toRuntimeDate(spec.startAt);
+  const endAt = toRuntimeDate(spec.endAt);
+  const durationDays = calculateDurationDays(startAt, endAt);
   const estimatedTotal = roundMoney(durationDays * spec.dailyPriceAmount);
-  const createdAt = subtractDays(spec.startAt, 7);
+  const createdAt = subtractDays(startAt, 7);
   const approvedAt = addHours(createdAt, 6);
-  const paymentRequiredAt = subtractDays(spec.startAt, 2);
+  const paymentRequiredAt = subtractDays(startAt, 2);
   const holdExpiresAt = addDays(createdAt, 2);
   const payment = createPaymentFixture(
     spec.index,
@@ -491,8 +515,8 @@ function createBookingFixture(spec: BookingSpec): SeedBookingFixture {
           : spec.lifecycle === "paid_confirmed"
             ? "paid"
             : spec.lifecycle,
-    startAt: spec.startAt,
-    endAt: spec.endAt,
+    startAt,
+    endAt,
     guestCount: spec.guestCount,
     contactName: spec.contactName,
     contactEmail: spec.renterEmail,
@@ -518,8 +542,8 @@ function createBookingFixture(spec: BookingSpec): SeedBookingFixture {
   ) {
     booking.holdBlock = {
       id: createFixtureId(3200, spec.index),
-      startAt: spec.startAt,
-      endAt: spec.endAt,
+      startAt,
+      endAt,
       note: `Temporary booking hold for fixture ${spec.index}.`,
       source: "booking_hold",
     };
@@ -589,8 +613,8 @@ function createBookingFixture(spec: BookingSpec): SeedBookingFixture {
     booking.conversionReservationExpiresAt = addHours(createdAt, 11);
     booking.rentingBlock = {
       id: createFixtureId(3201, spec.index),
-      startAt: spec.startAt,
-      endAt: spec.endAt,
+      startAt,
+      endAt,
       note: `Confirmed renting window for fixture ${spec.index}.`,
       source: "renting",
     };
