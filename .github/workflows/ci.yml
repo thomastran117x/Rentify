@@ -11,6 +11,7 @@ permissions:
 
 env:
   NODE_VERSION: "22"
+  NODE_VERSION_BACKEND: "24"
 
 jobs:
   frontend:
@@ -126,7 +127,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION_BACKEND }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -183,7 +184,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION_BACKEND }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -229,7 +230,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION_BACKEND }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -326,7 +327,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION_BACKEND }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 

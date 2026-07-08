@@ -4,7 +4,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 
 ## Stack
 
-- runtime: `Node.js 22`
+- runtime: `Node.js 24`
 - server: `Hono`
 - data access: `Prisma`
 - database: `MySQL`
