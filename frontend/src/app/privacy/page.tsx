@@ -35,13 +35,13 @@ export default function PrivacyPage() {
       accent="rgba(37,99,235,0.18)"
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Last updated
           </p>
-          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
             May 13, 2026
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Review and adapt this content with counsel before using it as your
             final published policy.
           </p>
@@ -66,12 +66,12 @@ export default function PrivacyPage() {
         {privacySections.map((section) => (
           <article
             key={section.title}
-            className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+            className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
           >
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               {section.title}
             </h2>
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600 dark:text-slate-300">
               {section.body}
             </p>
           </article>

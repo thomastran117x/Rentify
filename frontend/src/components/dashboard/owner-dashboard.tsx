@@ -306,19 +306,19 @@ export function OwnerDashboard() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">
-        <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
-          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7 sm:px-8">
+        <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
+          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_34%),linear-gradient(135deg,_#0f172a,_#020617)] px-6 py-7 sm:px-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                   Owner dashboard
                 </p>
-                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
+                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-white">
                   Watch your listing funnel move in real time
                 </h1>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                   Search visibility, clicks, requests, approvals, confirmations,
                   and revenue all land here so you can see where each posting is
                   gaining momentum or leaking demand.
@@ -408,7 +408,7 @@ export function OwnerDashboard() {
                 eyebrow="Confirmed Revenue"
                 value={formatMoney(summary.totals.estimatedConfirmedRevenue)}
                 detail={`${formatMoney(summary.totals.refundedRevenue)} refunded in the current window.`}
-                accent="from-slate-950 to-slate-700"
+                accent="from-slate-950 dark:from-slate-100 to-slate-700 dark:to-slate-400"
                 sparklineValues={detail?.buckets.map(
                   (bucket) => bucket.metrics.estimatedConfirmedRevenue,
                 )}
@@ -434,7 +434,7 @@ export function OwnerDashboard() {
                     {selectedPosting ? (
                       <Link
                         href={`/dashboard/postings/${selectedPosting.postingId}`}
-                        className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="inline-flex h-10 items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                       >
                         Open detail
                       </Link>
@@ -448,7 +448,7 @@ export function OwnerDashboard() {
                     description={detailError}
                   />
                 ) : loadingDetail && !detail ? (
-                  <div className="h-72 rounded-[1.4rem] bg-slate-100" />
+                  <div className="h-72 rounded-[1.4rem] bg-slate-100 dark:bg-slate-800" />
                 ) : detail ? (
                   <TrendChart buckets={detail.buckets} metricKey={metricKey} />
                 ) : (
@@ -536,8 +536,8 @@ export function OwnerDashboard() {
                 title="Posting performance"
                 subtitle="Use this list to switch the chart focus and compare conversion at a glance."
               >
-                <div className="overflow-hidden rounded-[1.4rem] border border-slate-200">
-                  <div className="hidden grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 md:grid">
+                <div className="overflow-hidden rounded-[1.4rem] border border-slate-200 dark:border-slate-800">
+                  <div className="hidden grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] gap-3 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 md:grid">
                     <span>Posting</span>
                     <span>CTR</span>
                     <span>Requests</span>
@@ -546,7 +546,7 @@ export function OwnerDashboard() {
                     <span>Revenue</span>
                   </div>
 
-                  <div className="divide-y divide-slate-200 bg-white">
+                  <div className="divide-y divide-slate-200 bg-white dark:bg-slate-900">
                     {listing.postings.map((posting) => {
                       const isSelected =
                         posting.postingId === selectedPostingId;
@@ -558,12 +558,12 @@ export function OwnerDashboard() {
                           onClick={() =>
                             setSelectedPostingId(posting.postingId)
                           }
-                          className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 md:grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] ${
-                            isSelected ? "bg-sky-50/60" : ""
+                          className={`grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800 md:grid-cols-[minmax(0,2fr)_0.8fr_0.8fr_0.8fr_0.9fr_0.9fr] ${
+                            isSelected ? "bg-sky-50/60 dark:bg-sky-950/30" : ""
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100">
+                            <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
                               {posting.primaryPhotoUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -574,10 +574,10 @@ export function OwnerDashboard() {
                               ) : null}
                             </div>
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-950">
+                              <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
                                 {posting.name}
                               </p>
-                              <p className="mt-1 text-xs text-slate-500">
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 {formatStatus(posting.status)}
                               </p>
                             </div>
@@ -617,7 +617,7 @@ export function OwnerDashboard() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Page {listing.pagination.page} of{" "}
                     {listing.pagination.totalPages}
                   </p>
@@ -628,7 +628,7 @@ export function OwnerDashboard() {
                         setPage((current) => Math.max(1, current - 1))
                       }
                       disabled={!listing.pagination.hasPreviousPage}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Previous
                     </button>
@@ -642,7 +642,7 @@ export function OwnerDashboard() {
                         )
                       }
                       disabled={!listing.pagination.hasNextPage}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Next
                     </button>
@@ -667,14 +667,14 @@ function MoverCard({
   value: string;
 }) {
   return (
-    <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+    <div className="rounded-[1.2rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-lg font-semibold tracking-[-0.04em] text-slate-950">
+      <p className="mt-2 text-lg font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
         {value}
       </p>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {posting?.name ?? "No posting has enough data yet."}
       </p>
     </div>
@@ -684,10 +684,12 @@ function MoverCard({
 function MetricCell({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 md:hidden">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 md:hidden">
         {label}
       </p>
-      <p className="text-sm font-medium text-slate-700 md:pt-1">{value}</p>
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 md:pt-1">
+        {value}
+      </p>
     </div>
   );
 }

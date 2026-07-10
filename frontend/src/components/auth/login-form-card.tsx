@@ -30,7 +30,7 @@ export function LoginFormCard({ children }: LoginFormCardProps) {
         Create an account
       </Link>
 
-      <p className="mt-6 text-center text-xs leading-6 text-slate-500">
+      <p className="mt-6 text-center text-xs leading-6 text-slate-500 dark:text-slate-400">
         Secure sign in for your rental workspace and booking management.
       </p>
     </div>

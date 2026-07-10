@@ -18,22 +18,22 @@ export function Field({
 
   return (
     <label htmlFor={resolvedId} className="block space-y-2.5">
-      <span className="text-sm font-medium tracking-[-0.01em] text-slate-800">
+      <span className="text-sm font-medium tracking-[-0.01em] text-slate-800 dark:text-slate-100">
         {label}
       </span>
       <input
         {...props}
         id={resolvedId}
-        className={`w-full rounded-[1rem] border bg-white px-4 py-3.5 text-base text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition duration-200 placeholder:text-slate-400 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/12 focus-visible:outline-none ${
+        className={`w-full rounded-[1rem] border bg-white dark:bg-slate-900 px-4 py-3.5 text-base text-slate-950 dark:text-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/12 focus-visible:outline-none ${
           error
-            ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100"
-            : "border-slate-200 focus:border-brand-accent focus:ring-brand-accent-soft/70"
+            ? "border-rose-300 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-100"
+            : "border-slate-200 dark:border-slate-800 focus:border-brand-accent focus:ring-brand-accent-soft/70"
         } ${className ?? ""}`}
       />
       {error ? (
-        <p className="text-sm text-rose-700">{error}</p>
+        <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>
       ) : hint ? (
-        <p className="text-sm text-slate-500">{hint}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{hint}</p>
       ) : null}
     </label>
   );
@@ -46,9 +46,11 @@ interface BannerProps {
 
 export function Banner({ tone, children }: BannerProps) {
   const toneClasses = {
-    error: "border-rose-200 bg-rose-50/80 text-rose-800",
-    success: "border-emerald-200 bg-emerald-50/80 text-emerald-800",
-    info: "border-sky-200 bg-sky-50/80 text-sky-800",
+    error:
+      "border-rose-200 dark:border-rose-900/50 bg-rose-50/80 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300",
+    success:
+      "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300",
+    info: "border-sky-200 dark:border-sky-900/50 bg-sky-50/80 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300",
   } as const;
 
   return (

@@ -19,6 +19,22 @@
   --font-serif-display-stack:
     "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman",
     serif;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #e2e8f0;
+  --brand-cream: #020617;
+  --brand-surface: rgba(30, 41, 59, 0.74);
+  --brand-ink: #f1f5f9;
+  --brand-muted: #94a3b8;
+  --brand-gold: #e2b872;
+  --brand-forest: #5b8f74;
+  --brand-accent: #3b82f6;
+  --brand-accent-soft: rgba(59, 130, 246, 0.16);
+  --brand-line: rgba(148, 163, 184, 0.16);
+  color-scheme: dark;
 }
 
 @theme inline {

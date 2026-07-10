@@ -35,13 +35,13 @@ export default function TermsPage() {
       accent="rgba(212,168,95,0.22)"
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Guidance
           </p>
-          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
             Template content
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Review this language with legal counsel before publishing,
             especially if your marketplace processes payments, recurring
             rentals, or regional consumer rights.
@@ -67,12 +67,12 @@ export default function TermsPage() {
         {termsSections.map((section) => (
           <article
             key={section.title}
-            className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+            className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
           >
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               {section.title}
             </h2>
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600 dark:text-slate-300">
               {section.body}
             </p>
           </article>

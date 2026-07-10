@@ -137,28 +137,30 @@ export function ReportDialog({
           onClick={handleTriggerClick}
           className={
             className ??
-            "inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+            "inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-50 dark:hover:bg-rose-950/40"
           }
         >
           {triggerLabel}
         </button>
         {successMessage ? (
-          <p className="text-sm text-emerald-700">{successMessage}</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            {successMessage}
+          </p>
         ) : null}
       </div>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8">
-          <div className="w-full max-w-xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.28)]">
+          <div className="w-full max-w-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_30px_100px_rgba(15,23,42,0.28)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600 dark:text-rose-400">
                   Safety report
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                   Report {subjectLabel.toLowerCase()}
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                   Share enough context for a moderator to review what happened.
                 </p>
               </div>
@@ -169,21 +171,21 @@ export function ReportDialog({
                   setFieldErrors({});
                   setSubmitError(null);
                 }}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Close
               </button>
             </div>
 
             <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-              <label className="grid gap-2 text-sm text-slate-700">
+              <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <span className="font-medium">Reason</span>
                 <select
                   value={reasonCode}
                   onChange={(event) =>
                     setReasonCode(event.target.value as ReportReasonCode)
                   }
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   {REPORT_REASON_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -193,7 +195,7 @@ export function ReportDialog({
                 </select>
               </label>
 
-              <label className="grid gap-2 text-sm text-slate-700">
+              <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <span className="font-medium">Title</span>
                 <input
                   value={title}
@@ -209,7 +211,7 @@ export function ReportDialog({
                   aria-describedby={
                     fieldErrors.title ? "report-title-error" : undefined
                   }
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   maxLength={120}
                   placeholder="Short summary of the issue"
                 />
@@ -219,7 +221,7 @@ export function ReportDialog({
                 />
               </label>
 
-              <label className="grid gap-2 text-sm text-slate-700">
+              <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <span className="font-medium">Description</span>
                 <textarea
                   value={description}
@@ -239,7 +241,7 @@ export function ReportDialog({
                       ? "report-description-error"
                       : undefined
                   }
-                  className="rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   placeholder="Describe the behavior, context, and why it violates the rules."
                 />
                 <FieldErrorMessage
@@ -263,14 +265,14 @@ export function ReportDialog({
                     setFieldErrors({});
                     setSubmitError(null);
                   }}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? "Submitting..." : "Submit report"}
                 </button>

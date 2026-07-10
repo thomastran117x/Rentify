@@ -416,7 +416,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   if (status === "loading") {
     return (
-      <div className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 shadow-sm">
+      <div className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 shadow-sm">
         Preparing your workspace...
       </div>
     );

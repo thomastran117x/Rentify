@@ -28,7 +28,7 @@ export function AuthCaptchaPanel({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 transition duration-200 hover:border-violet-200 hover:bg-violet-50"
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-900 dark:text-white transition duration-200 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-950/40"
           >
             Run again
           </button>

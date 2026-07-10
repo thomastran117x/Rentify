@@ -55,13 +55,13 @@ export default function AboutPage() {
       ]}
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Our focus
           </p>
-          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
             Search confidence, trustworthy listings, and better owner tools.
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Rentify keeps the marketplace experience grounded in useful
             structure so renters can move faster and owners can keep information
             accurate.
@@ -79,12 +79,12 @@ export default function AboutPage() {
           {values.map((value) => (
             <article
               key={value.title}
-              className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
             >
-              <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
+              <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                 {value.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
+              <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {value.description}
               </p>
             </article>
@@ -92,15 +92,15 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="mt-14 grid gap-8 rounded-[2.5rem] border border-slate-200 bg-slate-50 px-7 py-8 shadow-sm lg:grid-cols-[1fr_0.9fr]">
+      <section className="mt-14 grid gap-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-7 py-8 shadow-sm lg:grid-cols-[1fr_0.9fr]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-700 dark:text-violet-300">
             How we work
           </p>
-          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
             Useful structure before feature noise.
           </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
             The marketplace gets stronger when search, listing content, and
             support flows answer the obvious questions early and clearly.
           </p>
@@ -109,12 +109,14 @@ export default function AboutPage() {
           {process.map((item, index) => (
             <div
               key={item}
-              className="rounded-[1.75rem] border border-slate-200 bg-white px-5 py-5"
+              className="rounded-[1.75rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
                 Step 0{index + 1}
               </p>
-              <p className="mt-3 text-sm leading-7 text-slate-900">{item}</p>
+              <p className="mt-3 text-sm leading-7 text-slate-900 dark:text-white">
+                {item}
+              </p>
             </div>
           ))}
         </div>

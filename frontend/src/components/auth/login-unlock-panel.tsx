@@ -220,7 +220,7 @@ export function LoginUnlockPanel({
             onChange={(event) =>
               setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
             }
-            className={`h-14 w-full rounded-2xl border bg-white px-4 text-center text-[22px] tracking-[0.35em] text-slate-900 outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 ${
+            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center text-[22px] tracking-[0.35em] text-slate-900 dark:text-white outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
               codeError
                 ? theme.auth.fieldError
                 : code.length > 0

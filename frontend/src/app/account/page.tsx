@@ -466,8 +466,8 @@ export default function AccountPage() {
 
   if (status === "loading") {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl text-sm font-medium text-slate-500">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-3xl text-sm font-medium text-slate-500 dark:text-slate-400">
           Loading account...
         </div>
       </main>
@@ -476,15 +476,17 @@ export default function AccountPage() {
 
   if (status !== "authenticated" || !session) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8">
-          <h1 className="text-3xl font-semibold text-slate-950">Account</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
+          <h1 className="text-3xl font-semibold text-slate-950 dark:text-white">
+            Account
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Sign in to manage login methods and connected providers.
           </p>
           <Link
             href="/login"
-            className="mt-6 inline-flex h-11 items-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white"
+            className="mt-6 inline-flex h-11 items-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white"
           >
             Sign in
           </Link>
@@ -494,24 +496,28 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-3xl space-y-6">
         {/* Page header */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             <User className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-950">Account</h1>
-            <p className="text-sm text-slate-500">{session.user.email}</p>
+            <h1 className="text-2xl font-semibold text-slate-950 dark:text-white">
+              Account
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {session.user.email}
+            </p>
           </div>
-          <span className="ml-auto inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium capitalize text-slate-600">
+          <span className="ml-auto inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium capitalize text-slate-600 dark:text-slate-300">
             {session.user.role}
           </span>
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
+        <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 p-1">
           {(["profile", "security", "developer"] as const).map((tab) => (
             <button
               key={tab}
@@ -523,8 +529,8 @@ export default function AccountPage() {
               }
               className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeTab === tab
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
               }`}
             >
               {tab === "profile"
@@ -538,34 +544,36 @@ export default function AccountPage() {
 
         {/* ── Profile tab ── */}
         {activeTab === "profile" && (
-          <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="space-y-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
                 <User className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-slate-950">
+                <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                   Profile
                 </h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Your public information
                 </p>
               </div>
             </div>
 
             {profileMessage ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
                 {profileMessage}
               </div>
             ) : null}
 
             <label className="grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Username</span>
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                Username
+              </span>
               <input
                 value={profileUsername}
                 onChange={(e) => setProfileUsername(e.target.value)}
                 placeholder={profile?.username ?? "username"}
-                className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
+                className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
               />
             </label>
 
@@ -573,33 +581,33 @@ export default function AccountPage() {
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={profilePending || profile === null}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {profilePending ? "Saving..." : "Save profile"}
             </button>
 
             {/* Advanced settings */}
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
               <button
                 type="button"
                 onClick={() => setShowAdvanced((v) => !v)}
-                className="flex w-full items-center justify-between text-sm font-medium text-slate-700 hover:text-slate-950"
+                className="flex w-full items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white"
               >
                 Advanced settings
                 <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
                   aria-hidden="true"
                 />
               </button>
 
               {showAdvanced && (
                 <div className="mt-4 grid gap-3">
-                  <label className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                  <label className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
                         Private account
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         Hide your profile from public listings
                       </p>
                     </div>
@@ -607,16 +615,16 @@ export default function AccountPage() {
                       type="checkbox"
                       checked={profileIsPrivate}
                       onChange={(e) => setProfileIsPrivate(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 accent-slate-950"
+                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 accent-slate-950"
                     />
                   </label>
 
-                  <label className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                  <label className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
                         Personalized recommendations
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         Use your activity to improve listing suggestions
                       </p>
                     </div>
@@ -626,7 +634,7 @@ export default function AccountPage() {
                       onChange={(e) =>
                         setProfilePersonalization(e.target.checked)
                       }
-                      className="h-4 w-4 rounded border-slate-300 accent-slate-950"
+                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 accent-slate-950"
                     />
                   </label>
                 </div>
@@ -637,26 +645,28 @@ export default function AccountPage() {
 
         {/* ── Security tab — MFA gate ── */}
         {activeTab === "security" && !securityUnlocked && (
-          <div className="flex flex-col items-center gap-5 rounded-2xl border border-slate-200 bg-white px-8 py-14 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+          <div className="flex flex-col items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-8 py-14 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
               <Lock className="h-7 w-7" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">
+              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                 Verify your identity
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 For your security, confirm your identity before accessing
                 security settings.
               </p>
             </div>
             {securityChecking ? (
-              <p className="text-sm text-slate-500">Checking...</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Checking...
+              </p>
             ) : (
               <button
                 type="button"
                 onClick={() => void handleVerifyIdentity()}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Verify to continue
               </button>
@@ -668,16 +678,16 @@ export default function AccountPage() {
         {activeTab === "security" && securityUnlocked && (
           <div className="space-y-5">
             {/* Password */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
                   <Shield className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-950">
+                  <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                     Password
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {providers?.hasPassword
                       ? "Password login enabled"
                       : "No password set — add one below"}
@@ -688,16 +698,16 @@ export default function AccountPage() {
             </div>
 
             {/* Login methods */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-semibold text-slate-950">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
+              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                 Login methods
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Manage Google, Microsoft, and Apple sign-in for this account.
               </p>
 
               {message ? (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
                   {message}
                 </div>
               ) : null}
@@ -706,13 +716,13 @@ export default function AccountPage() {
                 {providers?.providers.map((provider) => (
                   <div
                     key={provider.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <p className="text-sm font-medium text-slate-950">
+                      <p className="text-sm font-medium text-slate-950 dark:text-white">
                         {providerLabels[provider.provider]}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         {provider.providerEmail ?? "Provider email hidden"} —
                         linked {formatLinkedAt(provider.linkedAt)}
                       </p>
@@ -724,7 +734,7 @@ export default function AccountPage() {
                         !canUnlinkProvider ||
                         pendingUnlink === provider.provider
                       }
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       title={
                         canUnlinkProvider
                           ? `Unlink ${providerLabels[provider.provider]}`
@@ -740,7 +750,7 @@ export default function AccountPage() {
                 ))}
 
                 {providers?.providers.length === 0 && (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     No external providers linked.
                   </p>
                 )}
@@ -765,23 +775,23 @@ export default function AccountPage() {
             <HomeMfaTotpPanel />
 
             {/* Phone number (SMS verification) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300">
                   <Phone className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                     Phone number
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Used for SMS verification when available
                   </p>
                 </div>
               </div>
 
               {phoneMessage ? (
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <div className="mb-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
                   {phoneMessage}
                 </div>
               ) : null}
@@ -792,69 +802,69 @@ export default function AccountPage() {
                   value={profilePhone}
                   onChange={(e) => setProfilePhone(e.target.value)}
                   placeholder="e.g. +1 555 000 0000"
-                  className="h-11 flex-1 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 flex-1 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 />
                 <button
                   type="button"
                   onClick={() => void handleSavePhone()}
                   disabled={phonePending || profile === null}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {phonePending ? "Saving..." : "Save"}
                 </button>
               </div>
 
-              <p className="mt-3 text-xs text-slate-400">
+              <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
                 SMS verification is coming soon. Your number will be used once
                 it&apos;s enabled.
               </p>
             </div>
 
             {/* Registered devices */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300">
                   <Monitor className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                     Registered devices
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Devices that have signed in to your account
                   </p>
                 </div>
               </div>
 
               {devicesMessage ? (
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <div className="mb-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
                   {devicesMessage}
                 </div>
               ) : null}
 
               <div className="grid gap-3">
                 {devices.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-500">
+                  <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No registered devices found.
                   </div>
                 ) : (
                   devices.map((device) => (
                     <div
                       key={device.id}
-                      className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-medium text-slate-950">
+                          <p className="text-sm font-medium text-slate-950 dark:text-white">
                             {deviceLabel(device)}
                           </p>
                           {device.current && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                               This device
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                           {device.lastIpAddress
                             ? `${device.lastIpAddress} · `
                             : ""}
@@ -863,13 +873,13 @@ export default function AccountPage() {
                       </div>
                       {confirmDeviceRemove === device.deviceId ? (
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
                             Remove this device?
                           </span>
                           <button
                             type="button"
                             onClick={() => setConfirmDeviceRemove(null)}
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                           >
                             Cancel
                           </button>
@@ -880,7 +890,7 @@ export default function AccountPage() {
                               void handleRemoveDevice(device.deviceId);
                             }}
                             disabled={pendingDeviceRemove === device.deviceId}
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-3 text-xs font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-100 dark:hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {pendingDeviceRemove === device.deviceId
                               ? "Removing..."
@@ -897,7 +907,7 @@ export default function AccountPage() {
                             Boolean(device.current) ||
                             pendingDeviceRemove === device.deviceId
                           }
-                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           Remove
                         </button>
@@ -909,35 +919,35 @@ export default function AccountPage() {
             </div>
 
             {/* Disable account */}
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <div className="rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 p-6">
               <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300">
                   <AlertTriangle className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                     Disable account
                   </h2>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Lock your account and sign out of all sessions
                   </p>
                 </div>
               </div>
 
-              <p className="mb-4 text-sm text-slate-600">
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
                 Disabling your account will prevent login and hide your profile
                 from public listings. Contact support to re-enable it.
               </p>
 
               {disableMessage ? (
-                <div className="mb-4 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700">
+                <div className="mb-4 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
                   {disableMessage}
                 </div>
               ) : null}
 
               {disableConfirm ? (
-                <div className="rounded-xl border border-rose-200 bg-white px-4 py-3">
-                  <p className="mb-3 text-sm font-medium text-slate-800">
+                <div className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-4 py-3">
+                  <p className="mb-3 text-sm font-medium text-slate-800 dark:text-slate-100">
                     Are you sure? This will sign you out of all sessions and
                     lock your account.
                   </p>
@@ -945,7 +955,7 @@ export default function AccountPage() {
                     <button
                       type="button"
                       onClick={() => setDisableConfirm(false)}
-                      className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       Cancel
                     </button>
@@ -956,7 +966,7 @@ export default function AccountPage() {
                         handleDisableAccount();
                       }}
                       disabled={disablePending}
-                      className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-300 bg-rose-100 px-4 text-sm font-semibold text-rose-800 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-100 dark:bg-rose-950/40 px-4 text-sm font-semibold text-rose-800 dark:text-rose-300 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {disablePending ? "Disabling..." : "Yes, disable account"}
                     </button>
@@ -967,7 +977,7 @@ export default function AccountPage() {
                   type="button"
                   onClick={() => setDisableConfirm(true)}
                   disabled={disablePending}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {disablePending ? "Disabling..." : "Disable account"}
                 </button>
@@ -978,16 +988,16 @@ export default function AccountPage() {
 
         {/* ── Developer tab ── */}
         {activeTab === "developer" && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
                 <KeyRound className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-2xl font-semibold text-slate-950">
+                <h2 className="text-2xl font-semibold text-slate-950 dark:text-white">
                   Personal access tokens
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
+                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
                   Create MCP tokens for read-only access or full posting
                   management. The full token value is shown only once.
                 </p>
@@ -995,43 +1005,47 @@ export default function AccountPage() {
             </div>
 
             {tokenMessage ? (
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
                 {tokenMessage}
               </div>
             ) : null}
 
             {createdToken ? (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-                <p className="text-sm font-semibold text-amber-900">
+              <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-4">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                   Copy this token now
                 </p>
-                <p className="mt-1 text-sm text-amber-800">
+                <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">
                   After you leave this page, Rentify will only keep the token
                   prefix and metadata.
                 </p>
-                <code className="mt-3 block overflow-x-auto rounded-lg bg-white px-3 py-3 text-sm text-slate-900">
+                <code className="mt-3 block overflow-x-auto rounded-lg bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-white">
                   {createdToken}
                 </code>
               </div>
             ) : null}
 
-            <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-[1.1fr_0.6fr_0.6fr_auto]">
+            <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 dark:border-slate-800 p-4 lg:grid-cols-[1.1fr_0.6fr_0.6fr_auto]">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Token name</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Token name
+                </span>
                 <input
                   value={tokenName}
                   onChange={(event) => setTokenName(event.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   placeholder="Rentify MCP"
                 />
               </label>
 
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Expires in</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Expires in
+                </span>
                 <select
                   value={tokenExpiryDays}
                   onChange={(event) => setTokenExpiryDays(event.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   <option value="30">30 days</option>
                   <option value="90">90 days</option>
@@ -1040,13 +1054,15 @@ export default function AccountPage() {
               </label>
 
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Access</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Access
+                </span>
                 <select
                   value={tokenAccessLevel}
                   onChange={(event) =>
                     setTokenAccessLevel(event.target.value as "read" | "write")
                   }
-                  className="h-11 rounded-xl border border-slate-300 px-3 text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   <option value="read">Read only</option>
                   <option value="write">Read + write</option>
@@ -1058,7 +1074,7 @@ export default function AccountPage() {
                   type="button"
                   onClick={() => void handleCreatePersonalAccessToken()}
                   disabled={pendingTokenCreate}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {pendingTokenCreate ? "Creating..." : "Create token"}
                 </button>
@@ -1067,27 +1083,29 @@ export default function AccountPage() {
 
             <div className="mt-6 grid gap-3">
               {personalAccessTokens.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-600">
+                <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
                   No personal access tokens have been created yet.
                 </div>
               ) : (
                 personalAccessTokens.map((token) => (
                   <div
                     key={token.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div>
-                      <p className="font-medium text-slate-950">{token.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="font-medium text-slate-950 dark:text-white">
+                        {token.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                         {token.tokenPrefix} - scope {token.scopes.join(", ")}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Created {formatDateTime(token.createdAt)} - last used{" "}
                         {formatDateTime(token.lastUsedAt)} - expires{" "}
                         {formatDateTime(token.expiresAt)}
                       </p>
                       {token.revokedAt ? (
-                        <p className="mt-1 text-xs font-medium text-rose-600">
+                        <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
                           Revoked {formatDateTime(token.revokedAt)}
                         </p>
                       ) : null}
@@ -1102,7 +1120,7 @@ export default function AccountPage() {
                         Boolean(token.revokedAt) ||
                         pendingTokenRevoke === token.id
                       }
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pendingTokenRevoke === token.id
                         ? "Revoking..."

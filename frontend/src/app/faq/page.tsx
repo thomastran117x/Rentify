@@ -64,13 +64,13 @@ export default function FaqPage() {
       ]}
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Best place to start
           </p>
-          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
             Quick answers first.
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             If the answer you need is not here, the contact page is the next
             fastest route to a human response.
           </p>
@@ -87,15 +87,15 @@ export default function FaqPage() {
           {faqs.map((item, index) => (
             <article
               key={item.question}
-              className="rounded-[2rem] border border-slate-200 bg-white px-6 py-6 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-6 shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
                 FAQ 0{index + 1}
               </p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-slate-950">
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
                 {item.question}
               </h2>
-              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {item.answer}
               </p>
             </article>

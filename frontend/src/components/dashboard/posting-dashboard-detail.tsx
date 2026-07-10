@@ -171,12 +171,12 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">
         <div className="mb-4">
           <Link
             href="/dashboard"
-            className="text-sm font-medium text-slate-500 transition hover:text-slate-950"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 transition hover:text-slate-950 dark:hover:text-white"
           >
             ← Back to dashboard
           </Link>
@@ -198,9 +198,9 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
 
         {!error && detail ? (
           <>
-            <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
+            <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
               <div className="grid gap-0 lg:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="relative min-h-56 bg-slate-100">
+                <div className="relative min-h-56 bg-slate-100 dark:bg-slate-800">
                   {detail.primaryPhotoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -209,35 +209,35 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)] dark:bg-[linear-gradient(135deg,_#1e293b,_#0f172a)]" />
                   )}
                 </div>
-                <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7">
+                <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_34%),linear-gradient(135deg,_#0f172a,_#020617)] px-6 py-7">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="max-w-3xl">
-                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                         Posting detail
                       </p>
-                      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
+                      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-white">
                         {detail.name}
                       </h1>
-                      <p className="mt-3 text-sm text-slate-500">
+                      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
                         {formatStatus(detail.status)}
                       </p>
-                      <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-600">
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
+                      <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-600 dark:text-slate-300">
+                        <span className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5">
                           {formatCompactNumber(detail.totals.searchImpressions)}{" "}
                           impressions
                         </span>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
+                        <span className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5">
                           {formatCompactNumber(detail.totals.bookingRequests)}{" "}
                           requests
                         </span>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
+                        <span className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5">
                           {formatCompactNumber(detail.totals.confirmedBookings)}{" "}
                           confirmed
                         </span>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">
+                        <span className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5">
                           {formatMoney(detail.totals.estimatedConfirmedRevenue)}{" "}
                           revenue
                         </span>
@@ -257,7 +257,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                         type="button"
                         onClick={() => void handleExportCsv()}
                         disabled={exporting}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                       >
                         {exporting ? "Exporting…" : "Export CSV"}
                       </button>
@@ -372,9 +372,13 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
-      <span className="text-sm font-medium text-slate-600">{label}</span>
-      <span className="text-sm font-semibold text-slate-950">{value}</span>
+    <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3">
+      <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-slate-950 dark:text-white">
+        {value}
+      </span>
     </div>
   );
 }

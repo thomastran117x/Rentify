@@ -113,23 +113,23 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
         <div className="mb-5">
           <Link
             href="/postings"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition duration-200 hover:text-violet-700"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 transition duration-200 hover:text-violet-700 dark:hover:text-violet-300"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to postings
           </Link>
         </div>
 
-        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-950/5">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-950/5">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1.1fr)_minmax(24rem,0.9fr)]">
-            <div className="border-b border-slate-200 p-5 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
+            <div className="border-b border-slate-200 dark:border-slate-800 p-5 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
               <PostingDetailGallery
                 photos={posting.photos}
                 name={posting.name}
               />
             </div>
 
-            <div className="bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.10),transparent_26%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 sm:p-7">
+            <div className="bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.10),transparent_26%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 sm:p-7 dark:bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.16),transparent_28%),linear-gradient(180deg,#0f172a_0%,#020617_100%)]">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   <span className={theme.marketplace.metaBadge}>
@@ -148,26 +148,28 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 />
               </div>
 
-              <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em] text-slate-950 sm:text-[2.8rem]">
+              <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em] text-slate-950 dark:text-white sm:text-[2.8rem]">
                 {posting.name}
               </h1>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <AvailabilityBadge status={posting.availabilityStatus} />
-                <span className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+                <span className="text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                   {formatPostingPrice(
                     posting.pricing.daily.amount,
                     posting.pricing.currency,
                   )}
                 </span>
-                <span className="text-sm text-slate-500">per day</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  per day
+                </span>
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <SummaryCard
                   icon={
                     <MapPin
-                      className="h-4 w-4 text-violet-600"
+                      className="h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                   }
@@ -177,7 +179,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 <SummaryCard
                   icon={
                     <CalendarClock
-                      className="h-4 w-4 text-violet-600"
+                      className="h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                   }
@@ -187,7 +189,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 <SummaryCard
                   icon={
                     <Clock3
-                      className="h-4 w-4 text-violet-600"
+                      className="h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                   }
@@ -197,7 +199,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 <SummaryCard
                   icon={
                     <Package
-                      className="h-4 w-4 text-violet-600"
+                      className="h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                   }
@@ -206,11 +208,11 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                 />
               </div>
 
-              <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <div className="mt-6 rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                   Overview
                 </p>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                   {posting.description}
                 </p>
               </div>
@@ -223,14 +225,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <Panel
               icon={
                 <ScrollText
-                  className="h-4 w-4 text-violet-600"
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
                   aria-hidden="true"
                 />
               }
               title="About this posting"
               description="The essentials a renter would want to review before reaching out."
             >
-              <p className="text-sm leading-8 text-slate-600">
+              <p className="text-sm leading-8 text-slate-600 dark:text-slate-300">
                 {posting.description}
               </p>
             </Panel>
@@ -238,7 +240,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <Panel
               icon={
                 <Package
-                  className="h-4 w-4 text-violet-600"
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
                   aria-hidden="true"
                 />
               }
@@ -250,19 +252,19 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   {detailEntries.map(([key, value]) => (
                     <div
                       key={key}
-                      className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3"
+                      className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3"
                     >
-                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
                         {formatPostingAttributeLabel(key)}
                       </dt>
-                      <dd className="mt-2 text-sm font-medium text-slate-700">
+                      <dd className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                         {formatPostingAttributeValue(value)}
                       </dd>
                     </div>
                   ))}
                 </dl>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No additional details were provided.
                 </p>
               )}
@@ -270,25 +272,30 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
 
             <Panel
               icon={
-                <Star className="h-4 w-4 text-violet-600" aria-hidden="true" />
+                <Star
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
+                  aria-hidden="true"
+                />
               }
               title="Reviews"
               description="Recent renter feedback for this posting."
             >
               {reviewsLoading ? (
-                <p className="text-sm text-slate-500">Loading reviews...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Loading reviews...
+                </p>
               ) : reviewsError ? (
-                <p className="rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                <p className="rounded-[1.25rem] border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-sm text-rose-800 dark:text-rose-300">
                   {reviewsError}
                 </p>
               ) : reviewsResult && reviewsResult.reviews.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
-                    <p className="text-sm font-semibold text-slate-950">
+                  <div className="flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-950 dark:text-white">
                       {reviewsResult.summary.averageRating.toFixed(1)} average
                       rating
                     </p>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                       {reviewsResult.summary.reviewCount} review
                       {reviewsResult.summary.reviewCount === 1 ? "" : "s"}
                     </p>
@@ -297,22 +304,22 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   {reviewsResult.reviews.map((review) => (
                     <article
                       key={review.id}
-                      className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4"
+                      className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-950">
+                            <p className="text-sm font-semibold text-slate-950 dark:text-white">
                               {review.title ?? "Review"}
                             </p>
-                            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+                            <span className="rounded-full bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
                               {review.rating}/5
                             </span>
                           </div>
-                          <p className="mt-2 text-sm leading-7 text-slate-600">
+                          <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
                             {review.comment ?? "No written comment was shared."}
                           </p>
-                          <p className="mt-3 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                          <p className="mt-3 text-xs font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                             {review.reviewer.username ?? "Anonymous renter"} ·{" "}
                             {formatReviewDate(review.createdAt)}
                           </p>
@@ -324,14 +331,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                             subjectId={review.id}
                             subjectLabel="Review"
                             triggerLabel="Report review"
-                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                           />
                           <ReportDialog
                             subjectType="user"
                             subjectId={review.reviewerId}
                             subjectLabel="User"
                             triggerLabel="Report user"
-                            className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           />
                         </div>
                       </div>
@@ -339,7 +346,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   ))}
 
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                       Page {reviewsResult.pagination.page} of{" "}
                       {reviewsResult.pagination.totalPages}
                     </p>
@@ -352,7 +359,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                           )
                         }
                         disabled={!reviewsResult.pagination.hasPreviousPage}
-                        className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Previous
                       </button>
@@ -366,7 +373,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                           )
                         }
                         disabled={!reviewsResult.pagination.hasNextPage}
-                        className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Next
                       </button>
@@ -374,7 +381,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No reviews have been shared for this posting yet.
                 </p>
               )}
@@ -386,15 +393,15 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               <Panel
                 icon={
                   <Building2
-                    className="h-4 w-4 text-violet-600"
+                    className="h-4 w-4 text-violet-600 dark:text-violet-400"
                     aria-hidden="true"
                   />
                 }
                 title="Organization"
                 description="The team responsible for this posting."
               >
-                <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
-                  <p className="text-lg font-semibold text-slate-950">
+                <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-4">
+                  <p className="text-lg font-semibold text-slate-950 dark:text-white">
                     {posting.organization.name}
                   </p>
                   <div className="mt-4">
@@ -412,14 +419,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <Panel
               icon={
                 <MapPin
-                  className="h-4 w-4 text-violet-600"
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
                   aria-hidden="true"
                 />
               }
               title="Location"
               description="Where this posting is based."
             >
-              <div className="space-y-3 text-sm text-slate-600">
+              <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
                 <p>{locationLine}</p>
                 {posting.location.postalCode ? (
                   <p>Postal code: {posting.location.postalCode}</p>
@@ -430,14 +437,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <Panel
               icon={
                 <CalendarClock
-                  className="h-4 w-4 text-violet-600"
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
                   aria-hidden="true"
                 />
               }
               title="Availability"
               description="Current booking posture for this posting."
             >
-              <div className="space-y-4 text-sm text-slate-600">
+              <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
                 <div className="flex flex-wrap items-center gap-3">
                   <AvailabilityBadge status={posting.availabilityStatus} />
                   <span>
@@ -457,23 +464,25 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                     </span>
                   ) : null}
                   {posting.instantBooking ? (
-                    <span className="text-sky-700">Instant booking</span>
+                    <span className="text-sky-700 dark:text-sky-300">
+                      Instant booking
+                    </span>
                   ) : null}
                 </div>
                 {posting.availabilityNotes ? (
-                  <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <p className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
                     {posting.availabilityNotes}
                   </p>
                 ) : (
                   <p>No extra availability notes were added.</p>
                 )}
                 {posting.cancellationPolicy ? (
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <div className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
                     <p className="font-medium capitalize">
                       {posting.cancellationPolicy} cancellation policy
                     </p>
                     {posting.cancellationPolicyNotes ? (
-                      <p className="mt-1 text-slate-500">
+                      <p className="mt-1 text-slate-500 dark:text-slate-400">
                         {posting.cancellationPolicyNotes}
                       </p>
                     ) : null}
@@ -484,7 +493,10 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
 
             <Panel
               icon={
-                <Tags className="h-4 w-4 text-violet-600" aria-hidden="true" />
+                <Tags
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
+                  aria-hidden="true"
+                />
               }
               title="Tags"
               description="Helpful keywords associated with the posting."
@@ -498,7 +510,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No tags were added to this posting.
                 </p>
               )}
@@ -507,14 +519,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <Panel
               icon={
                 <ShieldAlert
-                  className="h-4 w-4 text-violet-600"
+                  className="h-4 w-4 text-violet-600 dark:text-violet-400"
                   aria-hidden="true"
                 />
               }
               title="Safety"
               description="If something feels off, you can report the listing, a review, or a user."
             >
-              <p className="text-sm leading-7 text-slate-600">
+              <p className="text-sm leading-7 text-slate-600 dark:text-slate-300">
                 Reports go to the moderation queue with your selected reason,
                 title, and description so the team can review the issue quickly.
               </p>
@@ -536,12 +548,14 @@ function SummaryCard({
   value: string;
 }) {
   return (
-    <div className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+    <div className="rounded-[1.35rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
         {icon}
         <span>{label}</span>
       </div>
-      <p className="mt-2 text-sm font-medium text-slate-700">{value}</p>
+      <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+        {value}
+      </p>
     </div>
   );
 }
@@ -558,16 +572,18 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+    <section className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm sm:p-7">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 dark:bg-violet-950/40">
           {icon}
         </div>
         <div>
-          <h2 className="text-xl font-semibold tracking-[-0.03em] text-slate-950">
+          <h2 className="text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
             {title}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+            {description}
+          </p>
         </div>
       </div>
 

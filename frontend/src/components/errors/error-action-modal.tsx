@@ -157,7 +157,7 @@ export function ErrorActionModal({
         aria-describedby={descriptionId}
         tabIndex={-1}
         className={cx(
-          "w-full max-w-4xl rounded-[2rem] border bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.28)] outline-none sm:p-7",
+          "w-full max-w-4xl rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-[0_30px_100px_rgba(15,23,42,0.28)] outline-none sm:p-7",
           definition.panel,
         )}
       >
@@ -239,13 +239,13 @@ export function ErrorActionModal({
           </div>
 
           {issues.length > 1 ? (
-            <aside className="w-full rounded-[1.5rem] border border-white/80 bg-white/50 p-4 lg:max-w-xs">
+            <aside className="w-full rounded-[1.5rem] border border-white/80 bg-white/50 p-4 lg:max-w-xs dark:border-slate-700/60 dark:bg-slate-900/50">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-950">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">
                     Pending issues
                   </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
+                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     {issues.length} total
                   </p>
                 </div>
@@ -279,11 +279,11 @@ export function ErrorActionModal({
                           sizeClassName="h-4 w-4"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-sm font-semibold text-slate-950">
+                          <p className="line-clamp-2 text-sm font-semibold text-slate-950 dark:text-white">
                             {pendingIssue.title}
                           </p>
                           {pendingIssue.occurrenceCount > 1 ? (
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                               Repeated {pendingIssue.occurrenceCount} times
                             </p>
                           ) : null}

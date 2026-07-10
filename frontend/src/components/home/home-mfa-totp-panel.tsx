@@ -307,16 +307,16 @@ export function HomeMfaTotpPanel() {
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
         <div className="flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300">
             <ScanLine className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <h2 className="text-2xl font-semibold text-slate-950">
+            <h2 className="text-2xl font-semibold text-slate-950 dark:text-white">
               Authenticator app
             </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
               Use Google Authenticator, Microsoft Authenticator, or any
               TOTP-compatible app to generate login codes.
             </p>
@@ -324,26 +324,28 @@ export function HomeMfaTotpPanel() {
         </div>
 
         {message ? (
-          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
             {message}
           </div>
         ) : null}
 
         {view === "loading" ? (
-          <div className="mt-6 text-sm text-slate-500">Loading...</div>
+          <div className="mt-6 text-sm text-slate-500 dark:text-slate-400">
+            Loading...
+          </div>
         ) : view === "idle" ? (
           <div className="mt-6">
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-slate-950">
+                <p className="text-sm font-medium text-slate-950 dark:text-white">
                   {enabled ? "Enabled" : "Not enabled"}
                 </p>
                 {enabled ? (
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     Your account is protected with an authenticator app.
                   </p>
                 ) : (
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     Add an extra layer of security to your account.
                   </p>
                 )}
@@ -353,7 +355,7 @@ export function HomeMfaTotpPanel() {
                   type="button"
                   onClick={() => void handleDisable()}
                   disabled={pending}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? "Disabling..." : "Disable"}
                 </button>
@@ -362,7 +364,7 @@ export function HomeMfaTotpPanel() {
                   type="button"
                   onClick={() => void handleBeginEnrollment()}
                   disabled={pending}
-                  className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   {pending ? "Setting up..." : "Set up"}
                 </button>
@@ -372,7 +374,7 @@ export function HomeMfaTotpPanel() {
         ) : (
           <div className="mt-6 space-y-6">
             <div>
-              <p className="text-sm font-medium text-slate-700">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 1. Scan this QR code with your authenticator app
               </p>
               <div className="mt-3 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
@@ -382,18 +384,18 @@ export function HomeMfaTotpPanel() {
                     alt="TOTP QR code"
                     width={160}
                     height={160}
-                    className="rounded-xl border border-slate-200 bg-white p-2"
+                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2"
                   />
                 ) : (
-                  <div className="flex h-[160px] w-[160px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
+                  <div className="flex h-[160px] w-[160px] items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400">
                     Generating...
                   </div>
                 )}
                 <div className="space-y-2">
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     Or enter this key manually:
                   </p>
-                  <code className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900">
+                  <code className="block rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 font-mono text-sm tracking-wider text-slate-900 dark:text-white">
                     {enrollment ? formatSecret(enrollment.secret) : ""}
                   </code>
                 </div>
@@ -403,7 +405,7 @@ export function HomeMfaTotpPanel() {
             <div className="space-y-2">
               <label
                 htmlFor="totp-enroll-code"
-                className="text-sm font-medium text-slate-700"
+                className="text-sm font-medium text-slate-700 dark:text-slate-200"
               >
                 2. Enter the 6-digit code shown in your app
               </label>
@@ -421,10 +423,10 @@ export function HomeMfaTotpPanel() {
                   )
                 }
                 placeholder="000000"
-                className={`h-14 w-full max-w-xs rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 outline-none transition ${
+                className={`h-14 w-full max-w-xs rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center font-mono text-xl tracking-[0.4em] text-slate-900 dark:text-white outline-none transition ${
                   enrollCode.length === 6
                     ? "border-violet-300 ring-4 ring-violet-100"
-                    : "border-slate-200 hover:border-violet-200"
+                    : "border-slate-200 dark:border-slate-800 hover:border-violet-200 dark:hover:border-violet-800"
                 }`}
               />
             </div>
@@ -434,7 +436,7 @@ export function HomeMfaTotpPanel() {
                 type="button"
                 onClick={() => void handleConfirmEnrollment()}
                 disabled={pending || enrollCode.length !== 6}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
               >
                 {pending ? "Verifying..." : "Verify and enable"}
               </button>
@@ -442,7 +444,7 @@ export function HomeMfaTotpPanel() {
                 type="button"
                 onClick={() => void handleCancelEnrollment()}
                 disabled={pending}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>

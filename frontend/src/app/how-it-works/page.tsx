@@ -69,31 +69,31 @@ export default function HowItWorksPage() {
       aside={
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
               Marketplace flow
             </p>
-            <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+            <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               Search, compare, act.
             </p>
-            <p className="mt-4 text-sm leading-7 text-slate-600">
+            <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
               We keep the path from discovery to decision tight so users are not
               buried in avoidable complexity.
             </p>
           </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+          <div className="rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
               Good next steps
             </p>
             <div className="mt-3 grid gap-2">
               <Link
                 href="/postings"
-                className="text-sm font-medium text-violet-700 hover:text-violet-800"
+                className="text-sm font-medium text-violet-700 dark:text-violet-300 hover:text-violet-800 dark:hover:text-violet-200"
               >
                 Browse current rentals
               </Link>
               <Link
                 href="/contact"
-                className="text-sm font-medium text-violet-700 hover:text-violet-800"
+                className="text-sm font-medium text-violet-700 dark:text-violet-300 hover:text-violet-800 dark:hover:text-violet-200"
               >
                 Ask a support question
               </Link>
@@ -112,15 +112,15 @@ export default function HowItWorksPage() {
           {renterSteps.map((step, index) => (
             <article
               key={step.title}
-              className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
                 Step 0{index + 1}
               </p>
-              <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
+              <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                 {step.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
+              <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {step.description}
               </p>
             </article>
@@ -138,15 +138,15 @@ export default function HowItWorksPage() {
           {ownerSteps.map((step, index) => (
             <article
               key={step.title}
-              className="rounded-[2rem] border border-slate-200 bg-slate-50 px-6 py-7 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-6 py-7 shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
                 Owner 0{index + 1}
               </p>
-              <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
+              <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                 {step.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
+              <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {step.description}
               </p>
             </article>

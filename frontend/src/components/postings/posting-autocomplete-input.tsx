@@ -38,11 +38,13 @@ interface PostingAutocompleteInputProps {
 }
 
 const defaultDropdownClassName =
-  "absolute left-0 right-0 top-[calc(100%+0.6rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-950/10";
+  "absolute left-0 right-0 top-[calc(100%+0.6rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-950/10";
 const defaultOptionClassName =
-  "w-full px-4 py-3 text-left text-sm text-slate-700 transition duration-150 hover:bg-violet-50 hover:text-violet-700";
-const defaultOptionActiveClassName = "bg-violet-50 text-violet-700";
-const defaultLoadingClassName = "px-4 py-3 text-sm text-slate-500";
+  "w-full px-4 py-3 text-left text-sm text-slate-700 dark:text-slate-200 transition duration-150 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-700 dark:hover:text-violet-300";
+const defaultOptionActiveClassName =
+  "bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300";
+const defaultLoadingClassName =
+  "px-4 py-3 text-sm text-slate-500 dark:text-slate-400";
 
 export function PostingAutocompleteInput({
   id,
