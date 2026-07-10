@@ -124,6 +124,50 @@ describe("EmailDeliveryService", () => {
     });
   });
 
+  it("suppresses delivery to non-deliverable seeded recipients without sending", async () => {
+    const transporter = createTransporterMock();
+    const service = createService(transporter);
+    const verificationSpy = jest.spyOn(service, "sendVerificationEmail");
+
+    await service.deliver({
+      jobId: "job-suppressed",
+      kind: "verification",
+      input: {
+        to: "owner1@rentify.local",
+        verificationCode: "111222",
+      },
+      attempt: 1,
+      occurredAt: "2026-06-11T00:00:00.000Z",
+    });
+
+    expect(verificationSpy).not.toHaveBeenCalled();
+    expect(transporter.sendMail).not.toHaveBeenCalled();
+  });
+
+  it("delivers to real recipients that are not suppressed", async () => {
+    const transporter = createTransporterMock();
+    const service = createService(transporter);
+    const verificationSpy = jest
+      .spyOn(service, "sendVerificationEmail")
+      .mockResolvedValue(undefined);
+
+    await service.deliver({
+      jobId: "job-delivered",
+      kind: "verification",
+      input: {
+        to: "real-user@example.com",
+        verificationCode: "111222",
+      },
+      attempt: 1,
+      occurredAt: "2026-06-11T00:00:00.000Z",
+    });
+
+    expect(verificationSpy).toHaveBeenCalledWith({
+      to: "real-user@example.com",
+      verificationCode: "111222",
+    });
+  });
+
   it("renders verification emails with escaped HTML and default greeting text", async () => {
     const transporter = createTransporterMock();
     transporter.sendMail.mockResolvedValue(undefined);
