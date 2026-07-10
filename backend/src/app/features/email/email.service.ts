@@ -4,6 +4,7 @@ export interface SendVerificationEmailInput {
   to: string;
   verificationCode: string;
   firstName?: string;
+  expiresInMinutes?: number;
 }
 
 export interface SendMfaStepUpEmailInput {
@@ -32,6 +33,7 @@ export interface SendPasswordResetEmailInput {
   to: string;
   resetCode: string;
   firstName?: string;
+  expiresInMinutes?: number;
 }
 
 export interface SendOrganizationInviteEmailInput {

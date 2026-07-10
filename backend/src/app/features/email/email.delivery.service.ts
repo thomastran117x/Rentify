@@ -137,6 +137,7 @@ export class EmailDeliveryService {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedVerificationCode = escapeHtml(input.verificationCode);
+    const expiryCopy = this.formatExpiryCopy(input.expiresInMinutes);
 
     await this.sendWithRetry({
       to: input.to,
@@ -148,7 +149,7 @@ export class EmailDeliveryService {
         "",
         `Verification code: ${input.verificationCode}`,
         "",
-        "This code expires in 15 minutes. If you did not create this account, you can safely ignore this email.",
+        `${expiryCopy} If you did not create this account, you can safely ignore this email.`,
       ].join("\n"),
       html: this.buildEmailHtml(
         [
@@ -156,7 +157,7 @@ export class EmailDeliveryService {
           `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
           `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Welcome to Rentify. Please verify your email address to finish setting up your account. Once verified, you&rsquo;ll have full access to browse listings, save searches, and manage your account.</p>`,
           this.buildCodeBlock("Verification code", escapedVerificationCode),
-          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">This code expires in 15 minutes.</p>`,
+          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">${escapeHtml(expiryCopy)}</p>`,
           this.buildAlertBox(
             "Didn&rsquo;t create this account? You can safely ignore this email &mdash; no action is needed.",
             "info",
@@ -215,7 +216,7 @@ export class EmailDeliveryService {
           `<div style="padding:8px 0;${index < details.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:13px;color:#334155;line-height:1.6;">${escapeHtml(detail)}</div>`,
       )
       .join("");
-    const securityUrl = escapeHtml(`${this.appBaseUrl}/account/security`);
+    const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
 
     await this.sendWithRetry({
       to: input.to,
@@ -286,6 +287,7 @@ export class EmailDeliveryService {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedResetCode = escapeHtml(input.resetCode);
+    const expiryCopy = this.formatExpiryCopy(input.expiresInMinutes);
 
     await this.sendWithRetry({
       to: input.to,
@@ -298,7 +300,7 @@ export class EmailDeliveryService {
         `Reset code: ${input.resetCode}`,
         "",
         "Enter this code to choose a new password.",
-        "This code expires in 15 minutes. If you didn't request this, you can ignore this email.",
+        `${expiryCopy} If you didn't request this, you can ignore this email.`,
       ].join("\n"),
       html: this.buildEmailHtml(
         [
@@ -306,7 +308,7 @@ export class EmailDeliveryService {
           `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
           `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">We received a request to reset the password for your Rentify account. Enter the code below to choose a new password.</p>`,
           this.buildCodeBlock("Reset code", escapedResetCode),
-          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">This code expires in 15 minutes. Never share it with anyone.</p>`,
+          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">${escapeHtml(expiryCopy)} Never share it with anyone.</p>`,
           this.buildAlertBox(
             "Didn&rsquo;t request a password reset? Your password won&rsquo;t change &mdash; you can safely ignore this email.",
             "info",
@@ -396,6 +398,16 @@ export class EmailDeliveryService {
 
   private resolveGreetingName(firstName?: string): string {
     return firstName?.trim() || "there";
+  }
+
+  private formatExpiryCopy(expiresInMinutes?: number): string {
+    if (!expiresInMinutes || expiresInMinutes <= 0) {
+      return "This code expires soon.";
+    }
+
+    const minutes = Math.round(expiresInMinutes);
+    const unit = minutes === 1 ? "minute" : "minutes";
+    return `This code expires in ${minutes} ${unit}.`;
   }
 
   private buildDeviceDetails(
