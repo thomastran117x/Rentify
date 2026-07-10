@@ -337,36 +337,39 @@ export function MfaVerificationDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.28)] outline-none"
+        className="w-full max-w-md rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.28)] outline-none"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 transition hover:bg-slate-50 dark:hover:bg-slate-800"
             aria-label="Close verification dialog"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
-        <h2 id={titleId} className="mt-4 text-xl font-semibold text-slate-950">
+        <h2
+          id={titleId}
+          className="mt-4 text-xl font-semibold text-slate-950 dark:text-white"
+        >
           Verify it&apos;s you
         </h2>
         <p
           id={descriptionId}
-          className="mt-1.5 text-sm leading-6 text-slate-500"
+          className="mt-1.5 text-sm leading-6 text-slate-500 dark:text-slate-400"
         >
           Recent verification is required to continue.
         </p>
 
         {/* Factor switcher — only when multiple factors */}
         {!unavailable && challengeFactors.length > 1 && (
-          <div className="mt-5 flex gap-1.5 rounded-xl border border-slate-200 bg-slate-100 p-1">
+          <div className="mt-5 flex gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 p-1">
             {challengeFactors.map((factor) => {
               const active = factor === selectedFactor;
               return (
@@ -376,8 +379,8 @@ export function MfaVerificationDialog({
                   onClick={() => handleFactorSelect(factor)}
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
                     active
-                      ? "bg-white text-slate-950 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-slate-900 text-slate-950 dark:text-white shadow-sm"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
                   }`}
                 >
                   <FactorIcon factor={factor} className="h-3.5 w-3.5" />
@@ -390,14 +393,14 @@ export function MfaVerificationDialog({
 
         {/* Error banner */}
         {errorMessage ? (
-          <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
             {errorMessage}
           </div>
         ) : null}
 
         {/* No factors available */}
         {unavailable ? (
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+          <div className="mt-6 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-4 text-sm text-amber-900 dark:text-amber-200">
             No verification methods are available for this account. Please
             contact support or recover access before changing security settings.
           </div>
@@ -406,7 +409,7 @@ export function MfaVerificationDialog({
             {/* Email / SMS: two-step */}
             {needsChallenge && !showCodeInput && (
               <div className="space-y-4">
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   {selectedFactor === "email"
                     ? "We'll send a 6-digit code to your verified email address."
                     : "We'll send a 6-digit code to your registered phone number."}
@@ -415,7 +418,7 @@ export function MfaVerificationDialog({
                   type="button"
                   onClick={() => void handleChallenge()}
                   disabled={loadingChallenge}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   <FactorIcon
                     factor={selectedFactor}
@@ -432,12 +435,12 @@ export function MfaVerificationDialog({
             {showCodeInput && (
               <div className="space-y-4">
                 {!needsChallenge && (
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Enter the current 6-digit code from your authenticator app.
                   </p>
                 )}
                 {needsChallenge && (
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Check your {selectedFactor === "email" ? "email" : "phone"}{" "}
                     for a 6-digit code and enter it below.
                   </p>
@@ -451,30 +454,30 @@ export function MfaVerificationDialog({
                   onChange={handleCodeChange}
                   onPaste={handleCodePaste}
                   placeholder="000000"
-                  className={`h-14 w-full rounded-2xl border bg-white px-4 text-center font-mono text-xl tracking-[0.35em] text-slate-900 outline-none transition ${
+                  className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center font-mono text-xl tracking-[0.35em] text-slate-900 dark:text-white outline-none transition ${
                     code.length === 6
-                      ? "border-amber-300 ring-4 ring-amber-100"
-                      : "border-slate-200 hover:border-amber-200 focus:border-amber-300 focus:ring-4 focus:ring-amber-100"
+                      ? "border-amber-300 dark:border-amber-800 ring-4 ring-amber-100"
+                      : "border-slate-200 dark:border-slate-800 hover:border-amber-200 focus:border-amber-300 focus:ring-4 focus:ring-amber-100"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => void handleConfirm()}
                   disabled={loadingConfirm || code.length !== 6}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   {loadingConfirm ? "Verifying..." : "Verify"}
                 </button>
 
                 {/* Resend link for email/SMS */}
                 {needsChallenge && (
-                  <p className="text-center text-xs text-slate-500">
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
                     Didn&apos;t receive it?{" "}
                     <button
                       type="button"
                       onClick={() => void handleChallenge()}
                       disabled={loadingChallenge || cooldownActive}
-                      className="font-medium text-slate-700 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      className="font-medium text-slate-700 dark:text-slate-200 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {loadingChallenge
                         ? "Sending..."
@@ -495,7 +498,7 @@ export function MfaVerificationDialog({
             type="button"
             onClick={onCancel}
             disabled={loadingChallenge || loadingConfirm}
-            className="text-xs text-slate-400 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="text-xs text-slate-400 dark:text-slate-500 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>

@@ -131,7 +131,7 @@ export function HomePasswordPanel() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       {message ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
           {message}
         </div>
       ) : null}
@@ -139,7 +139,7 @@ export function HomePasswordPanel() {
       <div className="space-y-2">
         <label
           htmlFor="currentPassword"
-          className="text-sm font-medium text-slate-700"
+          className="text-sm font-medium text-slate-700 dark:text-slate-200"
         >
           Current password
         </label>
@@ -150,23 +150,25 @@ export function HomePasswordPanel() {
           autoComplete="current-password"
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
-          className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition ${
+          className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
             errors.currentPassword
-              ? "border-rose-300 ring-4 ring-rose-100"
+              ? "border-rose-300 dark:border-rose-800 ring-4 ring-rose-100"
               : currentPasswordHasValue
-                ? "border-indigo-300 ring-4 ring-indigo-50"
-                : "border-slate-200 hover:border-indigo-200"
+                ? "border-indigo-300 dark:border-indigo-800 ring-4 ring-indigo-50"
+                : "border-slate-200 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-800"
           }`}
         />
         {errors.currentPassword ? (
-          <p className="text-sm text-rose-700">{errors.currentPassword}</p>
+          <p className="text-sm text-rose-700 dark:text-rose-300">
+            {errors.currentPassword}
+          </p>
         ) : null}
       </div>
 
       <div className="space-y-2">
         <label
           htmlFor="newPassword"
-          className="text-sm font-medium text-slate-700"
+          className="text-sm font-medium text-slate-700 dark:text-slate-200"
         >
           New password
         </label>
@@ -177,23 +179,25 @@ export function HomePasswordPanel() {
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
-          className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition ${
+          className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
             errors.newPassword
-              ? "border-rose-300 ring-4 ring-rose-100"
+              ? "border-rose-300 dark:border-rose-800 ring-4 ring-rose-100"
               : newPasswordHasValue
-                ? "border-sky-300 ring-4 ring-sky-50"
-                : "border-slate-200 hover:border-sky-200"
+                ? "border-sky-300 dark:border-sky-800 ring-4 ring-sky-50"
+                : "border-slate-200 dark:border-slate-800 hover:border-sky-200"
           }`}
         />
         {errors.newPassword ? (
-          <p className="text-sm text-rose-700">{errors.newPassword}</p>
+          <p className="text-sm text-rose-700 dark:text-rose-300">
+            {errors.newPassword}
+          </p>
         ) : null}
       </div>
 
       <div className="space-y-2">
         <label
           htmlFor="confirmPassword"
-          className="text-sm font-medium text-slate-700"
+          className="text-sm font-medium text-slate-700 dark:text-slate-200"
         >
           Confirm new password
         </label>
@@ -204,23 +208,25 @@ export function HomePasswordPanel() {
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
-          className={`h-14 w-full rounded-2xl border bg-white px-4 text-[15px] text-slate-900 outline-none transition ${
+          className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
             errors.confirmPassword
-              ? "border-rose-300 ring-4 ring-rose-100"
+              ? "border-rose-300 dark:border-rose-800 ring-4 ring-rose-100"
               : confirmPasswordHasValue
-                ? "border-indigo-300 ring-4 ring-indigo-50"
-                : "border-slate-200 hover:border-indigo-200"
+                ? "border-indigo-300 dark:border-indigo-800 ring-4 ring-indigo-50"
+                : "border-slate-200 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-800"
           }`}
         />
         {errors.confirmPassword ? (
-          <p className="text-sm text-rose-700">{errors.confirmPassword}</p>
+          <p className="text-sm text-rose-700 dark:text-rose-300">
+            {errors.confirmPassword}
+          </p>
         ) : null}
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 dark:disabled:bg-slate-700"
       >
         {pending ? "Updating password..." : "Update password"}
       </button>

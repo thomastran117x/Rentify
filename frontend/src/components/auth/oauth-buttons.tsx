@@ -488,7 +488,9 @@ export function AuthOAuthButtons({
           <div className={`w-full ${theme.auth.dividerLine}`} />
         </div>
         <div className="relative flex justify-center">
-          <span className={`bg-white px-3 ${theme.auth.dividerText}`}>
+          <span
+            className={`bg-white dark:bg-slate-900 px-3 ${theme.auth.dividerText}`}
+          >
             {isLinkMode ? "Connect another provider" : "Or continue with"}
           </span>
         </div>

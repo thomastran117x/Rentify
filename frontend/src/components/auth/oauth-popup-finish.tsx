@@ -22,8 +22,8 @@ export function OAuthPopupFinish() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-slate-700">
-      <div className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900 px-6 text-slate-700 dark:text-slate-200">
+      <div className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-medium shadow-sm">
         Finishing sign-in...
       </div>
     </main>
