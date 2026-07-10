@@ -375,7 +375,7 @@ export function OrganizationWorkspace() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-7 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

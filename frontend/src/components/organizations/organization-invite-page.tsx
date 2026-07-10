@@ -118,7 +118,7 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-12 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
           Organization invite

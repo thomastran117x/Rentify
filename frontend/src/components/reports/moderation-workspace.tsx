@@ -732,7 +732,7 @@ export function ModerationWorkspace() {
 
 function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.13),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">{children}</div>
     </main>
   );

@@ -171,7 +171,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">
         <div className="mb-4">
           <Link
@@ -209,10 +209,10 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)] dark:bg-[linear-gradient(135deg,_#1e293b,_#0f172a)]" />
                   )}
                 </div>
-                <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7">
+                <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_34%),linear-gradient(135deg,_#0f172a,_#020617)] px-6 py-7">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="max-w-3xl">
                       <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">

@@ -47,10 +47,10 @@ interface BannerProps {
 export function Banner({ tone, children }: BannerProps) {
   const toneClasses = {
     error:
-      "border-rose-200 dark:border-rose-900/50 bg-rose-50/80 text-rose-800 dark:text-rose-300",
+      "border-rose-200 dark:border-rose-900/50 bg-rose-50/80 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300",
     success:
-      "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/80 text-emerald-800 dark:text-emerald-300",
-    info: "border-sky-200 dark:border-sky-900/50 bg-sky-50/80 text-sky-800 dark:text-sky-300",
+      "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300",
+    info: "border-sky-200 dark:border-sky-900/50 bg-sky-50/80 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300",
   } as const;
 
   return (

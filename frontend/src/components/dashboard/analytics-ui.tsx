@@ -600,7 +600,7 @@ export function ErrorState({
 
 export function RestrictedState() {
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-12 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
           Dashboard
@@ -627,7 +627,7 @@ export function RestrictedState() {
 
 export function LoadingDashboard() {
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900 dark:text-white">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-12 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="h-28 rounded-[2rem] bg-white dark:bg-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.06)]" />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

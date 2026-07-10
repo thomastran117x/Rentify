@@ -131,7 +131,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
 
   if (shouldUseLocalBypass) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
         {!publicEnv.turnstileSiteKey
           ? "Captcha is disabled for this environment. Local auth requests will use the development verification bypass."
           : "Cloudflare Turnstile could not be loaded on this local environment. Continuing with the development verification bypass."}

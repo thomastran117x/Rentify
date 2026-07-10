@@ -1366,7 +1366,7 @@ export function PostingManagementWorkspace() {
                   key={posting.id}
                   className={`rounded-3xl border px-5 py-4 transition ${
                     posting.id === selectedPostingId
-                      ? "border-amber-300 dark:border-amber-800 bg-amber-50/60"
+                      ? "border-amber-300 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/30"
                       : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                   }`}
                 >

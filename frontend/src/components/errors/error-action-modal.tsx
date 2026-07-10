@@ -239,7 +239,7 @@ export function ErrorActionModal({
           </div>
 
           {issues.length > 1 ? (
-            <aside className="w-full rounded-[1.5rem] border border-white/80 bg-white/50 p-4 lg:max-w-xs">
+            <aside className="w-full rounded-[1.5rem] border border-white/80 bg-white/50 p-4 lg:max-w-xs dark:border-slate-700/60 dark:bg-slate-900/50">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-950 dark:text-white">

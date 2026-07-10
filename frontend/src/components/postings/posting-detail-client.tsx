@@ -129,7 +129,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               />
             </div>
 
-            <div className="bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.10),transparent_26%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 sm:p-7">
+            <div className="bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.10),transparent_26%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 sm:p-7 dark:bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.16),transparent_28%),linear-gradient(180deg,#0f172a_0%,#020617_100%)]">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   <span className={theme.marketplace.metaBadge}>
