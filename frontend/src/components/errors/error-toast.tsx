@@ -62,7 +62,7 @@ export function ErrorToast({
           aria-label="Dismiss notification"
           onClick={onDismiss}
           className={cx(
-            "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white/70 dark:bg-slate-900/70 text-lg font-medium transition hover:bg-white focus-visible:outline-none focus-visible:ring-2",
+            "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white/70 dark:bg-slate-900/70 text-lg font-medium transition hover:bg-white dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2",
             definition.iconText,
           )}
         >

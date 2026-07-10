@@ -135,7 +135,7 @@ function getFieldClassName(hasError: boolean) {
     "rounded-2xl border bg-white/90 dark:bg-slate-900/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition",
     hasError
       ? "border-rose-300 dark:border-rose-800 focus:border-rose-400"
-      : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white",
+      : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white dark:focus:bg-slate-900",
   ].join(" ");
 }
 
@@ -338,7 +338,7 @@ export function ContactInquiryForm() {
             "rounded-[1.5rem] border bg-white/90 dark:bg-slate-900/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition",
             errors.message
               ? "border-rose-300 dark:border-rose-800 focus:border-rose-400"
-              : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white",
+              : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white dark:focus:bg-slate-900",
           ].join(" ")}
         />
         <FieldErrorMessage

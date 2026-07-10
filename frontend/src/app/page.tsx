@@ -189,13 +189,13 @@ export default function Home() {
                 <PostingAutocompleteInput
                   label="Search rentals"
                   placeholder="What are you looking for?"
-                  shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
+                  shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-violet-500/10"
                   icon={<SearchIcon />}
                   iconClassName="text-slate-400 dark:text-slate-500 transition group-focus-within:text-violet-600"
                   inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
 
-                <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10">
+                <label className="group flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-violet-500/10">
                   <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-500 transition group-focus-within:text-violet-600" />
                   <span className="sr-only">Location</span>
                   <input

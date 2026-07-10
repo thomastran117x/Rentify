@@ -298,11 +298,14 @@ export function MiniSparkline({
   const points = buildChartPoints(values, 160, 40);
 
   return (
-    <svg viewBox="0 0 160 40" className="h-10 w-full overflow-visible">
+    <svg
+      viewBox="0 0 160 40"
+      className="h-10 w-full overflow-visible text-slate-900 dark:text-slate-100"
+    >
       <path
         d={`M ${points.map((point) => `${point.x} ${point.y}`).join(" L ")}`}
         fill="none"
-        stroke="rgb(15 23 42)"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -339,18 +342,21 @@ export function TrendChart({
 
   return (
     <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 p-4">
-      <svg viewBox="0 0 860 260" className="h-72 w-full">
+      <svg
+        viewBox="0 0 860 260"
+        className="h-72 w-full text-slate-900 dark:text-slate-100"
+      >
         <defs>
           <linearGradient id="trend-fill" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="rgb(15 23 42)" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="rgb(15 23 42)" stopOpacity="0" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={areaPath} fill="url(#trend-fill)" />
         <path
           d={linePath}
           fill="none"
-          stroke="rgb(15 23 42)"
+          stroke="currentColor"
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -361,8 +367,7 @@ export function TrendChart({
             cx={point.x}
             cy={point.y}
             r="4"
-            fill="white"
-            stroke="rgb(15 23 42)"
+            className="fill-white stroke-current dark:fill-slate-900"
             strokeWidth="2"
           />
         ))}

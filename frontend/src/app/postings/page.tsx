@@ -978,7 +978,7 @@ function SearchError({
 
       {debug ? (
         <details className="rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 text-sm">
-          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-slate-700 dark:text-slate-200 hover:bg-white">
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800">
             Debug details
           </summary>
           <dl className="grid gap-3 border-t border-slate-200 dark:border-slate-800 px-4 py-3 text-slate-700 dark:text-slate-200">

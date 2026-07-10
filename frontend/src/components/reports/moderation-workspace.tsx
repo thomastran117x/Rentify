@@ -592,7 +592,7 @@ export function ModerationWorkspace() {
                         type="button"
                         onClick={() => void handleUnassign()}
                         disabled={mutationPending}
-                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-white dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Unassign
                       </button>
