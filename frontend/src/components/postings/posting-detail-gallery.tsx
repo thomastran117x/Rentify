@@ -27,7 +27,7 @@ export function PostingDetailGallery({
 
   return (
     <div className="space-y-4">
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-100 shadow-sm">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shadow-sm">
         <div className="aspect-[4/3]">
           {selectedPhoto ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -54,10 +54,10 @@ export function PostingDetailGallery({
                 key={photo.id}
                 type="button"
                 onClick={() => setSelectedPhotoId(photo.id)}
-                className={`overflow-hidden rounded-2xl border bg-white transition duration-200 ${
+                className={`overflow-hidden rounded-2xl border bg-white dark:bg-slate-900 transition duration-200 ${
                   isSelected
                     ? "border-violet-300 ring-4 ring-violet-100"
-                    : "border-slate-200 hover:-translate-y-0.5 hover:border-violet-200"
+                    : "border-slate-200 dark:border-slate-800 hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
                 }`}
                 aria-label={`View photo ${index + 1} for ${name}`}
                 aria-pressed={isSelected}

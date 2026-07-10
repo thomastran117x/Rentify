@@ -144,26 +144,26 @@ function canReviewCancellation(item: BookingDashboardItem): boolean {
 
 function bannerClasses(tone: BannerTone): string {
   return tone === "error"
-    ? "border-rose-200 bg-rose-50 text-rose-900"
-    : "border-emerald-200 bg-emerald-50 text-emerald-900";
+    ? "border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200"
+    : "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200";
 }
 
 function urgencyClasses(
   level: BookingDashboardItem["urgency"]["level"],
 ): string {
   if (level === "high") {
-    return "bg-rose-100 text-rose-700";
+    return "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300";
   }
 
   if (level === "medium") {
-    return "bg-amber-100 text-amber-800";
+    return "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300";
   }
 
   if (level === "low") {
-    return "bg-sky-100 text-sky-700";
+    return "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300";
   }
 
-  return "bg-slate-100 text-slate-600";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
 function statusClasses(status: BookingDashboardItem["status"]): string {
@@ -172,11 +172,11 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
       status,
     )
   ) {
-    return "bg-rose-100 text-rose-700";
+    return "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300";
   }
 
   if (status === "disputed") {
-    return "bg-rose-100 text-rose-700";
+    return "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300";
   }
 
   if (
@@ -184,11 +184,11 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
       status,
     )
   ) {
-    return "bg-amber-100 text-amber-800";
+    return "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300";
   }
 
   if (status === "paid" || status === "confirmed" || status === "completed") {
-    return "bg-emerald-100 text-emerald-700";
+    return "bg-emerald-100 text-emerald-700 dark:text-emerald-300";
   }
 
   if (
@@ -196,10 +196,10 @@ function statusClasses(status: BookingDashboardItem["status"]): string {
     status === "active" ||
     status === "return_due"
   ) {
-    return "bg-sky-100 text-sky-700";
+    return "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300";
   }
 
-  return "bg-slate-100 text-slate-600";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
 function canOpenDispute(item: BookingDashboardItem): boolean {
@@ -315,9 +315,9 @@ function BookingItemCard({
     rentingMutationPendingKey === `${action}:${item.rentingId}`;
 
   return (
-    <article className="overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+    <article className="overflow-hidden rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
       <div className="grid gap-0 lg:grid-cols-[170px_minmax(0,1fr)]">
-        <div className="relative min-h-44 bg-slate-100">
+        <div className="relative min-h-44 bg-slate-100 dark:bg-slate-800">
           {item.posting.primaryPhotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -334,7 +334,7 @@ function BookingItemCard({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xl font-semibold tracking-[-0.03em] text-slate-950">
+                <h3 className="text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
                   {item.posting.name}
                 </h3>
                 <span
@@ -348,13 +348,13 @@ function BookingItemCard({
                   {item.urgency.label}
                 </span>
                 {actionNeededLabel ? (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
                     {actionNeededLabel}
                   </span>
                 ) : null}
               </div>
 
-              <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-3 grid gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2 xl:grid-cols-3">
                 <p>{formatDateRange(item.startAt, item.endAt)}</p>
                 <p>
                   {formatMoney(item.estimatedTotal, item.pricingCurrency)} total
@@ -377,7 +377,7 @@ function BookingItemCard({
                     type="button"
                     onClick={() => void onSaveInstructions(item.rentingId!)}
                     disabled={isRentingActionPending("save-instructions")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRentingActionPending("save-instructions")
                       ? "Saving..."
@@ -391,7 +391,7 @@ function BookingItemCard({
                     type="button"
                     onClick={() => void onMarkCheckInReady(item.rentingId!)}
                     disabled={isRentingActionPending("check-in-ready")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRentingActionPending("check-in-ready")
                       ? "Updating..."
@@ -405,7 +405,7 @@ function BookingItemCard({
                     type="button"
                     onClick={() => void onMarkCheckInComplete(item.rentingId!)}
                     disabled={isRentingActionPending("check-in-complete")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRentingActionPending("check-in-complete")
                       ? "Updating..."
@@ -419,7 +419,7 @@ function BookingItemCard({
                     type="button"
                     onClick={() => void onCompleteReturn(item.rentingId!)}
                     disabled={isRentingActionPending("complete-return")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRentingActionPending("complete-return")
                       ? "Updating..."
@@ -439,7 +439,7 @@ function BookingItemCard({
                   quotePendingId === item.bookingRequestId ||
                   cancelPendingId === item.bookingRequestId
                 }
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {quotePendingId === item.bookingRequestId
                   ? "Checking..."
@@ -449,20 +449,20 @@ function BookingItemCard({
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-            <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Next action
               </p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">
+              <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-white">
                 {item.nextAction.label}
               </p>
               {holdExpiresAt ? (
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                   Hold expires {holdExpiresAt}
                   {item.isExpiringHold ? " and needs attention soon." : "."}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                   {item.kind === "renting"
                     ? "Renting lifecycle actions stay attached to the same card so pickup, return, and dispute follow-up remain easy to track."
                     : "This summary keeps the booking state, urgency, and likely next step together in one card."}
@@ -470,33 +470,33 @@ function BookingItemCard({
               )}
             </div>
 
-            <div className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Snapshot
               </p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-600">
+              <div className="mt-3 grid gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <p>
                   Status:{" "}
-                  <span className="font-medium text-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-white">
                     {humanizeStatus(item.sourceStatus)}
                   </span>
                 </p>
                 <p>
                   Urgency:{" "}
-                  <span className="font-medium text-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-white">
                     {item.urgency.label}
                   </span>
                 </p>
                 <p>
                   Kind:{" "}
-                  <span className="font-medium text-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-white">
                     {item.kind === "renting" ? "Renting" : "Booking request"}
                   </span>
                 </p>
                 {checkInReadyAt ? (
                   <p>
                     Check-in ready:{" "}
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {checkInReadyAt}
                     </span>
                   </p>
@@ -504,7 +504,7 @@ function BookingItemCard({
                 {checkInCompletedAt ? (
                   <p>
                     Check-in completed:{" "}
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {checkInCompletedAt}
                     </span>
                   </p>
@@ -512,7 +512,7 @@ function BookingItemCard({
                 {returnDueAt ? (
                   <p>
                     Return due:{" "}
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {returnDueAt}
                     </span>
                   </p>
@@ -520,7 +520,7 @@ function BookingItemCard({
                 {completedAt ? (
                   <p>
                     Completed:{" "}
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {completedAt}
                     </span>
                   </p>
@@ -528,7 +528,7 @@ function BookingItemCard({
                 {disputedAt ? (
                   <p>
                     Disputed:{" "}
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-white">
                       {disputedAt}
                     </span>
                   </p>
@@ -539,18 +539,18 @@ function BookingItemCard({
 
           {item.kind === "renting" && item.rentingId ? (
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
                     <ClipboardList className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-950">
+                    <p className="text-sm font-semibold text-slate-950 dark:text-white">
                       Rental instructions
                     </p>
                     {canEditInstructions && rentingInstructions ? (
                       <div className="mt-3 grid gap-3">
-                        <label className="grid gap-2 text-sm text-slate-700">
+                        <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                           <span className="font-medium">Pickup / check-in</span>
                           <textarea
                             value={rentingInstructions.pickupInstructions}
@@ -562,11 +562,11 @@ function BookingItemCard({
                               )
                             }
                             rows={3}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
+                            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                             placeholder="Share where and how pickup or check-in works."
                           />
                         </label>
-                        <label className="grid gap-2 text-sm text-slate-700">
+                        <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                           <span className="font-medium">
                             Return / check-out
                           </span>
@@ -580,15 +580,15 @@ function BookingItemCard({
                               )
                             }
                             rows={3}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950"
+                            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                             placeholder="Share where and how return or check-out works."
                           />
                         </label>
                       </div>
                     ) : (
-                      <div className="mt-3 grid gap-3 text-sm text-slate-700">
+                      <div className="mt-3 grid gap-3 text-sm text-slate-700 dark:text-slate-200">
                         <div>
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-slate-900 dark:text-white">
                             Pickup / check-in
                           </p>
                           <p className="mt-1 leading-6">
@@ -597,7 +597,7 @@ function BookingItemCard({
                           </p>
                         </div>
                         <div>
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-slate-900 dark:text-white">
                             Return / check-out
                           </p>
                           <p className="mt-1 leading-6">
@@ -611,26 +611,26 @@ function BookingItemCard({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200">
                     <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-950">
+                    <p className="text-sm font-semibold text-slate-950 dark:text-white">
                       Lifecycle timeline
                     </p>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                    <div className="mt-3 grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                       <p>
                         Confirmed:{" "}
-                        <span className="font-medium text-slate-900">
+                        <span className="font-medium text-slate-900 dark:text-white">
                           {confirmedAt ?? "Not recorded"}
                         </span>
                       </p>
                       {checkInReadyAt ? (
                         <p>
                           Check-in ready:{" "}
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {checkInReadyAt}
                           </span>
                         </p>
@@ -638,7 +638,7 @@ function BookingItemCard({
                       {checkInCompletedAt ? (
                         <p>
                           Check-in completed:{" "}
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {checkInCompletedAt}
                           </span>
                         </p>
@@ -646,7 +646,7 @@ function BookingItemCard({
                       {returnDueAt ? (
                         <p>
                           Return due:{" "}
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {returnDueAt}
                           </span>
                         </p>
@@ -654,21 +654,21 @@ function BookingItemCard({
                       {completedAt ? (
                         <p>
                           Completed:{" "}
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {completedAt}
                           </span>
                         </p>
                       ) : null}
                       {item.dispute ? (
-                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3">
-                          <p className="font-medium text-rose-900">
+                        <div className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-3 py-3">
+                          <p className="font-medium text-rose-900 dark:text-rose-200">
                             Dispute open
                           </p>
-                          <p className="mt-1 text-rose-900">
+                          <p className="mt-1 text-rose-900 dark:text-rose-200">
                             {item.dispute.reason}
                           </p>
                           {item.dispute.details ? (
-                            <p className="mt-1 text-rose-800">
+                            <p className="mt-1 text-rose-800 dark:text-rose-300">
                               {item.dispute.details}
                             </p>
                           ) : null}
@@ -685,17 +685,17 @@ function BookingItemCard({
           item.rentingId &&
           canManageCurrentView &&
           canOpenDispute(item) ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+            <div className="mt-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-4 py-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-700">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300">
                   <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-rose-950">
+                  <p className="text-sm font-semibold text-rose-950 dark:text-rose-100">
                     Open a dispute
                   </p>
                   <div className="mt-3 grid gap-3">
-                    <label className="grid gap-2 text-sm text-rose-950">
+                    <label className="grid gap-2 text-sm text-rose-950 dark:text-rose-100">
                       <span className="font-medium">Reason</span>
                       <input
                         value={disputeDraft?.reason ?? ""}
@@ -706,11 +706,11 @@ function BookingItemCard({
                             event.target.value,
                           )
                         }
-                        className="h-11 rounded-xl border border-rose-200 bg-white px-3 text-slate-900 outline-none transition focus:border-rose-500"
+                        className="h-11 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-3 text-slate-900 dark:text-white outline-none transition focus:border-rose-500"
                         placeholder="Summarize the issue."
                       />
                     </label>
-                    <label className="grid gap-2 text-sm text-rose-950">
+                    <label className="grid gap-2 text-sm text-rose-950 dark:text-rose-100">
                       <span className="font-medium">Details</span>
                       <textarea
                         value={disputeDraft?.details ?? ""}
@@ -722,7 +722,7 @@ function BookingItemCard({
                           )
                         }
                         rows={3}
-                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-rose-500"
+                        className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-rose-500"
                         placeholder="Add the context support or the other party should see."
                       />
                     </label>
@@ -747,8 +747,8 @@ function BookingItemCard({
 
           {item.kind === "booking_request" &&
           ["cancelled", "refunded"].includes(item.sourceStatus) ? (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-              <p className="font-medium text-slate-900">
+            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4 text-sm text-slate-700 dark:text-slate-200">
+              <p className="font-medium text-slate-900 dark:text-white">
                 {item.sourceStatus === "refunded"
                   ? "Refunded booking"
                   : "Cancelled booking"}
@@ -760,17 +760,17 @@ function BookingItemCard({
           ) : null}
 
           {quote && item.bookingRequestId && canManageCurrentView ? (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+            <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300">
                   <ReceiptText className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-amber-900">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                     Cancellation review
                   </p>
                   {quote.cancellable ? (
-                    <div className="mt-2 space-y-2 text-sm text-amber-900">
+                    <div className="mt-2 space-y-2 text-sm text-amber-900 dark:text-amber-200">
                       <p>
                         Refund outcome:{" "}
                         <span className="font-medium">
@@ -790,7 +790,7 @@ function BookingItemCard({
                         </span>
                       </p>
                       {quote.reasonRequired ? (
-                        <label className="mt-3 grid gap-2 text-sm text-amber-950">
+                        <label className="mt-3 grid gap-2 text-sm text-amber-950 dark:text-amber-100">
                           <span className="font-medium">
                             Owner cancellation reason
                           </span>
@@ -805,7 +805,7 @@ function BookingItemCard({
                               )
                             }
                             rows={3}
-                            className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-amber-500"
+                            className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-amber-500"
                             placeholder="Explain why this booking needs to be cancelled."
                           />
                         </label>
@@ -817,7 +817,7 @@ function BookingItemCard({
                             void onCancelBooking(item.bookingRequestId!)
                           }
                           disabled={cancelPendingId === item.bookingRequestId}
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <CircleDollarSign
                             className="h-4 w-4"
@@ -830,7 +830,7 @@ function BookingItemCard({
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-2 space-y-2 text-sm text-amber-900">
+                    <div className="mt-2 space-y-2 text-sm text-amber-900 dark:text-amber-200">
                       <div className="flex items-start gap-2">
                         <XCircle
                           className="mt-0.5 h-4 w-4 shrink-0"
@@ -1176,8 +1176,8 @@ export function BookingsDashboard() {
 
   if (status === "loading" || loading) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white px-6 py-10 text-sm text-slate-600">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-10 text-sm text-slate-600 dark:text-slate-300">
           Loading bookings workspace...
         </div>
       </main>
@@ -1186,16 +1186,18 @@ export function BookingsDashboard() {
 
   if (!session) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8">
-          <h1 className="text-3xl font-semibold text-slate-950">Bookings</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
+          <h1 className="text-3xl font-semibold text-slate-950 dark:text-white">
+            Bookings
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Sign in to track booking requests, payment work, and upcoming
             rentings.
           </p>
           <Link
             href="/login"
-            className="mt-6 inline-flex h-11 items-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white"
+            className="mt-6 inline-flex h-11 items-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white"
           >
             Sign in
           </Link>
@@ -1210,20 +1212,20 @@ export function BookingsDashboard() {
   const pagination = activeDashboard?.pagination;
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">
-        <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
+        <section className="overflow-hidden rounded-[2.2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_32px_90px_rgba(15,23,42,0.08)]">
           <div className="bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_34%),linear-gradient(135deg,_#ffffff,_#eff6ff)] px-6 py-7 sm:px-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                   Booking workspace
                 </p>
-                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950">
+                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-white">
                   Keep every booking decision, payment, and upcoming rental in
                   view
                 </h1>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                   This workspace brings renter timelines and owner action queues
                   together, highlights expiring holds, and keeps the next step
                   obvious for each booking.
@@ -1231,14 +1233,14 @@ export function BookingsDashboard() {
               </div>
 
               {showOwnerView ? (
-                <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                <div className="inline-flex rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setActiveView("owner")}
                     className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                       activeView === "owner"
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-600 hover:bg-slate-50"
+                        ? "bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 text-white"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
                     Owner
@@ -1248,8 +1250,8 @@ export function BookingsDashboard() {
                     onClick={() => setActiveView("renter")}
                     className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                       activeView === "renter"
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-600 hover:bg-slate-50"
+                        ? "bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 text-white"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
                     Renter
@@ -1312,7 +1314,7 @@ export function BookingsDashboard() {
               />
             </section>
 
-            <section className="mt-6 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <section className="mt-6 rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
               <div className="grid gap-4 lg:grid-cols-4">
                 <FilterField label="Action needed">
                   <select
@@ -1326,7 +1328,7 @@ export function BookingsDashboard() {
                           | undefined,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {OWNER_ACTION_OPTIONS.map((option) => (
                       <option
@@ -1351,7 +1353,7 @@ export function BookingsDashboard() {
                           | undefined,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {STATUS_OPTIONS.map((option) => (
                       <option
@@ -1374,7 +1376,7 @@ export function BookingsDashboard() {
                         postingId: event.target.value || undefined,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     <option value="">All postings</option>
                     {(ownerDashboard?.postings ?? []).map((posting) => (
@@ -1395,7 +1397,7 @@ export function BookingsDashboard() {
                         sort: event.target.value as BookingDashboardSort,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {SORT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1436,7 +1438,7 @@ export function BookingsDashboard() {
               />
             </section>
 
-            <section className="mt-6 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <section className="mt-6 rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
               <div className="grid gap-4 lg:grid-cols-3">
                 <FilterField label="Bucket">
                   <select
@@ -1450,7 +1452,7 @@ export function BookingsDashboard() {
                           | undefined,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {RENTER_BUCKET_OPTIONS.map((option) => (
                       <option
@@ -1475,7 +1477,7 @@ export function BookingsDashboard() {
                           | undefined,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {STATUS_OPTIONS.map((option) => (
                       <option
@@ -1498,7 +1500,7 @@ export function BookingsDashboard() {
                         sort: event.target.value as BookingDashboardSort,
                       }))
                     }
-                    className="h-11 rounded-xl border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                    className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                   >
                     {SORT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1514,13 +1516,13 @@ export function BookingsDashboard() {
 
         <section className="mt-6 grid gap-5">
           {items.length === 0 ? (
-            <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white px-6 py-10 text-sm text-slate-600">
+            <div className="rounded-[1.8rem] border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-sm text-slate-600 dark:text-slate-300">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300">
                   <CalendarDays className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-950">
+                  <p className="font-semibold text-slate-950 dark:text-white">
                     No bookings match these filters
                   </p>
                   <p className="mt-2 max-w-2xl leading-6">
@@ -1594,8 +1596,8 @@ export function BookingsDashboard() {
         </section>
 
         {pagination ? (
-          <section className="mt-6 flex items-center justify-between gap-3 rounded-[1.8rem] border border-slate-200 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-            <p className="text-sm text-slate-500">
+          <section className="mt-6 flex items-center justify-between gap-3 rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Page {pagination.page} of {pagination.totalPages}
             </p>
             <div className="flex items-center gap-2">
@@ -1616,7 +1618,7 @@ export function BookingsDashboard() {
                   }));
                 }}
                 disabled={!pagination.hasPreviousPage}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Previous
               </button>
@@ -1641,7 +1643,7 @@ export function BookingsDashboard() {
                   }));
                 }}
                 disabled={!pagination.hasNextPage}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>
@@ -1655,11 +1657,11 @@ export function BookingsDashboard() {
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-[1.6rem] border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="rounded-[1.6rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-white">
         {value}
       </p>
     </div>
@@ -1675,7 +1677,9 @@ function FilterField({
 }) {
   return (
     <label className="grid gap-2 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
+      <span className="font-medium text-slate-700 dark:text-slate-200">
+        {label}
+      </span>
       {children}
     </label>
   );

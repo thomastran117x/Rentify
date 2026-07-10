@@ -69,14 +69,14 @@ function PostingDetailError() {
       <div className={theme.marketplace.orbSecondary} aria-hidden="true" />
 
       <div className={theme.marketplace.container}>
-        <section className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-xl shadow-slate-950/5 sm:p-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">
+        <section className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center shadow-xl shadow-slate-950/5 sm:p-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
             Posting detail
           </p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white sm:text-4xl">
             We couldn&apos;t load this posting right now.
           </h1>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             The listing details are temporarily unavailable. Please try again in
             a moment or head back to browse other postings.
           </p>

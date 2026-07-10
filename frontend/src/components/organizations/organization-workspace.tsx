@@ -35,15 +35,15 @@ function isInviteCapable(role?: OrganizationRole): boolean {
 
 function OrganizationEmptyState() {
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-      <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+      <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
           Organizations
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
           No organization access yet
         </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
           This workspace will light up when an owner invites you into an
           organization. Once that happens, you will be able to switch between
           organizations, review members, and manage invites based on your role.
@@ -358,8 +358,8 @@ export function OrganizationWorkspace() {
 
   if (status === "loading" || loading) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-6xl text-sm font-medium text-slate-500">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-6xl text-sm font-medium text-slate-500 dark:text-slate-400">
           Loading organization workspace...
         </div>
       </main>
@@ -375,18 +375,18 @@ export function OrganizationWorkspace() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-6xl space-y-6">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
+        <section className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-7 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Organization workspace
               </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
                 Manage teammates before shared posting access rolls out
               </h1>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
+              <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 This first release adds organization structure, invite
                 management, and active-organization switching. Posting and
                 payout ownership still follow the existing owner account model
@@ -394,8 +394,8 @@ export function OrganizationWorkspace() {
               </p>
             </div>
 
-            <label className="grid gap-2 text-sm text-slate-600">
-              <span className="font-medium text-slate-700">
+            <label className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
                 Active organization
               </span>
               <select
@@ -404,7 +404,7 @@ export function OrganizationWorkspace() {
                   void handleSelectOrganization(event.target.value)
                 }
                 disabled={saving}
-                className="h-12 min-w-[18rem] rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
+                className="h-12 min-w-[18rem] rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
               >
                 {workspace.memberships.map((membership) => (
                   <option key={membership.membershipId} value={membership.id}>
@@ -421,7 +421,7 @@ export function OrganizationWorkspace() {
         ) : null}
 
         {message ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-5 py-4 text-sm text-emerald-800 dark:text-emerald-300">
             {message}
           </div>
         ) : null}
@@ -429,31 +429,31 @@ export function OrganizationWorkspace() {
         {detail ? (
           <>
             <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-              <div className="rounded-[1.8rem] border border-slate-200 bg-white p-6">
+              <div className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                       Organization
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                       {detail.organization.name}
                     </h2>
-                    <p className="mt-2 text-sm text-slate-500">
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                       Your role: {formatRole(detail.viewerRole)}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-slate-100 px-4 py-3 text-right text-sm text-slate-600">
+                  <div className="rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-300">
                     <p>Created</p>
-                    <p className="mt-1 font-semibold text-slate-900">
+                    <p className="mt-1 font-semibold text-slate-900 dark:text-white">
                       {formatDate(detail.organization.createdAt)}
                     </p>
                   </div>
                 </div>
 
                 {detail.viewerRole === "primary_manager" ? (
-                  <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <label className="grid gap-2 text-sm text-slate-600">
-                      <span className="font-medium text-slate-700">
+                  <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
+                    <label className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="font-medium text-slate-700 dark:text-slate-200">
                         Rename organization
                       </span>
                       <input
@@ -461,14 +461,14 @@ export function OrganizationWorkspace() {
                         onChange={(event) =>
                           setOrganizationName(event.target.value)
                         }
-                        className="h-11 rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
+                        className="h-11 rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                       />
                     </label>
                     <button
                       type="button"
                       onClick={() => void handleRename()}
                       disabled={saving || organizationName.trim().length === 0}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {saving ? "Saving..." : "Save name"}
                     </button>
@@ -476,29 +476,29 @@ export function OrganizationWorkspace() {
                 ) : null}
               </div>
 
-              <div className="rounded-[1.8rem] border border-slate-200 bg-white p-6">
+              <div className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                       Invitations
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                       Invite teammates
                     </h2>
                   </div>
-                  <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                  <div className="rounded-2xl bg-sky-50 dark:bg-sky-950/40 px-4 py-3 text-sm text-sky-800 dark:text-sky-300">
                     Pending invites: {detail.invitations.length}
                   </div>
                 </div>
 
                 {isInviteCapable(detail.viewerRole) ? (
-                  <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1.2fr_0.7fr_auto]">
+                  <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4 md:grid-cols-[1.2fr_0.7fr_auto]">
                     <input
                       type="email"
                       value={inviteEmail}
                       onChange={(event) => setInviteEmail(event.target.value)}
                       placeholder="teammate@example.com"
-                      className="h-11 rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
+                      className="h-11 rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                     />
                     <select
                       value={inviteRole}
@@ -508,7 +508,7 @@ export function OrganizationWorkspace() {
                             .value as CreateOrganizationInviteInput["role"],
                         )
                       }
-                      className="h-11 rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
+                      className="h-11 rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                     >
                       {detail.viewerRole === "primary_manager" ? (
                         <option value="manager">Manager</option>
@@ -519,13 +519,13 @@ export function OrganizationWorkspace() {
                       type="button"
                       onClick={() => void handleInvite()}
                       disabled={saving || inviteEmail.trim().length === 0}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {saving ? "Sending..." : "Send invite"}
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <p className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
                     Operators can review pending invitations here, but only
                     managers can send them.
                   </p>
@@ -533,24 +533,24 @@ export function OrganizationWorkspace() {
 
                 <div className="mt-6 space-y-3">
                   {detail.invitations.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
                       No pending invitations.
                     </div>
                   ) : (
                     detail.invitations.map((invite) => (
                       <div
                         key={invite.id}
-                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
                       >
                         <div>
-                          <p className="font-semibold text-slate-950">
+                          <p className="font-semibold text-slate-950 dark:text-white">
                             {invite.email}
                           </p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                             {formatRole(invite.role)} invited by{" "}
                             {invite.invitedBy.username}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             Expires {formatDate(invite.expiresAt)}
                           </p>
                         </div>
@@ -560,7 +560,7 @@ export function OrganizationWorkspace() {
                             type="button"
                             onClick={() => void handleRevokeInvite(invite.id)}
                             disabled={saving}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Revoke
                           </button>
@@ -572,17 +572,17 @@ export function OrganizationWorkspace() {
               </div>
             </section>
 
-            <section className="rounded-[1.8rem] border border-slate-200 bg-white p-6">
+            <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                     Members
                   </p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                     Team roster
                   </h2>
                 </div>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Shared posting access is still coming in a later phase. This
                   release focuses on membership and invites.
                 </p>
@@ -600,16 +600,16 @@ export function OrganizationWorkspace() {
                   return (
                     <div
                       key={member.membershipId}
-                      className="grid gap-4 rounded-2xl border border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,1.3fr)_0.7fr_0.8fr]"
+                      className="grid gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-4 lg:grid-cols-[minmax(0,1.3fr)_0.7fr_0.8fr]"
                     >
                       <div>
-                        <p className="font-semibold text-slate-950">
+                        <p className="font-semibold text-slate-950 dark:text-white">
                           {member.username}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                           {member.email}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           Joined {formatDate(member.joinedAt)}
                         </p>
                       </div>
@@ -628,13 +628,13 @@ export function OrganizationWorkspace() {
                               )
                             }
                             disabled={saving}
-                            className="h-11 w-full rounded-2xl border border-slate-300 px-4 text-slate-900 outline-none transition focus:border-slate-950"
+                            className="h-11 w-full rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                           >
                             <option value="manager">Manager</option>
                             <option value="operator">Operator</option>
                           </select>
                         ) : (
-                          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+                          <div className="rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200">
                             {formatRole(member.role)}
                           </div>
                         )}
@@ -648,12 +648,12 @@ export function OrganizationWorkspace() {
                               void handleRemoveMember(member.membershipId)
                             }
                             disabled={saving}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 dark:border-rose-900/50 px-4 text-sm font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Remove
                           </button>
                         ) : (
-                          <span className="text-sm text-slate-400">
+                          <span className="text-sm text-slate-400 dark:text-slate-500">
                             No actions
                           </span>
                         )}
@@ -664,15 +664,15 @@ export function OrganizationWorkspace() {
               </div>
             </section>
 
-            <section className="rounded-[1.8rem] border border-slate-200 bg-slate-950 px-6 py-6 text-white">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-6 py-6 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Current limit
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
                 Posting and payout ownership still follow the original owner
                 account
               </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 dark:text-slate-600">
                 Organizations are live now so teams can be invited and managed
                 cleanly. Shared posting operations will move into this workspace
                 in a follow-up phase.
@@ -680,7 +680,7 @@ export function OrganizationWorkspace() {
               <div className="mt-4">
                 <Link
                   href="/dashboard"
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-white dark:bg-slate-900 px-5 text-sm font-semibold text-slate-950 dark:text-white transition hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Open owner dashboard
                 </Link>

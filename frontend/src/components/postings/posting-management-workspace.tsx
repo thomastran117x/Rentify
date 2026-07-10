@@ -691,8 +691,8 @@ export function PostingManagementWorkspace() {
 
   if (status === "loading" || loading) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-6xl text-sm font-medium text-slate-500">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-6xl text-sm font-medium text-slate-500 dark:text-slate-400">
           Loading posting workspace...
         </div>
       </main>
@@ -705,22 +705,22 @@ export function PostingManagementWorkspace() {
 
   if (!canRead) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
             Posting workspace
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
             Select an organization first
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
             Posting management now follows your active organization. Switch into
             an organization workspace first, then come back here to manage its
             postings.
           </p>
           <Link
             href="/organizations"
-            className="mt-6 inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+            className="mt-6 inline-flex rounded-full bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-4 py-2 text-sm font-semibold text-white"
           >
             Open organizations
           </Link>
@@ -730,37 +730,37 @@ export function PostingManagementWorkspace() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <section className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-600">
                 Active organization
               </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
+              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
                 {activeOrganization?.name ?? "Organization workspace"}
               </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                 Create drafts, edit listing content, and run publish or pause
                 actions inside your active organization. Legacy owner analytics
                 and payouts still live in the owner dashboard for now.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
               Role:{" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-slate-900 dark:text-white">
                 {activeOrganization?.role.replaceAll("_", " ")}
               </span>
               {!canManage ? (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Read-only access. Managers can create and change postings.
                 </p>
               ) : null}
             </div>
           </div>
           {message ? (
-            <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <p className="mt-5 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
               {message}
             </p>
           ) : null}
@@ -774,13 +774,13 @@ export function PostingManagementWorkspace() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                   {form.postingId ? "Edit posting" : "Create draft"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   The form keeps variant details in JSON so managers can edit
                   any seeded posting type without a separate editor for each
                   family.
@@ -790,7 +790,7 @@ export function PostingManagementWorkspace() {
                 <button
                   type="button"
                   onClick={handleNewDraft}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   New draft
                 </button>
@@ -799,14 +799,16 @@ export function PostingManagementWorkspace() {
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Family</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Family
+                </span>
                 <select
                   value={form.family}
                   onChange={(event) =>
                     handleFamilyChange(event.target.value as PostingFamily)
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 >
                   <option value="place">Place</option>
                   <option value="equipment">Equipment</option>
@@ -814,12 +816,14 @@ export function PostingManagementWorkspace() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Subtype</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Subtype
+                </span>
                 <select
                   value={form.subtype}
                   onChange={(event) => handleSubtypeChange(event.target.value)}
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 >
                   {subtypeOptionsByFamily[form.family].map((option) => (
                     <option key={option.value} value={option.value}>
@@ -832,7 +836,9 @@ export function PostingManagementWorkspace() {
 
             <div className="mt-4 grid gap-4">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Name</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Name
+                </span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -842,12 +848,14 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                   placeholder="Downtown creative studio"
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Description</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Description
+                </span>
                 <textarea
                   value={form.description}
                   onChange={(event) =>
@@ -857,14 +865,16 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="min-h-32 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="min-h-32 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 />
               </label>
             </div>
 
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Daily price</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Daily price
+                </span>
                 <input
                   value={form.dailyPriceAmount}
                   onChange={(event) =>
@@ -874,11 +884,13 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Currency</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Currency
+                </span>
                 <input
                   value={form.currency}
                   onChange={(event) =>
@@ -888,11 +900,13 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Tags</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Tags
+                </span>
                 <input
                   value={form.tags}
                   onChange={(event) =>
@@ -902,7 +916,7 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                   placeholder="workspace, wifi"
                 />
               </label>
@@ -910,7 +924,9 @@ export function PostingManagementWorkspace() {
 
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Availability</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Availability
+                </span>
                 <select
                   value={form.availabilityStatus}
                   onChange={(event) =>
@@ -921,7 +937,7 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 >
                   <option value="available">Available</option>
                   <option value="limited">Limited</option>
@@ -929,7 +945,7 @@ export function PostingManagementWorkspace() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm sm:col-span-2">
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-slate-700 dark:text-slate-200">
                   Availability note
                 </span>
                 <input
@@ -941,7 +957,7 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 />
               </label>
             </div>
@@ -954,7 +970,9 @@ export function PostingManagementWorkspace() {
                 ["Postal code", "postalCode"],
               ].map(([label, key]) => (
                 <label key={key} className="grid gap-2 text-sm">
-                  <span className="font-medium text-slate-700">{label}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {label}
+                  </span>
                   <input
                     value={form[key as keyof PostingFormState] as string}
                     onChange={(event) =>
@@ -964,7 +982,7 @@ export function PostingManagementWorkspace() {
                       }))
                     }
                     disabled={!canManage || saving}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                   />
                 </label>
               ))}
@@ -979,7 +997,9 @@ export function PostingManagementWorkspace() {
                 ["Advance notice (days)", "advanceNoticeDays"],
               ].map(([label, key]) => (
                 <label key={key} className="grid gap-2 text-sm">
-                  <span className="font-medium text-slate-700">{label}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {label}
+                  </span>
                   <input
                     value={form[key as keyof PostingFormState] as string}
                     onChange={(event) =>
@@ -989,7 +1009,7 @@ export function PostingManagementWorkspace() {
                       }))
                     }
                     disabled={!canManage || saving}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                   />
                 </label>
               ))}
@@ -997,7 +1017,7 @@ export function PostingManagementWorkspace() {
 
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-slate-700 dark:text-slate-200">
                   Cancellation policy
                 </span>
                 <select
@@ -1009,7 +1029,7 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 >
                   <option value="">Not specified</option>
                   <option value="flexible">Flexible</option>
@@ -1018,7 +1038,7 @@ export function PostingManagementWorkspace() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm sm:col-span-2">
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-slate-700 dark:text-slate-200">
                   Cancellation policy notes
                 </span>
                 <input
@@ -1030,12 +1050,12 @@ export function PostingManagementWorkspace() {
                     }))
                   }
                   disabled={!canManage || saving}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900"
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
                 />
               </label>
             </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
               <input
                 type="checkbox"
                 checked={form.instantBooking}
@@ -1049,10 +1069,10 @@ export function PostingManagementWorkspace() {
                 className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded accent-sky-600"
               />
               <div>
-                <p className="text-sm font-medium text-slate-700">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   Enable instant booking
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Booking requests are automatically approved — no owner action
                   required.
                 </p>
@@ -1060,11 +1080,11 @@ export function PostingManagementWorkspace() {
             </label>
 
             {selectedPostingId ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-700">
+              <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Seasonal Pricing
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Override the daily rate for specific date ranges (e.g.
                   holidays, peak season).
                 </p>
@@ -1074,11 +1094,11 @@ export function PostingManagementWorkspace() {
                     {seasonalRules.map((rule) => (
                       <li
                         key={rule.id}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs text-slate-700 dark:text-slate-200"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-medium">{rule.name}</p>
-                          <p className="text-slate-500">
+                          <p className="text-slate-500 dark:text-slate-400">
                             {rule.startDate} → {rule.endDate} · $
                             {rule.dailyAmount}/day
                           </p>
@@ -1096,14 +1116,14 @@ export function PostingManagementWorkspace() {
                                   dailyAmount: rule.dailyAmount,
                                 })
                               }
-                              className="text-sky-600 hover:underline"
+                              className="text-sky-600 dark:text-sky-400 hover:underline"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => void handleSeasonalDelete(rule.id)}
-                              className="text-rose-500 hover:underline"
+                              className="text-rose-500 dark:text-rose-400 hover:underline"
                             >
                               Delete
                             </button>
@@ -1113,7 +1133,7 @@ export function PostingManagementWorkspace() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-xs text-slate-400">
+                  <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
                     No seasonal rules yet.
                   </p>
                 )}
@@ -1121,7 +1141,7 @@ export function PostingManagementWorkspace() {
                 {canManage &&
                 (seasonalForm.editingId || seasonalRules.length < 20) ? (
                   <div className="mt-3 grid gap-2">
-                    <p className="text-xs font-medium text-slate-600">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
                       {seasonalForm.editingId ? "Edit rule" : "Add rule"}
                     </p>
                     <input
@@ -1131,7 +1151,7 @@ export function PostingManagementWorkspace() {
                       onChange={(e) =>
                         setSeasonalForm((s) => ({ ...s, name: e.target.value }))
                       }
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
@@ -1143,7 +1163,7 @@ export function PostingManagementWorkspace() {
                             startDate: e.target.value,
                           }))
                         }
-                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
                       />
                       <input
                         type="date"
@@ -1154,7 +1174,7 @@ export function PostingManagementWorkspace() {
                             endDate: e.target.value,
                           }))
                         }
-                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
                     <input
@@ -1169,16 +1189,18 @@ export function PostingManagementWorkspace() {
                           dailyAmount: Number(e.target.value),
                         }))
                       }
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900"
+                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
                     />
                     {seasonalError ? (
-                      <p className="text-xs text-rose-600">{seasonalError}</p>
+                      <p className="text-xs text-rose-600 dark:text-rose-400">
+                        {seasonalError}
+                      </p>
                     ) : null}
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => void handleSeasonalSubmit()}
-                        className="rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                        className="rounded-full bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                       >
                         {seasonalForm.editingId ? "Update" : "Add"}
                       </button>
@@ -1194,7 +1216,7 @@ export function PostingManagementWorkspace() {
                               dailyAmount: 0,
                             })
                           }
-                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           Cancel
                         </button>
@@ -1206,7 +1228,7 @@ export function PostingManagementWorkspace() {
             ) : null}
 
             <label className="mt-4 grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
                 Variant details JSON
               </span>
               <textarea
@@ -1218,20 +1240,22 @@ export function PostingManagementWorkspace() {
                   }))
                 }
                 disabled={!canManage || saving}
-                className="min-h-48 rounded-3xl border border-slate-200 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-50"
+                className="min-h-48 rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-4 py-3 font-mono text-sm text-slate-50"
               />
             </label>
 
             <label className="mt-4 grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Primary photo</span>
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                Primary photo
+              </span>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
                 disabled={!canManage || saving}
-                className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-slate-700"
+                className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-slate-700 dark:text-slate-200"
               />
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {selectedFile
                   ? `Ready to upload ${selectedFile.name}.`
                   : form.photos[0]
@@ -1247,12 +1271,12 @@ export function PostingManagementWorkspace() {
                   const done = items.filter((i) => i.done).length;
                   const pct = Math.round((done / items.length) * 100);
                   return (
-                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
                       <div className="mb-2 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-slate-700">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                           Listing completeness
                         </p>
-                        <p className="text-sm font-medium text-sky-600">
+                        <p className="text-sm font-medium text-sky-600 dark:text-sky-400">
                           {pct}%
                         </p>
                       </div>
@@ -1266,13 +1290,13 @@ export function PostingManagementWorkspace() {
                         {items.map((item) => (
                           <li
                             key={item.label}
-                            className="flex items-center gap-2 text-xs text-slate-600"
+                            className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
                           >
                             <span
                               className={
                                 item.done
                                   ? "text-emerald-500"
-                                  : "text-slate-300"
+                                  : "text-slate-300 dark:text-slate-600"
                               }
                             >
                               {item.done ? "✓" : "○"}
@@ -1292,7 +1316,7 @@ export function PostingManagementWorkspace() {
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saving}
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving
                     ? "Saving..."
@@ -1302,38 +1326,38 @@ export function PostingManagementWorkspace() {
                 </button>
                 <Link
                   href="/organizations"
-                  className="rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 dark:border-slate-800 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Switch organization
                 </Link>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-slate-500">
+              <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
                 Operators can inspect org-owned posting details here, but only
                 managers and primary managers can save or change listing state.
               </p>
             )}
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                   Active org postings
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   `/postings/me` now follows the active organization rather than
                   direct user ownership.
                 </p>
               </div>
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+              <span className="rounded-full bg-amber-50 dark:bg-amber-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
                 {postings.length} loaded
               </span>
             </div>
 
             <div className="mt-6 space-y-4">
               {postings.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-500">
+                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-5 py-8 text-sm text-slate-500 dark:text-slate-400">
                   No postings found for the active organization yet.
                 </div>
               ) : null}
@@ -1342,26 +1366,26 @@ export function PostingManagementWorkspace() {
                   key={posting.id}
                   className={`rounded-3xl border px-5 py-4 transition ${
                     posting.id === selectedPostingId
-                      ? "border-amber-300 bg-amber-50/60"
-                      : "border-slate-200 bg-white"
+                      ? "border-amber-300 dark:border-amber-800 bg-amber-50/60"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-950">
+                      <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                         {posting.name}
                       </h3>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         {formatVariant(posting)} · {posting.location.city},{" "}
                         {posting.location.region}
                       </p>
                     </div>
-                    <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                    <span className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">
                       {formatStatus(posting.status)}
                     </span>
                   </div>
 
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                     {posting.description}
                   </p>
 
@@ -1369,7 +1393,7 @@ export function PostingManagementWorkspace() {
                     <button
                       type="button"
                       onClick={() => void handleSelectPosting(posting.id)}
-                      className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       {canManage ? "Edit" : "View"}
                     </button>
@@ -1382,7 +1406,7 @@ export function PostingManagementWorkspace() {
                               void handleLifecycleAction(posting.id, action.id)
                             }
                             disabled={saving}
-                            className="rounded-full bg-slate-950 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-full bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {action.label}
                           </button>

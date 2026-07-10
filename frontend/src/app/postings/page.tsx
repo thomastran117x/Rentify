@@ -251,8 +251,12 @@ function FilterPanel({
   return (
     <section className={theme.marketplace.filterPanel}>
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        <h3 className="text-sm font-semibold text-slate-950 dark:text-white">
+          {title}
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+          {description}
+        </p>
       </div>
 
       <div className="space-y-3">{children}</div>
@@ -317,7 +321,7 @@ function ActiveFilters({
 
   return (
     <div className={theme.marketplace.summary}>
-      <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
         {filters.length} active
       </span>
 
@@ -329,7 +333,7 @@ function ActiveFilters({
 
       <Link
         href="/postings"
-        className="ml-auto text-xs font-semibold text-violet-700 transition duration-200 hover:text-violet-800"
+        className="ml-auto text-xs font-semibold text-violet-700 dark:text-violet-300 transition duration-200 hover:text-violet-800 dark:hover:text-violet-200"
       >
         Clear
       </Link>
@@ -615,7 +619,7 @@ export default async function PostingsPage({
                 <div className={theme.marketplace.utilityCard}>
                   <div className="flex items-start gap-3">
                     <SlidersHorizontal
-                      className="mt-0.5 h-4 w-4 text-violet-600"
+                      className="mt-0.5 h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                     <div>
@@ -633,7 +637,7 @@ export default async function PostingsPage({
                 <div className={theme.marketplace.utilityCard}>
                   <div className="flex items-start gap-3">
                     <Compass
-                      className="mt-0.5 h-4 w-4 text-violet-600"
+                      className="mt-0.5 h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                     <div>
@@ -651,7 +655,7 @@ export default async function PostingsPage({
                 <div className={theme.marketplace.utilityCard}>
                   <div className="flex items-start gap-3">
                     <CalendarRange
-                      className="mt-0.5 h-4 w-4 text-violet-600"
+                      className="mt-0.5 h-4 w-4 text-violet-600 dark:text-violet-400"
                       aria-hidden="true"
                     />
                     <div>
@@ -745,10 +749,10 @@ export default async function PostingsPage({
               <details className={theme.marketplace.advancedShell}>
                 <summary className={theme.marketplace.advancedSummary}>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
                       Advanced filters
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Price, subtype, tags, distance, and availability dates.
                     </p>
                   </div>
@@ -764,7 +768,7 @@ export default async function PostingsPage({
                   </span>
                 </summary>
 
-                <div className="border-t border-slate-200 p-4 sm:p-5">
+                <div className="border-t border-slate-200 dark:border-slate-800 p-4 sm:p-5">
                   <div className="grid gap-5 lg:grid-cols-2">
                     <FilterPanel
                       title="What are you renting?"
@@ -793,7 +797,7 @@ export default async function PostingsPage({
                       >
                         <div className="relative">
                           <Tags
-                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
                             aria-hidden="true"
                           />
                           <input
@@ -914,10 +918,10 @@ export default async function PostingsPage({
                     </FilterPanel>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
                     <Link
                       href="/postings"
-                      className="text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800"
+                      className="text-sm font-medium text-violet-700 dark:text-violet-300 transition duration-200 hover:text-violet-800 dark:hover:text-violet-200"
                     >
                       Reset all filters
                     </Link>
@@ -963,51 +967,67 @@ function SearchError({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4">
-        <p className="font-semibold text-rose-900">{title}</p>
-        <p className="mt-1 text-sm text-rose-700">{description}</p>
+      <div className="rounded-[1.5rem] border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 p-4">
+        <p className="font-semibold text-rose-900 dark:text-rose-200">
+          {title}
+        </p>
+        <p className="mt-1 text-sm text-rose-700 dark:text-rose-300">
+          {description}
+        </p>
       </div>
 
       {debug ? (
-        <details className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 text-sm">
-          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-slate-700 hover:bg-white">
+        <details className="rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 text-sm">
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-slate-700 dark:text-slate-200 hover:bg-white">
             Debug details
           </summary>
-          <dl className="grid gap-3 border-t border-slate-200 px-4 py-3 text-slate-700">
+          <dl className="grid gap-3 border-t border-slate-200 dark:border-slate-800 px-4 py-3 text-slate-700 dark:text-slate-200">
             <div>
-              <dt className="font-medium text-slate-950">Request URL</dt>
-              <dd className="mt-0.5 break-all text-slate-600">
+              <dt className="font-medium text-slate-950 dark:text-white">
+                Request URL
+              </dt>
+              <dd className="mt-0.5 break-all text-slate-600 dark:text-slate-300">
                 {debug.requestUrl}
               </dd>
             </div>
             {debug.status ? (
               <div>
-                <dt className="font-medium text-slate-950">HTTP status</dt>
-                <dd className="mt-0.5 text-slate-600">
+                <dt className="font-medium text-slate-950 dark:text-white">
+                  HTTP status
+                </dt>
+                <dd className="mt-0.5 text-slate-600 dark:text-slate-300">
                   {debug.status} {debug.statusText}
                 </dd>
               </div>
             ) : null}
             {debug.causeMessage ? (
               <div>
-                <dt className="font-medium text-slate-950">Fetch error</dt>
-                <dd className="mt-0.5 text-slate-600">{debug.causeMessage}</dd>
+                <dt className="font-medium text-slate-950 dark:text-white">
+                  Fetch error
+                </dt>
+                <dd className="mt-0.5 text-slate-600 dark:text-slate-300">
+                  {debug.causeMessage}
+                </dd>
               </div>
             ) : null}
             {debug.responseBody !== undefined ? (
               <div>
-                <dt className="font-medium text-slate-950">Response body</dt>
+                <dt className="font-medium text-slate-950 dark:text-white">
+                  Response body
+                </dt>
                 <dd className="mt-0.5">
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs">
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl bg-white dark:bg-slate-900 p-3 text-xs">
                     {JSON.stringify(debug.responseBody, null, 2)}
                   </pre>
                 </dd>
               </div>
             ) : null}
             <div>
-              <dt className="font-medium text-slate-950">Params sent</dt>
+              <dt className="font-medium text-slate-950 dark:text-white">
+                Params sent
+              </dt>
               <dd className="mt-0.5">
-                <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs">
+                <pre className="overflow-x-auto whitespace-pre-wrap rounded-xl bg-white dark:bg-slate-900 p-3 text-xs">
                   {JSON.stringify(debug.params, null, 2)}
                 </pre>
               </dd>
@@ -1046,7 +1066,7 @@ function SearchResults({
             {pagination.total === 1 ? "posting" : "postings"}
           </span>
         )}
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-400 dark:text-slate-500">
           via {result.source} - page {pagination.page} of{" "}
           {pagination.totalPages || 1}
         </span>
@@ -1071,7 +1091,7 @@ function SearchResults({
                 className={theme.marketplace.resultCard}
               >
                 <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
-                  <div className="relative min-h-48 border-b border-slate-200 bg-slate-100 md:min-h-full md:border-b-0 md:border-r">
+                  <div className="relative min-h-48 border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 md:min-h-full md:border-b-0 md:border-r">
                     {previewImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -1099,7 +1119,7 @@ function SearchResults({
                           </span>
                         </div>
 
-                        <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em] text-slate-950">
+                        <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
                           {posting.name}
                         </h2>
                       </div>
@@ -1108,12 +1128,12 @@ function SearchResults({
                         <AvailabilityBadge
                           status={posting.availabilityStatus}
                         />
-                        <span className="text-lg font-semibold text-slate-950">
+                        <span className="text-lg font-semibold text-slate-950 dark:text-white">
                           {formatPostingPrice(
                             posting.pricing.daily.amount,
                             posting.pricing.currency,
                           )}
-                          <span className="text-xs font-normal text-slate-500">
+                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
                             {" "}
                             / day
                           </span>
@@ -1121,11 +1141,11 @@ function SearchResults({
                       </div>
                     </div>
 
-                    <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-600">
+                    <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
                       {posting.description}
                     </p>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
+                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
                       <span className={theme.marketplace.metaBadge}>
                         {posting.location.city}, {posting.location.region},{" "}
                         {posting.location.country}
@@ -1153,8 +1173,8 @@ function SearchResults({
                       </div>
                     ) : null}
 
-                    <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
-                      <p className="text-xs text-slate-500">
+                    <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Review pricing, availability, and listing details.
                       </p>
                       <Link

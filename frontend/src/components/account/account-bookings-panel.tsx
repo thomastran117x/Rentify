@@ -96,20 +96,24 @@ function BookingListSection({
   onCancelBooking,
 }: BookingListSectionProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6">
+    <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
       <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300">
           <CalendarDays className="h-5 w-5" aria-hidden="true" />
         </div>
         <div>
-          <h2 className="text-2xl font-semibold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{subtitle}</p>
+          <h2 className="text-2xl font-semibold text-slate-950 dark:text-white">
+            {title}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {subtitle}
+          </p>
         </div>
       </div>
 
       <div className="mt-6 grid gap-4">
         {bookings.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-600">
+          <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-5 text-sm text-slate-600 dark:text-slate-300">
             {emptyMessage}
           </div>
         ) : (
@@ -121,19 +125,19 @@ function BookingListSection({
             return (
               <article
                 key={booking.id}
-                className="rounded-2xl border border-slate-200 p-5"
+                className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-950">
+                      <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                         {booking.posting.name}
                       </h3>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
                         {humanizeStatus(booking.status)}
                       </span>
                     </div>
-                    <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                    <div className="grid gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
                       <p>{formatDateRange(booking.startAt, booking.endAt)}</p>
                       <p>
                         {formatMoney(
@@ -158,7 +162,7 @@ function BookingListSection({
                         quotePendingId === booking.id ||
                         cancelPendingId === booking.id
                       }
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {quotePendingId === booking.id
                         ? "Checking..."
@@ -170,8 +174,8 @@ function BookingListSection({
                 {booking.cancellationActor ||
                 booking.cancellationReason ||
                 cancellationTimestamp ? (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <p className="font-medium text-slate-900">
+                  <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4 text-sm text-slate-700 dark:text-slate-200">
+                    <p className="font-medium text-slate-900 dark:text-white">
                       Cancelled{" "}
                       {cancellationTimestamp
                         ? `on ${cancellationTimestamp}`
@@ -209,17 +213,17 @@ function BookingListSection({
                 ) : null}
 
                 {quote && canManageCancellations ? (
-                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                  <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300">
                         <ReceiptText className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-amber-900">
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                           Cancellation review
                         </p>
                         {quote.cancellable ? (
-                          <div className="mt-2 space-y-2 text-sm text-amber-900">
+                          <div className="mt-2 space-y-2 text-sm text-amber-900 dark:text-amber-200">
                             <p>
                               Policy:{" "}
                               <span className="font-medium">
@@ -248,7 +252,7 @@ function BookingListSection({
                               </span>
                             </p>
                             {quote.reasonRequired ? (
-                              <label className="mt-3 grid gap-2 text-sm text-amber-950">
+                              <label className="mt-3 grid gap-2 text-sm text-amber-950 dark:text-amber-100">
                                 <span className="font-medium">
                                   Owner cancellation reason
                                 </span>
@@ -261,7 +265,7 @@ function BookingListSection({
                                     )
                                   }
                                   rows={3}
-                                  className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-amber-500"
+                                  className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-amber-500"
                                   placeholder="Explain why this booking needs to be cancelled."
                                 />
                               </label>
@@ -271,7 +275,7 @@ function BookingListSection({
                                 type="button"
                                 onClick={() => void onCancelBooking(booking.id)}
                                 disabled={cancelPendingId === booking.id}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 <CircleDollarSign
                                   className="h-4 w-4"
@@ -284,7 +288,7 @@ function BookingListSection({
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-2 space-y-2 text-sm text-amber-900">
+                          <div className="mt-2 space-y-2 text-sm text-amber-900 dark:text-amber-200">
                             <div className="flex items-start gap-2">
                               <XCircle
                                 className="mt-0.5 h-4 w-4 shrink-0"
@@ -465,7 +469,7 @@ export function AccountBookingsPanel({
 
   if (loading) {
     return (
-      <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <section className="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-sm text-slate-600 dark:text-slate-300">
         Loading booking management...
       </section>
     );
@@ -474,7 +478,7 @@ export function AccountBookingsPanel({
   return (
     <section className="lg:col-span-2 grid gap-6">
       {message ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-700">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
           {message}
         </div>
       ) : null}

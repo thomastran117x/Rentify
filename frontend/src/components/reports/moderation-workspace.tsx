@@ -314,7 +314,7 @@ export function ModerationWorkspace() {
   ) {
     return (
       <WorkspaceShell>
-        <div className="rounded-[1.8rem] border border-rose-200 bg-rose-50 px-6 py-6 text-sm text-rose-800">
+        <div className="rounded-[1.8rem] border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-6 py-6 text-sm text-rose-800 dark:text-rose-300">
           Moderation access is limited to moderators and admins.
         </div>
       </WorkspaceShell>
@@ -323,17 +323,17 @@ export function ModerationWorkspace() {
 
   return (
     <WorkspaceShell>
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <div className="grid min-h-[72vh] gap-0 lg:grid-cols-[26rem_minmax(0,1fr)]">
-          <aside className="border-b border-slate-200 bg-slate-50/70 p-5 lg:border-b-0 lg:border-r">
+          <aside className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 p-5 lg:border-b-0 lg:border-r">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
                 Moderation
               </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
+              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
                 Report queue
               </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 Search reports, filter the queue, and open the full timeline in
                 one place.
               </p>
@@ -341,7 +341,9 @@ export function ModerationWorkspace() {
 
             <div className="mt-5 grid gap-3">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Search</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Search
+                </span>
                 <input
                   value={filters.q ?? ""}
                   onChange={(event) =>
@@ -352,12 +354,14 @@ export function ModerationWorkspace() {
                     }))
                   }
                   placeholder="Title, description, or user"
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 />
               </label>
 
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Status</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Status
+                </span>
                 <select
                   value={filters.status ?? ""}
                   onChange={(event) =>
@@ -369,7 +373,7 @@ export function ModerationWorkspace() {
                       page: 1,
                     }))
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   {STATUS_OPTIONS.map((option) => (
                     <option
@@ -383,7 +387,9 @@ export function ModerationWorkspace() {
               </label>
 
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Subject</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Subject
+                </span>
                 <select
                   value={filters.subjectType ?? ""}
                   onChange={(event) =>
@@ -395,7 +401,7 @@ export function ModerationWorkspace() {
                       page: 1,
                     }))
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   {SUBJECT_TYPE_OPTIONS.map((option) => (
                     <option
@@ -409,7 +415,9 @@ export function ModerationWorkspace() {
               </label>
 
               <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Reason</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  Reason
+                </span>
                 <select
                   value={filters.reasonCode ?? ""}
                   onChange={(event) =>
@@ -421,7 +429,7 @@ export function ModerationWorkspace() {
                       page: 1,
                     }))
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                  className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                 >
                   {REASON_OPTIONS.map((option) => (
                     <option
@@ -435,16 +443,18 @@ export function ModerationWorkspace() {
               </label>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            <div className="mt-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
               Source:{" "}
-              <span className="font-semibold text-slate-950">
+              <span className="font-semibold text-slate-950 dark:text-white">
                 {queue?.source ?? "..."}
               </span>
             </div>
 
             <div className="mt-4 grid gap-3">
               {loadingQueue ? (
-                <p className="text-sm text-slate-500">Loading reports...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Loading reports...
+                </p>
               ) : queue && queue.reports.length > 0 ? (
                 queue.reports.map((report) => (
                   <button
@@ -453,31 +463,31 @@ export function ModerationWorkspace() {
                     onClick={() => setSelectedReportId(report.id)}
                     className={`rounded-[1.4rem] border px-4 py-4 text-left transition ${
                       selectedReportId === report.id
-                        ? "border-sky-300 bg-sky-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
+                        ? "border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-950">
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">
                           {report.title}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                           {humanizeValue(report.subjectType)} ·{" "}
                           {humanizeValue(report.reasonCode)}
                         </p>
                       </div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+                      <span className="rounded-full bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
                         {humanizeValue(report.status)}
                       </span>
                     </div>
-                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                       {report.description}
                     </p>
                   </button>
                 ))
               ) : (
-                <div className="rounded-[1.4rem] border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
+                <div className="rounded-[1.4rem] border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
                   No reports match these filters.
                 </div>
               )}
@@ -486,73 +496,75 @@ export function ModerationWorkspace() {
 
           <section className="p-6">
             {message ? (
-              <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <div className="mb-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
                 {message}
               </div>
             ) : null}
             {error ? (
-              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <div className="mb-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-sm text-rose-800 dark:text-rose-300">
                 {error}
               </div>
             ) : null}
 
             {loadingDetail ? (
-              <p className="text-sm text-slate-500">Loading report detail...</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Loading report detail...
+              </p>
             ) : detail ? (
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_22rem]">
                 <div className="space-y-6">
-                  <section className="rounded-[1.8rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
+                  <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                           {humanizeValue(detail.subjectType)}
                         </p>
-                        <h2 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
+                        <h2 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
                           {detail.title}
                         </h2>
-                        <p className="mt-3 text-sm leading-7 text-slate-600">
+                        <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                           {detail.description}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">
+                        <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 dark:text-slate-200">
                           {humanizeValue(detail.status)}
                         </span>
-                        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">
+                        <span className="rounded-full bg-sky-50 dark:bg-sky-950/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-300">
                           {humanizeValue(detail.reasonCode)}
                         </span>
                       </div>
                     </div>
                   </section>
 
-                  <section className="rounded-[1.8rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 shadow-sm">
+                    <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                       Subject snapshot
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">
+                    <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                       {detail.subjectSnapshot.summaryText}
                     </p>
                   </section>
 
-                  <section className="rounded-[1.8rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 shadow-sm">
+                    <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                       Timeline
                     </h3>
                     <div className="mt-4 grid gap-3">
                       {detail.events.map((event) => (
                         <div
                           key={event.id}
-                          className="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3"
+                          className="rounded-[1.2rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3"
                         >
-                          <p className="text-sm font-semibold text-slate-950">
+                          <p className="text-sm font-semibold text-slate-950 dark:text-white">
                             {humanizeValue(event.eventType)}
                           </p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                             {event.actor.username ?? event.actor.email} ·{" "}
                             {formatDateTime(event.createdAt)}
                           </p>
                           {event.note ? (
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                               {event.note}
                             </p>
                           ) : null}
@@ -563,8 +575,8 @@ export function ModerationWorkspace() {
                 </div>
 
                 <div className="space-y-6">
-                  <section className="rounded-[1.8rem] border border-slate-200 bg-slate-50 px-5 py-5">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-5">
+                    <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                       Moderation actions
                     </h3>
                     <div className="mt-4 grid gap-3">
@@ -572,7 +584,7 @@ export function ModerationWorkspace() {
                         type="button"
                         onClick={() => void handleAssignToSelf()}
                         disabled={mutationPending}
-                        className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Assign to me
                       </button>
@@ -580,7 +592,7 @@ export function ModerationWorkspace() {
                         type="button"
                         onClick={() => void handleUnassign()}
                         disabled={mutationPending}
-                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Unassign
                       </button>
@@ -588,7 +600,7 @@ export function ModerationWorkspace() {
 
                     <div className="mt-5 grid gap-3">
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
                           Resolution code
                         </span>
                         <select
@@ -598,7 +610,7 @@ export function ModerationWorkspace() {
                               event.target.value as ReportResolutionCode,
                             )
                           }
-                          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                          className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                         >
                           {RESOLUTION_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -609,7 +621,7 @@ export function ModerationWorkspace() {
                       </label>
 
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
                           Resolution summary
                         </span>
                         <textarea
@@ -618,19 +630,19 @@ export function ModerationWorkspace() {
                             setResolutionSummary(event.target.value)
                           }
                           rows={4}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                          className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                         />
                       </label>
 
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
                           Internal note
                         </span>
                         <textarea
                           value={note}
                           onChange={(event) => setNote(event.target.value)}
                           rows={3}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-950"
+                          className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
                         />
                       </label>
                     </div>
@@ -640,7 +652,7 @@ export function ModerationWorkspace() {
                         type="button"
                         onClick={() => void handleStatusUpdate("under_review")}
                         disabled={mutationPending}
-                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Move to under review
                       </button>
@@ -663,20 +675,20 @@ export function ModerationWorkspace() {
                     </div>
                   </section>
 
-                  <section className="rounded-[1.8rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <section className="rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 shadow-sm">
+                    <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
                       Snapshot
                     </h3>
-                    <div className="mt-4 grid gap-2 text-sm text-slate-600">
+                    <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-slate-300">
                       <p>
                         Reporter:{" "}
-                        <span className="font-medium text-slate-950">
+                        <span className="font-medium text-slate-950 dark:text-white">
                           {detail.reporter.username ?? detail.reporter.email}
                         </span>
                       </p>
                       <p>
                         Assignee:{" "}
-                        <span className="font-medium text-slate-950">
+                        <span className="font-medium text-slate-950 dark:text-white">
                           {detail.assignedModerator?.username ??
                             detail.assignedModerator?.email ??
                             "Unassigned"}
@@ -684,20 +696,20 @@ export function ModerationWorkspace() {
                       </p>
                       <p>
                         Created:{" "}
-                        <span className="font-medium text-slate-950">
+                        <span className="font-medium text-slate-950 dark:text-white">
                           {formatDateTime(detail.createdAt)}
                         </span>
                       </p>
                       <p>
                         Updated:{" "}
-                        <span className="font-medium text-slate-950">
+                        <span className="font-medium text-slate-950 dark:text-white">
                           {formatDateTime(detail.updatedAt)}
                         </span>
                       </p>
                       {detail.reviewedAt ? (
                         <p>
                           Reviewed:{" "}
-                          <span className="font-medium text-slate-950">
+                          <span className="font-medium text-slate-950 dark:text-white">
                             {formatDateTime(detail.reviewedAt)}
                           </span>
                         </p>
@@ -707,7 +719,7 @@ export function ModerationWorkspace() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-sm text-slate-500">
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
                 Pick a report from the queue to inspect the full record.
               </div>
             )}
@@ -720,7 +732,7 @@ export function ModerationWorkspace() {
 
 function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-10 text-slate-900 dark:text-white">
       <div className="mx-auto max-w-7xl">{children}</div>
     </main>
   );

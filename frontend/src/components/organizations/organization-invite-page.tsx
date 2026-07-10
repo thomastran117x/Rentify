@@ -109,8 +109,8 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
 
   if (loading) {
     return (
-      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl text-sm font-medium text-slate-500">
+      <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
+        <div className="mx-auto max-w-3xl text-sm font-medium text-slate-500 dark:text-slate-400">
           Loading invitation...
         </div>
       </main>
@@ -118,22 +118,24 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900">
-      <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <main className="min-h-[calc(100vh-5.5rem)] bg-[linear-gradient(180deg,_#f8fafc,_#ffffff)] px-6 py-12 text-slate-900 dark:text-white">
+      <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
           Organization invite
         </p>
 
         {error && !preview ? (
           <>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               Invitation unavailable
             </h1>
-            <p className="mt-4 text-sm leading-7 text-slate-600">{error}</p>
+            <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
+              {error}
+            </p>
             <div className="mt-6">
               <Link
                 href="/organizations"
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Back to organizations
               </Link>
@@ -143,33 +145,33 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
 
         {preview ? (
           <>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               Join {preview.invitation.organizationName}
             </h1>
-            <p className="mt-4 text-sm leading-7 text-slate-600">
+            <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
               You have been invited as a{" "}
-              <span className="font-semibold text-slate-950">
+              <span className="font-semibold text-slate-950 dark:text-white">
                 {formatRole(preview.invitation.role)}
               </span>
               . This invite was sent to {preview.invitation.emailHint} and
               expires on {formatDate(preview.invitation.expiresAt)}.
             </p>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700">
+            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
               Status:{" "}
-              <span className="font-semibold text-slate-950">
+              <span className="font-semibold text-slate-950 dark:text-white">
                 {preview.invitation.status}
               </span>
             </div>
 
             {error ? (
-              <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+              <div className="mt-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-5 py-4 text-sm text-rose-800 dark:text-rose-300">
                 {error}
               </div>
             ) : null}
 
             {preview.invitation.status !== "pending" ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm text-slate-600">
+              <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-5 text-sm text-slate-600 dark:text-slate-300">
                 This invite is no longer active. If you still need access, ask
                 the organization manager to send a fresh invitation.
               </div>
@@ -178,20 +180,20 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
             {preview.invitation.status === "pending" &&
             status === "anonymous" ? (
               <div className="mt-6 space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-5 text-sm text-slate-600 dark:text-slate-300">
                   Sign in or create an account with the invited email address to
                   accept this invitation.
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link
                     href={`/login?next=${encodeURIComponent(nextPath)}`}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
                     Sign in
                   </Link>
                   <Link
                     href={`/signup?next=${encodeURIComponent(nextPath)}`}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 px-5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     Create account
                   </Link>
@@ -202,10 +204,10 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
             {preview.invitation.status === "pending" &&
             status === "authenticated" ? (
               <div className="mt-6 space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-5 py-5 text-sm text-slate-600 dark:text-slate-300">
                   <p>
                     Signed in as{" "}
-                    <span className="font-semibold text-slate-950">
+                    <span className="font-semibold text-slate-950 dark:text-white">
                       {session?.user.email}
                     </span>
                   </p>
@@ -228,7 +230,7 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
                     type="button"
                     onClick={() => void handleAccept()}
                     disabled={!preview.viewer.canAccept || pending}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pending ? "Accepting..." : "Accept invitation"}
                   </button>
@@ -236,7 +238,7 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
                   {!preview.viewer.matchesEmail ? (
                     <Link
                       href={`/login?next=${encodeURIComponent(nextPath)}`}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 px-5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       Switch account
                     </Link>
