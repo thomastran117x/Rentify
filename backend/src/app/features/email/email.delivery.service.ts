@@ -2,6 +2,8 @@ import {
   getEnvironmentVariable,
   getOptionalEnvironmentVariable,
 } from "@/configuration/environment";
+import { loggerFactory } from "@/configuration/logging";
+import { isSuppressedRecipient } from "@/features/email/email-suppression";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendLoginUnlockEmailInput,
@@ -62,6 +64,11 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+const deliveryLogger = loggerFactory.forComponent(
+  "email.delivery.service",
+  "service",
+);
+
 export class EmailDeliveryService {
   private readonly transporter: Transporter;
   private readonly fromEmail: string;
@@ -109,6 +116,17 @@ export class EmailDeliveryService {
   }
 
   async deliver(payload: EmailJobPayload): Promise<void> {
+    if (isSuppressedRecipient(payload.input.to)) {
+      deliveryLogger.info(
+        "Email delivery suppressed for non-deliverable recipient.",
+        {
+          kind: payload.kind,
+          jobId: payload.jobId,
+        },
+      );
+      return;
+    }
+
     switch (payload.kind) {
       case "verification":
         await this.sendVerificationEmail(payload.input);
