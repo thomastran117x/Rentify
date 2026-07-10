@@ -121,7 +121,7 @@ export function SiteHeaderLogo() {
   return (
     <div className="flex items-center gap-2.5">
       <div className={theme.header.logoMark}>R</div>
-      <p className="text-lg font-semibold tracking-[-0.03em] text-slate-950">
+      <p className="text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
         Rentify
       </p>
     </div>
@@ -208,13 +208,13 @@ export function UserAvatar({ name, imageUrl }: UserAvatarProps) {
       <img
         src={imageUrl}
         alt={`${name} avatar`}
-        className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200"
+        className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
       />
     );
   }
 
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white ring-1 ring-slate-200">
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">
       {getInitials(name)}
     </div>
   );

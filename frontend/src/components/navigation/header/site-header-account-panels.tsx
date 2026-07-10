@@ -20,10 +20,12 @@ function AccountIdentity({ session, displayName }: AccountIdentityProps) {
       <UserAvatar name={avatarName} imageUrl={session.user.avatarUrl ?? null} />
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-950">
+        <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
           {displayName}
         </p>
-        <p className="truncate text-xs text-slate-500">{session.user.email}</p>
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+          {session.user.email}
+        </p>
       </div>
     </>
   );
@@ -54,12 +56,16 @@ function AccountLinksList({
           href={link.href}
           className={theme.header.dropdownItem}
         >
-          <p className="text-sm font-medium text-slate-950">{link.label}</p>
+          <p className="text-sm font-medium text-slate-950 dark:text-white">
+            {link.label}
+          </p>
           <p className={descriptionClassName}>{link.description}</p>
         </Link>
       ))}
 
-      {showDivider ? <div className="my-2 h-px bg-slate-200" /> : null}
+      {showDivider ? (
+        <div className="my-2 h-px bg-slate-200 dark:bg-slate-800" />
+      ) : null}
 
       <button
         type="button"
@@ -122,7 +128,7 @@ export function SiteHeaderDesktopAccount({
 
           <AccountLinksList
             accountLinks={accountLinks}
-            descriptionClassName="mt-0.5 text-xs leading-5 text-slate-500"
+            descriptionClassName="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400"
             logoutPending={logoutPending}
             onLogout={onLogout}
             showDivider
@@ -164,17 +170,17 @@ export function SiteHeaderMobileAccountSection({
   if (status === "authenticated" && session) {
     return (
       <>
-        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 p-3">
+        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 p-3 dark:border-violet-900/50 dark:bg-violet-950/40">
           <AccountIdentity session={session} displayName={displayName} />
         </div>
 
-        <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
           Account
         </p>
 
         <AccountLinksList
           accountLinks={accountLinks}
-          descriptionClassName="mt-0.5 text-xs text-slate-500"
+          descriptionClassName="mt-0.5 text-xs text-slate-500 dark:text-slate-400"
           logoutPending={logoutPending}
           onLogout={onLogout}
           wrapperClassName="grid gap-1"

@@ -17,6 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('rentify-theme');" +
+              "if(!t){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}" +
+              "if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();",
+          }}
+        />
         <Providers>
           <SiteHeader />
           <div className="flex-1">{children}</div>

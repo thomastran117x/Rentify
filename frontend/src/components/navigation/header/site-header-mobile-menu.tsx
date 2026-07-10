@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { StoredAuthSession } from "@/lib/auth/types";
+import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { theme } from "@/styles/theme";
 import { SiteHeaderMobileAccountSection } from "./site-header-account-panels";
 import { SiteHeaderMobileNavGrid } from "./site-header-navigation";
@@ -40,13 +41,20 @@ export function SiteHeaderMobileMenu({
 
       <div className={theme.header.mobileDropdown}>
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-          <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
             Explore
           </p>
 
           <SiteHeaderMobileNavGrid pathname={pathname} />
 
-          <div className="border-t border-slate-200 mt-3 pt-3">
+          <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3 flex items-center justify-between">
+            <span className="px-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+              Theme
+            </span>
+            <ThemeToggle />
+          </div>
+
+          <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3">
             <Link href={mobileCtaHref} className={theme.header.mobileCta}>
               <span>{mobileCtaLabel}</span>
               <span
@@ -59,7 +67,7 @@ export function SiteHeaderMobileMenu({
           </div>
 
           {status === "authenticated" && session ? (
-            <div className="border-t border-slate-200 mt-3 pt-3">
+            <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3">
               <SiteHeaderMobileAccountSection
                 status={status}
                 session={session}

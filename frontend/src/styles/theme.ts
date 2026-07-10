@@ -32,7 +32,7 @@ export const theme = {
 
   header: {
     shell:
-      "sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-shadow duration-200 supports-[backdrop-filter]:bg-white/80",
+      "sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-shadow duration-200 supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-950/90 dark:supports-[backdrop-filter]:bg-slate-950/80",
 
     container:
       "flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8",
@@ -45,30 +45,30 @@ export const theme = {
     desktopNav: "hidden shrink-0 items-center gap-1 md:flex",
 
     navLink:
-      "relative rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition duration-200 hover:text-slate-950",
+      "relative rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition duration-200 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white",
 
     navLinkActive:
-      "relative rounded-md px-3 py-2 text-sm font-semibold text-violet-700 after:absolute after:inset-x-3 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-600",
+      "relative rounded-md px-3 py-2 text-sm font-semibold text-violet-700 after:absolute after:inset-x-3 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-600 dark:text-violet-300 dark:after:bg-violet-400",
 
     searchForm: "hidden min-w-0 lg:flex lg:w-[20rem] xl:w-[24rem]",
 
     searchWrapper:
-      "group flex h-10 w-full min-w-0 items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10",
+      "group flex h-10 w-full min-w-0 items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-violet-400 dark:focus-within:bg-slate-900",
 
     mobileSearchPanel:
-      "border-t border-slate-200 bg-white px-4 py-3 sm:px-6 lg:hidden",
+      "border-t border-slate-200 bg-white px-4 py-3 sm:px-6 lg:hidden dark:border-slate-800 dark:bg-slate-950",
 
     mobileSearchWrapper:
-      "group flex h-11 w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10",
+      "group flex h-11 w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-violet-400 dark:focus-within:bg-slate-900",
 
     searchIcon:
-      "text-slate-400 transition duration-200 group-focus-within:text-violet-600",
+      "text-slate-400 transition duration-200 group-focus-within:text-violet-600 dark:text-slate-500 dark:group-focus-within:text-violet-400",
 
     searchInput:
-      "min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400",
+      "min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500",
 
     searchKbd:
-      "shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm",
+      "shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400",
 
     searchSubmit:
       "shrink-0 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-violet-600/20 transition duration-200 hover:bg-violet-700",
@@ -76,42 +76,45 @@ export const theme = {
     rightCluster: "flex shrink-0 items-center gap-1.5 md:gap-2",
 
     iconButton:
-      "flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-slate-700 transition duration-200 hover:bg-slate-100 active:scale-95",
+      "flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-slate-700 transition duration-200 hover:bg-slate-100 active:scale-95 dark:text-slate-200 dark:hover:bg-slate-800",
 
     mobileDropdown:
-      "fixed left-0 right-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-slate-200 bg-white shadow-xl shadow-slate-950/10 animate-mobile-dropdown-in",
+      "fixed left-0 right-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-slate-200 bg-white shadow-xl shadow-slate-950/10 animate-mobile-dropdown-in dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/40",
 
     dropdown:
-      "absolute right-0 top-[calc(100%+0.5rem)] w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-950/10 animate-dropdown-in",
+      "absolute right-0 top-[calc(100%+0.5rem)] w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-950/10 animate-dropdown-in dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/40",
 
-    dropdownHighlight: "rounded-xl border border-violet-100 bg-violet-50 p-3",
+    dropdownHighlight:
+      "rounded-xl border border-violet-100 bg-violet-50 p-3 dark:border-violet-900/50 dark:bg-violet-950/40",
 
     dropdownItem:
-      "block rounded-xl px-3 py-2 transition duration-200 hover:bg-slate-100",
+      "block rounded-xl px-3 py-2 transition duration-200 hover:bg-slate-100 dark:hover:bg-slate-800",
 
     logoutButton:
-      "w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-medium text-rose-700 transition duration-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60",
+      "w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-medium text-rose-700 transition duration-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/40",
 
     mobileNavLink:
-      "rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition duration-200 hover:bg-slate-100 hover:text-slate-950",
+      "rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition duration-200 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white",
 
     mobileNavLinkActive:
-      "rounded-xl bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-700",
+      "rounded-xl bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
 
     mobileCta:
       "group flex items-center justify-between rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-violet-700",
 
     desktopAccountTrigger:
-      "flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full transition duration-200 hover:ring-4 hover:ring-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-200",
+      "flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full transition duration-200 hover:ring-4 hover:ring-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-200 dark:hover:ring-slate-800 dark:focus-visible:ring-violet-500/40",
 
-    avatarSkeleton: "h-9 w-9 animate-pulse rounded-full bg-slate-200",
+    avatarSkeleton:
+      "h-9 w-9 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800",
 
     authLinkPrimary:
-      "rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800",
+      "rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200",
   },
 
   footer: {
-    shell: "border-t border-slate-200 bg-slate-50",
+    shell:
+      "border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950",
 
     container: "mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16",
 
@@ -121,22 +124,23 @@ export const theme = {
     linkGroupsWrapper:
       "grid grid-cols-2 gap-8 sm:col-span-2 sm:grid-cols-3 lg:col-span-3",
 
-    brandTagline: "mt-5 max-w-sm text-sm leading-7 text-slate-600",
+    brandTagline:
+      "mt-5 max-w-sm text-sm leading-7 text-slate-600 dark:text-slate-400",
 
     sectionTitle:
-      "text-xs font-semibold uppercase tracking-[0.18em] text-slate-500",
+      "text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400",
 
     linkList: "mt-5 grid gap-3",
 
-    link: "text-sm text-slate-700 transition duration-200 hover:text-violet-700",
+    link: "text-sm text-slate-700 transition duration-200 hover:text-violet-700 dark:text-slate-300 dark:hover:text-violet-300",
 
     socialRow: "mt-6 flex items-center gap-2",
 
     socialLink:
-      "flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700",
+      "flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-violet-900/60 dark:hover:bg-violet-950/40 dark:hover:text-violet-300",
 
     metaBar:
-      "mt-12 flex flex-col gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between",
+      "mt-12 flex flex-col gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:text-slate-400",
   },
 
   auth: {
