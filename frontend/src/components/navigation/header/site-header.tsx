@@ -8,6 +8,7 @@ import { authApi } from "@/lib/auth/api";
 import { ApiError } from "@/lib/auth/types";
 import { canManageOrganizationPostings, isOwnerRole } from "@/lib/auth/roles";
 import { theme } from "@/styles/theme";
+import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { SiteHeaderDesktopAccount } from "./site-header-account-panels";
 import { SiteHeaderMobileMenu } from "./site-header-mobile-menu";
 import { SiteHeaderDesktopNav } from "./site-header-navigation";
@@ -153,6 +154,8 @@ export function SiteHeader() {
               <SearchIcon className="h-5 w-5" />
             )}
           </button>
+
+          <ThemeToggle className="hidden md:flex" />
 
           <SiteHeaderDesktopAccount
             pathname={pathname}
