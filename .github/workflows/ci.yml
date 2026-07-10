@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
 
 jobs:
   frontend:
@@ -240,13 +240,13 @@ jobs:
         run: npm run test:unit:coverage
 
   backend-integration:
-    name: Backend integration and database tests
+    name: Backend persistence integration and database tests
     runs-on: ubuntu-latest
     services:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_DATABASE: rent
+          MYSQL_DATABASE: rent_test
           MYSQL_USER: rent
           MYSQL_PASSWORD: rent
           MYSQL_ROOT_PASSWORD: root
@@ -258,16 +258,54 @@ jobs:
           --health-timeout=5s
           --health-retries=10
           --health-start-period=20s
+      redis:
+        image: redis:7.2
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=5s
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9201:9200
+        options: >-
+          --health-cmd="curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=30s
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=20s
     defaults:
       run:
         working-directory: backend
     env:
       NODE_ENV: test
-      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent
+      DATABASE_URL: mysql://rent:rent@127.0.0.1:3307/rent_test
+      REDIS_URL: redis://127.0.0.1:6380/15
       REDIS_HOST: 127.0.0.1
-      REDIS_PORT: "6379"
-      ELASTICSEARCH_ENABLED: "false"
-      RABBITMQ_URL: ""
+      REDIS_PORT: "6380"
+      REDIS_DB: "15"
+      ELASTICSEARCH_ENABLED: "true"
+      ELASTICSEARCH_URL: http://127.0.0.1:9201
+      RABBITMQ_URL: amqp://guest:guest@127.0.0.1:5672
       FRONTEND_URL: http://localhost:3040
       APP_BASE_URL: http://localhost:3040
       GMAIL_USER: ci@example.com
@@ -295,11 +333,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run HTTP integration tests
-        run: npm run test:integration
+      - name: Wait for Elasticsearch and RabbitMQ management
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:9201 >/dev/null && curl -fsS -u guest:guest http://127.0.0.1:15672/api/overview >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Elasticsearch or RabbitMQ management did not become ready in time."
+          exit 1
 
       - name: Apply database migrations
         run: npm run prisma:migrate:deploy
+
+      - name: Run HTTP integration tests
+        run: npm run test:integration
 
       - name: Run database seed tests
         run: npm run test:db-seeds

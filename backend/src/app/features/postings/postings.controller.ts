@@ -24,11 +24,13 @@ import {
   listPostingAnalyticsQuerySchema,
   postingAnalyticsDetailQuerySchema,
   postingAnalyticsSummaryQuerySchema,
+  postingAnalyticsWindowSchema,
   type ListPostingAnalyticsInput,
   type ListPostingAnalyticsQuery,
   type PostingAnalyticsDetailInput,
   type PostingAnalyticsDetailQuery,
   type PostingAnalyticsSummaryQuery,
+  type PostingAnalyticsWindow,
 } from "@/features/postings/analytics/analytics.model";
 import { PostingsAnalyticsService } from "@/features/postings/analytics/analytics.service";
 import {
@@ -38,6 +40,11 @@ import {
   type ListPostingReviewsQuery,
 } from "@/features/postings/reviews/reviews.model";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
+import {
+  upsertSeasonalPricingSchema,
+  type UpsertSeasonalPricingBody,
+} from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 import {
   listOwnerPostingsQuerySchema,
   ownerAvailabilityBlockRequestSchema,
@@ -79,6 +86,7 @@ export class PostingsController {
     private readonly postingsPublicAutocompleteService: PostingsPublicAutocompleteService,
     private readonly postingsAnalyticsService: PostingsAnalyticsService,
     private readonly postingsReviewsService: PostingsReviewsService,
+    private readonly seasonalPricingService: SeasonalPricingService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
   ) {
     this.logger = loggerFactory.forClass(PostingsController, "controller");
@@ -400,6 +408,32 @@ export class PostingsController {
     return ok(context, result);
   };
 
+  exportAnalytics = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const url = new URL(context.req.url);
+    let window: PostingAnalyticsWindow;
+    try {
+      window = postingAnalyticsWindowSchema.parse(
+        url.searchParams.get("window") ?? "7d",
+      );
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+    const csv = await this.postingsAnalyticsService.exportAsCsv(
+      auth.sub,
+      window,
+    );
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="analytics.csv"',
+      },
+    });
+  };
+
   listReviews = async (context: Context<AppBindings>): Promise<Response> => {
     const { page, pageSize } = this.parseListPostingReviewsQuery(context);
     const result = await this.postingsReviewsService.list(
@@ -446,6 +480,62 @@ export class PostingsController {
     });
   };
 
+  listSeasonalPricing = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const rules = await this.seasonalPricingService.list(
+      this.requireRouteId(context),
+      auth.sub,
+    );
+    return ok(context, rules);
+  };
+
+  createSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
+    const rule = await this.seasonalPricingService.create(
+      this.requireRouteId(context),
+      auth.sub,
+      body,
+    );
+    return created(context, rule, {
+      message: "Seasonal pricing rule created successfully.",
+    });
+  };
+
+  updateSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
+    const ruleId = requireSafeRouteParam(context, "ruleId");
+    const rule = await this.seasonalPricingService.update(
+      this.requireRouteId(context),
+      ruleId,
+      auth.sub,
+      body,
+    );
+    return ok(context, rule, {
+      message: "Seasonal pricing rule updated successfully.",
+    });
+  };
+
+  deleteSeasonalPricingRule = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const ruleId = requireSafeRouteParam(context, "ruleId");
+    await this.seasonalPricingService.delete(
+      this.requireRouteId(context),
+      ruleId,
+      auth.sub,
+    );
+    return noContent();
+  };
+
   private toUpsertInput(
     body: UpsertPostingRequestBody | UpdatePostingRequestBody,
   ): UpsertPostingInput {
@@ -464,6 +554,11 @@ export class PostingsController {
       availabilityStatus: body.availabilityStatus,
       availabilityNotes: body.availabilityNotes ?? null,
       maxBookingDurationDays: body.maxBookingDurationDays ?? null,
+      minBookingDurationDays: body.minBookingDurationDays ?? null,
+      advanceNoticeDays: body.advanceNoticeDays ?? null,
+      cancellationPolicy: body.cancellationPolicy ?? null,
+      cancellationPolicyNotes: body.cancellationPolicyNotes ?? null,
+      instantBooking: body.instantBooking ?? false,
       availabilityBlocks,
       location: {
         latitude: body.location.latitude,
@@ -539,6 +634,18 @@ export class PostingsController {
         startAt: this.readOptionalQueryParam(url.searchParams, "startAt"),
         endAt: this.readOptionalQueryParam(url.searchParams, "endAt"),
         sort: this.readOptionalQueryParam(url.searchParams, "sort"),
+        cancellationPolicy: this.readOptionalQueryParam(
+          url.searchParams,
+          "cancellationPolicy",
+        ),
+        instantBooking: this.readOptionalQueryParam(
+          url.searchParams,
+          "instantBooking",
+        ),
+        maxMinBookingDurationDays: this.readOptionalQueryParam(
+          url.searchParams,
+          "maxMinBookingDurationDays",
+        ),
       });
       const attributeFilters = this.readAttributeFilters(url.searchParams);
 
@@ -656,6 +763,9 @@ export class PostingsController {
           : undefined,
       attributeFilters,
       sort: query.sort,
+      cancellationPolicy: query.cancellationPolicy,
+      instantBooking: query.instantBooking,
+      maxMinBookingDurationDays: query.maxMinBookingDurationDays,
     };
   }
 

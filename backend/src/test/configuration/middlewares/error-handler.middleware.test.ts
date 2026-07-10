@@ -1,4 +1,7 @@
 import BadRequestError from "@/errors/http/bad-request.error";
+import BadGatewayError from "@/errors/http/bad-gateway.error";
+import MfaConfirmRateLimitedError from "@/errors/http/mfa-confirm-rate-limited.error";
+import MfaFactorUnavailableError from "@/errors/http/mfa-factor-unavailable.error";
 import {
   handleApplicationError,
   toErrorResponse,
@@ -190,6 +193,32 @@ describe("error-handler.middleware", () => {
         message: "Internal server error.",
         code: "INTERNAL_SERVER_ERROR",
       },
+    });
+  });
+
+  it("maps BadGatewayError to a 502 envelope", () => {
+    const error = new BadGatewayError("Upstream failed.", {
+      provider: "stripe",
+    });
+    expect(toErrorResponse(error)).toMatchObject({
+      status: 502,
+      body: { code: "BAD_GATEWAY", message: "Upstream failed." },
+    });
+  });
+
+  it("maps MfaConfirmRateLimitedError to a 429 envelope with the default message", () => {
+    const error = new MfaConfirmRateLimitedError();
+    expect(toErrorResponse(error)).toMatchObject({
+      status: 429,
+      body: { code: "MFA_CONFIRM_RATE_LIMITED" },
+    });
+  });
+
+  it("maps MfaFactorUnavailableError to a 400 envelope with the default message", () => {
+    const error = new MfaFactorUnavailableError();
+    expect(toErrorResponse(error)).toMatchObject({
+      status: 400,
+      body: { code: "MFA_FACTOR_UNAVAILABLE" },
     });
   });
 });

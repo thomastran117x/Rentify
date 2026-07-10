@@ -335,6 +335,30 @@ describe("PostingsPublicCacheService", () => {
     expect(batchFindPublic).toHaveBeenCalledTimes(2);
   });
 
+  it("returns null immediately for an empty postingId without calling the repository", async () => {
+    const { batchFindPublic, service } = createService();
+
+    const result = await service.getPublicById("   ");
+
+    expect(result).toBeNull();
+    expect(batchFindPublic).not.toHaveBeenCalled();
+  });
+
+  it("treats blank ids as missing in getPublicByIds batch results", async () => {
+    const { service } = createService({
+      batchFindPublic: jest.fn(async ({ ids }: { ids: string[] }) =>
+        createBatchResult(ids.map((id) => createPublicPosting({ id }))),
+      ),
+    });
+
+    const result = await service.getPublicByIds(["", "  ", "posting-1"]);
+
+    expect(result.postings).toHaveLength(1);
+    expect(result.postings[0].id).toBe("posting-1");
+    expect(result.missingIds).toContain("");
+    expect(result.missingIds).toContain("  ");
+  });
+
   it("hydrates batches from a mix of cache hits and misses while preserving order", async () => {
     const cachedPosting = createPublicPosting({
       id: "posting-1",

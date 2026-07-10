@@ -22,6 +22,7 @@ import type {
   PostingAvailabilityBlockRecord,
   PostingAvailabilityStatus,
   PostingDetails,
+  PostingCancellationPolicy,
   PostingPhotoRecord,
   PostingPricing,
   PostingRecord,
@@ -2166,6 +2167,8 @@ export class PostingsRepository extends BaseRepository {
         return Prisma.sql`LOWER(name) ASC, published_at DESC, created_at DESC, id ASC`;
       case "nameDesc":
         return Prisma.sql`LOWER(name) DESC, published_at DESC, created_at DESC, id ASC`;
+      case "highestRated":
+        return Prisma.sql`average_rating DESC, review_count DESC, published_at DESC, created_at DESC, id ASC`;
       case "nearest":
         if (distanceExpression) {
           return Prisma.sql`${distanceExpression} ASC, published_at DESC, created_at DESC, id ASC`;
@@ -2285,6 +2288,11 @@ export class PostingsRepository extends BaseRepository {
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes ?? null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
+      minBookingDurationDays: input.minBookingDurationDays ?? null,
+      advanceNoticeDays: input.advanceNoticeDays ?? null,
+      cancellationPolicy: input.cancellationPolicy ?? null,
+      cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
+      instantBooking: input.instantBooking ?? false,
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -2334,6 +2342,11 @@ export class PostingsRepository extends BaseRepository {
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes ?? null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
+      minBookingDurationDays: input.minBookingDurationDays ?? null,
+      advanceNoticeDays: input.advanceNoticeDays ?? null,
+      cancellationPolicy: input.cancellationPolicy ?? null,
+      cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
+      instantBooking: input.instantBooking ?? false,
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -2467,6 +2480,17 @@ export class PostingsRepository extends BaseRepository {
         posting.availabilityStatus as PostingAvailabilityStatus,
       availabilityNotes: posting.availabilityNotes ?? undefined,
       maxBookingDurationDays: posting.maxBookingDurationDays ?? undefined,
+      minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
+      advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
+      cancellationPolicy:
+        (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
+      cancellationPolicyNotes: posting.cancellationPolicyNotes ?? undefined,
+      instantBooking: posting.instantBooking ?? false,
+      averageRating:
+        posting.averageRating !== null && posting.averageRating !== undefined
+          ? Number(posting.averageRating)
+          : undefined,
+      reviewCount: posting.reviewCount ?? 0,
       effectiveMaxBookingDurationDays:
         posting.maxBookingDurationDays ?? DEFAULT_MAX_BOOKING_DURATION_DAYS,
       availabilityBlocks,
@@ -2518,6 +2542,16 @@ export class PostingsRepository extends BaseRepository {
       tags: Array.isArray(posting.tags) ? (posting.tags as string[]) : [],
       availabilityStatus:
         posting.availabilityStatus as PostingAvailabilityStatus,
+      minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
+      advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
+      cancellationPolicy:
+        (posting.cancellationPolicy as PostingCancellationPolicy) ?? undefined,
+      instantBooking: posting.instantBooking ?? false,
+      averageRating:
+        posting.averageRating !== null && posting.averageRating !== undefined
+          ? Number(posting.averageRating)
+          : undefined,
+      reviewCount: posting.reviewCount ?? 0,
       searchableAttributes: this.extractSearchableAttributes(
         posting.family,
         posting.subtype as PostingSubtype,

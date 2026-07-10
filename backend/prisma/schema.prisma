@@ -219,6 +219,13 @@ model Posting {
   availabilityStatus PostingAvailabilityStatus @map("availability_status")
   availabilityNotes String?                    @map("availability_notes") @db.VarChar(500)
   maxBookingDurationDays Int?                  @map("max_booking_duration_days")
+  minBookingDurationDays Int?                  @map("min_booking_duration_days")
+  advanceNoticeDays      Int?                  @map("advance_notice_days")
+  cancellationPolicy     PostingCancellationPolicy? @map("cancellation_policy")
+  cancellationPolicyNotes String?              @map("cancellation_policy_notes") @db.VarChar(500)
+  instantBooking    Boolean                    @default(false) @map("instant_booking")
+  averageRating     Decimal?                   @map("average_rating") @db.Decimal(3, 2)
+  reviewCount       Int                        @default(0) @map("review_count")
   latitude          Float
   longitude         Float
   city              String                     @db.VarChar(120)
@@ -240,6 +247,7 @@ model Posting {
   dailyAnalytics    PostingAnalyticsDaily[]
   analyticsOutboxEntries PostingAnalyticsOutbox[]
   reviews           PostingReview[]
+  seasonalPricing   PostingSeasonalPricing[]
   bookingRequests   BookingRequest[]
   rentings          Renting[]
   payments          Payment[]
@@ -249,6 +257,22 @@ model Posting {
   @@index([status, family, subtype, publishedAt])
   @@index([country, region, city])
   @@map("postings")
+}
+
+model PostingSeasonalPricing {
+  id          String   @id @db.VarChar(36)
+  postingId   String   @map("posting_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  dailyAmount Decimal  @map("daily_amount") @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+
+  posting     Posting  @relation(fields: [postingId], references: [id], onDelete: Cascade)
+
+  @@index([postingId])
+  @@map("posting_seasonal_pricing")
 }
 
 model PostingPhoto {
@@ -1003,6 +1027,12 @@ enum PostingAvailabilityStatus {
   available
   limited
   unavailable
+}
+
+enum PostingCancellationPolicy {
+  flexible
+  moderate
+  strict
 }
 
 enum PostingAvailabilityBlockSource {

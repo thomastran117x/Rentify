@@ -1,397 +1,271 @@
 import { buildApiPath } from "@/configuration/http/api-path";
-import { containerTokens } from "@/configuration/bootstrap/container";
-import { OrganizationsController } from "@/features/organizations/organizations.controller";
+import type { EmailJobPayload } from "@/features/email/email.model";
+import { createFixtureId } from "@/seeds/types";
 import {
-  createPatPrincipal,
-  createJwtClaims,
-  createRouteTestApp,
-} from "../../support/integration-app";
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
+import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
 
-const organizationId = "00000000-0000-0000-1040-000000000001";
-const inviteId = "22222222-2222-4222-8222-222222222222";
-const memberId = "33333333-3333-4333-8333-333333333333";
+const ORGANIZATION_ID = createFixtureId(1040, 1);
+const EMAIL_QUEUE_NAME = "email.delivery.main";
 
-function createApp() {
-  const organizationsService = {
-    listMine: jest.fn(async () => ({
-      organizations: [
-        {
-          id: organizationId,
-          name: "Northwind",
-          role: "primary_manager",
+async function readOrganizationInviteJob(
+  persistenceApp: PersistenceTestApp,
+  invitedEmail: string,
+): Promise<Extract<EmailJobPayload, { kind: "organization_invite" }>> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < 5_000) {
+    const messages = await peekRabbitMqMessages<EmailJobPayload>(
+      persistenceApp.infra.rabbitMq,
+      EMAIL_QUEUE_NAME,
+      25,
+    );
+    const invite = messages
+      .map((message) => message.payload)
+      .find(
+        (
+          payload,
+        ): payload is Extract<
+          EmailJobPayload,
+          { kind: "organization_invite" }
+        > =>
+          payload.kind === "organization_invite" &&
+          payload.input.to === invitedEmail,
+      );
+
+    if (invite) {
+      return invite;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Expected an organization invite email for ${invitedEmail}.`);
+}
+
+describe("Organizations persistence integration", () => {
+  let persistenceApp: PersistenceTestApp;
+
+  beforeAll(async () => {
+    persistenceApp = await createPersistenceTestApp();
+  }, 180_000);
+
+  beforeEach(async () => {
+    await resetPersistenceState();
+  }, 180_000);
+
+  afterAll(async () => {
+    await teardownPersistenceTestApp();
+  }, 180_000);
+
+  it("persists invitation, acceptance, organization updates, role changes, and member removal", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const viewer = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+    const memberToUpdate =
+      await persistenceApp.prisma.organizationMembership.findFirstOrThrow({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          user: {
+            email: "user2@rentify.local",
+          },
         },
-      ],
-    })),
-    setActiveOrganization: jest.fn(async () => ({
-      activeOrganizationId: organizationId,
-    })),
-    previewInvitation: jest.fn(async () => ({
-      token: "invite-token-1",
-      organization: {
-        id: organizationId,
-        name: "Northwind",
-      },
-      inviter: {
-        email: "owner@example.com",
-      },
-      role: "manager",
-    })),
-    acceptInvitation: jest.fn(async () => ({
-      accepted: true,
-      organizationId,
-    })),
-    getById: jest.fn(async () => ({
-      id: organizationId,
-      name: "Northwind",
-      memberships: [],
-      invitations: [],
-    })),
-    update: jest.fn(async () => ({
-      id: organizationId,
-      name: "Northwind Studios",
-    })),
-    createInvitation: jest.fn(async () => ({
-      id: inviteId,
-      organizationId,
-      email: "manager@example.com",
-      role: "manager",
-      status: "pending",
-    })),
-    revokeInvitation: jest.fn(async () => ({
-      revoked: true,
-      invitationId: inviteId,
-    })),
-    updateMemberRole: jest.fn(async () => ({
-      membershipId: memberId,
-      role: "operator",
-    })),
-    removeMember: jest.fn(async () => ({
-      removed: true,
-      membershipId: memberId,
-    })),
-  };
-
-  const tokenService = {
-    verifyAccessToken: jest.fn(async (token: string) => {
-      if (token === "user-token") {
-        return createJwtClaims({
-          sub: "user-22",
-          email: "user22@example.com",
-          role: "user",
-        });
-      }
-
-      return createJwtClaims({
-        sub: "owner-1",
-        email: "owner@example.com",
-        role: "owner",
       });
-    }),
-  };
-  const personalAccessTokenService = {
-    authenticateToken: jest.fn(async () => createPatPrincipal()),
-  };
 
-  const registry = new Map<unknown, unknown>([
-    [
-      containerTokens.organizationsController,
-      new OrganizationsController(organizationsService as never),
-    ],
-    [containerTokens.tokenService, tokenService],
-    [containerTokens.personalAccessTokenService, personalAccessTokenService],
-  ]);
-
-  return {
-    app: createRouteTestApp(registry),
-    organizationsService,
-    personalAccessTokenService,
-  };
-}
-
-function authHeaders() {
-  return {
-    authorization: "Bearer owner-token",
-    "content-type": "application/json",
-  };
-}
-
-describe("Organizations integration", () => {
-  it("covers organization membership, invitation, and management endpoints", async () => {
-    const { app, organizationsService } = createApp();
-
-    const listMineResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/me")}`,
-      {
-        headers: authHeaders(),
-      },
-    );
-    const setActiveResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/me/active")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          organizationId,
-        }),
-      },
-    );
-    const previewResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/invitations/invite-token-1")}`,
-    );
-    const acceptResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/invitations/invite-token-1/accept")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-      },
-    );
-    const getByIdResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}`)}`,
-      {
-        headers: authHeaders(),
-      },
-    );
-    const updateResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}`)}`,
+    const updateOrganizationResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}`)}`,
       {
         method: "PATCH",
-        headers: authHeaders(),
+        headers: owner.headers(),
         body: JSON.stringify({
           name: "Northwind Studios",
         }),
       },
     );
-    const createInvitationResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/invitations`)}`,
+
+    expect(updateOrganizationResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.organization.findUniqueOrThrow({
+        where: {
+          id: ORGANIZATION_ID,
+        },
+      }),
+    ).toMatchObject({
+      name: "Northwind Studios",
+    });
+
+    const inviteViewerResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/invitations`)}`,
       {
         method: "POST",
-        headers: authHeaders(),
+        headers: owner.headers(),
         body: JSON.stringify({
-          email: "manager@example.com",
+          email: "viewer1@rentify.local",
           role: "manager",
         }),
       },
     );
-    const revokeInvitationResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/invitations/${inviteId}`)}`,
+
+    expect(inviteViewerResponse.status).toBe(201);
+    const viewerInvite = await readOrganizationInviteJob(
+      persistenceApp,
+      "viewer1@rentify.local",
+    );
+    expect(viewerInvite.input.token).toBeTruthy();
+
+    const acceptResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/invitations/${viewerInvite.input.token}/accept`)}`,
       {
-        method: "DELETE",
-        headers: authHeaders(),
+        method: "POST",
+        headers: viewer.headers(),
       },
     );
-    const updateMemberRoleResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/members/${memberId}`)}`,
+
+    expect(acceptResponse.status).toBe(200);
+    const acceptedMembership =
+      await persistenceApp.prisma.organizationMembership.findFirst({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          userId: viewer.userId,
+        },
+      });
+    expect(acceptedMembership).toMatchObject({
+      organizationId: ORGANIZATION_ID,
+      userId: viewer.userId,
+      role: "manager",
+    });
+
+    const updateMemberRoleResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/members/${memberToUpdate.id}`)}`,
       {
         method: "PATCH",
-        headers: authHeaders(),
+        headers: owner.headers(),
         body: JSON.stringify({
+          role: "manager",
+        }),
+      },
+    );
+
+    expect(updateMemberRoleResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.organizationMembership.findUniqueOrThrow({
+        where: {
+          id: memberToUpdate.id,
+        },
+      }),
+    ).toMatchObject({
+      role: "manager",
+    });
+
+    const removeMemberResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/members/${memberToUpdate.id}`)}`,
+      {
+        method: "DELETE",
+        headers: owner.headers(),
+      },
+    );
+
+    expect(removeMemberResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.organizationMembership.findUnique({
+        where: {
+          id: memberToUpdate.id,
+        },
+      }),
+    ).toBeNull();
+
+    const inviteExternalResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/invitations`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          email: "manager@example.com",
           role: "operator",
         }),
       },
     );
-    const removeMemberResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/members/${memberId}`)}`,
+
+    expect(inviteExternalResponse.status).toBe(201);
+    const externalInvite = await readOrganizationInviteJob(
+      persistenceApp,
+      "manager@example.com",
+    );
+    expect(externalInvite.input.role).toBe("operator");
+    expect(externalInvite.input.organizationName).toBe("Northwind Studios");
+
+    const externalInvitation =
+      await persistenceApp.prisma.organizationInvitation.findFirstOrThrow({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          email: "manager@example.com",
+          status: "pending",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    const revokeResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/invitations/${externalInvitation.id}`)}`,
       {
         method: "DELETE",
-        headers: authHeaders(),
+        headers: owner.headers(),
       },
     );
 
-    expect(listMineResponse.status).toBe(200);
-    expect(setActiveResponse.status).toBe(200);
-    expect(previewResponse.status).toBe(200);
-    expect(acceptResponse.status).toBe(200);
-    expect(getByIdResponse.status).toBe(200);
-    expect(updateResponse.status).toBe(200);
-    expect(createInvitationResponse.status).toBe(201);
-    expect(revokeInvitationResponse.status).toBe(200);
-    expect(updateMemberRoleResponse.status).toBe(200);
-    expect(removeMemberResponse.status).toBe(200);
-
-    expect(organizationsService.listMine).toHaveBeenCalledWith("owner-1");
-    expect(organizationsService.setActiveOrganization).toHaveBeenCalledWith({
-      userId: "owner-1",
-      organizationId,
-    });
-    expect(organizationsService.previewInvitation).toHaveBeenCalledWith({
-      token: "invite-token-1",
-      userId: undefined,
-    });
-    expect(organizationsService.acceptInvitation).toHaveBeenCalledWith({
-      token: "invite-token-1",
-      userId: "owner-1",
-    });
-    expect(organizationsService.getById).toHaveBeenCalledWith(
-      organizationId,
-      "owner-1",
-    );
-    expect(organizationsService.update).toHaveBeenCalledWith({
-      organizationId,
-      actorUserId: "owner-1",
-      name: "Northwind Studios",
-    });
-    expect(organizationsService.createInvitation).toHaveBeenCalledWith({
-      organizationId,
-      actorUserId: "owner-1",
-      email: "manager@example.com",
-      role: "manager",
-    });
-    expect(organizationsService.revokeInvitation).toHaveBeenCalledWith({
-      organizationId,
-      actorUserId: "owner-1",
-      invitationId: inviteId,
-    });
-    expect(organizationsService.updateMemberRole).toHaveBeenCalledWith({
-      organizationId,
-      actorUserId: "owner-1",
-      membershipId: memberId,
-      role: "operator",
-    });
-    expect(organizationsService.removeMember).toHaveBeenCalledWith({
-      organizationId,
-      actorUserId: "owner-1",
-      membershipId: memberId,
+    expect(revokeResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.organizationInvitation.findUniqueOrThrow({
+        where: {
+          id: externalInvitation.id,
+        },
+      }),
+    ).toMatchObject({
+      status: "revoked",
     });
   });
 
-  it("covers optional-auth invitation preview and common organizations failures", async () => {
-    const { app, organizationsService, personalAccessTokenService } =
-      createApp();
+  it("does not mutate the organization when a non-member tries to rename it", async () => {
+    const viewer = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
 
-    const authenticatedPreviewResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/invitations/invite-token-1")}`,
-      {
-        headers: {
-          authorization: "Bearer user-token",
+    const beforeOrganization =
+      await persistenceApp.prisma.organization.findUniqueOrThrow({
+        where: {
+          id: ORGANIZATION_ID,
         },
-      },
-    );
-    const unauthorizedListResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/me")}`,
-    );
-    const invalidSetActiveResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/me/active")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          organizationId: "not-a-uuid",
-        }),
-      },
-    );
-    const invalidOrganizationRouteResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/not-a-uuid")}`,
-      {
-        headers: authHeaders(),
-      },
-    );
-    const invalidInvitePayloadResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/invitations`)}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          email: "bad-email",
-          role: "viewer",
-        }),
-      },
-    );
-    const invalidMemberRoleResponse = await app.request(
-      `http://rent.test${buildApiPath(`/organizations/${organizationId}/members/${memberId}`)}`,
+      });
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}`)}`,
       {
         method: "PATCH",
-        headers: authHeaders(),
+        headers: viewer.headers(),
         body: JSON.stringify({
-          role: "viewer",
+          name: "Unauthorized Rename",
         }),
       },
     );
-    const patResponse = await app.request(
-      `http://rent.test${buildApiPath("/organizations/me")}`,
-      {
-        headers: {
-          authorization:
-            "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+
+    expect(response.status).toBe(404);
+    expect(
+      await persistenceApp.prisma.organization.findUniqueOrThrow({
+        where: {
+          id: ORGANIZATION_ID,
         },
-      },
-    );
-
-    expect(authenticatedPreviewResponse.status).toBe(200);
-    expect(organizationsService.previewInvitation).toHaveBeenLastCalledWith({
-      token: "invite-token-1",
-      userId: "user-22",
+      }),
+    ).toMatchObject({
+      name: beforeOrganization.name,
     });
-
-    expect(unauthorizedListResponse.status).toBe(401);
-    await expect(unauthorizedListResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Authorization header is required.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    expect(invalidSetActiveResponse.status).toBe(400);
-    await expect(invalidSetActiveResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request body validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidOrganizationRouteResponse.status).toBe(400);
-    await expect(
-      invalidOrganizationRouteResponse.json(),
-    ).resolves.toMatchObject({
-      success: false,
-      message: "Route parameter validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidInvitePayloadResponse.status).toBe(400);
-    await expect(invalidInvitePayloadResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request body validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(invalidMemberRoleResponse.status).toBe(400);
-    await expect(invalidMemberRoleResponse.json()).resolves.toMatchObject({
-      success: false,
-      message: "Request body validation failed.",
-      error: {
-        code: "VALIDATION_ERROR",
-      },
-    });
-
-    expect(patResponse.status).toBe(403);
-    await expect(patResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Personal access tokens cannot access this endpoint.",
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        details: {
-          method: "GET",
-          pathname: "/organizations/me",
-          authMethod: "pat",
-        },
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-    expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(
-      1,
-    );
   });
 });

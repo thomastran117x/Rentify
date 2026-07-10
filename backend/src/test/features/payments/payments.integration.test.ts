@@ -1,496 +1,349 @@
 import { buildApiPath } from "@/configuration/http/api-path";
-import { containerTokens } from "@/configuration/bootstrap/container";
-import { PaymentsController } from "@/features/payments/payments.controller";
-import BadRequestError from "@/errors/http/bad-request.error";
-import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
 import {
-  createJwtClaims,
-  createRouteTestApp,
-} from "../../support/integration-app";
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
 
-function createPagination() {
-  return {
-    page: 1,
-    pageSize: 20,
-    total: 1,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  };
-}
-
-function createApp() {
-  const paymentsService = {
-    createPaymentSession: jest.fn(async () => ({
-      id: "session-1",
-      checkoutUrl: "https://square.example/checkout/session-1",
-      expiresAt: "2026-06-30T00:00:00.000Z",
-    })),
-    processSquareWebhook: jest.fn(async () => undefined),
-    getPaymentById: jest.fn(async () => ({
-      id: "payment-1",
-      bookingRequestId: "booking-1",
-      status: "awaiting_method",
-      currency: "CAD",
-      amount: 330,
-    })),
-    retryPayment: jest.fn(async () => ({
-      id: "payment-1",
-      status: "processing",
-    })),
-    createRefund: jest.fn(async () => ({
-      id: "refund-1",
-      paymentId: "payment-1",
-      amount: 50,
-      status: "pending",
-    })),
-    reconcilePayment: jest.fn(async () => ({
-      id: "payment-1",
-      status: "succeeded",
-    })),
-    repairPayment: jest.fn(async () => undefined),
-    listPayouts: jest.fn(async () => ({
-      payouts: [
-        {
-          id: "payout-1",
-          amount: 250,
-          currency: "CAD",
-          status: "scheduled",
+async function getPaymentForBooking(
+  persistenceApp: PersistenceTestApp,
+  bookingRequestId: string,
+) {
+  return persistenceApp.prisma.payment.findUniqueOrThrow({
+    where: {
+      bookingRequestId,
+    },
+    include: {
+      attempts: {
+        orderBy: {
+          createdAt: "desc",
         },
-      ],
-      pagination: createPagination(),
-    })),
-  };
-
-  const tokenService = {
-    verifyAccessToken: jest.fn(async (token: string) => {
-      if (token === "admin-token") {
-        return createJwtClaims({
-          sub: "admin-1",
-          email: "admin@example.com",
-          role: "admin",
-        });
-      }
-
-      if (token === "user-token") {
-        return createJwtClaims();
-      }
-
-      if (token === "owner-token") {
-        return createJwtClaims({
-          sub: "owner-1",
-          email: "owner@example.com",
-          role: "owner",
-        });
-      }
-
-      throw new UnauthorizedError("Invalid access token signature.");
-    }),
-  };
-
-  const registry = new Map<unknown, unknown>([
-    [
-      containerTokens.paymentsController,
-      new PaymentsController(paymentsService as never),
-    ],
-    [containerTokens.tokenService, tokenService],
-  ]);
-
-  return {
-    app: createRouteTestApp(registry),
-    paymentsService,
-  };
+      },
+      refunds: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      bookingRequest: true,
+      payout: true,
+    },
+  });
 }
 
-function authHeaders(token = "owner-token") {
-  return {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
-}
+describe("Payments persistence integration", () => {
+  let persistenceApp: PersistenceTestApp;
 
-describe("Payments integration", () => {
-  it("covers payment session, webhook, payment lifecycle, and payout endpoints", async () => {
-    const { app, paymentsService } = createApp();
+  beforeAll(async () => {
+    persistenceApp = await createPersistenceTestApp();
+  }, 180_000);
 
-    const createSessionResponse = await app.request(
-      `http://rent.test${buildApiPath("/booking-requests/booking-1/payment-session")}`,
+  beforeEach(async () => {
+    await resetPersistenceState();
+  }, 180_000);
+
+  afterAll(async () => {
+    await teardownPersistenceTestApp();
+  }, 180_000);
+
+  it("persists payment session creation and retry attempts", async () => {
+    const retryableBooking = SEED_BOOKINGS[16]!;
+    const renter = await createAuthenticatedRequestContext({
+      email: retryableBooking.renterEmail,
+    });
+    const beforeCreatePayment = await getPaymentForBooking(
+      persistenceApp,
+      retryableBooking.id,
+    );
+
+    const createSessionResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${retryableBooking.id}/payment-session`)}`,
       {
         method: "POST",
-        headers: authHeaders(),
+        headers: renter.headers(),
         body: JSON.stringify({
-          idempotencyKey: "pay-session-1",
+          idempotencyKey: "persistence-create-session-1",
         }),
       },
     );
-    const webhookResponse = await app.request(
+
+    expect(createSessionResponse.status).toBe(201);
+    const afterCreatePayment = await getPaymentForBooking(
+      persistenceApp,
+      retryableBooking.id,
+    );
+    expect(afterCreatePayment.status).toBe("processing");
+    expect(afterCreatePayment.attempts.length).toBeGreaterThan(
+      beforeCreatePayment.attempts.length,
+    );
+    expect(afterCreatePayment.attempts[0]).toMatchObject({
+      status: "processing",
+      providerRequestId: expect.any(String),
+    });
+    expect(afterCreatePayment.bookingRequest.status).toBe("payment_processing");
+
+    const retryBooking = SEED_BOOKINGS[17]!;
+    const retryRenter = await createAuthenticatedRequestContext({
+      email: retryBooking.renterEmail,
+    });
+    const beforeRetryPayment = await getPaymentForBooking(
+      persistenceApp,
+      retryBooking.id,
+    );
+
+    const retryResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${beforeRetryPayment.id}/retry`)}`,
+      {
+        method: "POST",
+        headers: retryRenter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "persistence-retry-1",
+        }),
+      },
+    );
+
+    expect(retryResponse.status).toBe(200);
+    const afterRetryPayment = await getPaymentForBooking(
+      persistenceApp,
+      retryBooking.id,
+    );
+    expect(afterRetryPayment.status).toBe("processing");
+    expect(afterRetryPayment.attempts.length).toBeGreaterThan(
+      beforeRetryPayment.attempts.length,
+    );
+    expect(afterRetryPayment.attempts[0]).toMatchObject({
+      status: "processing",
+      providerRequestId: expect.any(String),
+    });
+  });
+
+  it("persists refunds, reconciliations, webhook effects, and admin repairs", async () => {
+    const managedBooking = SEED_BOOKINGS[11]!;
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const managedPayment = await getPaymentForBooking(
+      persistenceApp,
+      managedBooking.id,
+    );
+    const beforeRefundCount = await persistenceApp.prisma.refund.count({
+      where: {
+        paymentId: managedPayment.id,
+      },
+    });
+
+    const refundResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${managedPayment.id}/refunds`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          amount: 50,
+          reason: "Partial goodwill refund",
+          idempotencyKey: "persistence-refund-1",
+        }),
+      },
+    );
+
+    expect(refundResponse.status).toBe(201);
+    const refundedPayment = await getPaymentForBooking(
+      persistenceApp,
+      managedBooking.id,
+    );
+    expect(refundedPayment.status).toBe("partially_refunded");
+    expect(
+      await persistenceApp.prisma.refund.count({
+        where: {
+          paymentId: managedPayment.id,
+        },
+      }),
+    ).toBe(beforeRefundCount + 1);
+    const persistedRefund = await persistenceApp.prisma.refund.findFirstOrThrow(
+      {
+        where: {
+          paymentId: managedPayment.id,
+          reason: "Partial goodwill refund",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    );
+
+    expect(persistedRefund.status).toBe("succeeded");
+    expect(persistedRefund.squareRefundId).toEqual(expect.any(String));
+    expect(Number(persistedRefund.amount)).toBe(50);
+
+    const reconcileBooking = SEED_BOOKINGS[18]!;
+    const reconcileRenter = await createAuthenticatedRequestContext({
+      email: reconcileBooking.renterEmail,
+    });
+    const reconcilePayment = await getPaymentForBooking(
+      persistenceApp,
+      reconcileBooking.id,
+    );
+
+    const reconcileResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${reconcilePayment.id}/reconcile`)}`,
+      {
+        method: "POST",
+        headers: reconcileRenter.headers(),
+      },
+    );
+
+    expect(reconcileResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, reconcileBooking.id),
+    ).toMatchObject({
+      status: "succeeded",
+      bookingRequest: {
+        status: "paid",
+      },
+    });
+
+    const webhookBooking = SEED_BOOKINGS[16]!;
+    const webhookPayment = await getPaymentForBooking(
+      persistenceApp,
+      webhookBooking.id,
+    );
+
+    const webhookResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/payments/webhooks/square")}`,
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-square-hmacsha256-signature": "signature-1",
+          "x-square-hmacsha256-signature": "signature-ok",
         },
         body: JSON.stringify({
+          id: "evt-persistence-1",
           type: "payment.updated",
+          data: {
+            object: {
+              payment: {
+                id: webhookPayment.squarePaymentId,
+                order_id: webhookPayment.squareOrderId,
+                status: "COMPLETED",
+              },
+            },
+          },
         }),
-      },
-    );
-    const getByIdResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1")}`,
-      {
-        headers: authHeaders(),
-      },
-    );
-    const retryResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/retry")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          idempotencyKey: "retry-1",
-        }),
-      },
-    );
-    const refundResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/refunds")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          amount: 50,
-          reason: "Partial refund",
-          idempotencyKey: "refund-1",
-        }),
-      },
-    );
-    const reconcileResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/reconcile")}`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-      },
-    );
-    const repairResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/repair")}`,
-      {
-        method: "POST",
-        headers: authHeaders("admin-token"),
-      },
-    );
-    const payoutsResponse = await app.request(
-      `http://rent.test${buildApiPath("/payouts/me?page=1&pageSize=20&status=scheduled")}`,
-      {
-        headers: authHeaders(),
       },
     );
 
-    expect(createSessionResponse.status).toBe(201);
     expect(webhookResponse.status).toBe(200);
-    expect(getByIdResponse.status).toBe(200);
-    expect(retryResponse.status).toBe(200);
-    expect(refundResponse.status).toBe(201);
-    expect(reconcileResponse.status).toBe(200);
-    expect(repairResponse.status).toBe(200);
-    expect(payoutsResponse.status).toBe(200);
-
-    expect(paymentsService.createPaymentSession).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      renterId: "owner-1",
-      idempotencyKey: "pay-session-1",
-    });
-    expect(paymentsService.processSquareWebhook).toHaveBeenCalledWith(
-      JSON.stringify({
-        type: "payment.updated",
+    expect(
+      await persistenceApp.prisma.payment.findUniqueOrThrow({
+        where: {
+          id: webhookPayment.id,
+        },
       }),
-      "signature-1",
-    );
-    expect(paymentsService.getPaymentById).toHaveBeenCalledWith(
-      "payment-1",
-      "owner-1",
-    );
-    expect(paymentsService.retryPayment).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      renterId: "owner-1",
-      idempotencyKey: "retry-1",
+    ).toMatchObject({
+      status: "succeeded",
     });
-    expect(paymentsService.createRefund).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      actorUserId: "owner-1",
-      amount: 50,
-      reason: "Partial refund",
-      idempotencyKey: "refund-1",
+    expect(
+      await persistenceApp.prisma.paymentWebhookEvent.findUniqueOrThrow({
+        where: {
+          providerEventId: "evt-persistence-1",
+        },
+      }),
+    ).toMatchObject({
+      paymentId: webhookPayment.id,
+      signatureValid: true,
+      processedAt: expect.any(Date),
     });
-    expect(paymentsService.reconcilePayment).toHaveBeenCalledWith(
-      "payment-1",
-      "owner-1",
+
+    const repairBooking = SEED_BOOKINGS[17]!;
+    const repairPayment = await getPaymentForBooking(
+      persistenceApp,
+      repairBooking.id,
     );
-    expect(paymentsService.repairPayment).toHaveBeenCalledWith("payment-1");
-    expect(paymentsService.listPayouts).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
-      page: 1,
-      pageSize: 20,
-      status: "scheduled",
+    const admin = await createAuthenticatedRequestContext({
+      email: "admin1@rentify.local",
+    });
+
+    const repairResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${repairPayment.id}/repair`)}`,
+      {
+        method: "POST",
+        headers: admin.headers(),
+      },
+    );
+
+    expect(repairResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.payment.findUniqueOrThrow({
+        where: {
+          id: repairPayment.id,
+        },
+      }),
+    ).toMatchObject({
+      status: "succeeded",
     });
   });
 
-  it("returns structured authorization, validation, and role failures for payment endpoints", async () => {
-    const { app, paymentsService } = createApp();
-    paymentsService.processSquareWebhook.mockImplementationOnce(async () => {
-      throw new BadRequestError("Square webhook signature is invalid.");
+  it("does not persist invalid refunds or forbidden repair attempts", async () => {
+    const refundBooking = SEED_BOOKINGS[11]!;
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const refundPayment = await getPaymentForBooking(
+      persistenceApp,
+      refundBooking.id,
+    );
+    const beforeRefundCount = await persistenceApp.prisma.refund.count({
+      where: {
+        paymentId: refundPayment.id,
+      },
     });
 
-    const missingAuthResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1")}`,
-    );
-    const invalidTokenResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1")}`,
-      {
-        headers: authHeaders("broken-token"),
-      },
-    );
-    const invalidSessionBodyResponse = await app.request(
-      `http://rent.test${buildApiPath("/booking-requests/booking-1/payment-session")}`,
+    const invalidRefundResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${refundPayment.id}/refunds`)}`,
       {
         method: "POST",
-        headers: authHeaders("user-token"),
-        body: JSON.stringify({
-          idempotencyKey: "",
-        }),
-      },
-    );
-    const invalidRetryBodyResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/retry")}`,
-      {
-        method: "POST",
-        headers: authHeaders("owner-token"),
-        body: JSON.stringify({
-          idempotencyKey: "",
-        }),
-      },
-    );
-    const invalidRefundBodyResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/refunds")}`,
-      {
-        method: "POST",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
         body: JSON.stringify({
           amount: 0,
           reason: "",
         }),
       },
     );
-    const invalidParamResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment%3Cscript%3E")}`,
-      {
-        headers: authHeaders("owner-token"),
-      },
-    );
-    const invalidPayoutQueryResponse = await app.request(
-      `http://rent.test${buildApiPath("/payouts/me?page=0&pageSize=99&status=queued")}`,
-      {
-        headers: authHeaders("owner-token"),
-      },
-    );
-    const ownerRepairResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/repair")}`,
-      {
-        method: "POST",
-        headers: authHeaders("owner-token"),
-      },
-    );
-    const webhookFailureResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/webhooks/square")}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "payment.updated",
-        }),
-      },
-    );
 
-    expect(missingAuthResponse.status).toBe(401);
-    await expect(missingAuthResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Authorization header is required.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    expect(invalidTokenResponse.status).toBe(401);
-    await expect(invalidTokenResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Invalid access token signature.",
-      data: null,
-      error: {
-        code: "UNAUTHORIZED",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    for (const response of [
-      invalidSessionBodyResponse,
-      invalidRetryBodyResponse,
-      invalidRefundBodyResponse,
-      invalidParamResponse,
-      invalidPayoutQueryResponse,
-    ]) {
-      expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toMatchObject({
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-        },
-      });
-    }
-
-    expect(ownerRepairResponse.status).toBe(403);
-    await expect(ownerRepairResponse.json()).resolves.toEqual({
-      success: false,
-      message: "You do not have permission to perform this action.",
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        details: {
-          requiredRole: "admin",
-          role: "owner",
-        },
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    expect(webhookFailureResponse.status).toBe(400);
-    await expect(webhookFailureResponse.json()).resolves.toEqual({
-      success: false,
-      message: "Square webhook signature is invalid.",
-      data: null,
-      error: {
-        code: "BAD_REQUEST",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-
-    expect(paymentsService.createPaymentSession).not.toHaveBeenCalled();
-    expect(paymentsService.retryPayment).not.toHaveBeenCalled();
-    expect(paymentsService.createRefund).not.toHaveBeenCalled();
-    expect(paymentsService.getPaymentById).not.toHaveBeenCalled();
-    expect(paymentsService.repairPayment).not.toHaveBeenCalled();
-  });
-
-  it("uses idempotency fallbacks, forwards webhook payloads without signatures, and applies payout defaults", async () => {
-    const { app, paymentsService } = createApp();
-
-    const createSessionResponse = await app.request(
-      `http://rent.test${buildApiPath("/booking-requests/booking-1/payment-session")}`,
-      {
-        method: "POST",
-        headers: {
-          ...authHeaders("user-token"),
-          "x-request-id": "req-payment-session",
-        },
-        body: JSON.stringify({}),
-      },
-    );
-    const retryResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/retry")}`,
-      {
-        method: "POST",
-        headers: {
-          ...authHeaders("user-token"),
-          "idempotency-key": "retry-header-idem",
-        },
-        body: JSON.stringify({}),
-      },
-    );
-    const refundResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/payment-1/refunds")}`,
-      {
-        method: "POST",
-        headers: {
-          ...authHeaders("owner-token"),
-          "x-idempotency-key": "refund-header-idem",
-        },
-        body: JSON.stringify({
-          amount: 50,
-          reason: null,
-        }),
-      },
-    );
-    const webhookResponse = await app.request(
-      `http://rent.test${buildApiPath("/payments/webhooks/square")}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "payment.updated",
-          data: {
-            id: "evt-1",
-          },
-        }),
-      },
-    );
-    const payoutsResponse = await app.request(
-      `http://rent.test${buildApiPath("/payouts/me")}`,
-      {
-        headers: authHeaders("owner-token"),
-      },
-    );
-
-    expect(createSessionResponse.status).toBe(201);
-    expect(retryResponse.status).toBe(200);
-    expect(refundResponse.status).toBe(201);
-    expect(webhookResponse.status).toBe(200);
-    expect(payoutsResponse.status).toBe(200);
-
-    expect(paymentsService.createPaymentSession).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      renterId: "user-1",
-      idempotencyKey: "req-payment-session",
-    });
-    expect(paymentsService.retryPayment).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      renterId: "user-1",
-      idempotencyKey: "retry-header-idem",
-    });
-    expect(paymentsService.createRefund).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      actorUserId: "owner-1",
-      amount: 50,
-      reason: null,
-      idempotencyKey: "refund-header-idem",
-    });
-    expect(paymentsService.processSquareWebhook).toHaveBeenCalledWith(
-      JSON.stringify({
-        type: "payment.updated",
-        data: {
-          id: "evt-1",
+    expect(invalidRefundResponse.status).toBe(400);
+    expect(
+      await persistenceApp.prisma.refund.count({
+        where: {
+          paymentId: refundPayment.id,
         },
       }),
-      undefined,
+    ).toBe(beforeRefundCount);
+
+    const repairBooking = SEED_BOOKINGS[16]!;
+    const repairPayment = await getPaymentForBooking(
+      persistenceApp,
+      repairBooking.id,
     );
-    expect(paymentsService.listPayouts).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
-      page: 1,
-      pageSize: 20,
-      status: undefined,
+    const beforeRepairStatus = repairPayment.status;
+
+    const forbiddenRepairResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${repairPayment.id}/repair`)}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+      },
+    );
+
+    expect(forbiddenRepairResponse.status).toBe(403);
+    expect(
+      await persistenceApp.prisma.payment.findUniqueOrThrow({
+        where: {
+          id: repairPayment.id,
+        },
+      }),
+    ).toMatchObject({
+      status: beforeRepairStatus,
     });
   });
 });

@@ -1,238 +1,358 @@
+import { randomUUID } from "node:crypto";
 import { buildApiPath } from "@/configuration/http/api-path";
-import { containerTokens } from "@/configuration/bootstrap/container";
-import { RentingsController } from "@/features/rentings/rentings.controller";
+import type { RecommendationActivityEventPayload } from "@/features/recommendations/recommendation-activity.model";
 import {
-  createJwtClaims,
-  createRouteTestApp,
-} from "../../support/integration-app";
+  createAuthenticatedRequestContext,
+  createPersistenceTestApp,
+  resetPersistenceState,
+  teardownPersistenceTestApp,
+  type PersistenceTestApp,
+} from "../../support/persistence-test-app";
+import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 
-function createPagination() {
+const RECOMMENDATION_ACTIVITY_QUEUE_NAME = "recommendation-activity.main";
+const OWNER_POSTING_ID = "00000000-0000-0000-2000-000000000001";
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+async function loadPostingPricing(persistenceApp: PersistenceTestApp) {
+  const posting = await persistenceApp.prisma.posting.findUniqueOrThrow({
+    where: {
+      id: OWNER_POSTING_ID,
+    },
+  });
+  const pricing = posting.pricing as {
+    daily?: {
+      amount?: number;
+    };
+  };
+
   return {
-    page: 1,
-    pageSize: 20,
-    total: 1,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPreviousPage: false,
+    posting,
+    dailyPriceAmount: Number(pricing.daily?.amount ?? 0),
   };
 }
 
-function createRenting(overrides: Record<string, unknown> = {}) {
+async function createConvertibleBookingFixture(
+  persistenceApp: PersistenceTestApp,
+) {
+  const { posting, dailyPriceAmount } =
+    await loadPostingPricing(persistenceApp);
+  const renter = await persistenceApp.prisma.user.findUniqueOrThrow({
+    where: {
+      email: "viewer1@rentify.local",
+    },
+  });
+  const bookingRequestId = randomUUID();
+
+  await persistenceApp.prisma.bookingRequest.create({
+    data: {
+      id: bookingRequestId,
+      postingId: posting.id,
+      renterId: renter.id,
+      organizationId: posting.organizationId,
+      status: "paid",
+      startAt: new Date("2027-03-10T16:00:00.000Z"),
+      endAt: new Date("2027-03-12T16:00:00.000Z"),
+      durationDays: 2,
+      guestCount: 2,
+      contactName: "Viewer One",
+      contactEmail: renter.email,
+      note: "Convertible paid booking.",
+      pricingCurrency: posting.pricingCurrency,
+      pricingSnapshot: posting.pricing,
+      dailyPriceAmount,
+      estimatedTotal: dailyPriceAmount * 2,
+      approvedAt: new Date("2027-03-01T16:00:00.000Z"),
+      paymentRequiredAt: new Date("2027-03-02T16:00:00.000Z"),
+      holdExpiresAt: new Date("2027-03-03T16:00:00.000Z"),
+    },
+  });
+
   return {
-    id: "renting-1",
-    bookingRequestId: "booking-1",
-    postingId: "posting-1",
-    renterUserId: "user-1",
-    ownerUserId: "owner-1",
-    status: "confirmed",
-    createdAt: "2026-06-01T00:00:00.000Z",
-    updatedAt: "2026-06-01T00:00:00.000Z",
-    ...overrides,
+    bookingRequestId,
   };
 }
 
-function createApp() {
-  const rentingsService = {
-    convertApprovedBookingRequest: jest.fn(async () => createRenting()),
-    listMine: jest.fn(async () => ({
-      rentings: [createRenting()],
-      pagination: createPagination(),
-    })),
-    updateInstructions: jest.fn(async () =>
-      createRenting({
-        pickupInstructions: "Meet at the lobby desk.",
-      }),
-    ),
-    markCheckInReady: jest.fn(async () =>
-      createRenting({
-        status: "check_in_ready",
-      }),
-    ),
-    markCheckInComplete: jest.fn(async () =>
-      createRenting({
-        status: "active",
-      }),
-    ),
-    markCompleted: jest.fn(async () =>
-      createRenting({
-        status: "completed",
-      }),
-    ),
-    createDispute: jest.fn(async () => ({
-      id: "dispute-1",
-      rentingId: "renting-1",
-      reason: "Missing equipment",
-      details: "One monitor was missing at pickup.",
-    })),
-    getById: jest.fn(async () => createRenting()),
-  };
+async function createRentingFixture(
+  persistenceApp: PersistenceTestApp,
+  options: {
+    status: "confirmed" | "completed";
+  },
+) {
+  const { posting, dailyPriceAmount } =
+    await loadPostingPricing(persistenceApp);
+  const renter = await persistenceApp.prisma.user.findUniqueOrThrow({
+    where: {
+      email: "viewer1@rentify.local",
+    },
+  });
+  const bookingRequestId = randomUUID();
+  const rentingId = randomUUID();
+  const completedAt = new Date(Date.now() - 2 * MILLISECONDS_PER_DAY);
 
-  const recommendationActivityPublisher = {
-    publishRentingConfirmed: jest.fn(async () => undefined),
-  };
+  await persistenceApp.prisma.bookingRequest.create({
+    data: {
+      id: bookingRequestId,
+      postingId: posting.id,
+      renterId: renter.id,
+      organizationId: posting.organizationId,
+      status: "paid",
+      startAt: new Date("2027-04-10T16:00:00.000Z"),
+      endAt: new Date("2027-04-12T16:00:00.000Z"),
+      durationDays: 2,
+      guestCount: 2,
+      contactName: "Viewer One",
+      contactEmail: renter.email,
+      note: "Renting lifecycle fixture.",
+      pricingCurrency: posting.pricingCurrency,
+      pricingSnapshot: posting.pricing,
+      dailyPriceAmount,
+      estimatedTotal: dailyPriceAmount * 2,
+      approvedAt: new Date("2027-04-01T16:00:00.000Z"),
+      paymentRequiredAt: new Date("2027-04-02T16:00:00.000Z"),
+      holdExpiresAt: new Date("2027-04-03T16:00:00.000Z"),
+      convertedAt: new Date("2027-04-05T16:00:00.000Z"),
+    },
+  });
 
-  const tokenService = {
-    verifyAccessToken: jest.fn(async (token: string) => {
-      if (token === "owner-token") {
-        return createJwtClaims({
-          sub: "owner-1",
-          email: "owner@example.com",
-          role: "owner",
-        });
-      }
-
-      return createJwtClaims();
-    }),
-  };
-
-  const registry = new Map<unknown, unknown>([
-    [
-      containerTokens.rentingsController,
-      new RentingsController(
-        rentingsService as never,
-        recommendationActivityPublisher as never,
-      ),
-    ],
-    [containerTokens.tokenService, tokenService],
-  ]);
+  await persistenceApp.prisma.renting.create({
+    data: {
+      id: rentingId,
+      postingId: posting.id,
+      bookingRequestId,
+      renterId: renter.id,
+      organizationId: posting.organizationId,
+      status: options.status,
+      startAt: new Date("2027-04-10T16:00:00.000Z"),
+      endAt: new Date("2027-04-12T16:00:00.000Z"),
+      durationDays: 2,
+      guestCount: 2,
+      pricingCurrency: posting.pricingCurrency,
+      pricingSnapshot: posting.pricing,
+      dailyPriceAmount,
+      estimatedTotal: dailyPriceAmount * 2,
+      confirmedAt: new Date("2027-04-05T16:00:00.000Z"),
+      pickupInstructions:
+        options.status === "completed" ? "Meet at the front desk." : null,
+      returnInstructions:
+        options.status === "completed"
+          ? "Leave keys with the concierge."
+          : null,
+      checkInReadyAt:
+        options.status === "completed"
+          ? new Date(completedAt.getTime() - 2 * 60 * 60 * 1000)
+          : null,
+      checkInCompletedAt:
+        options.status === "completed"
+          ? new Date(completedAt.getTime() - 90 * 60 * 1000)
+          : null,
+      returnDueAt:
+        options.status === "completed"
+          ? new Date(completedAt.getTime() - 30 * 60 * 1000)
+          : null,
+      completedAt: options.status === "completed" ? completedAt : null,
+    },
+  });
 
   return {
-    app: createRouteTestApp(registry),
-    rentingsService,
-    recommendationActivityPublisher,
+    rentingId,
+    renterEmail: renter.email,
   };
 }
 
-function authHeaders(token: string) {
-  return {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
-}
+describe("Rentings persistence integration", () => {
+  let persistenceApp: PersistenceTestApp;
 
-describe("Rentings integration", () => {
-  it("covers renting conversion, listing, detail, and lifecycle endpoints", async () => {
-    const { app, rentingsService, recommendationActivityPublisher } =
-      createApp();
+  beforeAll(async () => {
+    persistenceApp = await createPersistenceTestApp();
+  }, 180_000);
 
-    const convertResponse = await app.request(
-      `http://rent.test${buildApiPath("/booking-requests/booking-1/convert")}`,
+  beforeEach(async () => {
+    await resetPersistenceState();
+  }, 180_000);
+
+  afterAll(async () => {
+    await teardownPersistenceTestApp();
+  }, 180_000);
+
+  it("persists booking conversion into a renting", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const fixture = await createConvertibleBookingFixture(persistenceApp);
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${fixture.bookingRequestId}/convert`)}`,
       {
         method: "POST",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
       },
     );
-    const listMineResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/me?page=1&pageSize=20&status=confirmed")}`,
-      {
-        headers: authHeaders("user-token"),
+
+    expect(response.status).toBe(201);
+
+    const booking =
+      await persistenceApp.prisma.bookingRequest.findUniqueOrThrow({
+        where: {
+          id: fixture.bookingRequestId,
+        },
+      });
+    const renting = await persistenceApp.prisma.renting.findUnique({
+      where: {
+        bookingRequestId: fixture.bookingRequestId,
       },
-    );
-    const updateInstructionsResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1/instructions")}`,
+    });
+
+    expect(booking.convertedAt).not.toBeNull();
+    expect(booking.conversionReservedAt).toBeNull();
+    expect(booking.conversionReservationExpiresAt).toBeNull();
+    expect(renting).toMatchObject({
+      bookingRequestId: fixture.bookingRequestId,
+      status: "confirmed",
+    });
+
+    const rentingConfirmedEvent =
+      await waitForRabbitMqPayload<RecommendationActivityEventPayload>(
+        persistenceApp.infra.rabbitMq,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+        (payload) =>
+          payload.eventType === "renting_confirmed" &&
+          payload.postingId === OWNER_POSTING_ID &&
+          payload.metadata?.rentingId === renting?.id &&
+          payload.metadata?.bookingRequestId === fixture.bookingRequestId,
+      );
+    expect(rentingConfirmedEvent).toMatchObject({
+      eventType: "renting_confirmed",
+      postingId: OWNER_POSTING_ID,
+      actorUserId: renting?.renterId,
+      source: "renting_flow",
+      metadata: expect.objectContaining({
+        rentingId: renting?.id,
+        bookingRequestId: fixture.bookingRequestId,
+        guestCount: 2,
+      }),
+    });
+  });
+
+  it("persists renting lifecycle transitions and disputes", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const fixture = await createRentingFixture(persistenceApp, {
+      status: "confirmed",
+    });
+    const renter = await createAuthenticatedRequestContext({
+      email: fixture.renterEmail,
+    });
+
+    const updateInstructionsResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/instructions`)}`,
       {
         method: "PUT",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
         body: JSON.stringify({
           pickupInstructions: "Meet at the lobby desk.",
           returnInstructions: "Leave the keys in the lockbox.",
         }),
       },
     );
-    const checkInReadyResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1/check-in-ready")}`,
+    const checkInReadyResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/check-in-ready`)}`,
       {
         method: "POST",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
       },
     );
-    const checkInResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1/check-in")}`,
+    const checkInResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/check-in`)}`,
       {
         method: "POST",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
       },
     );
-    const returnResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1/return")}`,
+    const returnResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/return`)}`,
       {
         method: "POST",
-        headers: authHeaders("owner-token"),
+        headers: owner.headers(),
       },
     );
-    const disputeResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1/disputes")}`,
+    const disputeResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/disputes`)}`,
       {
         method: "POST",
-        headers: authHeaders("user-token"),
+        headers: renter.headers(),
         body: JSON.stringify({
           reason: "Missing equipment",
           details: "One monitor was missing at pickup.",
         }),
       },
     );
-    const getByIdResponse = await app.request(
-      `http://rent.test${buildApiPath("/rentings/renting-1")}`,
-      {
-        headers: authHeaders("owner-token"),
-      },
-    );
 
-    expect(convertResponse.status).toBe(201);
-    expect(listMineResponse.status).toBe(200);
     expect(updateInstructionsResponse.status).toBe(200);
     expect(checkInReadyResponse.status).toBe(200);
     expect(checkInResponse.status).toBe(200);
     expect(returnResponse.status).toBe(200);
     expect(disputeResponse.status).toBe(201);
-    expect(getByIdResponse.status).toBe(200);
 
-    expect(rentingsService.convertApprovedBookingRequest).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
-    });
     expect(
-      recommendationActivityPublisher.publishRentingConfirmed,
-    ).toHaveBeenCalledTimes(1);
-    expect(rentingsService.listMine).toHaveBeenCalledWith({
-      userId: "user-1",
-      page: 1,
-      pageSize: 20,
-      status: "confirmed",
-    });
-    expect(rentingsService.updateInstructions).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
-      actorRole: "owner",
+      await persistenceApp.prisma.renting.findUniqueOrThrow({
+        where: {
+          id: fixture.rentingId,
+        },
+      }),
+    ).toMatchObject({
+      status: "disputed",
       pickupInstructions: "Meet at the lobby desk.",
       returnInstructions: "Leave the keys in the lockbox.",
+      completedAt: expect.any(Date),
+      disputedAt: expect.any(Date),
     });
-    expect(rentingsService.markCheckInReady).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
-      actorRole: "owner",
-    });
-    expect(rentingsService.markCheckInComplete).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
-      actorRole: "owner",
-    });
-    expect(rentingsService.markCompleted).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
-      actorRole: "owner",
-    });
-    expect(rentingsService.createDispute).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "user-1",
-      actorRole: "user",
+    expect(
+      await persistenceApp.prisma.rentingDispute.findFirst({
+        where: {
+          rentingId: fixture.rentingId,
+          openedByUserId: renter.userId,
+        },
+      }),
+    ).toMatchObject({
       reason: "Missing equipment",
       details: "One monitor was missing at pickup.",
     });
-    expect(rentingsService.getById).toHaveBeenCalledWith(
-      "renting-1",
-      "owner-1",
-      "owner",
+  });
+
+  it("does not mutate a renting on invalid dispute submissions", async () => {
+    const fixture = await createRentingFixture(persistenceApp, {
+      status: "completed",
+    });
+    const renter = await createAuthenticatedRequestContext({
+      email: fixture.renterEmail,
+    });
+    const beforeCount = await persistenceApp.prisma.rentingDispute.count({
+      where: {
+        rentingId: fixture.rentingId,
+      },
+    });
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${fixture.rentingId}/disputes`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          reason: "",
+          details: "",
+        }),
+      },
     );
+
+    expect(response.status).toBe(400);
+    expect(
+      await persistenceApp.prisma.rentingDispute.count({
+        where: {
+          rentingId: fixture.rentingId,
+        },
+      }),
+    ).toBe(beforeCount);
   });
 });

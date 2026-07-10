@@ -13,6 +13,8 @@ import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
   MAX_BATCH_IDS,
   MAX_BOOKING_DURATION_DAYS_LIMIT,
+  MIN_BOOKING_DURATION_DAYS_LIMIT,
+  MAX_ADVANCE_NOTICE_DAYS_LIMIT,
   MAX_POSTING_PHOTOS,
   MAX_SEARCH_RESULT_WINDOW,
   type BatchPostingsResult,
@@ -463,6 +465,10 @@ export class PostingsService {
       availabilityStatus: input.availabilityStatus,
       availabilityNotes: input.availabilityNotes?.trim() || null,
       maxBookingDurationDays: input.maxBookingDurationDays ?? null,
+      minBookingDurationDays: input.minBookingDurationDays ?? null,
+      advanceNoticeDays: input.advanceNoticeDays ?? null,
+      cancellationPolicy: input.cancellationPolicy ?? null,
+      cancellationPolicyNotes: input.cancellationPolicyNotes?.trim() || null,
       availabilityBlocks: normalizedBlocks,
       location: {
         ...input.location,
@@ -634,6 +640,10 @@ export class PostingsService {
       availabilityStatus: posting.availabilityStatus,
       availabilityNotes: posting.availabilityNotes ?? null,
       maxBookingDurationDays: posting.maxBookingDurationDays ?? null,
+      minBookingDurationDays: posting.minBookingDurationDays ?? null,
+      advanceNoticeDays: posting.advanceNoticeDays ?? null,
+      cancellationPolicy: posting.cancellationPolicy ?? null,
+      cancellationPolicyNotes: posting.cancellationPolicyNotes ?? null,
       availabilityBlocks: availabilityBlocks.map((block) => ({
         startAt: block.startAt,
         endAt: block.endAt,
@@ -891,6 +901,38 @@ export class PostingsService {
     ) {
       throw new BadRequestError(
         `Maximum booking duration must be an integer between 1 and ${MAX_BOOKING_DURATION_DAYS_LIMIT} days.`,
+      );
+    }
+
+    if (
+      input.minBookingDurationDays !== undefined &&
+      input.minBookingDurationDays !== null &&
+      (!Number.isInteger(input.minBookingDurationDays) ||
+        input.minBookingDurationDays < 1 ||
+        input.minBookingDurationDays > MIN_BOOKING_DURATION_DAYS_LIMIT)
+    ) {
+      throw new BadRequestError(
+        `Minimum booking duration must be an integer between 1 and ${MIN_BOOKING_DURATION_DAYS_LIMIT} days.`,
+      );
+    }
+
+    const min = input.minBookingDurationDays;
+    const max = input.maxBookingDurationDays;
+    if (min != null && max != null && min > max) {
+      throw new BadRequestError(
+        "Minimum booking duration cannot exceed maximum booking duration.",
+      );
+    }
+
+    if (
+      input.advanceNoticeDays !== undefined &&
+      input.advanceNoticeDays !== null &&
+      (!Number.isInteger(input.advanceNoticeDays) ||
+        input.advanceNoticeDays < 0 ||
+        input.advanceNoticeDays > MAX_ADVANCE_NOTICE_DAYS_LIMIT)
+    ) {
+      throw new BadRequestError(
+        `Advance notice must be an integer between 0 and ${MAX_ADVANCE_NOTICE_DAYS_LIMIT} days.`,
       );
     }
   }

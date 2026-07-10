@@ -206,6 +206,20 @@ export class PostingsReviewsRepository extends BaseRepository {
     };
   }
 
+  async updatePostingRatingStats(postingId: string): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE postings
+      SET
+        average_rating = (
+          SELECT AVG(rating) FROM posting_reviews WHERE posting_id = ${postingId}
+        ),
+        review_count = (
+          SELECT COUNT(*) FROM posting_reviews WHERE posting_id = ${postingId}
+        )
+      WHERE id = ${postingId}
+    `;
+  }
+
   private mapSummary(
     aggregate: PostingReviewAggregatePersistence,
   ): PostingReviewSummary {

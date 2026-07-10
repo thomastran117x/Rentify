@@ -565,6 +565,7 @@ describe("jwt middleware helpers", () => {
         trackPublicView,
       } as never,
       {} as never,
+      {} as never,
       {
         publishPostingView: async () => undefined,
       } as never,

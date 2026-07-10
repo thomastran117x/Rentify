@@ -34,6 +34,8 @@ export interface BookingQuoteFailureReason {
     | "posting_unavailable"
     | "invalid_dates"
     | "max_duration_exceeded"
+    | "min_duration_not_met"
+    | "advance_notice_not_met"
     | "invalid_guest_count"
     | "guest_count_exceeded"
     | "note_too_long"
@@ -53,6 +55,11 @@ export interface BookingQuoteResult {
   dailyPriceAmount: number;
   estimatedTotal: number | null;
   maxBookingDurationDays: number;
+  minBookingDurationDays: number | null;
+  advanceNoticeDays: number | null;
+  instantBooking: boolean;
+  cancellationPolicy: "flexible" | "moderate" | "strict" | null;
+  cancellationPolicyNotes: string | null;
   failureReasons: BookingQuoteFailureReason[];
 }
 

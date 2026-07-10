@@ -522,6 +522,8 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
       updatedAt: "2026-04-18T00:00:00.000Z",
     })),
     location: input.location,
+    instantBooking: input.instantBooking ?? false,
+    reviewCount: 0,
     publishedAt: undefined,
     pausedAt: undefined,
     archivedAt: undefined,
@@ -689,6 +691,102 @@ describe("PostingsService", () => {
       "posting-1",
     ]);
     expect(created.tags).toEqual(["loft", "transit"]);
+  });
+
+  it("persists minBookingDurationDays, advanceNoticeDays, and cancellationPolicy on create", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      minBookingDurationDays: 3,
+      advanceNoticeDays: 2,
+      cancellationPolicy: "moderate",
+      cancellationPolicyNotes: "50% refund within 48h.",
+    };
+
+    await service.createDraft("owner-1", input);
+
+    expect(repository.lastCreateInput).toMatchObject({
+      minBookingDurationDays: 3,
+      advanceNoticeDays: 2,
+      cancellationPolicy: "moderate",
+      cancellationPolicyNotes: "50% refund within 48h.",
+    });
+  });
+
+  it("rejects when minBookingDurationDays exceeds maxBookingDurationDays", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      minBookingDurationDays: 10,
+      maxBookingDurationDays: 5,
+    };
+
+    const error = await service
+      .createDraft("owner-1", input)
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(BadRequestError);
+    expect((error as BadRequestError).message).toContain(
+      "Minimum booking duration cannot exceed maximum booking duration.",
+    );
+    expect(repository.createCalls).toBe(0);
+  });
+
+  it("accepts when minBookingDurationDays equals maxBookingDurationDays", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      minBookingDurationDays: 7,
+      maxBookingDurationDays: 7,
+    };
+
+    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    expect(repository.createCalls).toBe(1);
+  });
+
+  it("rejects when minBookingDurationDays is set without maxBookingDurationDays and the value is still valid alone", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      minBookingDurationDays: 3,
+      maxBookingDurationDays: null,
+    };
+
+    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    expect(repository.createCalls).toBe(1);
+  });
+
+  it("rejects advanceNoticeDays that is out of allowed range", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      advanceNoticeDays: 400,
+    };
+
+    const error = await service
+      .createDraft("owner-1", input)
+      .catch((caughtError: unknown) => caughtError);
+
+    expect(error).toBeInstanceOf(BadRequestError);
+    expect((error as BadRequestError).message).toContain("Advance notice");
+    expect(repository.createCalls).toBe(0);
+  });
+
+  it("accepts advanceNoticeDays of 0 (same-day booking)", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const input: UpsertPostingInput = {
+      ...createValidInput(),
+      advanceNoticeDays: 0,
+    };
+
+    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    expect(repository.createCalls).toBe(1);
   });
 
   it("duplicates an owner posting into a new draft with owner-authored availability and copied photos", async () => {

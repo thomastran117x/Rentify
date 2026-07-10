@@ -46,8 +46,13 @@ import { flowLockKeys, withFlowLocks } from "@/features/cache/cache-locks";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
-import type { PostingRecord } from "@/features/postings/postings.model";
+import type {
+  PostingPricing,
+  PostingRecord,
+} from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
+import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type { PaymentsRepository } from "@/features/payments/payments.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
@@ -99,6 +104,7 @@ export class BookingsService {
     private readonly paymentsRepository: PaymentsRepository,
     private readonly paymentProvider: PaymentProviderAdapter,
     private readonly organizationAccessService: OrganizationAccessService,
+    private readonly seasonalPricingRepository: SeasonalPricingRepository,
   ) {}
 
   async create(
@@ -137,8 +143,16 @@ export class BookingsService {
               pricingCurrency: lockedPosting.pricing.currency,
               pricingSnapshot: lockedPosting.pricing,
               dailyPriceAmount: lockedPosting.pricing.daily.amount,
-              estimatedTotal:
-                lockedPosting.pricing.daily.amount * normalized.durationDays,
+              estimatedTotal: this.calculateEstimatedTotal(
+                lockedPosting.pricing,
+                normalized.durationDays,
+                normalized.startAt,
+                await this.seasonalPricingRepository.findOverlappingForBooking(
+                  lockedPosting.id,
+                  normalized.startAt,
+                  normalized.endAt,
+                ),
+              ),
               holdExpiresAt: this.addHours(
                 new Date(),
                 PENDING_BOOKING_HOLD_HOURS,
@@ -153,17 +167,43 @@ export class BookingsService {
           );
         }
 
+        if (lockedPosting.instantBooking) {
+          const approved = await this.bookingsRepository.approve(
+            bookingRequest.id,
+            bookingRequest.organizationId,
+            null,
+            this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
+          );
+          if (!approved) {
+            throw new ConflictError(
+              "Booking was created but could not be instantly approved. Please try again.",
+            );
+          }
+          return { ...approved, autoApproved: true as const };
+        }
+
         return bookingRequest;
       },
       "Another request is already modifying this posting's booking availability. Please retry.",
     );
 
+    // Fire booking_requested with the original pending record, then booking_approved separately
+    // so analytics pipelines always see a clean pending→approved state transition.
     await this.postingsAnalyticsRepository.enqueueBookingRequestedEvent({
       postingId: created.postingId,
       organizationId: created.organizationId,
       occurredAt: created.createdAt,
       estimatedTotal: created.estimatedTotal,
     });
+
+    if ("autoApproved" in created && created.autoApproved) {
+      await this.postingsAnalyticsRepository.enqueueBookingApprovedEvent({
+        postingId: created.postingId,
+        organizationId: created.organizationId,
+        occurredAt: created.approvedAt ?? new Date().toISOString(),
+      });
+    }
+
     await invalidatePublicPostingProjection(
       this.postingsPublicCacheService,
       created.postingId,
@@ -176,8 +216,20 @@ export class BookingsService {
   async quote(input: BookingQuoteInput): Promise<BookingQuoteResult> {
     const validation = await this.validateBookingRequest(input);
     const { posting, normalized } = validation;
+    const seasonalRules = normalized
+      ? await this.seasonalPricingRepository.findOverlappingForBooking(
+          posting.id,
+          normalized.startAt,
+          normalized.endAt,
+        )
+      : [];
     const estimatedTotal = normalized
-      ? posting.pricing.daily.amount * normalized.durationDays
+      ? this.calculateEstimatedTotal(
+          posting.pricing,
+          normalized.durationDays,
+          normalized.startAt,
+          seasonalRules,
+        )
       : null;
 
     return {
@@ -188,6 +240,11 @@ export class BookingsService {
       dailyPriceAmount: posting.pricing.daily.amount,
       estimatedTotal,
       maxBookingDurationDays: validation.maxBookingDurationDays,
+      minBookingDurationDays: posting.minBookingDurationDays ?? null,
+      advanceNoticeDays: posting.advanceNoticeDays ?? null,
+      instantBooking: posting.instantBooking,
+      cancellationPolicy: posting.cancellationPolicy ?? null,
+      cancellationPolicyNotes: posting.cancellationPolicyNotes ?? null,
       failureReasons: validation.failureReasons,
     };
   }
@@ -518,6 +575,13 @@ export class BookingsService {
           normalized.endAt,
         );
 
+        const updateSeasonalRules =
+          await this.seasonalPricingRepository.findOverlappingForBooking(
+            posting.id,
+            normalized.startAt,
+            normalized.endAt,
+          );
+
         const nextBookingRequest = await this.bookingsRepository.updatePending(
           lockedBookingRequest.id,
           input.renterId,
@@ -533,8 +597,12 @@ export class BookingsService {
             pricingCurrency: posting.pricing.currency,
             pricingSnapshot: posting.pricing,
             dailyPriceAmount: posting.pricing.daily.amount,
-            estimatedTotal:
-              posting.pricing.daily.amount * normalized.durationDays,
+            estimatedTotal: this.calculateEstimatedTotal(
+              posting.pricing,
+              normalized.durationDays,
+              normalized.startAt,
+              updateSeasonalRules,
+            ),
           },
         );
 
@@ -1816,6 +1884,15 @@ export class BookingsService {
       );
     }
 
+    const dateFailure = this.checkBookingDateConstraints(
+      posting,
+      startAt,
+      durationDays,
+    );
+    if (dateFailure) {
+      throw new BadRequestError(dateFailure.message);
+    }
+
     const guestCount = this.resolveGuestCountOrThrow(input.guestCount, posting);
 
     const note = input.note?.trim() || null;
@@ -1892,6 +1969,15 @@ export class BookingsService {
           maxBookingDurationDays,
         },
       });
+    }
+
+    const dateFailure = this.checkBookingDateConstraints(
+      posting,
+      startAt,
+      durationDays,
+    );
+    if (dateFailure) {
+      failureReasons.push(dateFailure);
     }
 
     const guestCount = this.resolveGuestCountOrCollectFailures(
@@ -2184,6 +2270,93 @@ export class BookingsService {
         "The requested dates are already reserved by an existing renting.",
       );
     }
+  }
+
+  private effectiveDailyRate(
+    pricing: PostingPricing,
+    durationDays: number,
+  ): number {
+    if (durationDays >= 28 && pricing.monthly)
+      return pricing.monthly.amount / 30;
+    if (durationDays >= 7 && pricing.weekly) return pricing.weekly.amount / 7;
+    return pricing.daily.amount;
+  }
+
+  private calculateEstimatedTotal(
+    pricing: PostingPricing,
+    durationDays: number,
+    startAt?: Date,
+    seasonalRules?: SeasonalPricingRecord[],
+  ): number {
+    if (startAt && seasonalRules && seasonalRules.length > 0) {
+      const baseDailyRate = this.effectiveDailyRate(pricing, durationDays);
+      let total = 0;
+      for (let i = 0; i < durationDays; i++) {
+        const day = new Date(startAt);
+        day.setUTCDate(day.getUTCDate() + i);
+        const dateStr = day.toISOString().slice(0, 10);
+        // When multiple rules overlap a day, prefer the one with the latest endDate
+        // (most specific/recent range wins). Round each addend to cents before summing
+        // to avoid IEEE 754 drift across many days.
+        const rule = seasonalRules
+          .filter((r) => r.startDate <= dateStr && r.endDate >= dateStr)
+          .sort((a, b) => (a.endDate < b.endDate ? 1 : -1))[0];
+        const dayRate = rule ? rule.dailyAmount : baseDailyRate;
+        total += Math.round(dayRate * 100) / 100;
+      }
+      return Math.round(total * 100) / 100;
+    }
+
+    if (durationDays >= 28 && pricing.monthly) {
+      return (
+        Math.round((pricing.monthly.amount / 30) * durationDays * 100) / 100
+      );
+    }
+    if (durationDays >= 7 && pricing.weekly) {
+      return Math.round((pricing.weekly.amount / 7) * durationDays * 100) / 100;
+    }
+    return Math.round(pricing.daily.amount * durationDays * 100) / 100;
+  }
+
+  private checkBookingDateConstraints(
+    posting: PostingRecord,
+    startAt: Date,
+    durationDays: number,
+  ): BookingQuoteFailureReason | null {
+    if (
+      posting.minBookingDurationDays &&
+      durationDays < posting.minBookingDurationDays
+    ) {
+      return {
+        code: "min_duration_not_met",
+        field: "endAt",
+        message: `Booking duration must be at least ${posting.minBookingDurationDays} day${posting.minBookingDurationDays === 1 ? "" : "s"}.`,
+        details: {
+          durationDays,
+          minBookingDurationDays: posting.minBookingDurationDays,
+        },
+      };
+    }
+
+    if (posting.advanceNoticeDays != null) {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const minStart = new Date(today);
+      minStart.setUTCDate(today.getUTCDate() + posting.advanceNoticeDays);
+      if (startAt < minStart) {
+        return {
+          code: "advance_notice_not_met",
+          field: "startAt",
+          message: `This listing requires ${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice.`,
+          details: {
+            advanceNoticeDays: posting.advanceNoticeDays,
+            requiredStartDate: minStart.toISOString(),
+          },
+        };
+      }
+    }
+
+    return null;
   }
 
   private addHours(date: Date, hours: number): Date {
