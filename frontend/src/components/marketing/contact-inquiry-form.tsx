@@ -132,10 +132,10 @@ function validateFeedback(
 
 function getFieldClassName(hasError: boolean) {
   return [
-    "rounded-2xl border bg-white/90 px-4 py-3 text-slate-900 outline-none transition",
+    "rounded-2xl border bg-white/90 dark:bg-slate-900/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition",
     hasError
-      ? "border-rose-300 focus:border-rose-400"
-      : "border-slate-200 focus:border-violet-300 focus:bg-white",
+      ? "border-rose-300 dark:border-rose-800 focus:border-rose-400"
+      : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white",
   ].join(" ");
 }
 
@@ -259,10 +259,10 @@ export function ContactInquiryForm() {
     <form
       onSubmit={handleSubmit}
       noValidate
-      className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/10 sm:p-8"
+      className="rounded-[2.25rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl shadow-slate-950/10 sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm text-slate-600">
+        <label className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
           Name
           <input
             type="text"
@@ -276,7 +276,7 @@ export function ContactInquiryForm() {
           <FieldErrorMessage id="contact-name-error" message={errors.name} />
         </label>
 
-        <label className="grid gap-2 text-sm text-slate-600">
+        <label className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
           Email
           <input
             type="email"
@@ -292,7 +292,7 @@ export function ContactInquiryForm() {
       </div>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-[0.95fr_1.05fr]">
-        <label className="grid gap-2 text-sm text-slate-600">
+        <label className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
           Feedback type
           <select
             value={values.category}
@@ -317,13 +317,13 @@ export function ContactInquiryForm() {
           />
         </label>
 
-        <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
+        <div className="rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
           {CATEGORY_OPTIONS.find((option) => option.value === values.category)
             ?.description ?? "Tell us what happened and what would help."}
         </div>
       </div>
 
-      <label className="mt-5 grid gap-2 text-sm text-slate-600">
+      <label className="mt-5 grid gap-2 text-sm text-slate-600 dark:text-slate-300">
         What should the team know?
         <textarea
           rows={6}
@@ -335,10 +335,10 @@ export function ContactInquiryForm() {
             errors.message ? "contact-message-error" : undefined
           }
           className={[
-            "rounded-[1.5rem] border bg-white/90 px-4 py-3 text-slate-900 outline-none transition",
+            "rounded-[1.5rem] border bg-white/90 dark:bg-slate-900/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition",
             errors.message
-              ? "border-rose-300 focus:border-rose-400"
-              : "border-slate-200 focus:border-violet-300 focus:bg-white",
+              ? "border-rose-300 dark:border-rose-800 focus:border-rose-400"
+              : "border-slate-200 dark:border-slate-800 focus:border-violet-300 focus:bg-white",
           ].join(" ")}
         />
         <FieldErrorMessage
@@ -348,7 +348,7 @@ export function ContactInquiryForm() {
       </label>
 
       {isAuthenticated && session ? (
-        <div className="mt-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm leading-6 text-emerald-900">
+        <div className="mt-5 rounded-[1.5rem] border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-4 text-sm leading-6 text-emerald-900 dark:text-emerald-200">
           Signed in as {session.user.email}. We will attach your account context
           automatically so the team can better understand the feedback.
         </div>
@@ -372,7 +372,7 @@ export function ContactInquiryForm() {
       ) : null}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-md text-xs leading-6 text-slate-500">
+        <p className="max-w-md text-xs leading-6 text-slate-500 dark:text-slate-400">
           Product feedback helps us improve search, booking, owner workflows,
           and overall app usability. Include enough detail for the team to
           reproduce the issue or understand the request.
@@ -388,7 +388,7 @@ export function ContactInquiryForm() {
       </div>
 
       {successMessage ? (
-        <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+        <div className="mt-5 rounded-3xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-5 py-4 text-sm text-emerald-900 dark:text-emerald-200">
           {successMessage}
         </div>
       ) : null}

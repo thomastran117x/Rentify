@@ -55,16 +55,16 @@ export function MarketingHeroSearch() {
     <div className="mt-8">
       <form
         onSubmit={handleSubmit}
-        className="rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-950/5"
+        className="rounded-[1.75rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xl shadow-slate-950/5"
       >
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <PostingAutocompleteInput
             label="Search the marketplace"
             placeholder="Search rentals, equipment, spaces, and more"
-            shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
+            shellClassName="group flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 transition duration-200 focus-within:border-violet-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10"
             icon={<SearchIcon />}
-            iconClassName="text-slate-400 transition group-focus-within:text-violet-600"
-            inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            iconClassName="text-slate-400 dark:text-slate-500 transition group-focus-within:text-violet-600"
+            inputClassName="min-w-0 flex-1 bg-transparent text-sm text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
 
           <button
@@ -77,13 +77,15 @@ export function MarketingHeroSearch() {
       </form>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-slate-500">Popular:</span>
+        <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          Popular:
+        </span>
         {suggestedSearches.map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => handleSuggestedSearch(item)}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+            className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-700 dark:hover:text-violet-300"
           >
             {item}
           </button>

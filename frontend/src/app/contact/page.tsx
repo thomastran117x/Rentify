@@ -37,13 +37,13 @@ export default function ContactPage() {
       ]}
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Product signal
           </p>
-          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+          <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
             Bugs, ideas, and friction
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Share the workflow, page, or moment that needs attention so the team
             can prioritize the next improvements with better context.
           </p>
@@ -55,12 +55,12 @@ export default function ContactPage() {
           {contactChannels.map((channel) => (
             <article
               key={channel.label}
-              className="rounded-[2rem] border border-slate-200 bg-white px-6 py-6 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-6 shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
                 {channel.label}
               </p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                 {channel.value}
               </p>
             </article>

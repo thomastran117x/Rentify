@@ -50,13 +50,13 @@ export default function AccessibilityPage() {
       ]}
       aside={
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
             Need an accommodation
           </p>
-          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
             We want to help.
           </p>
-          <p className="mt-4 text-sm leading-7 text-slate-600">
+          <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             If a feature, page, or workflow is difficult to use, tell us what is
             getting in the way and what format would work better for you.
           </p>
@@ -73,12 +73,12 @@ export default function AccessibilityPage() {
           {accessibilityAreas.map((area) => (
             <article
               key={area.title}
-              className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+              className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
             >
-              <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
+              <h2 className="text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                 {area.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
+              <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {area.body}
               </p>
             </article>

@@ -55,19 +55,19 @@ export default function ServicesPage() {
       aside={
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-violet-700 dark:text-violet-300">
               Typical scope
             </p>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
               Search, discovery, listing detail experiences, owner tooling, and
               the supporting static pages that help users trust the marketplace.
             </p>
           </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+          <div className="rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
               Best for
             </p>
-            <p className="mt-2 text-sm leading-7 text-slate-900">
+            <p className="mt-2 text-sm leading-7 text-slate-900 dark:text-white">
               Renters comparing options, hosts presenting listings, and
               operations teams who need a clearer marketplace front door.
             </p>
@@ -79,31 +79,31 @@ export default function ServicesPage() {
         {serviceGroups.map((group, index) => (
           <article
             key={group.name}
-            className="rounded-[2rem] border border-slate-200 bg-white px-6 py-7 shadow-sm"
+            className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-7 shadow-sm"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
               Service 0{index + 1}
             </p>
-            <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950">
+            <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
               {group.name}
             </h2>
-            <p className="mt-4 text-sm leading-7 text-slate-600">
+            <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
               {group.description}
             </p>
           </article>
         ))}
       </section>
 
-      <section className="mt-14 rounded-[2.5rem] border border-slate-200 bg-slate-50 px-7 py-9 shadow-sm sm:px-9">
+      <section className="mt-14 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-7 py-9 shadow-sm sm:px-9">
         <div className="grid gap-7 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-700 dark:text-violet-300">
               Need a hand
             </p>
-            <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950">
+            <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
               We can help you figure out the right path on the marketplace.
             </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
               If you are trying to find a rental, list an asset, or understand
               how a policy affects your booking flow, the contact page is the
               next stop.
