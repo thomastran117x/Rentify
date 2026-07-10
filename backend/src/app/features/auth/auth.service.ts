@@ -1028,6 +1028,7 @@ export class AuthService {
       to: recipient.email,
       verificationCode: issuedOtp.code,
       firstName: recipient.firstName,
+      expiresInMinutes: Math.round(issuedOtp.ttlInSeconds / 60),
     });
   }
 
@@ -1063,6 +1064,7 @@ export class AuthService {
         to: user.email,
         resetCode: issuedOtp.code,
         firstName: user.firstName,
+        expiresInMinutes: Math.round(issuedOtp.ttlInSeconds / 60),
       });
     } catch (error) {
       if (error instanceof Error && error.name === "TooManyRequestError") {

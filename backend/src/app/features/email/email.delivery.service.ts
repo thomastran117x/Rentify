@@ -137,6 +137,7 @@ export class EmailDeliveryService {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedVerificationCode = escapeHtml(input.verificationCode);
+    const expiryCopy = this.formatExpiryCopy(input.expiresInMinutes);
 
     await this.sendWithRetry({
       to: input.to,
@@ -144,18 +145,25 @@ export class EmailDeliveryService {
       text: [
         `Hi ${greetingName},`,
         "",
-        "Welcome to Rent. Please verify your email address to finish setting up your account.",
+        "Welcome to Rentify. Please verify your email address to finish setting up your account.",
         "",
         `Verification code: ${input.verificationCode}`,
         "",
-        "This code expires soon. If you did not create this account, you can safely ignore this email.",
+        `${expiryCopy} If you did not create this account, you can safely ignore this email.`,
       ].join("\n"),
-      html: [
-        `<p>Hi ${escapedGreetingName},</p>`,
-        "<p>Welcome to Rent. Please verify your email address to finish setting up your account.</p>",
-        `<p>Your verification code is:</p><p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedVerificationCode}</p>`,
-        "<p>This code expires soon. If you did not create this account, you can safely ignore this email.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Verify your email address</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Welcome to Rentify. Please verify your email address to finish setting up your account. Once verified, you&rsquo;ll have full access to browse listings, save searches, and manage your account.</p>`,
+          this.buildCodeBlock("Verification code", escapedVerificationCode),
+          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">${escapeHtml(expiryCopy)}</p>`,
+          this.buildAlertBox(
+            "Didn&rsquo;t create this account? You can safely ignore this email &mdash; no action is needed.",
+            "info",
+          ),
+        ].join(""),
+      ),
     });
   }
 
@@ -177,13 +185,19 @@ export class EmailDeliveryService {
         "This code expires soon and only works for your current signed-in session.",
         "If you did not request this action, you should review your account security.",
       ].join("\n"),
-      html: [
-        `<p>Hi ${escapedGreetingName},</p>`,
-        "<p>Use this code to confirm the MFA-related change you just requested on your account.</p>",
-        `<p>Your verification code is:</p><p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedVerificationCode}</p>`,
-        "<p>This code expires soon and only works for your current signed-in session.</p>",
-        "<p>If you did not request this action, you should review your account security.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Confirm your security action</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Use this code to confirm the MFA-related change you just requested on your account.</p>`,
+          this.buildCodeBlock("Verification code", escapedVerificationCode),
+          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">This code expires soon and only works for your current signed-in session.</p>`,
+          this.buildAlertBox(
+            "Didn&rsquo;t request this action? Your account security may be at risk &mdash; review your account security settings immediately.",
+            "warning",
+          ),
+        ].join(""),
+      ),
     });
   }
 
@@ -197,8 +211,12 @@ export class EmailDeliveryService {
           : new Date();
     const details = this.buildDeviceDetails(input, detectedAt);
     const htmlDetails = details
-      .map((detail) => `<li>${escapeHtml(detail)}</li>`)
+      .map(
+        (detail, index) =>
+          `<div style="padding:8px 0;${index < details.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:13px;color:#334155;line-height:1.6;">${escapeHtml(detail)}</div>`,
+      )
       .join("");
+    const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
 
     await this.sendWithRetry({
       to: input.to,
@@ -213,13 +231,19 @@ export class EmailDeliveryService {
         "If this was you, no action is needed.",
         "If this wasn't you, please change your password and review account access immediately.",
       ].join("\n"),
-      html: [
-        `<p>Hi ${escapeHtml(greetingName)},</p>`,
-        "<p>We noticed a sign-in from a new device on your account.</p>",
-        `<ul>${htmlDetails}</ul>`,
-        "<p>If this was you, no action is needed.</p>",
-        "<p>If this wasn't you, please change your password and review account access immediately.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">New sign-in detected</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 4px;font-size:14px;color:#334155;line-height:1.7;">We noticed a sign-in from a new device on your account.</p>`,
+          `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px;margin:16px 0;">${htmlDetails}</div>`,
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
+          this.buildAlertBox(
+            `If this wasn&rsquo;t you, <strong>change your password and review account access immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>`,
+            "warning",
+          ),
+        ].join(""),
+      ),
     });
   }
 
@@ -241,14 +265,19 @@ export class EmailDeliveryService {
         "Enter this code on the unlock screen to restore access.",
         "If this wasn't you, you can ignore this email and consider changing your password.",
       ].join("\n"),
-      html: [
-        `<p>Hi ${escapedGreetingName},</p>`,
-        "<p>We temporarily locked local sign-in after too many unsuccessful password attempts.</p>",
-        "<p>Your unlock code is:</p>",
-        `<p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedUnlockCode}</p>`,
-        "<p>Enter this code on the unlock screen to restore access.</p>",
-        "<p>If this wasn't you, you can ignore this email and consider changing your password.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your account was temporarily locked</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">We locked local sign-in after too many unsuccessful password attempts to protect your account. Use the code below to restore access.</p>`,
+          this.buildCodeBlock("Unlock code", escapedUnlockCode),
+          `<p style="margin:8px 0 0;font-size:14px;color:#334155;line-height:1.7;text-align:center;">Enter this code on the unlock screen to restore access.</p>`,
+          this.buildAlertBox(
+            "Not you? Someone may be attempting to access your account. Your account remains locked until the code is used &mdash; consider changing your password if you didn&rsquo;t trigger this.",
+            "info",
+          ),
+        ].join(""),
+      ),
     });
   }
 
@@ -258,6 +287,7 @@ export class EmailDeliveryService {
     const greetingName = this.resolveGreetingName(input.firstName);
     const escapedGreetingName = escapeHtml(greetingName);
     const escapedResetCode = escapeHtml(input.resetCode);
+    const expiryCopy = this.formatExpiryCopy(input.expiresInMinutes);
 
     await this.sendWithRetry({
       to: input.to,
@@ -270,16 +300,21 @@ export class EmailDeliveryService {
         `Reset code: ${input.resetCode}`,
         "",
         "Enter this code to choose a new password.",
-        "If you didn't request this, you can ignore this email.",
+        `${expiryCopy} If you didn't request this, you can ignore this email.`,
       ].join("\n"),
-      html: [
-        `<p>Hi ${escapedGreetingName},</p>`,
-        "<p>We received a request to reset your password.</p>",
-        "<p>Your reset code is:</p>",
-        `<p style=\"font-size: 28px; font-weight: 700; letter-spacing: 0.3em;\">${escapedResetCode}</p>`,
-        "<p>Enter this code to choose a new password.</p>",
-        "<p>If you didn't request this, you can ignore this email.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Reset your password</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">We received a request to reset the password for your Rentify account. Enter the code below to choose a new password.</p>`,
+          this.buildCodeBlock("Reset code", escapedResetCode),
+          `<p style="margin:8px 0 0;font-size:13px;color:#64748b;text-align:center;">${escapeHtml(expiryCopy)} Never share it with anyone.</p>`,
+          this.buildAlertBox(
+            "Didn&rsquo;t request a password reset? Your password won&rsquo;t change &mdash; you can safely ignore this email.",
+            "info",
+          ),
+        ].join(""),
+      ),
     });
   }
 
@@ -292,6 +327,7 @@ export class EmailDeliveryService {
     const escapedInviterName = escapeHtml(input.inviterName);
     const escapedRoleLabel = escapeHtml(roleLabel);
     const escapedInviteUrl = escapeHtml(inviteUrl);
+    const escapedRoleLabelHtml = escapeHtml(this.formatRoleLabel(input.role));
 
     await this.sendWithRetry({
       to: input.to,
@@ -307,12 +343,19 @@ export class EmailDeliveryService {
         "",
         "This invite expires in 7 days.",
       ].join("\n"),
-      html: [
-        "<p>You have been invited to join an organization on Rent.</p>",
-        `<p><strong>Organization:</strong> ${escapedOrganizationName}<br /><strong>Invited by:</strong> ${escapedInviterName}<br /><strong>Role:</strong> ${escapedRoleLabel}</p>`,
-        `<p><a href=\"${escapedInviteUrl}\">Open this invite to review and accept it</a></p>`,
-        "<p>This invite expires in 7 days.</p>",
-      ].join(""),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">You&rsquo;ve been invited to join ${escapedOrganizationName}</h1>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">${escapedInviterName} has invited you to join an organization on Rentify as a <strong>${escapedRoleLabelHtml}</strong>.</p>`,
+          `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;">`,
+          `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;line-height:1.6;"><span style="font-weight:600;color:#020617;min-width:100px;display:inline-block;">Organization</span>${escapedOrganizationName}</div>`,
+          `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;line-height:1.6;"><span style="font-weight:600;color:#020617;min-width:100px;display:inline-block;">Invited by</span>${escapedInviterName}</div>`,
+          `<div style="padding:8px 0;font-size:13px;color:#334155;line-height:1.6;"><span style="font-weight:600;color:#020617;min-width:100px;display:inline-block;">Role</span>${escapedRoleLabelHtml}</div>`,
+          `</div>`,
+          this.buildCTAButton(escapedInviteUrl, "Accept Invitation"),
+          `<p style="margin:16px 0 0;font-size:13px;color:#64748b;text-align:center;">This invitation expires in 7 days. You can also <a href="${escapedInviteUrl}" style="color:#7c3aed;font-weight:600;">open the invite link directly</a>.</p>`,
+        ].join(""),
+      ),
     });
   }
 
@@ -357,6 +400,16 @@ export class EmailDeliveryService {
     return firstName?.trim() || "there";
   }
 
+  private formatExpiryCopy(expiresInMinutes?: number): string {
+    if (!expiresInMinutes || expiresInMinutes <= 0) {
+      return "This code expires soon.";
+    }
+
+    const minutes = Math.round(expiresInMinutes);
+    const unit = minutes === 1 ? "minute" : "minutes";
+    return `This code expires in ${minutes} ${unit}.`;
+  }
+
   private buildDeviceDetails(
     input: SendNewDeviceEmailInput,
     detectedAt: Date,
@@ -380,6 +433,68 @@ export class EmailDeliveryService {
     }
 
     return details;
+  }
+
+  private buildEmailHtml(body: string): string {
+    const year = new Date().getFullYear();
+    return [
+      `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head>`,
+      `<body style="margin:0;padding:0;background:#f8fafc;font-family:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">`,
+      `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px;">`,
+      `<tr><td align="center">`,
+      `<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">`,
+      `<tr><td align="center" style="padding:0 0 24px;">`,
+      `<table cellpadding="0" cellspacing="0" border="0"><tr>`,
+      `<td style="background:#7c3aed;border-radius:10px;width:36px;height:36px;text-align:center;vertical-align:middle;"><span style="color:#ffffff;font-size:15px;font-weight:700;letter-spacing:0.08em;line-height:36px;display:block;">R</span></td>`,
+      `<td style="padding-left:10px;vertical-align:middle;"><span style="font-size:18px;font-weight:600;color:#020617;letter-spacing:-0.02em;">Rentify</span></td>`,
+      `</tr></table>`,
+      `</td></tr>`,
+      `<tr><td style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;box-shadow:0 1px 3px rgba(2,6,23,0.04);">`,
+      body,
+      `</td></tr>`,
+      `<tr><td align="center" style="padding:24px 0 0;font-size:12px;color:#94a3b8;line-height:1.6;">`,
+      `<p style="margin:0;">&copy; ${year} Rentify &middot; This email was triggered by your account activity.</p>`,
+      `</td></tr>`,
+      `</table>`,
+      `</td></tr></table>`,
+      `</body></html>`,
+    ].join("");
+  }
+
+  private buildCodeBlock(label: string, code: string): string {
+    return [
+      `<div style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:12px;padding:24px 20px;text-align:center;margin:20px 0;">`,
+      `<p style="margin:0 0 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#7c3aed;">${label}</p>`,
+      `<p style="margin:0;font-size:32px;font-weight:700;letter-spacing:0.35em;color:#020617;">${code}</p>`,
+      `</div>`,
+    ].join("");
+  }
+
+  private buildAlertBox(message: string, variant: "warning" | "info"): string {
+    const styles =
+      variant === "warning"
+        ? { bg: "#fff1f2", border: "#fecdd3", text: "#9f1239" }
+        : { bg: "#f0f9ff", border: "#bae6fd", text: "#0369a1" };
+    return [
+      `<div style="background:${styles.bg};border:1px solid ${styles.border};border-radius:10px;padding:14px 16px;margin-top:20px;">`,
+      `<p style="margin:0;font-size:13px;color:${styles.text};line-height:1.6;">${message}</p>`,
+      `</div>`,
+    ].join("");
+  }
+
+  private buildCTAButton(href: string, label: string): string {
+    return [
+      `<div style="text-align:center;margin:24px 0;">`,
+      `<a href="${href}" style="display:inline-block;background:#7c3aed;color:#ffffff;font-size:14px;font-weight:600;padding:13px 28px;border-radius:10px;text-decoration:none;letter-spacing:-0.01em;box-shadow:0 1px 2px rgba(124,58,237,0.2);">${label}</a>`,
+      `</div>`,
+    ].join("");
+  }
+
+  private formatRoleLabel(role: string): string {
+    return role
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
 
   private isTransientError(error: unknown): boolean {

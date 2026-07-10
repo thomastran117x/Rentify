@@ -136,6 +136,7 @@ describe("EmailDeliveryService", () => {
       to: "user@example.com",
       firstName: "  <Mia>  ",
       verificationCode: `12<&"'34`,
+      expiresInMinutes: 10,
     });
     await service.sendVerificationEmail({
       to: "second@example.com",
@@ -158,9 +159,21 @@ describe("EmailDeliveryService", () => {
         html: expect.stringContaining("12&lt;&amp;&quot;&#39;34"),
       }),
     );
+    expect(transporter.sendMail.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        text: expect.stringContaining("This code expires in 10 minutes."),
+        html: expect.stringContaining("This code expires in 10 minutes."),
+      }),
+    );
     expect(transporter.sendMail.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({
         text: expect.stringContaining("Hi there,"),
+      }),
+    );
+    // Falls back to non-specific copy when no expiry is provided.
+    expect(transporter.sendMail.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        text: expect.stringContaining("This code expires soon."),
       }),
     );
   });
@@ -221,6 +234,7 @@ describe("EmailDeliveryService", () => {
       to: "user@example.com",
       firstName: "Kai",
       resetCode: "999000",
+      expiresInMinutes: 10,
     });
 
     expect(transporter.sendMail.mock.calls[0]?.[0]).toEqual(
@@ -233,6 +247,7 @@ describe("EmailDeliveryService", () => {
       expect.objectContaining({
         subject: "Reset your Rent password",
         text: expect.stringContaining("Reset code: 999000"),
+        html: expect.stringContaining("This code expires in 10 minutes."),
       }),
     );
   });
