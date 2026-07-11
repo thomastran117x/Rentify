@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorToast } from "@/components/errors";
+import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -33,21 +34,103 @@ function isInviteCapable(role?: OrganizationRole): boolean {
   return role === "primary_manager" || role === "manager";
 }
 
-function OrganizationEmptyState() {
+interface OrganizationCreateFormProps {
+  name: string;
+  onNameChange: (value: string) => void;
+  onSubmit: () => void;
+  saving: boolean;
+  submitLabel: string;
+  placeholder?: string;
+}
+
+function OrganizationCreateForm({
+  name,
+  onNameChange,
+  onSubmit,
+  saving,
+  submitLabel,
+  placeholder = "Acme Rentals",
+}: OrganizationCreateFormProps) {
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+      className="grid gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4 md:grid-cols-[1fr_auto]"
+    >
+      <input
+        value={name}
+        onChange={(event) => onNameChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label="Organization name"
+        maxLength={160}
+        className="h-11 rounded-2xl border border-slate-300 dark:border-slate-700 px-4 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
+      />
+      <button
+        type="submit"
+        disabled={saving || name.trim().length === 0}
+        className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving ? "Creating..." : submitLabel}
+      </button>
+    </form>
+  );
+}
+
+interface OrganizationEmptyStateProps {
+  name: string;
+  onNameChange: (value: string) => void;
+  onSubmit: () => void;
+  saving: boolean;
+  errorTitle: string | null;
+  error: string | null;
+}
+
+function OrganizationEmptyState({
+  name,
+  onNameChange,
+  onSubmit,
+  saving,
+  errorTitle,
+  error,
+}: OrganizationEmptyStateProps) {
   return (
     <main className="min-h-[calc(100vh-5.5rem)] bg-slate-50 dark:bg-slate-900 px-6 py-12 text-slate-900 dark:text-white">
-      <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-          Organizations
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
-          No organization access yet
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-          This workspace will light up when an owner invites you into an
-          organization. Once that happens, you will be able to switch between
-          organizations, review members, and manage invites based on your role.
-        </p>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+            Organizations
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+            Create your first organization
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+            Start an organization to invite teammates, manage roles, and switch
+            between shared workspaces. You will become its primary manager, and
+            it will be set as your active organization right away. You can also
+            join one later when an existing organization invites you.
+          </p>
+
+          {error ? (
+            <div className="mt-6">
+              <FormErrorMessage
+                title={errorTitle ?? undefined}
+                message={error}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-6">
+            <OrganizationCreateForm
+              name={name}
+              onNameChange={onNameChange}
+              onSubmit={onSubmit}
+              saving={saving}
+              submitLabel="Create organization"
+            />
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -55,7 +138,7 @@ function OrganizationEmptyState() {
 
 export function OrganizationWorkspace() {
   const router = useRouter();
-  const { status, session } = useAuth();
+  const { status, session, setSession } = useAuth();
   const { showError } = useErrorToast();
   const [workspace, setWorkspace] =
     useState<OrganizationWorkspaceResult | null>(null);
@@ -69,6 +152,7 @@ export function OrganizationWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
+  const [newOrganizationName, setNewOrganizationName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] =
     useState<CreateOrganizationInviteInput["role"]>("operator");
@@ -178,6 +262,44 @@ export function OrganizationWorkspace() {
       setDetail(nextDetail);
       setOrganizationName(nextDetail?.organization.name ?? "");
     });
+  }
+
+  async function handleCreate() {
+    const trimmedName = newOrganizationName.trim();
+
+    if (trimmedName.length === 0) {
+      return;
+    }
+
+    setSaving(true);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const result = await organizationsApi.create({ name: trimmedName });
+
+      const refreshedSession = await authApi.refresh();
+
+      if (refreshedSession) {
+        setSession(refreshedSession);
+      }
+
+      await refresh(result.organization.id);
+      setNewOrganizationName("");
+      setMessage(`${result.organization.name} created.`);
+    } catch (nextError) {
+      const message = getWorkspaceActionError(
+        nextError,
+        "create that organization",
+        "We couldn't create that organization right now. Please try again.",
+      );
+      setErrorTitle("Couldn't create organization");
+      setError(message);
+      showWorkspaceToast("Couldn't create organization", message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSelectOrganization(organizationId: string) {
@@ -371,7 +493,16 @@ export function OrganizationWorkspace() {
   }
 
   if (!workspace || workspace.memberships.length === 0) {
-    return <OrganizationEmptyState />;
+    return (
+      <OrganizationEmptyState
+        name={newOrganizationName}
+        onNameChange={setNewOrganizationName}
+        onSubmit={() => void handleCreate()}
+        saving={saving}
+        errorTitle={errorTitle}
+        error={error}
+      />
+    );
   }
 
   return (
@@ -413,6 +544,29 @@ export function OrganizationWorkspace() {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-md">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                  New organization
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  Spin up another organization. You will become its primary
+                  manager and it becomes your active workspace.
+                </p>
+              </div>
+              <div className="w-full lg:max-w-md">
+                <OrganizationCreateForm
+                  name={newOrganizationName}
+                  onNameChange={setNewOrganizationName}
+                  onSubmit={() => void handleCreate()}
+                  saving={saving}
+                  submitLabel="Create"
+                />
+              </div>
+            </div>
           </div>
         </section>
 

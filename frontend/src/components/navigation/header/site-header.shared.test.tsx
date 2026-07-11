@@ -66,7 +66,8 @@ describe("site header shared helpers", () => {
     expect(links.some((link) => link.href === "/settings")).toBe(false);
   });
 
-  it("shows the organizations link when org membership context exists", () => {
+  it("shows the organizations link for authenticated users regardless of org context", () => {
+    const linksWithoutOrg = getAccountLinks("user");
     const linksWithMembership = getAccountLinks("user", {
       organizationMembershipCount: 1,
     });
@@ -74,6 +75,9 @@ describe("site header shared helpers", () => {
       hasActiveOrganization: true,
     });
 
+    expect(
+      linksWithoutOrg.some((link) => link.href === "/organizations"),
+    ).toBe(true);
     expect(
       linksWithMembership.some((link) => link.href === "/organizations"),
     ).toBe(true);

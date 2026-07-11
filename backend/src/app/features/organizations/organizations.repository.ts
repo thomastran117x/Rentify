@@ -736,6 +736,39 @@ export class OrganizationsRepository extends BaseRepository {
     });
   }
 
+  async createOrganizationWithOwner(input: {
+    name: string;
+    ownerUserId: string;
+  }): Promise<OrganizationMembershipSummary> {
+    return this.executeTransaction(async (transaction) => {
+      const organization = await transaction.organization.create({
+        data: {
+          id: randomUUID(),
+          name: input.name,
+        },
+      });
+
+      const membership = await transaction.organizationMembership.create({
+        data: {
+          id: randomUUID(),
+          organizationId: organization.id,
+          userId: input.ownerUserId,
+          role: "primary_manager",
+        },
+        include: {
+          organization: true,
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+
+      return this.mapMembershipSummary(membership, organization.id);
+    });
+  }
+
   private mapMembershipSummary(
     membership: MembershipWithOrganizationPersistence,
     activeOrganizationId?: string | null,

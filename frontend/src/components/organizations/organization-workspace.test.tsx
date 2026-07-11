@@ -10,18 +10,24 @@ import {
 
 const {
   useAuthMock,
+  setSessionMock,
   showErrorMock,
   getMineMock,
   getByIdMock,
   setActiveMock,
+  createMock,
   createInviteMock,
+  refreshMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
+  setSessionMock: vi.fn(),
   showErrorMock: vi.fn(),
   getMineMock: vi.fn(),
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
+  createMock: vi.fn(),
   createInviteMock: vi.fn(),
+  refreshMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -52,11 +58,18 @@ vi.mock("@/components/errors", () => ({
   }),
 }));
 
+vi.mock("@/lib/auth/api", () => ({
+  authApi: {
+    refresh: refreshMock,
+  },
+}));
+
 vi.mock("@/lib/organizations/api", () => ({
   organizationsApi: {
     getMine: getMineMock,
     getById: getByIdMock,
     setActive: setActiveMock,
+    create: createMock,
     rename: vi.fn(),
     createInvite: createInviteMock,
     revokeInvite: vi.fn(),
@@ -110,6 +123,7 @@ describe("OrganizationWorkspace", () => {
     resetRouterMocks();
     useAuthMock.mockReturnValue({
       status: "authenticated",
+      setSession: setSessionMock,
       session: {
         accessToken: "access-token",
         user: {
@@ -131,6 +145,22 @@ describe("OrganizationWorkspace", () => {
     setActiveMock.mockResolvedValue({
       activeOrganization: workspacePayload.activeOrganization,
     });
+    createMock.mockResolvedValue({
+      organization: {
+        id: "org-2",
+        name: "Acme Rentals",
+        role: "primary_manager",
+      },
+      membership: {
+        membershipId: "membership-2",
+        id: "org-2",
+        name: "Acme Rentals",
+        role: "primary_manager",
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      },
+    });
+    refreshMock.mockResolvedValue(null);
     createInviteMock.mockResolvedValue({
       invitation: {
         id: "invite-1",
@@ -176,7 +206,7 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("shows the empty state when the authenticated user has no memberships", async () => {
+  it("shows the create form when the authenticated user has no memberships", async () => {
     getMineMock.mockResolvedValue({
       memberships: [],
     });
@@ -184,8 +214,31 @@ describe("OrganizationWorkspace", () => {
     render(<OrganizationWorkspace />);
 
     expect(
-      await screen.findByText("No organization access yet"),
+      await screen.findByText("Create your first organization"),
     ).toBeInTheDocument();
+  });
+
+  it("creates an organization from the empty state", async () => {
+    const user = userEvent.setup();
+    getMineMock.mockResolvedValueOnce({ memberships: [] });
+    const refreshedSession = { accessToken: "next", user: { id: "user-1" } };
+    refreshMock.mockResolvedValue(refreshedSession);
+
+    render(<OrganizationWorkspace />);
+
+    await user.type(
+      await screen.findByLabelText("Organization name"),
+      "Acme Rentals",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create organization" }),
+    );
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith({ name: "Acme Rentals" });
+    });
+    expect(refreshMock).toHaveBeenCalled();
+    expect(setSessionMock).toHaveBeenCalledWith(refreshedSession);
   });
 
   it("routes invite failures through the global error toast", async () => {

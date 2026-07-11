@@ -63,6 +63,53 @@ describe("Organizations persistence integration", () => {
     await teardownPersistenceTestApp();
   }, 180_000);
 
+  it("creates an organization and makes the creator its active primary manager", async () => {
+    const founder = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/organizations")}`,
+      {
+        method: "POST",
+        headers: founder.headers(),
+        body: JSON.stringify({
+          name: "Founders Guild",
+        }),
+      },
+    );
+
+    expect(createResponse.status).toBe(201);
+    const createBody = (await createResponse.json()) as {
+      data: {
+        organization: { id: string; name: string; role: string };
+        membership: { role: string; isActive: boolean };
+      };
+    };
+    const newOrganizationId = createBody.data.organization.id;
+    expect(createBody.data.organization.name).toBe("Founders Guild");
+    expect(createBody.data.organization.role).toBe("primary_manager");
+    expect(createBody.data.membership.isActive).toBe(true);
+
+    const membership =
+      await persistenceApp.prisma.organizationMembership.findFirstOrThrow({
+        where: {
+          organizationId: newOrganizationId,
+          user: {
+            email: "viewer1@rentify.local",
+          },
+        },
+      });
+    expect(membership.role).toBe("primary_manager");
+
+    const founderUser = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: {
+        id: membership.userId,
+      },
+    });
+    expect(founderUser.preferredOrganizationId).toBe(newOrganizationId);
+  });
+
   it("persists invitation, acceptance, organization updates, role changes, and member removal", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",

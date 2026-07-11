@@ -26,6 +26,10 @@ export const organizationResourceIdSchema = z
   .regex(resourceIdPattern, "Invalid organization resource id.");
 export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
 
+export const createOrganizationRequestSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+
 export const updateOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
 });
@@ -43,6 +47,9 @@ export const updateOrganizationMemberRequestSchema = z.object({
   role: organizationRoleSchema,
 });
 
+export type CreateOrganizationRequestBody = z.infer<
+  typeof createOrganizationRequestSchema
+>;
 export type UpdateOrganizationRequestBody = z.infer<
   typeof updateOrganizationRequestSchema
 >;
@@ -155,6 +162,16 @@ export interface CreateOrganizationInviteInput {
   actorUserId: string;
   email: string;
   role: OrganizationRole;
+}
+
+export interface CreateOrganizationInput {
+  actorUserId: string;
+  name: string;
+}
+
+export interface CreateOrganizationResult {
+  organization: OrganizationSummary;
+  membership: OrganizationMembershipSummary;
 }
 
 export interface UpdateOrganizationInput {

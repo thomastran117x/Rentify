@@ -73,6 +73,15 @@ export interface OrganizationDetailResult {
   invitations: OrganizationInvite[];
 }
 
+export interface CreateOrganizationInput {
+  name: string;
+}
+
+export interface CreateOrganizationResult {
+  organization: ActiveOrganizationSummary;
+  membership: OrganizationMembershipSummary;
+}
+
 export interface SetActiveOrganizationInput {
   organizationId: string;
 }
@@ -110,6 +119,12 @@ export const organizationsApi = {
   getMine(): Promise<OrganizationWorkspaceResult> {
     return getAuthenticatedJson<OrganizationWorkspaceResult>(
       "/organizations/me",
+    );
+  },
+  create(input: CreateOrganizationInput): Promise<CreateOrganizationResult> {
+    return postAuthenticatedJson<CreateOrganizationResult>(
+      "/organizations",
+      input,
     );
   },
   setActive(

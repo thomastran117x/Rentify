@@ -5,6 +5,13 @@ import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 export const organizationsRouteModule: RouteModule = {
   id: "organizations",
   register(app, { resolveHandler }) {
+    app.post(
+      "/organizations",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "create",
+      ),
+    );
     app.get(
       "/organizations/me",
       resolveHandler<OrganizationsController>(

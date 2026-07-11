@@ -1821,6 +1821,36 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "post",
+      path: "/organizations",
+      operationId: "createOrganization",
+      summary: "Create an organization",
+      description:
+        "Creates a new organization and makes the signed-in user its primary manager. The new organization becomes the caller's active organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("CreateOrganizationRequest", {
+        name: "Northwind",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Organization created successfully.",
+          "CreateOrganizationResult",
+          {
+            organization: organizationSummaryExample,
+            membership: organizationMembershipSummaryExample,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
       method: "get",
       path: "/organizations/me",
       operationId: "listMyOrganizations",
@@ -5560,6 +5590,21 @@ function buildComponents(): Record<string, unknown> {
         required: ["activeOrganization"],
         properties: {
           activeOrganization: schemaRef("OrganizationSummary"),
+        },
+      },
+      CreateOrganizationRequest: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 160 },
+        },
+      },
+      CreateOrganizationResult: {
+        type: "object",
+        required: ["organization", "membership"],
+        properties: {
+          organization: schemaRef("OrganizationSummary"),
+          membership: schemaRef("OrganizationMembershipSummary"),
         },
       },
       UpdateOrganizationRequest: {

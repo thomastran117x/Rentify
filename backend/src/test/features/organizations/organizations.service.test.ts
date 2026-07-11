@@ -1,5 +1,6 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
 function createUser(overrides: Record<string, unknown> = {}) {
@@ -57,6 +58,14 @@ function createService(overrides?: {
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
+    createOrganizationWithOwner: jest.fn(async () => ({
+      membershipId: "membership-9",
+      id: "org-9",
+      name: "Acme Rentals",
+      role: "primary_manager" as const,
+      joinedAt: "2026-06-01T00:00:00.000Z",
+      isActive: true,
+    })),
     findMembershipAccess: jest.fn(async () => createMembership()),
     findOrganizationDetail: jest.fn(async () => ({
       organization: {
@@ -168,6 +177,62 @@ describe("OrganizationsService", () => {
       "user-1",
       "org-1",
     );
+  });
+
+  it("creates an organization, assigns the creator as primary manager, and sets it active", async () => {
+    const membership = {
+      membershipId: "membership-9",
+      id: "org-9",
+      name: "Acme Rentals",
+      role: "primary_manager" as const,
+      joinedAt: "2026-06-01T00:00:00.000Z",
+      isActive: true,
+    };
+    const { service, repository } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async () => membership),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "  Acme Rentals  ",
+    });
+
+    expect(repository.createOrganizationWithOwner).toHaveBeenCalledWith({
+      name: "Acme Rentals",
+      ownerUserId: "user-1",
+    });
+    expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
+      "user-1",
+      "org-9",
+    );
+    expect(result).toEqual({
+      organization: {
+        id: "org-9",
+        name: "Acme Rentals",
+        role: "primary_manager",
+      },
+      membership: { ...membership, isActive: true },
+    });
+  });
+
+  it("rejects organization creation for a missing user", async () => {
+    const { service, repository } = createService({
+      authRepository: {
+        findUserById: jest.fn(async () => null),
+      },
+      repository: {
+        createOrganizationWithOwner: jest.fn(async () => {
+          throw new Error("should not be called");
+        }),
+      },
+    });
+
+    await expect(
+      service.createOrganization({ actorUserId: "ghost", name: "Acme" }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    expect(repository.createOrganizationWithOwner).not.toHaveBeenCalled();
   });
 
   it("allows a primary manager to create a manager invitation and sends email", async () => {
