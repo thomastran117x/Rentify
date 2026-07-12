@@ -237,9 +237,7 @@ describe("OrganizationWorkspace", () => {
 
     render(<OrganizationWorkspace />);
 
-    expect(
-      await screen.findByText("Downtown studio"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Downtown studio")).toBeInTheDocument();
 
     const createLinks = screen.getAllByRole("link", { name: "Create posting" });
     expect(createLinks[0]).toHaveAttribute("href", "/postings/create");

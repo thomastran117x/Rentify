@@ -216,6 +216,34 @@ describe("PostingManagementWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens a deep-linked posting even when it is not on the first page", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, "", "/postings/create?posting=posting-1");
+    // The first page of the owner listing does not contain the requested id.
+    listMineMock.mockResolvedValue({
+      postings: [{ ...samplePosting, id: "posting-99", name: "Other listing" }],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 21,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    render(<PostingManagementWorkspace />);
+
+    // It is still fetched directly by id and opened in the wizard.
+    await waitFor(() => {
+      expect(getPostingMock).toHaveBeenCalledWith("posting-1");
+    });
+    await user.click(await screen.findByRole("button", { name: "Basics" }));
+    expect(
+      await screen.findByDisplayValue("Studio day office"),
+    ).toBeInTheDocument();
+  });
+
   it("locks forward steps and uses chip tags with structured details", async () => {
     const user = userEvent.setup();
     useAuthMock.mockReturnValue(managerSession());
@@ -330,6 +358,31 @@ describe("PostingManagementWorkspace", () => {
     expect(screen.getByAltText("Primary photo preview")).toBeInTheDocument();
   });
 
+  it("jumps to a step from the review section navigator", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+
+    render(<PostingManagementWorkspace />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create posting" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await fillBasics(user);
+    for (let step = 0; step < 4; step += 1) {
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+    }
+    await user.upload(
+      screen.getByLabelText("Upload photos"),
+      new File(["a"], "one.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" })); // -> Review
+
+    // The navigator row (distinct from the stepper pill) jumps back to editing.
+    await user.click(screen.getByRole("button", { name: /Basics.*Edit/ }));
+    expect(screen.getByDisplayValue("Downtown studio")).toBeInTheDocument();
+  });
+
   it("swaps the preview hero when a thumbnail is clicked", async () => {
     const user = userEvent.setup();
     useAuthMock.mockReturnValue(managerSession());
@@ -379,7 +432,10 @@ describe("PostingManagementWorkspace", () => {
           requestUrl: "http://localhost:8040/api/v1/postings",
         },
         details: [
-          { path: "pricing.daily.amount", message: "Number must be greater than 0" },
+          {
+            path: "pricing.daily.amount",
+            message: "Number must be greater than 0",
+          },
         ],
       }),
     );
@@ -409,8 +465,6 @@ describe("PostingManagementWorkspace", () => {
     expect(call.title).toBe("Couldn't save posting");
     // The modal message is a node listing every field-level detail.
     const { getByText } = render(<>{call.message}</>);
-    expect(
-      getByText(/Number must be greater than 0/),
-    ).toBeInTheDocument();
+    expect(getByText(/Number must be greater than 0/)).toBeInTheDocument();
   });
 });

@@ -238,6 +238,62 @@ describe("PostingsRepository", () => {
     expect(result.status).toBe("published");
   });
 
+  it("filters owner postings by a search query", async () => {
+    const findMany = jest.fn(async () => [createPostingPersistence()]);
+    const count = jest.fn(async () => 1);
+    const repository = new PostingsRepository({
+      posting: {
+        findMany,
+        count,
+      },
+    } as never);
+
+    await repository.listByOwner({
+      organizationId: "org-1",
+      page: 1,
+      pageSize: 10,
+      q: "studio",
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          OR: [
+            { name: { contains: "studio" } },
+            { description: { contains: "studio" } },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("counts owner postings grouped by status", async () => {
+    const groupBy = jest.fn(async () => [
+      { status: "draft", _count: { _all: 2 } },
+      { status: "published", _count: { _all: 3 } },
+      { status: "archived", _count: { _all: 1 } },
+    ]);
+    const repository = new PostingsRepository({
+      posting: {
+        groupBy,
+      },
+    } as never);
+
+    const summary = await repository.countByOwnerStatus("org-1");
+
+    expect(groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ["status"],
+        where: { organizationId: "org-1" },
+      }),
+    );
+    expect(summary).toEqual({
+      total: 6,
+      byStatus: { draft: 2, published: 3, paused: 0, archived: 1 },
+    });
+  });
+
   it("returns ordered public batches with missing ids preserved", async () => {
     const findMany = jest.fn(async () => [
       createPostingPersistence({

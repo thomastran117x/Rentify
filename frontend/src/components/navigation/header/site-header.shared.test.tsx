@@ -87,9 +87,9 @@ describe("site header shared helpers", () => {
       hasActiveOrganization: true,
     });
 
-    expect(
-      linksWithoutOrg.some((link) => link.href === "/organizations"),
-    ).toBe(true);
+    expect(linksWithoutOrg.some((link) => link.href === "/organizations")).toBe(
+      true,
+    );
     expect(
       linksWithMembership.some((link) => link.href === "/organizations"),
     ).toBe(true);

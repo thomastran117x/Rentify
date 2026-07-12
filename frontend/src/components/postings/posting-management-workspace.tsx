@@ -613,17 +613,6 @@ function SelectField({
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4 py-1.5 text-sm">
-      <span className="text-slate-500 dark:text-slate-400">{label}</span>
-      <span className="text-right font-medium text-slate-900 dark:text-white">
-        {value || "—"}
-      </span>
-    </div>
-  );
-}
-
 function humanizeKey(key: string): string {
   return key
     .replace(/_/g, " ")
@@ -1025,7 +1014,9 @@ function ListingPreview({
             <p className="text-lg font-semibold text-slate-950 dark:text-white">
               {safeFormatPrice(form.dailyPriceAmount, form.currency)}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">per day</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              per day
+            </p>
           </div>
         </div>
 
@@ -1139,41 +1130,50 @@ export function PostingManagementWorkspace() {
           return;
         }
 
-        const requestedPosting = requestedPostingId
-          ? result.postings.find(
-              (posting) => posting.id === requestedPostingId,
-            )
-          : undefined;
-
         startTransition(() => {
           setPostings(result.postings);
-          setSelectedPostingId(requestedPosting?.id ?? result.postings[0]?.id ?? null);
+          setSelectedPostingId(result.postings[0]?.id ?? null);
         });
 
-        // Deep link (?posting=<id>) opens that posting straight into the wizard.
-        if (requestedPosting) {
-          const detailPosting = (await postingsApi.getPosting(
-            requestedPosting.id,
-          )) as PostingRecord;
-          const rules = await postingsApi
-            .listSeasonalPricing(requestedPosting.id)
-            .catch(() => []);
+        // Deep link (?posting=<id>) opens that posting straight into the
+        // wizard. Fetch it directly by id so it works even when the posting is
+        // on a later page of the owner listing (best-effort — a bad id keeps
+        // the list view).
+        if (requestedPostingId) {
+          try {
+            const detailPosting = (await postingsApi.getPosting(
+              requestedPostingId,
+            )) as PostingRecord;
 
-          if (!active) {
-            return;
+            if (!active) {
+              return;
+            }
+
+            if ("organizationId" in detailPosting) {
+              const rules = await postingsApi
+                .listSeasonalPricing(requestedPostingId)
+                .catch(() => []);
+
+              if (!active) {
+                return;
+              }
+
+              const items = photoItemsFromPosting(detailPosting);
+
+              startTransition(() => {
+                setSelectedPostingId(detailPosting.id);
+                setForm(toFormState(detailPosting));
+                setPhotoItems(items);
+                setPrimaryPhotoKey(items[0]?.key ?? null);
+                setSeasonalRules(rules);
+                setCurrentStep(0);
+                setMaxStepReached(REVIEW_STEP);
+                setEditorOpen(true);
+              });
+            }
+          } catch {
+            // Requested posting is unavailable; stay on the list view.
           }
-
-          const items = photoItemsFromPosting(detailPosting);
-
-          startTransition(() => {
-            setForm(toFormState(detailPosting));
-            setPhotoItems(items);
-            setPrimaryPhotoKey(items[0]?.key ?? null);
-            setSeasonalRules(rules);
-            setCurrentStep(0);
-            setMaxStepReached(REVIEW_STEP);
-            setEditorOpen(true);
-          });
         }
       } catch (nextError) {
         if (active) {
@@ -1264,7 +1264,11 @@ export function PostingManagementWorkspace() {
       photoItems.map(async (item) => {
         if (item.file) {
           const photo = await uploadManagedPhoto(item.file);
-          return { key: item.key, blobUrl: photo.blobUrl, blobName: photo.blobName };
+          return {
+            key: item.key,
+            blobUrl: photo.blobUrl,
+            blobName: photo.blobName,
+          };
         }
         return {
           key: item.key,
@@ -1411,7 +1415,8 @@ export function PostingManagementWorkspace() {
       setError(
         getApiErrorMessage(nextError, {
           action: "open this posting",
-          fallback: "We couldn't open this posting right now. Please try again.",
+          fallback:
+            "We couldn't open this posting right now. Please try again.",
         }),
       );
     } finally {
@@ -1453,7 +1458,9 @@ export function PostingManagementWorkspace() {
                   {detail.path ? (
                     <>
                       <span className="font-medium">
-                        {humanizeKey(detail.path.split(".").pop() ?? detail.path)}
+                        {humanizeKey(
+                          detail.path.split(".").pop() ?? detail.path,
+                        )}
                       </span>
                       : {detail.message}
                     </>
@@ -1731,7 +1738,8 @@ export function PostingManagementWorkspace() {
               placeholder="Type a tag and press Enter"
             />
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Keywords renters can search — press Enter or comma to add each one.
+              Keywords renters can search — press Enter or comma to add each
+              one.
             </span>
           </div>
         </div>
@@ -2006,9 +2014,7 @@ export function PostingManagementWorkspace() {
             <TextField
               label="Max booking days"
               value={form.maxBookingDurationDays}
-              onChange={(value) =>
-                updateField("maxBookingDurationDays", value)
-              }
+              onChange={(value) => updateField("maxBookingDurationDays", value)}
               disabled={disabled}
               type="number"
               error={stepErrors.maxBookingDurationDays}
@@ -2016,9 +2022,7 @@ export function PostingManagementWorkspace() {
             <TextField
               label="Min booking days"
               value={form.minBookingDurationDays}
-              onChange={(value) =>
-                updateField("minBookingDurationDays", value)
-              }
+              onChange={(value) => updateField("minBookingDurationDays", value)}
               disabled={disabled}
               type="number"
               error={stepErrors.minBookingDurationDays}
@@ -2092,10 +2096,52 @@ export function PostingManagementWorkspace() {
     }
 
     // Review
+    const reviewSections: Array<{
+      title: string;
+      step: number;
+      summary: string;
+    }> = [
+      {
+        title: "Category",
+        step: 0,
+        summary: formatVariantLabel(form.family, form.subtype),
+      },
+      {
+        title: "Basics",
+        step: 1,
+        summary: form.name.trim() || "Untitled listing",
+      },
+      {
+        title: "Location",
+        step: 2,
+        summary:
+          [form.city, form.region]
+            .map((v) => v.trim())
+            .filter(Boolean)
+            .join(", ") || "No location yet",
+      },
+      {
+        title: "Pricing",
+        step: 3,
+        summary: `${form.dailyPriceAmount || "—"} ${form.currency.toUpperCase()} / day`,
+      },
+      {
+        title: "Availability",
+        step: 4,
+        summary: `${form.availabilityStatus}${form.instantBooking ? " · Instant book" : ""}`,
+      },
+      {
+        title: "Details & photos",
+        step: 5,
+        summary: `${Object.keys(form.details).length} attribute${Object.keys(form.details).length === 1 ? "" : "s"} · ${photoItems.length} photo${photoItems.length === 1 ? "" : "s"}`,
+      },
+    ];
+
     return (
       <div className="grid gap-5">
+        {/* Completeness — compact, checklist tucked away */}
         <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Listing completeness
             </p>
@@ -2103,149 +2149,105 @@ export function PostingManagementWorkspace() {
               {completenessPct}%
             </p>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-violet-500 transition-all"
               style={{ width: `${completenessPct}%` }}
             />
           </div>
-          <ul className="mt-3 grid gap-1 sm:grid-cols-2">
-            {completeness.map((item) => (
-              <li
-                key={item.label}
-                className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
-              >
-                <span
-                  className={
-                    item.done
-                      ? "text-emerald-500"
-                      : "text-slate-300 dark:text-slate-600"
-                  }
+          <details className="mt-3">
+            <summary className="cursor-pointer list-none text-xs font-medium text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+              {completedCount} of {completeness.length} recommendations done ·
+              show checklist
+            </summary>
+            <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+              {completeness.map((item) => (
+                <li
+                  key={item.label}
+                  className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
                 >
-                  {item.done ? "✓" : "○"}
-                </span>
-                {item.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Listing preview
-            </p>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              How renters will see it
-            </span>
-          </div>
-          <ListingPreview
-            form={form}
-            photos={photoItems}
-            primaryKey={primaryPhotoKey}
-          />
-        </div>
-
-        {[
-          {
-            title: "Category",
-            step: 0,
-            rows: [
-              [
-                "Type",
-                formatVariantLabel(form.family, form.subtype),
-              ] as const,
-            ],
-          },
-          {
-            title: "Basics",
-            step: 1,
-            rows: [
-              ["Name", form.name] as const,
-              ["Tags", form.tags.join(", ")] as const,
-            ],
-          },
-          {
-            title: "Location",
-            step: 2,
-            rows: [
-              [
-                "Where",
-                `${form.city}, ${form.region}, ${form.country}`,
-              ] as const,
-            ],
-          },
-          {
-            title: "Pricing",
-            step: 3,
-            rows: [
-              [
-                "Daily",
-                `${form.dailyPriceAmount} ${form.currency.toUpperCase()}`,
-              ] as const,
-              ["Cancellation", form.cancellationPolicy || "Not set"] as const,
-            ],
-          },
-          {
-            title: "Availability",
-            step: 4,
-            rows: [
-              ["Status", form.availabilityStatus] as const,
-              [
-                "Instant booking",
-                form.instantBooking ? "On" : "Off",
-              ] as const,
-            ],
-          },
-          {
-            title: "Details & photos",
-            step: 5,
-            rows: [
-              [
-                "Attributes",
-                `${Object.keys(form.details).length} fields`,
-              ] as const,
-              [
-                "Photos",
-                photoItems.length === 0
-                  ? "None yet"
-                  : `${photoItems.length} added`,
-              ] as const,
-            ],
-          },
-        ].map((section) => (
-          <div
-            key={section.title}
-            className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {section.title}
-                </p>
-                {!isStepValid(section.step) ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
-                    Needs attention
+                  <span
+                    className={
+                      item.done
+                        ? "text-emerald-500"
+                        : "text-slate-300 dark:text-slate-600"
+                    }
+                  >
+                    {item.done ? "✓" : "○"}
                   </span>
-                ) : null}
-              </div>
-              {canManage ? (
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(section.step)}
-                  className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
-                >
-                  Edit
-                </button>
-              ) : null}
-            </div>
-            <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-              {section.rows.map(([label, value]) => (
-                <ReviewRow key={label} label={label} value={value} />
+                  {item.label}
+                </li>
               ))}
+            </ul>
+          </details>
+        </div>
+
+        {/* Preview beside a compact, clickable section navigator */}
+        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Listing preview
+              </p>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                How renters will see it
+              </span>
+            </div>
+            <ListingPreview
+              form={form}
+              photos={photoItems}
+              primaryKey={primaryPhotoKey}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              {canManage ? "Review & edit sections" : "Review sections"}
+            </p>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+              {reviewSections.map((section) => {
+                const valid = isStepValid(section.step);
+                return (
+                  <button
+                    key={section.title}
+                    type="button"
+                    onClick={() => setCurrentStep(section.step)}
+                    className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        valid
+                          ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
+                      }`}
+                    >
+                      {valid ? "✓" : "!"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {section.title}
+                        </span>
+                        {!valid ? (
+                          <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                            Needs attention
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs capitalize text-slate-500 dark:text-slate-400">
+                        {section.summary}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-violet-600 dark:text-violet-400">
+                      {canManage ? "Edit" : "View"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        ))}
+        </div>
       </div>
     );
   }

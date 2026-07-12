@@ -345,7 +345,8 @@ export function PostingsDashboard() {
     } catch (nextError) {
       const nextMessage = getApiErrorMessage(nextError, {
         action: `${action} that posting`,
-        fallback: "We couldn't update that posting right now. Please try again.",
+        fallback:
+          "We couldn't update that posting right now. Please try again.",
         preserveClientMessage: true,
       });
       setError(nextMessage);

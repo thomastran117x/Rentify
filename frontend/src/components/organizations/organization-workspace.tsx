@@ -94,7 +94,11 @@ type PostingLifecycleAction = "publish" | "pause" | "unpause" | "archive";
 
 function postingLifecycleActions(
   status: PostingStatus,
-): Array<{ id: PostingLifecycleAction; label: string; tone: "primary" | "muted" }> {
+): Array<{
+  id: PostingLifecycleAction;
+  label: string;
+  tone: "primary" | "muted";
+}> {
   if (status === "draft") {
     return [
       { id: "publish", label: "Publish", tone: "primary" },
@@ -213,7 +217,9 @@ function StatTile({
       <div className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
         {value}
       </div>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {detail}
+      </p>
     </div>
   );
 }
@@ -884,7 +890,9 @@ export function OrganizationWorkspace() {
                     Your role: <RoleBadge role={detail.viewerRole} />
                   </span>
                   <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block dark:bg-slate-600" />
-                  <span>Created {formatDate(detail.organization.createdAt)}</span>
+                  <span>
+                    Created {formatDate(detail.organization.createdAt)}
+                  </span>
                 </div>
               ) : null}
             </div>
@@ -946,13 +954,17 @@ export function OrganizationWorkspace() {
           <StatTile
             eyebrow="Members"
             value={memberCount}
-            detail={memberCount === 1 ? "1 teammate" : `${memberCount} teammates`}
+            detail={
+              memberCount === 1 ? "1 teammate" : `${memberCount} teammates`
+            }
             accent="from-violet-500 to-indigo-500"
           />
           <StatTile
             eyebrow="Postings"
             value={postingsLoading ? "…" : postingsTotal}
-            detail={postingsTotal === 1 ? "1 listing" : `${postingsTotal} listings`}
+            detail={
+              postingsTotal === 1 ? "1 listing" : `${postingsTotal} listings`
+            }
             accent="from-emerald-500 to-teal-500"
           />
           <StatTile
@@ -1062,8 +1074,8 @@ export function OrganizationWorkspace() {
                         <PostingStatusBadge status={posting.status} />
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {formatPostingVariant(posting)} · {posting.location.city}
-                        , {posting.location.region}
+                        {formatPostingVariant(posting)} ·{" "}
+                        {posting.location.city}, {posting.location.region}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

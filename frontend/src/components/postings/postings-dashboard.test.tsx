@@ -62,7 +62,10 @@ function makePosting(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function paginated(postings: unknown[], overrides: Record<string, unknown> = {}) {
+function paginated(
+  postings: unknown[],
+  overrides: Record<string, unknown> = {},
+) {
   return {
     postings,
     pagination: {
