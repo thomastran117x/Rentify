@@ -22,6 +22,13 @@ export const postingsOwnerRouteModule: RouteModule = {
       ),
     );
     app.get(
+      "/postings/me/summary",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "statusSummary",
+      ),
+    );
+    app.get(
       "/postings/me/batch",
       resolveHandler<PostingsController>(
         containerTokens.postingsController,

@@ -210,6 +210,10 @@ function createApp() {
     ),
     getById: jest.fn(async () => createPosting()),
     listByOwner: jest.fn(async () => createOwnerListingResult()),
+    getOwnerStatusSummary: jest.fn(async () => ({
+      total: 7,
+      byStatus: { draft: 2, published: 3, paused: 1, archived: 1 },
+    })),
     batchByOwner: jest.fn(async () => ({
       postings: [createPosting()],
       missingIds: ["posting-missing"],
@@ -724,6 +728,18 @@ describe("Postings integration", () => {
         headers: ownerHeaders(),
       },
     );
+    const summaryResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/me/summary")}`,
+      {
+        headers: ownerHeaders(),
+      },
+    );
+    const searchMineResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/me?page=1&pageSize=20&q=studio")}`,
+      {
+        headers: ownerHeaders(),
+      },
+    );
     const batchMineResponse = await app.request(
       `http://rent.test${buildApiPath("/postings/me/batch?ids=posting-1,posting-missing")}`,
       {
@@ -742,6 +758,8 @@ describe("Postings integration", () => {
     expect(unpauseResponse.status).toBe(200);
     expect(archiveResponse.status).toBe(200);
     expect(listMineResponse.status).toBe(200);
+    expect(summaryResponse.status).toBe(200);
+    expect(searchMineResponse.status).toBe(200);
     expect(batchMineResponse.status).toBe(200);
     expect(batchPublicResponse.status).toBe(200);
 
@@ -749,6 +767,22 @@ describe("Postings integration", () => {
       page: 1,
       pageSize: 20,
       status: "published",
+    });
+    expect(postingsService.listByOwner).toHaveBeenCalledWith("owner-1", {
+      page: 1,
+      pageSize: 20,
+      status: undefined,
+      q: "studio",
+    });
+    expect(postingsService.getOwnerStatusSummary).toHaveBeenCalledWith(
+      "owner-1",
+    );
+    await expect(summaryResponse.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        total: 7,
+        byStatus: { draft: 2, published: 3, paused: 1, archived: 1 },
+      },
     });
     expect(postingsService.batchByOwner).toHaveBeenCalledWith("owner-1", [
       "posting-1",

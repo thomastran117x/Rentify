@@ -419,6 +419,7 @@ export const listOwnerPostingsQuerySchema = z
       .max(MAX_PAGE_SIZE)
       .default(DEFAULT_PAGE_SIZE),
     status: postingStatusSchema.optional(),
+    q: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
 
@@ -726,6 +727,17 @@ export interface ListOwnerPostingsInput {
   page: number;
   pageSize: number;
   status?: PostingStatus;
+  q?: string;
+}
+
+export interface OwnerPostingsStatusSummary {
+  total: number;
+  byStatus: {
+    draft: number;
+    published: number;
+    paused: number;
+    archived: number;
+  };
 }
 
 export interface BatchOwnerPostingsInput {

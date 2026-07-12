@@ -5,6 +5,7 @@ import type {
 } from "@/lib/auth/types";
 import {
   canManageOrganizationPostings,
+  canReadOrganizationPostings,
   isModeratorRole,
   isOwnerRole,
 } from "@/lib/auth/roles";
@@ -45,6 +46,9 @@ export function getAccountLinks(
   const showCreatePosting =
     isOwnerRole(role) ||
     canManageOrganizationPostings(options?.activeOrganization);
+  const showPostingsDashboard = canReadOrganizationPostings(
+    options?.activeOrganization,
+  );
 
   return [
     ...(isOwnerRole(role)
@@ -53,6 +57,16 @@ export function getAccountLinks(
             href: "/dashboard",
             label: "Dashboard",
             description: "Manage listings, bookings, and performance",
+          },
+        ]
+      : []),
+    ...(showPostingsDashboard
+      ? [
+          {
+            href: "/postings/manage",
+            label: "Postings",
+            description:
+              "Manage every listing for your active organization by status",
           },
         ]
       : []),

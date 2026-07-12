@@ -327,6 +327,12 @@ export class PostingsController {
     });
   };
 
+  statusSummary = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.postingsService.getOwnerStatusSummary(auth.sub);
+    return ok(context, result);
+  };
+
   batchMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const result = await this.postingsService.batchByOwner(
@@ -595,6 +601,7 @@ export class PostingsController {
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
         status: url.searchParams.get("status") ?? undefined,
+        q: url.searchParams.get("q") ?? undefined,
       });
 
       return this.toListOwnerPostingsInput(query);
@@ -729,6 +736,7 @@ export class PostingsController {
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
+      q: query.q,
     };
   }
 

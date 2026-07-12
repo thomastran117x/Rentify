@@ -2621,6 +2621,12 @@ function buildOperations(): OperationDefinition[] {
           "Optional posting status filter.",
           "published",
         ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 120 },
+          "Optional case-insensitive search across posting name and description.",
+          "studio",
+        ),
       ],
       responses: {
         "200": successResponse(
@@ -2639,6 +2645,34 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/me/summary",
+      operationId: "ownPostingsStatusSummary",
+      summary: "Count the owner's postings by status",
+      description:
+        "Returns the total number of postings for the active organization and a per-status breakdown. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "owner",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OwnerPostingsStatusSummary",
+          {
+            total: 7,
+            byStatus: { draft: 2, published: 3, paused: 1, archived: 1 },
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
       },
     },
     {
@@ -6173,6 +6207,23 @@ function buildComponents(): Record<string, unknown> {
           status: { type: "string" },
         },
         required: ["postings", "pagination"],
+      },
+      OwnerPostingsStatusSummary: {
+        type: "object",
+        required: ["total", "byStatus"],
+        properties: {
+          total: { type: "integer" },
+          byStatus: {
+            type: "object",
+            required: ["draft", "published", "paused", "archived"],
+            properties: {
+              draft: { type: "integer" },
+              published: { type: "integer" },
+              paused: { type: "integer" },
+              archived: { type: "integer" },
+            },
+          },
+        },
       },
       BatchOwnerPostingsResult: {
         type: "object",
