@@ -16,6 +16,7 @@ import type {
   ListOwnerPostingsInput,
   ListOwnerPostingsResult,
   ManagedPostingPhotoInput,
+  OwnerPostingsStatusSummary,
   PublicPostingRecord,
   PostingAttributeValue,
   PostingAvailabilityBlockInput,
@@ -681,6 +682,14 @@ export class PostingsRepository extends BaseRepository {
     const where: Prisma.PostingWhereInput = {
       organizationId: input.organizationId,
       ...(input.status ? { status: input.status } : {}),
+      ...(input.q
+        ? {
+            OR: [
+              { name: { contains: input.q } },
+              { description: { contains: input.q } },
+            ],
+          }
+        : {}),
     };
     const skip = (input.page - 1) * input.pageSize;
 
@@ -711,6 +720,37 @@ export class PostingsRepository extends BaseRepository {
       pagination: this.createPagination(input.page, input.pageSize, total),
       ...(input.status ? { status: input.status } : {}),
     };
+  }
+
+  async countByOwnerStatus(
+    organizationId: string,
+  ): Promise<OwnerPostingsStatusSummary> {
+    const grouped = await this.executeAsync(() =>
+      this.prisma.posting.groupBy({
+        by: ["status"],
+        where: { organizationId },
+        _count: { _all: true },
+      }),
+    );
+
+    const byStatus: OwnerPostingsStatusSummary["byStatus"] = {
+      draft: 0,
+      published: 0,
+      paused: 0,
+      archived: 0,
+    };
+    let total = 0;
+
+    for (const row of grouped) {
+      const status = row.status as PostingStatus;
+      const count = row._count._all;
+      total += count;
+      if (status in byStatus) {
+        byStatus[status] = count;
+      }
+    }
+
+    return { total, byStatus };
   }
 
   async batchFindByOwner(

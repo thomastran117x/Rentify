@@ -5,6 +5,7 @@ import type {
 } from "@/lib/auth/types";
 import {
   canManageOrganizationPostings,
+  canReadOrganizationPostings,
   isModeratorRole,
   isOwnerRole,
 } from "@/lib/auth/roles";
@@ -38,12 +39,16 @@ export function getAccountLinks(
     activeOrganization?: ActiveOrganizationSummary;
   },
 ): HeaderAccountLink[] {
-  const showOrganizations =
-    (options?.organizationMembershipCount ?? 0) > 0 ||
-    Boolean(options?.hasActiveOrganization);
+  // The account menu only renders for authenticated users, so surface
+  // Organizations to everyone: members manage their teams, and users without an
+  // organization yet can reach the workspace to create or join one.
+  const showOrganizations = true;
   const showCreatePosting =
     isOwnerRole(role) ||
     canManageOrganizationPostings(options?.activeOrganization);
+  const showPostingsDashboard = canReadOrganizationPostings(
+    options?.activeOrganization,
+  );
 
   return [
     ...(isOwnerRole(role)
@@ -52,6 +57,16 @@ export function getAccountLinks(
             href: "/dashboard",
             label: "Dashboard",
             description: "Manage listings, bookings, and performance",
+          },
+        ]
+      : []),
+    ...(showPostingsDashboard
+      ? [
+          {
+            href: "/postings/manage",
+            label: "Postings",
+            description:
+              "Manage every listing for your active organization by status",
           },
         ]
       : []),

@@ -9,8 +9,10 @@ import {
   normalizeOrganizationInvitationEmail,
   type AcceptOrganizationInviteInput,
   type AcceptOrganizationInviteResult,
+  type CreateOrganizationInput,
   type CreateOrganizationInviteInput,
   type CreateOrganizationInviteResult,
+  type CreateOrganizationResult,
   type OrganizationDetailResult,
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
@@ -102,6 +104,35 @@ export class OrganizationsService {
     return {
       ...detail,
       viewerRole: membership.role,
+    };
+  }
+
+  async createOrganization(
+    input: CreateOrganizationInput,
+  ): Promise<CreateOrganizationResult> {
+    await this.requireExistingUser(input.actorUserId);
+
+    const membership =
+      await this.organizationsRepository.createOrganizationWithOwner({
+        name: input.name.trim(),
+        ownerUserId: input.actorUserId,
+      });
+
+    await this.organizationsRepository.setPreferredOrganization(
+      input.actorUserId,
+      membership.id,
+    );
+
+    return {
+      organization: {
+        id: membership.id,
+        name: membership.name,
+        role: membership.role,
+      },
+      membership: {
+        ...membership,
+        isActive: true,
+      },
     };
   }
 

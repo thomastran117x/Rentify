@@ -10,18 +10,28 @@ import {
 
 const {
   useAuthMock,
+  setSessionMock,
   showErrorMock,
   getMineMock,
   getByIdMock,
   setActiveMock,
+  createMock,
   createInviteMock,
+  refreshMock,
+  listMinePostingsMock,
+  publishPostingMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
+  setSessionMock: vi.fn(),
   showErrorMock: vi.fn(),
   getMineMock: vi.fn(),
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
+  createMock: vi.fn(),
   createInviteMock: vi.fn(),
+  refreshMock: vi.fn(),
+  listMinePostingsMock: vi.fn(),
+  publishPostingMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -52,11 +62,28 @@ vi.mock("@/components/errors", () => ({
   }),
 }));
 
+vi.mock("@/lib/auth/api", () => ({
+  authApi: {
+    refresh: refreshMock,
+  },
+}));
+
+vi.mock("@/lib/postings/api", () => ({
+  postingsApi: {
+    listMine: listMinePostingsMock,
+    publish: publishPostingMock,
+    pausePosting: vi.fn(),
+    unpausePosting: vi.fn(),
+    archive: vi.fn(),
+  },
+}));
+
 vi.mock("@/lib/organizations/api", () => ({
   organizationsApi: {
     getMine: getMineMock,
     getById: getByIdMock,
     setActive: setActiveMock,
+    create: createMock,
     rename: vi.fn(),
     createInvite: createInviteMock,
     revokeInvite: vi.fn(),
@@ -110,6 +137,7 @@ describe("OrganizationWorkspace", () => {
     resetRouterMocks();
     useAuthMock.mockReturnValue({
       status: "authenticated",
+      setSession: setSessionMock,
       session: {
         accessToken: "access-token",
         user: {
@@ -131,6 +159,23 @@ describe("OrganizationWorkspace", () => {
     setActiveMock.mockResolvedValue({
       activeOrganization: workspacePayload.activeOrganization,
     });
+    createMock.mockResolvedValue({
+      organization: {
+        id: "org-2",
+        name: "Acme Rentals",
+        role: "primary_manager",
+      },
+      membership: {
+        membershipId: "membership-2",
+        id: "org-2",
+        name: "Acme Rentals",
+        role: "primary_manager",
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      },
+    });
+    refreshMock.mockResolvedValue(null);
+    listMinePostingsMock.mockResolvedValue({ postings: [] });
     createInviteMock.mockResolvedValue({
       invitation: {
         id: "invite-1",
@@ -176,7 +221,89 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("shows the empty state when the authenticated user has no memberships", async () => {
+  it("renders the active organization's postings with a create CTA", async () => {
+    listMinePostingsMock.mockResolvedValue({
+      postings: [
+        {
+          id: "posting-1",
+          organizationId: "org-1",
+          status: "published",
+          name: "Downtown studio",
+          variant: { family: "place", subtype: "workspace" },
+          location: { city: "Toronto", region: "Ontario" },
+        },
+      ],
+    });
+
+    render(<OrganizationWorkspace />);
+
+    expect(await screen.findByText("Downtown studio")).toBeInTheDocument();
+
+    const createLinks = screen.getAllByRole("link", { name: "Create posting" });
+    expect(createLinks[0]).toHaveAttribute("href", "/postings/create");
+
+    const editLink = screen.getByRole("link", { name: "Edit" });
+    expect(editLink).toHaveAttribute(
+      "href",
+      "/postings/create?posting=posting-1",
+    );
+  });
+
+  it("loads a 5-posting preview with a view-all link", async () => {
+    listMinePostingsMock.mockResolvedValue({
+      postings: Array.from({ length: 5 }, (_, index) => ({
+        id: `posting-${index + 1}`,
+        organizationId: "org-1",
+        status: "published",
+        name: `Listing ${index + 1}`,
+        variant: { family: "place", subtype: "workspace" },
+        location: { city: "Toronto", region: "Ontario" },
+      })),
+      pagination: {
+        page: 1,
+        pageSize: 5,
+        total: 8,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    render(<OrganizationWorkspace />);
+
+    expect(await screen.findByText("Listing 1")).toBeInTheDocument();
+    expect(screen.getByText("Listing 5")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View all 8 postings" }),
+    ).toBeInTheDocument();
+    expect(listMinePostingsMock).toHaveBeenCalledWith({ pageSize: 5 });
+  });
+
+  it("converts a posting's status from the dashboard", async () => {
+    const user = userEvent.setup();
+    listMinePostingsMock.mockResolvedValue({
+      postings: [
+        {
+          id: "posting-1",
+          organizationId: "org-1",
+          status: "draft",
+          name: "Draft loft",
+          variant: { family: "place", subtype: "workspace" },
+          location: { city: "Toronto", region: "Ontario" },
+        },
+      ],
+    });
+
+    render(<OrganizationWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "Publish" }));
+
+    await waitFor(() => {
+      expect(publishPostingMock).toHaveBeenCalledWith("posting-1");
+    });
+  });
+
+  it("shows the create form when the authenticated user has no memberships", async () => {
     getMineMock.mockResolvedValue({
       memberships: [],
     });
@@ -184,8 +311,31 @@ describe("OrganizationWorkspace", () => {
     render(<OrganizationWorkspace />);
 
     expect(
-      await screen.findByText("No organization access yet"),
+      await screen.findByText("Create your first organization"),
     ).toBeInTheDocument();
+  });
+
+  it("creates an organization from the empty state", async () => {
+    const user = userEvent.setup();
+    getMineMock.mockResolvedValueOnce({ memberships: [] });
+    const refreshedSession = { accessToken: "next", user: { id: "user-1" } };
+    refreshMock.mockResolvedValue(refreshedSession);
+
+    render(<OrganizationWorkspace />);
+
+    await user.type(
+      await screen.findByLabelText("Organization name"),
+      "Acme Rentals",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create organization" }),
+    );
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith({ name: "Acme Rentals" });
+    });
+    expect(refreshMock).toHaveBeenCalled();
+    expect(setSessionMock).toHaveBeenCalledWith(refreshedSession);
   });
 
   it("routes invite failures through the global error toast", async () => {

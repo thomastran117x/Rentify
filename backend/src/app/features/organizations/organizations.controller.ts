@@ -13,6 +13,7 @@ import { requireSafeRouteParam } from "@/configuration/validation/input-sanitiza
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import {
   createOrganizationInviteRequestSchema,
+  createOrganizationRequestSchema,
   organizationInviteTokenSchema,
   organizationResourceIdSchema,
   setActiveOrganizationRequestSchema,
@@ -28,6 +29,21 @@ export class OrganizationsController {
     const auth = await this.requireAuth(context);
     const result = await this.organizationsService.listMine(auth.sub);
     return ok(context, result);
+  };
+
+  create = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      createOrganizationRequestSchema,
+    );
+    const result = await this.organizationsService.createOrganization({
+      actorUserId: auth.sub,
+      name: body.name,
+    });
+    return created(context, result, {
+      message: "Organization created successfully.",
+    });
   };
 
   setActive = async (context: Context<AppBindings>): Promise<Response> => {

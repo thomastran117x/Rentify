@@ -13,6 +13,21 @@ const memberId = "33333333-3333-4333-8333-333333333333";
 
 function createApp() {
   const organizationsService = {
+    createOrganization: jest.fn(async () => ({
+      organization: {
+        id: organizationId,
+        name: "Acme Rentals",
+        role: "primary_manager",
+      },
+      membership: {
+        membershipId: memberId,
+        id: organizationId,
+        name: "Acme Rentals",
+        role: "primary_manager",
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      },
+    })),
     listMine: jest.fn(async () => ({
       organizations: [
         {
@@ -119,6 +134,16 @@ describe("Organizations integration", () => {
   it("covers organization membership, invitation, and management endpoints", async () => {
     const { app, organizationsService } = createApp();
 
+    const createResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          name: "Acme Rentals",
+        }),
+      },
+    );
     const listMineResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations/me")}`,
       {
@@ -197,6 +222,7 @@ describe("Organizations integration", () => {
       },
     );
 
+    expect(createResponse.status).toBe(201);
     expect(listMineResponse.status).toBe(200);
     expect(setActiveResponse.status).toBe(200);
     expect(previewResponse.status).toBe(200);
@@ -208,6 +234,10 @@ describe("Organizations integration", () => {
     expect(updateMemberRoleResponse.status).toBe(200);
     expect(removeMemberResponse.status).toBe(200);
 
+    expect(organizationsService.createOrganization).toHaveBeenCalledWith({
+      actorUserId: "owner-1",
+      name: "Acme Rentals",
+    });
     expect(organizationsService.listMine).toHaveBeenCalledWith("owner-1");
     expect(organizationsService.setActiveOrganization).toHaveBeenCalledWith({
       userId: "owner-1",
@@ -268,6 +298,25 @@ describe("Organizations integration", () => {
     );
     const unauthorizedListResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations/me")}`,
+    );
+    const invalidCreateResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          name: "   ",
+        }),
+      },
+    );
+    const unauthorizedCreateResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Acme Rentals",
+        }),
+      },
     );
     const invalidSetActiveResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations/me/active")}`,
@@ -334,6 +383,18 @@ describe("Organizations integration", () => {
         requestId: "unknown",
       },
     });
+
+    expect(invalidCreateResponse.status).toBe(400);
+    await expect(invalidCreateResponse.json()).resolves.toMatchObject({
+      success: false,
+      message: "Request body validation failed.",
+      error: {
+        code: "VALIDATION_ERROR",
+      },
+    });
+
+    expect(unauthorizedCreateResponse.status).toBe(401);
+    expect(organizationsService.createOrganization).not.toHaveBeenCalled();
 
     expect(invalidSetActiveResponse.status).toBe(400);
     await expect(invalidSetActiveResponse.json()).resolves.toMatchObject({

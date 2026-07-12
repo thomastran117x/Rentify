@@ -47,6 +47,18 @@ describe("site header shared helpers", () => {
     );
   });
 
+  it("shows the postings dashboard link only when an organization is active", () => {
+    const withOrg = getAccountLinks("user", {
+      activeOrganization: { id: "org-1", name: "Org 1", role: "operator" },
+    });
+    const withoutOrg = getAccountLinks("user");
+
+    expect(withOrg.some((link) => link.href === "/postings/manage")).toBe(true);
+    expect(withoutOrg.some((link) => link.href === "/postings/manage")).toBe(
+      false,
+    );
+  });
+
   it("returns moderation links for moderator-capable roles", () => {
     const moderatorLinks = getAccountLinks("moderator");
     const adminLinks = getAccountLinks("admin");
@@ -66,7 +78,8 @@ describe("site header shared helpers", () => {
     expect(links.some((link) => link.href === "/settings")).toBe(false);
   });
 
-  it("shows the organizations link when org membership context exists", () => {
+  it("shows the organizations link for authenticated users regardless of org context", () => {
+    const linksWithoutOrg = getAccountLinks("user");
     const linksWithMembership = getAccountLinks("user", {
       organizationMembershipCount: 1,
     });
@@ -74,6 +87,9 @@ describe("site header shared helpers", () => {
       hasActiveOrganization: true,
     });
 
+    expect(linksWithoutOrg.some((link) => link.href === "/organizations")).toBe(
+      true,
+    );
     expect(
       linksWithMembership.some((link) => link.href === "/organizations"),
     ).toBe(true);

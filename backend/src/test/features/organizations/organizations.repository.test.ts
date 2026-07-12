@@ -220,6 +220,71 @@ describe("OrganizationsRepository", () => {
     });
   });
 
+  it("creates an organization with the owner as primary manager", async () => {
+    const organizationCreate = jest.fn(async () => ({
+      id: "org-9",
+      name: "Acme Rentals",
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    }));
+    const membershipCreate = jest.fn(async () =>
+      createMembershipPersistence({
+        id: "membership-9",
+        organizationId: "org-9",
+        role: "primary_manager",
+        createdAt: new Date("2026-06-01T00:00:00.000Z"),
+        organization: {
+          id: "org-9",
+          name: "Acme Rentals",
+          createdAt: new Date("2026-06-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+        },
+      }),
+    );
+    const database = {
+      $transaction: async <T>(
+        callback: (client: {
+          organization: { create: typeof organizationCreate };
+          organizationMembership: { create: typeof membershipCreate };
+        }) => Promise<T>,
+      ) =>
+        callback({
+          organization: { create: organizationCreate },
+          organizationMembership: { create: membershipCreate },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as never);
+
+    const result = await repository.createOrganizationWithOwner({
+      name: "Acme Rentals",
+      ownerUserId: "user-1",
+    });
+
+    expect(organizationCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: expect.any(String),
+        name: "Acme Rentals",
+      }),
+    });
+    expect(membershipCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: expect.any(String),
+        organizationId: "org-9",
+        userId: "user-1",
+        role: "primary_manager",
+      }),
+      include: expect.any(Object),
+    });
+    expect(result).toEqual({
+      membershipId: "membership-9",
+      id: "org-9",
+      name: "Acme Rentals",
+      role: "primary_manager",
+      joinedAt: "2026-06-01T00:00:00.000Z",
+      isActive: true,
+    });
+  });
+
   it("reissues invitations by revoking prior pending rows and mapping the new invite", async () => {
     const updateMany = jest.fn(async () => ({ count: 1 }));
     const create = jest.fn(async () => createInvitationPersistence());

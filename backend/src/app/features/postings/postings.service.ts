@@ -20,6 +20,7 @@ import {
   type BatchPostingsResult,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsResult,
+  type OwnerPostingsStatusSummary,
   type ManagedPostingPhotoInput,
   type PublicPostingRecord,
   type PostingAvailabilityBlockRecord,
@@ -394,6 +395,15 @@ export class PostingsService {
       ...input,
       organizationId: membership.organizationId,
     });
+  }
+
+  async getOwnerStatusSummary(
+    userId: string,
+  ): Promise<OwnerPostingsStatusSummary> {
+    const membership = await this.requireActiveMembership(userId);
+    return this.postingsRepository.countByOwnerStatus(
+      membership.organizationId,
+    );
   }
 
   async batchByOwner(

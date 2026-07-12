@@ -157,6 +157,7 @@ class FakePostingsRepository {
     page: number;
     pageSize: number;
     status?: PostingRecord["status"];
+    q?: string;
   }) {
     this.lastListInput = input;
     return {
@@ -170,6 +171,16 @@ class FakePostingsRepository {
         hasPreviousPage: false,
       },
       ...(input.status ? { status: input.status } : {}),
+    };
+  }
+
+  lastCountOrganizationId: string | null = null;
+
+  async countByOwnerStatus(organizationId: string) {
+    this.lastCountOrganizationId = organizationId;
+    return {
+      total: 1,
+      byStatus: { draft: 1, published: 0, paused: 0, archived: 0 },
     };
   }
 
@@ -650,6 +661,37 @@ describe("PostingsService", () => {
       page: 1,
       pageSize: 20,
       status: "draft",
+    });
+  });
+
+  it("passes the search query through to the repository", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await service.listByOwner("manager-1", {
+      page: 1,
+      pageSize: 20,
+      q: "studio",
+    });
+
+    expect(repository.lastListInput).toEqual({
+      organizationId: "org-1",
+      page: 1,
+      pageSize: 20,
+      q: "studio",
+    });
+  });
+
+  it("summarizes posting counts for the caller's active organization", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    const summary = await service.getOwnerStatusSummary("manager-1");
+
+    expect(repository.lastCountOrganizationId).toBe("org-1");
+    expect(summary).toEqual({
+      total: 1,
+      byStatus: { draft: 1, published: 0, paused: 0, archived: 0 },
     });
   });
 

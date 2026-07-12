@@ -1821,6 +1821,36 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "post",
+      path: "/organizations",
+      operationId: "createOrganization",
+      summary: "Create an organization",
+      description:
+        "Creates a new organization and makes the signed-in user its primary manager. The new organization becomes the caller's active organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("CreateOrganizationRequest", {
+        name: "Northwind",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Organization created successfully.",
+          "CreateOrganizationResult",
+          {
+            organization: organizationSummaryExample,
+            membership: organizationMembershipSummaryExample,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
       method: "get",
       path: "/organizations/me",
       operationId: "listMyOrganizations",
@@ -2591,6 +2621,12 @@ function buildOperations(): OperationDefinition[] {
           "Optional posting status filter.",
           "published",
         ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 120 },
+          "Optional case-insensitive search across posting name and description.",
+          "studio",
+        ),
       ],
       responses: {
         "200": successResponse(
@@ -2609,6 +2645,34 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/me/summary",
+      operationId: "ownPostingsStatusSummary",
+      summary: "Count the owner's postings by status",
+      description:
+        "Returns the total number of postings for the active organization and a per-status breakdown. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "owner",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OwnerPostingsStatusSummary",
+          {
+            total: 7,
+            byStatus: { draft: 2, published: 3, paused: 1, archived: 1 },
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
       },
     },
     {
@@ -5562,6 +5626,21 @@ function buildComponents(): Record<string, unknown> {
           activeOrganization: schemaRef("OrganizationSummary"),
         },
       },
+      CreateOrganizationRequest: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 160 },
+        },
+      },
+      CreateOrganizationResult: {
+        type: "object",
+        required: ["organization", "membership"],
+        properties: {
+          organization: schemaRef("OrganizationSummary"),
+          membership: schemaRef("OrganizationMembershipSummary"),
+        },
+      },
       UpdateOrganizationRequest: {
         type: "object",
         required: ["name"],
@@ -6128,6 +6207,23 @@ function buildComponents(): Record<string, unknown> {
           status: { type: "string" },
         },
         required: ["postings", "pagination"],
+      },
+      OwnerPostingsStatusSummary: {
+        type: "object",
+        required: ["total", "byStatus"],
+        properties: {
+          total: { type: "integer" },
+          byStatus: {
+            type: "object",
+            required: ["draft", "published", "paused", "archived"],
+            properties: {
+              draft: { type: "integer" },
+              published: { type: "integer" },
+              paused: { type: "integer" },
+              archived: { type: "integer" },
+            },
+          },
+        },
       },
       BatchOwnerPostingsResult: {
         type: "object",

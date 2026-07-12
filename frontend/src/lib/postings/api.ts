@@ -175,6 +175,16 @@ export interface ListOwnerPostingsResult {
   status?: PostingStatus;
 }
 
+export interface OwnerPostingsStatusSummary {
+  total: number;
+  byStatus: {
+    draft: number;
+    published: number;
+    paused: number;
+    archived: number;
+  };
+}
+
 export interface BatchPostingsResult<TRecord> {
   postings: TRecord[];
   missingIds: string[];
@@ -245,6 +255,7 @@ export const postingsApi = {
     page?: number;
     pageSize?: number;
     status?: PostingStatus;
+    q?: string;
   }): Promise<ListOwnerPostingsResult> {
     return authenticatedJson<ListOwnerPostingsResult>(
       "GET",
@@ -252,7 +263,15 @@ export const postingsApi = {
         page: input?.page ?? 1,
         pageSize: input?.pageSize ?? 20,
         status: input?.status,
+        q: input?.q?.trim() ? input.q.trim() : undefined,
       }),
+    );
+  },
+
+  getStatusSummary(): Promise<OwnerPostingsStatusSummary> {
+    return authenticatedJson<OwnerPostingsStatusSummary>(
+      "GET",
+      "/postings/me/summary",
     );
   },
 
