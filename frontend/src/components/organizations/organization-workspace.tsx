@@ -92,9 +92,7 @@ function formatPostingVariant(posting: PostingRecord): string {
 
 type PostingLifecycleAction = "publish" | "pause" | "unpause" | "archive";
 
-function postingLifecycleActions(
-  status: PostingStatus,
-): Array<{
+function postingLifecycleActions(status: PostingStatus): Array<{
   id: PostingLifecycleAction;
   label: string;
   tone: "primary" | "muted";
