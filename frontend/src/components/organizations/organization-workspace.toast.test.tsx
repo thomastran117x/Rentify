@@ -46,6 +46,12 @@ vi.mock("@/lib/organizations/api", () => ({
   },
 }));
 
+vi.mock("@/lib/postings/api", () => ({
+  postingsApi: {
+    listMine: vi.fn(async () => ({ postings: [] })),
+  },
+}));
+
 describe("OrganizationWorkspace toast integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
