@@ -121,7 +121,7 @@ export function AccountRecoveryDialog({
         : "Use your username to request a reset code and choose a new password.";
 
   return (
-    <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-950/60 px-3 pb-4 pt-[4.75rem] sm:flex sm:items-center sm:justify-center sm:px-4 sm:py-8">
+    <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-950/60 px-3 pb-4 pt-[4.75rem] sm:flex sm:items-start sm:justify-center sm:px-4 sm:pb-8 sm:pt-[5rem]">
       <div
         ref={dialogRef}
         role="dialog"
