@@ -544,7 +544,7 @@ export function LoginForm({
               onClick={() => setAccountRecoveryOpen(true)}
               className={theme.auth.textLink}
             >
-              I can't log in
+              I can&apos;t log in
             </button>
           </div>
 

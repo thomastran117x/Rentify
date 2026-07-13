@@ -2,7 +2,6 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
 const OWNER_USERNAME = "owner-one";
-const OWNER_EMAIL = "owner1@rentify.local";
 const MANAGER_USERNAME = "renter-seven";
 const MANAGER_EMAIL = "user7@rentify.local";
 const OPERATOR_USERNAME = "renter-eight";

@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { HelpCircle, KeyRound, UserRound, X } from "lucide-react";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 
 interface AccountRecoveryDialogProps {
   open: boolean;
   onClose: () => void;
+}
+
+interface AccountRecoveryDialogContentProps {
+  dialogRef: RefObject<HTMLDivElement | null>;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
 }
 
 type RecoveryView = "options" | "username" | "password";
@@ -19,93 +26,13 @@ function getFocusableElements(root: HTMLElement) {
   ).filter((element) => !element.hasAttribute("hidden"));
 }
 
-export function AccountRecoveryDialog({
-  open,
+function AccountRecoveryDialogContent({
+  dialogRef,
+  descriptionId,
   onClose,
-}: AccountRecoveryDialogProps) {
+  titleId,
+}: AccountRecoveryDialogContentProps) {
   const [view, setView] = useState<RecoveryView>("options");
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
-  const titleId = useId();
-  const descriptionId = useId();
-
-  useEffect(() => {
-    if (!open) {
-      setView("options");
-      if (restoreFocusRef.current) {
-        restoreFocusRef.current.focus();
-        restoreFocusRef.current = null;
-      }
-      return;
-    }
-
-    if (
-      !restoreFocusRef.current &&
-      document.activeElement instanceof HTMLElement
-    ) {
-      restoreFocusRef.current = document.activeElement;
-    }
-
-    setView("options");
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !dialogRef.current) {
-      return;
-    }
-
-    const [firstFocusable] = getFocusableElements(dialogRef.current);
-    (firstFocusable ?? dialogRef.current).focus();
-  }, [open, view]);
-
-  useEffect(() => {
-    if (!open || !dialogRef.current) {
-      return;
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (!dialogRef.current) {
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const focusableElements = getFocusableElements(dialogRef.current);
-
-      if (focusableElements.length === 0) {
-        event.preventDefault();
-        dialogRef.current.focus();
-        return;
-      }
-
-      const first = focusableElements[0]!;
-      const last = focusableElements[focusableElements.length - 1]!;
-      const active = document.activeElement;
-
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
-  if (!open) {
-    return null;
-  }
 
   const title =
     view === "options"
@@ -245,5 +172,99 @@ export function AccountRecoveryDialog({
         ) : null}
       </div>
     </div>
+  );
+}
+
+export function AccountRecoveryDialog({
+  open,
+  onClose,
+}: AccountRecoveryDialogProps) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useEffect(() => {
+    if (!open) {
+      if (restoreFocusRef.current) {
+        restoreFocusRef.current.focus();
+        restoreFocusRef.current = null;
+      }
+      return;
+    }
+
+    if (
+      !restoreFocusRef.current &&
+      document.activeElement instanceof HTMLElement
+    ) {
+      restoreFocusRef.current = document.activeElement;
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !dialogRef.current) {
+      return;
+    }
+
+    const [firstFocusable] = getFocusableElements(dialogRef.current);
+    (firstFocusable ?? dialogRef.current).focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !dialogRef.current) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialogRef.current) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = getFocusableElements(dialogRef.current);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusableElements[0]!;
+      const last = focusableElements[focusableElements.length - 1]!;
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <AccountRecoveryDialogContent
+      dialogRef={dialogRef}
+      descriptionId={descriptionId}
+      onClose={onClose}
+      titleId={titleId}
+    />
   );
 }

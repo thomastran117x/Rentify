@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ScanLine } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
@@ -379,12 +380,13 @@ export function HomeMfaTotpPanel() {
               </p>
               <div className="mt-3 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 {qrDataUrl ? (
-                  <img
+                  <Image
                     src={qrDataUrl}
                     alt="TOTP QR code"
                     width={160}
                     height={160}
-                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2"
+                    unoptimized
+                    className="rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900"
                   />
                 ) : (
                   <div className="flex h-[160px] w-[160px] items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400">
