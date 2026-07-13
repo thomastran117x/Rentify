@@ -325,7 +325,7 @@ paths:
     post:
       operationId: forgotPassword
       summary: Request a password reset
-      description: Starts the password reset flow for a local account. The accepted response does not confirm whether the email exists.
+      description: Starts the password reset flow for a local account. The accepted response does not confirm whether the username exists.
       tags:
         - auth
       x-rentify-permissions:
@@ -341,7 +341,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ForgotPasswordRequest'
             example:
-              email: owner1@rentify.local
+              username: owner-one
               captchaToken: turnstile-token
       responses:
         '202':
@@ -393,7 +393,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ForgotPasswordRequest'
             example:
-              email: owner1@rentify.local
+              username: owner-one
               captchaToken: turnstile-token
       responses:
         '202':
@@ -429,7 +429,7 @@ paths:
     post:
       operationId: resetPassword
       summary: Complete a password reset
-      description: Completes a local password reset with the emailed code and returns an authenticated session.
+      description: Completes a local password reset with the code sent to the email on file and returns an authenticated session.
       tags:
         - auth
       x-rentify-permissions:
@@ -444,7 +444,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ResetPasswordRequest'
             example:
-              email: owner1@rentify.local
+              username: owner-one
               code: '123456'
               newPassword: Rentify123!
               deviceId: device-1
@@ -10165,12 +10165,11 @@ components:
     ForgotPasswordRequest:
       type: object
       required:
-        - email
+        - username
         - captchaToken
       properties:
-        email:
+        username:
           type: string
-          format: email
         captchaToken:
           type: string
     ResendVerificationEmailRequest:
@@ -10224,13 +10223,12 @@ components:
     ResetPasswordRequest:
       type: object
       required:
-        - email
+        - username
         - code
         - newPassword
       properties:
-        email:
+        username:
           type: string
-          format: email
         code:
           type: string
           pattern: '^\d{6}$'

@@ -24,17 +24,22 @@ export const metadata: Metadata = {
 interface LoginPageProps {
   searchParams?: Promise<{
     next?: string;
+    recovery?: string;
   }>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = await searchParams;
   const nextPath = resolvedSearchParams?.next || "/";
+  const initialRecoveryOpen = resolvedSearchParams?.recovery === "account";
 
   return (
     <AuthPageShell variant="login">
       <LoginFormCard>
-        <LoginForm nextPath={nextPath} />
+        <LoginForm
+          nextPath={nextPath}
+          initialRecoveryOpen={initialRecoveryOpen}
+        />
       </LoginFormCard>
     </AuthPageShell>
   );

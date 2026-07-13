@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
@@ -14,6 +13,7 @@ import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import { AccountRecoveryDialog } from "@/components/auth/account-recovery-dialog";
 import {
   mfaVerificationApi,
   type MfaVerificationOptionsResult,
@@ -310,9 +310,13 @@ function LoginField({
 
 interface LoginFormProps {
   nextPath: string;
+  initialRecoveryOpen?: boolean;
 }
 
-export function LoginForm({ nextPath }: LoginFormProps) {
+export function LoginForm({
+  nextPath,
+  initialRecoveryOpen = false,
+}: LoginFormProps) {
   const router = useRouter();
   const { status, setSession } = useAuth();
 
@@ -325,12 +329,20 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [unlockEmail, setUnlockEmail] = useState<string | null>(null);
+  const [accountRecoveryOpen, setAccountRecoveryOpen] =
+    useState(initialRecoveryOpen);
   const [devicePending, setDevicePending] = useState(false);
   const [deviceMfaDialogOptions, setDeviceMfaDialogOptions] =
     useState<MfaVerificationOptionsResult | null>(null);
   const deviceMfaResolverRef = useRef<((verified: boolean) => void) | null>(
     null,
   );
+
+  useEffect(() => {
+    if (initialRecoveryOpen) {
+      setAccountRecoveryOpen(true);
+    }
+  }, [initialRecoveryOpen]);
 
   useEffect(() => {
     if (status === "authenticated" && !devicePending) {
@@ -460,6 +472,10 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   return (
     <div className="space-y-5">
+      <AccountRecoveryDialog
+        open={accountRecoveryOpen}
+        onClose={() => setAccountRecoveryOpen(false)}
+      />
       {deviceMfaDialogOptions ? (
         <MfaVerificationDialog
           open={true}
@@ -523,9 +539,13 @@ export function LoginForm({ nextPath }: LoginFormProps) {
               Password
             </label>
 
-            <Link href="/forgot-password" className={theme.auth.textLink}>
-              Forgot password?
-            </Link>
+            <button
+              type="button"
+              onClick={() => setAccountRecoveryOpen(true)}
+              className={theme.auth.textLink}
+            >
+              I can&apos;t log in
+            </button>
           </div>
 
           <div

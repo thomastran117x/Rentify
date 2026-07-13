@@ -1171,7 +1171,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "forgotPassword",
       summary: "Request a password reset",
       description:
-        "Starts the password reset flow for a local account. The accepted response does not confirm whether the email exists.",
+        "Starts the password reset flow for a local account. The accepted response does not confirm whether the username exists.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1181,7 +1181,7 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("ForgotPasswordRequest", {
-        email: "owner1@rentify.local",
+        username: "owner-one",
         captchaToken: "turnstile-token",
       }),
       responses: {
@@ -1210,7 +1210,7 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("ForgotPasswordRequest", {
-        email: "owner1@rentify.local",
+        username: "owner-one",
         captchaToken: "turnstile-token",
       }),
       responses: {
@@ -1229,7 +1229,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resetPassword",
       summary: "Complete a password reset",
       description:
-        "Completes a local password reset with the emailed code and returns an authenticated session.",
+        "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1238,7 +1238,7 @@ function buildOperations(): OperationDefinition[] {
         csrf: "Required for browser-origin requests to /auth/*.",
       },
       requestBody: requestBody("ResetPasswordRequest", {
-        email: "owner1@rentify.local",
+        username: "owner-one",
         code: "123456",
         newPassword: "Rentify123!",
         deviceId: "device-1",
@@ -5927,9 +5927,9 @@ function buildComponents(): Record<string, unknown> {
       },
       ForgotPasswordRequest: {
         type: "object",
-        required: ["email", "captchaToken"],
+        required: ["username", "captchaToken"],
         properties: {
-          email: { type: "string", format: "email" },
+          username: { type: "string" },
           captchaToken: { type: "string" },
         },
       },
@@ -5968,9 +5968,9 @@ function buildComponents(): Record<string, unknown> {
       },
       ResetPasswordRequest: {
         type: "object",
-        required: ["email", "code", "newPassword"],
+        required: ["username", "code", "newPassword"],
         properties: {
-          email: { type: "string", format: "email" },
+          username: { type: "string" },
           code: { type: "string", pattern: "^\\d{6}$" },
           newPassword: { type: "string" },
           deviceId: { type: "string" },

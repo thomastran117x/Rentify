@@ -483,7 +483,7 @@
       "post": {
         "operationId": "forgotPassword",
         "summary": "Request a password reset",
-        "description": "Starts the password reset flow for a local account. The accepted response does not confirm whether the email exists.",
+        "description": "Starts the password reset flow for a local account. The accepted response does not confirm whether the username exists.",
         "tags": [
           "auth"
         ],
@@ -502,7 +502,7 @@
                 "$ref": "#/components/schemas/ForgotPasswordRequest"
               },
               "example": {
-                "email": "owner1@rentify.local",
+                "username": "owner-one",
                 "captchaToken": "turnstile-token"
               }
             }
@@ -583,7 +583,7 @@
                 "$ref": "#/components/schemas/ForgotPasswordRequest"
               },
               "example": {
-                "email": "owner1@rentify.local",
+                "username": "owner-one",
                 "captchaToken": "turnstile-token"
               }
             }
@@ -645,7 +645,7 @@
       "post": {
         "operationId": "resetPassword",
         "summary": "Complete a password reset",
-        "description": "Completes a local password reset with the emailed code and returns an authenticated session.",
+        "description": "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
         "tags": [
           "auth"
         ],
@@ -663,7 +663,7 @@
                 "$ref": "#/components/schemas/ResetPasswordRequest"
               },
               "example": {
-                "email": "owner1@rentify.local",
+                "username": "owner-one",
                 "code": "123456",
                 "newPassword": "Rentify123!",
                 "deviceId": "device-1"
@@ -14871,13 +14871,12 @@
       "ForgotPasswordRequest": {
         "type": "object",
         "required": [
-          "email",
+          "username",
           "captchaToken"
         ],
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email"
+          "username": {
+            "type": "string"
           },
           "captchaToken": {
             "type": "string"
@@ -14956,14 +14955,13 @@
       "ResetPasswordRequest": {
         "type": "object",
         "required": [
-          "email",
+          "username",
           "code",
           "newPassword"
         ],
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email"
+          "username": {
+            "type": "string"
           },
           "code": {
             "type": "string",
