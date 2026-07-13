@@ -1103,7 +1103,7 @@ function buildOperations(): OperationDefinition[] {
       method: "post",
       path: "/auth/local/login",
       operationId: "localLogin",
-      summary: "Authenticate with email and password",
+      summary: "Authenticate with username and password",
       description:
         "Creates an authenticated session with local credentials. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
       tags: ["auth"],
@@ -1115,7 +1115,7 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("LocalAuthenticateRequest", {
-        email: "owner1@rentify.local",
+        username: "owner-one",
         password: "Rentify123!",
         captchaToken: "turnstile-token",
         rememberMe: true,
@@ -1147,6 +1147,7 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("LocalSignupRequest", {
+        username: "taylor-renter",
         email: "new-user@example.com",
         password: "Rentify123!",
         captchaToken: "turnstile-token",
@@ -5892,9 +5893,14 @@ function buildComponents(): Record<string, unknown> {
       },
       LocalAuthenticateRequest: {
         type: "object",
-        required: ["email", "password", "captchaToken"],
+        required: ["username", "password", "captchaToken"],
         properties: {
-          email: { type: "string", format: "email" },
+          username: {
+            type: "string",
+            minLength: 3,
+            maxLength: 50,
+            pattern: "^[a-z0-9._-]+$",
+          },
           password: { type: "string" },
           captchaToken: { type: "string" },
           rememberMe: { type: "boolean" },
@@ -5903,8 +5909,14 @@ function buildComponents(): Record<string, unknown> {
       },
       LocalSignupRequest: {
         type: "object",
-        required: ["email", "password", "captchaToken"],
+        required: ["username", "email", "password", "captchaToken"],
         properties: {
+          username: {
+            type: "string",
+            minLength: 3,
+            maxLength: 50,
+            pattern: "^[a-z0-9._-]+$",
+          },
           email: { type: "string", format: "email" },
           password: { type: "string" },
           captchaToken: { type: "string" },

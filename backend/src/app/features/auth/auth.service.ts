@@ -52,6 +52,7 @@ interface AuthRequestContext {
 }
 
 interface PendingLocalSignupRecord {
+  username: string;
   email: string;
   passwordHash: string;
   firstName?: string;
@@ -75,6 +76,8 @@ const LOCAL_LOGIN_UNLOCK_OTP_PURPOSE = "local-login-unlock";
 const LOCAL_PASSWORD_RESET_OTP_PURPOSE = "local-password-reset";
 const EMAIL_VERIFICATION_OTP_PURPOSE = "email-verification";
 const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
+const PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX =
+  "auth:pending-signup-username";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX = "auth:pending-signup-verify";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS = 10_000;
 const PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS = 60 * 60;
@@ -125,46 +128,40 @@ export class AuthService {
   async localAuthenticate(
     input: LocalAuthenticateInput,
   ): Promise<AuthSessionResult> {
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.authRepository.findUserByUsername(input.username);
     const isPasswordValid = await this.verifyPassword(
       input.password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
     const loginAttemptRecord = await this.getLocalLoginAttemptRecord(
-      input.email,
+      input.username,
     );
 
     if (loginAttemptRecord?.lockedAt && (!user || !isPasswordValid)) {
       await this.sendLocalLoginUnlockCode(user);
       throw new LockedError(
         "This sign-in is locked. Use the code we emailed you to unlock it.",
-        {
-          email: input.email,
-          unlockRequired: true,
-        },
+        this.buildLockedLoginDetails(user),
       );
     }
 
     if (!user || !isPasswordValid) {
       const updatedAttemptRecord = await this.recordFailedLocalLoginAttempt(
-        input.email,
+        input.username,
       );
 
       if (updatedAttemptRecord.lockedAt) {
         await this.sendLocalLoginUnlockCode(user);
         throw new LockedError(
           "This sign-in is locked. Use the code we emailed you to unlock it.",
-          {
-            email: input.email,
-            unlockRequired: true,
-          },
+          this.buildLockedLoginDetails(user),
         );
       }
 
-      throw new UnauthorizedError("Invalid email or password.");
+      throw new UnauthorizedError("Invalid username or password.");
     }
 
-    await this.clearLocalLoginAttemptRecord(input.email);
+    await this.clearLocalLoginAttemptRecord(input.username);
 
     if (!user.emailVerified) {
       throw new UnauthorizedError(
@@ -181,6 +178,11 @@ export class AuthService {
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
     const existingUser = await this.authRepository.findUserByEmail(input.email);
+    await this.assertUsernameIsAvailable(
+      input.username,
+      existingUser?.id,
+      input.email,
+    );
 
     if (existingUser?.emailVerified) {
       return {
@@ -193,6 +195,7 @@ export class AuthService {
     const passwordHash = await this.hashPassword(input.password);
     await this.writePendingLocalSignup(
       {
+        username: input.username,
         email: input.email,
         passwordHash,
         firstName: input.firstName,
@@ -294,7 +297,7 @@ export class AuthService {
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       eligibleUser.id,
     );
-    await this.clearLocalLoginAttemptRecord(eligibleUser.email);
+    await this.clearLocalLoginAttemptRecord(eligibleUser.profile.username);
 
     const updatedUser: AuthUserRecord = {
       ...eligibleUser,
@@ -337,9 +340,16 @@ export class AuthService {
       );
       let verifiedUser: AuthUserRecord;
 
+      await this.assertUsernameIsAvailable(
+        pendingSignup.username,
+        existingUser?.id,
+        pendingSignup.email,
+      );
+
       if (!existingUser) {
         const createdUser = await this.authRepository.createLocalUser(
           {
+            username: pendingSignup.username,
             email: pendingSignup.email,
             firstName: pendingSignup.firstName,
             lastName: pendingSignup.lastName,
@@ -361,6 +371,7 @@ export class AuthService {
         verifiedUser = await this.authRepository.activatePendingLocalUser(
           existingUser.id,
           {
+            username: pendingSignup.username,
             passwordHash: pendingSignup.passwordHash,
             firstName: pendingSignup.firstName,
             lastName: pendingSignup.lastName,
@@ -456,7 +467,7 @@ export class AuthService {
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       user.id,
     );
-    await this.clearLocalLoginAttemptRecord(user.email);
+    await this.clearLocalLoginAttemptRecord(user.profile.username);
 
     const updatedUser: AuthUserRecord = {
       ...user,
@@ -482,7 +493,11 @@ export class AuthService {
       code: input.code,
     });
 
-    await this.clearLocalLoginAttemptRecord(input.email);
+    const user = await this.authRepository.findUserByEmail(input.email);
+
+    if (user) {
+      await this.clearLocalLoginAttemptRecord(user.profile.username);
+    }
 
     return {
       unlocked: true,
@@ -508,7 +523,10 @@ export class AuthService {
       };
     }
 
-    const isLocked = await this.isLocalLoginLocked(input.email);
+    const user = await this.authRepository.findUserByEmail(input.email);
+    const isLocked = user
+      ? await this.isLocalLoginLocked(user.profile.username)
+      : false;
 
     if (!isLocked) {
       return {
@@ -516,7 +534,6 @@ export class AuthService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
     await this.sendLocalLoginUnlockCode(user);
 
     return {
@@ -1139,6 +1156,10 @@ export class AuthService {
     return `${PENDING_LOCAL_SIGNUP_CACHE_PREFIX}:${email.toLowerCase()}`;
   }
 
+  private getPendingLocalSignupUsernameKey(username: string): string {
+    return `${PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX}:${username.toLowerCase()}`;
+  }
+
   private getPendingLocalSignupVerifyLockKey(email: string): string {
     return `${PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX}:${email.toLowerCase()}`;
   }
@@ -1147,9 +1168,22 @@ export class AuthService {
     signup: PendingLocalSignupRecord,
     ttlInSeconds: number,
   ): Promise<void> {
+    const existingSignup = await this.readPendingLocalSignup(signup.email);
+
+    if (existingSignup && existingSignup.username !== signup.username) {
+      await this.cacheService.delete(
+        this.getPendingLocalSignupUsernameKey(existingSignup.username),
+      );
+    }
+
     await this.cacheService.setJson(
       this.getPendingLocalSignupKey(signup.email),
       signup,
+      ttlInSeconds,
+    );
+    await this.cacheService.setJson(
+      this.getPendingLocalSignupUsernameKey(signup.username),
+      signup.email,
       ttlInSeconds,
     );
   }
@@ -1163,6 +1197,14 @@ export class AuthService {
   }
 
   private async deletePendingLocalSignup(email: string): Promise<void> {
+    const pendingSignup = await this.readPendingLocalSignup(email);
+
+    if (pendingSignup) {
+      await this.cacheService.delete(
+        this.getPendingLocalSignupUsernameKey(pendingSignup.username),
+      );
+    }
+
     await this.cacheService.delete(this.getPendingLocalSignupKey(email));
   }
 
@@ -1173,22 +1215,22 @@ export class AuthService {
     );
   }
 
-  private getLocalLoginAttemptKey(email: string): string {
-    return `auth:local-login-attempts:${email.toLowerCase()}`;
+  private getLocalLoginAttemptKey(username: string): string {
+    return `auth:local-login-attempts:${username.toLowerCase()}`;
   }
 
   private async getLocalLoginAttemptRecord(
-    email: string,
+    username: string,
   ): Promise<LocalLoginAttemptRecord | null> {
     return this.cacheService.getJson<LocalLoginAttemptRecord>(
-      this.getLocalLoginAttemptKey(email),
+      this.getLocalLoginAttemptKey(username),
     );
   }
 
   private async recordFailedLocalLoginAttempt(
-    email: string,
+    username: string,
   ): Promise<LocalLoginAttemptRecord> {
-    const existingRecord = await this.getLocalLoginAttemptRecord(email);
+    const existingRecord = await this.getLocalLoginAttemptRecord(username);
     const nextFailedAttempts = (existingRecord?.failedAttempts ?? 0) + 1;
     const nextRecord: LocalLoginAttemptRecord =
       nextFailedAttempts >= MAX_FAILED_LOCAL_LOGIN_ATTEMPTS
@@ -1201,7 +1243,7 @@ export class AuthService {
           };
 
     await this.cacheService.setJson(
-      this.getLocalLoginAttemptKey(email),
+      this.getLocalLoginAttemptKey(username),
       nextRecord,
       nextRecord.lockedAt
         ? LOCAL_LOGIN_LOCK_TTL_IN_SECONDS
@@ -1211,12 +1253,12 @@ export class AuthService {
     return nextRecord;
   }
 
-  private async clearLocalLoginAttemptRecord(email: string): Promise<void> {
-    await this.cacheService.delete(this.getLocalLoginAttemptKey(email));
+  private async clearLocalLoginAttemptRecord(username: string): Promise<void> {
+    await this.cacheService.delete(this.getLocalLoginAttemptKey(username));
   }
 
-  private async isLocalLoginLocked(email: string): Promise<boolean> {
-    const record = await this.getLocalLoginAttemptRecord(email);
+  private async isLocalLoginLocked(username: string): Promise<boolean> {
+    const record = await this.getLocalLoginAttemptRecord(username);
     return Boolean(record?.lockedAt);
   }
 
@@ -1334,6 +1376,44 @@ export class AuthService {
     }
 
     return `${localPart.slice(0, 1)}***@${domain}`;
+  }
+
+  private async readPendingSignupEmailByUsername(
+    username: string,
+  ): Promise<string | null> {
+    return this.cacheService.getJson<string>(
+      this.getPendingLocalSignupUsernameKey(username),
+    );
+  }
+
+  private async assertUsernameIsAvailable(
+    username: string,
+    allowedUserId?: string,
+    allowedPendingEmail?: string,
+  ): Promise<void> {
+    const existingUser = await this.authRepository.findUserByUsername(username);
+
+    if (existingUser && existingUser.id !== allowedUserId) {
+      throw new ConflictError("That username is already taken.", {
+        field: "username",
+      });
+    }
+
+    const pendingSignupEmail =
+      await this.readPendingSignupEmailByUsername(username);
+
+    if (pendingSignupEmail && pendingSignupEmail !== allowedPendingEmail) {
+      throw new ConflictError("That username is already taken.", {
+        field: "username",
+      });
+    }
+  }
+
+  private buildLockedLoginDetails(user: AuthUserRecord | null) {
+    return {
+      ...(user ? { email: user.email } : {}),
+      unlockRequired: true,
+    };
   }
 
   private async sendLocalLoginUnlockCode(

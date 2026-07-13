@@ -56,7 +56,7 @@ function createClient(
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtAuthPrincipal {
   return {
     sub: "user-1",
-    email: "user@example.com",
+    username: "test-user",
     role: "user",
     deviceId: "token-device-1",
     tokenVersion: 2,
@@ -72,7 +72,7 @@ function createAuthUser(
 ): AuthUserProfile {
   return {
     id: "user-1",
-    email: "user@example.com",
+    username: "test-user",
     firstName: "Test",
     lastName: "User",
     username: "test-user",
@@ -204,7 +204,7 @@ function createController(overrides?: {
       overrides?.localSignup ??
         (async () => ({
           verificationRequired: true,
-          email: "user@example.com",
+          username: "test-user",
           alreadyPending: false,
         })),
     ),
@@ -387,7 +387,7 @@ describe("AuthController", () => {
     });
     const context = createContext({
       body: {
-        email: "USER@example.com",
+        username: "TEST-USER",
         password: "Password1!",
         captchaToken: "captcha-token",
         rememberMe: true,
@@ -406,7 +406,7 @@ describe("AuthController", () => {
       idempotencyKey: "request-123",
     });
     expect(authService.localAuthenticate).toHaveBeenCalledWith({
-      email: "user@example.com",
+      username: "test-user",
       password: "Password1!",
       rememberMe: true,
       client: context.get("client"),
@@ -447,7 +447,6 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
-          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,
@@ -474,7 +473,7 @@ describe("AuthController", () => {
         },
       }),
       body: {
-        email: "user@example.com",
+        username: "test-user",
         password: "Password1!",
         captchaToken: "captcha-token",
       },
@@ -495,7 +494,6 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
-          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,
@@ -525,7 +523,7 @@ describe("AuthController", () => {
         origin: "http://localhost:3040",
       },
       body: {
-        email: "user@example.com",
+        username: "test-user",
         password: "Password1!",
         captchaToken: "captcha-token",
       },
@@ -577,7 +575,7 @@ describe("AuthController", () => {
     });
     const context = createContext({
       body: {
-        email: "user@example.com",
+        username: "test-user",
         password: "Password1!",
         captchaToken: "captcha-token",
       },
@@ -610,8 +608,9 @@ describe("AuthController", () => {
     });
     const context = createContext({
       body: {
-        email: "user@example.com",
+        username: "test-user",
         password: "StrongPassword1!",
+        email: "user@example.com",
         captchaToken: "captcha-token",
       },
     });
@@ -634,6 +633,7 @@ describe("AuthController", () => {
       createContext({
         body: {
           email: "USER@example.com",
+          username: "TEST-USER",
           password: "StrongPassword1!",
           captchaToken: "signup-captcha",
           firstName: "Test",
@@ -707,6 +707,7 @@ describe("AuthController", () => {
 
     expect(authService.localSignup).toHaveBeenCalledWith({
       client: expect.any(Object),
+      username: "test-user",
       email: "user@example.com",
       password: "StrongPassword1!",
       firstName: "Test",
@@ -808,6 +809,7 @@ describe("AuthController", () => {
     const context = createContext({
       body: {
         email: "user@example.com",
+        username: "test-user",
         password: "StrongPassword1!",
         captchaToken: "captcha-token",
         firstName: "<script>alert('xss')</script>",
@@ -832,7 +834,7 @@ describe("AuthController", () => {
     const { controller, authService, captchaService } = createController();
     const context = createContext({
       body: {
-        email: "user@example.com",
+        username: "test-user",
         password: "<script>Password1!</script>",
         captchaToken: "captcha-token",
       },

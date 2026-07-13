@@ -20,6 +20,7 @@ import { theme } from "@/styles/theme";
 interface SignupErrors {
   firstName?: string;
   lastName?: string;
+  username?: string;
   email?: string;
   password?: string;
   confirmPassword?: string;
@@ -29,12 +30,14 @@ interface SignupErrors {
 function validateSignup(values: {
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   password: string;
   confirmPassword: string;
   captchaToken: string;
 }): SignupErrors {
   const errors: SignupErrors = {};
+  const normalizedUsername = values.username.trim();
 
   if (!values.firstName.trim()) {
     errors.firstName = "First name is required.";
@@ -42,6 +45,17 @@ function validateSignup(values: {
 
   if (!values.lastName.trim()) {
     errors.lastName = "Last name is required.";
+  }
+
+  if (!normalizedUsername) {
+    errors.username = "Username is required.";
+  } else if (
+    normalizedUsername.length < 3 ||
+    normalizedUsername.length > 50 ||
+    !/^[a-z0-9._-]+$/i.test(normalizedUsername)
+  ) {
+    errors.username =
+      "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
   }
 
   if (!values.email.trim()) {
@@ -77,6 +91,10 @@ type SignupFailureResult = {
 function getSignupFailureResult(error: unknown): SignupFailureResult {
   if (error instanceof ApiClientError) {
     const { status, code, message } = error;
+    const details =
+      typeof error.details === "object" && error.details !== null
+        ? (error.details as { field?: unknown })
+        : null;
 
     if (status === 400) {
       switch (code) {
@@ -116,6 +134,15 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
     }
 
     if (status === 409) {
+      if (details?.field === "username") {
+        return {
+          generalError: message || "That username is already taken.",
+          fieldErrors: {
+            username: "That username is already taken.",
+          },
+        };
+      }
+
       return {
         generalError:
           message ||
@@ -312,6 +339,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -343,6 +371,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
     const nextErrors = validateSignup({
       firstName,
       lastName,
+      username,
       email,
       password,
       confirmPassword,
@@ -362,6 +391,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       const result = await authApi.signup({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        username: username.trim().toLowerCase(),
         email: email.trim().toLowerCase(),
         password,
         captchaToken,
@@ -390,6 +420,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const lastNameHasValue = useMemo(
     () => lastName.trim().length > 0,
     [lastName],
+  );
+  const usernameHasValue = useMemo(
+    () => username.trim().length > 0,
+    [username],
   );
   const emailHasValue = useMemo(() => email.trim().length > 0, [email]);
   const passwordHasValue = useMemo(() => password.length > 0, [password]);
@@ -428,7 +462,9 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
       <div className="flex items-center gap-3">
         <div className={theme.auth.dividerLine} />
-        <span className={theme.auth.dividerText}>Or use email</span>
+        <span className={theme.auth.dividerText}>
+          Or continue with a username
+        </span>
         <div className={theme.auth.dividerLine} />
       </div>
 
@@ -513,11 +549,41 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
           <div className="mb-4">
             <p className={theme.auth.fieldSectionLabel}>Credentials</p>
             <p className={theme.auth.fieldSectionDescription}>
-              Use an email you can verify and a password you will remember.
+              Choose a public username, an email you can verify, and a password
+              you will remember.
             </p>
           </div>
 
           <div className="space-y-5">
+            <SignupField
+              id="username"
+              label="Username"
+              error={errors.username}
+              errorId="signup-username-error"
+              hasValue={usernameHasValue}
+              activeClassName={theme.auth.fieldActive}
+              icon={
+                <div className={theme.auth.fieldIcon}>
+                  <UserIcon />
+                </div>
+              }
+            >
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                placeholder="jane-doe"
+                aria-invalid={Boolean(errors.username)}
+                aria-describedby={
+                  errors.username ? "signup-username-error" : undefined
+                }
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                className={theme.auth.fieldInput}
+              />
+            </SignupField>
+
             <SignupField
               id="email"
               label="Email"

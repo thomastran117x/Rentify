@@ -410,7 +410,7 @@ export class AuthController {
     input: LocalAuthenticateRequestBody,
   ): LocalAuthenticateInput {
     return {
-      email: input.email,
+      username: input.username,
       password: input.password,
       rememberMe: input.rememberMe,
       client: context.get("client"),
@@ -425,6 +425,7 @@ export class AuthController {
   ): LocalSignupInput {
     return {
       client: context.get("client"),
+      username: input.username,
       email: input.email,
       password: input.password,
       firstName: input.firstName,

@@ -22,16 +22,16 @@ import type {
 import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
 
 interface LoginInput {
-  email: string;
+  username: string;
   password: string;
   captchaToken: string;
   rememberMe?: boolean;
   deviceId?: string;
 }
-
 interface SignupInput {
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   password: string;
   captchaToken: string;

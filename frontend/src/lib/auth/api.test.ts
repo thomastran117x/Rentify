@@ -88,7 +88,7 @@ describe("authApi", () => {
 
     const { authApi } = await import("./api");
     const result = await authApi.login({
-      email: "person@example.com",
+      username: "person",
       password: "secret",
       captchaToken: "captcha-token",
     });
@@ -106,7 +106,7 @@ describe("authApi", () => {
           "x-device-platform": "web",
         }),
         body: JSON.stringify({
-          email: "person@example.com",
+          username: "person",
           password: "secret",
           captchaToken: "captcha-token",
           deviceId: "device-1",

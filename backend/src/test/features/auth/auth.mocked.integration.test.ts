@@ -133,7 +133,7 @@ function createApp(overrides?: {
       overrides?.localSignup ??
         (async () => ({
           verificationRequired: true,
-          email: "user@example.com",
+          username: "test-user",
           alreadyPending: false,
         })),
     ),
@@ -255,7 +255,7 @@ describe("Auth integration", () => {
           "sec-ch-ua-platform": '"macOS"',
         },
         body: JSON.stringify({
-          email: "USER@example.com",
+          username: "TEST-USER",
           password: "Password1!",
           captchaToken: "captcha-token",
           rememberMe: true,
@@ -269,7 +269,7 @@ describe("Auth integration", () => {
       idempotencyKey: "req-123",
     });
     expect(authService.localAuthenticate).toHaveBeenCalledWith({
-      email: "user@example.com",
+      username: "test-user",
       password: "Password1!",
       rememberMe: true,
       client: {
@@ -330,6 +330,7 @@ describe("Auth integration", () => {
           "content-type": "application/json",
         },
         body: JSON.stringify({
+          username: "test-user",
           email: "user@example.com",
           password: "StrongPassword1!",
           captchaToken: "bad-captcha",

@@ -6,16 +6,18 @@ export const listProfilesQuerySchema = z.object({
   q: z.string().trim().min(1).max(100).optional(),
 });
 
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, "Username must be at least 3 characters long.")
+  .max(50, "Username must be at most 50 characters long.")
+  .regex(
+    /^[a-z0-9._-]+$/i,
+    "Username may only contain letters, numbers, periods, underscores, and hyphens.",
+  );
+
 export const updateProfileRequestSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "Username must be at least 3 characters long.")
-    .max(50, "Username must be at most 50 characters long.")
-    .regex(
-      /^[a-z0-9._-]+$/i,
-      "Username may only contain letters, numbers, periods, underscores, and hyphens.",
-    ),
+  username: usernameSchema,
   phoneNumber: z
     .string()
     .trim()

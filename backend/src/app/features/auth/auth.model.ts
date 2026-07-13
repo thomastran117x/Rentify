@@ -1,4 +1,5 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 
 const UNSAFE_AUTH_INPUT_MESSAGE =
@@ -62,7 +63,12 @@ export const strongPasswordSchema = z
   .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE)
   .refine(isStrongPassword, STRONG_PASSWORD_MESSAGE);
 
+export const authUsernameSchema = usernameSchema.transform((value) =>
+  value.trim().toLowerCase(),
+);
+
 export const localSignupRequestSchema = z.object({
+  username: authUsernameSchema,
   email: z.email().transform((value) => value.trim().toLowerCase()),
   password: strongPasswordSchema,
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
@@ -72,7 +78,7 @@ export const localSignupRequestSchema = z.object({
 });
 
 export const localAuthenticateRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
+  username: authUsernameSchema,
   password: z
     .string()
     .min(1, "Password is required.")
@@ -246,7 +252,7 @@ export type ChangePasswordRequestBody = z.infer<
 
 export interface LocalAuthenticateInput {
   client: ClientRequestContext;
-  email: string;
+  username: string;
   password: string;
   rememberMe?: boolean;
   deviceId?: string;
@@ -255,6 +261,7 @@ export interface LocalAuthenticateInput {
 
 export interface LocalSignupInput {
   client: ClientRequestContext;
+  username: string;
   email: string;
   password: string;
   firstName?: string;
@@ -348,6 +355,7 @@ export interface ChangePasswordInput {
 }
 
 export interface CreateLocalUserInput {
+  username: string;
   email: string;
   firstName?: string;
   lastName?: string;
