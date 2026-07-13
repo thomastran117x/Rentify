@@ -310,4 +310,30 @@ describe("LoginForm", () => {
       ),
     ).toBeInTheDocument();
   });
+  it("opens the account recovery dialog from the password help trigger", async () => {
+    const user = userEvent.setup();
+
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.click(screen.getByRole("button", { name: "I can't log in" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "I can't log in" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /I forgot my username/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /I forgot my password/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the account recovery dialog when the page requests it", async () => {
+    render(<LoginForm nextPath="/dashboard" initialRecoveryOpen />);
+
+    expect(
+      await screen.findByRole("heading", { name: "I can't log in" }),
+    ).toBeInTheDocument();
+  });
+
 });
