@@ -119,6 +119,9 @@ describe("Auth persistence integration", () => {
         where: {
           email,
         },
+        include: {
+          profile: true,
+        },
       }),
     ).toMatchObject({
       email,

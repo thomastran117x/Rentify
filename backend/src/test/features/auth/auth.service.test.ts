@@ -1463,6 +1463,40 @@ describe("AuthService", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 
+  it("rejects invalid username sign-in attempts and records the normalized username lock key", async () => {
+    const cacheWrites: Array<{
+      key: string;
+      value: unknown;
+      ttlSeconds?: number;
+    }> = [];
+    const service = createService({
+      cacheGetJson: async () => null,
+      cacheSetJson: async (key, value, ttlSeconds) => {
+        cacheWrites.push({
+          key,
+          value,
+          ttlSeconds,
+        });
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: "Missing-User",
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("Invalid username or password.");
+    expect(cacheWrites).toContainEqual({
+      key: "auth:local-login-attempts:missing-user",
+      value: {
+        failedAttempts: 1,
+      },
+      ttlSeconds: 15 * 60,
+    });
+  });
+
   it("locks local sign-in immediately when a locked attempt record already exists", async () => {
     const service = createService({
       cacheGetJson: async (key) =>
@@ -1553,6 +1587,88 @@ describe("AuthService", () => {
     ).rejects.toThrow("Please verify your email address before signing in.");
 
     expect(clearedKey).toBe("auth:local-login-attempts:test-user");
+  });
+
+  it("unlocks local sign-in by email and clears the username lock state when the account exists", async () => {
+    const user = createUser();
+    const verifyCalls: Array<{
+      purpose: string;
+      subject: string;
+      code: string;
+    }> = [];
+    let clearedKey: string | undefined;
+    const service = createService({
+      findUserByEmail: async () => user,
+      verifyOtp: async (input) => {
+        verifyCalls.push(input);
+      },
+      cacheDelete: async (key) => {
+        clearedKey = key;
+        return true;
+      },
+    });
+
+    await expect(
+      service.unlockLocalLogin({
+        client: createClient(),
+        email: user.email,
+        code: "123456",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({
+      unlocked: true,
+      email: user.email,
+    });
+    expect(verifyCalls).toEqual([
+      {
+        purpose: "local-login-unlock",
+        subject: user.email,
+        code: "123456",
+      },
+    ]);
+    expect(clearedKey).toBe("auth:local-login-attempts:test-user");
+  });
+
+  it("resends a local-login unlock code when the account is still locked", async () => {
+    const user = createUser();
+    let unlockEmailInput:
+      | {
+          to: string;
+          unlockCode: string;
+          firstName?: string;
+        }
+      | undefined;
+    const service = createService({
+      findUserByEmail: async () => user,
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? {
+              failedAttempts: 5,
+              lockedAt: "2026-01-02T00:00:00.000Z",
+            }
+          : null,
+      issueOtp: async () => ({
+        code: "654321",
+      }),
+      sendLoginUnlockEmail: async (input) => {
+        unlockEmailInput = input;
+      },
+    });
+
+    await expect(
+      service.resendUnlockLocalLogin({
+        client: createClient(),
+        email: user.email,
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({
+      accepted: true,
+    });
+    expect(unlockEmailInput).toEqual({
+      to: user.email,
+      unlockCode: "654321",
+      firstName: user.firstName,
+    });
   });
 
   it("skips login MFA for allowlisted users outside production", async () => {
@@ -1831,6 +1947,7 @@ describe("AuthService", () => {
         email: "microsoft@example.com",
       },
     });
+
     await expect(
       service.appleAuthenticate({
         client: createClient(),
@@ -1865,6 +1982,7 @@ describe("AuthService", () => {
         },
       },
     });
+
     await expect(
       helper.sendPasswordResetCode(createUser()),
     ).resolves.toBeUndefined();
