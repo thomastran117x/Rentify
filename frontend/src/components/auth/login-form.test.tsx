@@ -137,7 +137,7 @@ describe("LoginForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(screen.getByText("Email is required.")).toBeInTheDocument();
+    expect(screen.getByText("Username is required.")).toBeInTheDocument();
     expect(screen.getByText("Password is required.")).toBeInTheDocument();
     expect(
       screen.getByText("Complete the captcha before signing in."),
@@ -147,8 +147,6 @@ describe("LoginForm", () => {
 
   it("submits a normalized login request and redirects on success", async () => {
     const user = userEvent.setup();
-    // When setSession is called the auth context transitions to authenticated,
-    // which the useEffect picks up on the next re-render (triggered by setDevicePending).
     const setSession = vi.fn().mockImplementation(() => {
       useAuthMock.mockReturnValue({ status: "authenticated", setSession });
     });
@@ -158,9 +156,6 @@ describe("LoginForm", () => {
       vi.fn(),
       clearCaptchaTokenMock,
     ]);
-    // Unknown device forces the device-login MFA gate path, which calls
-    // setDevicePending(true/false) and causes the re-render that picks up
-    // the updated auth status.
     loginMock.mockResolvedValue({
       accessToken: "access-token",
       device: {
@@ -185,13 +180,13 @@ describe("LoginForm", () => {
 
     render(<LoginForm nextPath="/dashboard" />);
 
-    await user.type(screen.getByLabelText("Email"), " Person@Example.com ");
+    await user.type(screen.getByLabelText("Username"), " Person ");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
       expect(loginMock).toHaveBeenCalledWith({
-        email: "person@example.com",
+        username: "person",
         password: "secret-password",
         captchaToken: "captcha-token",
       });
@@ -219,13 +214,13 @@ describe("LoginForm", () => {
 
     render(<LoginForm nextPath="/dashboard" />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(
       await screen.findByText(
-        "The email or password you entered is incorrect.",
+        "The username or password you entered is incorrect.",
       ),
     ).toBeInTheDocument();
     expect(clearCaptchaTokenMock).toHaveBeenCalled();
@@ -247,7 +242,7 @@ describe("LoginForm", () => {
 
     render(<LoginForm nextPath="/dashboard" />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -261,7 +256,7 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("switches to unlock mode for locked-account responses", async () => {
+  it("switches to unlock mode for locked-account responses with a resolved email", async () => {
     const user = userEvent.setup();
     loginMock.mockRejectedValue(
       new ApiClientError("Locked", {
@@ -272,12 +267,16 @@ describe("LoginForm", () => {
           requestUrl: "http://localhost:8040/api/v1/auth/local/login",
         },
         status: 423,
+        details: {
+          email: "person@example.com",
+          unlockRequired: true,
+        },
       }),
     );
 
     render(<LoginForm nextPath="/dashboard" />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -301,7 +300,7 @@ describe("LoginForm", () => {
 
     render(<LoginForm nextPath="/dashboard" />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 

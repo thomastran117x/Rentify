@@ -20,22 +20,28 @@ import {
 } from "@/lib/auth/mfa-verification-api";
 
 interface LoginErrors {
-  email?: string;
+  username?: string;
   password?: string;
   captchaToken?: string;
 }
 
 function validateLogin(values: {
-  email: string;
+  username: string;
   password: string;
   captchaToken: string;
 }): LoginErrors {
   const errors: LoginErrors = {};
+  const normalizedUsername = values.username.trim();
 
-  if (!values.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
-    errors.email = "Enter a valid email address.";
+  if (!normalizedUsername) {
+    errors.username = "Username is required.";
+  } else if (
+    normalizedUsername.length < 3 ||
+    normalizedUsername.length > 50 ||
+    !/^[a-z0-9._-]+$/i.test(normalizedUsername)
+  ) {
+    errors.username =
+      "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
   }
 
   if (!values.password) {
@@ -52,12 +58,16 @@ function validateLogin(values: {
 type LoginFailureResult = {
   generalError: string | null;
   fieldErrors?: Partial<LoginErrors>;
-  unlockRequired?: boolean;
+  unlockEmail?: string;
 };
 
 function getLoginFailureResult(error: unknown): LoginFailureResult {
   if (error instanceof ApiClientError) {
     const { status, code, message } = error;
+    const details =
+      typeof error.details === "object" && error.details !== null
+        ? (error.details as { email?: unknown })
+        : null;
 
     if (status === 400) {
       switch (code) {
@@ -98,7 +108,7 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
 
     if (status === 401) {
       return {
-        generalError: "The email or password you entered is incorrect.",
+        generalError: "The username or password you entered is incorrect.",
       };
     }
 
@@ -137,7 +147,8 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
         generalError:
           message ||
           "This sign-in is locked. Use the code from your email to unlock it.",
-        unlockRequired: true,
+        unlockEmail:
+          typeof details?.email === "string" ? details.email : undefined,
       };
     }
   }
@@ -150,7 +161,7 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
   };
 }
 
-function MailIcon() {
+function UserIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -161,11 +172,15 @@ function MailIcon() {
       aria-hidden="true"
     >
       <path
-        d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9Z"
+        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d="m5 7 7 5 7-5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.5 20a7.5 7.5 0 0 1 15 0"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -301,7 +316,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   const router = useRouter();
   const { status, setSession } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
     useAuthCaptchaToken();
@@ -350,7 +365,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           }
         }
       } catch {
-        // getOptions failed — proceed without MFA gate
+        // getOptions failed - proceed without MFA gate
       }
 
       setDevicePending(false);
@@ -374,7 +389,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextErrors = validateLogin({ email, password, captchaToken });
+    const nextErrors = validateLogin({ username, password, captchaToken });
     setErrors(nextErrors);
     setGeneralError(null);
     setUnlockEmail(null);
@@ -387,7 +402,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
     try {
       const session = await authApi.login({
-        email: email.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
         password,
         captchaToken,
       });
@@ -398,9 +413,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       const failure = getLoginFailureResult(error);
 
       setGeneralError(failure.generalError);
-      setUnlockEmail(
-        failure.unlockRequired ? email.trim().toLowerCase() : null,
-      );
+      setUnlockEmail(failure.unlockEmail ?? null);
       setErrors((current) => ({
         ...current,
         ...(failure.fieldErrors ?? {}),
@@ -411,7 +424,10 @@ export function LoginForm({ nextPath }: LoginFormProps) {
     }
   }
 
-  const emailHasValue = useMemo(() => email.trim().length > 0, [email]);
+  const usernameHasValue = useMemo(
+    () => username.trim().length > 0,
+    [username],
+  );
   const passwordHasValue = useMemo(() => password.length > 0, [password]);
 
   if (status === "loading") {
@@ -460,7 +476,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
       <div className="flex items-center gap-3">
         <div className={theme.auth.dividerLine} />
-        <span className={theme.auth.dividerText}>Or use email</span>
+        <span className={theme.auth.dividerText}>Or use username</span>
         <div className={theme.auth.dividerLine} />
       </div>
 
@@ -473,28 +489,30 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         ) : null}
 
         <LoginField
-          id="email"
-          label="Email"
-          error={errors.email}
-          errorId="login-email-error"
-          hasValue={emailHasValue}
+          id="username"
+          label="Username"
+          error={errors.username}
+          errorId="login-username-error"
+          hasValue={usernameHasValue}
           iconClassName={theme.auth.fieldActive}
           icon={
             <div className={theme.auth.fieldIcon}>
-              <MailIcon />
+              <UserIcon />
             </div>
           }
         >
           <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            aria-invalid={Boolean(errors.email)}
-            aria-describedby={errors.email ? "login-email-error" : undefined}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            id="username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            placeholder="your-username"
+            aria-invalid={Boolean(errors.username)}
+            aria-describedby={
+              errors.username ? "login-username-error" : undefined
+            }
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
             className={theme.auth.fieldInput}
           />
         </LoginField>

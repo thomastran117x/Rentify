@@ -1,8 +1,11 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
+const OWNER_USERNAME = "owner-one";
 const OWNER_EMAIL = "owner1@rentify.local";
+const MANAGER_USERNAME = "renter-seven";
 const MANAGER_EMAIL = "user7@rentify.local";
+const OPERATOR_USERNAME = "renter-eight";
 const OPERATOR_EMAIL = "user8@rentify.local";
 const PASSWORD = "Rentify123!";
 const EMAIL_QUEUE_NAMES = [
@@ -55,10 +58,14 @@ async function ensureCaptchaToken(page: Page) {
   await expect.poll(readCaptchaToken).not.toBe("");
 }
 
-async function login(page: Page, email: string, nextPath = "/organizations") {
+async function login(
+  page: Page,
+  username: string,
+  nextPath = "/organizations",
+) {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}`);
   await ensureCaptchaToken(page);
-  await page.getByRole("textbox", { name: /^Email/i }).fill(email);
+  await page.getByRole("textbox", { name: /^Username/i }).fill(username);
   await page.getByLabel(/^Password/i).fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
@@ -145,7 +152,7 @@ async function waitForInviteToken(email: string): Promise<string> {
 async function openInviteAndLogin(
   browser: Browser,
   token: string,
-  email: string,
+  username: string,
 ) {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -153,7 +160,7 @@ async function openInviteAndLogin(
   await page.goto(`/organizations/invitations/${token}`);
   await expect(page.getByRole("heading", { name: /Join .+/ })).toBeVisible();
   await page.getByRole("link", { name: "Sign in" }).click();
-  await login(page, email, `/organizations/invitations/${token}`);
+  await login(page, username, `/organizations/invitations/${token}`);
 
   return { context, page };
 }
@@ -170,7 +177,7 @@ test("organization workspace supports owner invites and member role boundaries",
     }
   });
 
-  await login(page, OWNER_EMAIL);
+  await login(page, OWNER_USERNAME);
   await expectOrganizationsWorkspace(page, "Primary Manager");
 
   await page.getByPlaceholder("teammate@example.com").fill(MANAGER_EMAIL);
@@ -188,7 +195,7 @@ test("organization workspace supports owner invites and member role boundaries",
   const operatorToken = await waitForInviteToken(OPERATOR_EMAIL);
 
   const { context: managerContext, page: managerPage } =
-    await openInviteAndLogin(browser, managerToken, MANAGER_EMAIL);
+    await openInviteAndLogin(browser, managerToken, MANAGER_USERNAME);
 
   await expect(
     managerPage.getByRole("button", { name: "Accept invitation" }),
@@ -210,7 +217,7 @@ test("organization workspace supports owner invites and member role boundaries",
   const mismatchPage = await mismatchContext.newPage();
   await login(
     mismatchPage,
-    MANAGER_EMAIL,
+    MANAGER_USERNAME,
     `/organizations/invitations/${operatorToken}`,
   );
   await expect(
@@ -223,7 +230,7 @@ test("organization workspace supports owner invites and member role boundaries",
   ).toBeDisabled();
 
   const { context: operatorContext, page: operatorPage } =
-    await openInviteAndLogin(browser, operatorToken, OPERATOR_EMAIL);
+    await openInviteAndLogin(browser, operatorToken, OPERATOR_USERNAME);
 
   await expect(
     operatorPage.getByRole("button", { name: "Accept invitation" }),

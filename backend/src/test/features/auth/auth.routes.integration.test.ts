@@ -756,7 +756,7 @@ describe("Auth routes integration", () => {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
-          email: "user@example.com",
+          username: "test-user",
           password: "Password1!",
           captchaToken: "login-captcha",
         }),

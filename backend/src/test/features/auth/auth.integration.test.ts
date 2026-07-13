@@ -52,6 +52,7 @@ describe("Auth persistence integration", () => {
         },
         body: JSON.stringify({
           email,
+          username: "new-user",
           password: "StrongPassword1!",
           firstName: "New",
           lastName: "User",
@@ -123,6 +124,9 @@ describe("Auth persistence integration", () => {
       email,
       emailVerified: true,
       role: "user",
+      profile: expect.objectContaining({
+        username: "new-user",
+      }),
     });
   });
 
@@ -137,7 +141,7 @@ describe("Auth persistence integration", () => {
           "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         },
         body: JSON.stringify({
-          email: "user1@rentify.local",
+          username: "renter-one",
           password: "Rentify123!",
           captchaToken: "captcha-ok-login",
           rememberMe: true,

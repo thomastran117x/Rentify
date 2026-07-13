@@ -519,11 +519,11 @@ describe("api client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { publicJson } = await import("./client");
-    await publicJson<{ ok: true }, { email: string }>(
+    await publicJson<{ ok: true }, { username: string }>(
       "POST",
       "/auth/local/login",
       {
-        email: "owner1@rentify.local",
+        username: "owner-one",
       },
     );
 

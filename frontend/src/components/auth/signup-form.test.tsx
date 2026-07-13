@@ -136,6 +136,7 @@ describe("SignupForm", () => {
 
     expect(screen.getByText("First name is required.")).toBeInTheDocument();
     expect(screen.getByText("Last name is required.")).toBeInTheDocument();
+    expect(screen.getByText("Username is required.")).toBeInTheDocument();
     expect(screen.getByText("Email is required.")).toBeInTheDocument();
     expect(screen.getByText("Password is required.")).toBeInTheDocument();
     expect(
@@ -159,6 +160,7 @@ describe("SignupForm", () => {
 
     await user.type(screen.getByLabelText("First name"), " Jane ");
     await user.type(screen.getByLabelText("Last name"), " Doe ");
+    await user.type(screen.getByLabelText("Username"), " Person ");
     await user.type(screen.getByLabelText("Email"), " Person@Example.com ");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.type(screen.getByLabelText("Confirm password"), "password123");
@@ -168,6 +170,7 @@ describe("SignupForm", () => {
       expect(signupMock).toHaveBeenCalledWith({
         firstName: "Jane",
         lastName: "Doe",
+        username: "person",
         email: "person@example.com",
         password: "password123",
         captchaToken: "captcha-token",
@@ -179,7 +182,7 @@ describe("SignupForm", () => {
         "Verification pending for person@example.com and redirecting to /",
       ),
     ).toBeInTheDocument();
-  }, 10000);
+  });
 
   it("passes the next path into the verification state", async () => {
     const user = userEvent.setup();
@@ -193,6 +196,7 @@ describe("SignupForm", () => {
 
     await user.type(screen.getByLabelText("First name"), "Jane");
     await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.type(screen.getByLabelText("Confirm password"), "password123");
@@ -205,17 +209,20 @@ describe("SignupForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("maps conflict responses to the email field", async () => {
+  it("maps username conflicts to the username field", async () => {
     const user = userEvent.setup();
     signupMock.mockRejectedValue(
-      new ApiClientError("Account already exists.", {
-        code: "ACCOUNT_EXISTS",
+      new ApiClientError("That username is already taken.", {
+        code: "CONFLICT",
         request: {
           method: "POST",
           path: "/auth/local/signup",
           requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
         },
         status: 409,
+        details: {
+          field: "username",
+        },
       }),
     );
 
@@ -223,17 +230,15 @@ describe("SignupForm", () => {
 
     await user.type(screen.getByLabelText("First name"), "Jane");
     await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.type(screen.getByLabelText("Confirm password"), "password123");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(
-      await screen.findByText("Account already exists."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("This email is already in use."),
-    ).toBeInTheDocument();
+      await screen.findAllByText("That username is already taken."),
+    ).toHaveLength(2);
   });
 
   it("maps captcha failures and server failures to user-facing messages", async () => {
@@ -265,6 +270,7 @@ describe("SignupForm", () => {
 
     await user.type(screen.getByLabelText("First name"), "Jane");
     await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.type(screen.getByLabelText("Confirm password"), "password123");

@@ -194,19 +194,13 @@ describe("AuthRepository", () => {
     });
   });
 
-  it("creates local users with collision-safe usernames and activates pending local users", async () => {
-    const profileFindUnique = jest
-      .fn()
-      .mockResolvedValueOnce({
-        id: "taken-profile",
-      })
-      .mockResolvedValueOnce(null);
+  it("creates local users with explicit usernames and activates pending local users", async () => {
     const create = jest.fn(async () =>
       createUserPersistence({
         email: "new@example.com",
         emailVerified: false,
         profile: createProfilePersistence({
-          username: "new2",
+          username: "new-user",
         }),
       }),
     );
@@ -215,20 +209,20 @@ describe("AuthRepository", () => {
         email: "pending@example.com",
         emailVerified: true,
         passwordHash: "fresh-hash",
+        profile: createProfilePersistence({
+          username: "pending-user",
+        }),
       }),
     );
     const repository = new AuthRepository({
-      profile: {
-        findUnique: profileFindUnique,
-      },
       user: {
         create,
         update,
       },
     } as never);
-
     const created = await repository.createLocalUser(
       {
+        username: "New-User",
         email: "New@Example.com",
         firstName: "New",
         lastName: "User",
@@ -236,11 +230,11 @@ describe("AuthRepository", () => {
       "password-hash",
     );
     const activated = await repository.activatePendingLocalUser("user-2", {
+      username: "Pending-User",
       passwordHash: "fresh-hash",
       firstName: "Pending",
       lastName: "User",
     });
-
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -249,7 +243,7 @@ describe("AuthRepository", () => {
           emailVerified: false,
           profile: {
             create: expect.objectContaining({
-              username: "new2",
+              username: "new-user",
             }),
           },
         }),
@@ -263,10 +257,16 @@ describe("AuthRepository", () => {
         data: expect.objectContaining({
           passwordHash: "fresh-hash",
           emailVerified: true,
+          profile: {
+            update: expect.objectContaining({
+              username: "pending-user",
+            }),
+          },
         }),
       }),
     );
-    expect(created.profile.username).toBe("new2");
+    expect(created.profile.username).toBe("new-user");
+    expect(activated.profile.username).toBe("pending-user");
     expect(activated.emailVerified).toBe(true);
   });
 

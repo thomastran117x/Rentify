@@ -148,6 +148,27 @@ export class AuthRepository extends BaseRepository {
     return this.mapUser(user);
   }
 
+  async findUserByUsername(username: string): Promise<AuthUserRecord | null> {
+    const user = await this.executeAsync(() =>
+      this.prisma.user.findFirst({
+        where: {
+          profile: {
+            is: {
+              username: username.toLowerCase(),
+            },
+          },
+        },
+        include: this.buildAuthUserInclude(),
+      }),
+    );
+
+    if (!user) {
+      return null;
+    }
+
+    return this.mapUser(user);
+  }
+
   async findMfaVerificationSecurityContextByUserId(
     userId: string,
   ): Promise<MfaVerificationSecurityContext | null> {
@@ -199,8 +220,6 @@ export class AuthRepository extends BaseRepository {
     input: CreateLocalUserInput,
     passwordHash: string,
   ): Promise<AuthUserRecord> {
-    const username = await this.generateAvailableUsername(input.email);
-
     const user = await this.executeAsync(() =>
       this.prisma.user.create({
         data: {
@@ -214,7 +233,7 @@ export class AuthRepository extends BaseRepository {
           profile: {
             create: {
               id: randomUUID(),
-              username,
+              username: input.username.toLowerCase(),
             },
           },
         },
@@ -368,6 +387,7 @@ export class AuthRepository extends BaseRepository {
   async activatePendingLocalUser(
     userId: string,
     input: {
+      username: string;
       passwordHash: string;
       firstName?: string;
       lastName?: string;
@@ -383,6 +403,11 @@ export class AuthRepository extends BaseRepository {
           firstName: input.firstName ?? null,
           lastName: input.lastName ?? null,
           emailVerified: true,
+          profile: {
+            update: {
+              username: input.username.toLowerCase(),
+            },
+          },
         },
         include: this.buildAuthUserInclude(),
       }),
