@@ -517,7 +517,7 @@ describe("AuthService", () => {
   it("accepts forgot password requests without sending email for unknown accounts", async () => {
     let resetEmailSent = false;
     const service = createService({
-      findUserByEmail: async () => null,
+      findUserByUsername: async () => null,
       sendPasswordResetEmail: async () => {
         resetEmailSent = true;
       },
@@ -526,7 +526,7 @@ describe("AuthService", () => {
     await expect(
       service.forgotPassword({
         client: createClient(),
-        email: "missing@example.com",
+        username: "missing-user",
         deviceId: "device-1",
       }),
     ).resolves.toEqual({
@@ -539,7 +539,7 @@ describe("AuthService", () => {
   it("accepts forgot password requests without revealing OAuth-only accounts", async () => {
     let resetEmailSent = false;
     const service = createService({
-      findUserByEmail: async () => ({
+      findUserByUsername: async () => ({
         ...createUser(),
         passwordHash: undefined,
         oauthIdentities: [
@@ -564,7 +564,7 @@ describe("AuthService", () => {
     await expect(
       service.forgotPassword({
         client: createClient(),
-        email: "oauth@example.com",
+        username: "oauth-user",
         deviceId: "device-1",
       }),
     ).resolves.toEqual({
@@ -659,10 +659,10 @@ describe("AuthService", () => {
     expect(verificationEmailSentTo).toBe("pending@example.com");
   });
 
-  it("rate-limits public OTP requests by email before user lookup", async () => {
+  it("rate-limits public OTP requests by username before user lookup", async () => {
     let lookupCount = 0;
     const service = createService({
-      findUserByEmail: async () => {
+      findUserByUsername: async () => {
         lookupCount += 1;
         return null;
       },
@@ -672,7 +672,7 @@ describe("AuthService", () => {
       await expect(
         service.resendForgotPassword({
           client: createClient(),
-          email: "target@example.com",
+          username: "target-user",
           deviceId: "device-1",
         }),
       ).resolves.toEqual({
@@ -686,7 +686,7 @@ describe("AuthService", () => {
   it("rate-limits public OTP requests by IP and device before user lookup", async () => {
     let lookupCount = 0;
     const service = createService({
-      findUserByEmail: async () => {
+      findUserByUsername: async () => {
         lookupCount += 1;
         return null;
       },
@@ -695,7 +695,7 @@ describe("AuthService", () => {
     for (let attempt = 0; attempt < 11; attempt += 1) {
       await service.resendForgotPassword({
         client: createClient(),
-        email: `device-${attempt}@example.com`,
+        username: `device-user-${attempt}`,
         deviceId: "shared-device",
       });
     }
@@ -705,7 +705,7 @@ describe("AuthService", () => {
     for (let attempt = 0; attempt < 11; attempt += 1) {
       await service.resendForgotPassword({
         client: createClient(),
-        email: `ip-${attempt}@example.com`,
+        username: `user-${attempt}`,
         deviceId: `device-${attempt}`,
       });
     }
@@ -826,13 +826,13 @@ describe("AuthService", () => {
       ],
     };
     const service = createService({
-      findUserByEmail: async () => oauthUser,
+      findUserByUsername: async () => oauthUser,
     });
 
     await expect(
       service.resetPassword({
         client: createClient(),
-        email: oauthUser.email,
+        username: oauthUser.profile.username,
         code: "123456",
         newPassword: "AnotherStrongPassword1!",
         deviceId: "device-1",
@@ -1767,7 +1767,7 @@ describe("AuthService", () => {
     let rotatedUserId: string | undefined;
     let clearedKey: string | undefined;
     const service = createService({
-      findUserByEmail: async () => user,
+      findUserByUsername: async () => user,
       updatePasswordHash: async (userId, passwordHash) => {
         rotatedUserId = userId;
         updatedPasswordHash = passwordHash;
@@ -1780,7 +1780,7 @@ describe("AuthService", () => {
 
     const result = await service.resetPassword({
       client: createClient(),
-      email: user.email,
+      username: user.profile.username,
       code: "123456",
       newPassword: "AnotherStrongPassword1!",
       deviceId: "device-1",

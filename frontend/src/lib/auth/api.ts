@@ -50,17 +50,17 @@ interface ResendVerificationEmailInput {
 }
 
 interface ForgotPasswordInput {
-  email: string;
+  username: string;
   captchaToken: string;
 }
 
 interface ResendForgotPasswordInput {
-  email: string;
+  username: string;
   captchaToken: string;
 }
 
 interface ResetPasswordInput {
-  email: string;
+  username: string;
   code: string;
   newPassword: string;
   deviceId?: string;

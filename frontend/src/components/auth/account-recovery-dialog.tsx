@@ -118,10 +118,10 @@ export function AccountRecoveryDialog({
       ? "Choose the account help you need and we'll guide you through the next step."
       : view === "username"
         ? "Username recovery is coming next."
-        : "Use your email to request a reset code and choose a new password.";
+        : "Use your username to request a reset code and choose a new password.";
 
   return (
-    <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-950/60 px-4 py-4 sm:flex sm:items-center sm:justify-center sm:py-8">
+    <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-950/60 px-3 pb-4 pt-[4.75rem] sm:flex sm:items-center sm:justify-center sm:px-4 sm:py-8">
       <div
         ref={dialogRef}
         role="dialog"
@@ -129,7 +129,7 @@ export function AccountRecoveryDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className="mx-auto w-full max-w-[34rem] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.28)] outline-none max-h-[calc(100dvh-2rem)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100dvh-4rem)]"
+        className="mx-auto w-full max-w-[34rem] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.28)] outline-none max-h-[calc(100dvh-5.5rem)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100dvh-4rem)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -197,7 +197,7 @@ export function AccountRecoveryDialog({
                   I forgot my password
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Request a reset code and sign back in with a new password.
+                  Request a reset code with your username and sign back in with a new password.
                 </p>
               </div>
             </button>

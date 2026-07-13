@@ -241,7 +241,7 @@ describe("Auth routes integration", () => {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           captchaToken: "forgot-captcha",
         }),
       },
@@ -252,7 +252,7 @@ describe("Auth routes integration", () => {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           captchaToken: "resend-forgot-captcha",
         }),
       },
@@ -263,7 +263,7 @@ describe("Auth routes integration", () => {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           code: "123456",
           newPassword: "ResetPassword1!",
           deviceId: "reset-device",
@@ -350,17 +350,17 @@ describe("Auth routes integration", () => {
     expect(captchaService.verify).toHaveBeenCalledTimes(4);
     expect(authService.forgotPassword).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: "user@example.com",
+        username: "owner-one",
       }),
     );
     expect(authService.resendForgotPassword).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: "user@example.com",
+        username: "owner-one",
       }),
     );
     expect(authService.resetPassword).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: "user@example.com",
+        username: "owner-one",
         code: "123456",
         deviceId: "reset-device",
       }),

@@ -12,7 +12,7 @@ import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface RequestErrors {
-  email?: string;
+  username?: string;
   captchaToken?: string;
 }
 
@@ -24,15 +24,21 @@ interface ResetErrors {
 }
 
 function validateRequest(values: {
-  email: string;
+  username: string;
   captchaToken: string;
 }): RequestErrors {
   const errors: RequestErrors = {};
+  const normalizedUsername = values.username.trim();
 
-  if (!values.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
-    errors.email = "Enter a valid email address.";
+  if (!normalizedUsername) {
+    errors.username = "Username is required.";
+  } else if (
+    normalizedUsername.length < 3 ||
+    normalizedUsername.length > 50 ||
+    !/^[a-z0-9._-]+$/i.test(normalizedUsername)
+  ) {
+    errors.username =
+      "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
   }
 
   if (!values.captchaToken.trim()) {
@@ -182,7 +188,7 @@ export function ForgotPasswordForm() {
   const router = useRouter();
   const { status, setSession } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -206,7 +212,7 @@ export function ForgotPasswordForm() {
   async function handleRequestSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextErrors = validateRequest({ email, captchaToken });
+    const nextErrors = validateRequest({ username, captchaToken });
     setRequestErrors(nextErrors);
     setGeneralError(null);
 
@@ -218,7 +224,7 @@ export function ForgotPasswordForm() {
 
     try {
       await authApi.forgotPassword({
-        email: email.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
         captchaToken,
       });
 
@@ -254,7 +260,7 @@ export function ForgotPasswordForm() {
 
     try {
       const session: AuthResponseBody = await authApi.resetPassword({
-        email: email.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
         code: code.trim(),
         newPassword,
       });
@@ -289,12 +295,12 @@ export function ForgotPasswordForm() {
 
     try {
       await authApi.resendForgotPassword({
-        email: email.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
         captchaToken,
       });
 
       setResentMessage(
-        `If ${email.trim().toLowerCase()} is eligible, a new reset code is on the way.`,
+        "If that username is eligible, a new reset code is on the way.",
       );
     } catch (error) {
       const failure = getResetFailureResult(error);
@@ -305,7 +311,10 @@ export function ForgotPasswordForm() {
     }
   }
 
-  const emailHasValue = useMemo(() => email.trim().length > 0, [email]);
+  const usernameHasValue = useMemo(
+    () => username.trim().length > 0,
+    [username],
+  );
   const newPasswordHasValue = useMemo(
     () => newPassword.length > 0,
     [newPassword],
@@ -338,40 +347,40 @@ export function ForgotPasswordForm() {
         ) : null}
 
         <div className="space-y-2">
-          <label htmlFor="email" className={theme.auth.fieldLabel}>
-            Email
+          <label htmlFor="username" className={theme.auth.fieldLabel}>
+            Username
           </label>
           <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            aria-invalid={Boolean(requestErrors.email)}
+            id="username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            placeholder="your-username"
+            aria-invalid={Boolean(requestErrors.username)}
             aria-describedby={
-              requestErrors.email
-                ? "forgot-password-request-email-error"
+              requestErrors.username
+                ? "forgot-password-request-username-error"
                 : undefined
             }
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
             className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
-              requestErrors.email
+              requestErrors.username
                 ? theme.auth.fieldError
-                : emailHasValue
+                : usernameHasValue
                   ? theme.auth.fieldActive
                   : theme.auth.fieldDefault
             }`}
           />
-          {requestErrors.email ? (
+          {requestErrors.username ? (
             <FieldErrorMessage
-              id="forgot-password-request-email-error"
-              message={requestErrors.email}
+              id="forgot-password-request-username-error"
+              message={requestErrors.username}
             />
           ) : (
             <p className={theme.auth.fieldText}>
-              We will email a reset code if this account can use local password
-              sign-in.
+              We&apos;ll email a reset code to the address on file if this account
+              can use local password sign-in.
             </p>
           )}
         </div>
@@ -399,8 +408,8 @@ export function ForgotPasswordForm() {
       <div className={theme.auth.successPanel}>
         <p className="text-sm font-semibold">Check your inbox</p>
         <p className="mt-2 text-sm leading-6">
-          If {email.trim().toLowerCase()} is eligible for local password reset,
-          we sent a 6-digit code.
+          If that username is eligible for local password reset, we sent a
+          6-digit code to the email on file.
         </p>
       </div>
 

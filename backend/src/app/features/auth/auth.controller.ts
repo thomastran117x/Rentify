@@ -530,7 +530,7 @@ export class AuthController {
   ): ForgotPasswordInput {
     return {
       client: context.get("client"),
-      email: input.email,
+      username: input.username,
       deviceId: this.resolveDeviceId(context),
     };
   }
@@ -541,7 +541,7 @@ export class AuthController {
   ): ResendForgotPasswordInput {
     return {
       client: context.get("client"),
-      email: input.email,
+      username: input.username,
       deviceId: this.resolveDeviceId(context),
     };
   }
@@ -563,7 +563,7 @@ export class AuthController {
   ): ResetPasswordInput {
     return {
       client: context.get("client"),
-      email: input.email,
+      username: input.username,
       code: input.code,
       newPassword: input.newPassword,
       deviceId: this.resolveDeviceId(context, input.deviceId),

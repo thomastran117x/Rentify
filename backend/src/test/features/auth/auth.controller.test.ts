@@ -648,7 +648,7 @@ describe("AuthController", () => {
     const forgotResponse = await controller.forgotPassword(
       createContext({
         body: {
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           captchaToken: "forgot-captcha",
         },
       }),
@@ -656,7 +656,7 @@ describe("AuthController", () => {
     const resendForgotResponse = await controller.resendForgotPassword(
       createContext({
         body: {
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           captchaToken: "resend-forgot-captcha",
         },
       }),
@@ -664,7 +664,7 @@ describe("AuthController", () => {
     const resetResponse = await controller.resetPassword(
       createContext({
         body: {
-          email: "USER@example.com",
+          username: "OWNER-ONE",
           code: "123456",
           newPassword: "ResetPassword1!",
           deviceId: "reset-device",
@@ -716,17 +716,17 @@ describe("AuthController", () => {
     });
     expect(authService.forgotPassword).toHaveBeenCalledWith({
       client: expect.any(Object),
-      email: "user@example.com",
+      username: "owner-one",
       deviceId: "device-1",
     });
     expect(authService.resendForgotPassword).toHaveBeenCalledWith({
       client: expect.any(Object),
-      email: "user@example.com",
+      username: "owner-one",
       deviceId: "device-1",
     });
     expect(authService.resetPassword).toHaveBeenCalledWith({
       client: expect.any(Object),
-      email: "user@example.com",
+      username: "owner-one",
       code: "123456",
       newPassword: "ResetPassword1!",
       deviceId: "reset-device",
@@ -767,7 +767,7 @@ describe("AuthController", () => {
     await controller.resendForgotPassword(
       createContext({
         body: {
-          email: "user@example.com",
+          username: "owner-one",
           captchaToken: "resend-forgot-captcha",
         },
         headers: {

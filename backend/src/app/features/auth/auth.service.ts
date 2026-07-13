@@ -222,7 +222,7 @@ export class AuthService {
   }> {
     const rateLimitResult = await this.consumePublicOtpRateLimit({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: input.email,
+      subject: input.username,
       client: input.client,
       deviceId: input.deviceId,
       flow: "forgot-password",
@@ -235,7 +235,7 @@ export class AuthService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.authRepository.findUserByUsername(input.username);
 
     if (user && this.isEligibleForLocalPasswordManagement(user)) {
       await this.sendPasswordResetCode(user);
@@ -251,7 +251,7 @@ export class AuthService {
   }> {
     const rateLimitResult = await this.consumePublicOtpRateLimit({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: input.email,
+      subject: input.username,
       client: input.client,
       deviceId: input.deviceId,
       flow: "resend-forgot-password",
@@ -264,7 +264,7 @@ export class AuthService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.authRepository.findUserByUsername(input.username);
 
     if (user && this.isEligibleForLocalPasswordManagement(user)) {
       await this.sendPasswordResetCode(user);
@@ -276,13 +276,14 @@ export class AuthService {
   }
 
   async resetPassword(input: ResetPasswordInput): Promise<AuthSessionResult> {
+    const user = await this.authRepository.findUserByUsername(input.username);
+
     await this.otpService.verify({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: input.email,
+      subject: this.resolvePasswordResetOtpSubject(user, input.username),
       code: input.code,
     });
 
-    const user = await this.authRepository.findUserByEmail(input.email);
     const eligibleUser = this.requireEligibleLocalPasswordUser(
       user,
       "This account cannot reset a password.",
@@ -1068,6 +1069,13 @@ export class AuthService {
 
       throw error;
     }
+  }
+
+  private resolvePasswordResetOtpSubject(
+    user: AuthUserRecord | null,
+    username: string,
+  ): string {
+    return user?.email ?? `auth:missing-password-reset:${username}`;
   }
 
   private async sendPasswordResetCode(user: AuthUserRecord): Promise<void> {

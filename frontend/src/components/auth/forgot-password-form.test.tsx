@@ -81,7 +81,7 @@ describe("ForgotPasswordForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Send reset code" }));
 
-    expect(screen.getByText("Email is required.")).toBeInTheDocument();
+    expect(screen.getByText("Username is required.")).toBeInTheDocument();
     expect(
       screen.getByText("Complete the captcha before continuing."),
     ).toBeInTheDocument();
@@ -94,12 +94,12 @@ describe("ForgotPasswordForm", () => {
 
     render(<ForgotPasswordForm />);
 
-    await user.type(screen.getByLabelText("Email"), " Person@Example.com ");
+    await user.type(screen.getByLabelText("Username"), " Person ");
     await user.click(screen.getByRole("button", { name: "Send reset code" }));
 
     await screen.findByText("Check your inbox");
     expect(forgotPasswordMock).toHaveBeenCalledWith({
-      email: "person@example.com",
+      username: "person",
       captchaToken: "captcha-token",
     });
     expect(clearCaptchaTokenMock).toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe("ForgotPasswordForm", () => {
 
     render(<ForgotPasswordForm />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.click(screen.getByRole("button", { name: "Send reset code" }));
     await screen.findByText("Check your inbox");
 
@@ -140,7 +140,7 @@ describe("ForgotPasswordForm", () => {
 
     await waitFor(() => {
       expect(resetPasswordMock).toHaveBeenCalledWith({
-        email: "person@example.com",
+        username: "person",
         code: "123456",
         newPassword: "password123",
       });
@@ -156,19 +156,19 @@ describe("ForgotPasswordForm", () => {
 
     render(<ForgotPasswordForm />);
 
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Username"), "person");
     await user.click(screen.getByRole("button", { name: "Send reset code" }));
     await screen.findByText("Check your inbox");
 
     await user.click(screen.getByRole("button", { name: "Resend reset code" }));
 
     expect(resendForgotPasswordMock).toHaveBeenCalledWith({
-      email: "person@example.com",
+      username: "person",
       captchaToken: "captcha-token",
     });
     expect(
       await screen.findByText(
-        "If person@example.com is eligible, a new reset code is on the way.",
+        "If that username is eligible, a new reset code is on the way.",
       ),
     ).toBeInTheDocument();
   });

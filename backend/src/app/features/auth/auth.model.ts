@@ -164,17 +164,17 @@ export const refreshRequestSchema = z.object({
 });
 
 export const forgotPasswordRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
+  username: authUsernameSchema,
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
 export const resendForgotPasswordRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
+  username: authUsernameSchema,
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
 export const resetPasswordRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
+  username: authUsernameSchema,
   code: z
     .string()
     .trim()
@@ -328,19 +328,19 @@ export interface RemoveKnownDeviceInput {
 
 export interface ForgotPasswordInput {
   client: ClientRequestContext;
-  email: string;
+  username: string;
   deviceId?: string;
 }
 
 export interface ResendForgotPasswordInput {
   client: ClientRequestContext;
-  email: string;
+  username: string;
   deviceId?: string;
 }
 
 export interface ResetPasswordInput {
   client: ClientRequestContext;
-  email: string;
+  username: string;
   code: string;
   newPassword: string;
   deviceId?: string;
