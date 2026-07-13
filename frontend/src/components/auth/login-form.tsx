@@ -329,9 +329,8 @@ export function LoginForm({
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [unlockEmail, setUnlockEmail] = useState<string | null>(null);
-  const [accountRecoveryOpen, setAccountRecoveryOpen] = useState(
-    initialRecoveryOpen,
-  );
+  const [accountRecoveryOpen, setAccountRecoveryOpen] =
+    useState(initialRecoveryOpen);
   const [devicePending, setDevicePending] = useState(false);
   const [deviceMfaDialogOptions, setDeviceMfaDialogOptions] =
     useState<MfaVerificationOptionsResult | null>(null);

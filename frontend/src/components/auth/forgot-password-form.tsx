@@ -379,8 +379,8 @@ export function ForgotPasswordForm() {
             />
           ) : (
             <p className={theme.auth.fieldText}>
-              We&apos;ll email a reset code to the address on file if this account
-              can use local password sign-in.
+              We&apos;ll email a reset code to the address on file if this
+              account can use local password sign-in.
             </p>
           )}
         </div>

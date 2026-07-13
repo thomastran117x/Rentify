@@ -197,7 +197,8 @@ export function AccountRecoveryDialog({
                   I forgot my password
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Request a reset code with your username and sign back in with a new password.
+                  Request a reset code with your username and sign back in with
+                  a new password.
                 </p>
               </div>
             </button>
@@ -207,8 +208,8 @@ export function AccountRecoveryDialog({
         {view === "username" ? (
           <div className="mt-6 space-y-5">
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-              Forgot username is still a placeholder in this branch. We&apos;ll add
-              the email-based username recovery workflow next.
+              Forgot username is still a placeholder in this branch. We&apos;ll
+              add the email-based username recovery workflow next.
             </div>
 
             <div className="flex gap-3">

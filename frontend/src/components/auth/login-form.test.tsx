@@ -335,5 +335,4 @@ describe("LoginForm", () => {
       await screen.findByRole("heading", { name: "I can't log in" }),
     ).toBeInTheDocument();
   });
-
 });
