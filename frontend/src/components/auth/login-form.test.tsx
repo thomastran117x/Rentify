@@ -101,7 +101,10 @@ vi.mock("@/components/auth/mfa-verification-dialog", () => ({
   }: {
     initialChallengeSent?: boolean;
     onCodeEntryStateChange?: (
-      state: { challengeSent: boolean; selectedFactor: "email" | "sms" | "totp" } | null,
+      state: {
+        challengeSent: boolean;
+        selectedFactor: "email" | "sms" | "totp";
+      } | null,
     ) => void;
     onVerified: (result: unknown) => void;
     onCancel: () => void;

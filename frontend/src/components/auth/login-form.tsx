@@ -824,4 +824,3 @@ export function LoginForm({
     </div>
   );
 }
-
