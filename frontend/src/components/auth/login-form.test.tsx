@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "./login-form";
+import {
+  clearPersistedAuthPendingFlow,
+  readPersistedAuthPendingFlow,
+  writePersistedAuthPendingFlow,
+} from "@/lib/auth/pending-flow";
 import { ApiClientError, ApiNetworkError } from "@/lib/auth/types";
 import {
   resetRouterMocks,
@@ -13,17 +18,17 @@ const {
   useAuthMock,
   useAuthCaptchaTokenMock,
   loginMock,
-  authApiRefreshMock,
   clearCaptchaTokenMock,
   verifyDeviceMock,
+  logoutMock,
   getOptionsMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   loginMock: vi.fn(),
-  authApiRefreshMock: vi.fn(),
   clearCaptchaTokenMock: vi.fn(),
   verifyDeviceMock: vi.fn(),
+  logoutMock: vi.fn(),
   getOptionsMock: vi.fn(),
 }));
 
@@ -56,7 +61,7 @@ vi.mock("@/lib/auth/captcha-store", () => ({
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
     login: loginMock,
-    refresh: authApiRefreshMock,
+    logout: logoutMock,
     verifyDevice: verifyDeviceMock,
   },
 }));
@@ -86,13 +91,62 @@ vi.mock("@/components/auth/login-unlock-panel", () => ({
   ),
 }));
 
+vi.mock("@/components/auth/mfa-verification-dialog", () => ({
+  MfaVerificationDialog: ({
+    initialChallengeSent,
+    onCodeEntryStateChange,
+    onVerified,
+    onCancel,
+    preferredFactor,
+  }: {
+    initialChallengeSent?: boolean;
+    onCodeEntryStateChange?: (
+      state: {
+        challengeSent: boolean;
+        selectedFactor: "email" | "sms" | "totp";
+      } | null,
+    ) => void;
+    onVerified: (result: unknown) => void;
+    onCancel: () => void;
+    preferredFactor?: "email" | "sms" | "totp" | null;
+  }) => (
+    <div>
+      <div>MFA dialog</div>
+      <button
+        type="button"
+        onClick={() =>
+          onCodeEntryStateChange?.({
+            challengeSent: initialChallengeSent ?? true,
+            selectedFactor: preferredFactor ?? "email",
+          })
+        }
+      >
+        Persist device MFA state
+      </button>
+      <button type="button" onClick={() => onCodeEntryStateChange?.(null)}>
+        Clear device MFA state
+      </button>
+      <button type="button" onClick={() => onVerified({})}>
+        Verify device MFA
+      </button>
+      <button type="button" onClick={onCancel}>
+        Cancel device MFA
+      </button>
+    </div>
+  ),
+}));
+
 describe("LoginForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    clearPersistedAuthPendingFlow();
+    logoutMock.mockResolvedValue(undefined);
+    verifyDeviceMock.mockResolvedValue(undefined);
     useAuthMock.mockReturnValue({
       status: "anonymous",
       setSession: vi.fn(),
+      clearSession: vi.fn(),
     });
     useAuthCaptchaTokenMock.mockReturnValue([
       "captcha-token",
@@ -105,6 +159,7 @@ describe("LoginForm", () => {
     useAuthMock.mockReturnValue({
       status: "loading",
       setSession: vi.fn(),
+      clearSession: vi.fn(),
     });
 
     render(<LoginForm nextPath="/dashboard" />);
@@ -116,6 +171,7 @@ describe("LoginForm", () => {
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: vi.fn(),
+      clearSession: vi.fn(),
     });
 
     render(<LoginForm nextPath="/dashboard" />);
@@ -148,9 +204,17 @@ describe("LoginForm", () => {
   it("submits a normalized login request and redirects on success", async () => {
     const user = userEvent.setup();
     const setSession = vi.fn().mockImplementation(() => {
-      useAuthMock.mockReturnValue({ status: "authenticated", setSession });
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        setSession,
+        clearSession: vi.fn(),
+      });
     });
-    useAuthMock.mockReturnValue({ status: "anonymous", setSession });
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+      clearSession: vi.fn(),
+    });
     useAuthCaptchaTokenMock.mockReturnValue([
       "captcha-token",
       vi.fn(),
@@ -176,7 +240,6 @@ describe("LoginForm", () => {
       availableFactors: [],
       recommendedFactor: null,
     });
-    verifyDeviceMock.mockResolvedValue({});
 
     render(<LoginForm nextPath="/dashboard" />);
 
@@ -310,6 +373,83 @@ describe("LoginForm", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("restores device-login MFA and finishes sign-in after verification", async () => {
+    const user = userEvent.setup();
+    const clearSession = vi.fn();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+      clearSession,
+    });
+    writePersistedAuthPendingFlow({
+      flow: "device-login-mfa",
+      nextPath: "/dashboard",
+      selectedFactor: "email",
+      challengeSent: true,
+    });
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+
+    render(<LoginForm nextPath="/dashboard" />);
+
+    expect(await screen.findByText("MFA dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Verify device MFA" }));
+
+    await waitFor(() => {
+      expect(verifyDeviceMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    });
+    expect(readPersistedAuthPendingFlow()).toBeNull();
+    expect(clearSession).not.toHaveBeenCalled();
+  });
+
+  it("does not rewrite identical restored device-login MFA state", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+      clearSession: vi.fn(),
+    });
+    writePersistedAuthPendingFlow({
+      flow: "device-login-mfa",
+      nextPath: "/dashboard",
+      selectedFactor: "email",
+      challengeSent: true,
+    });
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+
+    render(<LoginForm nextPath="/dashboard" />);
+
+    expect(await screen.findByText("MFA dialog")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Persist device MFA state" }),
+    );
+
+    expect(readPersistedAuthPendingFlow()).toEqual({
+      flow: "device-login-mfa",
+      nextPath: "/dashboard",
+      selectedFactor: "email",
+      challengeSent: true,
+    });
+    expect(getOptionsMock).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the account recovery dialog from the password help trigger", async () => {
     const user = userEvent.setup();
 

@@ -100,6 +100,7 @@ function readDetailMessage(
 function validateFeedback(
   values: FeedbackValues,
   isAuthenticated: boolean,
+  captchaConsumed: boolean,
 ): FeedbackErrors {
   const errors: FeedbackErrors = {};
 
@@ -123,8 +124,10 @@ function validateFeedback(
     errors.message = "Please include at least 10 characters of detail.";
   }
 
-  if (!isAuthenticated && !values.captchaToken.trim()) {
-    errors.captchaToken = "Complete the verification before sending feedback.";
+  if (!isAuthenticated && (!values.captchaToken.trim() || captchaConsumed)) {
+    errors.captchaToken = captchaConsumed
+      ? "Run the verification again before sending more feedback."
+      : "Complete the verification before sending feedback.";
   }
 
   return errors;
@@ -147,6 +150,7 @@ export function ContactInquiryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [captchaConsumed, setCaptchaConsumed] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !session) {
@@ -169,6 +173,10 @@ export function ContactInquiryForm() {
     key: K,
     value: FeedbackValues[K],
   ) {
+    if (key === "captchaToken") {
+      setCaptchaConsumed(false);
+    }
+
     setValues((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
     setSuccessMessage(null);
@@ -178,7 +186,11 @@ export function ContactInquiryForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextErrors = validateFeedback(values, isAuthenticated);
+    const nextErrors = validateFeedback(
+      values,
+      isAuthenticated,
+      captchaConsumed,
+    );
     setErrors(nextErrors);
     setSubmitError(null);
     setSuccessMessage(null);
@@ -206,8 +218,10 @@ export function ContactInquiryForm() {
         ...current,
         category: DEFAULT_CATEGORY,
         message: "",
-        captchaToken: "",
       }));
+      setCaptchaConsumed(
+        !isAuthenticated && Boolean(values.captchaToken.trim()),
+      );
       setSuccessMessage(
         `Thanks. Your ${getCategoryLabel(result.category).toLowerCase()} has been sent to the Rentify team.`,
       );
@@ -215,6 +229,8 @@ export function ContactInquiryForm() {
       const preserveClientMessage =
         error instanceof ApiClientError &&
         error.message === "Captcha verification failed.";
+      let shouldMarkCaptchaConsumed =
+        !isAuthenticated && Boolean(values.captchaToken.trim());
 
       if (error instanceof ApiClientError) {
         const nextFieldErrors: FeedbackErrors = {
@@ -228,6 +244,8 @@ export function ContactInquiryForm() {
         if (error.message === "Captcha verification failed.") {
           nextFieldErrors.captchaToken =
             "Please complete the verification again.";
+          shouldMarkCaptchaConsumed = false;
+          setCaptchaConsumed(false);
           setValues((current) => ({
             ...current,
             captchaToken: "",
@@ -240,6 +258,10 @@ export function ContactInquiryForm() {
             ...nextFieldErrors,
           }));
         }
+      }
+
+      if (!isAuthenticated) {
+        setCaptchaConsumed(shouldMarkCaptchaConsumed);
       }
 
       setSubmitError(
@@ -357,6 +379,8 @@ export function ContactInquiryForm() {
           <AuthCaptchaPanel
             token={values.captchaToken}
             error={errors.captchaToken}
+            stale={captchaConsumed}
+            staleMessage="This verification was used for your last request. Run it again before sending more feedback."
             onChange={(token) => updateValue("captchaToken", token)}
             onReset={() => updateValue("captchaToken", "")}
           />

@@ -5,6 +5,7 @@ import Script from "next/script";
 import { publicEnv } from "@/lib/env";
 
 const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
+const TURNSTILE_RESET_BACKOFF_MS = [1000, 3000, 10000] as const;
 
 function isLoopbackHostname(hostname: string): boolean {
   const normalizedHostname = hostname.trim().toLowerCase();
@@ -41,6 +42,10 @@ interface TurnstileWidgetProps {
 export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const previousValueRef = useRef(value);
+  const resetTimeoutRef = useRef<number | null>(null);
+  const resetAttemptRef = useRef(0);
+  const onChangeRef = useRef(onChange);
 
   const [scriptLoaded, setScriptLoaded] = useState(
     () => typeof window !== "undefined" && Boolean(window.turnstile),
@@ -52,12 +57,71 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
   const shouldUseLocalBypass =
     !publicEnv.turnstileSiteKey || (hasError && canUseLoopbackBypass);
 
-  const handleTurnstileLoadFailure = useCallback(() => {
-    setHasError(true);
-    onChange(canUseLoopbackBypass ? LOCAL_CAPTCHA_BYPASS_TOKEN : "");
-  }, [canUseLoopbackBypass, onChange]);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-  function disposeWidget() {
+  const emitChange = useCallback((nextValue: string) => {
+    onChangeRef.current(nextValue);
+  }, []);
+
+  const clearScheduledReset = useCallback(() => {
+    if (resetTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(resetTimeoutRef.current);
+    resetTimeoutRef.current = null;
+  }, []);
+
+  const clearResetRecovery = useCallback(() => {
+    clearScheduledReset();
+    resetAttemptRef.current = 0;
+  }, [clearScheduledReset]);
+
+  const handleTurnstileLoadFailure = useCallback(() => {
+    clearResetRecovery();
+    setHasError(true);
+    emitChange(canUseLoopbackBypass ? LOCAL_CAPTCHA_BYPASS_TOKEN : "");
+  }, [canUseLoopbackBypass, clearResetRecovery, emitChange]);
+
+  const scheduleResetWithBackoff = useCallback(() => {
+    if (resetTimeoutRef.current !== null) {
+      return;
+    }
+
+    if (!widgetIdRef.current || !window.turnstile) {
+      handleTurnstileLoadFailure();
+      return;
+    }
+
+    if (resetAttemptRef.current >= TURNSTILE_RESET_BACKOFF_MS.length) {
+      handleTurnstileLoadFailure();
+      return;
+    }
+
+    const delay = TURNSTILE_RESET_BACKOFF_MS[resetAttemptRef.current];
+    resetAttemptRef.current += 1;
+
+    resetTimeoutRef.current = window.setTimeout(() => {
+      resetTimeoutRef.current = null;
+
+      if (!widgetIdRef.current || !window.turnstile) {
+        handleTurnstileLoadFailure();
+        return;
+      }
+
+      try {
+        window.turnstile.reset(widgetIdRef.current);
+      } catch {
+        handleTurnstileLoadFailure();
+      }
+    }, delay);
+  }, [handleTurnstileLoadFailure]);
+
+  const disposeWidget = useCallback(() => {
+    clearScheduledReset();
+
     if (!widgetIdRef.current || !window.turnstile?.remove) {
       widgetIdRef.current = null;
       return;
@@ -70,7 +134,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     } finally {
       widgetIdRef.current = null;
     }
-  }
+  }, [clearScheduledReset]);
 
   useEffect(() => {
     if (!shouldUseLocalBypass) {
@@ -78,9 +142,9 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     }
 
     if (!value) {
-      onChange(LOCAL_CAPTCHA_BYPASS_TOKEN);
+      emitChange(LOCAL_CAPTCHA_BYPASS_TOKEN);
     }
-  }, [onChange, shouldUseLocalBypass, value]);
+  }, [emitChange, shouldUseLocalBypass, value]);
 
   useEffect(() => {
     if (!publicEnv.turnstileSiteKey) return;
@@ -95,14 +159,15 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
         theme: "light",
         size: "flexible",
         callback: (token: string) => {
+          clearResetRecovery();
           setHasError(false);
-          onChange(token);
+          emitChange(token);
         },
         "expired-callback": () => {
-          onChange("");
+          emitChange("");
         },
         "error-callback": () => {
-          handleTurnstileLoadFailure();
+          scheduleResetWithBackoff();
         },
       });
     } catch (err) {
@@ -113,21 +178,38 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     }
 
     return () => {
+      clearResetRecovery();
       disposeWidget();
     };
-  }, [handleTurnstileLoadFailure, scriptLoaded, onChange]);
+  }, [
+    clearResetRecovery,
+    disposeWidget,
+    emitChange,
+    handleTurnstileLoadFailure,
+    scheduleResetWithBackoff,
+    scriptLoaded,
+  ]);
 
   useEffect(() => {
-    if (hasError || value || !widgetIdRef.current || !window.turnstile) {
+    const previousValue = previousValueRef.current;
+    previousValueRef.current = value;
+
+    if (value) {
+      clearResetRecovery();
       return;
     }
 
-    try {
-      window.turnstile.reset(widgetIdRef.current);
-    } catch {
-      disposeWidget();
+    if (
+      hasError ||
+      !previousValue ||
+      !widgetIdRef.current ||
+      !window.turnstile
+    ) {
+      return;
     }
-  }, [hasError, value]);
+
+    scheduleResetWithBackoff();
+  }, [clearResetRecovery, hasError, scheduleResetWithBackoff, value]);
 
   if (shouldUseLocalBypass) {
     return (

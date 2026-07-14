@@ -2,6 +2,7 @@ import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
+import { MFA_DEVICE_LOGIN_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import {
@@ -142,6 +143,43 @@ describe("MFA verification routes integration", () => {
       sessionId: "session-1",
       scope: "mfa-management",
     });
+  });
+
+  it("accepts the device-login scope end to end", async () => {
+    const { app, mfaVerificationService } = createApp();
+
+    const optionsResponse = await app.request(
+      `http://rent.test${buildApiPath(`/auth/mfa/verify/options?scope=${MFA_DEVICE_LOGIN_SCOPE}`)}`,
+      { headers: jsonHeaders() },
+    );
+
+    const challengeResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/verify/challenge")}`,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          scope: MFA_DEVICE_LOGIN_SCOPE,
+          factor: "email",
+        }),
+      },
+    );
+
+    expect(optionsResponse.status).toBe(200);
+    expect(challengeResponse.status).toBe(200);
+    expect(mfaVerificationService.getOptions).toHaveBeenCalledWith({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_DEVICE_LOGIN_SCOPE,
+    });
+    expect(mfaVerificationService.issueChallenge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        sessionId: "session-1",
+        scope: MFA_DEVICE_LOGIN_SCOPE,
+        factor: "email",
+      }),
+    );
   });
 
   it("rejects unsupported challenge factors at the request boundary", async () => {

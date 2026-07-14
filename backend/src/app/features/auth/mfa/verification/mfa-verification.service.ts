@@ -20,6 +20,7 @@ import type { EmailService } from "@/features/email/email.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import {
+  MFA_DEVICE_LOGIN_SCOPE,
   MFA_MANAGEMENT_SCOPE,
   MFA_PROOF_TTL_MINUTES,
   MFA_STEP_UP_OTP_PURPOSE,
@@ -411,7 +412,7 @@ export class MfaVerificationService {
   private assertSupportedScope(
     scope: string,
   ): asserts scope is MfaVerificationScope {
-    if (scope !== MFA_MANAGEMENT_SCOPE) {
+    if (scope !== MFA_MANAGEMENT_SCOPE && scope !== MFA_DEVICE_LOGIN_SCOPE) {
       throw new BadRequestError("Unsupported MFA verification scope.", {
         scope,
       });

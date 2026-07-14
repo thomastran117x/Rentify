@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
+import { writePersistedAuthPendingFlow } from "@/lib/auth/pending-flow";
 import { ApiClientError, ApiServerError } from "@/lib/auth/types";
 import {
   resetRouterMocks,
@@ -205,6 +206,22 @@ describe("SignupForm", () => {
     expect(
       await screen.findByText(
         "Verification pending for person@example.com and redirecting to /organizations/invitations/token-123",
+      ),
+    ).toBeInTheDocument();
+  });
+  it("restores a persisted verification flow after remount", async () => {
+    writePersistedAuthPendingFlow({
+      flow: "signup-verification",
+      email: "person@example.com",
+      nextPath: "/dashboard",
+      alreadyPending: true,
+    });
+
+    render(<SignupForm />);
+
+    expect(
+      await screen.findByText(
+        "Verification pending for person@example.com and redirecting to /dashboard",
       ),
     ).toBeInTheDocument();
   });
