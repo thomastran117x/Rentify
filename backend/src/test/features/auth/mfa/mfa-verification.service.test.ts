@@ -5,7 +5,10 @@ import MfaVerificationRequiredError from "@/errors/http/mfa-verification-require
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import { environment } from "@/configuration/environment";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
-import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
+import {
+  MFA_DEVICE_LOGIN_SCOPE,
+  MFA_MANAGEMENT_SCOPE,
+} from "@/features/auth/mfa/verification/mfa-verification.model";
 
 function createSecurityContext(
   overrides: Partial<{
@@ -150,6 +153,34 @@ describe("MfaVerificationService", () => {
       verifiedUntil: null,
       availableFactors: [],
       recommendedFactor: null,
+    });
+  });
+  it("supports device-login as a first-class verification scope", async () => {
+    const { service, otpService } = createService();
+
+    await expect(
+      service.getOptions({
+        userId: "user-1",
+        sessionId: "session-1",
+        scope: MFA_DEVICE_LOGIN_SCOPE,
+      }),
+    ).resolves.toMatchObject({
+      scope: MFA_DEVICE_LOGIN_SCOPE,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+
+    await service.issueChallenge({
+      userId: "user-1",
+      sessionId: "session-1",
+      scope: MFA_DEVICE_LOGIN_SCOPE,
+      factor: "email",
+      client: { device: { type: "desktop", isMobile: false } },
+    });
+
+    expect(otpService.issue).toHaveBeenCalledWith({
+      purpose: "mfa-step-up",
+      subject: "user-1:session-1:device-login:email",
     });
   });
 
@@ -529,3 +560,6 @@ describe("MfaVerificationService", () => {
     ).rejects.toThrow("OTP preview is unavailable.");
   });
 });
+
+
+

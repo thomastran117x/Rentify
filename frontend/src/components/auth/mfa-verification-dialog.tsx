@@ -15,10 +15,17 @@ import { getApiErrorMessage } from "@/lib/api/user-messages";
 
 interface MfaVerificationDialogProps {
   open: boolean;
+  initialChallengeSent?: boolean;
   initialOptions: MfaVerificationOptionsResult;
   preferredFactor?: MfaVerificationFactor | null;
   scope: MfaVerificationScope;
   onCancel: () => void;
+  onCodeEntryStateChange?: (
+    state: {
+      challengeSent: boolean;
+      selectedFactor: MfaVerificationChallengeFactor;
+    } | null,
+  ) => void;
   onVerified: (result: MfaVerificationConfirmResult) => void;
 }
 
@@ -84,10 +91,12 @@ function selectInitialFactor(
 
 export function MfaVerificationDialog({
   open,
+  initialChallengeSent = false,
   initialOptions,
   preferredFactor = null,
   scope,
   onCancel,
+  onCodeEntryStateChange,
   onVerified,
 }: MfaVerificationDialogProps) {
   const [options, setOptions] = useState(initialOptions);
@@ -96,7 +105,7 @@ export function MfaVerificationDialog({
       selectInitialFactor(initialOptions, preferredFactor),
     );
   const [code, setCode] = useState("");
-  const [challengeSent, setChallengeSent] = useState(false);
+  const [challengeSent, setChallengeSent] = useState(initialChallengeSent);
   const [cooldownUntil, setCooldownUntil] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -114,7 +123,7 @@ export function MfaVerificationDialog({
       setOptions(initialOptions);
       setSelectedFactor(selectInitialFactor(initialOptions, preferredFactor));
       setCode("");
-      setChallengeSent(false);
+      setChallengeSent(initialChallengeSent);
       setCooldownUntil(null);
       setErrorMessage(null);
       return;
@@ -122,7 +131,8 @@ export function MfaVerificationDialog({
 
     setOptions(initialOptions);
     setSelectedFactor(selectInitialFactor(initialOptions, preferredFactor));
-  }, [initialOptions, open, preferredFactor]);
+    setChallengeSent(initialChallengeSent);
+  }, [initialChallengeSent, initialOptions, open, preferredFactor]);
 
   // Focus management
   useEffect(() => {
@@ -144,13 +154,6 @@ export function MfaVerificationDialog({
     const [firstFocusable] = getFocusableElements(dialogRef.current);
     (firstFocusable ?? dialogRef.current).focus();
   }, [open]);
-
-  // Auto-focus code input after challenge is sent
-  useEffect(() => {
-    if (challengeSent && codeInputRef.current) {
-      codeInputRef.current.focus();
-    }
-  }, [challengeSent]);
 
   // Trap focus inside dialog
   useEffect(() => {
@@ -219,6 +222,34 @@ export function MfaVerificationDialog({
   // For email/SMS: two-step. For TOTP: show code immediately.
   const needsChallenge = selectedFactor === "email" || selectedFactor === "sms";
   const showCodeInput = !needsChallenge || challengeSent;
+
+  useEffect(() => {
+    if (showCodeInput && codeInputRef.current) {
+      codeInputRef.current.focus();
+    }
+  }, [showCodeInput]);
+  useEffect(() => {
+    if (!onCodeEntryStateChange) {
+      return;
+    }
+
+    if (!open || unavailable || !selectedFactor || !showCodeInput) {
+      onCodeEntryStateChange(null);
+      return;
+    }
+
+    onCodeEntryStateChange({
+      challengeSent,
+      selectedFactor,
+    });
+  }, [
+    challengeSent,
+    onCodeEntryStateChange,
+    open,
+    selectedFactor,
+    showCodeInput,
+    unavailable,
+  ]);
 
   async function refreshOptions(
     nextPreferredFactor: MfaVerificationFactor | null = selectedFactor,

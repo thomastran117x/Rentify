@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
+import {
+  clearPersistedAuthPendingFlowByType,
+  usePersistedAuthPendingFlow,
+  writePersistedAuthPendingFlow,
+} from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
@@ -199,15 +204,46 @@ export function ForgotPasswordForm() {
   const [requestPending, setRequestPending] = useState(false);
   const [resetPending, setResetPending] = useState(false);
   const [resending, setResending] = useState(false);
-  const [requestComplete, setRequestComplete] = useState(false);
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
     useAuthCaptchaToken();
+  const [captchaConsumed, setCaptchaConsumed] = useState(false);
+  const hasHydratedConsumedCaptchaRef = useRef(false);
+  const persistedAuthFlow = usePersistedAuthPendingFlow();
+  const resetFlow =
+    persistedAuthFlow?.flow === "forgot-password-reset"
+      ? persistedAuthFlow
+      : null;
+  const requestComplete = resetFlow !== null;
+  const authFlowRestorePending = persistedAuthFlow === undefined;
 
   useEffect(() => {
     if (status === "authenticated") {
+      clearPersistedAuthPendingFlowByType("forgot-password-reset");
       router.replace("/");
     }
   }, [router, status]);
+
+  useEffect(() => {
+    if (hasHydratedConsumedCaptchaRef.current) {
+      return;
+    }
+
+    hasHydratedConsumedCaptchaRef.current = true;
+
+    if (requestComplete && captchaToken.trim()) {
+      setCaptchaConsumed(true);
+    }
+  }, [captchaToken, requestComplete]);
+
+  function handleCaptchaChange(token: string) {
+    setCaptchaConsumed(false);
+    setCaptchaToken(token);
+  }
+
+  function handleCaptchaReset() {
+    setCaptchaConsumed(false);
+    clearCaptchaToken();
+  }
 
   async function handleRequestSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -228,9 +264,12 @@ export function ForgotPasswordForm() {
         captchaToken,
       });
 
-      setRequestComplete(true);
+      writePersistedAuthPendingFlow({
+        flow: "forgot-password-reset",
+        username: username.trim().toLowerCase(),
+      });
       setGeneralError(null);
-      clearCaptchaToken();
+      setCaptchaConsumed(true);
     } catch (error) {
       const failure = getRequestFailureResult(error);
       setGeneralError(failure.generalError);
@@ -238,7 +277,7 @@ export function ForgotPasswordForm() {
         ...current,
         ...(failure.fieldErrors ?? {}),
       }));
-      clearCaptchaToken();
+      handleCaptchaReset();
     } finally {
       setRequestPending(false);
     }
@@ -260,11 +299,12 @@ export function ForgotPasswordForm() {
 
     try {
       const session: AuthResponseBody = await authApi.resetPassword({
-        username: username.trim().toLowerCase(),
+        username: resetFlow?.username ?? username.trim().toLowerCase(),
         code: code.trim(),
         newPassword,
       });
 
+      clearPersistedAuthPendingFlowByType("forgot-password-reset");
       setSession(session);
       router.replace("/");
     } catch (error) {
@@ -284,9 +324,11 @@ export function ForgotPasswordForm() {
     setResetErrors({});
     setResentMessage(null);
 
-    if (!captchaToken.trim()) {
+    if (!captchaToken.trim() || captchaConsumed) {
       setResetErrors({
-        captchaToken: "Complete the verification to continue.",
+        captchaToken: captchaConsumed
+          ? "Run the verification again before requesting another reset code."
+          : "Complete the verification to continue.",
       });
       return;
     }
@@ -295,18 +337,28 @@ export function ForgotPasswordForm() {
 
     try {
       await authApi.resendForgotPassword({
-        username: username.trim().toLowerCase(),
+        username: resetFlow?.username ?? username.trim().toLowerCase(),
         captchaToken,
       });
 
+      setCaptchaConsumed(true);
       setResentMessage(
         "If that username is eligible, a new reset code is on the way.",
       );
     } catch (error) {
       const failure = getResetFailureResult(error);
       setGeneralError(failure.generalError);
+      setResetErrors((current) => ({
+        ...current,
+        ...(failure.fieldErrors ?? {}),
+      }));
+
+      if (failure.fieldErrors?.captchaToken) {
+        handleCaptchaReset();
+      } else if (captchaToken.trim()) {
+        setCaptchaConsumed(true);
+      }
     } finally {
-      clearCaptchaToken();
       setResending(false);
     }
   }
@@ -324,7 +376,7 @@ export function ForgotPasswordForm() {
     [confirmPassword],
   );
 
-  if (status === "loading") {
+  if (status === "loading" || authFlowRestorePending) {
     return (
       <div className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 shadow-sm">
         Preparing your workspace...
@@ -388,8 +440,8 @@ export function ForgotPasswordForm() {
         <AuthCaptchaPanel
           token={captchaToken}
           error={requestErrors.captchaToken}
-          onChange={setCaptchaToken}
-          onReset={clearCaptchaToken}
+          onChange={handleCaptchaChange}
+          onReset={handleCaptchaReset}
         />
 
         <button
@@ -535,19 +587,21 @@ export function ForgotPasswordForm() {
       <AuthCaptchaPanel
         token={captchaToken}
         error={resetErrors.captchaToken}
+        stale={captchaConsumed}
+        staleMessage="This verification was used for your last request. Run it again before requesting another reset code."
         onChange={(token) => {
           setResetErrors((current) => ({
             ...current,
             captchaToken: undefined,
           }));
-          setCaptchaToken(token);
+          handleCaptchaChange(token);
         }}
         onReset={() => {
           setResetErrors((current) => ({
             ...current,
             captchaToken: undefined,
           }));
-          clearCaptchaToken();
+          handleCaptchaReset();
         }}
       />
 

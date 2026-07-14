@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordForm } from "./forgot-password-form";
+import { writePersistedAuthPendingFlow } from "@/lib/auth/pending-flow";
 import {
   resetRouterMocks,
   routerReplaceMock,
@@ -46,9 +47,20 @@ vi.mock("@/lib/auth/api", () => ({
 }));
 
 vi.mock("@/components/auth/auth-captcha-panel", () => ({
-  AuthCaptchaPanel: ({ token, error }: { token: string; error?: string }) => (
+  AuthCaptchaPanel: ({
+    token,
+    error,
+    stale,
+    staleMessage,
+  }: {
+    token: string;
+    error?: string;
+    stale?: boolean;
+    staleMessage?: string;
+  }) => (
     <div>
       <div>Captcha token: {token || "empty"}</div>
+      {stale && staleMessage ? <p>{staleMessage}</p> : null}
       {error ? <p>{error}</p> : null}
     </div>
   ),
@@ -102,7 +114,12 @@ describe("ForgotPasswordForm", () => {
       username: "person",
       captchaToken: "captcha-token",
     });
-    expect(clearCaptchaTokenMock).toHaveBeenCalled();
+    expect(clearCaptchaTokenMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "This verification was used for your last request. Run it again before requesting another reset code.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("resets the password, stores the session, and redirects", async () => {
@@ -149,7 +166,7 @@ describe("ForgotPasswordForm", () => {
     expect(routerReplaceMock).toHaveBeenCalledWith("/");
   });
 
-  it("resends a reset code after reset mode is active", async () => {
+  it("requires rerunning captcha before resending a reset code", async () => {
     const user = userEvent.setup();
     forgotPasswordMock.mockResolvedValue({ accepted: true });
     resendForgotPasswordMock.mockResolvedValue({ accepted: true });
@@ -162,14 +179,22 @@ describe("ForgotPasswordForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Resend reset code" }));
 
-    expect(resendForgotPasswordMock).toHaveBeenCalledWith({
-      username: "person",
-      captchaToken: "captcha-token",
-    });
+    expect(resendForgotPasswordMock).not.toHaveBeenCalled();
     expect(
       await screen.findByText(
-        "If that username is eligible, a new reset code is on the way.",
+        "Run the verification again before requesting another reset code.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("restores reset mode from persisted state after remount", async () => {
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+
+    expect(await screen.findByText("Check your inbox")).toBeInTheDocument();
   });
 });

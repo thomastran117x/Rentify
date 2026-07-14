@@ -3,8 +3,12 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { HelpCircle, KeyRound, UserRound, X } from "lucide-react";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { clearPersistedAuthPendingFlowByType } from "@/lib/auth/pending-flow";
+
+type RecoveryView = "options" | "username" | "password";
 
 interface AccountRecoveryDialogProps {
+  initialView?: RecoveryView;
   open: boolean;
   onClose: () => void;
 }
@@ -12,11 +16,10 @@ interface AccountRecoveryDialogProps {
 interface AccountRecoveryDialogContentProps {
   dialogRef: RefObject<HTMLDivElement | null>;
   descriptionId: string;
+  initialView: RecoveryView;
   onClose: () => void;
   titleId: string;
 }
-
-type RecoveryView = "options" | "username" | "password";
 
 function getFocusableElements(root: HTMLElement) {
   return Array.from(
@@ -29,10 +32,11 @@ function getFocusableElements(root: HTMLElement) {
 function AccountRecoveryDialogContent({
   dialogRef,
   descriptionId,
+  initialView,
   onClose,
   titleId,
 }: AccountRecoveryDialogContentProps) {
-  const [view, setView] = useState<RecoveryView>("options");
+  const [view, setView] = useState<RecoveryView>(initialView);
 
   const title =
     view === "options"
@@ -46,6 +50,22 @@ function AccountRecoveryDialogContent({
       : view === "username"
         ? "Username recovery is coming next."
         : "Use your username to request a reset code and choose a new password.";
+
+  function clearPasswordRecoveryIfNeeded() {
+    if (view === "password") {
+      clearPersistedAuthPendingFlowByType("forgot-password-reset");
+    }
+  }
+
+  function handleClose() {
+    clearPasswordRecoveryIfNeeded();
+    onClose();
+  }
+
+  function handleBackToOptions() {
+    clearPersistedAuthPendingFlowByType("forgot-password-reset");
+    setView("options");
+  }
 
   return (
     <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-950/60 px-3 pb-4 pt-[4.75rem] sm:flex sm:items-start sm:justify-center sm:px-4 sm:pb-8 sm:pt-[5rem]">
@@ -70,7 +90,7 @@ function AccountRecoveryDialogContent({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
             aria-label="Close account recovery dialog"
           >
@@ -149,7 +169,7 @@ function AccountRecoveryDialogContent({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
               >
                 Back to sign in
@@ -162,7 +182,7 @@ function AccountRecoveryDialogContent({
           <div className="mt-6 space-y-5">
             <button
               type="button"
-              onClick={() => setView("options")}
+              onClick={handleBackToOptions}
               className="text-sm font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
             >
               Back to recovery options
@@ -176,6 +196,7 @@ function AccountRecoveryDialogContent({
 }
 
 export function AccountRecoveryDialog({
+  initialView = "options",
   open,
   onClose,
 }: AccountRecoveryDialogProps) {
@@ -263,6 +284,7 @@ export function AccountRecoveryDialog({
     <AccountRecoveryDialogContent
       dialogRef={dialogRef}
       descriptionId={descriptionId}
+      initialView={initialView}
       onClose={onClose}
       titleId={titleId}
     />

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
+import { clearPersistedAuthPendingFlowByType } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -160,10 +161,14 @@ export function SignupVerificationPanel({
         code: normalizedCode,
       });
 
+      clearPersistedAuthPendingFlowByType("signup-verification");
       setSession(session);
       router.replace(nextPath);
     } catch (error) {
       const failure = getVerificationFailureResult(error);
+      if (error instanceof ApiClientError && error.status === 409) {
+        clearPersistedAuthPendingFlowByType("signup-verification");
+      }
       setGeneralError(failure.generalError);
       setCodeError(failure.fieldError ?? null);
     } finally {
@@ -294,6 +299,9 @@ export function SignupVerificationPanel({
 
       <Link
         href={`/login?next=${encodeURIComponent(nextPath)}`}
+        onClick={() =>
+          clearPersistedAuthPendingFlowByType("signup-verification")
+        }
         className={theme.auth.tertiaryLink}
       >
         Back to sign in

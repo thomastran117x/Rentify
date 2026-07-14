@@ -9,6 +9,8 @@ interface AuthCaptchaPanelProps {
   error?: string;
   onChange: (token: string) => void;
   onReset: () => void;
+  stale?: boolean;
+  staleMessage?: string;
 }
 
 export function AuthCaptchaPanel({
@@ -16,6 +18,8 @@ export function AuthCaptchaPanel({
   error,
   onChange,
   onReset,
+  stale = false,
+  staleMessage,
 }: AuthCaptchaPanelProps) {
   return (
     <div className={theme.auth.captchaPanel}>
@@ -25,6 +29,12 @@ export function AuthCaptchaPanel({
         <div
           className={`mt-3 flex flex-wrap items-center justify-between gap-3 ${theme.auth.successPanel}`}
         >
+          {stale && staleMessage ? (
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              {staleMessage}
+            </p>
+          ) : null}
+
           <button
             type="button"
             onClick={onReset}

@@ -22,17 +22,22 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
   AuthCaptchaPanel: ({
     token,
     error,
+    stale,
+    staleMessage,
     onChange,
     onReset,
   }: {
     token: string;
     error?: string;
+    stale?: boolean;
+    staleMessage?: string;
     onChange: (token: string) => void;
     onReset: () => void;
   }) => (
     <div>
       <p>Captcha panel</p>
       <p>{token ? `Captcha token: ${token}` : "Captcha missing"}</p>
+      {stale && staleMessage ? <p>{staleMessage}</p> : null}
       <button type="button" onClick={() => onChange("captcha-token")}>
         Complete captcha
       </button>
@@ -94,7 +99,7 @@ describe("ContactInquiryForm", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("submits anonymous feedback with captcha and shows confirmation", async () => {
+  it("submits anonymous feedback without rerunning captcha immediately", async () => {
     render(<ContactInquiryForm />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
@@ -132,6 +137,14 @@ describe("ContactInquiryForm", () => {
     expect(
       await screen.findByText(
         "Thanks. Your feature request has been sent to the Rentify team.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Captcha token: captcha-token"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This verification was used for your last request. Run it again before sending more feedback.",
       ),
     ).toBeInTheDocument();
   });
@@ -251,5 +264,10 @@ describe("ContactInquiryForm", () => {
     expect(
       screen.queryByText("Should not appear on the form."),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This verification was used for your last request. Run it again before sending more feedback.",
+      ),
+    ).toBeInTheDocument();
   });
 });

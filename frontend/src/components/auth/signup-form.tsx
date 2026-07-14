@@ -8,12 +8,14 @@ import { SignupVerificationPanel } from "@/components/auth/signup-verification-p
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
+import {
+  clearPersistedAuthPendingFlowByType,
+  usePersistedAuthPendingFlow,
+  writePersistedAuthPendingFlow,
+} from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
-import type {
-  AuthResponseBody,
-  SignupVerificationPendingResult,
-} from "@/lib/auth/types";
+import type { AuthResponseBody } from "@/lib/auth/types";
 import { ApiClientError } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
@@ -350,11 +352,16 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const [errors, setErrors] = useState<SignupErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [verificationPending, setVerificationPending] =
-    useState<SignupVerificationPendingResult | null>(null);
+  const persistedAuthFlow = usePersistedAuthPendingFlow();
+  const verificationPending =
+    persistedAuthFlow?.flow === "signup-verification"
+      ? persistedAuthFlow
+      : null;
+  const authFlowRestorePending = persistedAuthFlow === undefined;
 
   useEffect(() => {
     if (status === "authenticated") {
+      clearPersistedAuthPendingFlowByType("signup-verification");
       router.replace(nextPath);
     }
   }, [nextPath, router, status]);
@@ -398,7 +405,12 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       });
 
       clearCaptchaToken();
-      setVerificationPending(result);
+      writePersistedAuthPendingFlow({
+        flow: "signup-verification",
+        email: result.email,
+        nextPath,
+        alreadyPending: result.alreadyPending,
+      });
     } catch (error) {
       const failure = getSignupFailureResult(error);
 
@@ -432,7 +444,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
     [confirmPassword],
   );
 
-  if (status === "loading") {
+  if (status === "loading" || authFlowRestorePending) {
     return (
       <div className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 shadow-sm">
         Preparing your workspace...
@@ -447,8 +459,12 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   if (verificationPending) {
     return (
       <SignupVerificationPanel
-        result={verificationPending}
-        nextPath={nextPath}
+        result={{
+          verificationRequired: true,
+          email: verificationPending.email,
+          alreadyPending: verificationPending.alreadyPending,
+        }}
+        nextPath={verificationPending.nextPath}
       />
     );
   }

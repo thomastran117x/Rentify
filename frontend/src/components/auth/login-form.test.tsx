@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "./login-form";
+import { writePersistedAuthPendingFlow } from "@/lib/auth/pending-flow";
 import { ApiClientError, ApiNetworkError } from "@/lib/auth/types";
 import {
   resetRouterMocks,
