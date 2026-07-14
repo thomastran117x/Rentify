@@ -560,6 +560,3 @@ describe("MfaVerificationService", () => {
     ).rejects.toThrow("OTP preview is unavailable.");
   });
 });
-
-
-

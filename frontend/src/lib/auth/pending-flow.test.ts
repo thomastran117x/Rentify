@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearPersistedAuthPendingFlow,
   clearPersistedAuthPendingFlowByType,
@@ -7,6 +7,10 @@ import {
 } from "./pending-flow";
 
 describe("pending auth flow storage", () => {
+  beforeEach(() => {
+    clearPersistedAuthPendingFlow();
+  });
+
   it("writes and reads signup verification state", () => {
     writePersistedAuthPendingFlow({
       flow: "signup-verification",
@@ -21,6 +25,31 @@ describe("pending auth flow storage", () => {
       nextPath: "/dashboard",
       alreadyPending: false,
     });
+  });
+
+  it("does not emit a storage change for identical state", () => {
+    const handleChange = vi.fn();
+    const flow = {
+      flow: "device-login-mfa" as const,
+      nextPath: "/dashboard",
+      selectedFactor: "email" as const,
+      challengeSent: true,
+    };
+
+    window.addEventListener("rentify-auth-pending-flow-storage", handleChange);
+
+    writePersistedAuthPendingFlow(flow);
+    handleChange.mockClear();
+
+    writePersistedAuthPendingFlow({ ...flow });
+
+    expect(handleChange).not.toHaveBeenCalled();
+    expect(readPersistedAuthPendingFlow()).toEqual(flow);
+
+    window.removeEventListener(
+      "rentify-auth-pending-flow-storage",
+      handleChange,
+    );
   });
 
   it("clears the stored flow", () => {

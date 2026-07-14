@@ -256,4 +256,3 @@ describe("MFA verification routes integration", () => {
     expect(mfaTotpService.disable).toHaveBeenCalledWith("user-1");
   });
 });
-

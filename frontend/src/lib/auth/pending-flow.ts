@@ -169,6 +169,14 @@ export function writePersistedAuthPendingFlow(
   }
 
   const serializedFlow = JSON.stringify(flow);
+  const currentSerializedFlow = window.sessionStorage.getItem(
+    AUTH_PENDING_FLOW_STORAGE_KEY,
+  );
+
+  if (currentSerializedFlow === serializedFlow) {
+    return;
+  }
+
   window.sessionStorage.setItem(AUTH_PENDING_FLOW_STORAGE_KEY, serializedFlow);
   cachedRawPendingFlow = serializedFlow;
   cachedParsedPendingFlow = flow;
@@ -238,3 +246,4 @@ export function usePersistedAuthPendingFlow():
     () => undefined,
   );
 }
+

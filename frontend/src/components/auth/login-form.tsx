@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
@@ -21,6 +21,7 @@ import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog
 import { AccountRecoveryDialog } from "@/components/auth/account-recovery-dialog";
 import {
   mfaVerificationApi,
+  type MfaVerificationChallengeFactor,
   type MfaVerificationFactor,
   type MfaVerificationOptionsResult,
 } from "@/lib/auth/mfa-verification-api";
@@ -330,7 +331,7 @@ export function LoginForm({
   initialRecoveryOpen = false,
 }: LoginFormProps) {
   const router = useRouter();
-  const { status, setSession } = useAuth();
+  const { status, setSession, clearSession } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -398,7 +399,6 @@ export function LoginForm({
       authFlowRestorePending ||
       status !== "authenticated" ||
       !deviceLoginPendingFlow ||
-      devicePending ||
       deviceMfaDialogState
     ) {
       return;
@@ -442,7 +442,6 @@ export function LoginForm({
     authFlowRestorePending,
     deviceLoginPendingFlow,
     deviceMfaDialogState,
-    devicePending,
     status,
   ]);
 
@@ -465,6 +464,80 @@ export function LoginForm({
     deviceMfaResolverRef.current = null;
     return verified;
   }
+
+  const handleDeviceMfaCodeEntryStateChange = useCallback(
+    (
+      state: {
+        challengeSent: boolean;
+        selectedFactor: MfaVerificationChallengeFactor;
+      } | null,
+    ) => {
+      if (!state) {
+        clearPersistedAuthPendingFlowByType("device-login-mfa");
+        return;
+      }
+
+      writePersistedAuthPendingFlow({
+        flow: "device-login-mfa",
+        nextPath,
+        selectedFactor: state.selectedFactor,
+        challengeSent: state.challengeSent,
+      });
+    },
+    [nextPath],
+  );
+
+  const completeRestoredDeviceMfaVerification = useCallback(async () => {
+    clearPersistedAuthPendingFlowByType("device-login-mfa");
+    setDeviceMfaDialogState(null);
+
+    try {
+      await authApi.verifyDevice();
+      setDevicePending(false);
+    } catch {
+      await authApi.logout().catch(() => {});
+      clearSession();
+      setDevicePending(false);
+      setGeneralError(
+        "We verified your code, but couldn't finish this sign-in. Please try again.",
+      );
+    }
+  }, [clearSession]);
+
+  const cancelRestoredDeviceMfaVerification = useCallback(async () => {
+    clearPersistedAuthPendingFlowByType("device-login-mfa");
+    setDeviceMfaDialogState(null);
+    await authApi.logout().catch(() => {});
+    clearSession();
+    setDevicePending(false);
+    setGeneralError("Sign-in was cancelled. Please try again.");
+  }, [clearSession]);
+
+  const handleDeviceMfaVerified = useCallback(() => {
+    clearPersistedAuthPendingFlowByType("device-login-mfa");
+
+    if (deviceMfaResolverRef.current) {
+      const resolve = deviceMfaResolverRef.current;
+      deviceMfaResolverRef.current = null;
+      resolve(true);
+      return;
+    }
+
+    void completeRestoredDeviceMfaVerification();
+  }, [completeRestoredDeviceMfaVerification]);
+
+  const handleDeviceMfaCancel = useCallback(() => {
+    clearPersistedAuthPendingFlowByType("device-login-mfa");
+
+    if (deviceMfaResolverRef.current) {
+      const resolve = deviceMfaResolverRef.current;
+      deviceMfaResolverRef.current = null;
+      resolve(false);
+      return;
+    }
+
+    void cancelRestoredDeviceMfaVerification();
+  }, [cancelRestoredDeviceMfaVerification]);
 
   async function completeLogin(session: AuthResponseBody) {
     clearPersistedAuthPendingFlowByType("login-unlock");
@@ -620,27 +693,9 @@ export function LoginForm({
           initialOptions={deviceMfaDialogState.options}
           preferredFactor={deviceMfaDialogState.preferredFactor}
           scope="device-login"
-          onCodeEntryStateChange={(state) => {
-            if (!state) {
-              clearPersistedAuthPendingFlowByType("device-login-mfa");
-              return;
-            }
-
-            writePersistedAuthPendingFlow({
-              flow: "device-login-mfa",
-              nextPath,
-              selectedFactor: state.selectedFactor,
-              challengeSent: state.challengeSent,
-            });
-          }}
-          onVerified={() => {
-            clearPersistedAuthPendingFlowByType("device-login-mfa");
-            deviceMfaResolverRef.current?.(true);
-          }}
-          onCancel={() => {
-            clearPersistedAuthPendingFlowByType("device-login-mfa");
-            deviceMfaResolverRef.current?.(false);
-          }}
+          onCodeEntryStateChange={handleDeviceMfaCodeEntryStateChange}
+          onVerified={handleDeviceMfaVerified}
+          onCancel={handleDeviceMfaCancel}
         />
       ) : null}
       <AuthOAuthButtons
@@ -769,3 +824,4 @@ export function LoginForm({
     </div>
   );
 }
+

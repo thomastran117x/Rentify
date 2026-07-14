@@ -412,10 +412,7 @@ export class MfaVerificationService {
   private assertSupportedScope(
     scope: string,
   ): asserts scope is MfaVerificationScope {
-    if (
-      scope !== MFA_MANAGEMENT_SCOPE &&
-      scope !== MFA_DEVICE_LOGIN_SCOPE
-    ) {
+    if (scope !== MFA_MANAGEMENT_SCOPE && scope !== MFA_DEVICE_LOGIN_SCOPE) {
       throw new BadRequestError("Unsupported MFA verification scope.", {
         scope,
       });
@@ -763,5 +760,3 @@ export class MfaVerificationService {
     return createHash("sha256").update(value).digest("hex");
   }
 }
-
-
