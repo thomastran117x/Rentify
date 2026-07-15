@@ -1771,6 +1771,139 @@ describe("PostingsRepository", () => {
     );
   });
 
+  it("restores only owner availability blocks from posting snapshots", async () => {
+    const snapshot = {
+      id: "posting-1",
+      organizationId: "org-1",
+      status: "published",
+      variant: {
+        family: "place",
+        subtype: "entire_place",
+      },
+      name: "Sunny loft",
+      description: "Bright loft with workspace",
+      pricing: {
+        currency: "CAD",
+        daily: {
+          amount: 150,
+        },
+      },
+      photos: [
+        {
+          id: "photo-1",
+          blobUrl: "https://example.test/photo-1.jpg",
+          blobName: "postings/photo-1.jpg",
+          thumbnailBlobUrl: "https://example.test/photo-1.webp",
+          thumbnailBlobName: "postings/thumbnails/photo-1.webp",
+          position: 0,
+        },
+      ],
+      tags: ["loft"],
+      details: {
+        guest_capacity: 4,
+        property_type: "loft",
+      },
+      availabilityStatus: "available",
+      availabilityNotes: null,
+      maxBookingDurationDays: null,
+      minBookingDurationDays: null,
+      advanceNoticeDays: null,
+      cancellationPolicy: null,
+      cancellationPolicyNotes: null,
+      instantBooking: false,
+      availabilityBlocks: [
+        {
+          id: "owner-block",
+          startAt: "2026-06-01T00:00:00.000Z",
+          endAt: "2026-06-02T00:00:00.000Z",
+          note: "Owner stay",
+          source: "owner",
+          bookingRequestHold: null,
+        },
+        {
+          id: "booking-hold-block",
+          startAt: "2026-06-03T00:00:00.000Z",
+          endAt: "2026-06-04T00:00:00.000Z",
+          note: "Booking hold",
+          source: "booking_hold",
+          bookingRequestHold: {
+            id: "booking-1",
+          },
+        },
+        {
+          id: "legacy-hold-block",
+          startAt: "2026-06-05T00:00:00.000Z",
+          endAt: "2026-06-06T00:00:00.000Z",
+          note: "Legacy hold",
+          source: "owner",
+          bookingRequestHold: {
+            id: "booking-2",
+          },
+        },
+      ],
+      location: {
+        latitude: 43.6532,
+        longitude: -79.3832,
+        city: "Toronto",
+        region: "Ontario",
+        country: "Canada",
+        postalCode: "M5H 2N2",
+      },
+      publishedAt: "2026-05-01T00:00:00.000Z",
+      pausedAt: null,
+      archivedAt: null,
+    };
+    const transaction = {
+      posting: {
+        findUnique: jest.fn(async () => ({
+          id: "posting-1",
+          photos: [],
+        })),
+        findUniqueOrThrow: jest.fn(async () => createPostingPersistence()),
+        update: jest.fn(async () => createPostingPersistence()),
+      },
+      postingAvailabilityBlock: {
+        deleteMany: jest.fn(async () => ({ count: 1 })),
+        createMany: jest.fn(async () => ({ count: 1 })),
+      },
+      searchReindexRun: {
+        findFirst: jest.fn(async () => null),
+      },
+      postingSearchOutbox: {
+        createMany: jest.fn(async () => undefined),
+      },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as never);
+
+    await expect(repository.restoreFromSnapshot(snapshot)).resolves.toEqual(
+      expect.objectContaining({
+        id: "posting-1",
+      }),
+    );
+
+    expect(
+      transaction.postingAvailabilityBlock.deleteMany,
+    ).toHaveBeenCalledWith({
+      where: {
+        postingId: "posting-1",
+        source: "owner",
+      },
+    });
+    expect(
+      transaction.postingAvailabilityBlock.createMany,
+    ).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          id: "owner-block",
+          source: "owner",
+        }),
+      ],
+    });
+  });
   it("lists, finds, updates, and deletes owner availability blocks", async () => {
     const transaction = {
       postingAvailabilityBlock: {

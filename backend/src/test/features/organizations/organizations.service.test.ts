@@ -1,4 +1,5 @@
 import BadRequestError from "@/errors/http/bad-request.error";
+import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
@@ -51,10 +52,52 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createMember(overrides: Record<string, unknown> = {}) {
+  return {
+    membershipId: "membership-2",
+    userId: "user-2",
+    email: "teammate@example.com",
+    username: "teammate",
+    role: "operator",
+    joinedAt: "2026-05-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createAuditLog(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "audit-original",
+    organizationId: "org-1",
+    actor: null,
+    action: "organization.renamed",
+    resourceType: "organization",
+    resourceId: "org-1",
+    organizationVersion: 1,
+    resourceVersion: 1,
+    summary: "Original change",
+    changes: [],
+    beforeSnapshot: {
+      id: "org-1",
+      name: "Northwind",
+    },
+    afterSnapshot: {
+      id: "org-1",
+      name: "Renamed",
+    },
+    restorable: true,
+    restoredFromAuditId: null,
+    createdAt: "2026-05-03T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 function createService(overrides?: {
   repository?: Record<string, jest.Mock>;
   authRepository?: Record<string, jest.Mock>;
   emailService?: Record<string, jest.Mock>;
+  auditService?: Record<string, jest.Mock>;
+  postingsRepository?: Record<string, jest.Mock>;
+  seasonalPricingRepository?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -134,16 +177,37 @@ function createService(overrides?: {
     sendOrganizationInviteEmail: jest.fn(async () => undefined),
     ...(overrides?.emailService ?? {}),
   };
+  const auditService = {
+    record: jest.fn(async (entry) => ({ id: "audit-1", ...entry })),
+    list: jest.fn(async () => ({ auditLogs: [], pagination: {} })),
+    requireRestorableAudit: jest.fn(),
+    ...(overrides?.auditService ?? {}),
+  };
+  const postingsRepository = {
+    restoreFromSnapshot: jest.fn(),
+    restoreOwnerAvailabilityBlock: jest.fn(),
+    ...(overrides?.postingsRepository ?? {}),
+  };
+  const seasonalPricingRepository = {
+    restore: jest.fn(),
+    ...(overrides?.seasonalPricingRepository ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
       repository as never,
       authRepository as never,
       emailService as never,
+      auditService as never,
+      postingsRepository as never,
+      seasonalPricingRepository as never,
     ),
     repository,
     authRepository,
     emailService,
+    auditService,
+    postingsRepository,
+    seasonalPricingRepository,
   };
 }
 
@@ -487,5 +551,625 @@ describe("OrganizationsService", () => {
         role: "primary_manager",
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("returns no active organization when the user has no memberships", async () => {
+    const { service } = createService();
+
+    await expect(service.listMine("user-1")).resolves.toEqual({
+      memberships: [],
+      activeOrganization: undefined,
+    });
+  });
+
+  it("sets the active organization for an existing member", async () => {
+    const { service, repository } = createService();
+
+    await expect(
+      service.setActiveOrganization({
+        userId: "user-1",
+        organizationId: "org-1",
+      }),
+    ).resolves.toEqual({
+      activeOrganization: {
+        id: "org-1",
+        name: "Northwind",
+        role: "primary_manager",
+      },
+    });
+    expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
+      "user-1",
+      "org-1",
+    );
+  });
+
+  it("expires pending invitations while loading organization details", async () => {
+    const expiredInvitation = createInvitation({
+      expiresAt: "2000-01-01T00:00:00.000Z",
+    });
+    const detail = {
+      organization: {
+        id: "org-1",
+        name: "Northwind",
+        createdAt: "2026-05-01T00:00:00.000Z",
+        updatedAt: "2026-05-01T00:00:00.000Z",
+      },
+      viewerRole: "operator",
+      members: [],
+      invitations: [expiredInvitation],
+    };
+    const refreshedDetail = {
+      ...detail,
+      invitations: [
+        createInvitation({
+          status: "expired",
+          expiresAt: "2000-01-01T00:00:00.000Z",
+        }),
+      ],
+    };
+    const { service, repository, auditService } = createService({
+      repository: {
+        findOrganizationDetail: jest
+          .fn()
+          .mockResolvedValueOnce(detail)
+          .mockResolvedValueOnce(refreshedDetail),
+      },
+    });
+
+    await expect(service.getById("org-1", "user-1")).resolves.toEqual({
+      ...refreshedDetail,
+      viewerRole: "primary_manager",
+    });
+    expect(repository.expireInvitation).toHaveBeenCalledWith(
+      "invite-1",
+      expect.any(Date),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "invitation.expired",
+        resourceType: "invitation",
+        restorable: true,
+      }),
+    );
+  });
+
+  it("delegates audit listing with the caller filters", async () => {
+    const auditResult = {
+      auditLogs: [createAuditLog()],
+      pagination: { limit: 20, offset: 0, total: 1 },
+    };
+    const { service, auditService } = createService({
+      auditService: {
+        list: jest.fn(async () => auditResult),
+      },
+    });
+
+    await expect(
+      service.listAudit({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        resourceType: "organization",
+        page: 1,
+        pageSize: 20,
+      }),
+    ).resolves.toBe(auditResult);
+    expect(auditService.list).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      resourceType: "organization",
+      page: 1,
+      pageSize: 20,
+    });
+  });
+
+  it("renames organizations and does not fail the rename if audit recording fails", async () => {
+    const { service, repository, auditService } = createService({
+      auditService: {
+        record: jest.fn(async () => {
+          throw new Error("audit unavailable");
+        }),
+      },
+    });
+
+    await expect(
+      service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        name: "  Better Northwind  ",
+      }),
+    ).resolves.toEqual({
+      id: "org-1",
+      name: "Renamed",
+      role: "primary_manager",
+    });
+    expect(repository.updateOrganizationName).toHaveBeenCalledWith(
+      "org-1",
+      "Better Northwind",
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "organization.renamed",
+        changes: [
+          {
+            field: "name",
+            before: "Northwind",
+            after: "Renamed",
+          },
+        ],
+      }),
+    );
+  });
+
+  it("revokes an operator invitation as a manager", async () => {
+    const { service, repository } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            role: "manager",
+          }),
+        ),
+        findInvitationById: jest.fn(async () =>
+          createInvitation({
+            role: "operator",
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.revokeInvitation({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        invitationId: "invite-1",
+      }),
+    ).resolves.toEqual({
+      invitation: expect.objectContaining({
+        id: "invite-1",
+        status: "revoked",
+      }),
+    });
+    expect(repository.revokeInvitation).toHaveBeenCalledWith(
+      "invite-1",
+      expect.any(Date),
+    );
+  });
+
+  it("rejects revoking invitations that are no longer pending", async () => {
+    const { service } = createService({
+      repository: {
+        findInvitationById: jest.fn(async () =>
+          createInvitation({
+            status: "accepted",
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.revokeInvitation({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        invitationId: "invite-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("previews anonymous invitations without viewer eligibility", async () => {
+    const { service } = createService();
+
+    await expect(
+      service.previewInvitation({
+        token: "token-123",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        viewer: {
+          authenticated: false,
+          email: undefined,
+          emailVerified: undefined,
+          matchesEmail: false,
+          canAccept: false,
+        },
+      }),
+    );
+  });
+
+  it("returns the existing membership when an invitation was already accepted", async () => {
+    const { service } = createService({
+      authRepository: {
+        findUserById: jest.fn(async () =>
+          createUser({
+            id: "user-2",
+            email: "teammate@example.com",
+          }),
+        ),
+      },
+      repository: {
+        findInvitationByTokenHash: jest.fn(async () =>
+          createInvitation({
+            status: "accepted",
+          }),
+        ),
+        findMemberByUserId: jest.fn(async () => createMember()),
+        listMembershipsByUserId: jest.fn(async () => [
+          {
+            membershipId: "membership-2",
+            id: "org-1",
+            name: "Northwind",
+            role: "operator",
+            joinedAt: "2026-05-03T00:00:00.000Z",
+            isActive: true,
+          },
+        ]),
+      },
+    });
+
+    await expect(
+      service.acceptInvitation({
+        token: "token-123",
+        userId: "user-2",
+      }),
+    ).resolves.toEqual({
+      accepted: true,
+      organization: {
+        id: "org-1",
+        name: "Northwind",
+        role: "operator",
+      },
+      membership: {
+        membershipId: "membership-2",
+        id: "org-1",
+        name: "Northwind",
+        role: "operator",
+        joinedAt: "2026-05-03T00:00:00.000Z",
+        isActive: true,
+      },
+    });
+  });
+
+  it("updates member roles when the actor is the primary manager", async () => {
+    const { service, repository } = createService({
+      repository: {
+        findMemberById: jest.fn(async () => createMember()),
+      },
+    });
+
+    await expect(
+      service.updateMemberRole({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        membershipId: "membership-2",
+        role: "manager",
+      }),
+    ).resolves.toEqual({
+      member: expect.objectContaining({
+        membershipId: "membership-2",
+        role: "manager",
+      }),
+    });
+    expect(repository.updateMembershipRole).toHaveBeenCalledWith(
+      "membership-2",
+      "manager",
+    );
+  });
+
+  it("rejects removing your own organization membership", async () => {
+    const { service } = createService({
+      repository: {
+        findMemberById: jest.fn(async () =>
+          createMember({
+            membershipId: "membership-1",
+            userId: "user-1",
+            role: "primary_manager",
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.removeMember({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        membershipId: "membership-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("restores organization audit snapshots and records a compensating audit", async () => {
+    const { service, auditService } = createService({
+      auditService: {
+        requireRestorableAudit: jest.fn(async () => createAuditLog()),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).resolves.toEqual({
+      restored: true,
+      auditLog: expect.objectContaining({
+        action: "organization.restored",
+      }),
+    });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "organization.restored",
+        summary: "Organization restored to Northwind.",
+        restoredFromAuditId: "audit-original",
+        restorable: false,
+      }),
+    );
+  });
+
+  it("restores member audit snapshots and records a compensating audit", async () => {
+    const { service, repository, auditService } = createService({
+      repository: {
+        restoreMembership: jest.fn(async () => createMember()),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            resourceType: "member",
+            resourceId: "membership-2",
+            beforeSnapshot: createMember(),
+            afterSnapshot: createMember({ role: "manager" }),
+          }),
+        ),
+      },
+    });
+
+    await service.restoreVersion({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      auditId: "audit-original",
+    });
+
+    expect(repository.restoreMembership).toHaveBeenCalledWith({
+      membershipId: "membership-2",
+      organizationId: "org-1",
+      userId: "user-2",
+      role: "operator",
+    });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "member.restored",
+        summary: "teammate was restored as operator.",
+      }),
+    );
+  });
+
+  it("restores posting snapshots through the postings repository", async () => {
+    const restored = { id: "posting-1", name: "Camera Kit" };
+    const { service, postingsRepository, auditService } = createService({
+      postingsRepository: {
+        restoreFromSnapshot: jest.fn(async () => restored),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            resourceType: "posting",
+            resourceId: "posting-1",
+            beforeSnapshot: restored,
+            afterSnapshot: null,
+          }),
+        ),
+      },
+    });
+
+    await service.restoreVersion({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      auditId: "audit-original",
+    });
+
+    expect(postingsRepository.restoreFromSnapshot).toHaveBeenCalledWith(
+      restored,
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "posting.restored",
+        resourceType: "posting",
+      }),
+    );
+  });
+
+  it("restores posting availability snapshots through the postings repository", async () => {
+    const restored = { id: "block-1" };
+    const { service, postingsRepository, auditService } = createService({
+      postingsRepository: {
+        restoreOwnerAvailabilityBlock: jest.fn(async () => restored),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            resourceType: "posting_availability",
+            resourceId: "block-1",
+            beforeSnapshot: restored,
+            afterSnapshot: null,
+          }),
+        ),
+      },
+    });
+
+    await service.restoreVersion({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      auditId: "audit-original",
+    });
+
+    expect(
+      postingsRepository.restoreOwnerAvailabilityBlock,
+    ).toHaveBeenCalledWith(restored);
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "posting_availability.restored",
+        resourceType: "posting_availability",
+      }),
+    );
+  });
+
+  it("restores seasonal pricing snapshots through the seasonal pricing repository", async () => {
+    const restored = { id: "price-1", name: "Summer" };
+    const { service, seasonalPricingRepository, auditService } = createService({
+      seasonalPricingRepository: {
+        restore: jest.fn(async () => restored),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            resourceType: "seasonal_pricing",
+            resourceId: "price-1",
+            beforeSnapshot: restored,
+            afterSnapshot: null,
+          }),
+        ),
+      },
+    });
+
+    await service.restoreVersion({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      auditId: "audit-original",
+    });
+
+    expect(seasonalPricingRepository.restore).toHaveBeenCalledWith(restored);
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "seasonal_pricing.restored",
+        resourceType: "seasonal_pricing",
+      }),
+    );
+  });
+
+  it("restores invitations by issuing a fresh invite token", async () => {
+    const { service, repository, emailService, auditService } = createService({
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            resourceType: "invitation",
+            resourceId: "invite-1",
+            beforeSnapshot: createInvitation(),
+            afterSnapshot: createInvitation({ status: "revoked" }),
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).resolves.toEqual({
+      restored: true,
+      auditLog: expect.objectContaining({
+        action: "invitation.restored",
+      }),
+    });
+    expect(repository.reissueInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "teammate@example.com",
+        role: "operator",
+        tokenHash: expect.any(String),
+      }),
+    );
+    expect(emailService.sendOrganizationInviteEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "teammate@example.com",
+        role: "operator",
+        token: expect.any(String),
+      }),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "invitation.restored",
+        restoredFromAuditId: "audit-original",
+      }),
+    );
+  });
+
+  it("rejects unrestorable organization snapshots", async () => {
+    const { service } = createService({
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            beforeSnapshot: {
+              id: "org-1",
+            },
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+  it("prevents managers from restoring organization rename audits", async () => {
+    const { service, repository } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            role: "manager",
+          }),
+        ),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () => createAuditLog()),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repository.updateOrganizationName).not.toHaveBeenCalled();
+  });
+
+  it("prevents managers from restoring member role-update audits", async () => {
+    const { service, auditService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            role: "manager",
+          }),
+        ),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            action: "member.role_updated",
+            resourceType: "member",
+            resourceId: "membership-2",
+            beforeSnapshot: createMember({
+              role: "manager",
+            }),
+            afterSnapshot: createMember({
+              role: "operator",
+            }),
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 });

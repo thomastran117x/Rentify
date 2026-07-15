@@ -39,6 +39,7 @@ model User {
   organizationMemberships OrganizationMembership[]
   organizationInvitationsSent OrganizationInvitation[] @relation("OrganizationInvitationInviter")
   acceptedOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationAccepter")
+  organizationAuditLogs OrganizationAuditLog[] @relation("OrganizationAuditActor")
   mfaTotp                UserMfaTotp?
 
   @@map("users")
@@ -62,8 +63,34 @@ model Organization {
   postingAnalyticsDaily PostingAnalyticsDaily[]
   postingAnalyticsOutbox PostingAnalyticsOutbox[]
   recommendationActivities RecommendationActivity[]
+  auditLogs OrganizationAuditLog[]
 
   @@map("organizations")
+}
+model OrganizationAuditLog {
+  id                    String   @id @db.VarChar(36)
+  organizationId        String   @map("organization_id") @db.VarChar(36)
+  actorUserId           String?  @map("actor_user_id") @db.VarChar(36)
+  action                String   @db.VarChar(80)
+  resourceType          String   @map("resource_type") @db.VarChar(60)
+  resourceId            String?  @map("resource_id") @db.VarChar(64)
+  organizationVersion   Int      @map("organization_version")
+  resourceVersion       Int?     @map("resource_version")
+  summary               String   @db.VarChar(255)
+  changes               Json?
+  beforeSnapshot        Json?    @map("before_snapshot")
+  afterSnapshot         Json?    @map("after_snapshot")
+  restorable            Boolean  @default(false)
+  restoredFromAuditId   String?  @map("restored_from_audit_id") @db.VarChar(36)
+  createdAt             DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor                 User?    @relation("OrganizationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@unique([organizationId, organizationVersion], map: "organization_audit_logs_org_version_unique")
+  @@unique([organizationId, resourceType, resourceId, resourceVersion], map: "org_audit_resource_version_unique")
+  @@index([actorUserId, createdAt])
+  @@map("organization_audit_logs")
 }
 
 model OrganizationMembership {
@@ -1186,4 +1213,3 @@ enum UserMfaTotpStatus {
   pending
   active
 }
-

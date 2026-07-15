@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
-import { created, ok } from "@/configuration/http/responses";
+import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import {
   getOptionalJwtAuth,
   requireJwtAuth,
@@ -20,6 +20,10 @@ import {
   updateOrganizationMemberRequestSchema,
   updateOrganizationRequestSchema,
 } from "@/features/organizations/organizations.model";
+import {
+  listOrganizationAuditQuerySchema,
+  organizationAuditIdSchema,
+} from "@/features/organizations/organization-audit.model";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
 export class OrganizationsController {
@@ -70,6 +74,35 @@ export class OrganizationsController {
     return ok(context, result);
   };
 
+  listAudit = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const query = listOrganizationAuditQuerySchema.parse(context.req.query());
+    const result = await this.organizationsService.listAudit({
+      ...query,
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+    });
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
+
+  restoreAuditEntry = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.restoreVersion({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      auditId: this.requireRouteValue(
+        context,
+        "auditId",
+        organizationAuditIdSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result, {
+      message: "Organization version restored successfully.",
+    });
+  };
   update = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(

@@ -578,6 +578,13 @@ export interface PostingAvailabilityBlockRecord {
   startAt: string;
   endAt: string;
   note?: string;
+  source?: "owner" | "booking_hold" | "renting";
+  bookingRequestHold?: {
+    id: string;
+    status: string;
+    holdExpiresAt?: string;
+    convertedAt?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

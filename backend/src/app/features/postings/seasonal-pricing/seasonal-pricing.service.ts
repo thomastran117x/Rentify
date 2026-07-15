@@ -1,8 +1,11 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import { loggerFactory } from "@/configuration/logging";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import { createAuditChanges } from "@/features/organizations/organization-audit.model";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type {
   SeasonalPricingRecord,
@@ -12,10 +15,16 @@ import type {
 const MAX_SEASONAL_PRICING_RULES = 20;
 
 export class SeasonalPricingService {
+  private readonly logger = loggerFactory.forClass(
+    SeasonalPricingService,
+    "service",
+  );
+
   constructor(
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly postingsRepository: PostingsRepository,
     private readonly organizationAccessService: OrganizationAccessService,
+    private readonly organizationAuditService: OrganizationAuditService,
   ) {}
 
   async list(
@@ -31,7 +40,11 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
 
     const count =
       await this.seasonalPricingRepository.countByPosting(postingId);
@@ -41,13 +54,27 @@ export class SeasonalPricingService {
       );
     }
 
-    return this.seasonalPricingRepository.create({
+    const created = await this.seasonalPricingRepository.create({
       postingId,
       name: body.name,
       startDate: body.startDate,
       endDate: body.endDate,
       dailyAmount: body.dailyAmount,
     });
+
+    await this.recordAuditSafely({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.created",
+      resourceType: "seasonal_pricing",
+      resourceId: created.id,
+      summary: `${created.name} seasonal pricing was created for ${posting.name}.`,
+      changes: [],
+      afterSnapshot: created,
+      restorable: false,
+    });
+
+    return created;
   }
 
   async update(
@@ -56,7 +83,15 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
+    const beforeRule = await this.seasonalPricingRepository.findById(
+      ruleId,
+      postingId,
+    );
 
     const updated = await this.seasonalPricingRepository.update(
       ruleId,
@@ -75,6 +110,19 @@ export class SeasonalPricingService {
       );
     }
 
+    await this.recordAuditSafely({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.updated",
+      resourceType: "seasonal_pricing",
+      resourceId: updated.id,
+      summary: `${updated.name} seasonal pricing was updated for ${posting.name}.`,
+      changes: createAuditChanges(beforeRule, updated),
+      beforeSnapshot: beforeRule ?? null,
+      afterSnapshot: updated,
+      restorable: true,
+    });
+
     return updated;
   }
 
@@ -83,7 +131,15 @@ export class SeasonalPricingService {
     ruleId: string,
     actorUserId: string,
   ): Promise<void> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
+    const beforeRule = await this.seasonalPricingRepository.findById(
+      ruleId,
+      postingId,
+    );
 
     const deleted = await this.seasonalPricingRepository.delete(
       ruleId,
@@ -93,6 +149,35 @@ export class SeasonalPricingService {
       throw new ResourceNotFoundError(
         "Seasonal pricing rule could not be found.",
       );
+    }
+
+    await this.recordAuditSafely({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.deleted",
+      resourceType: "seasonal_pricing",
+      resourceId: beforeRule?.id ?? ruleId,
+      summary: `${beforeRule?.name ?? "Seasonal pricing"} was deleted from ${posting.name}.`,
+      changes: createAuditChanges(beforeRule, null),
+      beforeSnapshot: beforeRule ?? null,
+      afterSnapshot: null,
+      restorable: true,
+    });
+  }
+
+  private async recordAuditSafely(
+    input: Parameters<OrganizationAuditService["record"]>[0],
+  ): Promise<void> {
+    try {
+      await this.organizationAuditService.record(input);
+    } catch (error) {
+      this.logger.error("Failed to record seasonal pricing audit entry.", {
+        organizationId: input.organizationId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId ?? undefined,
+        error,
+      });
     }
   }
 

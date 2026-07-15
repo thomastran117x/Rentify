@@ -30,6 +30,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsPublicCacheService,
         containerTokens.organizationAccessService,
         containerTokens.authRepository,
+        containerTokens.organizationAuditService,
       ],
       resolve: ({ resolve }) =>
         new PostingsService(
@@ -44,6 +45,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsPublicCacheService),
           resolve(containerTokens.organizationAccessService),
           resolve(containerTokens.authRepository),
+          resolve(containerTokens.organizationAuditService),
         ),
     });
     container.register({
@@ -59,12 +61,14 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.seasonalPricingRepository,
         containerTokens.postingsRepository,
         containerTokens.organizationAccessService,
+        containerTokens.organizationAuditService,
       ],
       resolve: ({ resolve }) =>
         new SeasonalPricingService(
           resolve(containerTokens.seasonalPricingRepository),
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.organizationAuditService),
         ),
     });
     container.register({

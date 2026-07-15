@@ -420,6 +420,42 @@ export class OrganizationsRepository extends BaseRepository {
     return this.mapMemberRecord(membership);
   }
 
+  async restoreMembership(input: {
+    membershipId: string;
+    organizationId: string;
+    userId: string;
+    role: OrganizationRole;
+  }): Promise<OrganizationMemberRecord> {
+    const membership = await this.executeAsync(() =>
+      this.prisma.organizationMembership.upsert({
+        where: {
+          organizationId_userId: {
+            organizationId: input.organizationId,
+            userId: input.userId,
+          },
+        },
+        update: {
+          role: input.role,
+        },
+        create: {
+          id: input.membershipId,
+          organizationId: input.organizationId,
+          userId: input.userId,
+          role: input.role,
+        },
+        include: {
+          organization: true,
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      }),
+    );
+
+    return this.mapMemberRecord(membership);
+  }
   async removeMembership(membershipId: string): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.organizationMembership.deleteMany({

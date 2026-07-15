@@ -17,6 +17,8 @@ const {
   setActiveMock,
   createMock,
   createInviteMock,
+  listAuditMock,
+  restoreAuditEntryMock,
   refreshMock,
   listMinePostingsMock,
   publishPostingMock,
@@ -29,6 +31,8 @@ const {
   setActiveMock: vi.fn(),
   createMock: vi.fn(),
   createInviteMock: vi.fn(),
+  listAuditMock: vi.fn(),
+  restoreAuditEntryMock: vi.fn(),
   refreshMock: vi.fn(),
   listMinePostingsMock: vi.fn(),
   publishPostingMock: vi.fn(),
@@ -86,6 +90,8 @@ vi.mock("@/lib/organizations/api", () => ({
     create: createMock,
     rename: vi.fn(),
     createInvite: createInviteMock,
+    listAudit: listAuditMock,
+    restoreAuditEntry: restoreAuditEntryMock,
     revokeInvite: vi.fn(),
     updateMemberRole: vi.fn(),
     removeMember: vi.fn(),
@@ -181,6 +187,21 @@ describe("OrganizationWorkspace", () => {
         id: "invite-1",
       },
     });
+    listAuditMock.mockResolvedValue({
+      auditLogs: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+    restoreAuditEntryMock.mockResolvedValue({
+      restored: true,
+      auditLog: { id: "audit-restore" },
+    });
   });
 
   it("redirects anonymous visitors to login", async () => {
@@ -221,6 +242,51 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
+  it("shows manager audit history and restores a restorable entry", async () => {
+    const user = userEvent.setup();
+    listAuditMock.mockResolvedValue({
+      auditLogs: [
+        {
+          id: "audit-1",
+          organizationId: "org-1",
+          actor: {
+            id: "user-1",
+            email: "owner@example.com",
+            username: "owner-one",
+          },
+          action: "organization.renamed",
+          resourceType: "organization",
+          resourceId: "org-1",
+          organizationVersion: 2,
+          summary: "Organization renamed from Old Name to Northwind.",
+          changes: [{ field: "name", before: "Old Name", after: "Northwind" }],
+          restorable: true,
+          createdAt: "2026-05-02T00:00:00.000Z",
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    render(<OrganizationWorkspace />);
+
+    expect(
+      await screen.findByText("Recent organization activity"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Organization Renamed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+
+    await waitFor(() => {
+      expect(restoreAuditEntryMock).toHaveBeenCalledWith("org-1", "audit-1");
+    });
+  });
   it("renders the active organization's postings with a create CTA", async () => {
     listMinePostingsMock.mockResolvedValue({
       postings: [

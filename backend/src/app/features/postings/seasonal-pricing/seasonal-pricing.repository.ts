@@ -73,6 +73,33 @@ export class SeasonalPricingRepository extends BaseRepository {
     return result.count > 0;
   }
 
+  async restore(snapshot: unknown): Promise<SeasonalPricingRecord | null> {
+    const rule = snapshot as SeasonalPricingRecord | null | undefined;
+
+    if (!rule?.id || !rule.postingId) {
+      return null;
+    }
+
+    const row = await this.database.postingSeasonalPricing.upsert({
+      where: { id: rule.id },
+      update: {
+        name: rule.name,
+        startDate: new Date(rule.startDate),
+        endDate: new Date(rule.endDate),
+        dailyAmount: rule.dailyAmount,
+      },
+      create: {
+        id: rule.id,
+        postingId: rule.postingId,
+        name: rule.name,
+        startDate: new Date(rule.startDate),
+        endDate: new Date(rule.endDate),
+        dailyAmount: rule.dailyAmount,
+      },
+    });
+
+    return this.toRecord(row);
+  }
   async findOverlappingForBooking(
     postingId: string,
     startAt: Date,
