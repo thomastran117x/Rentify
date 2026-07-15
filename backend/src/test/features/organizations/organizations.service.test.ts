@@ -513,4 +513,3 @@ describe("OrganizationsService", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 });
-
