@@ -36,6 +36,8 @@ import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import { FeedbacksRepository } from "@/features/feedbacks/feedbacks.repository";
 import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
+import { OrganizationAuditRepository } from "@/features/organizations/organization-audit.repository";
+import { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
@@ -112,6 +114,12 @@ export const containerTokens = {
   ),
   organizationsRepository: createServiceToken<OrganizationsRepository>(
     "OrganizationsRepository",
+  ),
+  organizationAuditRepository: createServiceToken<OrganizationAuditRepository>(
+    "OrganizationAuditRepository",
+  ),
+  organizationAuditService: createServiceToken<OrganizationAuditService>(
+    "OrganizationAuditService",
   ),
   organizationAccessService: createServiceToken<OrganizationAccessService>(
     "OrganizationAccessService",
@@ -283,3 +291,5 @@ export const containerTokens = {
     "FeatureFlagController",
   ),
 } as const;
+
+

@@ -14,6 +14,44 @@ export type OrganizationInviteStatus =
   | "revoked"
   | "expired";
 
+export type OrganizationAuditAction =
+  | "organization.created"
+  | "organization.renamed"
+  | "organization.restored"
+  | "invitation.created"
+  | "invitation.reissued"
+  | "invitation.revoked"
+  | "invitation.accepted"
+  | "invitation.expired"
+  | "invitation.restored"
+  | "member.role_updated"
+  | "member.removed"
+  | "member.restored"
+  | "posting.created"
+  | "posting.updated"
+  | "posting.duplicated"
+  | "posting.published"
+  | "posting.paused"
+  | "posting.unpaused"
+  | "posting.archived"
+  | "posting.restored"
+  | "posting_availability.created"
+  | "posting_availability.updated"
+  | "posting_availability.deleted"
+  | "posting_availability.restored"
+  | "seasonal_pricing.created"
+  | "seasonal_pricing.updated"
+  | "seasonal_pricing.deleted"
+  | "seasonal_pricing.restored";
+
+export type OrganizationAuditResourceType =
+  | "organization"
+  | "invitation"
+  | "member"
+  | "posting"
+  | "posting_availability"
+  | "seasonal_pricing";
+
 export interface OrganizationMembershipSummary
   extends ActiveOrganizationSummary {
   membershipId: string;
@@ -60,6 +98,45 @@ export interface OrganizationWorkspaceResult {
   memberships: OrganizationMembershipSummary[];
   activeOrganization?: ActiveOrganizationSummary;
 }
+export interface OrganizationAuditChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface OrganizationAuditRecord {
+  id: string;
+  organizationId: string;
+  actor?: {
+    id: string;
+    email: string;
+    username: string;
+    avatarUrl?: string;
+  };
+  action: OrganizationAuditAction;
+  resourceType: OrganizationAuditResourceType;
+  resourceId?: string;
+  organizationVersion: number;
+  resourceVersion?: number;
+  summary: string;
+  changes: OrganizationAuditChange[];
+  restorable: boolean;
+  restoredFromAuditId?: string;
+  createdAt: string;
+}
+
+export interface OrganizationAuditResult {
+  auditLogs: OrganizationAuditRecord[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
 
 export interface OrganizationDetailResult {
   organization: {
@@ -134,7 +211,20 @@ export const organizationsApi = {
       activeOrganization: ActiveOrganizationSummary;
     }>("/organizations/me/active", input);
   },
-  getById(id: string): Promise<OrganizationDetailResult> {
+  listAudit(id: string): Promise<OrganizationAuditResult> {
+    return getAuthenticatedJson<OrganizationAuditResult>(
+      `/organizations/${id}/audit?pageSize=10`,
+    );
+  },
+  restoreAuditEntry(
+    id: string,
+    auditId: string,
+  ): Promise<{ restored: true; auditLog: OrganizationAuditRecord }> {
+    return postAuthenticatedJson<{
+      restored: true;
+      auditLog: OrganizationAuditRecord;
+    }>(`/organizations/${id}/audit/${auditId}/restore`, {});
+  },  getById(id: string): Promise<OrganizationDetailResult> {
     return getAuthenticatedJson<OrganizationDetailResult>(
       `/organizations/${id}`,
     );
@@ -192,3 +282,7 @@ export const organizationsApi = {
     );
   },
 };
+
+
+
+

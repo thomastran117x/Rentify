@@ -55,6 +55,9 @@ function createService(overrides?: {
   repository?: Record<string, jest.Mock>;
   authRepository?: Record<string, jest.Mock>;
   emailService?: Record<string, jest.Mock>;
+  auditService?: Record<string, jest.Mock>;
+  postingsRepository?: Record<string, jest.Mock>;
+  seasonalPricingRepository?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -134,16 +137,37 @@ function createService(overrides?: {
     sendOrganizationInviteEmail: jest.fn(async () => undefined),
     ...(overrides?.emailService ?? {}),
   };
+  const auditService = {
+    record: jest.fn(async (entry) => ({ id: "audit-1", ...entry })),
+    list: jest.fn(async () => ({ auditLogs: [], pagination: {} })),
+    requireRestorableAudit: jest.fn(),
+    ...(overrides?.auditService ?? {}),
+  };
+  const postingsRepository = {
+    restoreFromSnapshot: jest.fn(),
+    restoreOwnerAvailabilityBlock: jest.fn(),
+    ...(overrides?.postingsRepository ?? {}),
+  };
+  const seasonalPricingRepository = {
+    restore: jest.fn(),
+    ...(overrides?.seasonalPricingRepository ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
       repository as never,
       authRepository as never,
       emailService as never,
+      auditService as never,
+      postingsRepository as never,
+      seasonalPricingRepository as never,
     ),
     repository,
     authRepository,
     emailService,
+    auditService,
+    postingsRepository,
+    seasonalPricingRepository,
   };
 }
 
@@ -489,3 +513,4 @@ describe("OrganizationsService", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 });
+

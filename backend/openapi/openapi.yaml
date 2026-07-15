@@ -191,7 +191,7 @@ paths:
   /auth/local/login:
     post:
       operationId: localLogin
-      summary: Authenticate with email and password
+      summary: Authenticate with username and password
       description: Creates an authenticated session with local credentials. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.
       tags:
         - auth
@@ -208,7 +208,7 @@ paths:
             schema:
               $ref: '#/components/schemas/LocalAuthenticateRequest'
             example:
-              email: owner1@rentify.local
+              username: owner-one
               password: Rentify123!
               captchaToken: turnstile-token
               rememberMe: true
@@ -281,6 +281,7 @@ paths:
             schema:
               $ref: '#/components/schemas/LocalSignupRequest'
             example:
+              username: taylor-renter
               email: new-user@example.com
               password: Rentify123!
               captchaToken: turnstile-token
@@ -1698,6 +1699,69 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /organizations:
+    post:
+      operationId: createOrganization
+      summary: Create an organization
+      description: Creates a new organization and makes the signed-in user its primary manager. The new organization becomes the caller's active organization.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+            example:
+              name: Northwind
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreateOrganizationResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization created successfully.
+                data:
+                  organization:
+                    id: org-1
+                    name: Northwind
+                    role: primary_manager
+                  membership:
+                    membershipId: membership-1
+                    id: org-1
+                    name: Northwind
+                    role: primary_manager
+                    joinedAt: '2026-05-01T00:00:00.000Z'
+                    isActive: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /organizations/me:
     get:
       operationId: listMyOrganizations
@@ -2376,6 +2440,230 @@ paths:
                 data:
                   removed: true
                   membershipId: membership-2
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/audit':
+    get:
+      operationId: listOrganizationAudit
+      summary: List organization audit trail
+      description: 'Returns a paginated, filterable audit timeline for organization managers. Operators receive 403 Forbidden and non-members receive not found behavior through the membership guard.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: page
+          in: query
+          required: false
+          description: Page number to return.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of audit records per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 20
+        - name: action
+          in: query
+          required: false
+          description: Optional audit action filter.
+          schema:
+            $ref: '#/components/schemas/OrganizationAuditAction'
+          example: posting.published
+        - name: resourceType
+          in: query
+          required: false
+          description: Optional audited resource type filter.
+          schema:
+            $ref: '#/components/schemas/OrganizationAuditResourceType'
+          example: posting
+      responses:
+        '200':
+          description: Organization audit entries returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationAuditListResult'
+                      meta:
+                        $ref: '#/components/schemas/ExtendedRequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  auditLogs:
+                    - id: audit-1
+                      organizationId: org-1
+                      actor:
+                        id: user-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                      action: organization.renamed
+                      resourceType: organization
+                      resourceId: org-1
+                      organizationVersion: 2
+                      resourceVersion: 2
+                      summary: Organization renamed from Northwind to Northwind Creative.
+                      changes:
+                        - field: name
+                          before: Northwind
+                          after: Northwind Creative
+                      beforeSnapshot:
+                        id: org-1
+                        name: Northwind
+                      afterSnapshot:
+                        id: org-1
+                        name: Northwind Creative
+                      restorable: true
+                      createdAt: '2026-05-28T11:15:00.000Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/audit/{auditId}/restore':
+    post:
+      operationId: restoreOrganizationAuditEntry
+      summary: Restore an audited organization version
+      description: Applies a manager-only compensating restore from a restorable audit snapshot. Restore never rewrites history; success creates a new restored audit entry. Conflict responses are returned when the target resource no longer exists or the restore would violate current business rules.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: auditId
+          in: path
+          required: true
+          description: Organization audit entry identifier.
+          schema:
+            type: string
+          example: audit-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RestoreOrganizationAuditResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization version restored successfully.
+                data:
+                  restored: true
+                  auditLog:
+                    id: audit-2
+                    organizationId: org-1
+                    actor:
+                      id: user-1
+                      email: owner1@rentify.local
+                      username: owner-one
+                      avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    action: organization.restored
+                    resourceType: organization
+                    resourceId: org-1
+                    organizationVersion: 3
+                    resourceVersion: 3
+                    summary: Organization name was restored to Northwind.
+                    changes:
+                      - field: name
+                        before: Northwind
+                        after: Northwind Creative
+                    beforeSnapshot:
+                      id: org-1
+                      name: Northwind
+                    afterSnapshot:
+                      id: org-1
+                      name: Northwind Creative
+                    restorable: false
+                    createdAt: '2026-05-28T11:20:00.000Z'
+                    restoredFromAuditId: audit-1
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -3556,6 +3844,15 @@ paths:
               - paused
               - archived
           example: published
+        - name: q
+          in: query
+          required: false
+          description: Optional case-insensitive search across posting name and description.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+          example: studio
       responses:
         '200':
           description: Successful response.
@@ -3658,6 +3955,55 @@ paths:
                     hasPreviousPage: false
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /postings/me/summary:
+    get:
+      operationId: ownPostingsStatusSummary
+      summary: Count the owner's postings by status
+      description: 'Returns the total number of postings for the active organization and a per-status breakdown. PAT bearer authentication with `mcp:read` is allowed.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt-or-pat
+        minimumRole: owner
+        patAllowed: true
+        patScope: 'mcp:read'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OwnerPostingsStatusSummary'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  total: 7
+                  byStatus:
+                    draft: 2
+                    published: 3
+                    paused: 1
+                    archived: 1
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6124,6 +6470,256 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/seasonal-pricing':
+    get:
+      operationId: listPostingSeasonalPricing
+      summary: List seasonal pricing rules
+      description: Returns all seasonal pricing rules for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRuleList'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rules retrieved.
+                data: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createPostingSeasonalPricingRule
+      summary: Create a seasonal pricing rule
+      description: Creates a seasonal pricing rule for the selected posting. Max 20 rules per posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeasonalPricingRuleRequest'
+            example:
+              name: Summer Peak
+              startDate: '2026-06-01'
+              endDate: '2026-08-31'
+              dailyAmount: 150
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRule'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rule created.
+                data:
+                  id: rule-1
+                  postingId: posting-1
+                  name: Summer Peak
+                  startDate: '2026-06-01'
+                  endDate: '2026-08-31'
+                  dailyAmount: 150
+                  createdAt: '2026-06-01T00:00:00.000Z'
+                  updatedAt: '2026-06-01T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/seasonal-pricing/{ruleId}':
+    patch:
+      operationId: updatePostingSeasonalPricingRule
+      summary: Update a seasonal pricing rule
+      description: Updates a seasonal pricing rule for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+        - name: ruleId
+          in: path
+          required: true
+          description: Seasonal pricing rule identifier.
+          schema:
+            type: string
+          example: rule-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeasonalPricingRuleRequest'
+            example:
+              name: Summer Peak
+              startDate: '2026-06-01'
+              endDate: '2026-08-31'
+              dailyAmount: 175
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SeasonalPricingRule'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Seasonal pricing rule updated.
+                data:
+                  id: rule-1
+                  postingId: posting-1
+                  name: Summer Peak
+                  startDate: '2026-06-01'
+                  endDate: '2026-08-31'
+                  dailyAmount: 175
+                  createdAt: '2026-06-01T00:00:00.000Z'
+                  updatedAt: '2026-06-02T00:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deletePostingSeasonalPricingRule
+      summary: Delete a seasonal pricing rule
+      description: Deletes a seasonal pricing rule for the selected posting.
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: owner
+        patAllowed: false
+        patScope: null
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+        - name: ruleId
+          in: path
+          required: true
+          description: Seasonal pricing rule identifier.
+          schema:
+            type: string
+          example: rule-1
+      responses:
+        '204':
+          description: Seasonal pricing rule deleted successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -9792,6 +10388,25 @@ components:
       properties:
         activeOrganization:
           $ref: '#/components/schemas/OrganizationSummary'
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+    CreateOrganizationResult:
+      type: object
+      required:
+        - organization
+        - membership
+      properties:
+        organization:
+          $ref: '#/components/schemas/OrganizationSummary'
+        membership:
+          $ref: '#/components/schemas/OrganizationMembershipSummary'
     UpdateOrganizationRequest:
       type: object
       required:
@@ -10036,6 +10651,142 @@ components:
           $ref: '#/components/schemas/OrganizationSummary'
         membership:
           $ref: '#/components/schemas/OrganizationMembershipSummary'
+    OrganizationAuditAction:
+      type: string
+      enum:
+        - organization.created
+        - organization.renamed
+        - organization.restored
+        - invitation.created
+        - invitation.reissued
+        - invitation.revoked
+        - invitation.accepted
+        - invitation.expired
+        - invitation.restored
+        - member.role_updated
+        - member.removed
+        - member.restored
+        - posting.created
+        - posting.updated
+        - posting.duplicated
+        - posting.published
+        - posting.paused
+        - posting.unpaused
+        - posting.archived
+        - posting.restored
+        - posting_availability.created
+        - posting_availability.updated
+        - posting_availability.deleted
+        - posting_availability.restored
+        - seasonal_pricing.created
+        - seasonal_pricing.updated
+        - seasonal_pricing.deleted
+        - seasonal_pricing.restored
+    OrganizationAuditResourceType:
+      type: string
+      enum:
+        - organization
+        - invitation
+        - member
+        - posting
+        - posting_availability
+        - seasonal_pricing
+    OrganizationAuditActorSummary:
+      type: object
+      required:
+        - id
+        - email
+        - username
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+    OrganizationAuditChange:
+      type: object
+      required:
+        - field
+        - before
+        - after
+      properties:
+        field:
+          type: string
+        before: true
+        after: true
+    OrganizationAuditRecord:
+      type: object
+      required:
+        - id
+        - organizationId
+        - action
+        - resourceType
+        - organizationVersion
+        - summary
+        - changes
+        - restorable
+        - createdAt
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        actor:
+          $ref: '#/components/schemas/OrganizationAuditActorSummary'
+        action:
+          $ref: '#/components/schemas/OrganizationAuditAction'
+        resourceType:
+          $ref: '#/components/schemas/OrganizationAuditResourceType'
+        resourceId:
+          type: string
+        organizationVersion:
+          type: integer
+          minimum: 1
+        resourceVersion:
+          type: integer
+          minimum: 1
+        summary:
+          type: string
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationAuditChange'
+        beforeSnapshot: true
+        afterSnapshot: true
+        restorable:
+          type: boolean
+        restoredFromAuditId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    OrganizationAuditListResult:
+      type: object
+      required:
+        - auditLogs
+        - pagination
+      properties:
+        auditLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationAuditRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    RestoreOrganizationAuditResult:
+      type: object
+      required:
+        - restored
+        - auditLog
+      properties:
+        restored:
+          type: boolean
+        auditLog:
+          $ref: '#/components/schemas/OrganizationAuditRecord'
     AuthSessionResponseData:
       type: object
       required:
@@ -10127,13 +10878,15 @@ components:
     LocalAuthenticateRequest:
       type: object
       required:
-        - email
+        - username
         - password
         - captchaToken
       properties:
-        email:
+        username:
           type: string
-          format: email
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-z0-9._-]+$'
         password:
           type: string
         captchaToken:
@@ -10145,10 +10898,16 @@ components:
     LocalSignupRequest:
       type: object
       required:
+        - username
         - email
         - password
         - captchaToken
       properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-z0-9._-]+$'
         email:
           type: string
           format: email
@@ -10546,6 +11305,30 @@ components:
       required:
         - postings
         - pagination
+    OwnerPostingsStatusSummary:
+      type: object
+      required:
+        - total
+        - byStatus
+      properties:
+        total:
+          type: integer
+        byStatus:
+          type: object
+          required:
+            - draft
+            - published
+            - paused
+            - archived
+          properties:
+            draft:
+              type: integer
+            published:
+              type: integer
+            paused:
+              type: integer
+            archived:
+              type: integer
     BatchOwnerPostingsResult:
       type: object
       properties:
@@ -10696,6 +11479,31 @@ components:
           format: date-time
         note:
           type: string
+    SeasonalPricingRule:
+      type: object
+      additionalProperties: true
+    SeasonalPricingRuleList:
+      type: array
+      items:
+        $ref: '#/components/schemas/SeasonalPricingRule'
+    SeasonalPricingRuleRequest:
+      type: object
+      required:
+        - name
+        - startDate
+        - endDate
+        - dailyAmount
+      properties:
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        dailyAmount:
+          type: number
     CreatePostingReviewRequest:
       type: object
       required:

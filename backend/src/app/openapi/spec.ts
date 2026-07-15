@@ -160,6 +160,64 @@ const organizationInviteAcceptedExample = {
     isActive: true,
   },
 };
+const organizationAuditExample = {
+  id: "audit-1",
+  organizationId: "org-1",
+  actor: {
+    id: "user-1",
+    email: "owner1@rentify.local",
+    username: "owner-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+  },
+  action: "organization.renamed",
+  resourceType: "organization",
+  resourceId: "org-1",
+  organizationVersion: 2,
+  resourceVersion: 2,
+  summary: "Organization renamed from Northwind to Northwind Creative.",
+  changes: [
+    {
+      field: "name",
+      before: "Northwind",
+      after: "Northwind Creative",
+    },
+  ],
+  beforeSnapshot: {
+    id: "org-1",
+    name: "Northwind",
+  },
+  afterSnapshot: {
+    id: "org-1",
+    name: "Northwind Creative",
+  },
+  restorable: true,
+  createdAt: "2026-05-28T11:15:00.000Z",
+};
+const organizationAuditListExample = {
+  auditLogs: [organizationAuditExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
+const organizationAuditRestoreExample = {
+  restored: true,
+  auditLog: {
+    ...organizationAuditExample,
+    id: "audit-2",
+    action: "organization.restored",
+    organizationVersion: 3,
+    resourceVersion: 3,
+    summary: "Organization name was restored to Northwind.",
+    restorable: false,
+    restoredFromAuditId: "audit-1",
+    createdAt: "2026-05-28T11:20:00.000Z",
+  },
+};
 const linkedProvidersExample = {
   hasPassword: true,
   providers: [
@@ -2162,6 +2220,72 @@ function buildOperations(): OperationDefinition[] {
             removed: true,
             membershipId: "membership-2",
           },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/audit",
+      operationId: "listOrganizationAudit",
+      summary: "List organization audit trail",
+      description:
+        "Returns a paginated, filterable audit timeline for organization managers. Operators receive 403 Forbidden and non-members receive not found behavior through the membership guard.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        queryParam("page", { type: "integer", minimum: 1, default: 1 }, "Page number to return.", 1),
+        queryParam("pageSize", { type: "integer", minimum: 1, maximum: 50, default: 20 }, "Number of audit records per page.", 20),
+        queryParam("action", schemaRef("OrganizationAuditAction"), "Optional audit action filter.", "posting.published"),
+        queryParam("resourceType", schemaRef("OrganizationAuditResourceType"), "Optional audited resource type filter.", "posting"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationAuditListResult",
+          organizationAuditListExample,
+          "Organization audit entries returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationAuditListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/audit/:auditId/restore",
+      operationId: "restoreOrganizationAuditEntry",
+      summary: "Restore an audited organization version",
+      description:
+        "Applies a manager-only compensating restore from a restorable audit snapshot. Restore never rewrites history; success creates a new restored audit entry. Conflict responses are returned when the target resource no longer exists or the restore would violate current business rules.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("auditId", "Organization audit entry identifier.", "audit-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization version restored successfully.",
+          "RestoreOrganizationAuditResult",
+          organizationAuditRestoreExample,
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
@@ -5822,7 +5946,122 @@ function buildComponents(): Record<string, unknown> {
           membership: schemaRef("OrganizationMembershipSummary"),
         },
       },
-      AuthSessionResponseData: {
+      OrganizationAuditAction: {
+        type: "string",
+        enum: [
+          "organization.created",
+          "organization.renamed",
+          "organization.restored",
+          "invitation.created",
+          "invitation.reissued",
+          "invitation.revoked",
+          "invitation.accepted",
+          "invitation.expired",
+          "invitation.restored",
+          "member.role_updated",
+          "member.removed",
+          "member.restored",
+          "posting.created",
+          "posting.updated",
+          "posting.duplicated",
+          "posting.published",
+          "posting.paused",
+          "posting.unpaused",
+          "posting.archived",
+          "posting.restored",
+          "posting_availability.created",
+          "posting_availability.updated",
+          "posting_availability.deleted",
+          "posting_availability.restored",
+          "seasonal_pricing.created",
+          "seasonal_pricing.updated",
+          "seasonal_pricing.deleted",
+          "seasonal_pricing.restored",
+        ],
+      },
+      OrganizationAuditResourceType: {
+        type: "string",
+        enum: [
+          "organization",
+          "invitation",
+          "member",
+          "posting",
+          "posting_availability",
+          "seasonal_pricing",
+        ],
+      },
+      OrganizationAuditActorSummary: {
+        type: "object",
+        required: ["id", "email", "username"],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+        },
+      },
+      OrganizationAuditChange: {
+        type: "object",
+        required: ["field", "before", "after"],
+        properties: {
+          field: { type: "string" },
+          before: true,
+          after: true,
+        },
+      },
+      OrganizationAuditRecord: {
+        type: "object",
+        required: [
+          "id",
+          "organizationId",
+          "action",
+          "resourceType",
+          "organizationVersion",
+          "summary",
+          "changes",
+          "restorable",
+          "createdAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          organizationId: { type: "string" },
+          actor: schemaRef("OrganizationAuditActorSummary"),
+          action: schemaRef("OrganizationAuditAction"),
+          resourceType: schemaRef("OrganizationAuditResourceType"),
+          resourceId: { type: "string" },
+          organizationVersion: { type: "integer", minimum: 1 },
+          resourceVersion: { type: "integer", minimum: 1 },
+          summary: { type: "string" },
+          changes: {
+            type: "array",
+            items: schemaRef("OrganizationAuditChange"),
+          },
+          beforeSnapshot: true,
+          afterSnapshot: true,
+          restorable: { type: "boolean" },
+          restoredFromAuditId: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationAuditListResult: {
+        type: "object",
+        required: ["auditLogs", "pagination"],
+        properties: {
+          auditLogs: {
+            type: "array",
+            items: schemaRef("OrganizationAuditRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+        },
+      },
+      RestoreOrganizationAuditResult: {
+        type: "object",
+        required: ["restored", "auditLog"],
+        properties: {
+          restored: { type: "boolean" },
+          auditLog: schemaRef("OrganizationAuditRecord"),
+        },
+      },      AuthSessionResponseData: {
         type: "object",
         required: ["accessToken", "device", "user"],
         properties: {
@@ -6966,3 +7205,5 @@ export function buildOpenApiJson(): string {
     "\n",
   );
 }
+
+

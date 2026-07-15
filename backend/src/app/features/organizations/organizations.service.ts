@@ -5,6 +5,16 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { EmailService } from "@/features/email/email.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type {
+  ListOrganizationAuditInput,
+  ListOrganizationAuditResult,
+  OrganizationAuditChange,
+  RestoreOrganizationVersionInput,
+  RestoreOrganizationVersionResult,
+} from "@/features/organizations/organization-audit.model";
+import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import {
   normalizeOrganizationInvitationEmail,
   type AcceptOrganizationInviteInput,
@@ -41,6 +51,9 @@ export class OrganizationsService {
     private readonly organizationsRepository: OrganizationsRepository,
     private readonly authRepository: AuthRepository,
     private readonly emailService: EmailService,
+    private readonly organizationAuditService: OrganizationAuditService,
+    private readonly postingsRepository: PostingsRepository,
+    private readonly seasonalPricingRepository: SeasonalPricingRepository,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -90,7 +103,7 @@ export class OrganizationsService {
       throw new ResourceNotFoundError("Organization could not be found.");
     }
 
-    if (await this.expirePendingInvitations(detail.invitations)) {
+    if (await this.expirePendingInvitations(organizationId, detail.invitations)) {
       detail =
         await this.organizationsRepository.findOrganizationDetail(
           organizationId,
@@ -107,6 +120,138 @@ export class OrganizationsService {
     };
   }
 
+  async listAudit(
+    input: ListOrganizationAuditInput,
+  ): Promise<ListOrganizationAuditResult> {
+    return this.organizationAuditService.list(input);
+  }
+
+  async restoreVersion(
+    input: RestoreOrganizationVersionInput,
+  ): Promise<RestoreOrganizationVersionResult> {
+    const auditLog = await this.organizationAuditService.requireRestorableAudit(input);
+    let afterSnapshot: unknown;
+    let action: RestoreOrganizationVersionResult["auditLog"]["action"];
+    let summary: string;
+
+    switch (auditLog.resourceType) {
+      case "organization": {
+        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const name = typeof snapshot.name === "string" ? snapshot.name : null;
+        if (!name) {
+          throw new ConflictError("This organization version cannot be restored.");
+        }
+        afterSnapshot = await this.organizationsRepository.updateOrganizationName(
+          input.organizationId,
+          name,
+        );
+        action = "organization.restored";
+        summary = `Organization restored to ${name}.`;
+        break;
+      }
+      case "member": {
+        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const restored = await this.organizationsRepository.restoreMembership({
+          membershipId: String(snapshot.membershipId ?? auditLog.resourceId),
+          organizationId: input.organizationId,
+          userId: String(snapshot.userId ?? ""),
+          role: String(snapshot.role ?? "operator") as OrganizationRole,
+        });
+        afterSnapshot = restored;
+        action = "member.restored";
+        summary = `${restored.username} was restored as ${restored.role}.`;
+        break;
+      }
+      case "posting": {
+        const restored = await this.postingsRepository.restoreFromSnapshot(
+          auditLog.beforeSnapshot,
+        );
+        if (!restored) {
+          throw new ConflictError("This posting version cannot be restored.");
+        }
+        afterSnapshot = restored;
+        action = "posting.restored";
+        summary = `${restored.name} was restored.`;
+        break;
+      }
+      case "posting_availability": {
+        const restored = await this.postingsRepository.restoreOwnerAvailabilityBlock(
+          auditLog.beforeSnapshot,
+        );
+        if (!restored) {
+          throw new ConflictError("This availability version cannot be restored.");
+        }
+        afterSnapshot = restored;
+        action = "posting_availability.restored";
+        summary = "Posting availability was restored.";
+        break;
+      }
+      case "seasonal_pricing": {
+        const restored = await this.seasonalPricingRepository.restore(
+          auditLog.beforeSnapshot,
+        );
+        if (!restored) {
+          throw new ConflictError("This seasonal pricing version cannot be restored.");
+        }
+        afterSnapshot = restored;
+        action = "seasonal_pricing.restored";
+        summary = `${restored.name} seasonal pricing was restored.`;
+        break;
+      }
+      case "invitation": {
+        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const email = typeof snapshot.email === "string" ? snapshot.email : null;
+        const role = snapshot.role as OrganizationRole | undefined;
+        if (!email || !role || role === "primary_manager") {
+          throw new ConflictError("This invitation version cannot be restored.");
+        }
+        const membership = await this.requireMembership(
+          input.actorUserId,
+          input.organizationId,
+        );
+        const token = this.createInviteToken();
+        const invitation = await this.organizationsRepository.reissueInvitation({
+          organizationId: input.organizationId,
+          invitedByUserId: input.actorUserId,
+          email,
+          role,
+          tokenHash: this.hashInviteToken(token),
+          expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
+          now: new Date(),
+        });
+        await this.emailService.sendOrganizationInviteEmail({
+          to: email,
+          organizationName: membership.organization.name,
+          inviterName: invitation.invitedBy.username,
+          role,
+          token,
+        });
+        afterSnapshot = invitation;
+        action = "invitation.restored";
+        summary = `${invitation.emailHint} invitation was restored.`;
+        break;
+      }
+    }
+
+    const restoredAuditLog = await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action,
+      resourceType: auditLog.resourceType,
+      resourceId: auditLog.resourceId,
+      summary,
+      changes: this.createChanges(auditLog.afterSnapshot, afterSnapshot),
+      beforeSnapshot: auditLog.afterSnapshot,
+      afterSnapshot,
+      restorable: false,
+      restoredFromAuditId: auditLog.id,
+    });
+
+    return {
+      restored: true,
+      auditLog: restoredAuditLog,
+    };
+  }
   async createOrganization(
     input: CreateOrganizationInput,
   ): Promise<CreateOrganizationResult> {
@@ -122,6 +267,24 @@ export class OrganizationsService {
       input.actorUserId,
       membership.id,
     );
+
+    await this.organizationAuditService.record({
+      organizationId: membership.id,
+      actorUserId: input.actorUserId,
+      action: "organization.created",
+      resourceType: "organization",
+      resourceId: membership.id,
+      summary: `${membership.name} was created.`,
+      changes: this.createChanges(null, {
+        id: membership.id,
+        name: membership.name,
+      }),
+      afterSnapshot: {
+        id: membership.id,
+        name: membership.name,
+      },
+      restorable: false,
+    });
 
     return {
       organization: {
@@ -143,10 +306,28 @@ export class OrganizationsService {
     );
     this.requirePrimaryManager(membership.role);
 
+    const beforeSnapshot = membership.organization;
     const updated = await this.organizationsRepository.updateOrganizationName(
       input.organizationId,
       input.name.trim(),
     );
+    const afterSnapshot = {
+      ...beforeSnapshot,
+      name: updated.name,
+    };
+
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "organization.renamed",
+      resourceType: "organization",
+      resourceId: input.organizationId,
+      summary: `Organization renamed from ${beforeSnapshot.name} to ${updated.name}.`,
+      changes: this.createChanges(beforeSnapshot, afterSnapshot, ["name"]),
+      beforeSnapshot,
+      afterSnapshot,
+      restorable: true,
+    });
 
     return {
       ...updated,
@@ -194,6 +375,18 @@ export class OrganizationsService {
       token,
     });
 
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "invitation.created",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      summary: `${invitation.emailHint} was invited as ${input.role}.`,
+      changes: this.createChanges(null, invitation),
+      afterSnapshot: invitation,
+      restorable: false,
+    });
+
     return {
       invitation,
     };
@@ -223,6 +416,19 @@ export class OrganizationsService {
       throw new ConflictError("This invitation can no longer be revoked.");
     }
 
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "invitation.revoked",
+      resourceType: "invitation",
+      resourceId: revoked.id,
+      summary: `${revoked.emailHint} invitation was revoked.`,
+      changes: this.createChanges(invitation, revoked, ["status", "revokedAt"]),
+      beforeSnapshot: invitation,
+      afterSnapshot: revoked,
+      restorable: true,
+    });
+
     return {
       invitation: revoked,
     };
@@ -246,6 +452,19 @@ export class OrganizationsService {
       targetMember.membershipId,
       input.role,
     );
+
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "member.role_updated",
+      resourceType: "member",
+      resourceId: targetMember.membershipId,
+      summary: `${targetMember.username} changed from ${targetMember.role} to ${updated.role}.`,
+      changes: this.createChanges(targetMember, updated, ["role"]),
+      beforeSnapshot: targetMember,
+      afterSnapshot: updated,
+      restorable: true,
+    });
 
     return {
       member: updated,
@@ -282,6 +501,19 @@ export class OrganizationsService {
         null,
       );
     }
+
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "member.removed",
+      resourceType: "member",
+      resourceId: targetMember.membershipId,
+      summary: `${targetMember.username} was removed from the organization.`,
+      changes: this.createChanges(targetMember, null),
+      beforeSnapshot: targetMember,
+      afterSnapshot: null,
+      restorable: true,
+    });
 
     return {
       removed: true,
@@ -388,7 +620,7 @@ export class OrganizationsService {
       throw new BadRequestError("This invitation can no longer be accepted.");
     }
 
-    const { membership } = await this.organizationsRepository.acceptInvitation({
+    const { invitation: acceptedInvitation, membership } = await this.organizationsRepository.acceptInvitation({
       invitationId: invitation.id,
       organizationId: invitation.organization.id,
       userId: user.id,
@@ -417,6 +649,19 @@ export class OrganizationsService {
         "This organization membership could not be found.",
       );
     }
+
+    await this.organizationAuditService.record({
+      organizationId: invitation.organization.id,
+      actorUserId: user.id,
+      action: "invitation.accepted",
+      resourceType: "invitation",
+      resourceId: acceptedInvitation.id,
+      summary: `${acceptedInvitation.emailHint} invitation was accepted.`,
+      changes: this.createChanges(invitation, acceptedInvitation),
+      beforeSnapshot: invitation,
+      afterSnapshot: acceptedInvitation,
+      restorable: false,
+    });
 
     return {
       accepted: true,
@@ -608,6 +853,37 @@ export class OrganizationsService {
     );
   }
 
+  private createChanges(
+    beforeSnapshot: unknown,
+    afterSnapshot: unknown,
+    fields?: string[],
+  ): OrganizationAuditChange[] {
+    const beforeRecord = this.toPlainRecord(beforeSnapshot);
+    const afterRecord = this.toPlainRecord(afterSnapshot);
+    const keys = fields ??
+      Array.from(
+        new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
+      );
+
+    return keys
+      .filter(
+        (key) =>
+          JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
+      )
+      .map((key) => ({
+        field: key,
+        before: beforeRecord[key] ?? null,
+        after: afterRecord[key] ?? null,
+      }));
+  }
+
+  private toPlainRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
   private resolveActiveOrganization(
     memberships: OrganizationMembershipSummary[],
   ): OrganizationSummary | undefined {
@@ -645,23 +921,37 @@ export class OrganizationsService {
         new Date(),
       );
 
-      if (!expired) {
-        return {
-          ...invitation,
-          status: "expired",
-        };
-      }
+      const expiredInvitation = expired
+        ? {
+            ...expired,
+            organization: invitation.organization,
+          }
+        : {
+            ...invitation,
+            status: "expired" as const,
+          };
 
-      return {
-        ...expired,
-        organization: invitation.organization,
-      };
+      await this.organizationAuditService.record({
+        organizationId: invitation.organization.id,
+        actorUserId: null,
+        action: "invitation.expired",
+        resourceType: "invitation",
+        resourceId: invitation.id,
+        summary: `${invitation.emailHint} invitation expired.`,
+        changes: this.createChanges(invitation, expiredInvitation),
+        beforeSnapshot: invitation,
+        afterSnapshot: expiredInvitation,
+        restorable: true,
+      });
+
+      return expiredInvitation;
     }
 
     return invitation;
   }
 
   private async expirePendingInvitations(
+    organizationId: string,
     invitations: OrganizationInvitationRecord[],
   ): Promise<boolean> {
     const expiredInvitations = invitations.filter(
@@ -675,14 +965,41 @@ export class OrganizationsService {
     }
 
     await Promise.all(
-      expiredInvitations.map((invitation) =>
-        this.organizationsRepository.expireInvitation(
+      expiredInvitations.map(async (invitation) => {
+        const expired = await this.organizationsRepository.expireInvitation(
           invitation.id,
           new Date(),
-        ),
-      ),
+        );
+        const expiredInvitation = expired ?? {
+          ...invitation,
+          status: "expired" as const,
+        };
+
+        await this.organizationAuditService.record({
+          organizationId,
+          actorUserId: null,
+          action: "invitation.expired",
+          resourceType: "invitation",
+          resourceId: invitation.id,
+          summary: `${invitation.emailHint} invitation expired.`,
+          changes: this.createChanges(invitation, expiredInvitation),
+          beforeSnapshot: invitation,
+          afterSnapshot: expiredInvitation,
+          restorable: true,
+        });
+      }),
     );
 
     return true;
   }
 }
+
+
+
+
+
+
+
+
+
+

@@ -12,6 +12,7 @@ import {
   organizationsApi,
   type CreateOrganizationInviteInput,
   type OrganizationDetailResult,
+  type OrganizationAuditRecord,
   type OrganizationInviteStatus,
   type OrganizationRole,
   type OrganizationWorkspaceResult,
@@ -29,6 +30,24 @@ function formatRole(role: OrganizationRole): string {
     .join(" ");
 }
 
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatAuditAction(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replaceAll(".", " ")
+    .split(" ")
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -394,6 +413,10 @@ export function OrganizationWorkspace() {
   const [postingsTotal, setPostingsTotal] = useState(0);
   const [postingsLoading, setPostingsLoading] = useState(false);
   const [postingsError, setPostingsError] = useState<string | null>(null);
+  const [auditLogs, setAuditLogs] = useState<OrganizationAuditRecord[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [restoringAuditId, setRestoringAuditId] = useState<string | null>(null);
 
   function showWorkspaceToast(title: string, message: string) {
     showError({
@@ -535,6 +558,56 @@ export function OrganizationWorkspace() {
     };
   }, [status, selectedOrganizationId]);
 
+  useEffect(() => {
+    if (
+      status !== "authenticated" ||
+      !selectedOrganizationId ||
+      detail?.viewerRole === "operator"
+    ) {
+      setAuditLogs([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadAudit() {
+      setAuditLoading(true);
+      setAuditError(null);
+
+      try {
+        const result = await organizationsApi.listAudit(selectedOrganizationId!);
+
+        if (!active) {
+          return;
+        }
+
+        startTransition(() => {
+          setAuditLogs(result.auditLogs);
+        });
+      } catch (nextError) {
+        if (active) {
+          setAuditLogs([]);
+          setAuditError(
+            getApiErrorMessage(nextError, {
+              action: "load organization audit history",
+              fallback:
+                "We couldn't load this organization's audit history right now.",
+            }),
+          );
+        }
+      } finally {
+        if (active) {
+          setAuditLoading(false);
+        }
+      }
+    }
+
+    void loadAudit();
+
+    return () => {
+      active = false;
+    };
+  }, [detail?.viewerRole, selectedOrganizationId, status]);
   async function refresh(selectedId = selectedOrganizationId) {
     const nextWorkspace = await organizationsApi.getMine();
     const resolvedOrganizationId =
@@ -825,6 +898,44 @@ export function OrganizationWorkspace() {
     }
   }
 
+  async function handleRestoreAudit(auditId: string) {
+    if (!detail) {
+      return;
+    }
+
+    setRestoringAuditId(auditId);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.restoreAuditEntry(detail.organization.id, auditId);
+      await refresh(detail.organization.id);
+      const [postingsResult, auditResult] = await Promise.all([
+        postingsApi.listMine({ pageSize: POSTINGS_PREVIEW_LIMIT }),
+        organizationsApi.listAudit(detail.organization.id),
+      ]);
+      startTransition(() => {
+        setPostings(postingsResult.postings);
+        setPostingsTotal(
+          postingsResult.pagination?.total ?? postingsResult.postings.length,
+        );
+        setAuditLogs(auditResult.auditLogs);
+      });
+      setMessage("Version restored.");
+    } catch (nextError) {
+      const message = getWorkspaceActionError(
+        nextError,
+        "restore that version",
+        "We couldn't restore that version right now. Please try again.",
+      );
+      setErrorTitle("Couldn't restore version");
+      setError(message);
+      showWorkspaceToast("Couldn't restore version", message);
+    } finally {
+      setRestoringAuditId(null);
+    }
+  }
   if (status === "loading" || loading) {
     return (
       <OrganizationPageShell>
@@ -1333,6 +1444,82 @@ export function OrganizationWorkspace() {
             </div>
           </SectionCard>
 
+          {detail.viewerRole !== "operator" ? (
+            <SectionCard
+              eyebrow="Audit trail"
+              title="Recent organization activity"
+              description="Review manager actions, posting changes, and restorable versions."
+              action={
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {auditLogs.length} recent
+                </span>
+              }
+            >
+              {auditLoading ? (
+                <div className="space-y-3">
+                  {[0, 1, 2].map((key) => (
+                    <div
+                      key={key}
+                      className="h-20 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/70"
+                    />
+                  ))}
+                </div>
+              ) : auditError ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  {auditError}
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  No audited activity yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {auditLogs.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4 lg:flex-row lg:items-start lg:justify-between dark:border-slate-800 dark:bg-slate-950/40"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-950 dark:text-white">
+                            {formatAuditAction(entry.action)}
+                          </p>
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold capitalize text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                            {entry.resourceType.replaceAll("_", " ")}
+                          </span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
+                            v{entry.organizationVersion}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                          {entry.summary}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {entry.actor?.username ?? "System"} �{" "}
+                          {formatDateTime(entry.createdAt)}
+                        </p>
+                        {entry.changes.length > 0 ? (
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            Changed {entry.changes.slice(0, 4).map((change) => change.field).join(", ")}
+                          </p>
+                        ) : null}
+                      </div>
+                      {entry.restorable ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleRestoreAudit(entry.id)}
+                          disabled={restoringAuditId === entry.id}
+                          className={secondaryButtonClass}
+                        >
+                          {restoringAuditId === entry.id ? "Restoring..." : "Restore"}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          ) : null}
           <section className="rounded-[1.8rem] border border-violet-200 bg-violet-50/70 p-6 sm:p-7 dark:border-violet-900/50 dark:bg-violet-950/30">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-2xl">
@@ -1361,3 +1548,8 @@ export function OrganizationWorkspace() {
     </OrganizationPageShell>
   );
 }
+
+
+
+
+

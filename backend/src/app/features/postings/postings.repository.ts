@@ -633,6 +633,155 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
+  async restoreFromSnapshot(snapshot: unknown): Promise<PostingRecord | null> {
+    const posting = snapshot as PostingRecord | null | undefined;
+
+    if (!posting?.id || !posting.organizationId) {
+      return null;
+    }
+
+    return this.executeAsync(async () => {
+      try {
+        const restored = await this.prisma.$transaction(async (transaction) => {
+          const existing = await transaction.posting.findUnique({
+            where: { id: posting.id },
+            include: {
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+              },
+            },
+          });
+
+          if (!existing) {
+            throw new Prisma.PrismaClientKnownRequestError("No Posting found", {
+              code: "P2025",
+              clientVersion: "unknown",
+            });
+          }
+
+          const updated = await transaction.posting.update({
+            where: { id: posting.id },
+            data: {
+              ...this.toUpdateData(
+                {
+                  organizationId: posting.organizationId,
+                  variant: posting.variant,
+                  name: posting.name,
+                  description: posting.description,
+                  pricing: posting.pricing,
+                  photos: posting.photos,
+                  tags: posting.tags,
+                  details: posting.details,
+                  availabilityStatus: posting.availabilityStatus,
+                  availabilityNotes: posting.availabilityNotes ?? null,
+                  maxBookingDurationDays: posting.maxBookingDurationDays ?? null,
+                  minBookingDurationDays: posting.minBookingDurationDays ?? null,
+                  advanceNoticeDays: posting.advanceNoticeDays ?? null,
+                  cancellationPolicy: posting.cancellationPolicy ?? null,
+                  cancellationPolicyNotes: posting.cancellationPolicyNotes ?? null,
+                  instantBooking: posting.instantBooking,
+                  availabilityBlocks: [],
+                  location: posting.location,
+                },
+                posting.photos,
+              ),
+              status: posting.status,
+              publishedAt: posting.publishedAt ? new Date(posting.publishedAt) : null,
+              pausedAt: posting.pausedAt ? new Date(posting.pausedAt) : null,
+              archivedAt: posting.archivedAt ? new Date(posting.archivedAt) : null,
+            },
+            include: postingInclude,
+          });
+
+          await transaction.postingAvailabilityBlock.deleteMany({
+            where: {
+              postingId: posting.id,
+              source: "owner",
+            },
+          });
+
+          if (posting.availabilityBlocks.length > 0) {
+            await transaction.postingAvailabilityBlock.createMany({
+              data: posting.availabilityBlocks.map((block) => ({
+                id: block.id,
+                postingId: posting.id,
+                startAt: new Date(block.startAt),
+                endAt: new Date(block.endAt),
+                note: block.note ?? null,
+                source: "owner",
+              })),
+            });
+          }
+
+          await this.enqueueOutbox(
+            transaction,
+            updated.id,
+            isPostingSearchIndexable(updated.status as PostingStatus)
+              ? "upsert"
+              : "delete",
+          );
+
+          return transaction.posting.findUniqueOrThrow({
+            where: { id: updated.id },
+            include: postingInclude,
+          });
+        });
+
+        return this.mapPosting(restored);
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          return null;
+        }
+
+        throw error;
+      }
+    });
+  }
+
+  async restoreOwnerAvailabilityBlock(
+    snapshot: unknown,
+  ): Promise<PostingAvailabilityBlockRecord | null> {
+    const block = snapshot as
+      | (PostingAvailabilityBlockRecord & { postingId?: string })
+      | null
+      | undefined;
+
+    if (!block?.id || !block.postingId) {
+      return null;
+    }
+
+    return this.executeAsync(async () => {
+      const restored = await this.prisma.$transaction(async (transaction) => {
+        const row = await transaction.postingAvailabilityBlock.upsert({
+          where: { id: block.id },
+          update: {
+            startAt: new Date(block.startAt),
+            endAt: new Date(block.endAt),
+            note: block.note ?? null,
+            source: "owner",
+          },
+          create: {
+            id: block.id,
+            postingId: block.postingId!,
+            startAt: new Date(block.startAt),
+            endAt: new Date(block.endAt),
+            note: block.note ?? null,
+            source: "owner",
+          },
+        });
+
+        await this.enqueueOutbox(transaction, block.postingId!, "upsert");
+        return row;
+      });
+
+      return this.mapAvailabilityBlock(restored);
+    });
+  }
   async findById(id: string): Promise<PostingRecord | null> {
     const posting = await this.executeAsync(() =>
       this.prisma.posting.findUnique({
@@ -2903,3 +3052,4 @@ export class PostingsRepository extends BaseRepository {
     return 0;
   }
 }
+

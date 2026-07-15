@@ -3,6 +3,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type {
   SeasonalPricingRecord,
@@ -16,6 +17,9 @@ export class SeasonalPricingService {
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly postingsRepository: PostingsRepository,
     private readonly organizationAccessService: OrganizationAccessService,
+    private readonly organizationAuditService: OrganizationAuditService = {
+      record: async () => undefined,
+    } as unknown as OrganizationAuditService,
   ) {}
 
   async list(
@@ -31,7 +35,7 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
 
     const count =
       await this.seasonalPricingRepository.countByPosting(postingId);
@@ -41,13 +45,27 @@ export class SeasonalPricingService {
       );
     }
 
-    return this.seasonalPricingRepository.create({
+    const created = await this.seasonalPricingRepository.create({
       postingId,
       name: body.name,
       startDate: body.startDate,
       endDate: body.endDate,
       dailyAmount: body.dailyAmount,
     });
+
+    await this.organizationAuditService.record({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.created",
+      resourceType: "seasonal_pricing",
+      resourceId: created.id,
+      summary: `${created.name} seasonal pricing was created for ${posting.name}.`,
+      changes: [],
+      afterSnapshot: created,
+      restorable: false,
+    });
+
+    return created;
   }
 
   async update(
@@ -56,7 +74,11 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
+    const beforeRule =
+      typeof this.seasonalPricingRepository.findById === "function"
+        ? await this.seasonalPricingRepository.findById(ruleId, postingId)
+        : null;
 
     const updated = await this.seasonalPricingRepository.update(
       ruleId,
@@ -75,6 +97,19 @@ export class SeasonalPricingService {
       );
     }
 
+    await this.organizationAuditService.record({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.updated",
+      resourceType: "seasonal_pricing",
+      resourceId: updated.id,
+      summary: `${updated.name} seasonal pricing was updated for ${posting.name}.`,
+      changes: this.createChanges(beforeRule, updated),
+      beforeSnapshot: beforeRule ?? null,
+      afterSnapshot: updated,
+      restorable: true,
+    });
+
     return updated;
   }
 
@@ -83,7 +118,11 @@ export class SeasonalPricingService {
     ruleId: string,
     actorUserId: string,
   ): Promise<void> {
-    await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
+    const beforeRule =
+      typeof this.seasonalPricingRepository.findById === "function"
+        ? await this.seasonalPricingRepository.findById(ruleId, postingId)
+        : null;
 
     const deleted = await this.seasonalPricingRepository.delete(
       ruleId,
@@ -94,8 +133,47 @@ export class SeasonalPricingService {
         "Seasonal pricing rule could not be found.",
       );
     }
+
+    await this.organizationAuditService.record({
+      organizationId: posting.organizationId,
+      actorUserId,
+      action: "seasonal_pricing.deleted",
+      resourceType: "seasonal_pricing",
+      resourceId: beforeRule?.id ?? ruleId,
+      summary: `${beforeRule?.name ?? "Seasonal pricing"} was deleted from ${posting.name}.`,
+      changes: this.createChanges(beforeRule, null),
+      beforeSnapshot: beforeRule ?? null,
+      afterSnapshot: null,
+      restorable: true,
+    });
   }
 
+  private createChanges(beforeSnapshot: unknown, afterSnapshot: unknown) {
+    const beforeRecord = this.toRecord(beforeSnapshot);
+    const afterRecord = this.toRecord(afterSnapshot);
+    const keys = Array.from(
+      new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
+    );
+
+    return keys
+      .filter(
+        (key) =>
+          JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
+      )
+      .map((key) => ({
+        field: key,
+        before: beforeRecord[key] ?? null,
+        after: afterRecord[key] ?? null,
+      }));
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
   private async requireManagedPosting(
     postingId: string,
     actorUserId: string,
@@ -130,3 +208,7 @@ export class SeasonalPricingService {
     return posting;
   }
 }
+
+
+
+

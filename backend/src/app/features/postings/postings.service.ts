@@ -9,6 +9,8 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationAuditChange } from "@/features/organizations/organization-audit.model";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
   MAX_BATCH_IDS,
@@ -68,6 +70,9 @@ export class PostingsService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly organizationAccessService: OrganizationAccessService,
     private readonly authRepository: AuthRepository,
+    private readonly organizationAuditService: OrganizationAuditService = {
+      record: async () => undefined,
+    } as unknown as OrganizationAuditService,
   ) {
     this.logger = loggerFactory.forClass(PostingsService, "service");
   }
@@ -87,6 +92,16 @@ export class PostingsService {
     const created = await this.postingsRepository.create(normalizedInput);
     await this.invalidatePublicProjection(created.id);
     await this.enqueueThumbnailGeneration(created.id);
+    await this.recordPostingAudit({
+      organizationId: created.organizationId,
+      actorUserId,
+      action: "posting.created",
+      resourceType: "posting",
+      resourceId: created.id,
+      summary: `${created.name} was created.`,
+      afterSnapshot: created,
+      restorable: false,
+    });
     return created;
   }
 
@@ -103,6 +118,17 @@ export class PostingsService {
     const duplicated = await this.postingsRepository.create(duplicateInput);
     await this.invalidatePublicProjection(duplicated.id);
     await this.enqueueThumbnailGeneration(duplicated.id);
+    await this.recordPostingAudit({
+      organizationId: duplicated.organizationId,
+      actorUserId,
+      action: "posting.duplicated",
+      resourceType: "posting",
+      resourceId: duplicated.id,
+      summary: `${posting.name} was duplicated as ${duplicated.name}.`,
+      beforeSnapshot: posting,
+      afterSnapshot: duplicated,
+      restorable: false,
+    });
     return duplicated;
   }
 
@@ -130,6 +156,16 @@ export class PostingsService {
 
     await this.invalidatePublicProjection(updated.id);
     await this.enqueueThumbnailGeneration(updated.id);
+    await this.recordPostingAudit({
+      organizationId: updated.organizationId,
+      actorUserId,
+      action: "posting.updated",
+      resourceType: "posting",
+      resourceId: updated.id,
+      summary: `${updated.name} was updated.`,
+      beforeSnapshot: existing,
+      afterSnapshot: updated,
+    });
     return updated;
   }
 
@@ -166,6 +202,16 @@ export class PostingsService {
             normalized,
           );
         await this.invalidatePublicProjection(posting.id);
+        await this.recordPostingAudit({
+          organizationId: posting.organizationId,
+          actorUserId,
+          action: "posting_availability.created",
+          resourceType: "posting_availability",
+          resourceId: created.id,
+          summary: `${posting.name} availability block was created.`,
+          afterSnapshot: { ...created, postingId: posting.id },
+          restorable: false,
+        });
         return created;
       },
       "Another request is already modifying this posting's availability. Please retry.",
@@ -186,7 +232,10 @@ export class PostingsService {
       this.cacheService,
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
-        await this.assertExistingOwnerAvailabilityBlock(posting.id, blockId);
+        const beforeBlock = await this.assertExistingOwnerAvailabilityBlock(
+          posting.id,
+          blockId,
+        );
         await this.assertAvailabilityBlockCanBeWritten(
           posting.id,
           normalized,
@@ -207,6 +256,16 @@ export class PostingsService {
         }
 
         await this.invalidatePublicProjection(posting.id);
+        await this.recordPostingAudit({
+          organizationId: posting.organizationId,
+          actorUserId,
+          action: "posting_availability.updated",
+          resourceType: "posting_availability",
+          resourceId: updated.id,
+          summary: `${posting.name} availability block was updated.`,
+          beforeSnapshot: { ...beforeBlock, postingId: posting.id },
+          afterSnapshot: { ...updated, postingId: posting.id },
+        });
         return updated;
       },
       "Another request is already modifying this posting's availability. Please retry.",
@@ -224,6 +283,10 @@ export class PostingsService {
       this.cacheService,
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
+        const beforeBlock = await this.postingsRepository.findOwnerAvailabilityBlock(
+          posting.id,
+          blockId,
+        );
         const deleted =
           await this.postingsRepository.deleteOwnerAvailabilityBlock(
             posting.id,
@@ -237,6 +300,18 @@ export class PostingsService {
         }
 
         await this.invalidatePublicProjection(posting.id);
+        if (beforeBlock) {
+          await this.recordPostingAudit({
+            organizationId: posting.organizationId,
+            actorUserId,
+            action: "posting_availability.deleted",
+            resourceType: "posting_availability",
+            resourceId: beforeBlock.id,
+            summary: `${posting.name} availability block was deleted.`,
+            beforeSnapshot: { ...beforeBlock, postingId: posting.id },
+            afterSnapshot: null,
+          });
+        }
       },
       "Another request is already modifying this posting's availability. Please retry.",
     );
@@ -254,6 +329,16 @@ export class PostingsService {
 
     await this.invalidatePublicProjection(published.id);
     await this.enqueueThumbnailGeneration(published.id);
+    await this.recordPostingAudit({
+      organizationId: published.organizationId,
+      actorUserId,
+      action: "posting.published",
+      resourceType: "posting",
+      resourceId: published.id,
+      summary: `${published.name} was published.`,
+      beforeSnapshot: posting,
+      afterSnapshot: published,
+    });
     return published;
   }
 
@@ -278,6 +363,16 @@ export class PostingsService {
         }
 
         await this.invalidatePublicProjection(paused.id);
+        await this.recordPostingAudit({
+          organizationId: paused.organizationId,
+          actorUserId,
+          action: "posting.paused",
+          resourceType: "posting",
+          resourceId: paused.id,
+          summary: `${paused.name} was paused.`,
+          beforeSnapshot: lockedPosting,
+          afterSnapshot: paused,
+        });
         return paused;
       },
       "Another request is already modifying this posting's booking availability. Please retry.",
@@ -306,6 +401,16 @@ export class PostingsService {
 
         await this.invalidatePublicProjection(unpaused.id);
         await this.enqueueThumbnailGeneration(unpaused.id);
+        await this.recordPostingAudit({
+          organizationId: unpaused.organizationId,
+          actorUserId,
+          action: "posting.unpaused",
+          resourceType: "posting",
+          resourceId: unpaused.id,
+          summary: `${unpaused.name} was unpaused.`,
+          beforeSnapshot: lockedPosting,
+          afterSnapshot: unpaused,
+        });
         return unpaused;
       },
       "Another request is already modifying this posting's booking availability. Please retry.",
@@ -322,9 +427,83 @@ export class PostingsService {
     }
 
     await this.invalidatePublicProjection(archived.id);
+    await this.recordPostingAudit({
+      organizationId: archived.organizationId,
+      actorUserId,
+      action: "posting.archived",
+      resourceType: "posting",
+      resourceId: archived.id,
+      summary: `${archived.name} was archived.`,
+      beforeSnapshot: posting,
+      afterSnapshot: archived,
+    });
     return archived;
   }
 
+  private async recordPostingAudit(input: {
+    organizationId: string;
+    actorUserId: string;
+    action:
+      | "posting.created"
+      | "posting.updated"
+      | "posting.duplicated"
+      | "posting.published"
+      | "posting.paused"
+      | "posting.unpaused"
+      | "posting.archived"
+      | "posting_availability.created"
+      | "posting_availability.updated"
+      | "posting_availability.deleted";
+    resourceType: "posting" | "posting_availability";
+    resourceId: string;
+    summary: string;
+    beforeSnapshot?: unknown;
+    afterSnapshot?: unknown;
+    restorable?: boolean;
+  }): Promise<void> {
+    await this.organizationAuditService.record({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: input.action,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      summary: input.summary,
+      changes: this.createAuditChanges(input.beforeSnapshot, input.afterSnapshot),
+      beforeSnapshot: input.beforeSnapshot,
+      afterSnapshot: input.afterSnapshot,
+      restorable: input.restorable ?? true,
+    });
+  }
+
+  private createAuditChanges(
+    beforeSnapshot: unknown,
+    afterSnapshot: unknown,
+  ): OrganizationAuditChange[] {
+    const beforeRecord = this.toPlainAuditRecord(beforeSnapshot);
+    const afterRecord = this.toPlainAuditRecord(afterSnapshot);
+    const keys = Array.from(
+      new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
+    );
+
+    return keys
+      .filter(
+        (key) =>
+          JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
+      )
+      .map((key) => ({
+        field: key,
+        before: beforeRecord[key] ?? null,
+        after: afterRecord[key] ?? null,
+      }));
+  }
+
+  private toPlainAuditRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
   async getById(
     id: string,
     viewerId?: string,
@@ -692,7 +871,7 @@ export class PostingsService {
   private async assertExistingOwnerAvailabilityBlock(
     postingId: string,
     blockId: string,
-  ): Promise<void> {
+  ): Promise<PostingAvailabilityBlockRecord> {
     const block = await this.postingsRepository.findOwnerAvailabilityBlock(
       postingId,
       blockId,
@@ -701,6 +880,8 @@ export class PostingsService {
     if (!block) {
       throw new ResourceNotFoundError("Availability block could not be found.");
     }
+
+    return block;
   }
 
   private async assertAvailabilityBlockCanBeWritten(
@@ -1537,3 +1718,12 @@ export class PostingsService {
     }
   }
 }
+
+
+
+
+
+
+
+
+

@@ -47,7 +47,20 @@ export const organizationsRouteModule: RouteModule = {
         "getById",
       ),
     );
-    app.patch(
+    app.get(
+      "/organizations/:id/audit",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listAudit",
+      ),
+    );
+    app.post(
+      "/organizations/:id/audit/:auditId/restore",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "restoreAuditEntry",
+      ),
+    );    app.patch(
       "/organizations/:id",
       resolveHandler<OrganizationsController>(
         containerTokens.organizationsController,
@@ -84,3 +97,4 @@ export const organizationsRouteModule: RouteModule = {
     );
   },
 };
+
