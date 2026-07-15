@@ -636,7 +636,12 @@ export class PostingsRepository extends BaseRepository {
   async restoreFromSnapshot(snapshot: unknown): Promise<PostingRecord | null> {
     const posting = snapshot as PostingRecord | null | undefined;
 
-    if (!posting?.id || !posting.organizationId) {
+    if (
+      !posting?.id ||
+      !posting.organizationId ||
+      !Array.isArray(posting.photos) ||
+      !Array.isArray(posting.availabilityBlocks)
+    ) {
       return null;
     }
 
@@ -3052,4 +3057,3 @@ export class PostingsRepository extends BaseRepository {
     return 0;
   }
 }
-

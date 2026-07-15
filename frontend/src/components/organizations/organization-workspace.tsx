@@ -1495,7 +1495,7 @@ export function OrganizationWorkspace() {
                           {entry.summary}
                         </p>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {entry.actor?.username ?? "System"} �{" "}
+                          {entry.actor?.username ?? "System"} /{" "}
                           {formatDateTime(entry.createdAt)}
                         </p>
                         {entry.changes.length > 0 ? (
@@ -1548,8 +1548,3 @@ export function OrganizationWorkspace() {
     </OrganizationPageShell>
   );
 }
-
-
-
-
-

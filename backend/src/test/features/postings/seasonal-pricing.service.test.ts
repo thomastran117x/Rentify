@@ -5,6 +5,7 @@ import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/sea
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
 
 function buildRule(
@@ -46,6 +47,7 @@ function createService(options?: {
     listByPosting: jest.fn(async () => rules),
     countByPosting: jest.fn(async () => options?.ruleCount ?? 0),
     create: jest.fn(async () => buildRule()),
+    findById: jest.fn(async () => rules[0] ?? null),
     // Use explicit key check so `updatedRule: null` returns null rather than fallback
     update: jest.fn(async () =>
       options !== undefined && "updatedRule" in options
@@ -79,12 +81,16 @@ function createService(options?: {
   const organizationAccessService = {
     findMembership: jest.fn(async () => membership),
   } as unknown as OrganizationAccessService;
+  const organizationAuditService = {
+    record: jest.fn(async () => undefined),
+  } as unknown as OrganizationAuditService;
 
   return {
     service: new SeasonalPricingService(
       seasonalPricingRepository,
       postingsRepository,
       organizationAccessService,
+      organizationAuditService,
     ),
     seasonalPricingRepository,
     postingsRepository,

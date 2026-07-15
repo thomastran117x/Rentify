@@ -3,15 +3,18 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import { loggerFactory } from "@/configuration/logging";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { EmailService } from "@/features/email/email.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
-import type {
-  ListOrganizationAuditInput,
-  ListOrganizationAuditResult,
-  OrganizationAuditChange,
-  RestoreOrganizationVersionInput,
-  RestoreOrganizationVersionResult,
+import {
+  createAuditChanges as buildAuditChanges,
+  toAuditSnapshotRecord,
+  type CreateOrganizationAuditLogInput,
+  type ListOrganizationAuditInput,
+  type ListOrganizationAuditResult,
+  type RestoreOrganizationVersionInput,
+  type RestoreOrganizationVersionResult,
 } from "@/features/organizations/organization-audit.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
@@ -47,6 +50,8 @@ import {
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class OrganizationsService {
+  private readonly logger = loggerFactory.forClass(OrganizationsService, "service");
+
   constructor(
     private readonly organizationsRepository: OrganizationsRepository,
     private readonly authRepository: AuthRepository,
@@ -136,7 +141,7 @@ export class OrganizationsService {
 
     switch (auditLog.resourceType) {
       case "organization": {
-        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const name = typeof snapshot.name === "string" ? snapshot.name : null;
         if (!name) {
           throw new ConflictError("This organization version cannot be restored.");
@@ -150,7 +155,7 @@ export class OrganizationsService {
         break;
       }
       case "member": {
-        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const restored = await this.organizationsRepository.restoreMembership({
           membershipId: String(snapshot.membershipId ?? auditLog.resourceId),
           organizationId: input.organizationId,
@@ -199,7 +204,7 @@ export class OrganizationsService {
         break;
       }
       case "invitation": {
-        const snapshot = this.toPlainRecord(auditLog.beforeSnapshot);
+        const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const email = typeof snapshot.email === "string" ? snapshot.email : null;
         const role = snapshot.role as OrganizationRole | undefined;
         if (!email || !role || role === "primary_manager") {
@@ -268,7 +273,7 @@ export class OrganizationsService {
       membership.id,
     );
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: membership.id,
       actorUserId: input.actorUserId,
       action: "organization.created",
@@ -316,7 +321,7 @@ export class OrganizationsService {
       name: updated.name,
     };
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "organization.renamed",
@@ -375,7 +380,7 @@ export class OrganizationsService {
       token,
     });
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "invitation.created",
@@ -416,7 +421,7 @@ export class OrganizationsService {
       throw new ConflictError("This invitation can no longer be revoked.");
     }
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "invitation.revoked",
@@ -453,7 +458,7 @@ export class OrganizationsService {
       input.role,
     );
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "member.role_updated",
@@ -502,7 +507,7 @@ export class OrganizationsService {
       );
     }
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "member.removed",
@@ -650,7 +655,7 @@ export class OrganizationsService {
       );
     }
 
-    await this.organizationAuditService.record({
+    await this.recordAuditSafely({
       organizationId: invitation.organization.id,
       actorUserId: user.id,
       action: "invitation.accepted",
@@ -853,19 +858,35 @@ export class OrganizationsService {
     );
   }
 
+  private async recordAuditSafely(
+    input: CreateOrganizationAuditLogInput,
+  ): Promise<void> {
+    try {
+      await this.organizationAuditService.record(input);
+    } catch (error) {
+      this.logger.error("Failed to record organization audit entry.", {
+        organizationId: input.organizationId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId ?? undefined,
+        error,
+      });
+    }
+  }
+
   private createChanges(
     beforeSnapshot: unknown,
     afterSnapshot: unknown,
     fields?: string[],
-  ): OrganizationAuditChange[] {
-    const beforeRecord = this.toPlainRecord(beforeSnapshot);
-    const afterRecord = this.toPlainRecord(afterSnapshot);
-    const keys = fields ??
-      Array.from(
-        new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
-      );
+  ) {
+    if (!fields) {
+      return buildAuditChanges(beforeSnapshot, afterSnapshot);
+    }
 
-    return keys
+    const beforeRecord = toAuditSnapshotRecord(beforeSnapshot);
+    const afterRecord = toAuditSnapshotRecord(afterSnapshot);
+
+    return fields
       .filter(
         (key) =>
           JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
@@ -875,14 +896,6 @@ export class OrganizationsService {
         before: beforeRecord[key] ?? null,
         after: afterRecord[key] ?? null,
       }));
-  }
-
-  private toPlainRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return {};
-    }
-
-    return value as Record<string, unknown>;
   }
   private resolveActiveOrganization(
     memberships: OrganizationMembershipSummary[],
@@ -931,7 +944,7 @@ export class OrganizationsService {
             status: "expired" as const,
           };
 
-      await this.organizationAuditService.record({
+      await this.recordAuditSafely({
         organizationId: invitation.organization.id,
         actorUserId: null,
         action: "invitation.expired",
@@ -975,7 +988,7 @@ export class OrganizationsService {
           status: "expired" as const,
         };
 
-        await this.organizationAuditService.record({
+        await this.recordAuditSafely({
           organizationId,
           actorUserId: null,
           action: "invitation.expired",
@@ -993,13 +1006,3 @@ export class OrganizationsService {
     return true;
   }
 }
-
-
-
-
-
-
-
-
-
-

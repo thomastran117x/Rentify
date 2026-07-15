@@ -75,6 +75,36 @@ export interface OrganizationAuditChange {
   after: unknown;
 }
 
+export function toAuditSnapshotRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+export function createAuditChanges(
+  beforeSnapshot: unknown,
+  afterSnapshot: unknown,
+): OrganizationAuditChange[] {
+  const beforeRecord = toAuditSnapshotRecord(beforeSnapshot);
+  const afterRecord = toAuditSnapshotRecord(afterSnapshot);
+  const keys = Array.from(
+    new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
+  );
+
+  return keys
+    .filter(
+      (key) =>
+        JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
+    )
+    .map((key) => ({
+      field: key,
+      before: beforeRecord[key] ?? null,
+      after: afterRecord[key] ?? null,
+    }));
+}
+
 export interface OrganizationAuditRecord {
   id: string;
   organizationId: string;
@@ -136,6 +166,3 @@ export interface CreateOrganizationAuditLogInput {
   restorable?: boolean;
   restoredFromAuditId?: string | null;
 }
-
-
-

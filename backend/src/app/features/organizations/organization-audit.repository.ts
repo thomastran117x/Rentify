@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import ConflictError from "@/errors/http/conflict.error";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   CreateOrganizationAuditLogInput,
@@ -25,45 +26,61 @@ export class OrganizationAuditRepository extends BaseRepository {
     input: CreateOrganizationAuditLogInput,
   ): Promise<OrganizationAuditRecord> {
     const row = await this.executeTransaction(async (transaction) => {
-      const [orgVersion, resourceVersion] = await Promise.all([
-        transaction.organizationAuditLog.aggregate({
-          where: { organizationId: input.organizationId },
-          _max: { organizationVersion: true },
-        }),
-        input.resourceId
-          ? transaction.organizationAuditLog.aggregate({
-              where: {
-                organizationId: input.organizationId,
-                resourceType: input.resourceType,
-                resourceId: input.resourceId,
-              },
-              _max: { resourceVersion: true },
-            })
-          : Promise.resolve({ _max: { resourceVersion: null } }),
-      ]);
+      const lockName = `organization_audit:${input.organizationId}`;
+      const [lockResult] = await transaction.$queryRaw<
+        Array<{ acquired: number | bigint | null }>
+      >`SELECT GET_LOCK(${lockName}, 10) AS acquired`;
+      const acquired = Number(lockResult?.acquired ?? 0) === 1;
 
-      return transaction.organizationAuditLog.create({
-        data: {
-          id: randomUUID(),
-          organizationId: input.organizationId,
-          actorUserId: input.actorUserId ?? null,
-          action: input.action,
-          resourceType: input.resourceType,
-          resourceId: input.resourceId ?? null,
-          organizationVersion:
-            (orgVersion._max.organizationVersion ?? 0) + 1,
-          resourceVersion: input.resourceId
-            ? (resourceVersion._max.resourceVersion ?? 0) + 1
-            : null,
-          summary: input.summary,
-          changes: this.toJson(input.changes ?? []),
-          beforeSnapshot: this.toJson(input.beforeSnapshot),
-          afterSnapshot: this.toJson(input.afterSnapshot),
-          restorable: input.restorable ?? false,
-          restoredFromAuditId: input.restoredFromAuditId ?? null,
-        },
-        include: this.includeActor(),
-      });
+      if (!acquired) {
+        throw new ConflictError(
+          "Organization audit history is busy. Please retry the action.",
+        );
+      }
+
+      try {
+        const [orgVersion, resourceVersion] = await Promise.all([
+          transaction.organizationAuditLog.aggregate({
+            where: { organizationId: input.organizationId },
+            _max: { organizationVersion: true },
+          }),
+          input.resourceId
+            ? transaction.organizationAuditLog.aggregate({
+                where: {
+                  organizationId: input.organizationId,
+                  resourceType: input.resourceType,
+                  resourceId: input.resourceId,
+                },
+                _max: { resourceVersion: true },
+              })
+            : Promise.resolve({ _max: { resourceVersion: null } }),
+        ]);
+
+        return await transaction.organizationAuditLog.create({
+          data: {
+            id: randomUUID(),
+            organizationId: input.organizationId,
+            actorUserId: input.actorUserId ?? null,
+            action: input.action,
+            resourceType: input.resourceType,
+            resourceId: input.resourceId ?? null,
+            organizationVersion:
+              (orgVersion._max.organizationVersion ?? 0) + 1,
+            resourceVersion: input.resourceId
+              ? (resourceVersion._max.resourceVersion ?? 0) + 1
+              : null,
+            summary: input.summary,
+            changes: this.toJson(input.changes ?? []),
+            beforeSnapshot: this.toJson(input.beforeSnapshot),
+            afterSnapshot: this.toJson(input.afterSnapshot),
+            restorable: input.restorable ?? false,
+            restoredFromAuditId: input.restoredFromAuditId ?? null,
+          },
+          include: this.includeActor(),
+        });
+      } finally {
+        await transaction.$queryRaw`SELECT RELEASE_LOCK(${lockName})`;
+      }
     });
 
     return this.mapAuditLog(row);

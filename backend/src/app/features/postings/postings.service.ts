@@ -10,7 +10,7 @@ import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
-import type { OrganizationAuditChange } from "@/features/organizations/organization-audit.model";
+import { createAuditChanges } from "@/features/organizations/organization-audit.model";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
   MAX_BATCH_IDS,
@@ -70,9 +70,7 @@ export class PostingsService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly organizationAccessService: OrganizationAccessService,
     private readonly authRepository: AuthRepository,
-    private readonly organizationAuditService: OrganizationAuditService = {
-      record: async () => undefined,
-    } as unknown as OrganizationAuditService,
+    private readonly organizationAuditService: OrganizationAuditService,
   ) {
     this.logger = loggerFactory.forClass(PostingsService, "service");
   }
@@ -461,48 +459,28 @@ export class PostingsService {
     afterSnapshot?: unknown;
     restorable?: boolean;
   }): Promise<void> {
-    await this.organizationAuditService.record({
-      organizationId: input.organizationId,
-      actorUserId: input.actorUserId,
-      action: input.action,
-      resourceType: input.resourceType,
-      resourceId: input.resourceId,
-      summary: input.summary,
-      changes: this.createAuditChanges(input.beforeSnapshot, input.afterSnapshot),
-      beforeSnapshot: input.beforeSnapshot,
-      afterSnapshot: input.afterSnapshot,
-      restorable: input.restorable ?? true,
-    });
-  }
-
-  private createAuditChanges(
-    beforeSnapshot: unknown,
-    afterSnapshot: unknown,
-  ): OrganizationAuditChange[] {
-    const beforeRecord = this.toPlainAuditRecord(beforeSnapshot);
-    const afterRecord = this.toPlainAuditRecord(afterSnapshot);
-    const keys = Array.from(
-      new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)]),
-    );
-
-    return keys
-      .filter(
-        (key) =>
-          JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
-      )
-      .map((key) => ({
-        field: key,
-        before: beforeRecord[key] ?? null,
-        after: afterRecord[key] ?? null,
-      }));
-  }
-
-  private toPlainAuditRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return {};
+    try {
+      await this.organizationAuditService.record({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+        summary: input.summary,
+        changes: createAuditChanges(input.beforeSnapshot, input.afterSnapshot),
+        beforeSnapshot: input.beforeSnapshot,
+        afterSnapshot: input.afterSnapshot,
+        restorable: input.restorable ?? true,
+      });
+    } catch (error) {
+      this.logger.error("Failed to record posting audit entry.", {
+        organizationId: input.organizationId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+        error,
+      });
     }
-
-    return value as Record<string, unknown>;
   }
   async getById(
     id: string,
@@ -1718,12 +1696,3 @@ export class PostingsService {
     }
   }
 }
-
-
-
-
-
-
-
-
-

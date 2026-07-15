@@ -87,8 +87,8 @@ model OrganizationAuditLog {
   actor                 User?    @relation("OrganizationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
-  @@index([organizationId, organizationVersion])
-  @@index([organizationId, resourceType, resourceId, resourceVersion], map: "org_audit_resource_version_idx")
+  @@unique([organizationId, organizationVersion], map: "organization_audit_logs_org_version_unique")
+  @@unique([organizationId, resourceType, resourceId, resourceVersion], map: "org_audit_resource_version_unique")
   @@index([actorUserId, createdAt])
   @@map("organization_audit_logs")
 }
@@ -1213,7 +1213,3 @@ enum UserMfaTotpStatus {
   pending
   active
 }
-
-
-
-

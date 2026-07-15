@@ -26,6 +26,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
 class FakePostingsRepository {
@@ -438,6 +439,9 @@ function createServiceHarness(
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
       authRepository as unknown as AuthRepository,
+      {
+        record: jest.fn(async () => undefined),
+      } as unknown as OrganizationAuditService,
     ),
     postingThumbnailQueueService,
     postingsPublicCacheService,
@@ -1632,6 +1636,9 @@ describe("PostingsService", () => {
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
       authRepository as unknown as AuthRepository,
+      {
+        record: jest.fn(async () => undefined),
+      } as unknown as OrganizationAuditService,
     );
 
     await expect(
@@ -1820,6 +1827,9 @@ describe("PostingsService", () => {
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
       authRepository as unknown as AuthRepository,
+      {
+        record: jest.fn(async () => undefined),
+      } as unknown as OrganizationAuditService,
     );
 
     await expect(
