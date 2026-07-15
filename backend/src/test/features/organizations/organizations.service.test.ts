@@ -1111,4 +1111,63 @@ describe("OrganizationsService", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
+  it("prevents managers from restoring organization rename audits", async () => {
+    const { service, repository } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            role: "manager",
+          }),
+        ),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () => createAuditLog()),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repository.updateOrganizationName).not.toHaveBeenCalled();
+  });
+
+  it("prevents managers from restoring member role-update audits", async () => {
+    const { service, auditService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            role: "manager",
+          }),
+        ),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            action: "member.role_updated",
+            resourceType: "member",
+            resourceId: "membership-2",
+            beforeSnapshot: createMember({
+              role: "manager",
+            }),
+            afterSnapshot: createMember({
+              role: "operator",
+            }),
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.restoreVersion({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        auditId: "audit-original",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
 });

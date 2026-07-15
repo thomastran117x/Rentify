@@ -645,6 +645,17 @@ export class PostingsRepository extends BaseRepository {
       return null;
     }
 
+    type RestorableAvailabilityBlock = PostingAvailabilityBlockRecord & {
+      source?: "owner" | "booking_hold" | "renting";
+      bookingRequestHold?: unknown;
+    };
+    const ownerAvailabilityBlocks = (
+      posting.availabilityBlocks as RestorableAvailabilityBlock[]
+    ).filter(
+      (block) =>
+        (block.source === undefined || block.source === "owner") &&
+        !block.bookingRequestHold,
+    );
     return this.executeAsync(async () => {
       try {
         const restored = await this.prisma.$transaction(async (transaction) => {
@@ -714,9 +725,9 @@ export class PostingsRepository extends BaseRepository {
             },
           });
 
-          if (posting.availabilityBlocks.length > 0) {
+          if (ownerAvailabilityBlocks.length > 0) {
             await transaction.postingAvailabilityBlock.createMany({
-              data: posting.availabilityBlocks.map((block) => ({
+              data: ownerAvailabilityBlocks.map((block) => ({
                 id: block.id,
                 postingId: posting.id,
                 startAt: new Date(block.startAt),
@@ -2614,6 +2625,13 @@ export class PostingsRepository extends BaseRepository {
     startAt: Date;
     endAt: Date;
     note: string | null;
+    source?: "owner" | "booking_hold" | "renting";
+    bookingRequestHold?: {
+      id: string;
+      status: string;
+      holdExpiresAt: Date | null;
+      convertedAt: Date | null;
+    } | null;
     createdAt: Date;
     updatedAt: Date;
   }): PostingAvailabilityBlockRecord {
@@ -2622,6 +2640,21 @@ export class PostingsRepository extends BaseRepository {
       startAt: block.startAt.toISOString(),
       endAt: block.endAt.toISOString(),
       note: block.note ?? undefined,
+      ...(block.source && block.source !== "owner"
+        ? { source: block.source }
+        : {}),
+      ...(block.bookingRequestHold
+        ? {
+            bookingRequestHold: {
+              id: block.bookingRequestHold.id,
+              status: block.bookingRequestHold.status,
+              holdExpiresAt:
+                block.bookingRequestHold.holdExpiresAt?.toISOString(),
+              convertedAt:
+                block.bookingRequestHold.convertedAt?.toISOString(),
+            },
+          }
+        : {}),
       createdAt: block.createdAt.toISOString(),
       updatedAt: block.updatedAt.toISOString(),
     };

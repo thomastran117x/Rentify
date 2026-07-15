@@ -11,6 +11,7 @@ import {
   createAuditChanges as buildAuditChanges,
   toAuditSnapshotRecord,
   type CreateOrganizationAuditLogInput,
+  type OrganizationAuditRecord,
   type ListOrganizationAuditInput,
   type ListOrganizationAuditResult,
   type RestoreOrganizationVersionInput,
@@ -44,6 +45,7 @@ import {
 } from "@/features/organizations/organizations.model";
 import {
   OrganizationInviteAccessRecord,
+  type OrganizationMembershipAccessRecord,
   OrganizationsRepository,
 } from "@/features/organizations/organizations.repository";
 
@@ -141,6 +143,11 @@ export class OrganizationsService {
   ): Promise<RestoreOrganizationVersionResult> {
     const auditLog =
       await this.organizationAuditService.requireRestorableAudit(input);
+    const actorMembership = await this.requireMembership(
+      input.actorUserId,
+      input.organizationId,
+    );
+    this.assertCanRestoreVersion(actorMembership, auditLog);
     let afterSnapshot: unknown;
     let action: RestoreOrganizationVersionResult["auditLog"]["action"];
     let summary: string;
@@ -227,10 +234,6 @@ export class OrganizationsService {
             "This invitation version cannot be restored.",
           );
         }
-        const membership = await this.requireMembership(
-          input.actorUserId,
-          input.organizationId,
-        );
         const token = this.createInviteToken();
         const invitation = await this.organizationsRepository.reissueInvitation(
           {
@@ -245,7 +248,7 @@ export class OrganizationsService {
         );
         await this.emailService.sendOrganizationInviteEmail({
           to: email,
-          organizationName: membership.organization.name,
+          organizationName: actorMembership.organization.name,
           inviterName: invitation.invitedBy.username,
           role,
           token,
@@ -876,6 +879,70 @@ export class OrganizationsService {
     throw new ForbiddenError(
       "You do not have permission to remove this member.",
     );
+  }
+
+  private assertCanRestoreVersion(
+    actorMembership: OrganizationMembershipAccessRecord,
+    auditLog: OrganizationAuditRecord,
+  ): void {
+    switch (auditLog.resourceType) {
+      case "organization":
+        this.requirePrimaryManager(actorMembership.role);
+        return;
+      case "member":
+        this.assertCanRestoreMember(actorMembership, auditLog);
+        return;
+      case "invitation":
+        this.assertCanRestoreInvitation(actorMembership, auditLog);
+        return;
+      case "posting":
+      case "posting_availability":
+      case "seasonal_pricing":
+        return;
+    }
+  }
+
+  private assertCanRestoreMember(
+    actorMembership: OrganizationMembershipAccessRecord,
+    auditLog: OrganizationAuditRecord,
+  ): void {
+    const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
+    const restoredRole = snapshot.role as OrganizationRole | undefined;
+
+    if (!restoredRole || restoredRole === "primary_manager") {
+      throw new ConflictError("This member version cannot be restored.");
+    }
+
+    if (auditLog.action === "member.role_updated") {
+      this.requirePrimaryManager(actorMembership.role);
+      return;
+    }
+
+    if (actorMembership.role === "primary_manager") {
+      return;
+    }
+
+    if (actorMembership.role === "manager" && restoredRole === "operator") {
+      return;
+    }
+
+    throw new ForbiddenError(
+      "You do not have permission to restore this member version.",
+    );
+  }
+
+  private assertCanRestoreInvitation(
+    actorMembership: OrganizationMembershipAccessRecord,
+    auditLog: OrganizationAuditRecord,
+  ): void {
+    const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
+    const restoredRole = snapshot.role as OrganizationRole | undefined;
+
+    if (!restoredRole) {
+      throw new ConflictError("This invitation version cannot be restored.");
+    }
+
+    this.assertCanInvite(actorMembership.role, restoredRole);
   }
 
   private async recordAuditSafely(
