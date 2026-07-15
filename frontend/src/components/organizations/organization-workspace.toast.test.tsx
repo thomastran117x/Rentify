@@ -39,6 +39,7 @@ vi.mock("@/lib/organizations/api", () => ({
     getById: getByIdMock,
     setActive: setActiveMock,
     rename: vi.fn(),
+    update: vi.fn(),
     createInvite: createInviteMock,
     revokeInvite: vi.fn(),
     updateMemberRole: vi.fn(),

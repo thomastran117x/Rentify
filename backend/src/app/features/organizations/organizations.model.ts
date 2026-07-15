@@ -26,12 +26,68 @@ export const organizationResourceIdSchema = z
   .regex(resourceIdPattern, "Invalid organization resource id.");
 export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
 
+// Treat empty/whitespace-only form values as null so blank optional inputs
+// (which arrive as "") don't fail url/email validation.
+const emptyToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim().length === 0 ? null : value,
+    schema,
+  );
+
+const optionalText = (max: number) =>
+  emptyToNull(z.string().trim().max(max).nullable().optional());
+
+const organizationCustomFieldsSchema = emptyToNull(
+  z
+    .record(z.string().trim().min(1).max(80), z.string().trim().max(1000))
+    .refine((value) => Object.keys(value).length <= 20, {
+      message: "An organization may define at most 20 custom fields.",
+    })
+    .nullable()
+    .optional(),
+);
+
+// Editable profile fields shared by the create and update request schemas.
+export const sharedOrganizationProfileShape = {
+  description: optionalText(5000),
+  websiteUrl: emptyToNull(
+    z.url("Website must be a valid URL.").max(500).nullable().optional(),
+  ),
+  contactEmail: emptyToNull(
+    z.email("Contact email must be valid.").max(320).nullable().optional(),
+  ),
+  contactPhone: emptyToNull(
+    z
+      .string()
+      .trim()
+      .min(7, "Phone number must be at least 7 characters long.")
+      .max(40, "Phone number must be at most 40 characters long.")
+      .regex(/^[0-9+()\-\s]+$/, "Phone number contains unsupported characters.")
+      .nullable()
+      .optional(),
+  ),
+  addressLine1: optionalText(200),
+  addressLine2: optionalText(200),
+  city: optionalText(120),
+  region: optionalText(120),
+  country: optionalText(120),
+  postalCode: optionalText(20),
+  logoUrl: emptyToNull(
+    z.url("Logo URL must be a valid URL.").max(1024).nullable().optional(),
+  ),
+  logoBlobName: optionalText(1024),
+  customFields: organizationCustomFieldsSchema,
+} as const;
+
 export const createOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
+  ...sharedOrganizationProfileShape,
 });
 
 export const updateOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
+  ...sharedOrganizationProfileShape,
 });
 
 export const createOrganizationInviteRequestSchema = z.object({
@@ -67,6 +123,74 @@ export interface OrganizationSummary {
   id: string;
   name: string;
   role: OrganizationRole;
+}
+
+// Editable, self-describing profile fields on an organization. All optional so
+// existing organizations remain valid and blank inputs stay null.
+export interface OrganizationProfileFields {
+  description: string | null;
+  websiteUrl: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  logoBlobName: string | null;
+  customFields: Record<string, string> | null;
+}
+
+export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
+
+// Field names audited when an organization's profile changes (also used to
+// restore a prior version). Keep in sync with OrganizationProfileFields + name.
+export const ORGANIZATION_EDITABLE_FIELDS = [
+  "name",
+  "description",
+  "websiteUrl",
+  "contactEmail",
+  "contactPhone",
+  "addressLine1",
+  "addressLine2",
+  "city",
+  "region",
+  "country",
+  "postalCode",
+  "logoUrl",
+  "logoBlobName",
+  "customFields",
+] as const;
+
+const ORGANIZATION_PROFILE_FIELDS: (keyof OrganizationProfileFields)[] = [
+  "description",
+  "websiteUrl",
+  "contactEmail",
+  "contactPhone",
+  "addressLine1",
+  "addressLine2",
+  "city",
+  "region",
+  "country",
+  "postalCode",
+  "logoUrl",
+  "logoBlobName",
+  "customFields",
+];
+
+// Pull only the defined profile fields out of a parsed request body/input.
+export function pickOrganizationProfileInput(
+  source: Partial<OrganizationProfileFields>,
+): OrganizationProfileInput {
+  const result: OrganizationProfileInput = {};
+  for (const field of ORGANIZATION_PROFILE_FIELDS) {
+    if (source[field] !== undefined) {
+      (result as Record<string, unknown>)[field] = source[field];
+    }
+  }
+  return result;
 }
 
 export interface OrganizationMembershipSummary extends OrganizationSummary {
@@ -119,7 +243,7 @@ export interface OrganizationDetailResult {
     name: string;
     createdAt: string;
     updatedAt: string;
-  };
+  } & OrganizationProfileFields;
   viewerRole: OrganizationRole;
   members: OrganizationMemberRecord[];
   invitations: OrganizationInvitationRecord[];
@@ -164,7 +288,7 @@ export interface CreateOrganizationInviteInput {
   role: OrganizationRole;
 }
 
-export interface CreateOrganizationInput {
+export interface CreateOrganizationInput extends OrganizationProfileInput {
   actorUserId: string;
   name: string;
 }
@@ -174,7 +298,7 @@ export interface CreateOrganizationResult {
   membership: OrganizationMembershipSummary;
 }
 
-export interface UpdateOrganizationInput {
+export interface UpdateOrganizationInput extends OrganizationProfileInput {
   organizationId: string;
   actorUserId: string;
   name: string;

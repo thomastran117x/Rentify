@@ -16,6 +16,7 @@ const {
   getByIdMock,
   setActiveMock,
   createMock,
+  updateMock,
   createInviteMock,
   listAuditMock,
   restoreAuditEntryMock,
@@ -30,6 +31,7 @@ const {
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createMock: vi.fn(),
+  updateMock: vi.fn(),
   createInviteMock: vi.fn(),
   listAuditMock: vi.fn(),
   restoreAuditEntryMock: vi.fn(),
@@ -89,6 +91,7 @@ vi.mock("@/lib/organizations/api", () => ({
     setActive: setActiveMock,
     create: createMock,
     rename: vi.fn(),
+    update: updateMock,
     createInvite: createInviteMock,
     listAudit: listAuditMock,
     restoreAuditEntry: restoreAuditEntryMock,
@@ -398,10 +401,41 @@ describe("OrganizationWorkspace", () => {
     );
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith({ name: "Acme Rentals" });
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Acme Rentals" }),
+      );
     });
     expect(refreshMock).toHaveBeenCalled();
     expect(setSessionMock).toHaveBeenCalledWith(refreshedSession);
+  });
+
+  it("saves organization profile fields as the primary manager", async () => {
+    const user = userEvent.setup();
+    updateMock.mockResolvedValue({
+      id: "org-1",
+      name: "Northwind",
+      role: "primary_manager",
+    });
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+
+    const description = screen.getByPlaceholderText(
+      "Tell renters what your organization is about.",
+    );
+    await user.type(description, "Boutique rentals.");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "org-1",
+        expect.objectContaining({
+          name: "Northwind",
+          description: "Boutique rentals.",
+        }),
+      );
+    });
   });
 
   it("routes invite failures through the global error toast", async () => {

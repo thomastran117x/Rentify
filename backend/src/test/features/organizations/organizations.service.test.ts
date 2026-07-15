@@ -15,6 +15,22 @@ function createUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const NULL_ORGANIZATION_PROFILE = {
+  description: null,
+  websiteUrl: null,
+  contactEmail: null,
+  contactPhone: null,
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  region: null,
+  country: null,
+  postalCode: null,
+  logoUrl: null,
+  logoBlobName: null,
+  customFields: null,
+};
+
 function createMembership(overrides: Record<string, unknown> = {}) {
   return {
     membershipId: "membership-1",
@@ -24,6 +40,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
       name: "Northwind",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
+      ...NULL_ORGANIZATION_PROFILE,
     },
     ...overrides,
   };
@@ -122,10 +139,17 @@ function createService(overrides?: {
       invitations: [],
     })),
     setPreferredOrganization: jest.fn(async () => undefined),
+    updateOrganization: jest.fn(async () => ({
+      id: "org-1",
+      name: "Renamed",
+      role: "operator",
+      ...NULL_ORGANIZATION_PROFILE,
+    })),
     updateOrganizationName: jest.fn(async () => ({
       id: "org-1",
       name: "Renamed",
       role: "operator",
+      ...NULL_ORGANIZATION_PROFILE,
     })),
     findMemberById: jest.fn(async () => null),
     findMemberByUserId: jest.fn(async () => null),
@@ -682,9 +706,9 @@ describe("OrganizationsService", () => {
       name: "Renamed",
       role: "primary_manager",
     });
-    expect(repository.updateOrganizationName).toHaveBeenCalledWith(
+    expect(repository.updateOrganization).toHaveBeenCalledWith(
       "org-1",
-      "Better Northwind",
+      expect.objectContaining({ name: "Better Northwind" }),
     );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -696,6 +720,51 @@ describe("OrganizationsService", () => {
             after: "Renamed",
           },
         ],
+      }),
+    );
+  });
+
+  it("threads profile fields through update and audits changed fields", async () => {
+    const { service, repository, auditService } = createService({
+      repository: {
+        updateOrganization: jest.fn(async () => ({
+          id: "org-1",
+          name: "Northwind",
+          role: "operator",
+          ...NULL_ORGANIZATION_PROFILE,
+          description: "Now with a description",
+          city: "Seattle",
+        })),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      description: "Now with a description",
+      city: "Seattle",
+    });
+
+    expect(repository.updateOrganization).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({
+        name: "Northwind",
+        description: "Now with a description",
+        city: "Seattle",
+      }),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "organization.renamed",
+        changes: expect.arrayContaining([
+          {
+            field: "description",
+            before: null,
+            after: "Now with a description",
+          },
+          { field: "city", before: null, after: "Seattle" },
+        ]),
       }),
     );
   });
@@ -1134,7 +1203,7 @@ describe("OrganizationsService", () => {
         auditId: "audit-original",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    expect(repository.updateOrganizationName).not.toHaveBeenCalled();
+    expect(repository.updateOrganization).not.toHaveBeenCalled();
   });
 
   it("prevents managers from restoring member role-update audits", async () => {

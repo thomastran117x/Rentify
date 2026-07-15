@@ -21,6 +21,8 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import {
   normalizeOrganizationInvitationEmail,
+  pickOrganizationProfileInput,
+  ORGANIZATION_EDITABLE_FIELDS,
   type AcceptOrganizationInviteInput,
   type AcceptOrganizationInviteResult,
   type CreateOrganizationInput,
@@ -31,6 +33,7 @@ import {
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
+  type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
   type OrganizationWorkspaceResult,
@@ -161,11 +164,13 @@ export class OrganizationsService {
             "This organization version cannot be restored.",
           );
         }
-        afterSnapshot =
-          await this.organizationsRepository.updateOrganizationName(
-            input.organizationId,
+        afterSnapshot = await this.organizationsRepository.updateOrganization(
+          input.organizationId,
+          {
             name,
-          );
+            ...this.readProfileFromSnapshot(snapshot),
+          },
+        );
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
         break;
@@ -284,10 +289,12 @@ export class OrganizationsService {
   ): Promise<CreateOrganizationResult> {
     await this.requireExistingUser(input.actorUserId);
 
+    const profile = pickOrganizationProfileInput(input);
     const membership =
       await this.organizationsRepository.createOrganizationWithOwner({
         name: input.name.trim(),
         ownerUserId: input.actorUserId,
+        ...profile,
       });
 
     await this.organizationsRepository.setPreferredOrganization(
@@ -295,6 +302,11 @@ export class OrganizationsService {
       membership.id,
     );
 
+    const afterSnapshot = {
+      id: membership.id,
+      name: membership.name,
+      ...profile,
+    };
     await this.recordAuditSafely({
       organizationId: membership.id,
       actorUserId: input.actorUserId,
@@ -302,14 +314,8 @@ export class OrganizationsService {
       resourceType: "organization",
       resourceId: membership.id,
       summary: `${membership.name} was created.`,
-      changes: this.createChanges(null, {
-        id: membership.id,
-        name: membership.name,
-      }),
-      afterSnapshot: {
-        id: membership.id,
-        name: membership.name,
-      },
+      changes: this.createChanges(null, afterSnapshot),
+      afterSnapshot,
       restorable: false,
     });
 
@@ -334,14 +340,23 @@ export class OrganizationsService {
     this.requirePrimaryManager(membership.role);
 
     const beforeSnapshot = membership.organization;
-    const updated = await this.organizationsRepository.updateOrganizationName(
+    const profile = pickOrganizationProfileInput(input);
+    const updated = await this.organizationsRepository.updateOrganization(
       input.organizationId,
-      input.name.trim(),
+      {
+        name: input.name.trim(),
+        ...profile,
+      },
     );
     const afterSnapshot = {
       ...beforeSnapshot,
-      name: updated.name,
+      ...updated,
     };
+
+    const nameChanged = beforeSnapshot.name !== updated.name;
+    const summary = nameChanged
+      ? `Organization renamed from ${beforeSnapshot.name} to ${updated.name}.`
+      : `${updated.name} profile was updated.`;
 
     await this.recordAuditSafely({
       organizationId: input.organizationId,
@@ -349,15 +364,18 @@ export class OrganizationsService {
       action: "organization.renamed",
       resourceType: "organization",
       resourceId: input.organizationId,
-      summary: `Organization renamed from ${beforeSnapshot.name} to ${updated.name}.`,
-      changes: this.createChanges(beforeSnapshot, afterSnapshot, ["name"]),
+      summary,
+      changes: this.createChanges(beforeSnapshot, afterSnapshot, [
+        ...ORGANIZATION_EDITABLE_FIELDS,
+      ]),
       beforeSnapshot,
       afterSnapshot,
       restorable: true,
     });
 
     return {
-      ...updated,
+      id: updated.id,
+      name: updated.name,
       role: membership.role,
     };
   }
@@ -959,6 +977,55 @@ export class OrganizationsService {
         error,
       });
     }
+  }
+
+  // Coerce a stored audit snapshot back into an organization profile input so
+  // a restore reverts every editable field, not just the name.
+  private readProfileFromSnapshot(
+    snapshot: Record<string, unknown>,
+  ): OrganizationProfileInput {
+    const textFields: (keyof OrganizationProfileInput)[] = [
+      "description",
+      "websiteUrl",
+      "contactEmail",
+      "contactPhone",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "region",
+      "country",
+      "postalCode",
+      "logoUrl",
+      "logoBlobName",
+    ];
+    const result: OrganizationProfileInput = {};
+    for (const field of textFields) {
+      const value = snapshot[field];
+      if (typeof value === "string") {
+        result[field] = value;
+      } else if (value === null) {
+        result[field] = null;
+      }
+    }
+
+    const customFields = snapshot.customFields;
+    if (customFields === null) {
+      result.customFields = null;
+    } else if (
+      customFields &&
+      typeof customFields === "object" &&
+      !Array.isArray(customFields)
+    ) {
+      const parsed: Record<string, string> = {};
+      for (const [key, entry] of Object.entries(customFields)) {
+        if (typeof entry === "string") {
+          parsed[key] = entry;
+        }
+      }
+      result.customFields = parsed;
+    }
+
+    return result;
   }
 
   private createChanges(

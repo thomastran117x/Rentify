@@ -88,8 +88,10 @@ export const usersSeedModule: SeedModule = {
 
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
-        ownerOrganizationIndex += 1;
         const organizationName = buildOrganizationName(fixtureUser);
+        const organizationProfile =
+          buildOrganizationProfile(ownerOrganizationIndex);
+        ownerOrganizationIndex += 1;
 
         await prisma.organization.upsert({
           where: {
@@ -97,10 +99,12 @@ export const usersSeedModule: SeedModule = {
           },
           update: {
             name: organizationName,
+            ...organizationProfile,
           },
           create: {
             id: organizationId,
             name: organizationName,
+            ...organizationProfile,
           },
         });
 
@@ -284,6 +288,111 @@ export const usersSeedModule: SeedModule = {
     logger.info(`Seeded ${SEED_USERS.length} users and related auth fixtures.`);
   },
 };
+
+interface SeedOrganizationProfile {
+  description: string;
+  websiteUrl: string;
+  contactEmail: string;
+  contactPhone: string;
+  addressLine1: string;
+  city: string;
+  region: string;
+  country: string;
+  postalCode: string;
+  customFields: Record<string, string>;
+}
+
+// Deterministic, varied profile data so the upcoming organization-search
+// feature has distinguishable content (distinct cities/countries/descriptions)
+// to query and filter against, not just names.
+const SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
+  {
+    description:
+      "Boutique short-term rental group specializing in downtown loft apartments and design-forward studios.",
+    websiteUrl: "https://harbor-loft-rentals.example.com",
+    contactEmail: "hello@harbor-loft-rentals.example.com",
+    contactPhone: "+1 (415) 555-0142",
+    addressLine1: "410 Market Street",
+    city: "San Francisco",
+    region: "California",
+    country: "United States",
+    postalCode: "94111",
+    customFields: { Founded: "2016", "Property type": "Urban lofts" },
+  },
+  {
+    description:
+      "Family-run holiday home network across the Alps offering ski chalets and lakeside cabins.",
+    websiteUrl: "https://alpine-stays.example.com",
+    contactEmail: "book@alpine-stays.example.com",
+    contactPhone: "+41 44 555 0177",
+    addressLine1: "Bahnhofstrasse 22",
+    city: "Zurich",
+    region: "Zurich",
+    country: "Switzerland",
+    postalCode: "8001",
+    customFields: { Founded: "2009", Specialty: "Ski chalets" },
+  },
+  {
+    description:
+      "Coastal vacation rentals with beachfront villas and surf bungalows along the east coast.",
+    websiteUrl: "https://byron-coastal.example.com",
+    contactEmail: "stay@byron-coastal.example.com",
+    contactPhone: "+61 2 5550 0199",
+    addressLine1: "18 Jonson Street",
+    city: "Byron Bay",
+    region: "New South Wales",
+    country: "Australia",
+    postalCode: "2481",
+    customFields: { Founded: "2018", Specialty: "Beachfront villas" },
+  },
+  {
+    description:
+      "Serviced apartments and corporate housing for long-stay business travelers.",
+    websiteUrl: "https://maple-corporate-housing.example.com",
+    contactEmail: "reservations@maple-corporate-housing.example.com",
+    contactPhone: "+1 (416) 555-0168",
+    addressLine1: "88 Queen Street West",
+    city: "Toronto",
+    region: "Ontario",
+    country: "Canada",
+    postalCode: "M5H 2M5",
+    customFields: { Founded: "2012", Specialty: "Corporate housing" },
+  },
+  {
+    description:
+      "Heritage townhouses and canal-side flats for city breaks and extended stays.",
+    websiteUrl: "https://grachten-rentals.example.com",
+    contactEmail: "info@grachten-rentals.example.com",
+    contactPhone: "+31 20 555 0123",
+    addressLine1: "Herengracht 341",
+    city: "Amsterdam",
+    region: "North Holland",
+    country: "Netherlands",
+    postalCode: "1016 AZ",
+    customFields: { Founded: "2014", "Property type": "Heritage townhouses" },
+  },
+  {
+    description:
+      "Modern co-living residences and furnished studios near the tech district.",
+    websiteUrl: "https://nova-coliving.example.com",
+    contactEmail: "team@nova-coliving.example.com",
+    contactPhone: "+44 20 7946 0102",
+    addressLine1: "1 Finsbury Avenue",
+    city: "London",
+    region: "England",
+    country: "United Kingdom",
+    postalCode: "EC2M 2PF",
+    customFields: { Founded: "2020", Specialty: "Co-living" },
+  },
+];
+
+function buildOrganizationProfile(index: number): SeedOrganizationProfile {
+  const sample =
+    SEED_ORGANIZATION_PROFILES[
+      (index - 1) % SEED_ORGANIZATION_PROFILES.length
+    ];
+  return sample ?? SEED_ORGANIZATION_PROFILES[0]!;
+}
 
 function buildOrganizationName(fixtureUser: SeedUserFixture): string {
   const fullName = [fixtureUser.firstName, fixtureUser.lastName]

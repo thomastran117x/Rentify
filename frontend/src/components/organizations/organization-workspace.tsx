@@ -14,6 +14,7 @@ import {
   type OrganizationDetailResult,
   type OrganizationAuditRecord,
   type OrganizationInviteStatus,
+  type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationWorkspaceResult,
 } from "@/lib/organizations/api";
@@ -22,6 +23,7 @@ import {
   type PostingRecord,
   type PostingStatus,
 } from "@/lib/postings/api";
+import { blobApi } from "@/lib/blob/api";
 
 function formatRole(role: OrganizationRole): string {
   return role
@@ -279,6 +281,410 @@ function SectionCard({
   );
 }
 
+// Controlled form representation of the editable organization profile fields.
+// Text fields use empty strings (not null) and custom fields are editable rows.
+interface ProfileFormValue {
+  description: string;
+  websiteUrl: string;
+  contactEmail: string;
+  contactPhone: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  region: string;
+  country: string;
+  postalCode: string;
+  logoUrl: string;
+  logoBlobName: string;
+  customFields: { key: string; value: string }[];
+}
+
+function emptyProfileForm(): ProfileFormValue {
+  return {
+    description: "",
+    websiteUrl: "",
+    contactEmail: "",
+    contactPhone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    region: "",
+    country: "",
+    postalCode: "",
+    logoUrl: "",
+    logoBlobName: "",
+    customFields: [],
+  };
+}
+
+function profileFormFromDetail(
+  organization: OrganizationDetailResult["organization"],
+): ProfileFormValue {
+  return {
+    description: organization.description ?? "",
+    websiteUrl: organization.websiteUrl ?? "",
+    contactEmail: organization.contactEmail ?? "",
+    contactPhone: organization.contactPhone ?? "",
+    addressLine1: organization.addressLine1 ?? "",
+    addressLine2: organization.addressLine2 ?? "",
+    city: organization.city ?? "",
+    region: organization.region ?? "",
+    country: organization.country ?? "",
+    postalCode: organization.postalCode ?? "",
+    logoUrl: organization.logoUrl ?? "",
+    logoBlobName: organization.logoBlobName ?? "",
+    customFields: Object.entries(organization.customFields ?? {}).map(
+      ([key, value]) => ({ key, value }),
+    ),
+  };
+}
+
+// Convert the controlled form into an API input, normalizing blanks to null.
+function profileFormToInput(value: ProfileFormValue): OrganizationProfileInput {
+  const toNull = (text: string): string | null => {
+    const trimmed = text.trim();
+    return trimmed.length === 0 ? null : trimmed;
+  };
+
+  const customFields: Record<string, string> = {};
+  for (const row of value.customFields) {
+    const key = row.key.trim();
+    if (key.length > 0) {
+      customFields[key] = row.value.trim();
+    }
+  }
+
+  return {
+    description: toNull(value.description),
+    websiteUrl: toNull(value.websiteUrl),
+    contactEmail: toNull(value.contactEmail),
+    contactPhone: toNull(value.contactPhone),
+    addressLine1: toNull(value.addressLine1),
+    addressLine2: toNull(value.addressLine2),
+    city: toNull(value.city),
+    region: toNull(value.region),
+    country: toNull(value.country),
+    postalCode: toNull(value.postalCode),
+    logoUrl: toNull(value.logoUrl),
+    logoBlobName: toNull(value.logoBlobName),
+    customFields: Object.keys(customFields).length > 0 ? customFields : null,
+  };
+}
+
+const fieldLabelClass =
+  "text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400";
+
+function OrganizationLogoField({
+  logoUrl,
+  onUploaded,
+  onRemove,
+  onError,
+  disabled,
+}: {
+  logoUrl: string;
+  onUploaded: (blobUrl: string, blobName: string) => void;
+  onRemove: () => void;
+  onError: (message: string) => void;
+  disabled?: boolean;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const target = await blobApi.createUploadUrl({
+        filename: file.name,
+        contentType: file.type || "application/octet-stream",
+        scope: "organizations",
+      });
+      const response = await fetch(target.uploadUrl, {
+        method: target.method,
+        headers: target.headers,
+        body: file,
+      });
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}.`);
+      }
+      onUploaded(target.blobUrl, target.blobName);
+    } catch {
+      onError("We couldn't upload that logo. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <span className={fieldLabelClass}>Logo</span>
+      <div className="flex items-center gap-4">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt="Organization logo"
+            className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-700 dark:text-slate-500">
+            No logo
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className={`${secondaryButtonClass} cursor-pointer`}>
+            {uploading ? "Uploading..." : logoUrl ? "Replace logo" : "Upload logo"}
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="Upload organization logo"
+              className="sr-only"
+              disabled={disabled || uploading}
+              onChange={(event) => {
+                void handleFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {logoUrl ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled || uploading}
+              className={dangerButtonClass}
+            >
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrganizationProfileFieldset({
+  value,
+  onChange,
+  onError,
+  disabled,
+}: {
+  value: ProfileFormValue;
+  onChange: (next: ProfileFormValue) => void;
+  onError: (message: string) => void;
+  disabled?: boolean;
+}) {
+  const update = <K extends keyof ProfileFormValue>(
+    key: K,
+    next: ProfileFormValue[K],
+  ) => onChange({ ...value, [key]: next });
+
+  return (
+    <div className="grid gap-5">
+      <label className="grid gap-2">
+        <span className={fieldLabelClass}>Description</span>
+        <textarea
+          value={value.description}
+          onChange={(event) => update("description", event.target.value)}
+          rows={3}
+          maxLength={5000}
+          disabled={disabled}
+          placeholder="Tell renters what your organization is about."
+          className={`${inputClass} h-auto py-3`}
+        />
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Website</span>
+          <input
+            value={value.websiteUrl}
+            onChange={(event) => update("websiteUrl", event.target.value)}
+            type="url"
+            maxLength={500}
+            disabled={disabled}
+            placeholder="https://acme-rentals.com"
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Contact email</span>
+          <input
+            value={value.contactEmail}
+            onChange={(event) => update("contactEmail", event.target.value)}
+            type="email"
+            maxLength={320}
+            disabled={disabled}
+            placeholder="hello@acme-rentals.com"
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Contact phone</span>
+          <input
+            value={value.contactPhone}
+            onChange={(event) => update("contactPhone", event.target.value)}
+            type="tel"
+            maxLength={40}
+            disabled={disabled}
+            placeholder="+1 (555) 123-4567"
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="grid gap-2 sm:col-span-2">
+          <span className={fieldLabelClass}>Address line 1</span>
+          <input
+            value={value.addressLine1}
+            onChange={(event) => update("addressLine1", event.target.value)}
+            maxLength={200}
+            disabled={disabled}
+            placeholder="123 Market St"
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2 sm:col-span-2">
+          <span className={fieldLabelClass}>Address line 2</span>
+          <input
+            value={value.addressLine2}
+            onChange={(event) => update("addressLine2", event.target.value)}
+            maxLength={200}
+            disabled={disabled}
+            placeholder="Suite 400"
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>City</span>
+          <input
+            value={value.city}
+            onChange={(event) => update("city", event.target.value)}
+            maxLength={120}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Region / State</span>
+          <input
+            value={value.region}
+            onChange={(event) => update("region", event.target.value)}
+            maxLength={120}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Country</span>
+          <input
+            value={value.country}
+            onChange={(event) => update("country", event.target.value)}
+            maxLength={120}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className={fieldLabelClass}>Postal code</span>
+          <input
+            value={value.postalCode}
+            onChange={(event) => update("postalCode", event.target.value)}
+            maxLength={20}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      <OrganizationLogoField
+        logoUrl={value.logoUrl}
+        onUploaded={(blobUrl, blobName) =>
+          onChange({ ...value, logoUrl: blobUrl, logoBlobName: blobName })
+        }
+        onRemove={() => onChange({ ...value, logoUrl: "", logoBlobName: "" })}
+        onError={onError}
+        disabled={disabled}
+      />
+
+      <div className="grid gap-3">
+        <div className="flex items-center justify-between">
+          <span className={fieldLabelClass}>Custom fields</span>
+          <button
+            type="button"
+            onClick={() =>
+              update("customFields", [
+                ...value.customFields,
+                { key: "", value: "" },
+              ])
+            }
+            disabled={disabled || value.customFields.length >= 20}
+            className={secondaryButtonClass}
+          >
+            Add field
+          </button>
+        </div>
+        {value.customFields.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Add your own labelled details (e.g. “Founded”, “License #”).
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {value.customFields.map((row, index) => (
+              <div
+                key={index}
+                className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]"
+              >
+                <input
+                  value={row.key}
+                  onChange={(event) => {
+                    const next = [...value.customFields];
+                    next[index] = { ...row, key: event.target.value };
+                    update("customFields", next);
+                  }}
+                  maxLength={80}
+                  disabled={disabled}
+                  placeholder="Label"
+                  aria-label={`Custom field ${index + 1} label`}
+                  className={inputClass}
+                />
+                <input
+                  value={row.value}
+                  onChange={(event) => {
+                    const next = [...value.customFields];
+                    next[index] = { ...row, value: event.target.value };
+                    update("customFields", next);
+                  }}
+                  maxLength={1000}
+                  disabled={disabled}
+                  placeholder="Value"
+                  aria-label={`Custom field ${index + 1} value`}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "customFields",
+                      value.customFields.filter((_, i) => i !== index),
+                    )
+                  }
+                  disabled={disabled}
+                  className={dangerButtonClass}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface OrganizationCreateFormProps {
   name: string;
   onNameChange: (value: string) => void;
@@ -286,6 +692,9 @@ interface OrganizationCreateFormProps {
   saving: boolean;
   submitLabel: string;
   placeholder?: string;
+  profile: ProfileFormValue;
+  onProfileChange: (next: ProfileFormValue) => void;
+  onProfileError: (message: string) => void;
 }
 
 function OrganizationCreateForm({
@@ -295,31 +704,149 @@ function OrganizationCreateForm({
   saving,
   submitLabel,
   placeholder = "Acme Rentals",
+  profile,
+  onProfileChange,
+  onProfileError,
 }: OrganizationCreateFormProps) {
+  const [showDetails, setShowDetails] = useState(false);
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
-      className="grid gap-3 sm:grid-cols-[1fr_auto]"
+      className="grid gap-4"
     >
-      <input
-        value={name}
-        onChange={(event) => onNameChange(event.target.value)}
-        placeholder={placeholder}
-        aria-label="Organization name"
-        maxLength={160}
-        className={inputClass}
-      />
-      <button
-        type="submit"
-        disabled={saving || name.trim().length === 0}
-        className={primaryButtonClass}
-      >
-        {saving ? "Creating..." : submitLabel}
-      </button>
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <input
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          placeholder={placeholder}
+          aria-label="Organization name"
+          maxLength={160}
+          className={inputClass}
+        />
+        <button
+          type="submit"
+          disabled={saving || name.trim().length === 0}
+          className={primaryButtonClass}
+        >
+          {saving ? "Creating..." : submitLabel}
+        </button>
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowDetails((current) => !current)}
+          className="text-sm font-semibold text-violet-700 transition hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
+        >
+          {showDetails ? "Hide details" : "Add details (optional)"}
+        </button>
+      </div>
+
+      {showDetails ? (
+        <div className="rounded-2xl border border-slate-200 bg-white/60 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+          <OrganizationProfileFieldset
+            value={profile}
+            onChange={onProfileChange}
+            onError={onProfileError}
+            disabled={saving}
+          />
+        </div>
+      ) : null}
     </form>
+  );
+}
+
+function formatAddress(
+  organization: OrganizationDetailResult["organization"],
+): string | null {
+  const parts = [
+    organization.addressLine1,
+    organization.addressLine2,
+    organization.city,
+    organization.region,
+    organization.postalCode,
+    organization.country,
+  ].filter((part): part is string => Boolean(part && part.trim().length > 0));
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1">
+      <dt className={fieldLabelClass}>{label}</dt>
+      <dd className="text-sm text-slate-700 dark:text-slate-200">{children}</dd>
+    </div>
+  );
+}
+
+function OrganizationAboutCard({
+  organization,
+}: {
+  organization: OrganizationDetailResult["organization"];
+}) {
+  const address = formatAddress(organization);
+  const customFields = Object.entries(organization.customFields ?? {});
+  const hasContent =
+    Boolean(organization.description) ||
+    Boolean(organization.websiteUrl) ||
+    Boolean(organization.contactEmail) ||
+    Boolean(organization.contactPhone) ||
+    Boolean(address) ||
+    customFields.length > 0;
+
+  if (!hasContent) {
+    return null;
+  }
+
+  return (
+    <SectionCard eyebrow="About" title="Organization details">
+      <div className="grid gap-6">
+        {organization.description ? (
+          <p className="whitespace-pre-line text-sm leading-6 text-slate-700 dark:text-slate-200">
+            {organization.description}
+          </p>
+        ) : null}
+        <dl className="grid gap-5 sm:grid-cols-2">
+          {organization.websiteUrl ? (
+            <DetailRow label="Website">
+              <a
+                href={organization.websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+              >
+                {organization.websiteUrl}
+              </a>
+            </DetailRow>
+          ) : null}
+          {organization.contactEmail ? (
+            <DetailRow label="Contact email">
+              <a
+                href={`mailto:${organization.contactEmail}`}
+                className="text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+              >
+                {organization.contactEmail}
+              </a>
+            </DetailRow>
+          ) : null}
+          {organization.contactPhone ? (
+            <DetailRow label="Contact phone">
+              {organization.contactPhone}
+            </DetailRow>
+          ) : null}
+          {address ? <DetailRow label="Address">{address}</DetailRow> : null}
+          {customFields.map(([key, value]) => (
+            <DetailRow key={key} label={key}>
+              {value}
+            </DetailRow>
+          ))}
+        </dl>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -344,6 +871,9 @@ interface OrganizationEmptyStateProps {
   saving: boolean;
   errorTitle: string | null;
   error: string | null;
+  profile: ProfileFormValue;
+  onProfileChange: (next: ProfileFormValue) => void;
+  onProfileError: (message: string) => void;
 }
 
 function OrganizationEmptyState({
@@ -353,6 +883,9 @@ function OrganizationEmptyState({
   saving,
   errorTitle,
   error,
+  profile,
+  onProfileChange,
+  onProfileError,
 }: OrganizationEmptyStateProps) {
   return (
     <OrganizationPageShell>
@@ -381,6 +914,9 @@ function OrganizationEmptyState({
             onSubmit={onSubmit}
             saving={saving}
             submitLabel="Create organization"
+            profile={profile}
+            onProfileChange={onProfileChange}
+            onProfileError={onProfileError}
           />
         </div>
       </div>
@@ -405,6 +941,12 @@ export function OrganizationWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
   const [newOrganizationName, setNewOrganizationName] = useState("");
+  const [createProfile, setCreateProfile] = useState<ProfileFormValue>(
+    emptyProfileForm(),
+  );
+  const [profileForm, setProfileForm] = useState<ProfileFormValue>(
+    emptyProfileForm(),
+  );
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] =
@@ -626,6 +1168,11 @@ export function OrganizationWorkspace() {
       setSelectedOrganizationId(resolvedOrganizationId);
       setDetail(nextDetail);
       setOrganizationName(nextDetail?.organization.name ?? "");
+      setProfileForm(
+        nextDetail
+          ? profileFormFromDetail(nextDetail.organization)
+          : emptyProfileForm(),
+      );
     });
   }
 
@@ -642,7 +1189,10 @@ export function OrganizationWorkspace() {
     setMessage(null);
 
     try {
-      const result = await organizationsApi.create({ name: trimmedName });
+      const result = await organizationsApi.create({
+        name: trimmedName,
+        ...profileFormToInput(createProfile),
+      });
 
       const refreshedSession = await authApi.refresh();
 
@@ -652,6 +1202,7 @@ export function OrganizationWorkspace() {
 
       await refresh(result.organization.id);
       setNewOrganizationName("");
+      setCreateProfile(emptyProfileForm());
       setShowCreatePanel(false);
       setMessage(`${result.organization.name} created.`);
     } catch (nextError) {
@@ -699,7 +1250,7 @@ export function OrganizationWorkspace() {
     }
   }
 
-  async function handleRename() {
+  async function handleSaveProfile() {
     if (!detail) {
       return;
     }
@@ -710,18 +1261,21 @@ export function OrganizationWorkspace() {
     setMessage(null);
 
     try {
-      await organizationsApi.rename(detail.organization.id, organizationName);
+      await organizationsApi.update(detail.organization.id, {
+        name: organizationName,
+        ...profileFormToInput(profileForm),
+      });
       await refresh(detail.organization.id);
-      setMessage("Organization name updated.");
+      setMessage("Organization profile updated.");
     } catch (nextError) {
       const message = getWorkspaceActionError(
         nextError,
-        "rename this organization",
-        "We couldn't rename this organization right now. Please try again.",
+        "update this organization",
+        "We couldn't update this organization right now. Please try again.",
       );
-      setErrorTitle("Couldn't rename organization");
+      setErrorTitle("Couldn't update organization");
       setError(message);
-      showWorkspaceToast("Couldn't rename organization", message);
+      showWorkspaceToast("Couldn't update organization", message);
     } finally {
       setSaving(false);
     }
@@ -970,6 +1524,11 @@ export function OrganizationWorkspace() {
         saving={saving}
         errorTitle={errorTitle}
         error={error}
+        profile={createProfile}
+        onProfileChange={setCreateProfile}
+        onProfileError={(message) =>
+          showWorkspaceToast("Couldn't upload logo", message)
+        }
       />
     );
   }
@@ -992,9 +1551,19 @@ export function OrganizationWorkspace() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <Eyebrow>Organization workspace</Eyebrow>
-              <h1 className="mt-4 truncate text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl dark:text-white">
-                {detail?.organization.name ?? "Organization"}
-              </h1>
+              <div className="mt-4 flex items-center gap-4">
+                {detail?.organization.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={detail.organization.logoUrl}
+                    alt={`${detail.organization.name} logo`}
+                    className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                  />
+                ) : null}
+                <h1 className="truncate text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl dark:text-white">
+                  {detail?.organization.name ?? "Organization"}
+                </h1>
+              </div>
               {detail ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
                   <span className="inline-flex items-center gap-1.5">
@@ -1054,6 +1623,11 @@ export function OrganizationWorkspace() {
                   onSubmit={() => void handleCreate()}
                   saving={saving}
                   submitLabel="Create organization"
+                  profile={createProfile}
+                  onProfileChange={setCreateProfile}
+                  onProfileError={(message) =>
+                    showWorkspaceToast("Couldn't upload logo", message)
+                  }
                 />
               </div>
             </div>
@@ -1118,6 +1692,8 @@ export function OrganizationWorkspace() {
 
       {detail ? (
         <>
+          <OrganizationAboutCard organization={detail.organization} />
+
           <SectionCard
             eyebrow="Postings"
             title="Organization postings"
@@ -1239,30 +1815,45 @@ export function OrganizationWorkspace() {
           {detail.viewerRole === "primary_manager" ? (
             <SectionCard
               eyebrow="Settings"
-              title="Organization name"
-              description="Only the primary manager can rename this organization."
+              title="Organization profile"
+              description="Only the primary manager can edit these details. They help renters recognize and reach your organization."
             >
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void handleRename();
+                  void handleSaveProfile();
                 }}
-                className="grid gap-3 sm:grid-cols-[1fr_auto]"
+                className="grid gap-5"
               >
-                <input
-                  value={organizationName}
-                  onChange={(event) => setOrganizationName(event.target.value)}
-                  aria-label="Rename organization"
-                  maxLength={160}
-                  className={inputClass}
+                <label className="grid gap-2">
+                  <span className={fieldLabelClass}>Name</span>
+                  <input
+                    value={organizationName}
+                    onChange={(event) =>
+                      setOrganizationName(event.target.value)
+                    }
+                    aria-label="Rename organization"
+                    maxLength={160}
+                    className={inputClass}
+                  />
+                </label>
+                <OrganizationProfileFieldset
+                  value={profileForm}
+                  onChange={setProfileForm}
+                  onError={(message) =>
+                    showWorkspaceToast("Couldn't upload logo", message)
+                  }
+                  disabled={saving}
                 />
-                <button
-                  type="submit"
-                  disabled={saving || organizationName.trim().length === 0}
-                  className={primaryButtonClass}
-                >
-                  {saving ? "Saving..." : "Save name"}
-                </button>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={saving || organizationName.trim().length === 0}
+                    className={primaryButtonClass}
+                  >
+                    {saving ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
               </form>
             </SectionCard>
           ) : null}
