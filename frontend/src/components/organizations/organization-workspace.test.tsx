@@ -276,7 +276,9 @@ describe("OrganizationWorkspace", () => {
 
     render(<OrganizationWorkspace />);
 
-    expect(await screen.findByText("Recent organization activity")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Recent organization activity"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Organization Renamed")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -441,6 +443,3 @@ describe("OrganizationWorkspace", () => {
     });
   });
 });
-
-
-

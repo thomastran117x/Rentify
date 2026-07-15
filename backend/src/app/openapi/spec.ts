@@ -2241,10 +2241,30 @@ function buildOperations(): OperationDefinition[] {
       },
       parameters: [
         routePathParam("id", "Organization identifier.", "org-1"),
-        queryParam("page", { type: "integer", minimum: 1, default: 1 }, "Page number to return.", 1),
-        queryParam("pageSize", { type: "integer", minimum: 1, maximum: 50, default: 20 }, "Number of audit records per page.", 20),
-        queryParam("action", schemaRef("OrganizationAuditAction"), "Optional audit action filter.", "posting.published"),
-        queryParam("resourceType", schemaRef("OrganizationAuditResourceType"), "Optional audited resource type filter.", "posting"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of audit records per page.",
+          20,
+        ),
+        queryParam(
+          "action",
+          schemaRef("OrganizationAuditAction"),
+          "Optional audit action filter.",
+          "posting.published",
+        ),
+        queryParam(
+          "resourceType",
+          schemaRef("OrganizationAuditResourceType"),
+          "Optional audited resource type filter.",
+          "posting",
+        ),
       ],
       responses: {
         "200": successResponse(
@@ -2278,7 +2298,11 @@ function buildOperations(): OperationDefinition[] {
       },
       parameters: [
         routePathParam("id", "Organization identifier.", "org-1"),
-        routePathParam("auditId", "Organization audit entry identifier.", "audit-1"),
+        routePathParam(
+          "auditId",
+          "Organization audit entry identifier.",
+          "audit-1",
+        ),
       ],
       responses: {
         "200": successResponse(
@@ -6061,7 +6085,8 @@ function buildComponents(): Record<string, unknown> {
           restored: { type: "boolean" },
           auditLog: schemaRef("OrganizationAuditRecord"),
         },
-      },      AuthSessionResponseData: {
+      },
+      AuthSessionResponseData: {
         type: "object",
         required: ["accessToken", "device", "user"],
         properties: {
@@ -7205,5 +7230,3 @@ export function buildOpenApiJson(): string {
     "\n",
   );
 }
-
-

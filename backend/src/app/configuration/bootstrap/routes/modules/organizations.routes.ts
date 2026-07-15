@@ -60,7 +60,8 @@ export const organizationsRouteModule: RouteModule = {
         containerTokens.organizationsController,
         "restoreAuditEntry",
       ),
-    );    app.patch(
+    );
+    app.patch(
       "/organizations/:id",
       resolveHandler<OrganizationsController>(
         containerTokens.organizationsController,
@@ -97,4 +98,3 @@ export const organizationsRouteModule: RouteModule = {
     );
   },
 };
-

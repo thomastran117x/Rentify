@@ -575,7 +575,9 @@ export function OrganizationWorkspace() {
       setAuditError(null);
 
       try {
-        const result = await organizationsApi.listAudit(selectedOrganizationId!);
+        const result = await organizationsApi.listAudit(
+          selectedOrganizationId!,
+        );
 
         if (!active) {
           return;
@@ -1500,7 +1502,11 @@ export function OrganizationWorkspace() {
                         </p>
                         {entry.changes.length > 0 ? (
                           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            Changed {entry.changes.slice(0, 4).map((change) => change.field).join(", ")}
+                            Changed{" "}
+                            {entry.changes
+                              .slice(0, 4)
+                              .map((change) => change.field)
+                              .join(", ")}
                           </p>
                         ) : null}
                       </div>
@@ -1511,7 +1517,9 @@ export function OrganizationWorkspace() {
                           disabled={restoringAuditId === entry.id}
                           className={secondaryButtonClass}
                         >
-                          {restoringAuditId === entry.id ? "Restoring..." : "Restore"}
+                          {restoringAuditId === entry.id
+                            ? "Restoring..."
+                            : "Restore"}
                         </button>
                       ) : null}
                     </div>

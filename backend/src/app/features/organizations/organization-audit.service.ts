@@ -40,7 +40,9 @@ export class OrganizationAuditService {
     );
 
     if (!auditLog) {
-      throw new ResourceNotFoundError("Organization audit entry could not be found.");
+      throw new ResourceNotFoundError(
+        "Organization audit entry could not be found.",
+      );
     }
 
     if (!auditLog.restorable) {
@@ -63,8 +65,13 @@ export class OrganizationAuditService {
       throw new ResourceNotFoundError("Organization could not be found.");
     }
 
-    if (membership.role !== "primary_manager" && membership.role !== "manager") {
-      throw new ForbiddenError("Only organization managers can view audit history.");
+    if (
+      membership.role !== "primary_manager" &&
+      membership.role !== "manager"
+    ) {
+      throw new ForbiddenError(
+        "Only organization managers can view audit history.",
+      );
     }
   }
 }

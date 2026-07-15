@@ -137,7 +137,6 @@ export interface OrganizationAuditResult {
   };
 }
 
-
 export interface OrganizationDetailResult {
   organization: {
     id: string;
@@ -224,7 +223,8 @@ export const organizationsApi = {
       restored: true;
       auditLog: OrganizationAuditRecord;
     }>(`/organizations/${id}/audit/${auditId}/restore`, {});
-  },  getById(id: string): Promise<OrganizationDetailResult> {
+  },
+  getById(id: string): Promise<OrganizationDetailResult> {
     return getAuthenticatedJson<OrganizationDetailResult>(
       `/organizations/${id}`,
     );
@@ -282,7 +282,3 @@ export const organizationsApi = {
     );
   },
 };
-
-
-
-

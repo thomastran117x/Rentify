@@ -50,7 +50,10 @@ import {
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class OrganizationsService {
-  private readonly logger = loggerFactory.forClass(OrganizationsService, "service");
+  private readonly logger = loggerFactory.forClass(
+    OrganizationsService,
+    "service",
+  );
 
   constructor(
     private readonly organizationsRepository: OrganizationsRepository,
@@ -108,7 +111,9 @@ export class OrganizationsService {
       throw new ResourceNotFoundError("Organization could not be found.");
     }
 
-    if (await this.expirePendingInvitations(organizationId, detail.invitations)) {
+    if (
+      await this.expirePendingInvitations(organizationId, detail.invitations)
+    ) {
       detail =
         await this.organizationsRepository.findOrganizationDetail(
           organizationId,
@@ -134,7 +139,8 @@ export class OrganizationsService {
   async restoreVersion(
     input: RestoreOrganizationVersionInput,
   ): Promise<RestoreOrganizationVersionResult> {
-    const auditLog = await this.organizationAuditService.requireRestorableAudit(input);
+    const auditLog =
+      await this.organizationAuditService.requireRestorableAudit(input);
     let afterSnapshot: unknown;
     let action: RestoreOrganizationVersionResult["auditLog"]["action"];
     let summary: string;
@@ -144,12 +150,15 @@ export class OrganizationsService {
         const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const name = typeof snapshot.name === "string" ? snapshot.name : null;
         if (!name) {
-          throw new ConflictError("This organization version cannot be restored.");
+          throw new ConflictError(
+            "This organization version cannot be restored.",
+          );
         }
-        afterSnapshot = await this.organizationsRepository.updateOrganizationName(
-          input.organizationId,
-          name,
-        );
+        afterSnapshot =
+          await this.organizationsRepository.updateOrganizationName(
+            input.organizationId,
+            name,
+          );
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
         break;
@@ -180,11 +189,14 @@ export class OrganizationsService {
         break;
       }
       case "posting_availability": {
-        const restored = await this.postingsRepository.restoreOwnerAvailabilityBlock(
-          auditLog.beforeSnapshot,
-        );
+        const restored =
+          await this.postingsRepository.restoreOwnerAvailabilityBlock(
+            auditLog.beforeSnapshot,
+          );
         if (!restored) {
-          throw new ConflictError("This availability version cannot be restored.");
+          throw new ConflictError(
+            "This availability version cannot be restored.",
+          );
         }
         afterSnapshot = restored;
         action = "posting_availability.restored";
@@ -196,7 +208,9 @@ export class OrganizationsService {
           auditLog.beforeSnapshot,
         );
         if (!restored) {
-          throw new ConflictError("This seasonal pricing version cannot be restored.");
+          throw new ConflictError(
+            "This seasonal pricing version cannot be restored.",
+          );
         }
         afterSnapshot = restored;
         action = "seasonal_pricing.restored";
@@ -205,25 +219,30 @@ export class OrganizationsService {
       }
       case "invitation": {
         const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
-        const email = typeof snapshot.email === "string" ? snapshot.email : null;
+        const email =
+          typeof snapshot.email === "string" ? snapshot.email : null;
         const role = snapshot.role as OrganizationRole | undefined;
         if (!email || !role || role === "primary_manager") {
-          throw new ConflictError("This invitation version cannot be restored.");
+          throw new ConflictError(
+            "This invitation version cannot be restored.",
+          );
         }
         const membership = await this.requireMembership(
           input.actorUserId,
           input.organizationId,
         );
         const token = this.createInviteToken();
-        const invitation = await this.organizationsRepository.reissueInvitation({
-          organizationId: input.organizationId,
-          invitedByUserId: input.actorUserId,
-          email,
-          role,
-          tokenHash: this.hashInviteToken(token),
-          expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
-          now: new Date(),
-        });
+        const invitation = await this.organizationsRepository.reissueInvitation(
+          {
+            organizationId: input.organizationId,
+            invitedByUserId: input.actorUserId,
+            email,
+            role,
+            tokenHash: this.hashInviteToken(token),
+            expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
+            now: new Date(),
+          },
+        );
         await this.emailService.sendOrganizationInviteEmail({
           to: email,
           organizationName: membership.organization.name,
@@ -625,13 +644,14 @@ export class OrganizationsService {
       throw new BadRequestError("This invitation can no longer be accepted.");
     }
 
-    const { invitation: acceptedInvitation, membership } = await this.organizationsRepository.acceptInvitation({
-      invitationId: invitation.id,
-      organizationId: invitation.organization.id,
-      userId: user.id,
-      role: invitation.role,
-      now: new Date(),
-    });
+    const { invitation: acceptedInvitation, membership } =
+      await this.organizationsRepository.acceptInvitation({
+        invitationId: invitation.id,
+        organizationId: invitation.organization.id,
+        userId: user.id,
+        role: invitation.role,
+        now: new Date(),
+      });
 
     if (!user.preferredOrganizationId) {
       await this.organizationsRepository.setPreferredOrganization(
@@ -889,7 +909,8 @@ export class OrganizationsService {
     return fields
       .filter(
         (key) =>
-          JSON.stringify(beforeRecord[key]) !== JSON.stringify(afterRecord[key]),
+          JSON.stringify(beforeRecord[key]) !==
+          JSON.stringify(afterRecord[key]),
       )
       .map((key) => ({
         field: key,

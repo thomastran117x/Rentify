@@ -64,8 +64,7 @@ export class OrganizationAuditRepository extends BaseRepository {
             action: input.action,
             resourceType: input.resourceType,
             resourceId: input.resourceId ?? null,
-            organizationVersion:
-              (orgVersion._max.organizationVersion ?? 0) + 1,
+            organizationVersion: (orgVersion._max.organizationVersion ?? 0) + 1,
             resourceVersion: input.resourceId
               ? (resourceVersion._max.resourceVersion ?? 0) + 1
               : null,
@@ -174,7 +173,9 @@ export class OrganizationAuditRepository extends BaseRepository {
     };
   }
 
-  private mapChanges(value: Prisma.JsonValue | null): OrganizationAuditChange[] {
+  private mapChanges(
+    value: Prisma.JsonValue | null,
+  ): OrganizationAuditChange[] {
     return Array.isArray(value)
       ? (value as unknown as OrganizationAuditChange[])
       : [];

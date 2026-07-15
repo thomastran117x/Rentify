@@ -281,10 +281,11 @@ export class PostingsService {
       this.cacheService,
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
-        const beforeBlock = await this.postingsRepository.findOwnerAvailabilityBlock(
-          posting.id,
-          blockId,
-        );
+        const beforeBlock =
+          await this.postingsRepository.findOwnerAvailabilityBlock(
+            posting.id,
+            blockId,
+          );
         const deleted =
           await this.postingsRepository.deleteOwnerAvailabilityBlock(
             posting.id,

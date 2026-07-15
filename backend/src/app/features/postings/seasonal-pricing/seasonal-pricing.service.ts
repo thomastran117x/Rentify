@@ -15,7 +15,10 @@ import type {
 const MAX_SEASONAL_PRICING_RULES = 20;
 
 export class SeasonalPricingService {
-  private readonly logger = loggerFactory.forClass(SeasonalPricingService, "service");
+  private readonly logger = loggerFactory.forClass(
+    SeasonalPricingService,
+    "service",
+  );
 
   constructor(
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
@@ -37,7 +40,11 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
 
     const count =
       await this.seasonalPricingRepository.countByPosting(postingId);
@@ -76,7 +83,11 @@ export class SeasonalPricingService {
     actorUserId: string,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
-    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
     const beforeRule = await this.seasonalPricingRepository.findById(
       ruleId,
       postingId,
@@ -120,7 +131,11 @@ export class SeasonalPricingService {
     ruleId: string,
     actorUserId: string,
   ): Promise<void> {
-    const posting = await this.requireManagedPosting(postingId, actorUserId, "write");
+    const posting = await this.requireManagedPosting(
+      postingId,
+      actorUserId,
+      "write",
+    );
     const beforeRule = await this.seasonalPricingRepository.findById(
       ruleId,
       postingId,

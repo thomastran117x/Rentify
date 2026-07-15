@@ -681,11 +681,14 @@ export class PostingsRepository extends BaseRepository {
                   details: posting.details,
                   availabilityStatus: posting.availabilityStatus,
                   availabilityNotes: posting.availabilityNotes ?? null,
-                  maxBookingDurationDays: posting.maxBookingDurationDays ?? null,
-                  minBookingDurationDays: posting.minBookingDurationDays ?? null,
+                  maxBookingDurationDays:
+                    posting.maxBookingDurationDays ?? null,
+                  minBookingDurationDays:
+                    posting.minBookingDurationDays ?? null,
                   advanceNoticeDays: posting.advanceNoticeDays ?? null,
                   cancellationPolicy: posting.cancellationPolicy ?? null,
-                  cancellationPolicyNotes: posting.cancellationPolicyNotes ?? null,
+                  cancellationPolicyNotes:
+                    posting.cancellationPolicyNotes ?? null,
                   instantBooking: posting.instantBooking,
                   availabilityBlocks: [],
                   location: posting.location,
@@ -693,9 +696,13 @@ export class PostingsRepository extends BaseRepository {
                 posting.photos,
               ),
               status: posting.status,
-              publishedAt: posting.publishedAt ? new Date(posting.publishedAt) : null,
+              publishedAt: posting.publishedAt
+                ? new Date(posting.publishedAt)
+                : null,
               pausedAt: posting.pausedAt ? new Date(posting.pausedAt) : null,
-              archivedAt: posting.archivedAt ? new Date(posting.archivedAt) : null,
+              archivedAt: posting.archivedAt
+                ? new Date(posting.archivedAt)
+                : null,
             },
             include: postingInclude,
           });

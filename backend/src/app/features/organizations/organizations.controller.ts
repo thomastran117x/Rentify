@@ -76,9 +76,7 @@ export class OrganizationsController {
 
   listAudit = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
-    const query = listOrganizationAuditQuerySchema.parse(
-      context.req.query(),
-    );
+    const query = listOrganizationAuditQuerySchema.parse(context.req.query());
     const result = await this.organizationsService.listAudit({
       ...query,
       organizationId: this.requireOrganizationId(context),
@@ -274,4 +272,3 @@ export class OrganizationsController {
     return getOptionalJwtAuth(context);
   }
 }
-
