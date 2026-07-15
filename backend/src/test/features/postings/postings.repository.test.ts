@@ -1885,13 +1885,17 @@ describe("PostingsRepository", () => {
       }),
     );
 
-    expect(transaction.postingAvailabilityBlock.deleteMany).toHaveBeenCalledWith({
+    expect(
+      transaction.postingAvailabilityBlock.deleteMany,
+    ).toHaveBeenCalledWith({
       where: {
         postingId: "posting-1",
         source: "owner",
       },
     });
-    expect(transaction.postingAvailabilityBlock.createMany).toHaveBeenCalledWith({
+    expect(
+      transaction.postingAvailabilityBlock.createMany,
+    ).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({
           id: "owner-block",

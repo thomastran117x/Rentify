@@ -2650,8 +2650,7 @@ export class PostingsRepository extends BaseRepository {
               status: block.bookingRequestHold.status,
               holdExpiresAt:
                 block.bookingRequestHold.holdExpiresAt?.toISOString(),
-              convertedAt:
-                block.bookingRequestHold.convertedAt?.toISOString(),
+              convertedAt: block.bookingRequestHold.convertedAt?.toISOString(),
             },
           }
         : {}),

@@ -965,7 +965,9 @@ describe("OrganizationsService", () => {
       auditId: "audit-original",
     });
 
-    expect(postingsRepository.restoreFromSnapshot).toHaveBeenCalledWith(restored);
+    expect(postingsRepository.restoreFromSnapshot).toHaveBeenCalledWith(
+      restored,
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "posting.restored",
@@ -998,9 +1000,9 @@ describe("OrganizationsService", () => {
       auditId: "audit-original",
     });
 
-    expect(postingsRepository.restoreOwnerAvailabilityBlock).toHaveBeenCalledWith(
-      restored,
-    );
+    expect(
+      postingsRepository.restoreOwnerAvailabilityBlock,
+    ).toHaveBeenCalledWith(restored);
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "posting_availability.restored",
