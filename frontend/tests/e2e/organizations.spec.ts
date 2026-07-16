@@ -119,12 +119,12 @@ test("organization workspace supports owner invites and member role boundaries",
   await login(managerPage, MANAGER_USERNAME);
   await ensureActiveOrganization(managerPage, MANAGER_ORG_LABEL);
   await expectOrganizationsWorkspace(managerPage, "Manager");
-  await expect(
-    managerPage.getByRole("tab", { name: "Settings" }),
-  ).toHaveCount(0);
-  await expect(
-    managerPage.getByRole("tab", { name: "Activity" }),
-  ).toHaveCount(1);
+  await expect(managerPage.getByRole("tab", { name: "Settings" })).toHaveCount(
+    0,
+  );
+  await expect(managerPage.getByRole("tab", { name: "Activity" })).toHaveCount(
+    1,
+  );
 
   await managerPage.getByRole("tab", { name: "Team" }).click();
   await managerPage
@@ -137,12 +137,12 @@ test("organization workspace supports owner invites and member role boundaries",
   await login(operatorPage, OPERATOR_USERNAME);
   await ensureActiveOrganization(operatorPage, OPERATOR_ORG_LABEL);
   await expectOrganizationsWorkspace(operatorPage, "Operator");
-  await expect(
-    operatorPage.getByRole("tab", { name: "Activity" }),
-  ).toHaveCount(0);
-  await expect(
-    operatorPage.getByRole("tab", { name: "Settings" }),
-  ).toHaveCount(0);
+  await expect(operatorPage.getByRole("tab", { name: "Activity" })).toHaveCount(
+    0,
+  );
+  await expect(operatorPage.getByRole("tab", { name: "Settings" })).toHaveCount(
+    0,
+  );
 
   await operatorPage.getByRole("tab", { name: "Team" }).click();
   await expect(
@@ -174,5 +174,3 @@ test("organization workspace supports owner invites and member role boundaries",
 
   await Promise.all([managerPage.close(), operatorPage.close()]);
 });
-
-

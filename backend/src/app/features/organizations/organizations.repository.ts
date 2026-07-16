@@ -198,7 +198,8 @@ export class OrganizationsRepository extends BaseRepository {
     }
     if (input.customFields !== undefined) {
       data.customFields =
-        input.customFields === null || Object.keys(input.customFields).length === 0
+        input.customFields === null ||
+        Object.keys(input.customFields).length === 0
           ? Prisma.DbNull
           : (input.customFields as Prisma.InputJsonValue);
     }

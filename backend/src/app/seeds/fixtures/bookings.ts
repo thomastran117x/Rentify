@@ -961,7 +961,10 @@ function createExpandedBookingSpec(
 ): BookingSpec {
   return {
     ...spec,
-    postingIndex: getExpandedPostingIndex(spec.ownerEmail, spec.publishedOffset),
+    postingIndex: getExpandedPostingIndex(
+      spec.ownerEmail,
+      spec.publishedOffset,
+    ),
   };
 }
 

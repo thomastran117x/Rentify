@@ -68,7 +68,17 @@ vi.mock("@/lib/organizations/api", () => ({
     revokeInvite: vi.fn(),
     updateMemberRole: vi.fn(),
     removeMember: vi.fn(),
-    listAudit: vi.fn(async () => ({ auditLogs: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } })),
+    listAudit: vi.fn(async () => ({
+      auditLogs: [],
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    })),
     restoreAuditEntry: vi.fn(),
     create: vi.fn(),
   },

@@ -155,7 +155,9 @@ const workspacePayload = {
   },
 };
 
-function buildSession(role: "primary_manager" | "manager" | "operator" = "primary_manager") {
+function buildSession(
+  role: "primary_manager" | "manager" | "operator" = "primary_manager",
+) {
   return {
     accessToken: "access-token",
     user: {
@@ -337,9 +339,10 @@ describe("OrganizationWorkspace", () => {
     expect(
       await screen.findByRole("heading", { name: "Northwind" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: /Overview/i }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Overview/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
       screen.getByText("Jump to the work that matters"),
     ).toBeInTheDocument();
@@ -386,8 +389,12 @@ describe("OrganizationWorkspace", () => {
     render(<OrganizationWorkspace />);
 
     await screen.findByRole("heading", { name: "Northwind" });
-    expect(screen.getByText("Jump to the work that matters")).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /Settings/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Jump to the work that matters"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: /Settings/i }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenLastCalledWith(

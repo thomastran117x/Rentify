@@ -30,10 +30,7 @@ export const blobRouteModule: RouteModule = {
     );
     app.delete(
       "/blob",
-      resolveHandler<BlobController>(
-        containerTokens.blobController,
-        "delete",
-      ),
+      resolveHandler<BlobController>(containerTokens.blobController, "delete"),
     );
   },
 };

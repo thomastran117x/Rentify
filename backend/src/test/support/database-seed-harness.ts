@@ -52,17 +52,16 @@ export function applyDatabaseSeedTestEnvironment(
 
 function ensureSeedTestDatabaseSchema(): void {
   const backendRoot = resolve(__dirname, "../../..");
-  const prismaCliPath = resolve(backendRoot, "node_modules/prisma/build/index.js");
-
-  execFileSync(
-    process.execPath,
-    [prismaCliPath, "migrate", "deploy"],
-    {
-      cwd: backendRoot,
-      env: process.env,
-      stdio: "inherit",
-    },
+  const prismaCliPath = resolve(
+    backendRoot,
+    "node_modules/prisma/build/index.js",
   );
+
+  execFileSync(process.execPath, [prismaCliPath, "migrate", "deploy"], {
+    cwd: backendRoot,
+    env: process.env,
+    stdio: "inherit",
+  });
 }
 
 export async function bootstrapSeedTestDatabase(

@@ -818,9 +818,7 @@ describe("OrganizationsService", () => {
       previousLogoUrl,
       previousLogoBlobName,
     );
-    expect(blobService.deleteBlob).toHaveBeenCalledWith(
-      previousLogoBlobName,
-    );
+    expect(blobService.deleteBlob).toHaveBeenCalledWith(previousLogoBlobName);
   });
 
   it("deletes the previous managed logo when the organization logo is cleared", async () => {
@@ -849,9 +847,7 @@ describe("OrganizationsService", () => {
       logoBlobName: null,
     });
 
-    expect(blobService.deleteBlob).toHaveBeenCalledWith(
-      previousLogoBlobName,
-    );
+    expect(blobService.deleteBlob).toHaveBeenCalledWith(previousLogoBlobName);
   });
 
   it("revokes an operator invitation as a manager", async () => {

@@ -89,8 +89,9 @@ export const usersSeedModule: SeedModule = {
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
         const organizationName = buildOrganizationName(fixtureUser);
-        const organizationProfile =
-          buildOrganizationProfile(ownerOrganizationIndex);
+        const organizationProfile = buildOrganizationProfile(
+          ownerOrganizationIndex,
+        );
         ownerOrganizationIndex += 1;
 
         await prisma.organization.upsert({
@@ -552,9 +553,7 @@ const SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
 
 function buildOrganizationProfile(index: number): SeedOrganizationProfile {
   const sample =
-    SEED_ORGANIZATION_PROFILES[
-      (index - 1) % SEED_ORGANIZATION_PROFILES.length
-    ];
+    SEED_ORGANIZATION_PROFILES[(index - 1) % SEED_ORGANIZATION_PROFILES.length];
   return sample ?? SEED_ORGANIZATION_PROFILES[0]!;
 }
 

@@ -2365,7 +2365,11 @@ const PLACE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Styled Loft Stay",
     description:
       "Design-led loft tuned for short stays, tastings, and calm brand sessions.",
-    pricing: { currency: "CAD", daily: { amount: 164 }, weekly: { amount: 940 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 164 },
+      weekly: { amount: 940 },
+    },
     details: {
       guest_capacity: 4,
       bedrooms: 2,
@@ -2383,7 +2387,11 @@ const PLACE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Guest Room Retreat",
     description:
       "Quiet private room with a compact desk setup and reliable handoff flow.",
-    pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 520 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 92 },
+      weekly: { amount: 520 },
+    },
     details: {
       guest_capacity: 2,
       bedrooms: 1,
@@ -2401,7 +2409,11 @@ const PLACE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Team Workshop Loft",
     description:
       "Open workshop loft for planning sessions, fittings, and practical client run-throughs.",
-    pricing: { currency: "CAD", daily: { amount: 142 }, hourly: { amount: 26 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 142 },
+      hourly: { amount: 26 },
+    },
     details: {
       guest_capacity: 10,
       bedrooms: 0,
@@ -2419,7 +2431,11 @@ const PLACE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Secure Storage Bay",
     description:
       "Protected storage bay for inventory overflow, props, and tidy event resets.",
-    pricing: { currency: "CAD", daily: { amount: 38 }, monthly: { amount: 610 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 38 },
+      monthly: { amount: 610 },
+    },
     details: {
       guest_capacity: 1,
       bedrooms: 0,
@@ -2437,7 +2453,11 @@ const PLACE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Client Hosting Flat",
     description:
       "Polished flat suited to interviews, hosting clients, and flexible city stays.",
-    pricing: { currency: "CAD", daily: { amount: 176 }, weekly: { amount: 995 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 176 },
+      weekly: { amount: 995 },
+    },
     details: {
       guest_capacity: 4,
       bedrooms: 2,
@@ -2458,7 +2478,11 @@ const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
     name: "Creator Camera Kit",
     description:
       "Mirrorless creator setup with fast lenses, batteries, and travel-ready support pieces.",
-    pricing: { currency: "CAD", daily: { amount: 74 }, weekend: { amount: 182 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 74 },
+      weekend: { amount: 182 },
+    },
     details: {
       brand: "Sony",
       model: "Creator Kit",
@@ -2474,7 +2498,11 @@ const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
     name: "Weekend Build Tool Set",
     description:
       "Compact build set for trim work, install days, and tidy weekend renovations.",
-    pricing: { currency: "CAD", daily: { amount: 66 }, weekly: { amount: 340 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 66 },
+      weekly: { amount: 340 },
+    },
     details: {
       brand: "DeWalt",
       model: "Build Set",
@@ -2491,7 +2519,11 @@ const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
     name: "Panel Audio Rack",
     description:
       "Portable audio rack with mics, compact speakers, and simple event cabling.",
-    pricing: { currency: "CAD", daily: { amount: 114 }, weekend: { amount: 268 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 114 },
+      weekend: { amount: 268 },
+    },
     details: {
       brand: "Yamaha",
       model: "Panel Rack",
@@ -2508,7 +2540,11 @@ const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
     name: "Pop-Up Service Kit",
     description:
       "Flexible service kit for markets, activations, and mobile retail displays.",
-    pricing: { currency: "CAD", daily: { amount: 98 }, weekly: { amount: 510 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 98 },
+      weekly: { amount: 510 },
+    },
     details: {
       brand: "ServiceForm",
       model: "Pop-Up Kit",
@@ -2525,7 +2561,11 @@ const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
     name: "Documentary Travel Set",
     description:
       "Weather-ready documentary package with audio, batteries, and quick packing support.",
-    pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 418 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 82 },
+      weekly: { amount: 418 },
+    },
     details: {
       brand: "Canon",
       model: "Travel Set",
@@ -2544,7 +2584,11 @@ const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Cruiser E-Bike",
     description:
       "Comfortable cruiser e-bike with lights, lock, and easy pickup for local errands.",
-    pricing: { currency: "CAD", daily: { amount: 54 }, weekly: { amount: 284 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 54 },
+      weekly: { amount: 284 },
+    },
     details: {
       make: "Electra",
       model: "Cruiser Go",
@@ -2562,7 +2606,11 @@ const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Cargo Hatchback",
     description:
       "Compact hatchback with fold-flat space for quick pickups, runs, and light gear moves.",
-    pricing: { currency: "CAD", daily: { amount: 84 }, weekly: { amount: 452 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 84 },
+      weekly: { amount: 452 },
+    },
     details: {
       make: "Honda",
       model: "Fit Cargo",
@@ -2580,7 +2628,11 @@ const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Utility Cargo Bike",
     description:
       "Longtail cargo bike with basket hardware for errands, markets, and short neighborhood trips.",
-    pricing: { currency: "CAD", daily: { amount: 58 }, weekly: { amount: 296 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 58 },
+      weekly: { amount: 296 },
+    },
     details: {
       make: "Yuba",
       model: "Cargo Longtail",
@@ -2598,7 +2650,11 @@ const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Hybrid Day Trip Car",
     description:
       "Efficient hybrid car for client meetings, day trips, and tidy regional runs.",
-    pricing: { currency: "CAD", daily: { amount: 88 }, weekly: { amount: 468 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 88 },
+      weekly: { amount: 468 },
+    },
     details: {
       make: "Toyota",
       model: "Hybrid Day Trip",
@@ -2616,7 +2672,11 @@ const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
     name: "Harbour Loop Bike",
     description:
       "Stable city bike with upright fit and removable basket for practical downtown loops.",
-    pricing: { currency: "CAD", daily: { amount: 49 }, weekly: { amount: 262 } },
+    pricing: {
+      currency: "CAD",
+      daily: { amount: 49 },
+      weekly: { amount: 262 },
+    },
     details: {
       make: "Specialized",
       model: "City Loop",
@@ -2782,7 +2842,9 @@ function buildAvailabilityStatus(
   }
 
   const limitedOffsets =
-    bundleType === "expanded" ? new Set([1, 4, 6, 9, 11, 14]) : new Set([1, 4, 7, 10]);
+    bundleType === "expanded"
+      ? new Set([1, 4, 6, 9, 11, 14])
+      : new Set([1, 4, 7, 10]);
   return limitedOffsets.has(offset) ? "limited" : "available";
 }
 
@@ -2847,7 +2909,9 @@ function createExpandedPostingBundle(
   const bundleSize = getExpandedBundleSize(config.bundleType);
 
   if (bundleBlueprints.length !== bundleSize) {
-    throw new Error(`Expanded posting bundle size mismatch for ${config.ownerEmail}.`);
+    throw new Error(
+      `Expanded posting bundle size mismatch for ${config.ownerEmail}.`,
+    );
   }
 
   return bundleBlueprints.map((blueprint, offset) => {
@@ -2872,7 +2936,10 @@ function createExpandedPostingBundle(
       tags: buildPostingTags(config, blueprint),
       details: blueprint.variant.details,
       availabilityStatus,
-      availabilityNotes: buildAvailabilityNotes(blueprint.status, availabilityStatus),
+      availabilityNotes: buildAvailabilityNotes(
+        blueprint.status,
+        availabilityStatus,
+      ),
       maxBookingDurationDays: blueprint.variant.maxBookingDurationDays,
       latitude: shiftCoordinate(config.latitude, offset % 5, 0.0061),
       longitude: shiftCoordinate(config.longitude, offset % 5, -0.0057),

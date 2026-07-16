@@ -254,99 +254,98 @@ const BASE_SEED_POSTING_VIEW_EVENTS: SeedPostingViewEventFixture[] = [
   },
 ];
 
-const BASE_SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture[] =
-  [
-    {
-      id: createFixtureId(4020, 1),
-      postingId: createFixtureId(2000, 1),
-      eventType: "posting_viewed",
-      payload: {
-        occurredAt: "2026-04-24T09:00:00.000Z",
-        viewerHash: "viewer-hash-1",
-        userId: createFixtureId(1000, 9),
-        ipAddressHash: "ip-hash-1",
-        userAgentHash: "ua-hash-1",
-        deviceType: "desktop",
-        source: "seed",
-      },
-      attempts: 0,
-      availableAt: "2026-04-24T09:00:00.000Z",
-      processedAt: "2026-04-24T09:01:00.000Z",
+const BASE_SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture[] = [
+  {
+    id: createFixtureId(4020, 1),
+    postingId: createFixtureId(2000, 1),
+    eventType: "posting_viewed",
+    payload: {
+      occurredAt: "2026-04-24T09:00:00.000Z",
+      viewerHash: "viewer-hash-1",
+      userId: createFixtureId(1000, 9),
+      ipAddressHash: "ip-hash-1",
+      userAgentHash: "ua-hash-1",
+      deviceType: "desktop",
+      source: "seed",
     },
-    {
-      id: createFixtureId(4020, 2),
-      postingId: createFixtureId(2000, 11),
-      eventType: "booking_requested",
-      payload: {
-        occurredAt: "2026-04-24T10:00:00.000Z",
-        estimatedTotal: 120,
-        bookingId: createFixtureId(3000, 5),
-        source: "seed",
-      },
-      attempts: 0,
-      availableAt: "2026-04-24T10:00:00.000Z",
-      processedAt: "2026-04-24T10:01:00.000Z",
+    attempts: 0,
+    availableAt: "2026-04-24T09:00:00.000Z",
+    processedAt: "2026-04-24T09:01:00.000Z",
+  },
+  {
+    id: createFixtureId(4020, 2),
+    postingId: createFixtureId(2000, 11),
+    eventType: "booking_requested",
+    payload: {
+      occurredAt: "2026-04-24T10:00:00.000Z",
+      estimatedTotal: 120,
+      bookingId: createFixtureId(3000, 5),
+      source: "seed",
     },
-    {
-      id: createFixtureId(4020, 3),
-      postingId: createFixtureId(2000, 16),
-      eventType: "renting_confirmed",
-      payload: {
-        occurredAt: "2026-04-24T11:00:00.000Z",
-        estimatedTotal: 495,
-        bookingId: createFixtureId(3000, 15),
-        source: "seed",
-      },
-      attempts: 0,
-      availableAt: "2026-04-24T11:00:00.000Z",
-      processedAt: "2026-04-24T11:01:00.000Z",
+    attempts: 0,
+    availableAt: "2026-04-24T10:00:00.000Z",
+    processedAt: "2026-04-24T10:01:00.000Z",
+  },
+  {
+    id: createFixtureId(4020, 3),
+    postingId: createFixtureId(2000, 16),
+    eventType: "renting_confirmed",
+    payload: {
+      occurredAt: "2026-04-24T11:00:00.000Z",
+      estimatedTotal: 495,
+      bookingId: createFixtureId(3000, 15),
+      source: "seed",
     },
-    {
-      id: createFixtureId(4020, 4),
-      postingId: createFixtureId(2000, 21),
-      eventType: "renting_confirmed",
-      payload: {
-        occurredAt: "2026-04-24T12:00:00.000Z",
-        estimatedTotal: 420,
-        paymentId: createFixtureId(3300, 16),
-        source: "seed",
-      },
-      attempts: 0,
-      availableAt: "2026-04-24T12:00:00.000Z",
-      processedAt: "2026-04-24T12:01:00.000Z",
+    attempts: 0,
+    availableAt: "2026-04-24T11:00:00.000Z",
+    processedAt: "2026-04-24T11:01:00.000Z",
+  },
+  {
+    id: createFixtureId(4020, 4),
+    postingId: createFixtureId(2000, 21),
+    eventType: "renting_confirmed",
+    payload: {
+      occurredAt: "2026-04-24T12:00:00.000Z",
+      estimatedTotal: 420,
+      paymentId: createFixtureId(3300, 16),
+      source: "seed",
     },
-    {
-      id: createFixtureId(4020, 5),
-      postingId: createFixtureId(2000, 23),
-      eventType: "posting_viewed",
-      payload: {
-        occurredAt: "2026-04-24T13:00:00.000Z",
-        viewerHash: "viewer-hash-7",
-        userId: createFixtureId(1000, 5),
-        ipAddressHash: "ip-hash-7",
-        userAgentHash: "ua-hash-7",
-        deviceType: "mobile",
-        source: "seed",
-      },
-      attempts: 1,
-      availableAt: "2026-04-24T13:00:00.000Z",
-      processedAt: "2026-04-24T13:05:00.000Z",
+    attempts: 0,
+    availableAt: "2026-04-24T12:00:00.000Z",
+    processedAt: "2026-04-24T12:01:00.000Z",
+  },
+  {
+    id: createFixtureId(4020, 5),
+    postingId: createFixtureId(2000, 23),
+    eventType: "posting_viewed",
+    payload: {
+      occurredAt: "2026-04-24T13:00:00.000Z",
+      viewerHash: "viewer-hash-7",
+      userId: createFixtureId(1000, 5),
+      ipAddressHash: "ip-hash-7",
+      userAgentHash: "ua-hash-7",
+      deviceType: "mobile",
+      source: "seed",
     },
-    {
-      id: createFixtureId(4020, 6),
-      postingId: createFixtureId(2000, 29),
-      eventType: "renting_confirmed",
-      payload: {
-        occurredAt: "2026-04-24T14:00:00.000Z",
-        estimatedTotal: 516,
-        paymentId: createFixtureId(3300, 26),
-        source: "seed",
-      },
-      attempts: 0,
-      availableAt: "2026-04-24T14:00:00.000Z",
-      processedAt: "2026-04-24T14:01:00.000Z",
+    attempts: 1,
+    availableAt: "2026-04-24T13:00:00.000Z",
+    processedAt: "2026-04-24T13:05:00.000Z",
+  },
+  {
+    id: createFixtureId(4020, 6),
+    postingId: createFixtureId(2000, 29),
+    eventType: "renting_confirmed",
+    payload: {
+      occurredAt: "2026-04-24T14:00:00.000Z",
+      estimatedTotal: 516,
+      paymentId: createFixtureId(3300, 26),
+      source: "seed",
     },
-  ];
+    attempts: 0,
+    availableAt: "2026-04-24T14:00:00.000Z",
+    processedAt: "2026-04-24T14:01:00.000Z",
+  },
+];
 
 const REVIEWER_EMAIL_PAIRS: Array<[string, string]> = [
   ["user9@rentify.local", "user10@rentify.local"],
@@ -368,7 +367,9 @@ function createFixtureTimestamp(
   hour: number,
   minute = 0,
 ): string {
-  return new Date(Date.UTC(2026, 4, 1 + dayOffset, hour, minute, 0)).toISOString();
+  return new Date(
+    Date.UTC(2026, 4, 1 + dayOffset, hour, minute, 0),
+  ).toISOString();
 }
 
 const ADDITIONAL_SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] =
@@ -480,4 +481,7 @@ export const SEED_POSTING_VIEW_EVENTS: SeedPostingViewEventFixture[] = [
 ];
 
 export const SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture[] =
-  [...BASE_SEED_ANALYTICS_OUTBOX_EVENTS, ...ADDITIONAL_SEED_ANALYTICS_OUTBOX_EVENTS];
+  [
+    ...BASE_SEED_ANALYTICS_OUTBOX_EVENTS,
+    ...ADDITIONAL_SEED_ANALYTICS_OUTBOX_EVENTS,
+  ];

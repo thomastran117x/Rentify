@@ -221,7 +221,9 @@ export function getExpandedOrganizationConfig(
   );
 
   if (!config) {
-    throw new Error(`Missing expanded seed organization config for ${ownerEmail}.`);
+    throw new Error(
+      `Missing expanded seed organization config for ${ownerEmail}.`,
+    );
   }
 
   return config;

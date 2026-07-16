@@ -1,11 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   startTransition,
   useEffect,
@@ -190,7 +186,8 @@ const WORKSPACE_TAB_DEFINITIONS: Array<{
   {
     id: "postings",
     label: "Postings",
-    description: "Listing previews and lifecycle actions for this organization.",
+    description:
+      "Listing previews and lifecycle actions for this organization.",
   },
   {
     id: "activity",
@@ -200,7 +197,8 @@ const WORKSPACE_TAB_DEFINITIONS: Array<{
   {
     id: "settings",
     label: "Settings",
-    description: "Organization profile and contact details for primary managers.",
+    description:
+      "Organization profile and contact details for primary managers.",
   },
 ];
 
@@ -542,12 +540,14 @@ function readStagedOrganizationLogoBlobNames(userId: string): string[] {
       return [];
     }
 
-    return [...new Set(
-      parsed
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => value.trim())
-        .filter(Boolean),
-    )];
+    return [
+      ...new Set(
+        parsed
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
   } catch {
     return [];
   }
@@ -561,11 +561,13 @@ function writeStagedOrganizationLogoBlobNames(
     return;
   }
 
-  const normalizedBlobNames = [...new Set(
-    Array.from(blobNames)
-      .map((blobName) => blobName.trim())
-      .filter(Boolean),
-  )];
+  const normalizedBlobNames = [
+    ...new Set(
+      Array.from(blobNames)
+        .map((blobName) => blobName.trim())
+        .filter(Boolean),
+    ),
+  ];
   const storageKey = getOrganizationLogoStorageKey(userId);
 
   if (normalizedBlobNames.length === 0) {
@@ -643,7 +645,11 @@ function OrganizationLogoField({
         )}
         <div className="flex flex-wrap items-center gap-2">
           <label className={`${secondaryButtonClass} cursor-pointer`}>
-            {uploading ? "Uploading..." : logoUrl ? "Replace logo" : "Upload logo"}
+            {uploading
+              ? "Uploading..."
+              : logoUrl
+                ? "Replace logo"
+                : "Upload logo"}
             <input
               type="file"
               accept="image/*"
@@ -982,7 +988,13 @@ function formatAddress(
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <div className="grid gap-1">
       <dt className={fieldLabelClass}>{label}</dt>
@@ -1042,7 +1054,9 @@ function OrganizationAboutCard({
             </DetailRow>
           ) : null}
           {organization.contactPhone ? (
-            <DetailRow label="Contact phone">{organization.contactPhone}</DetailRow>
+            <DetailRow label="Contact phone">
+              {organization.contactPhone}
+            </DetailRow>
           ) : null}
           {address ? <DetailRow label="Address">{address}</DetailRow> : null}
           {customFields.map(([key, value]) => (
@@ -1093,7 +1107,8 @@ function OrganizationBasicsCard({
             {membershipCount}
           </p>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Switch between organizations from the header without losing your place in this workspace.
+            Switch between organizations from the header without losing your
+            place in this workspace.
           </p>
         </SurfaceNote>
         <SurfaceNote>
@@ -1104,7 +1119,8 @@ function OrganizationBasicsCard({
             {formatDate(detail.organization.createdAt)}
           </p>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Keep brand details current so renters recognize this organization across listings and booking flows.
+            Keep brand details current so renters recognize this organization
+            across listings and booking flows.
           </p>
         </SurfaceNote>
       </div>
@@ -1232,7 +1248,8 @@ function OrganizationWorkspaceHeader({
                   {detail?.organization.name ?? "Organization"}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  Keep teammates, listings, and organization changes organized in clearer sections instead of one long management page.
+                  Keep teammates, listings, and organization changes organized
+                  in clearer sections instead of one long management page.
                 </p>
               </div>
             </div>
@@ -1281,7 +1298,8 @@ function OrganizationWorkspaceHeader({
               Create another organization
             </p>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              You will become its primary manager and it becomes your active workspace.
+              You will become its primary manager and it becomes your active
+              workspace.
             </p>
             <div className="mt-3">{createForm}</div>
           </div>
@@ -1298,18 +1316,26 @@ function OrganizationWorkspaceHeader({
         <StatTile
           eyebrow="Postings"
           value={postingsLoading ? "..." : postingsTotal}
-          detail={postingsTotal === 1 ? "1 listing" : `${postingsTotal} listings`}
+          detail={
+            postingsTotal === 1 ? "1 listing" : `${postingsTotal} listings`
+          }
           accent="from-emerald-500 to-teal-500"
         />
         <StatTile
           eyebrow="Pending invites"
           value={inviteCount}
-          detail={inviteCount === 0 ? "No invites awaiting" : "Awaiting acceptance"}
+          detail={
+            inviteCount === 0 ? "No invites awaiting" : "Awaiting acceptance"
+          }
           accent="from-amber-400 to-orange-500"
         />
         <StatTile
           eyebrow="Your access"
-          value={<span className="text-xl">{detail ? formatRole(detail.viewerRole) : "-"}</span>}
+          value={
+            <span className="text-xl">
+              {detail ? formatRole(detail.viewerRole) : "-"}
+            </span>
+          }
           detail={
             detail?.viewerRole === "operator"
               ? "Review-only workspace access"
@@ -1342,7 +1368,9 @@ function OrganizationTabsBar({
   const visibleTabs = WORKSPACE_TAB_DEFINITIONS.filter((tab) =>
     allowedTabs.includes(tab.id),
   );
-  const tabRefs = useRef<Partial<Record<WorkspaceTab, HTMLButtonElement | null>>>({});
+  const tabRefs = useRef<
+    Partial<Record<WorkspaceTab, HTMLButtonElement | null>>
+  >({});
 
   useEffect(() => {
     const activeTabNode = tabRefs.current[activeTab];
@@ -1530,7 +1558,8 @@ function OverviewPanel({
       tab: "activity",
       eyebrow: "Activity",
       title: "Review recent changes",
-      description: "Track manager actions, posting changes, and restorable versions without scrolling past every other surface.",
+      description:
+        "Track manager actions, posting changes, and restorable versions without scrolling past every other surface.",
       meta: `${auditCount} recent entries`,
     });
   }
@@ -1540,7 +1569,8 @@ function OverviewPanel({
       tab: "settings",
       eyebrow: "Settings",
       title: "Refresh organization details",
-      description: "Update branding, contact information, and renter-facing details from a dedicated editor.",
+      description:
+        "Update branding, contact information, and renter-facing details from a dedicated editor.",
       meta: "Primary manager controls",
     });
   }
@@ -1640,7 +1670,10 @@ function PostingsPanel({
               : "Managers haven't created any listings yet."}
           </p>
           {canManagePostings ? (
-            <Link href="/postings/create" className={`${primaryButtonClass} mt-4`}>
+            <Link
+              href="/postings/create"
+              className={`${primaryButtonClass} mt-4`}
+            >
               Create posting
             </Link>
           ) : null}
@@ -1660,7 +1693,8 @@ function PostingsPanel({
                   <PostingStatusBadge status={posting.status} />
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {formatPostingVariant(posting)} / {posting.location.city}, {posting.location.region}
+                  {formatPostingVariant(posting)} / {posting.location.city},{" "}
+                  {posting.location.region}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1669,7 +1703,9 @@ function PostingsPanel({
                       <button
                         key={lifecycle.id}
                         type="button"
-                        onClick={() => onPostingLifecycle(posting.id, lifecycle.id)}
+                        onClick={() =>
+                          onPostingLifecycle(posting.id, lifecycle.id)
+                        }
                         disabled={saving}
                         className={
                           lifecycle.tone === "primary"
@@ -1792,7 +1828,8 @@ function TeamPanel({
           </form>
         ) : (
           <SurfaceNote>
-            Operators can review pending invitations here, but only managers can send them.
+            Operators can review pending invitations here, but only managers can
+            send them.
           </SurfaceNote>
         )}
 
@@ -1816,7 +1853,8 @@ function TeamPanel({
                     <InviteStatusBadge status={invite.status} />
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Invited by {invite.invitedBy.username} / Expires {formatDate(invite.expiresAt)}
+                    Invited by {invite.invitedBy.username} / Expires{" "}
+                    {formatDate(invite.expiresAt)}
                   </p>
                 </div>
 
@@ -1984,11 +2022,16 @@ function ActivityPanel({
                     {entry.summary}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {entry.actor?.username ?? "System"} / {formatDateTime(entry.createdAt)}
+                    {entry.actor?.username ?? "System"} /{" "}
+                    {formatDateTime(entry.createdAt)}
                   </p>
                   {entry.changes.length > 0 ? (
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      Changed {entry.changes.slice(0, 4).map((change) => change.field).join(", ")}
+                      Changed{" "}
+                      {entry.changes
+                        .slice(0, 4)
+                        .map((change) => change.field)
+                        .join(", ")}
                     </p>
                   ) : null}
                 </div>
@@ -2018,7 +2061,8 @@ function ActivityPanel({
               Track performance in the owner dashboard
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Postings are managed here per organization. Performance analytics and payout ownership still live in the owner dashboard for now.
+              Postings are managed here per organization. Performance analytics
+              and payout ownership still live in the owner dashboard for now.
             </p>
           </div>
           <Link href="/dashboard" className={`${primaryButtonClass} shrink-0`}>
@@ -2110,12 +2154,10 @@ export function OrganizationWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
   const [newOrganizationName, setNewOrganizationName] = useState("");
-  const [createProfile, setCreateProfile] = useState<ProfileFormValue>(
-    emptyProfileForm(),
-  );
-  const [profileForm, setProfileForm] = useState<ProfileFormValue>(
-    emptyProfileForm(),
-  );
+  const [createProfile, setCreateProfile] =
+    useState<ProfileFormValue>(emptyProfileForm());
+  const [profileForm, setProfileForm] =
+    useState<ProfileFormValue>(emptyProfileForm());
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] =
@@ -2241,7 +2283,9 @@ export function OrganizationWorkspace() {
     const params = new URLSearchParams(searchParamsString);
     params.set("tab", nextTab);
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   }
 
   useEffect(() => {
@@ -2250,7 +2294,9 @@ export function OrganizationWorkspace() {
       return;
     }
 
-    const stagedBlobNames = readStagedOrganizationLogoBlobNames(session.user.id);
+    const stagedBlobNames = readStagedOrganizationLogoBlobNames(
+      session.user.id,
+    );
     stagedLogoBlobNamesRef.current = new Set(stagedBlobNames);
 
     if (stagedBlobNames.length === 0) {
@@ -2428,7 +2474,9 @@ export function OrganizationWorkspace() {
       setAuditError(null);
 
       try {
-        const result = await organizationsApi.listAudit(selectedOrganizationId!);
+        const result = await organizationsApi.listAudit(
+          selectedOrganizationId!,
+        );
 
         if (!active) {
           return;
@@ -2672,7 +2720,11 @@ export function OrganizationWorkspace() {
     setMessage(null);
 
     try {
-      await organizationsApi.updateMemberRole(detail.organization.id, memberId, role);
+      await organizationsApi.updateMemberRole(
+        detail.organization.id,
+        memberId,
+        role,
+      );
       await refresh(detail.organization.id);
       setMessage("Member role updated.");
     } catch (nextError) {
@@ -2904,7 +2956,9 @@ export function OrganizationWorkspace() {
         selectedOrganizationId={selectedOrganizationId}
         saving={saving}
         showCreatePanel={showCreatePanel}
-        onSelectOrganization={(organizationId) => void handleSelectOrganization(organizationId)}
+        onSelectOrganization={(organizationId) =>
+          void handleSelectOrganization(organizationId)
+        }
         onToggleCreatePanel={() => setShowCreatePanel((value) => !value)}
         createForm={
           <OrganizationCreateForm
@@ -2926,7 +2980,9 @@ export function OrganizationWorkspace() {
         postingsLoading={postingsLoading}
       />
 
-      {error ? <FormErrorMessage title={errorTitle ?? undefined} message={error} /> : null}
+      {error ? (
+        <FormErrorMessage title={errorTitle ?? undefined} message={error} />
+      ) : null}
 
       {message ? (
         <div
@@ -3028,14 +3084,3 @@ export function OrganizationWorkspace() {
     </OrganizationPageShell>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
