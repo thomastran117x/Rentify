@@ -222,6 +222,38 @@ describe("BlobService", () => {
     ).rejects.toThrow(BadRequestError);
   });
 
+  it("returns ownership checks as booleans instead of throwing", () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    expect(
+      service.isBlobOwnedByUser("user-1", "organizations/user-1/logo.png"),
+    ).toBe(true);
+    expect(
+      service.isBlobOwnedByUser("user-1", "organizations/user-2/logo.png"),
+    ).toBe(false);
+    expect(service.isBlobOwnedByUser("user-1", "../escape.txt")).toBe(false);
+  });
+
+  it("treats missing local blob deletes as no-ops and unmanaged urls as false", async () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    await expect(service.deleteBlob("missing/file.txt")).resolves.toBeUndefined();
+    expect(
+      service.isManagedBlobUrl(
+        "https://example.test/blob.png",
+        "organizations/user-1/logo.png",
+      ),
+    ).toBe(false);
+  });
+
   it("requires complete Azure configuration and validates SAS ttl configuration", () => {
     process.env.NODE_ENV = "test";
     process.env.AZURE_STORAGE_CONNECTION_STRING =
