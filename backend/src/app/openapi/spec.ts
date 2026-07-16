@@ -103,7 +103,7 @@ const organizationWorkspaceExample = {
   memberships: [organizationMembershipSummaryExample],
   activeOrganization: organizationSummaryExample,
 };
-const organizationDetailExample = {
+const organizationWorkspaceDetailExample = {
   organization: {
     id: "org-1",
     name: "Northwind",
@@ -126,6 +126,41 @@ const organizationDetailExample = {
     organizationMemberExample,
   ],
   invitations: [organizationInviteExample],
+};
+const publicOrganizationExample = {
+  id: "org-1",
+  name: "Northwind",
+  description: "Boutique rental studio for coastal getaways.",
+  websiteUrl: "https://northwind.example.com",
+  addressLine1: "500 Harbor Way",
+  addressLine2: null,
+  city: "Santa Cruz",
+  region: "CA",
+  country: "US",
+  postalCode: "95060",
+  logoUrl: "https://cdn.rentify.local/logos/org-1.png",
+  customFields: { "Response time": "Within 24 hours" },
+  createdAt: "2026-05-01T00:00:00.000Z",
+  updatedAt: "2026-05-28T10:00:00.000Z",
+  publishedPostingCount: 2,
+};
+const publicOrganizationListExample = {
+  organizations: [publicOrganizationExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+  query: "north",
+};
+const publicOrganizationDetailExample = {
+  organization: publicOrganizationExample,
+  stats: {
+    publishedPostingCount: 2,
+  },
 };
 const organizationInvitePreviewExample = {
   invitation: {
@@ -1893,19 +1928,22 @@ function buildOperations(): OperationDefinition[] {
         patAllowed: false,
       },
       parameters: [
-        queryParam("page", "Page number.", false, { type: "integer", minimum: 1 }, 1),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number.",
+          1,
+        ),
         queryParam(
           "pageSize",
+          { type: "integer", minimum: 1, maximum: 100, default: 20 },
           "Number of organizations to return per page.",
-          false,
-          { type: "integer", minimum: 1, maximum: 100 },
           20,
         ),
         queryParam(
           "q",
-          "Optional case-insensitive organization name search query.",
-          false,
           { type: "string", maxLength: 100 },
+          "Optional case-insensitive organization name search query.",
           "north",
         ),
       ],
@@ -7424,7 +7462,3 @@ export function buildOpenApiJson(): string {
     "\n",
   );
 }
-
-
-
-

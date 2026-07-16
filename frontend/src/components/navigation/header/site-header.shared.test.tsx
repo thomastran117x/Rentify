@@ -127,4 +127,3 @@ describe("site header shared helpers", () => {
     ).toHaveAttribute("src", "https://example.com/jane.jpg");
   });
 });
-

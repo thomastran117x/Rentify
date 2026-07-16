@@ -252,4 +252,3 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
     </main>
   );
 }
-

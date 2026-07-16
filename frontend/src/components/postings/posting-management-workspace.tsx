@@ -2545,4 +2545,3 @@ export function PostingManagementWorkspace() {
     </PageShell>
   );
 }
-

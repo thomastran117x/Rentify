@@ -234,4 +234,3 @@ export function UserAvatar({ name, imageUrl }: UserAvatarProps) {
     </div>
   );
 }
-

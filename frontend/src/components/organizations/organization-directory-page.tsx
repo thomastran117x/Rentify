@@ -305,7 +305,7 @@ export function OrganizationDirectoryPage() {
             </div>
           )}
 
-          {pagination && organizations.length > 0 ? (
+          {!loading && pagination && organizations.length > 0 ? (
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Page {pagination.page} of {pagination.totalPages}

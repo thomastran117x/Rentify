@@ -285,14 +285,15 @@ export class OrganizationsRepository extends BaseRepository {
   }
 
   private createLikePattern(query: string): string {
-    return `%${query.trim().toLowerCase()}%`;
+    const escaped = query.trim().toLowerCase().replace(/[\\%_]/g, "\\$&");
+    return `%${escaped}%`;
   }
 
   async listPublicOrganizations(
     input: ListPublicOrganizationsInput,
   ): Promise<PublicOrganizationListResult> {
     const whereSql = input.query
-      ? Prisma.sql`WHERE LOWER(o.name) LIKE ${this.createLikePattern(input.query)}`
+      ? Prisma.sql`WHERE LOWER(o.name) LIKE ${this.createLikePattern(input.query)} ESCAPE '\\'`
       : Prisma.empty;
     const offset = (input.page - 1) * input.pageSize;
 
@@ -1199,4 +1200,3 @@ export class OrganizationsRepository extends BaseRepository {
     };
   }
 }
-

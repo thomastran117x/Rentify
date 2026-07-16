@@ -636,4 +636,3 @@ export function PostingsDashboard() {
     </PageShell>
   );
 }
-
