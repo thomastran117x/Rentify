@@ -115,6 +115,7 @@ function createService(overrides?: {
   auditService?: Record<string, jest.Mock>;
   postingsRepository?: Record<string, jest.Mock>;
   seasonalPricingRepository?: Record<string, jest.Mock>;
+  blobService?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -217,6 +218,11 @@ function createService(overrides?: {
     restore: jest.fn(),
     ...(overrides?.seasonalPricingRepository ?? {}),
   };
+  const blobService = {
+    isManagedBlobUrl: jest.fn(() => true),
+    deleteBlob: jest.fn(async () => undefined),
+    ...(overrides?.blobService ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
@@ -226,6 +232,7 @@ function createService(overrides?: {
       auditService as never,
       postingsRepository as never,
       seasonalPricingRepository as never,
+      blobService as never,
     ),
     repository,
     authRepository,
@@ -233,6 +240,7 @@ function createService(overrides?: {
     auditService,
     postingsRepository,
     seasonalPricingRepository,
+    blobService,
   };
 }
 
@@ -767,6 +775,82 @@ describe("OrganizationsService", () => {
           { field: "city", before: null, after: "Seattle" },
         ]),
       }),
+    );
+  });
+
+  it("deletes the previous managed logo when a new organization logo is saved", async () => {
+    const previousLogoBlobName = "organizations/user-9/logo-old.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const nextLogoBlobName = "organizations/user-1/logo-new.png";
+    const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
+    const existingOrganization = {
+      ...createMembership().organization,
+      logoUrl: previousLogoUrl,
+      logoBlobName: previousLogoBlobName,
+    };
+    const { service, blobService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            organization: existingOrganization,
+          }),
+        ),
+        updateOrganization: jest.fn(async () => ({
+          id: "org-1",
+          name: "Northwind",
+          role: "primary_manager",
+          ...NULL_ORGANIZATION_PROFILE,
+          logoUrl: nextLogoUrl,
+          logoBlobName: nextLogoBlobName,
+        })),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      logoUrl: nextLogoUrl,
+      logoBlobName: nextLogoBlobName,
+    });
+
+    expect(blobService.isManagedBlobUrl).toHaveBeenCalledWith(
+      previousLogoUrl,
+      previousLogoBlobName,
+    );
+    expect(blobService.deleteBlob).toHaveBeenCalledWith(
+      previousLogoBlobName,
+    );
+  });
+
+  it("deletes the previous managed logo when the organization logo is cleared", async () => {
+    const previousLogoBlobName = "organizations/user-9/logo-old.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const existingOrganization = {
+      ...createMembership().organization,
+      logoUrl: previousLogoUrl,
+      logoBlobName: previousLogoBlobName,
+    };
+    const { service, blobService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            organization: existingOrganization,
+          }),
+        ),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      logoUrl: null,
+      logoBlobName: null,
+    });
+
+    expect(blobService.deleteBlob).toHaveBeenCalledWith(
+      previousLogoBlobName,
     );
   });
 

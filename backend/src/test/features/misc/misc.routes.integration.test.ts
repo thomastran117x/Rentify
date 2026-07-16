@@ -39,6 +39,7 @@ function createApp() {
       contentType: "text/plain",
       body: Buffer.from("hello"),
     })),
+    deleteBlobForUser: jest.fn(async () => undefined),
   };
 
   const profileService = {
@@ -177,10 +178,20 @@ describe("Misc integration", () => {
     const getLocalResponse = await app.request(
       `http://rent.test${buildApiPath("/blob/file?blobName=postings/photo.jpg")}`,
     );
+    const deleteResponse = await app.request(
+      `http://rent.test${buildApiPath("/blob?blobName=organizations/user-1/logo.png")}`,
+      {
+        method: "DELETE",
+        headers: {
+          authorization: "Bearer user-token",
+        },
+      },
+    );
 
     expect(createUrlResponse.status).toBe(201);
     expect(uploadLocalResponse.status).toBe(201);
     expect(getLocalResponse.status).toBe(200);
+    expect(deleteResponse.status).toBe(200);
     expect(blobService.createUploadUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
@@ -197,6 +208,10 @@ describe("Misc integration", () => {
     );
     expect(blobService.readLocalBlob).toHaveBeenCalledWith(
       "postings/photo.jpg",
+    );
+    expect(blobService.deleteBlobForUser).toHaveBeenCalledWith(
+      "user-1",
+      "organizations/user-1/logo.png",
     );
   });
 

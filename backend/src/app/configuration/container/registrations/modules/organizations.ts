@@ -52,6 +52,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.organizationAuditService,
         containerTokens.postingsRepository,
         containerTokens.seasonalPricingRepository,
+        containerTokens.blobService,
       ],
       resolve: ({ resolve }) =>
         new OrganizationsService(
@@ -61,6 +62,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.organizationAuditService),
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.seasonalPricingRepository),
+          resolve(containerTokens.blobService),
         ),
     });
     container.register({

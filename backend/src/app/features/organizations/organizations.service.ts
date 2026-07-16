@@ -5,6 +5,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import { AuthRepository } from "@/features/auth/auth.repository";
+import { BlobService } from "@/features/blob/blob.service";
 import { EmailService } from "@/features/email/email.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
@@ -67,6 +68,7 @@ export class OrganizationsService {
     private readonly organizationAuditService: OrganizationAuditService,
     private readonly postingsRepository: PostingsRepository,
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
+    private readonly blobService: BlobService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -171,6 +173,7 @@ export class OrganizationsService {
             ...this.readProfileFromSnapshot(snapshot),
           },
         );
+        await this.cleanupReplacedOrganizationLogo(snapshot, afterSnapshot);
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
         break;
@@ -352,6 +355,7 @@ export class OrganizationsService {
       ...beforeSnapshot,
       ...updated,
     };
+    await this.cleanupReplacedOrganizationLogo(beforeSnapshot, afterSnapshot);
 
     const nameChanged = beforeSnapshot.name !== updated.name;
     const summary = nameChanged
@@ -974,6 +978,43 @@ export class OrganizationsService {
         action: input.action,
         resourceType: input.resourceType,
         resourceId: input.resourceId ?? undefined,
+        error,
+      });
+    }
+  }
+
+  private async cleanupReplacedOrganizationLogo(
+    beforeSnapshot: unknown,
+    afterSnapshot: unknown,
+  ): Promise<void> {
+    const beforeRecord = toAuditSnapshotRecord(beforeSnapshot);
+    const afterRecord = toAuditSnapshotRecord(afterSnapshot);
+    const previousBlobName =
+      typeof beforeRecord.logoBlobName === "string"
+        ? beforeRecord.logoBlobName
+        : null;
+    const previousBlobUrl =
+      typeof beforeRecord.logoUrl === "string" ? beforeRecord.logoUrl : null;
+    const nextBlobName =
+      typeof afterRecord.logoBlobName === "string"
+        ? afterRecord.logoBlobName
+        : null;
+
+    if (
+      !previousBlobName ||
+      previousBlobName === nextBlobName ||
+      !previousBlobUrl ||
+      !this.blobService.isManagedBlobUrl(previousBlobUrl, previousBlobName)
+    ) {
+      return;
+    }
+
+    try {
+      await this.blobService.deleteBlob(previousBlobName);
+    } catch (error) {
+      this.logger.error("Failed to delete replaced organization logo blob.", {
+        previousBlobName,
+        nextBlobName: nextBlobName ?? undefined,
         error,
       });
     }

@@ -15,6 +15,9 @@ const {
   getByIdMock,
   setActiveMock,
   createInviteMock,
+  createUploadUrlMock,
+  deleteBlobMock,
+  deleteBlobKeepaliveMock,
   usePathnameMock,
   useSearchParamsMock,
 } = vi.hoisted(() => ({
@@ -23,6 +26,9 @@ const {
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createInviteMock: vi.fn(),
+  createUploadUrlMock: vi.fn(),
+  deleteBlobMock: vi.fn(),
+  deleteBlobKeepaliveMock: vi.fn(),
   usePathnameMock: vi.fn(),
   useSearchParamsMock: vi.fn(),
 }));
@@ -41,6 +47,14 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
+}));
+
+vi.mock("@/lib/blob/api", () => ({
+  blobApi: {
+    createUploadUrl: createUploadUrlMock,
+    deleteBlob: deleteBlobMock,
+    deleteBlobKeepalive: deleteBlobKeepaliveMock,
+  },
 }));
 
 vi.mock("@/lib/organizations/api", () => ({
@@ -161,6 +175,21 @@ describe("OrganizationWorkspace toast integration", () => {
         role: "primary_manager",
       },
     });
+    createUploadUrlMock.mockResolvedValue({
+      method: "PUT",
+      uploadUrl: "https://upload.test/logo.png",
+      expiresAt: "2026-06-30T00:00:00.000Z",
+      blobName: "organizations/user-1/logo.png",
+      blobUrl: "https://cdn.test/organizations/user-1/logo.png",
+      container: "rentify",
+      headers: {
+        "x-ms-blob-type": "BlockBlob",
+        "Content-Type": "image/png",
+      },
+    });
+    deleteBlobMock.mockResolvedValue(undefined);
+    deleteBlobKeepaliveMock.mockImplementation(() => undefined);
+    window.sessionStorage.clear();
   });
 
   it("renders a toast when sending an invite fails from the Team tab", async () => {

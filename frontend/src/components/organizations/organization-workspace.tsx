@@ -515,6 +515,70 @@ function profileFormToInput(value: ProfileFormValue): OrganizationProfileInput {
   };
 }
 
+const ORGANIZATION_LOGO_STORAGE_PREFIX =
+  "organization-workspace:staged-logo-blobs";
+
+function getOrganizationLogoStorageKey(userId: string): string {
+  return `${ORGANIZATION_LOGO_STORAGE_PREFIX}:${userId}`;
+}
+
+function readStagedOrganizationLogoBlobNames(userId: string): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(
+      getOrganizationLogoStorageKey(userId),
+    );
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return [...new Set(
+      parsed
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    )];
+  } catch {
+    return [];
+  }
+}
+
+function writeStagedOrganizationLogoBlobNames(
+  userId: string,
+  blobNames: Iterable<string>,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalizedBlobNames = [...new Set(
+    Array.from(blobNames)
+      .map((blobName) => blobName.trim())
+      .filter(Boolean),
+  )];
+  const storageKey = getOrganizationLogoStorageKey(userId);
+
+  if (normalizedBlobNames.length === 0) {
+    window.sessionStorage.removeItem(storageKey);
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    storageKey,
+    JSON.stringify(normalizedBlobNames),
+  );
+}
+
 const fieldLabelClass =
   "text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400";
 
@@ -2065,6 +2129,7 @@ export function OrganizationWorkspace() {
   const [auditError, setAuditError] = useState<string | null>(null);
   const [restoringAuditId, setRestoringAuditId] = useState<string | null>(null);
   const [pendingTab, setPendingTab] = useState<WorkspaceTab | null>(null);
+  const stagedLogoBlobNamesRef = useRef<Set<string>>(new Set());
 
   function showWorkspaceToast(title: string, body: string) {
     showError({
@@ -2086,12 +2151,142 @@ export function OrganizationWorkspace() {
     });
   }
 
+  function syncStagedLogoBlobStorage() {
+    if (!session?.user.id) {
+      return;
+    }
+
+    writeStagedOrganizationLogoBlobNames(
+      session.user.id,
+      stagedLogoBlobNamesRef.current,
+    );
+  }
+
+  function rememberStagedLogoBlob(blobName: string) {
+    const normalizedBlobName = blobName.trim();
+
+    if (!normalizedBlobName) {
+      return;
+    }
+
+    stagedLogoBlobNamesRef.current.add(normalizedBlobName);
+    syncStagedLogoBlobStorage();
+  }
+
+  function forgetStagedLogoBlob(blobName: string) {
+    const normalizedBlobName = blobName.trim();
+
+    if (!normalizedBlobName) {
+      return;
+    }
+
+    stagedLogoBlobNamesRef.current.delete(normalizedBlobName);
+    syncStagedLogoBlobStorage();
+  }
+
+  function isStagedLogoBlob(blobName: string) {
+    const normalizedBlobName = blobName.trim();
+    return (
+      normalizedBlobName.length > 0 &&
+      stagedLogoBlobNamesRef.current.has(normalizedBlobName)
+    );
+  }
+
+  async function deleteStagedLogoBlob(blobName: string) {
+    const normalizedBlobName = blobName.trim();
+
+    if (!normalizedBlobName) {
+      return;
+    }
+
+    try {
+      await blobApi.deleteBlob(normalizedBlobName);
+      forgetStagedLogoBlob(normalizedBlobName);
+    } catch {
+      syncStagedLogoBlobStorage();
+    }
+  }
+
+  function reconcileStagedLogoBlobChange(
+    previousValue: ProfileFormValue,
+    nextValue: ProfileFormValue,
+  ) {
+    const previousBlobName = previousValue.logoBlobName.trim();
+    const nextBlobName = nextValue.logoBlobName.trim();
+
+    if (nextBlobName && nextBlobName !== previousBlobName) {
+      rememberStagedLogoBlob(nextBlobName);
+    }
+
+    if (
+      previousBlobName &&
+      previousBlobName !== nextBlobName &&
+      isStagedLogoBlob(previousBlobName)
+    ) {
+      void deleteStagedLogoBlob(previousBlobName);
+    }
+  }
+
+  function handleCreateProfileChange(nextValue: ProfileFormValue) {
+    reconcileStagedLogoBlobChange(createProfile, nextValue);
+    setCreateProfile(nextValue);
+  }
+
+  function handleProfileFormChange(nextValue: ProfileFormValue) {
+    reconcileStagedLogoBlobChange(profileForm, nextValue);
+    setProfileForm(nextValue);
+  }
+
   function replaceTab(nextTab: WorkspaceTab) {
     const params = new URLSearchParams(searchParamsString);
     params.set("tab", nextTab);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
+
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user.id) {
+      stagedLogoBlobNamesRef.current.clear();
+      return;
+    }
+
+    const stagedBlobNames = readStagedOrganizationLogoBlobNames(session.user.id);
+    stagedLogoBlobNamesRef.current = new Set(stagedBlobNames);
+
+    if (stagedBlobNames.length === 0) {
+      return;
+    }
+
+    void Promise.allSettled(
+      stagedBlobNames.map(async (blobName) => {
+        try {
+          await blobApi.deleteBlob(blobName);
+          forgetStagedLogoBlob(blobName);
+        } catch {
+          syncStagedLogoBlobStorage();
+        }
+      }),
+    );
+  }, [session?.user.id, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !session) {
+      return;
+    }
+
+    function flushStagedLogoBlobs() {
+      for (const blobName of stagedLogoBlobNamesRef.current) {
+        blobApi.deleteBlobKeepalive(blobName);
+      }
+    }
+
+    window.addEventListener("pagehide", flushStagedLogoBlobs);
+
+    return () => {
+      window.removeEventListener("pagehide", flushStagedLogoBlobs);
+      flushStagedLogoBlobs();
+    };
+  }, [session, status]);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -2298,6 +2493,8 @@ export function OrganizationWorkspace() {
       return;
     }
 
+    const submittedLogoBlobName = createProfile.logoBlobName.trim();
+
     setSaving(true);
     setErrorTitle(null);
     setError(null);
@@ -2308,6 +2505,8 @@ export function OrganizationWorkspace() {
         name: trimmedName,
         ...profileFormToInput(createProfile),
       });
+
+      forgetStagedLogoBlob(submittedLogoBlobName);
 
       const refreshedSession = await authApi.refresh();
 
@@ -2370,6 +2569,8 @@ export function OrganizationWorkspace() {
       return;
     }
 
+    const submittedLogoBlobName = profileForm.logoBlobName.trim();
+
     setSaving(true);
     setErrorTitle(null);
     setError(null);
@@ -2380,6 +2581,7 @@ export function OrganizationWorkspace() {
         name: organizationName,
         ...profileFormToInput(profileForm),
       });
+      forgetStagedLogoBlob(submittedLogoBlobName);
       await refresh(detail.organization.id);
       setMessage("Organization profile updated.");
     } catch (nextError) {
@@ -2674,7 +2876,7 @@ export function OrganizationWorkspace() {
         errorTitle={errorTitle}
         error={error}
         profile={createProfile}
-        onProfileChange={setCreateProfile}
+        onProfileChange={handleCreateProfileChange}
         onProfileError={(nextMessage) =>
           showWorkspaceToast("Couldn't upload logo", nextMessage)
         }
@@ -2712,7 +2914,7 @@ export function OrganizationWorkspace() {
             saving={saving}
             submitLabel="Create organization"
             profile={createProfile}
-            onProfileChange={setCreateProfile}
+            onProfileChange={handleCreateProfileChange}
             onProfileError={(nextMessage) =>
               showWorkspaceToast("Couldn't upload logo", nextMessage)
             }
@@ -2813,7 +3015,7 @@ export function OrganizationWorkspace() {
                 profileForm={profileForm}
                 saving={saving}
                 onOrganizationNameChange={setOrganizationName}
-                onProfileChange={setProfileForm}
+                onProfileChange={handleProfileFormChange}
                 onProfileError={(nextMessage) =>
                   showWorkspaceToast("Couldn't upload logo", nextMessage)
                 }

@@ -81,3 +81,11 @@ Useful runtime URLs:
 ## Seeded Data for Testing
 
 The local environment includes realistic seeded accounts and marketplace data, which makes smoke testing much faster. See [local-development.md](./local-development.md) for the account list and reseeding commands.
+
+Most browser sign-in flows use the seeded usernames rather than the email addresses. These are the quickest accounts to reach the organization workspace states:
+
+- `owner-one` / `owner1@rentify.local` / `Rentify123!` for owner and primary-manager flows
+- `renter-one` / `user1@rentify.local` / `Rentify123!` for manager flows
+- `renter-two` / `user2@rentify.local` / `Rentify123!` for operator and read-only role checks
+
+For the full fixture list and reseeding commands, use [local-development.md](./local-development.md).

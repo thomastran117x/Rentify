@@ -29,6 +29,9 @@ const {
   revokeInviteMock,
   updateMemberRoleMock,
   removeMemberMock,
+  createUploadUrlMock,
+  deleteBlobMock,
+  deleteBlobKeepaliveMock,
   usePathnameMock,
   useSearchParamsMock,
 } = vi.hoisted(() => ({
@@ -52,6 +55,9 @@ const {
   revokeInviteMock: vi.fn(),
   updateMemberRoleMock: vi.fn(),
   removeMemberMock: vi.fn(),
+  createUploadUrlMock: vi.fn(),
+  deleteBlobMock: vi.fn(),
+  deleteBlobKeepaliveMock: vi.fn(),
   usePathnameMock: vi.fn(),
   useSearchParamsMock: vi.fn(),
 }));
@@ -93,6 +99,14 @@ vi.mock("@/components/errors", () => ({
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
     refresh: refreshMock,
+  },
+}));
+
+vi.mock("@/lib/blob/api", () => ({
+  blobApi: {
+    createUploadUrl: createUploadUrlMock,
+    deleteBlob: deleteBlobMock,
+    deleteBlobKeepalive: deleteBlobKeepaliveMock,
   },
 }));
 
@@ -155,6 +169,21 @@ function buildSession(role: "primary_manager" | "manager" | "operator" = "primar
         name: "Northwind",
         role,
       },
+    },
+  };
+}
+
+function buildBlobTarget(blobName: string) {
+  return {
+    method: "PUT" as const,
+    uploadUrl: `https://upload.test/${blobName}`,
+    expiresAt: "2026-06-30T00:00:00.000Z",
+    blobName,
+    blobUrl: `https://cdn.test/${blobName}`,
+    container: "rentify",
+    headers: {
+      "x-ms-blob-type": "BlockBlob" as const,
+      "Content-Type": "image/png",
     },
   };
 }
@@ -275,6 +304,16 @@ describe("OrganizationWorkspace", () => {
       restored: true,
       auditLog: { id: "audit-restore" },
     });
+    createUploadUrlMock.mockResolvedValue(
+      buildBlobTarget("organizations/user-1/logo-default.png"),
+    );
+    deleteBlobMock.mockResolvedValue(undefined);
+    deleteBlobKeepaliveMock.mockImplementation(() => undefined);
+    window.sessionStorage.clear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 201 })) as unknown as typeof fetch,
+    );
   });
 
   it("redirects anonymous visitors to login", async () => {
@@ -446,6 +485,91 @@ describe("OrganizationWorkspace", () => {
     await waitFor(() => {
       expect(restoreAuditEntryMock).toHaveBeenCalledWith("org-1", "audit-1");
     });
+  });
+
+  it("cleans up an earlier staged logo when it is replaced before saving", async () => {
+    const user = userEvent.setup();
+    createUploadUrlMock
+      .mockResolvedValueOnce(
+        buildBlobTarget("organizations/user-1/logo-first.png"),
+      )
+      .mockResolvedValueOnce(
+        buildBlobTarget("organizations/user-1/logo-second.png"),
+      );
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Settings/i }));
+    const input = screen.getByLabelText("Upload organization logo");
+    await user.upload(
+      input,
+      new File(["first"], "first.png", { type: "image/png" }),
+    );
+    await user.upload(
+      input,
+      new File(["second"], "second.png", { type: "image/png" }),
+    );
+
+    await waitFor(() => {
+      expect(deleteBlobMock).toHaveBeenCalledWith(
+        "organizations/user-1/logo-first.png",
+      );
+    });
+  });
+
+  it("retries staged logo cleanup on the next page load", async () => {
+    window.sessionStorage.setItem(
+      "organization-workspace:staged-logo-blobs:user-1",
+      JSON.stringify(["organizations/user-1/logo-stale.png"]),
+    );
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+
+    await waitFor(() => {
+      expect(deleteBlobMock).toHaveBeenCalledWith(
+        "organizations/user-1/logo-stale.png",
+      );
+    });
+    await waitFor(() => {
+      expect(
+        window.sessionStorage.getItem(
+          "organization-workspace:staged-logo-blobs:user-1",
+        ),
+      ).toBeNull();
+    });
+  });
+
+  it("attempts keepalive cleanup when a staged logo is abandoned", async () => {
+    const user = userEvent.setup();
+    createUploadUrlMock.mockResolvedValueOnce(
+      buildBlobTarget("organizations/user-1/logo-pending.png"),
+    );
+
+    const { unmount } = render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Settings/i }));
+    await user.upload(
+      screen.getByLabelText("Upload organization logo"),
+      new File(["pending"], "pending.png", { type: "image/png" }),
+    );
+
+    await waitFor(() => {
+      expect(createUploadUrlMock).toHaveBeenCalledWith({
+        filename: "pending.png",
+        contentType: "image/png",
+        scope: "organizations",
+      });
+    });
+
+    unmount();
+
+    expect(deleteBlobKeepaliveMock).toHaveBeenCalledWith(
+      "organizations/user-1/logo-pending.png",
+    );
   });
 
   it("saves organization profile fields from the Settings tab", async () => {

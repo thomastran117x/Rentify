@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   BlobSASPermissions,
@@ -112,6 +112,23 @@ export class BlobService {
   }> {
     this.requireLocalConfiguration();
     return this.readLocalBlobData(blobName);
+  }
+
+  async deleteBlobForUser(userId: string, blobName: string): Promise<void> {
+    const normalizedBlobName = this.normalizeBlobName(blobName);
+    this.assertUserOwnsBlob(userId, normalizedBlobName);
+    await this.deleteBlob(normalizedBlobName);
+  }
+
+  async deleteBlob(blobName: string): Promise<void> {
+    const normalizedBlobName = this.normalizeBlobName(blobName);
+
+    if (this.config) {
+      await this.createBlobClient(normalizedBlobName).deleteIfExists();
+      return;
+    }
+
+    await this.deleteLocalBlob(normalizedBlobName);
   }
 
   async downloadBlob(blobName: string): Promise<{
@@ -509,7 +526,7 @@ export class BlobService {
     }
   }
 
-  private normalizeLocalBlobName(blobName: string): string {
+  private normalizeBlobName(blobName: string): string {
     const normalized = path.posix
       .normalize(blobName.trim())
       .replace(/^\/+/, "");
@@ -525,13 +542,21 @@ export class BlobService {
     return normalized;
   }
 
+  private assertUserOwnsBlob(userId: string, blobName: string): void {
+    const segments = blobName.split("/");
+
+    if (segments.length < 3 || segments[1] !== userId) {
+      throw new BadRequestError("Blob name is invalid.");
+    }
+  }
+
   private async writeLocalBlob(
     blobName: string,
     body: Buffer,
     contentType: string,
   ): Promise<void> {
     const localConfig = this.requireLocalConfiguration();
-    const normalizedBlobName = this.normalizeLocalBlobName(blobName);
+    const normalizedBlobName = this.normalizeBlobName(blobName);
     const blobPath = path.join(
       localConfig.storageRoot,
       normalizedBlobName.replace(/\//g, path.sep),
@@ -556,7 +581,7 @@ export class BlobService {
     contentType: string;
   }> {
     const localConfig = this.requireLocalConfiguration();
-    const normalizedBlobName = this.normalizeLocalBlobName(blobName);
+    const normalizedBlobName = this.normalizeBlobName(blobName);
     const blobPath = path.join(
       localConfig.storageRoot,
       normalizedBlobName.replace(/\//g, path.sep),
@@ -591,6 +616,32 @@ export class BlobService {
       }
 
       throw error;
+    }
+  }
+
+  private async deleteLocalBlob(blobName: string): Promise<void> {
+    const localConfig = this.requireLocalConfiguration();
+    const blobPath = path.join(
+      localConfig.storageRoot,
+      blobName.replace(/\//g, path.sep),
+    );
+    const metadataPath = `${blobPath}.meta.json`;
+
+    const results = await Promise.allSettled([
+      unlink(blobPath),
+      unlink(metadataPath),
+    ]);
+    const unexpectedFailure = results.find(
+      (result) =>
+        result.status === "rejected" &&
+        (!result.reason ||
+          typeof result.reason !== "object" ||
+          !("code" in result.reason) ||
+          result.reason.code !== "ENOENT"),
+    );
+
+    if (unexpectedFailure?.status === "rejected") {
+      throw unexpectedFailure.reason;
     }
   }
 }

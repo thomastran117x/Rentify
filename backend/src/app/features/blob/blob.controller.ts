@@ -1,11 +1,12 @@
 import type { Context } from "hono";
 import BadRequestError from "@/errors/http/bad-request.error";
 import type { AppBindings } from "@/configuration/http/bindings";
-import { created } from "@/configuration/http/responses";
+import { created, ok } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import {
   createBlobUploadUrlRequestSchema,
+  deleteBlobRequestQuerySchema,
   type CreateBlobUploadUrlRequestBody,
   type CreateBlobUploadUrlInput,
 } from "@/features/blob/blob.model";
@@ -87,5 +88,22 @@ export class BlobController {
         "cache-control": "public, max-age=31536000, immutable",
       },
     });
+  };
+
+  delete = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await requireJwtAuth(context);
+    const query = deleteBlobRequestQuerySchema.parse(context.req.query());
+
+    await this.blobService.deleteBlobForUser(auth.sub, query.blobName);
+
+    return ok(
+      context,
+      {
+        deleted: true,
+      },
+      {
+        message: "Blob deleted successfully.",
+      },
+    );
   };
 }
