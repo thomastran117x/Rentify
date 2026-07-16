@@ -30,16 +30,19 @@ import {
   type CreateOrganizationInviteInput,
   type CreateOrganizationInviteResult,
   type CreateOrganizationResult,
-  type OrganizationDetailResult,
+  type ListPublicOrganizationsInput,
   type OrganizationInvitationRecord,
+  type OrganizationInvitePreviewResult,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
   type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
+  type OrganizationWorkspaceDetailResult,
   type OrganizationWorkspaceResult,
   type PreviewOrganizationInviteInput,
-  type OrganizationInvitePreviewResult,
+  type PublicOrganizationDetailResult,
+  type PublicOrganizationListResult,
   type RemoveOrganizationMemberInput,
   type RevokeOrganizationInviteInput,
   type SetActiveOrganizationInput,
@@ -106,10 +109,35 @@ export class OrganizationsService {
     };
   }
 
+  async listPublic(
+    input: ListPublicOrganizationsInput,
+  ): Promise<PublicOrganizationListResult> {
+    return this.organizationsRepository.listPublicOrganizations({
+      page: input.page,
+      pageSize: input.pageSize,
+      query: input.query?.trim() || undefined,
+    });
+  }
+
   async getById(
     organizationId: string,
+  ): Promise<PublicOrganizationDetailResult> {
+    const detail =
+      await this.organizationsRepository.findPublicOrganizationDetail(
+        organizationId,
+      );
+
+    if (!detail) {
+      throw new ResourceNotFoundError("Organization could not be found.");
+    }
+
+    return detail;
+  }
+
+  async getWorkspaceById(
+    organizationId: string,
     userId: string,
-  ): Promise<OrganizationDetailResult> {
+  ): Promise<OrganizationWorkspaceDetailResult> {
     const membership = await this.requireMembership(userId, organizationId);
     let detail =
       await this.organizationsRepository.findOrganizationDetail(organizationId);

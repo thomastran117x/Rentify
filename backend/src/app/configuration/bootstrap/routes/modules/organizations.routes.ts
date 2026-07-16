@@ -5,6 +5,13 @@ import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 export const organizationsRouteModule: RouteModule = {
   id: "organizations",
   register(app, { resolveHandler }) {
+    app.get(
+      "/organizations",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "list",
+      ),
+    );
     app.post(
       "/organizations",
       resolveHandler<OrganizationsController>(
@@ -38,6 +45,13 @@ export const organizationsRouteModule: RouteModule = {
       resolveHandler<OrganizationsController>(
         containerTokens.organizationsController,
         "acceptInvitation",
+      ),
+    );
+    app.get(
+      "/organizations/:id/workspace",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "getWorkspaceById",
       ),
     );
     app.get(

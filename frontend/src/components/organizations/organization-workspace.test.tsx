@@ -13,7 +13,7 @@ const {
   setSessionMock,
   showErrorMock,
   getMineMock,
-  getByIdMock,
+  getWorkspaceByIdMock,
   setActiveMock,
   createMock,
   updateMock,
@@ -39,7 +39,7 @@ const {
   setSessionMock: vi.fn(),
   showErrorMock: vi.fn(),
   getMineMock: vi.fn(),
-  getByIdMock: vi.fn(),
+  getWorkspaceByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
@@ -123,7 +123,7 @@ vi.mock("@/lib/postings/api", () => ({
 vi.mock("@/lib/organizations/api", () => ({
   organizationsApi: {
     getMine: getMineMock,
-    getById: getByIdMock,
+    getWorkspaceById: getWorkspaceByIdMock,
     setActive: setActiveMock,
     create: createMock,
     rename: vi.fn(),
@@ -256,7 +256,7 @@ describe("OrganizationWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
-    usePathnameMock.mockReturnValue("/organizations");
+    usePathnameMock.mockReturnValue("/dashboard/organizations");
     setSearchParams("");
     useAuthMock.mockReturnValue({
       status: "authenticated",
@@ -264,7 +264,7 @@ describe("OrganizationWorkspace", () => {
       session: buildSession(),
     });
     getMineMock.mockResolvedValue(workspacePayload);
-    getByIdMock.mockResolvedValue(buildDetailPayload());
+    getWorkspaceByIdMock.mockResolvedValue(buildDetailPayload());
     setActiveMock.mockResolvedValue({
       activeOrganization: workspacePayload.activeOrganization,
     });
@@ -328,7 +328,7 @@ describe("OrganizationWorkspace", () => {
 
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith(
-        "/login?next=/organizations",
+        "/login?next=/dashboard/organizations",
       );
     });
   });
@@ -359,7 +359,7 @@ describe("OrganizationWorkspace", () => {
 
     expect(screen.getByText("Invite teammates")).toBeInTheDocument();
     expect(routerReplaceMock).toHaveBeenLastCalledWith(
-      "/organizations?tab=team",
+      "/dashboard/organizations?tab=team",
       { scroll: false },
     );
   });
@@ -384,7 +384,7 @@ describe("OrganizationWorkspace", () => {
         role: "manager" as const,
       },
     });
-    getByIdMock.mockResolvedValue(buildDetailPayload("manager"));
+    getWorkspaceByIdMock.mockResolvedValue(buildDetailPayload("manager"));
 
     render(<OrganizationWorkspace />);
 
@@ -398,7 +398,7 @@ describe("OrganizationWorkspace", () => {
 
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenLastCalledWith(
-        "/organizations?tab=overview",
+        "/dashboard/organizations?tab=overview",
         { scroll: false },
       );
     });
@@ -654,3 +654,4 @@ describe("OrganizationWorkspace", () => {
     });
   });
 });
+

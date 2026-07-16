@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
   maskEmailAddress,
-  type OrganizationDetailResult,
+  type ListPublicOrganizationsInput,
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
@@ -11,6 +11,10 @@ import {
   type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
+  type OrganizationWorkspaceDetailResult,
+  type PublicOrganizationDetailResult,
+  type PublicOrganizationListResult,
+  type PublicOrganizationProfileFields,
 } from "@/features/organizations/organizations.model";
 
 type MembershipPersistence = Prisma.OrganizationMembershipGetPayload<{
@@ -136,6 +140,28 @@ type OrganizationProfilePersistence = {
   customFields: Prisma.JsonValue | null;
 };
 
+type PublicOrganizationRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  websiteUrl: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  customFields: Prisma.JsonValue | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  publishedPostingCount: bigint | number;
+};
+
+type CountRow = {
+  total: bigint | number;
+};
+
 export class OrganizationsRepository extends BaseRepository {
   private mapOrganizationProfileFields(
     organization: OrganizationProfilePersistence,
@@ -206,6 +232,205 @@ export class OrganizationsRepository extends BaseRepository {
     return data;
   }
 
+  private mapPublicOrganizationProfileFields(
+    organization: Pick<
+      PublicOrganizationRow,
+      | "description"
+      | "websiteUrl"
+      | "addressLine1"
+      | "addressLine2"
+      | "city"
+      | "region"
+      | "country"
+      | "postalCode"
+      | "logoUrl"
+      | "customFields"
+    >,
+  ): PublicOrganizationProfileFields {
+    return {
+      description: organization.description,
+      websiteUrl: organization.websiteUrl,
+      addressLine1: organization.addressLine1,
+      addressLine2: organization.addressLine2,
+      city: organization.city,
+      region: organization.region,
+      country: organization.country,
+      postalCode: organization.postalCode,
+      logoUrl: organization.logoUrl,
+      customFields: this.parseCustomFields(organization.customFields),
+    };
+  }
+
+  private mapPublicOrganization(
+    organization: PublicOrganizationRow,
+  ): PublicOrganizationDetailResult["organization"] {
+    return {
+      id: organization.id,
+      name: organization.name,
+      createdAt: new Date(organization.createdAt).toISOString(),
+      updatedAt: new Date(organization.updatedAt).toISOString(),
+      publishedPostingCount: this.readNumberLike(
+        organization.publishedPostingCount,
+      ),
+      ...this.mapPublicOrganizationProfileFields(organization),
+    };
+  }
+
+  private readNumberLike(value: bigint | number | null | undefined): number {
+    if (typeof value === "bigint") {
+      return Number(value);
+    }
+
+    return typeof value === "number" ? value : 0;
+  }
+
+  private createLikePattern(query: string): string {
+    return `%${query.trim().toLowerCase()}%`;
+  }
+
+  async listPublicOrganizations(
+    input: ListPublicOrganizationsInput,
+  ): Promise<PublicOrganizationListResult> {
+    const whereSql = input.query
+      ? Prisma.sql`WHERE LOWER(o.name) LIKE ${this.createLikePattern(input.query)}`
+      : Prisma.empty;
+    const offset = (input.page - 1) * input.pageSize;
+
+    const [rows, countRows] = await Promise.all([
+      this.executeAsync(() =>
+        this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
+          SELECT
+            o.id AS id,
+            o.name AS name,
+            o.description AS description,
+            o.website_url AS websiteUrl,
+            o.address_line1 AS addressLine1,
+            o.address_line2 AS addressLine2,
+            o.city AS city,
+            o.region AS region,
+            o.country AS country,
+            o.postal_code AS postalCode,
+            o.logo_url AS logoUrl,
+            o.custom_fields AS customFields,
+            o.created_at AS createdAt,
+            o.updated_at AS updatedAt,
+            COUNT(p.id) AS publishedPostingCount
+          FROM organizations o
+          INNER JOIN postings p
+            ON p.organization_id = o.id
+            AND p.status = 'published'
+          ${whereSql}
+          GROUP BY
+            o.id,
+            o.name,
+            o.description,
+            o.website_url,
+            o.address_line1,
+            o.address_line2,
+            o.city,
+            o.region,
+            o.country,
+            o.postal_code,
+            o.logo_url,
+            o.custom_fields,
+            o.created_at,
+            o.updated_at
+          ORDER BY LOWER(o.name) ASC, o.created_at DESC, o.id ASC
+          LIMIT ${input.pageSize}
+          OFFSET ${offset}
+        `),
+      ),
+      this.executeAsync(() =>
+        this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+          SELECT COUNT(*) AS total
+          FROM (
+            SELECT o.id
+            FROM organizations o
+            INNER JOIN postings p
+              ON p.organization_id = o.id
+              AND p.status = 'published'
+            ${whereSql}
+            GROUP BY o.id
+          ) visible_organizations
+        `),
+      ),
+    ]);
+
+    const total = this.readNumberLike(countRows[0]?.total);
+    const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
+
+    return {
+      organizations: rows.map((row) => this.mapPublicOrganization(row)),
+      pagination: {
+        page: input.page,
+        pageSize: input.pageSize,
+        total,
+        totalPages,
+        hasNextPage: input.page < totalPages,
+        hasPreviousPage: input.page > 1,
+      },
+      ...(input.query ? { query: input.query } : {}),
+    };
+  }
+
+  async findPublicOrganizationDetail(
+    organizationId: string,
+  ): Promise<PublicOrganizationDetailResult | null> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
+        SELECT
+          o.id AS id,
+          o.name AS name,
+          o.description AS description,
+          o.website_url AS websiteUrl,
+          o.address_line1 AS addressLine1,
+          o.address_line2 AS addressLine2,
+          o.city AS city,
+          o.region AS region,
+          o.country AS country,
+          o.postal_code AS postalCode,
+          o.logo_url AS logoUrl,
+          o.custom_fields AS customFields,
+          o.created_at AS createdAt,
+          o.updated_at AS updatedAt,
+          COUNT(p.id) AS publishedPostingCount
+        FROM organizations o
+        INNER JOIN postings p
+          ON p.organization_id = o.id
+          AND p.status = 'published'
+        WHERE o.id = ${organizationId}
+        GROUP BY
+          o.id,
+          o.name,
+          o.description,
+          o.website_url,
+          o.address_line1,
+          o.address_line2,
+          o.city,
+          o.region,
+          o.country,
+          o.postal_code,
+          o.logo_url,
+          o.custom_fields,
+          o.created_at,
+          o.updated_at
+        ORDER BY LOWER(o.name) ASC, o.created_at DESC, o.id ASC
+      `),
+    );
+
+    const row = rows[0];
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      organization: this.mapPublicOrganization(row),
+      stats: {
+        publishedPostingCount: this.readNumberLike(row.publishedPostingCount),
+      },
+    };
+  }
   async listMembershipsByUserId(
     userId: string,
     preferredOrganizationId?: string | null,
@@ -304,7 +529,7 @@ export class OrganizationsRepository extends BaseRepository {
 
   async findOrganizationDetail(
     organizationId: string,
-  ): Promise<OrganizationDetailResult | null> {
+  ): Promise<OrganizationWorkspaceDetailResult | null> {
     const organization = await this.executeAsync(() =>
       this.prisma.organization.findUnique({
         where: {
@@ -974,3 +1199,4 @@ export class OrganizationsRepository extends BaseRepository {
     };
   }
 }
+

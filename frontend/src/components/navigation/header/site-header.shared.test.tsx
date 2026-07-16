@@ -87,14 +87,14 @@ describe("site header shared helpers", () => {
       hasActiveOrganization: true,
     });
 
-    expect(linksWithoutOrg.some((link) => link.href === "/organizations")).toBe(
+    expect(linksWithoutOrg.some((link) => link.href === "/dashboard/organizations")).toBe(
       true,
     );
     expect(
-      linksWithMembership.some((link) => link.href === "/organizations"),
+      linksWithMembership.some((link) => link.href === "/dashboard/organizations"),
     ).toBe(true);
     expect(
-      linksWithActiveOrg.some((link) => link.href === "/organizations"),
+      linksWithActiveOrg.some((link) => link.href === "/dashboard/organizations"),
     ).toBe(true);
   });
 
@@ -127,3 +127,4 @@ describe("site header shared helpers", () => {
     ).toHaveAttribute("src", "https://example.com/jane.jpg");
   });
 });
+

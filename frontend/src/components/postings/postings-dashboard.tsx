@@ -386,7 +386,7 @@ export function PostingsDashboard() {
             Posting management follows your active organization. Switch into an
             organization workspace first, then return here.
           </p>
-          <Link href="/organizations" className={`${primaryButtonClass} mt-6`}>
+          <Link href="/dashboard/organizations" className={`${primaryButtonClass} mt-6`}>
             Open organizations
           </Link>
         </div>
@@ -636,3 +636,4 @@ export function PostingsDashboard() {
     </PageShell>
   );
 }
+

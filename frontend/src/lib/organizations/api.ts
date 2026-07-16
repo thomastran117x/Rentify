@@ -5,6 +5,7 @@ import {
   patchAuthenticatedJson,
   postAuthenticatedJson,
 } from "@/lib/auth/api";
+import { publicJson } from "@/lib/api/client";
 import type { ActiveOrganizationSummary } from "@/lib/auth/types";
 
 export type OrganizationRole = "primary_manager" | "manager" | "operator";
@@ -98,6 +99,7 @@ export interface OrganizationWorkspaceResult {
   memberships: OrganizationMembershipSummary[];
   activeOrganization?: ActiveOrganizationSummary;
 }
+
 export interface OrganizationAuditChange {
   field: string;
   before: unknown;
@@ -137,8 +139,6 @@ export interface OrganizationAuditResult {
   };
 }
 
-// Editable, self-describing profile fields on an organization. All optional so
-// existing organizations render fine and blank inputs stay null.
 export interface OrganizationProfileFields {
   description: string | null;
   websiteUrl: string | null;
@@ -157,7 +157,51 @@ export interface OrganizationProfileFields {
 
 export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
 
-export interface OrganizationDetailResult {
+export interface PublicOrganizationProfileFields {
+  description: string | null;
+  websiteUrl: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  customFields: Record<string, string> | null;
+}
+
+export interface PublicOrganizationStats {
+  publishedPostingCount: number;
+}
+
+export interface PublicOrganizationSummary
+  extends PublicOrganizationProfileFields,
+    PublicOrganizationStats {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicOrganizationListResult {
+  organizations: PublicOrganizationSummary[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+  query?: string;
+}
+
+export interface PublicOrganizationDetailResult {
+  organization: PublicOrganizationSummary;
+  stats: PublicOrganizationStats;
+}
+
+export interface OrganizationWorkspaceDetailResult {
   organization: {
     id: string;
     name: string;
@@ -168,6 +212,8 @@ export interface OrganizationDetailResult {
   members: OrganizationMember[];
   invitations: OrganizationInvite[];
 }
+
+export type OrganizationDetailResult = OrganizationWorkspaceDetailResult;
 
 export interface CreateOrganizationInput extends OrganizationProfileInput {
   name: string;
@@ -215,7 +261,44 @@ export interface AcceptOrganizationInviteResult {
   membership: OrganizationMembershipSummary;
 }
 
+export interface ListPublicOrganizationsInput {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+}
+
+function buildPublicOrganizationsPath(input?: ListPublicOrganizationsInput): string {
+  const searchParams = new URLSearchParams();
+
+  if (input?.page) {
+    searchParams.set("page", String(input.page));
+  }
+  if (input?.pageSize) {
+    searchParams.set("pageSize", String(input.pageSize));
+  }
+  if (input?.query?.trim()) {
+    searchParams.set("q", input.query.trim());
+  }
+
+  const query = searchParams.toString();
+  return query ? `/organizations?${query}` : "/organizations";
+}
+
 export const organizationsApi = {
+  listPublic(
+    input?: ListPublicOrganizationsInput,
+  ): Promise<PublicOrganizationListResult> {
+    return publicJson<PublicOrganizationListResult>(
+      "GET",
+      buildPublicOrganizationsPath(input),
+    );
+  },
+  getPublicById(id: string): Promise<PublicOrganizationDetailResult> {
+    return publicJson<PublicOrganizationDetailResult>(
+      "GET",
+      `/organizations/${id}`,
+    );
+  },
   getMine(): Promise<OrganizationWorkspaceResult> {
     return getAuthenticatedJson<OrganizationWorkspaceResult>(
       "/organizations/me",
@@ -248,9 +331,9 @@ export const organizationsApi = {
       auditLog: OrganizationAuditRecord;
     }>(`/organizations/${id}/audit/${auditId}/restore`, {});
   },
-  getById(id: string): Promise<OrganizationDetailResult> {
-    return getAuthenticatedJson<OrganizationDetailResult>(
-      `/organizations/${id}`,
+  getWorkspaceById(id: string): Promise<OrganizationWorkspaceDetailResult> {
+    return getAuthenticatedJson<OrganizationWorkspaceDetailResult>(
+      `/organizations/${id}/workspace`,
     );
   },
   update(
@@ -312,3 +395,4 @@ export const organizationsApi = {
     );
   },
 };
+

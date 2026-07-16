@@ -1880,6 +1880,46 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/organizations",
+      operationId: "listPublicOrganizations",
+      summary: "List public organizations",
+      description:
+        "Returns the public organization directory. Only organizations with at least one published posting are included.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam("page", "Page number.", false, { type: "integer", minimum: 1 }, 1),
+        queryParam(
+          "pageSize",
+          "Number of organizations to return per page.",
+          false,
+          { type: "integer", minimum: 1, maximum: 100 },
+          20,
+        ),
+        queryParam(
+          "q",
+          "Optional case-insensitive organization name search query.",
+          false,
+          { type: "string", maxLength: 100 },
+          "north",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PublicOrganizationListResult",
+          publicOrganizationListExample,
+        ),
+        ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/organizations",
       operationId: "createOrganization",
@@ -2026,11 +2066,11 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
-      path: "/organizations/:id",
-      operationId: "getOrganizationById",
-      summary: "Get organization detail",
+      path: "/organizations/:id/workspace",
+      operationId: "getOrganizationWorkspaceById",
+      summary: "Get organization workspace detail",
       description:
-        "Returns organization profile, roster, and pending invitations for a member of the organization.",
+        "Returns organization profile, roster, and pending invitations for a signed-in member of the organization.",
       tags: ["organizations"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -2043,10 +2083,34 @@ function buildOperations(): OperationDefinition[] {
         "200": successResponse(
           200,
           "Request completed successfully.",
-          "OrganizationDetailResult",
-          organizationDetailExample,
+          "OrganizationWorkspaceDetailResult",
+          organizationWorkspaceDetailExample,
         ),
         ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id",
+      operationId: "getPublicOrganizationById",
+      summary: "Get public organization detail",
+      description:
+        "Returns the public organization profile and published posting count. Organizations without published postings return 404.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PublicOrganizationDetailResult",
+          publicOrganizationDetailExample,
+        ),
+        ...commonErrors([400, 404, 429, 500]),
       },
     },
     {
@@ -5844,7 +5908,85 @@ function buildComponents(): Record<string, unknown> {
           schemaRef("OrganizationProfileFields"),
         ],
       },
-      OrganizationDetailOrganization: {
+      PublicOrganizationProfileFields: {
+        type: "object",
+        properties: {
+          description: { type: "string", maxLength: 5000, nullable: true },
+          websiteUrl: {
+            type: "string",
+            format: "uri",
+            maxLength: 500,
+            nullable: true,
+          },
+          addressLine1: { type: "string", maxLength: 200, nullable: true },
+          addressLine2: { type: "string", maxLength: 200, nullable: true },
+          city: { type: "string", maxLength: 120, nullable: true },
+          region: { type: "string", maxLength: 120, nullable: true },
+          country: { type: "string", maxLength: 120, nullable: true },
+          postalCode: { type: "string", maxLength: 20, nullable: true },
+          logoUrl: {
+            type: "string",
+            format: "uri",
+            maxLength: 1024,
+            nullable: true,
+          },
+          customFields: {
+            type: "object",
+            additionalProperties: { type: "string", maxLength: 1000 },
+            nullable: true,
+          },
+        },
+      },
+      PublicOrganizationStats: {
+        type: "object",
+        required: ["publishedPostingCount"],
+        properties: {
+          publishedPostingCount: { type: "integer", minimum: 0 },
+        },
+      },
+      PublicOrganizationSummary: {
+        allOf: [
+          {
+            type: "object",
+            required: [
+              "id",
+              "name",
+              "createdAt",
+              "updatedAt",
+              "publishedPostingCount",
+            ],
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+              publishedPostingCount: { type: "integer", minimum: 0 },
+            },
+          },
+          schemaRef("PublicOrganizationProfileFields"),
+        ],
+      },
+      PublicOrganizationListResult: {
+        type: "object",
+        required: ["organizations", "pagination"],
+        properties: {
+          organizations: {
+            type: "array",
+            items: schemaRef("PublicOrganizationSummary"),
+          },
+          pagination: schemaRef("Pagination"),
+          query: { type: "string" },
+        },
+      },
+      PublicOrganizationDetailResult: {
+        type: "object",
+        required: ["organization", "stats"],
+        properties: {
+          organization: schemaRef("PublicOrganizationSummary"),
+          stats: schemaRef("PublicOrganizationStats"),
+        },
+      },
+      OrganizationWorkspaceDetailOrganization: {
         allOf: [
           {
             type: "object",
@@ -5918,11 +6060,11 @@ function buildComponents(): Record<string, unknown> {
           acceptedBy: schemaRef("OrganizationInvitationActorSummary"),
         },
       },
-      OrganizationDetailResult: {
+      OrganizationWorkspaceDetailResult: {
         type: "object",
         required: ["organization", "viewerRole", "members", "invitations"],
         properties: {
-          organization: schemaRef("OrganizationDetailOrganization"),
+          organization: schemaRef("OrganizationWorkspaceDetailOrganization"),
           viewerRole: schemaRef("OrganizationRole"),
           members: {
             type: "array",
@@ -7217,7 +7359,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "organizations",
         description:
-          "Organization memberships, invitations, active-org switching, and member management.",
+          "Public organization directory browsing plus protected workspace memberships, invitations, active-org switching, and member management.",
       },
       {
         name: "profiles",
@@ -7282,3 +7424,7 @@ export function buildOpenApiJson(): string {
     "\n",
   );
 }
+
+
+
+

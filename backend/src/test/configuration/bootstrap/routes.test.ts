@@ -258,6 +258,21 @@ describe("mountRoutes", () => {
             status: 200,
           },
         ),
+      getWorkspaceById: async (context: {
+        req: { param(name: string): string };
+      }) =>
+        new Response(
+          JSON.stringify({
+            route: "getWorkspaceById",
+            id: context.req.param("id"),
+          }),
+          {
+            headers: {
+              "content-type": "application/json; charset=UTF-8",
+            },
+            status: 200,
+          },
+        ),
       getById: async (context: { req: { param(name: string): string } }) =>
         new Response(
           JSON.stringify({ route: "getById", id: context.req.param("id") }),
@@ -275,13 +290,17 @@ describe("mountRoutes", () => {
       ]),
     );
 
-    const [mineResponse, invitationResponse, itemResponse] = await Promise.all([
-      app.request(`http://rent.test${buildApiPath("/organizations/me")}`),
-      app.request(
-        `http://rent.test${buildApiPath("/organizations/invitations/token-123")}`,
-      ),
-      app.request(`http://rent.test${buildApiPath("/organizations/org-123")}`),
-    ]);
+    const [mineResponse, invitationResponse, workspaceResponse, itemResponse] =
+      await Promise.all([
+        app.request(`http://rent.test${buildApiPath("/organizations/me")}`),
+        app.request(
+          `http://rent.test${buildApiPath("/organizations/invitations/token-123")}`,
+        ),
+        app.request(
+          `http://rent.test${buildApiPath("/organizations/org-123/workspace")}`,
+        ),
+        app.request(`http://rent.test${buildApiPath("/organizations/org-123")}`),
+      ]);
 
     await expect(mineResponse.json()).resolves.toEqual({
       route: "listMine",
@@ -289,6 +308,10 @@ describe("mountRoutes", () => {
     await expect(invitationResponse.json()).resolves.toEqual({
       route: "previewInvitation",
       token: "token-123",
+    });
+    await expect(workspaceResponse.json()).resolves.toEqual({
+      route: "getWorkspaceById",
+      id: "org-123",
     });
     await expect(itemResponse.json()).resolves.toEqual({
       route: "getById",
@@ -343,3 +366,4 @@ describe("filterRouteModules", () => {
     expect(result.map((m) => m.id)).toEqual(["blob", "profiles"]);
   });
 });
+

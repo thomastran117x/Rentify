@@ -92,9 +92,9 @@ export function getAccountLinks(
     ...(showOrganizations
       ? [
           {
-            href: "/organizations",
+            href: "/dashboard/organizations",
             label: "Organizations",
-            description: "Switch organizations, invites, and team roles",
+            description: "Open your organization workspace, invites, and team roles",
           },
         ]
       : []),
@@ -234,3 +234,4 @@ export function UserAvatar({ name, imageUrl }: UserAvatarProps) {
     </div>
   );
 }
+

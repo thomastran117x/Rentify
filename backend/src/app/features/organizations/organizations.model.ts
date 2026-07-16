@@ -103,6 +103,12 @@ export const updateOrganizationMemberRequestSchema = z.object({
   role: organizationRoleSchema,
 });
 
+export const listPublicOrganizationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().min(1).max(100).optional(),
+});
+
 export type CreateOrganizationRequestBody = z.infer<
   typeof createOrganizationRequestSchema
 >;
@@ -117,6 +123,9 @@ export type SetActiveOrganizationRequestBody = z.infer<
 >;
 export type UpdateOrganizationMemberRequestBody = z.infer<
   typeof updateOrganizationMemberRequestSchema
+>;
+export type ListPublicOrganizationsQuery = z.infer<
+  typeof listPublicOrganizationsQuerySchema
 >;
 
 export interface OrganizationSummary {
@@ -144,6 +153,50 @@ export interface OrganizationProfileFields {
 }
 
 export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
+
+export interface PublicOrganizationProfileFields {
+  description: string | null;
+  websiteUrl: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  customFields: Record<string, string> | null;
+}
+
+export interface PublicOrganizationStats {
+  publishedPostingCount: number;
+}
+
+export interface PublicOrganizationSummary extends PublicOrganizationStats {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicOrganizationDetailResult {
+  organization: PublicOrganizationSummary & PublicOrganizationProfileFields;
+  stats: PublicOrganizationStats;
+}
+
+export interface PublicOrganizationListResult {
+  organizations: Array<
+    PublicOrganizationSummary & PublicOrganizationProfileFields
+  >;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+  query?: string;
+}
 
 // Field names audited when an organization's profile changes (also used to
 // restore a prior version). Keep in sync with OrganizationProfileFields + name.
@@ -237,7 +290,7 @@ export interface OrganizationWorkspaceResult {
   activeOrganization?: OrganizationSummary;
 }
 
-export interface OrganizationDetailResult {
+export interface OrganizationWorkspaceDetailResult {
   organization: {
     id: string;
     name: string;
@@ -338,6 +391,12 @@ export interface AcceptOrganizationInviteInput {
 export interface PreviewOrganizationInviteInput {
   token: string;
   userId?: string;
+}
+
+export interface ListPublicOrganizationsInput {
+  page: number;
+  pageSize: number;
+  query?: string;
 }
 
 export function normalizeOrganizationInvitationEmail(email: string): string {

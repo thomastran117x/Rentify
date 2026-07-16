@@ -652,7 +652,7 @@ describe("OrganizationsService", () => {
       },
     });
 
-    await expect(service.getById("org-1", "user-1")).resolves.toEqual({
+    await expect(service.getWorkspaceById("org-1", "user-1")).resolves.toEqual({
       ...refreshedDetail,
       viewerRole: "primary_manager",
     });
@@ -1453,3 +1453,4 @@ describe("OrganizationsService", () => {
     expect(auditService.record).not.toHaveBeenCalled();
   });
 });
+

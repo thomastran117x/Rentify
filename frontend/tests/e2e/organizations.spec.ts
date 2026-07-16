@@ -54,7 +54,7 @@ async function ensureCaptchaToken(page: Page) {
 async function login(
   page: Page,
   username: string,
-  nextPath = "/organizations",
+  nextPath = "/dashboard/organizations",
 ) {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}`);
   await ensureCaptchaToken(page);
@@ -74,7 +74,7 @@ async function ensureActiveOrganization(page: Page, label: string) {
 async function expectOrganizationsWorkspace(
   page: Page,
   roleLabel: string,
-  expectedUrl: RegExp = /\/organizations(?:\?tab=overview)?$/,
+  expectedUrl: RegExp = /\/dashboard\/organizations(?:\?tab=overview)?$/,
 ) {
   await expect(page).toHaveURL(expectedUrl);
   await expect(
@@ -156,21 +156,23 @@ test("organization workspace supports owner invites and member role boundaries",
     operatorPage.getByRole("button", { name: "Send invite" }),
   ).toHaveCount(0);
 
-  await operatorPage.goto("/organizations?tab=activity");
+  await operatorPage.goto("/dashboard/organizations?tab=activity");
   await expectOrganizationsWorkspace(
     operatorPage,
     "Operator",
-    /\/organizations\?tab=overview$/,
+    /\/dashboard\/organizations\?tab=overview$/,
   );
 
-  await operatorPage.goto("/organizations?tab=settings");
+  await operatorPage.goto("/dashboard/organizations?tab=settings");
   await expectOrganizationsWorkspace(
     operatorPage,
     "Operator",
-    /\/organizations\?tab=overview$/,
+    /\/dashboard\/organizations\?tab=overview$/,
   );
 
   expect(consoleErrors).toEqual([]);
 
   await Promise.all([managerPage.close(), operatorPage.close()]);
 });
+
+
