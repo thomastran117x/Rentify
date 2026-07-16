@@ -879,14 +879,14 @@ export class OrganizationsRepository extends BaseRepository {
   ): Promise<OrganizationMembershipSummary> {
     const { name, ownerUserId, ...profile } = input;
     return this.executeTransaction(async (transaction) => {
+      const organizationData: Prisma.OrganizationUncheckedCreateInput = {
+        id: randomUUID(),
+        name,
+      };
+      Object.assign(organizationData, this.buildOrganizationWriteData(profile));
+
       const organization = await transaction.organization.create({
-        data: {
-          id: randomUUID(),
-          name,
-          ...(this.buildOrganizationWriteData(
-            profile,
-          ) as Prisma.OrganizationUncheckedCreateInput),
-        },
+        data: organizationData,
       });
 
       const membership = await transaction.organizationMembership.create({
