@@ -1,4 +1,11 @@
 import {
+  EXPANDED_SEED_ORGANIZATIONS,
+  getExpandedBundleSize,
+  getExpandedPostingIndex,
+  type ExpandedPostingBundleType,
+  type ExpandedSeedOrganizationConfig,
+} from "@/seeds/fixtures/posting-expansion";
+import {
   createFixtureId,
   type SeedAvailabilityBlockFixture,
   type SeedPostingFixture,
@@ -31,7 +38,7 @@ function createOwnerBlock(
   };
 }
 
-export const SEED_POSTINGS: SeedPostingFixture[] = [
+const BASE_SEED_POSTINGS: SeedPostingFixture[] = [
   {
     id: createFixtureId(2000, 1),
     ownerEmail: "owner1@rentify.local",
@@ -2334,4 +2341,561 @@ export const SEED_POSTINGS: SeedPostingFixture[] = [
     photos: [createPhoto(62, "saint-roch-production-flat")],
     availabilityBlocks: [],
   },
+];
+
+type PostingVariantBlueprint = {
+  subtype: SeedPostingFixture["subtype"];
+  name: string;
+  description: string;
+  pricing: Record<string, unknown>;
+  details: Record<string, string | number | boolean | string[]>;
+  tags: string[];
+  maxBookingDurationDays: number;
+};
+
+type GeneratedPostingBlueprint = {
+  status: SeedPostingFixture["status"];
+  family: SeedPostingFixture["family"];
+  variant: PostingVariantBlueprint;
+};
+
+const PLACE_VARIANTS: PostingVariantBlueprint[] = [
+  {
+    subtype: "entire_place",
+    name: "Styled Loft Stay",
+    description:
+      "Design-led loft tuned for short stays, tastings, and calm brand sessions.",
+    pricing: { currency: "CAD", daily: { amount: 164 }, weekly: { amount: 940 } },
+    details: {
+      guest_capacity: 4,
+      bedrooms: 2,
+      bathrooms: 1,
+      property_type: "loft",
+      amenities: ["wifi", "kitchen", "workspace"],
+      pet_friendly: false,
+      parking: true,
+    },
+    tags: ["stay", "loft", "styled"],
+    maxBookingDurationDays: 10,
+  },
+  {
+    subtype: "private_room",
+    name: "Guest Room Retreat",
+    description:
+      "Quiet private room with a compact desk setup and reliable handoff flow.",
+    pricing: { currency: "CAD", daily: { amount: 92 }, weekly: { amount: 520 } },
+    details: {
+      guest_capacity: 2,
+      bedrooms: 1,
+      bathrooms: 1,
+      property_type: "house",
+      amenities: ["wifi", "desk", "coffee"],
+      pet_friendly: false,
+      parking: false,
+    },
+    tags: ["guestroom", "quiet", "desk"],
+    maxBookingDurationDays: 8,
+  },
+  {
+    subtype: "workspace",
+    name: "Team Workshop Loft",
+    description:
+      "Open workshop loft for planning sessions, fittings, and practical client run-throughs.",
+    pricing: { currency: "CAD", daily: { amount: 142 }, hourly: { amount: 26 } },
+    details: {
+      guest_capacity: 10,
+      bedrooms: 0,
+      bathrooms: 1,
+      property_type: "studio",
+      amenities: ["wifi", "whiteboard", "tables"],
+      pet_friendly: false,
+      parking: true,
+    },
+    tags: ["workspace", "team", "workshop"],
+    maxBookingDurationDays: 6,
+  },
+  {
+    subtype: "storage_space",
+    name: "Secure Storage Bay",
+    description:
+      "Protected storage bay for inventory overflow, props, and tidy event resets.",
+    pricing: { currency: "CAD", daily: { amount: 38 }, monthly: { amount: 610 } },
+    details: {
+      guest_capacity: 1,
+      bedrooms: 0,
+      bathrooms: 0,
+      property_type: "storage",
+      amenities: ["security_camera", "ground_access", "loading_area"],
+      pet_friendly: false,
+      parking: true,
+    },
+    tags: ["storage", "secure", "inventory"],
+    maxBookingDurationDays: 30,
+  },
+  {
+    subtype: "entire_place",
+    name: "Client Hosting Flat",
+    description:
+      "Polished flat suited to interviews, hosting clients, and flexible city stays.",
+    pricing: { currency: "CAD", daily: { amount: 176 }, weekly: { amount: 995 } },
+    details: {
+      guest_capacity: 4,
+      bedrooms: 2,
+      bathrooms: 1,
+      property_type: "flat",
+      amenities: ["wifi", "kitchen", "balcony"],
+      pet_friendly: false,
+      parking: true,
+    },
+    tags: ["client", "flat", "hosting"],
+    maxBookingDurationDays: 9,
+  },
+];
+
+const EQUIPMENT_VARIANTS: PostingVariantBlueprint[] = [
+  {
+    subtype: "camera",
+    name: "Creator Camera Kit",
+    description:
+      "Mirrorless creator setup with fast lenses, batteries, and travel-ready support pieces.",
+    pricing: { currency: "CAD", daily: { amount: 74 }, weekend: { amount: 182 } },
+    details: {
+      brand: "Sony",
+      model: "Creator Kit",
+      condition: "excellent",
+      includes_delivery: false,
+      weight_lb: 8,
+    },
+    tags: ["camera", "creator", "kit"],
+    maxBookingDurationDays: 5,
+  },
+  {
+    subtype: "tool",
+    name: "Weekend Build Tool Set",
+    description:
+      "Compact build set for trim work, install days, and tidy weekend renovations.",
+    pricing: { currency: "CAD", daily: { amount: 66 }, weekly: { amount: 340 } },
+    details: {
+      brand: "DeWalt",
+      model: "Build Set",
+      condition: "good",
+      power_source: "mixed",
+      weight_lb: 29,
+      includes_delivery: false,
+    },
+    tags: ["tools", "build", "weekend"],
+    maxBookingDurationDays: 6,
+  },
+  {
+    subtype: "audio",
+    name: "Panel Audio Rack",
+    description:
+      "Portable audio rack with mics, compact speakers, and simple event cabling.",
+    pricing: { currency: "CAD", daily: { amount: 114 }, weekend: { amount: 268 } },
+    details: {
+      brand: "Yamaha",
+      model: "Panel Rack",
+      condition: "excellent",
+      power_source: "wall",
+      weight_lb: 34,
+      includes_delivery: true,
+    },
+    tags: ["audio", "panel", "event"],
+    maxBookingDurationDays: 4,
+  },
+  {
+    subtype: "general_equipment",
+    name: "Pop-Up Service Kit",
+    description:
+      "Flexible service kit for markets, activations, and mobile retail displays.",
+    pricing: { currency: "CAD", daily: { amount: 98 }, weekly: { amount: 510 } },
+    details: {
+      brand: "ServiceForm",
+      model: "Pop-Up Kit",
+      condition: "good",
+      power_source: "mixed",
+      weight_lb: 41,
+      includes_delivery: true,
+    },
+    tags: ["popup", "service", "market"],
+    maxBookingDurationDays: 7,
+  },
+  {
+    subtype: "camera",
+    name: "Documentary Travel Set",
+    description:
+      "Weather-ready documentary package with audio, batteries, and quick packing support.",
+    pricing: { currency: "CAD", daily: { amount: 82 }, weekly: { amount: 418 } },
+    details: {
+      brand: "Canon",
+      model: "Travel Set",
+      condition: "excellent",
+      includes_delivery: false,
+      weight_lb: 9,
+    },
+    tags: ["documentary", "travel", "camera"],
+    maxBookingDurationDays: 5,
+  },
+];
+
+const VEHICLE_VARIANTS: PostingVariantBlueprint[] = [
+  {
+    subtype: "bike",
+    name: "Cruiser E-Bike",
+    description:
+      "Comfortable cruiser e-bike with lights, lock, and easy pickup for local errands.",
+    pricing: { currency: "CAD", daily: { amount: 54 }, weekly: { amount: 284 } },
+    details: {
+      make: "Electra",
+      model: "Cruiser Go",
+      year: 2024,
+      seats: 1,
+      transmission: "single-speed",
+      fuel_type: "electric",
+      license_class: "none",
+    },
+    tags: ["bike", "cruiser", "local"],
+    maxBookingDurationDays: 5,
+  },
+  {
+    subtype: "car",
+    name: "Cargo Hatchback",
+    description:
+      "Compact hatchback with fold-flat space for quick pickups, runs, and light gear moves.",
+    pricing: { currency: "CAD", daily: { amount: 84 }, weekly: { amount: 452 } },
+    details: {
+      make: "Honda",
+      model: "Fit Cargo",
+      year: 2022,
+      seats: 5,
+      transmission: "automatic",
+      fuel_type: "gas",
+      license_class: "Class 5",
+    },
+    tags: ["car", "cargo", "utility"],
+    maxBookingDurationDays: 7,
+  },
+  {
+    subtype: "bike",
+    name: "Utility Cargo Bike",
+    description:
+      "Longtail cargo bike with basket hardware for errands, markets, and short neighborhood trips.",
+    pricing: { currency: "CAD", daily: { amount: 58 }, weekly: { amount: 296 } },
+    details: {
+      make: "Yuba",
+      model: "Cargo Longtail",
+      year: 2024,
+      seats: 2,
+      transmission: "multi-speed",
+      fuel_type: "electric",
+      license_class: "none",
+    },
+    tags: ["bike", "cargo", "family"],
+    maxBookingDurationDays: 5,
+  },
+  {
+    subtype: "car",
+    name: "Hybrid Day Trip Car",
+    description:
+      "Efficient hybrid car for client meetings, day trips, and tidy regional runs.",
+    pricing: { currency: "CAD", daily: { amount: 88 }, weekly: { amount: 468 } },
+    details: {
+      make: "Toyota",
+      model: "Hybrid Day Trip",
+      year: 2023,
+      seats: 5,
+      transmission: "automatic",
+      fuel_type: "hybrid",
+      license_class: "G",
+    },
+    tags: ["car", "hybrid", "daytrip"],
+    maxBookingDurationDays: 8,
+  },
+  {
+    subtype: "bike",
+    name: "Harbour Loop Bike",
+    description:
+      "Stable city bike with upright fit and removable basket for practical downtown loops.",
+    pricing: { currency: "CAD", daily: { amount: 49 }, weekly: { amount: 262 } },
+    details: {
+      make: "Specialized",
+      model: "City Loop",
+      year: 2025,
+      seats: 1,
+      transmission: "multi-speed",
+      fuel_type: "electric",
+      license_class: "none",
+    },
+    tags: ["bike", "city", "loop"],
+    maxBookingDurationDays: 5,
+  },
+];
+
+function createBundleBlueprints(
+  bundleType: ExpandedPostingBundleType,
+): GeneratedPostingBlueprint[] {
+  if (bundleType === "expanded") {
+    return [
+      ...PLACE_VARIANTS.map((variant) => ({
+        status: "published" as const,
+        family: "place" as const,
+        variant,
+      })),
+      ...EQUIPMENT_VARIANTS.map((variant) => ({
+        status: "published" as const,
+        family: "equipment" as const,
+        variant,
+      })),
+      ...VEHICLE_VARIANTS.map((variant) => ({
+        status: "published" as const,
+        family: "vehicle" as const,
+        variant,
+      })),
+      {
+        status: "draft",
+        family: "place",
+        variant: PLACE_VARIANTS[0]!,
+      },
+      {
+        status: "draft",
+        family: "equipment",
+        variant: EQUIPMENT_VARIANTS[0]!,
+      },
+      {
+        status: "paused",
+        family: "place",
+        variant: PLACE_VARIANTS[1]!,
+      },
+      {
+        status: "paused",
+        family: "equipment",
+        variant: EQUIPMENT_VARIANTS[1]!,
+      },
+    ];
+  }
+
+  return [
+    ...PLACE_VARIANTS.slice(0, 4).map((variant) => ({
+      status: "published" as const,
+      family: "place" as const,
+      variant,
+    })),
+    ...EQUIPMENT_VARIANTS.slice(0, 4).map((variant) => ({
+      status: "published" as const,
+      family: "equipment" as const,
+      variant,
+    })),
+    ...VEHICLE_VARIANTS.slice(0, 4).map((variant) => ({
+      status: "published" as const,
+      family: "vehicle" as const,
+      variant,
+    })),
+    {
+      status: "draft",
+      family: "place",
+      variant: PLACE_VARIANTS[4]!,
+    },
+    {
+      status: "draft",
+      family: "equipment",
+      variant: EQUIPMENT_VARIANTS[4]!,
+    },
+    {
+      status: "draft",
+      family: "vehicle",
+      variant: VEHICLE_VARIANTS[4]!,
+    },
+    {
+      status: "paused",
+      family: "place",
+      variant: PLACE_VARIANTS[0]!,
+    },
+    {
+      status: "paused",
+      family: "equipment",
+      variant: EQUIPMENT_VARIANTS[0]!,
+    },
+    {
+      status: "paused",
+      family: "vehicle",
+      variant: VEHICLE_VARIANTS[0]!,
+    },
+  ];
+}
+
+function buildPostingName(
+  config: ExpandedSeedOrganizationConfig,
+  blueprint: GeneratedPostingBlueprint,
+): string {
+  const basePrefixByFamily = {
+    place: config.venueWord,
+    equipment: config.equipmentWord,
+    vehicle: config.vehicleWord,
+  } satisfies Record<SeedPostingFixture["family"], string>;
+
+  const statusSuffix =
+    blueprint.status === "draft"
+      ? " Planning"
+      : blueprint.status === "paused"
+        ? " Service Hold"
+        : "";
+
+  return `${basePrefixByFamily[blueprint.family]} ${blueprint.variant.name}${statusSuffix}`;
+}
+
+function buildPostingDescription(
+  config: ExpandedSeedOrganizationConfig,
+  blueprint: GeneratedPostingBlueprint,
+): string {
+  const statusContext =
+    blueprint.status === "draft"
+      ? " This draft listing is being staged for an upcoming release."
+      : blueprint.status === "paused"
+        ? " This listing is temporarily paused for servicing and calendar cleanup."
+        : "";
+
+  return `${blueprint.variant.description} Built around ${config.city.toLowerCase()} workflows and ${config.focusTag} demand.${statusContext}`;
+}
+
+function buildPostingTags(
+  config: ExpandedSeedOrganizationConfig,
+  blueprint: GeneratedPostingBlueprint,
+): string[] {
+  return [
+    config.focusTag,
+    config.city.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    ...blueprint.variant.tags,
+  ];
+}
+
+function buildAvailabilityStatus(
+  bundleType: ExpandedPostingBundleType,
+  offset: number,
+  status: SeedPostingFixture["status"],
+): SeedPostingFixture["availabilityStatus"] {
+  if (status === "draft") {
+    return "available";
+  }
+
+  if (status === "paused") {
+    return "unavailable";
+  }
+
+  const limitedOffsets =
+    bundleType === "expanded" ? new Set([1, 4, 6, 9, 11, 14]) : new Set([1, 4, 7, 10]);
+  return limitedOffsets.has(offset) ? "limited" : "available";
+}
+
+function buildAvailabilityNotes(
+  status: SeedPostingFixture["status"],
+  availabilityStatus: SeedPostingFixture["availabilityStatus"],
+): string | null {
+  if (status === "draft") {
+    return "Draft listing pending final copy and pricing review.";
+  }
+
+  if (status === "paused") {
+    return "Temporarily paused for maintenance, servicing, or availability cleanup.";
+  }
+
+  return availabilityStatus === "limited"
+    ? "Published with limited release windows and manual approval guidance."
+    : "Published with flexible booking windows for local demand.";
+}
+
+function shiftCoordinate(base: number, offset: number, delta: number): number {
+  return Number((base + offset * delta).toFixed(4));
+}
+
+function buildAvailabilityBlocks(
+  postingIndex: number,
+  offset: number,
+  bundleType: ExpandedPostingBundleType,
+  status: SeedPostingFixture["status"],
+): SeedAvailabilityBlockFixture[] {
+  const firstPausedOffset = bundleType === "expanded" ? 17 : 15;
+
+  if (offset === 0) {
+    return [
+      createOwnerBlock(
+        postingIndex + 500,
+        "2026-09-03T14:00:00.000Z",
+        "2026-09-05T14:00:00.000Z",
+        "Owner blocked the primary showcase listing for a private use window.",
+      ),
+    ];
+  }
+
+  if (status === "paused" && offset === firstPausedOffset) {
+    return [
+      createOwnerBlock(
+        postingIndex + 700,
+        "2026-09-17T13:00:00.000Z",
+        "2026-09-19T13:00:00.000Z",
+        "Paused listing reserved for servicing and inventory checks.",
+      ),
+    ];
+  }
+
+  return [];
+}
+
+function createExpandedPostingBundle(
+  config: ExpandedSeedOrganizationConfig,
+): SeedPostingFixture[] {
+  const bundleBlueprints = createBundleBlueprints(config.bundleType);
+  const bundleSize = getExpandedBundleSize(config.bundleType);
+
+  if (bundleBlueprints.length !== bundleSize) {
+    throw new Error(`Expanded posting bundle size mismatch for ${config.ownerEmail}.`);
+  }
+
+  return bundleBlueprints.map((blueprint, offset) => {
+    const postingIndex = getExpandedPostingIndex(config.ownerEmail, offset);
+    const slug = `${config.ownerSlug}-${postingIndex}`;
+    const availabilityStatus = buildAvailabilityStatus(
+      config.bundleType,
+      offset,
+      blueprint.status,
+    );
+
+    return {
+      id: createFixtureId(2000, postingIndex),
+      ownerEmail: config.ownerEmail,
+      status: blueprint.status,
+      family: blueprint.family,
+      subtype: blueprint.variant.subtype,
+      name: buildPostingName(config, blueprint),
+      description: buildPostingDescription(config, blueprint),
+      pricingCurrency: "CAD",
+      pricing: blueprint.variant.pricing,
+      tags: buildPostingTags(config, blueprint),
+      details: blueprint.variant.details,
+      availabilityStatus,
+      availabilityNotes: buildAvailabilityNotes(blueprint.status, availabilityStatus),
+      maxBookingDurationDays: blueprint.variant.maxBookingDurationDays,
+      latitude: shiftCoordinate(config.latitude, offset % 5, 0.0061),
+      longitude: shiftCoordinate(config.longitude, offset % 5, -0.0057),
+      city: config.city,
+      region: config.region,
+      country: config.country,
+      postalCode: config.postalCode,
+      photos: [createPhoto(postingIndex, slug)],
+      availabilityBlocks: buildAvailabilityBlocks(
+        postingIndex,
+        offset,
+        config.bundleType,
+        blueprint.status,
+      ),
+    };
+  });
+}
+
+const GENERATED_SEED_POSTINGS = EXPANDED_SEED_ORGANIZATIONS.flatMap(
+  createExpandedPostingBundle,
+);
+
+export const SEED_POSTINGS: SeedPostingFixture[] = [
+  ...BASE_SEED_POSTINGS,
+  ...GENERATED_SEED_POSTINGS,
 ];

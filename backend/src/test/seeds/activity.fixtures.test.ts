@@ -25,11 +25,11 @@ describe("seeded analytics outbox fixtures", () => {
     }
   });
 
-  it("keeps reviews concentrated on five postings with seeded reviewers", () => {
+  it("keeps reviews concentrated on seventeen postings with seeded reviewers", () => {
     const reviewedPostingIds = new Set(
       SEED_POSTING_REVIEWS.map((review) => review.postingId),
     );
-    const reviewsPerPosting = new Map<number, number>();
+    const reviewsPerPosting = new Map<string, number>();
     const reviewerEmails = new Set(SEED_USERS.map((user) => user.email));
 
     for (const review of SEED_POSTING_REVIEWS) {
@@ -40,7 +40,7 @@ describe("seeded analytics outbox fixtures", () => {
       expect(reviewerEmails.has(review.reviewerEmail)).toBe(true);
     }
 
-    expect(reviewedPostingIds.size).toBe(5);
+    expect(reviewedPostingIds.size).toBe(17);
 
     for (const count of reviewsPerPosting.values()) {
       expect(count).toBeGreaterThanOrEqual(2);

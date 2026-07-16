@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 import { loadEnvironment } from "@/configuration/environment";
 import {
   connectDatabase,
@@ -48,6 +50,21 @@ export function applyDatabaseSeedTestEnvironment(
     process.env.APP_BASE_URL ?? "http://localhost:3040";
 }
 
+function ensureSeedTestDatabaseSchema(): void {
+  const backendRoot = resolve(__dirname, "../../..");
+  const prismaCliPath = resolve(backendRoot, "node_modules/prisma/build/index.js");
+
+  execFileSync(
+    process.execPath,
+    [prismaCliPath, "migrate", "deploy"],
+    {
+      cwd: backendRoot,
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
+}
+
 export async function bootstrapSeedTestDatabase(
   overrides: {
     databaseUrl?: string;
@@ -55,6 +72,7 @@ export async function bootstrapSeedTestDatabase(
 ): Promise<void> {
   applyDatabaseSeedTestEnvironment(overrides);
   loadEnvironment();
+  ensureSeedTestDatabaseSchema();
   await connectDatabase();
   await runSeedOrchestrator({
     refresh: true,
