@@ -245,7 +245,9 @@ describe("BlobService", () => {
 
     const service = new BlobService();
 
-    await expect(service.deleteBlob("missing/file.txt")).resolves.toBeUndefined();
+    await expect(
+      service.deleteBlob("missing/file.txt"),
+    ).resolves.toBeUndefined();
     expect(
       service.isManagedBlobUrl(
         "https://example.test/blob.png",

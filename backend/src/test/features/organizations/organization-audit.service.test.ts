@@ -53,14 +53,13 @@ function createService(options?: {
     options && "auditLog" in options ? options.auditLog : createAuditLog();
 
   const repository = {
-    create: jest.fn(
-      async (input: CreateOrganizationAuditLogInput) =>
-        createAuditLog({
-          organizationId: input.organizationId,
-          action: input.action,
-          resourceType: input.resourceType,
-          summary: input.summary,
-        }),
+    create: jest.fn(async (input: CreateOrganizationAuditLogInput) =>
+      createAuditLog({
+        organizationId: input.organizationId,
+        action: input.action,
+        resourceType: input.resourceType,
+        summary: input.summary,
+      }),
     ),
     list: jest.fn(async () => options?.listResult ?? createListResult()),
     findById: jest.fn(async () => auditLog),
