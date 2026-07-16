@@ -285,7 +285,10 @@ export class OrganizationsRepository extends BaseRepository {
   }
 
   private createLikePattern(query: string): string {
-    const escaped = query.trim().toLowerCase().replace(/[\\%_]/g, "\\$&");
+    const escaped = query
+      .trim()
+      .toLowerCase()
+      .replace(/[\\%_]/g, "\\$&");
     return `%${escaped}%`;
   }
 

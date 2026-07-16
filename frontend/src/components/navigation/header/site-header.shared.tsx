@@ -94,7 +94,8 @@ export function getAccountLinks(
           {
             href: "/dashboard/organizations",
             label: "Organizations",
-            description: "Open your organization workspace, invites, and team roles",
+            description:
+              "Open your organization workspace, invites, and team roles",
           },
         ]
       : []),

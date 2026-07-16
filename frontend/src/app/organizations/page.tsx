@@ -4,8 +4,7 @@ import { OrganizationDirectoryPage } from "@/components/organizations/organizati
 
 export const metadata: Metadata = {
   title: "Organizations | Rentify",
-  description:
-    "Browse public organizations with published Rentify postings.",
+  description: "Browse public organizations with published Rentify postings.",
 };
 
 export default function OrganizationsPage() {

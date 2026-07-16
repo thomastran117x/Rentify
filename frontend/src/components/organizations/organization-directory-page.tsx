@@ -10,7 +10,9 @@ import {
   type PublicOrganizationSummary,
 } from "@/lib/organizations/api";
 
-function formatLocation(organization: PublicOrganizationSummary): string | null {
+function formatLocation(
+  organization: PublicOrganizationSummary,
+): string | null {
   const parts = [organization.city, organization.region, organization.country]
     .map((part) => part?.trim())
     .filter(Boolean);
@@ -45,7 +47,11 @@ function readPositiveInt(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function OrganizationCard({ organization }: { organization: PublicOrganizationSummary }) {
+function OrganizationCard({
+  organization,
+}: {
+  organization: PublicOrganizationSummary;
+}) {
   const location = formatLocation(organization);
   const websiteHost = (() => {
     if (!organization.websiteUrl) {
@@ -121,7 +127,9 @@ export function OrganizationDirectoryPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [queryInput, setQueryInput] = useState(searchParams.get("q") ?? "");
-  const [result, setResult] = useState<PublicOrganizationListResult | null>(null);
+  const [result, setResult] = useState<PublicOrganizationListResult | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,7 +215,9 @@ export function OrganizationDirectoryPage() {
                 Browse organizations with live public postings.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300">
-                Explore verified organization profiles, search by name, and open public detail pages before you ever step into a private workspace.
+                Explore verified organization profiles, search by name, and open
+                public detail pages before you ever step into a private
+                workspace.
               </p>
             </div>
 
@@ -217,7 +227,8 @@ export function OrganizationDirectoryPage() {
                   Visibility rule
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  Only organizations with at least one published posting appear here.
+                  Only organizations with at least one published posting appear
+                  here.
                 </p>
               </div>
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/40">
@@ -225,13 +236,17 @@ export function OrganizationDirectoryPage() {
                   Workspace access
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  Signed-in members can manage teams and settings from the dashboard workspace.
+                  Signed-in members can manage teams and settings from the
+                  dashboard workspace.
                 </p>
               </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-950/40">
+          <form
+            onSubmit={handleSubmit}
+            className="mt-8 flex flex-col gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-950/40"
+          >
             <input
               type="search"
               value={queryInput}
@@ -300,7 +315,8 @@ export function OrganizationDirectoryPage() {
                 No public organizations found
               </h3>
               <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                Try a broader name search, or check back once more organizations publish postings.
+                Try a broader name search, or check back once more organizations
+                publish postings.
               </p>
             </div>
           )}

@@ -225,9 +225,11 @@ export class OrganizationsController {
     });
   };
 
-  private parseListPublicOrganizationsInput(
-    context: Context<AppBindings>,
-  ): { page: number; pageSize: number; query?: string } {
+  private parseListPublicOrganizationsInput(context: Context<AppBindings>): {
+    page: number;
+    pageSize: number;
+    query?: string;
+  } {
     const url = new URL(context.req.url);
 
     try {

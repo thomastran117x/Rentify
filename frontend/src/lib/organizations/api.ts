@@ -267,7 +267,9 @@ export interface ListPublicOrganizationsInput {
   query?: string;
 }
 
-function buildPublicOrganizationsPath(input?: ListPublicOrganizationsInput): string {
+function buildPublicOrganizationsPath(
+  input?: ListPublicOrganizationsInput,
+): string {
   const searchParams = new URLSearchParams();
 
   if (input?.page) {

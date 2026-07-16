@@ -38,8 +38,9 @@ function formatDate(value: string): string {
 export function OrganizationPublicDetailPage({
   id,
 }: OrganizationPublicDetailPageProps) {
-  const [result, setResult] =
-    useState<PublicOrganizationDetailResult | null>(null);
+  const [result, setResult] = useState<PublicOrganizationDetailResult | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -194,7 +195,8 @@ export function OrganizationPublicDetailPage({
                 {stats.publishedPostingCount}
               </p>
               <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                Published posting{stats.publishedPostingCount === 1 ? "" : "s"} currently tied to this organization.
+                Published posting{stats.publishedPostingCount === 1 ? "" : "s"}{" "}
+                currently tied to this organization.
               </p>
               {organization.websiteUrl ? (
                 <a
@@ -243,7 +245,8 @@ export function OrganizationPublicDetailPage({
               Public profile data
             </p>
             <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-              Contact email, phone, team membership, invitations, and audit history stay private to workspace members.
+              Contact email, phone, team membership, invitations, and audit
+              history stay private to workspace members.
             </p>
           </div>
         </section>

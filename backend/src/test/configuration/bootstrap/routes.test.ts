@@ -299,7 +299,9 @@ describe("mountRoutes", () => {
         app.request(
           `http://rent.test${buildApiPath("/organizations/org-123/workspace")}`,
         ),
-        app.request(`http://rent.test${buildApiPath("/organizations/org-123")}`),
+        app.request(
+          `http://rent.test${buildApiPath("/organizations/org-123")}`,
+        ),
       ]);
 
     await expect(mineResponse.json()).resolves.toEqual({
