@@ -15,18 +15,28 @@ const {
   getByIdMock,
   setActiveMock,
   createInviteMock,
+  usePathnameMock,
+  useSearchParamsMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMineMock: vi.fn(),
   getByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createInviteMock: vi.fn(),
+  usePathnameMock: vi.fn(),
+  useSearchParamsMock: vi.fn(),
 }));
+
+function setSearchParams(query = "") {
+  useSearchParamsMock.mockReturnValue(new URLSearchParams(query));
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: routerReplaceMock,
   }),
+  usePathname: () => usePathnameMock(),
+  useSearchParams: () => useSearchParamsMock(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -44,12 +54,25 @@ vi.mock("@/lib/organizations/api", () => ({
     revokeInvite: vi.fn(),
     updateMemberRole: vi.fn(),
     removeMember: vi.fn(),
+    listAudit: vi.fn(async () => ({ auditLogs: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } })),
+    restoreAuditEntry: vi.fn(),
+    create: vi.fn(),
   },
 }));
 
 vi.mock("@/lib/postings/api", () => ({
   postingsApi: {
     listMine: vi.fn(async () => ({ postings: [] })),
+    publish: vi.fn(),
+    pausePosting: vi.fn(),
+    unpausePosting: vi.fn(),
+    archive: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/auth/api", () => ({
+  authApi: {
+    refresh: vi.fn(),
   },
 }));
 
@@ -57,6 +80,8 @@ describe("OrganizationWorkspace toast integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    usePathnameMock.mockReturnValue("/organizations");
+    setSearchParams("");
 
     useAuthMock.mockReturnValue({
       status: "authenticated",
@@ -101,6 +126,19 @@ describe("OrganizationWorkspace toast integration", () => {
         name: "Northwind",
         createdAt: "2026-05-01T00:00:00.000Z",
         updatedAt: "2026-05-01T00:00:00.000Z",
+        description: null,
+        websiteUrl: null,
+        contactEmail: null,
+        contactPhone: null,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        region: null,
+        country: null,
+        postalCode: null,
+        logoUrl: null,
+        logoBlobName: null,
+        customFields: null,
       },
       viewerRole: "primary_manager",
       members: [
@@ -125,7 +163,7 @@ describe("OrganizationWorkspace toast integration", () => {
     });
   });
 
-  it("renders a toast when sending an invite fails", async () => {
+  it("renders a toast when sending an invite fails from the Team tab", async () => {
     const user = userEvent.setup();
 
     createInviteMock.mockRejectedValue(
@@ -151,6 +189,7 @@ describe("OrganizationWorkspace toast integration", () => {
     );
 
     await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Team/i }));
     await user.type(
       screen.getByPlaceholderText("teammate@example.com"),
       "owner@example.com",

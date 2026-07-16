@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { OrganizationWorkspace } from "@/components/organizations/organization-workspace";
 
 export const metadata: Metadata = {
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function OrganizationsPage() {
-  return <OrganizationWorkspace />;
+  return (
+    <Suspense fallback={null}>
+      <OrganizationWorkspace />
+    </Suspense>
+  );
 }

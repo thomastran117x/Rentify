@@ -23,6 +23,14 @@ const {
   refreshMock,
   listMinePostingsMock,
   publishPostingMock,
+  pausePostingMock,
+  unpausePostingMock,
+  archivePostingMock,
+  revokeInviteMock,
+  updateMemberRoleMock,
+  removeMemberMock,
+  usePathnameMock,
+  useSearchParamsMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   setSessionMock: vi.fn(),
@@ -38,12 +46,26 @@ const {
   refreshMock: vi.fn(),
   listMinePostingsMock: vi.fn(),
   publishPostingMock: vi.fn(),
+  pausePostingMock: vi.fn(),
+  unpausePostingMock: vi.fn(),
+  archivePostingMock: vi.fn(),
+  revokeInviteMock: vi.fn(),
+  updateMemberRoleMock: vi.fn(),
+  removeMemberMock: vi.fn(),
+  usePathnameMock: vi.fn(),
+  useSearchParamsMock: vi.fn(),
 }));
+
+function setSearchParams(query = "") {
+  useSearchParamsMock.mockReturnValue(new URLSearchParams(query));
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: routerReplaceMock,
   }),
+  usePathname: () => usePathnameMock(),
+  useSearchParams: () => useSearchParamsMock(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -78,9 +100,9 @@ vi.mock("@/lib/postings/api", () => ({
   postingsApi: {
     listMine: listMinePostingsMock,
     publish: publishPostingMock,
-    pausePosting: vi.fn(),
-    unpausePosting: vi.fn(),
-    archive: vi.fn(),
+    pausePosting: pausePostingMock,
+    unpausePosting: unpausePostingMock,
+    archive: archivePostingMock,
   },
 }));
 
@@ -95,9 +117,9 @@ vi.mock("@/lib/organizations/api", () => ({
     createInvite: createInviteMock,
     listAudit: listAuditMock,
     restoreAuditEntry: restoreAuditEntryMock,
-    revokeInvite: vi.fn(),
-    updateMemberRole: vi.fn(),
-    removeMember: vi.fn(),
+    revokeInvite: revokeInviteMock,
+    updateMemberRole: updateMemberRoleMock,
+    removeMember: removeMemberMock,
   },
 }));
 
@@ -119,52 +141,99 @@ const workspacePayload = {
   },
 };
 
-const detailPayload = {
-  organization: {
-    id: "org-1",
-    name: "Northwind",
-    createdAt: "2026-05-01T00:00:00.000Z",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  },
-  viewerRole: "primary_manager" as const,
-  members: [
-    {
-      membershipId: "membership-1",
-      userId: "user-1",
+function buildSession(role: "primary_manager" | "manager" | "operator" = "primary_manager") {
+  return {
+    accessToken: "access-token",
+    user: {
+      id: "user-1",
       email: "owner@example.com",
       username: "owner-one",
-      role: "primary_manager" as const,
-      joinedAt: "2026-05-01T00:00:00.000Z",
+      role: "owner",
+      organizationMembershipCount: 1,
+      activeOrganization: {
+        id: "org-1",
+        name: "Northwind",
+        role,
+      },
     },
-  ],
-  invitations: [],
-};
+  };
+}
+
+function buildDetailPayload(
+  role: "primary_manager" | "manager" | "operator" = "primary_manager",
+) {
+  return {
+    organization: {
+      id: "org-1",
+      name: "Northwind",
+      createdAt: "2026-05-01T00:00:00.000Z",
+      updatedAt: "2026-05-01T00:00:00.000Z",
+      description: "Boutique furnished rentals for small creative teams.",
+      websiteUrl: null,
+      contactEmail: null,
+      contactPhone: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      region: null,
+      country: null,
+      postalCode: null,
+      logoUrl: null,
+      logoBlobName: null,
+      customFields: null,
+    },
+    viewerRole: role,
+    members: [
+      {
+        membershipId: "membership-1",
+        userId: "user-1",
+        email: "owner@example.com",
+        username: "owner-one",
+        role: "primary_manager" as const,
+        joinedAt: "2026-05-01T00:00:00.000Z",
+      },
+      {
+        membershipId: "membership-2",
+        userId: "user-2",
+        email: "user2@example.com",
+        username: "ops-two",
+        role: "operator" as const,
+        joinedAt: "2026-05-03T00:00:00.000Z",
+      },
+    ],
+    invitations: [
+      {
+        id: "invite-1",
+        email: "pending@example.com",
+        emailHint: "p***@example.com",
+        role: "operator" as const,
+        status: "pending" as const,
+        expiresAt: "2026-06-01T00:00:00.000Z",
+        createdAt: "2026-05-10T00:00:00.000Z",
+        updatedAt: "2026-05-10T00:00:00.000Z",
+        invitedBy: {
+          id: "user-1",
+          email: "owner@example.com",
+          username: "owner-one",
+        },
+      },
+    ],
+  };
+}
 
 describe("OrganizationWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    usePathnameMock.mockReturnValue("/organizations");
+    setSearchParams("");
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: setSessionMock,
-      session: {
-        accessToken: "access-token",
-        user: {
-          id: "user-1",
-          email: "owner@example.com",
-          username: "owner-one",
-          role: "owner",
-          organizationMembershipCount: 1,
-          activeOrganization: {
-            id: "org-1",
-            name: "Northwind",
-            role: "primary_manager",
-          },
-        },
-      },
+      session: buildSession(),
     });
     getMineMock.mockResolvedValue(workspacePayload);
-    getByIdMock.mockResolvedValue(detailPayload);
+    getByIdMock.mockResolvedValue(buildDetailPayload());
     setActiveMock.mockResolvedValue({
       activeOrganization: workspacePayload.activeOrganization,
     });
@@ -183,13 +252,14 @@ describe("OrganizationWorkspace", () => {
         isActive: true,
       },
     });
+    updateMock.mockResolvedValue({
+      id: "org-1",
+      name: "Northwind",
+      role: "primary_manager",
+    });
     refreshMock.mockResolvedValue(null);
     listMinePostingsMock.mockResolvedValue({ postings: [] });
-    createInviteMock.mockResolvedValue({
-      invitation: {
-        id: "invite-1",
-      },
-    });
+    createInviteMock.mockResolvedValue({ invitation: { id: "invite-1" } });
     listAuditMock.mockResolvedValue({
       auditLogs: [],
       pagination: {
@@ -222,15 +292,79 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("loads the active organization detail and allows inviting teammates", async () => {
-    const user = userEvent.setup();
-
+  it("defaults to the overview tab", async () => {
     render(<OrganizationWorkspace />);
 
     expect(
       await screen.findByRole("heading", { name: "Northwind" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Overview/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByText("Jump to the work that matters"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Invite teammates")).not.toBeInTheDocument();
+  });
 
+  it("switches panels when a tab is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Team/i }));
+
+    expect(screen.getByText("Invite teammates")).toBeInTheDocument();
+    expect(routerReplaceMock).toHaveBeenLastCalledWith(
+      "/organizations?tab=team",
+      { scroll: false },
+    );
+  });
+
+  it("falls back to the first allowed tab when the query tab is unauthorized", async () => {
+    setSearchParams("tab=settings");
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: setSessionMock,
+      session: buildSession("manager"),
+    });
+    getMineMock.mockResolvedValue({
+      memberships: [
+        {
+          ...workspacePayload.memberships[0],
+          role: "manager",
+        },
+      ],
+      activeOrganization: {
+        id: "org-1",
+        name: "Northwind",
+        role: "manager" as const,
+      },
+    });
+    getByIdMock.mockResolvedValue(buildDetailPayload("manager"));
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    expect(screen.getByText("Jump to the work that matters")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Settings/i })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenLastCalledWith(
+        "/organizations?tab=overview",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("sends invites from the Team tab", async () => {
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Team/i }));
     await user.type(
       screen.getByPlaceholderText("teammate@example.com"),
       "teammate@example.com",
@@ -245,7 +379,33 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("shows manager audit history and restores a restorable entry", async () => {
+  it("publishes a posting from the Postings tab", async () => {
+    const user = userEvent.setup();
+    listMinePostingsMock.mockResolvedValue({
+      postings: [
+        {
+          id: "posting-1",
+          organizationId: "org-1",
+          status: "draft",
+          name: "Draft loft",
+          variant: { family: "place", subtype: "workspace" },
+          location: { city: "Toronto", region: "Ontario" },
+        },
+      ],
+    });
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Postings/i }));
+    await user.click(await screen.findByRole("button", { name: "Publish" }));
+
+    await waitFor(() => {
+      expect(publishPostingMock).toHaveBeenCalledWith("posting-1");
+    });
+  });
+
+  it("restores a restorable audit entry from the Activity tab", async () => {
     const user = userEvent.setup();
     listAuditMock.mockResolvedValue({
       auditLogs: [
@@ -279,151 +439,26 @@ describe("OrganizationWorkspace", () => {
 
     render(<OrganizationWorkspace />);
 
-    expect(
-      await screen.findByText("Recent organization activity"),
-    ).toBeInTheDocument();
-    expect(await screen.findByText("Organization Renamed")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Restore" }));
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Activity/i }));
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
 
     await waitFor(() => {
       expect(restoreAuditEntryMock).toHaveBeenCalledWith("org-1", "audit-1");
     });
   });
-  it("renders the active organization's postings with a create CTA", async () => {
-    listMinePostingsMock.mockResolvedValue({
-      postings: [
-        {
-          id: "posting-1",
-          organizationId: "org-1",
-          status: "published",
-          name: "Downtown studio",
-          variant: { family: "place", subtype: "workspace" },
-          location: { city: "Toronto", region: "Ontario" },
-        },
-      ],
-    });
 
-    render(<OrganizationWorkspace />);
-
-    expect(await screen.findByText("Downtown studio")).toBeInTheDocument();
-
-    const createLinks = screen.getAllByRole("link", { name: "Create posting" });
-    expect(createLinks[0]).toHaveAttribute("href", "/postings/create");
-
-    const editLink = screen.getByRole("link", { name: "Edit" });
-    expect(editLink).toHaveAttribute(
-      "href",
-      "/postings/create?posting=posting-1",
-    );
-  });
-
-  it("loads a 5-posting preview with a view-all link", async () => {
-    listMinePostingsMock.mockResolvedValue({
-      postings: Array.from({ length: 5 }, (_, index) => ({
-        id: `posting-${index + 1}`,
-        organizationId: "org-1",
-        status: "published",
-        name: `Listing ${index + 1}`,
-        variant: { family: "place", subtype: "workspace" },
-        location: { city: "Toronto", region: "Ontario" },
-      })),
-      pagination: {
-        page: 1,
-        pageSize: 5,
-        total: 8,
-        totalPages: 2,
-        hasNextPage: true,
-        hasPreviousPage: false,
-      },
-    });
-
-    render(<OrganizationWorkspace />);
-
-    expect(await screen.findByText("Listing 1")).toBeInTheDocument();
-    expect(screen.getByText("Listing 5")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "View all 8 postings" }),
-    ).toBeInTheDocument();
-    expect(listMinePostingsMock).toHaveBeenCalledWith({ pageSize: 5 });
-  });
-
-  it("converts a posting's status from the dashboard", async () => {
+  it("saves organization profile fields from the Settings tab", async () => {
     const user = userEvent.setup();
-    listMinePostingsMock.mockResolvedValue({
-      postings: [
-        {
-          id: "posting-1",
-          organizationId: "org-1",
-          status: "draft",
-          name: "Draft loft",
-          variant: { family: "place", subtype: "workspace" },
-          location: { city: "Toronto", region: "Ontario" },
-        },
-      ],
-    });
-
-    render(<OrganizationWorkspace />);
-
-    await user.click(await screen.findByRole("button", { name: "Publish" }));
-
-    await waitFor(() => {
-      expect(publishPostingMock).toHaveBeenCalledWith("posting-1");
-    });
-  });
-
-  it("shows the create form when the authenticated user has no memberships", async () => {
-    getMineMock.mockResolvedValue({
-      memberships: [],
-    });
-
-    render(<OrganizationWorkspace />);
-
-    expect(
-      await screen.findByText("Create your first organization"),
-    ).toBeInTheDocument();
-  });
-
-  it("creates an organization from the empty state", async () => {
-    const user = userEvent.setup();
-    getMineMock.mockResolvedValueOnce({ memberships: [] });
-    const refreshedSession = { accessToken: "next", user: { id: "user-1" } };
-    refreshMock.mockResolvedValue(refreshedSession);
-
-    render(<OrganizationWorkspace />);
-
-    await user.type(
-      await screen.findByLabelText("Organization name"),
-      "Acme Rentals",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Create organization" }),
-    );
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Acme Rentals" }),
-      );
-    });
-    expect(refreshMock).toHaveBeenCalled();
-    expect(setSessionMock).toHaveBeenCalledWith(refreshedSession);
-  });
-
-  it("saves organization profile fields as the primary manager", async () => {
-    const user = userEvent.setup();
-    updateMock.mockResolvedValue({
-      id: "org-1",
-      name: "Northwind",
-      role: "primary_manager",
-    });
 
     render(<OrganizationWorkspace />);
 
     await screen.findByRole("heading", { name: "Northwind" });
-
+    await user.click(screen.getByRole("tab", { name: /Settings/i }));
     const description = screen.getByPlaceholderText(
       "Tell renters what your organization is about.",
     );
+    await user.clear(description);
     await user.type(description, "Boutique rentals.");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
@@ -436,6 +471,16 @@ describe("OrganizationWorkspace", () => {
         }),
       );
     });
+  });
+
+  it("shows the create form when the authenticated user has no memberships", async () => {
+    getMineMock.mockResolvedValue({ memberships: [] });
+
+    render(<OrganizationWorkspace />);
+
+    expect(
+      await screen.findByText("Create your first organization"),
+    ).toBeInTheDocument();
   });
 
   it("routes invite failures through the global error toast", async () => {
@@ -455,6 +500,7 @@ describe("OrganizationWorkspace", () => {
     render(<OrganizationWorkspace />);
 
     await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Team/i }));
     await user.type(
       screen.getByPlaceholderText("teammate@example.com"),
       "teammate@example.com",

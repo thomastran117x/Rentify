@@ -162,6 +162,7 @@ function createService(overrides?: {
       role: "manager",
       joinedAt: "2026-05-02T00:00:00.000Z",
     })),
+    restoreMembership: jest.fn(async () => createMember()),
     removeMembership: jest.fn(async () => true),
     reissueInvitation: jest.fn(async () => createInvitation()),
     findInvitationById: jest.fn(async () => createInvitation()),
