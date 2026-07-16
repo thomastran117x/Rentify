@@ -153,6 +153,7 @@ export class OrganizationsService {
       input.organizationId,
     );
     this.assertCanRestoreVersion(actorMembership, auditLog);
+    let beforeCleanupSnapshot: unknown;
     let afterSnapshot: unknown;
     let action: RestoreOrganizationVersionResult["auditLog"]["action"];
     let summary: string;
@@ -166,6 +167,7 @@ export class OrganizationsService {
             "This organization version cannot be restored.",
           );
         }
+        beforeCleanupSnapshot = auditLog.afterSnapshot;
         afterSnapshot = await this.organizationsRepository.updateOrganization(
           input.organizationId,
           {
@@ -173,7 +175,6 @@ export class OrganizationsService {
             ...this.readProfileFromSnapshot(snapshot),
           },
         );
-        await this.cleanupReplacedOrganizationLogo(snapshot, afterSnapshot);
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
         break;
@@ -282,6 +283,18 @@ export class OrganizationsService {
       restoredFromAuditId: auditLog.id,
     });
 
+    if (
+      auditLog.resourceType === "organization" &&
+      beforeCleanupSnapshot !== undefined
+    ) {
+      await this.cleanupReplacedOrganizationLogo({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        beforeSnapshot: beforeCleanupSnapshot,
+        afterSnapshot,
+      });
+    }
+
     return {
       restored: true,
       auditLog: restoredAuditLog,
@@ -293,6 +306,7 @@ export class OrganizationsService {
     await this.requireExistingUser(input.actorUserId);
 
     const profile = pickOrganizationProfileInput(input);
+    this.assertOrganizationLogoInput(input.actorUserId, profile);
     const membership =
       await this.organizationsRepository.createOrganizationWithOwner({
         name: input.name.trim(),
@@ -344,6 +358,7 @@ export class OrganizationsService {
 
     const beforeSnapshot = membership.organization;
     const profile = pickOrganizationProfileInput(input);
+    this.assertOrganizationLogoInput(input.actorUserId, profile);
     const updated = await this.organizationsRepository.updateOrganization(
       input.organizationId,
       {
@@ -355,7 +370,6 @@ export class OrganizationsService {
       ...beforeSnapshot,
       ...updated,
     };
-    await this.cleanupReplacedOrganizationLogo(beforeSnapshot, afterSnapshot);
 
     const nameChanged = beforeSnapshot.name !== updated.name;
     const summary = nameChanged
@@ -375,6 +389,13 @@ export class OrganizationsService {
       beforeSnapshot,
       afterSnapshot,
       restorable: true,
+    });
+
+    await this.cleanupReplacedOrganizationLogo({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      beforeSnapshot,
+      afterSnapshot,
     });
 
     return {
@@ -983,12 +1004,14 @@ export class OrganizationsService {
     }
   }
 
-  private async cleanupReplacedOrganizationLogo(
-    beforeSnapshot: unknown,
-    afterSnapshot: unknown,
-  ): Promise<void> {
-    const beforeRecord = toAuditSnapshotRecord(beforeSnapshot);
-    const afterRecord = toAuditSnapshotRecord(afterSnapshot);
+  private async cleanupReplacedOrganizationLogo(input: {
+    organizationId: string;
+    actorUserId: string;
+    beforeSnapshot: unknown;
+    afterSnapshot: unknown;
+  }): Promise<void> {
+    const beforeRecord = toAuditSnapshotRecord(input.beforeSnapshot);
+    const afterRecord = toAuditSnapshotRecord(input.afterSnapshot);
     const previousBlobName =
       typeof beforeRecord.logoBlobName === "string"
         ? beforeRecord.logoBlobName
@@ -1004,8 +1027,22 @@ export class OrganizationsService {
       !previousBlobName ||
       previousBlobName === nextBlobName ||
       !previousBlobUrl ||
-      !this.blobService.isManagedBlobUrl(previousBlobUrl, previousBlobName)
+      !this.blobService.isManagedBlobUrl(previousBlobUrl, previousBlobName) ||
+      !this.isOrganizationLogoBlobName(previousBlobName) ||
+      !this.blobService.isBlobOwnedByUser(input.actorUserId, previousBlobName)
     ) {
+      return;
+    }
+
+    const isReferencedByRestorableAudit =
+      await this.organizationAuditService.hasRestorableOrganizationLogoReference(
+        {
+          organizationId: input.organizationId,
+          blobName: previousBlobName,
+        },
+      );
+
+    if (isReferencedByRestorableAudit) {
       return;
     }
 
@@ -1018,6 +1055,64 @@ export class OrganizationsService {
         error,
       });
     }
+  }
+
+  private assertOrganizationLogoInput(
+    actorUserId: string,
+    profile: OrganizationProfileInput,
+  ): void {
+    const hasLogoUrl = profile.logoUrl !== undefined;
+    const hasLogoBlobName = profile.logoBlobName !== undefined;
+
+    if (hasLogoUrl !== hasLogoBlobName) {
+      throw new BadRequestError(
+        "Logo URL and logo blob name must be provided together when updating the organization logo.",
+      );
+    }
+
+    if (!hasLogoUrl && !hasLogoBlobName) {
+      return;
+    }
+
+    if (!profile.logoUrl && !profile.logoBlobName) {
+      return;
+    }
+
+    if (!profile.logoUrl || !profile.logoBlobName) {
+      throw new BadRequestError(
+        "Logo URL and logo blob name must both be set or both be null.",
+      );
+    }
+
+    const logoBlobName = profile.logoBlobName.trim();
+
+    if (!this.isOrganizationLogoBlobName(logoBlobName)) {
+      throw new BadRequestError(
+        "Organization logos must use an organizations-scoped blob.",
+      );
+    }
+
+    if (!this.blobService.isConfigured()) {
+      throw new BadRequestError(
+        "Organization logos require Blob Storage to be configured on the backend.",
+      );
+    }
+
+    if (!this.blobService.isManagedBlobUrl(profile.logoUrl, logoBlobName)) {
+      throw new BadRequestError(
+        "Logo URL must match the Blob Storage location for the provided blob name.",
+      );
+    }
+
+    if (!this.blobService.isBlobOwnedByUser(actorUserId, logoBlobName)) {
+      throw new BadRequestError(
+        "Organization logo blob must belong to the current user.",
+      );
+    }
+  }
+
+  private isOrganizationLogoBlobName(blobName: string): boolean {
+    return blobName.trim().toLowerCase().startsWith("organizations/");
   }
 
   // Coerce a stored audit snapshot back into an organization profile input so

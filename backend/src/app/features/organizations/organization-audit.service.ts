@@ -52,6 +52,13 @@ export class OrganizationAuditService {
     return auditLog;
   }
 
+  async hasRestorableOrganizationLogoReference(input: {
+    organizationId: string;
+    blobName: string;
+  }): Promise<boolean> {
+    return this.repository.hasRestorableOrganizationLogoReference(input);
+  }
+
   private async requireManager(
     actorUserId: string,
     organizationId: string,

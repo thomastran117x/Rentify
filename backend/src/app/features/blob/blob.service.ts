@@ -120,6 +120,16 @@ export class BlobService {
     await this.deleteBlob(normalizedBlobName);
   }
 
+  isBlobOwnedByUser(userId: string, blobName: string): boolean {
+    try {
+      const normalizedBlobName = this.normalizeBlobName(blobName);
+      this.assertUserOwnsBlob(userId, normalizedBlobName);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async deleteBlob(blobName: string): Promise<void> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
