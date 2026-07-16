@@ -1025,7 +1025,7 @@ export class OrganizationsService {
   private readProfileFromSnapshot(
     snapshot: Record<string, unknown>,
   ): OrganizationProfileInput {
-    const textFields: (keyof OrganizationProfileInput)[] = [
+    const textFields = [
       "description",
       "websiteUrl",
       "contactEmail",
@@ -1038,7 +1038,7 @@ export class OrganizationsService {
       "postalCode",
       "logoUrl",
       "logoBlobName",
-    ];
+    ] as const;
     const result: OrganizationProfileInput = {};
     for (const field of textFields) {
       const value = snapshot[field];
