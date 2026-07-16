@@ -46,8 +46,21 @@ model User {
 }
 
 model Organization {
-  id          String   @id @db.VarChar(36)
-  name        String   @db.VarChar(160)
+  id           String   @id @db.VarChar(36)
+  name         String   @db.VarChar(160)
+  description  String?  @db.Text
+  websiteUrl   String?  @map("website_url") @db.VarChar(500)
+  contactEmail String?  @map("contact_email") @db.VarChar(320)
+  contactPhone String?  @map("contact_phone") @db.VarChar(40)
+  addressLine1 String?  @map("address_line1") @db.VarChar(200)
+  addressLine2 String?  @map("address_line2") @db.VarChar(200)
+  city         String?  @db.VarChar(120)
+  region       String?  @db.VarChar(120)
+  country      String?  @db.VarChar(120)
+  postalCode   String?  @map("postal_code") @db.VarChar(20)
+  logoUrl      String?  @map("logo_url") @db.VarChar(1024)
+  logoBlobName String?  @map("logo_blob_name") @db.VarChar(1024)
+  customFields Json?    @map("custom_fields")
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
   memberships OrganizationMembership[]

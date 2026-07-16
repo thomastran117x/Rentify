@@ -5,6 +5,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import { AuthRepository } from "@/features/auth/auth.repository";
+import { BlobService } from "@/features/blob/blob.service";
 import { EmailService } from "@/features/email/email.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
@@ -21,6 +22,8 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import {
   normalizeOrganizationInvitationEmail,
+  pickOrganizationProfileInput,
+  ORGANIZATION_EDITABLE_FIELDS,
   type AcceptOrganizationInviteInput,
   type AcceptOrganizationInviteResult,
   type CreateOrganizationInput,
@@ -31,6 +34,7 @@ import {
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
+  type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
   type OrganizationWorkspaceResult,
@@ -64,6 +68,7 @@ export class OrganizationsService {
     private readonly organizationAuditService: OrganizationAuditService,
     private readonly postingsRepository: PostingsRepository,
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
+    private readonly blobService: BlobService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -148,6 +153,7 @@ export class OrganizationsService {
       input.organizationId,
     );
     this.assertCanRestoreVersion(actorMembership, auditLog);
+    let beforeCleanupSnapshot: unknown;
     let afterSnapshot: unknown;
     let action: RestoreOrganizationVersionResult["auditLog"]["action"];
     let summary: string;
@@ -161,11 +167,14 @@ export class OrganizationsService {
             "This organization version cannot be restored.",
           );
         }
-        afterSnapshot =
-          await this.organizationsRepository.updateOrganizationName(
-            input.organizationId,
+        beforeCleanupSnapshot = auditLog.afterSnapshot;
+        afterSnapshot = await this.organizationsRepository.updateOrganization(
+          input.organizationId,
+          {
             name,
-          );
+            ...this.readProfileFromSnapshot(snapshot),
+          },
+        );
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
         break;
@@ -274,6 +283,18 @@ export class OrganizationsService {
       restoredFromAuditId: auditLog.id,
     });
 
+    if (
+      auditLog.resourceType === "organization" &&
+      beforeCleanupSnapshot !== undefined
+    ) {
+      await this.cleanupReplacedOrganizationLogo({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        beforeSnapshot: beforeCleanupSnapshot,
+        afterSnapshot,
+      });
+    }
+
     return {
       restored: true,
       auditLog: restoredAuditLog,
@@ -284,10 +305,13 @@ export class OrganizationsService {
   ): Promise<CreateOrganizationResult> {
     await this.requireExistingUser(input.actorUserId);
 
+    const profile = pickOrganizationProfileInput(input);
+    this.assertOrganizationLogoInput(input.actorUserId, profile);
     const membership =
       await this.organizationsRepository.createOrganizationWithOwner({
         name: input.name.trim(),
         ownerUserId: input.actorUserId,
+        ...profile,
       });
 
     await this.organizationsRepository.setPreferredOrganization(
@@ -295,6 +319,11 @@ export class OrganizationsService {
       membership.id,
     );
 
+    const afterSnapshot = {
+      id: membership.id,
+      name: membership.name,
+      ...profile,
+    };
     await this.recordAuditSafely({
       organizationId: membership.id,
       actorUserId: input.actorUserId,
@@ -302,14 +331,8 @@ export class OrganizationsService {
       resourceType: "organization",
       resourceId: membership.id,
       summary: `${membership.name} was created.`,
-      changes: this.createChanges(null, {
-        id: membership.id,
-        name: membership.name,
-      }),
-      afterSnapshot: {
-        id: membership.id,
-        name: membership.name,
-      },
+      changes: this.createChanges(null, afterSnapshot),
+      afterSnapshot,
       restorable: false,
     });
 
@@ -334,14 +357,24 @@ export class OrganizationsService {
     this.requirePrimaryManager(membership.role);
 
     const beforeSnapshot = membership.organization;
-    const updated = await this.organizationsRepository.updateOrganizationName(
+    const profile = pickOrganizationProfileInput(input);
+    this.assertOrganizationLogoInput(input.actorUserId, profile);
+    const updated = await this.organizationsRepository.updateOrganization(
       input.organizationId,
-      input.name.trim(),
+      {
+        name: input.name.trim(),
+        ...profile,
+      },
     );
     const afterSnapshot = {
       ...beforeSnapshot,
-      name: updated.name,
+      ...updated,
     };
+
+    const nameChanged = beforeSnapshot.name !== updated.name;
+    const summary = nameChanged
+      ? `Organization renamed from ${beforeSnapshot.name} to ${updated.name}.`
+      : `${updated.name} profile was updated.`;
 
     await this.recordAuditSafely({
       organizationId: input.organizationId,
@@ -349,15 +382,25 @@ export class OrganizationsService {
       action: "organization.renamed",
       resourceType: "organization",
       resourceId: input.organizationId,
-      summary: `Organization renamed from ${beforeSnapshot.name} to ${updated.name}.`,
-      changes: this.createChanges(beforeSnapshot, afterSnapshot, ["name"]),
+      summary,
+      changes: this.createChanges(beforeSnapshot, afterSnapshot, [
+        ...ORGANIZATION_EDITABLE_FIELDS,
+      ]),
       beforeSnapshot,
       afterSnapshot,
       restorable: true,
     });
 
+    await this.cleanupReplacedOrganizationLogo({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      beforeSnapshot,
+      afterSnapshot,
+    });
+
     return {
-      ...updated,
+      id: updated.id,
+      name: updated.name,
       role: membership.role,
     };
   }
@@ -959,6 +1002,166 @@ export class OrganizationsService {
         error,
       });
     }
+  }
+
+  private async cleanupReplacedOrganizationLogo(input: {
+    organizationId: string;
+    actorUserId: string;
+    beforeSnapshot: unknown;
+    afterSnapshot: unknown;
+  }): Promise<void> {
+    const beforeRecord = toAuditSnapshotRecord(input.beforeSnapshot);
+    const afterRecord = toAuditSnapshotRecord(input.afterSnapshot);
+    const previousBlobName =
+      typeof beforeRecord.logoBlobName === "string"
+        ? beforeRecord.logoBlobName
+        : null;
+    const previousBlobUrl =
+      typeof beforeRecord.logoUrl === "string" ? beforeRecord.logoUrl : null;
+    const nextBlobName =
+      typeof afterRecord.logoBlobName === "string"
+        ? afterRecord.logoBlobName
+        : null;
+
+    if (
+      !previousBlobName ||
+      previousBlobName === nextBlobName ||
+      !previousBlobUrl ||
+      !this.blobService.isManagedBlobUrl(previousBlobUrl, previousBlobName) ||
+      !this.isOrganizationLogoBlobName(previousBlobName) ||
+      !this.blobService.isBlobOwnedByUser(input.actorUserId, previousBlobName)
+    ) {
+      return;
+    }
+
+    const isReferencedByRestorableAudit =
+      await this.organizationAuditService.hasRestorableOrganizationLogoReference(
+        {
+          organizationId: input.organizationId,
+          blobName: previousBlobName,
+        },
+      );
+
+    if (isReferencedByRestorableAudit) {
+      return;
+    }
+
+    try {
+      await this.blobService.deleteBlob(previousBlobName);
+    } catch (error) {
+      this.logger.error("Failed to delete replaced organization logo blob.", {
+        previousBlobName,
+        nextBlobName: nextBlobName ?? undefined,
+        error,
+      });
+    }
+  }
+
+  private assertOrganizationLogoInput(
+    actorUserId: string,
+    profile: OrganizationProfileInput,
+  ): void {
+    const hasLogoUrl = profile.logoUrl !== undefined;
+    const hasLogoBlobName = profile.logoBlobName !== undefined;
+
+    if (hasLogoUrl !== hasLogoBlobName) {
+      throw new BadRequestError(
+        "Logo URL and logo blob name must be provided together when updating the organization logo.",
+      );
+    }
+
+    if (!hasLogoUrl && !hasLogoBlobName) {
+      return;
+    }
+
+    if (!profile.logoUrl && !profile.logoBlobName) {
+      return;
+    }
+
+    if (!profile.logoUrl || !profile.logoBlobName) {
+      throw new BadRequestError(
+        "Logo URL and logo blob name must both be set or both be null.",
+      );
+    }
+
+    const logoBlobName = profile.logoBlobName.trim();
+
+    if (!this.isOrganizationLogoBlobName(logoBlobName)) {
+      throw new BadRequestError(
+        "Organization logos must use an organizations-scoped blob.",
+      );
+    }
+
+    if (!this.blobService.isConfigured()) {
+      throw new BadRequestError(
+        "Organization logos require Blob Storage to be configured on the backend.",
+      );
+    }
+
+    if (!this.blobService.isManagedBlobUrl(profile.logoUrl, logoBlobName)) {
+      throw new BadRequestError(
+        "Logo URL must match the Blob Storage location for the provided blob name.",
+      );
+    }
+
+    if (!this.blobService.isBlobOwnedByUser(actorUserId, logoBlobName)) {
+      throw new BadRequestError(
+        "Organization logo blob must belong to the current user.",
+      );
+    }
+  }
+
+  private isOrganizationLogoBlobName(blobName: string): boolean {
+    return blobName.trim().toLowerCase().startsWith("organizations/");
+  }
+
+  // Coerce a stored audit snapshot back into an organization profile input so
+  // a restore reverts every editable field, not just the name.
+  private readProfileFromSnapshot(
+    snapshot: Record<string, unknown>,
+  ): OrganizationProfileInput {
+    const textFields = [
+      "description",
+      "websiteUrl",
+      "contactEmail",
+      "contactPhone",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "region",
+      "country",
+      "postalCode",
+      "logoUrl",
+      "logoBlobName",
+    ] as const;
+    const result: OrganizationProfileInput = {};
+    for (const field of textFields) {
+      const value = snapshot[field];
+      if (typeof value === "string") {
+        result[field] = value;
+      } else if (value === null) {
+        result[field] = null;
+      }
+    }
+
+    const customFields = snapshot.customFields;
+    if (customFields === null) {
+      result.customFields = null;
+    } else if (
+      customFields &&
+      typeof customFields === "object" &&
+      !Array.isArray(customFields)
+    ) {
+      const parsed: Record<string, string> = {};
+      for (const [key, entry] of Object.entries(customFields)) {
+        if (typeof entry === "string") {
+          parsed[key] = entry;
+        }
+      }
+      result.customFields = parsed;
+    }
+
+    return result;
   }
 
   private createChanges(

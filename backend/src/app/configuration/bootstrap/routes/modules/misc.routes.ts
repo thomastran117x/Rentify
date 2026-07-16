@@ -28,6 +28,10 @@ export const blobRouteModule: RouteModule = {
         "getLocal",
       ),
     );
+    app.delete(
+      "/blob",
+      resolveHandler<BlobController>(containerTokens.blobController, "delete"),
+    );
   },
 };
 

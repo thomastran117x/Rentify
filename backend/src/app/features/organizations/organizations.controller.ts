@@ -43,7 +43,7 @@ export class OrganizationsController {
     );
     const result = await this.organizationsService.createOrganization({
       actorUserId: auth.sub,
-      name: body.name,
+      ...body,
     });
     return created(context, result, {
       message: "Organization created successfully.",
@@ -112,7 +112,7 @@ export class OrganizationsController {
     const result = await this.organizationsService.update({
       organizationId: this.requireOrganizationId(context),
       actorUserId: auth.sub,
-      name: body.name,
+      ...body,
     });
     return ok(context, result, {
       message: "Organization updated successfully.",

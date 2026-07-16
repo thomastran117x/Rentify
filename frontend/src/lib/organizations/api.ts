@@ -137,19 +137,43 @@ export interface OrganizationAuditResult {
   };
 }
 
+// Editable, self-describing profile fields on an organization. All optional so
+// existing organizations render fine and blank inputs stay null.
+export interface OrganizationProfileFields {
+  description: string | null;
+  websiteUrl: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  logoBlobName: string | null;
+  customFields: Record<string, string> | null;
+}
+
+export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
+
 export interface OrganizationDetailResult {
   organization: {
     id: string;
     name: string;
     createdAt: string;
     updatedAt: string;
-  };
+  } & OrganizationProfileFields;
   viewerRole: OrganizationRole;
   members: OrganizationMember[];
   invitations: OrganizationInvite[];
 }
 
-export interface CreateOrganizationInput {
+export interface CreateOrganizationInput extends OrganizationProfileInput {
+  name: string;
+}
+
+export interface UpdateOrganizationInput extends OrganizationProfileInput {
   name: string;
 }
 
@@ -229,11 +253,17 @@ export const organizationsApi = {
       `/organizations/${id}`,
     );
   },
-  rename(id: string, name: string): Promise<ActiveOrganizationSummary> {
+  update(
+    id: string,
+    input: UpdateOrganizationInput,
+  ): Promise<ActiveOrganizationSummary> {
     return patchAuthenticatedJson<ActiveOrganizationSummary>(
       `/organizations/${id}`,
-      { name },
+      input,
     );
+  },
+  rename(id: string, name: string): Promise<ActiveOrganizationSummary> {
+    return this.update(id, { name });
   },
   createInvite(
     id: string,

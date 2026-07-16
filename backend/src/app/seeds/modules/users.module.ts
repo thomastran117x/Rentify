@@ -88,8 +88,11 @@ export const usersSeedModule: SeedModule = {
 
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
-        ownerOrganizationIndex += 1;
         const organizationName = buildOrganizationName(fixtureUser);
+        const organizationProfile = buildOrganizationProfile(
+          ownerOrganizationIndex,
+        );
+        ownerOrganizationIndex += 1;
 
         await prisma.organization.upsert({
           where: {
@@ -97,10 +100,12 @@ export const usersSeedModule: SeedModule = {
           },
           update: {
             name: organizationName,
+            ...organizationProfile,
           },
           create: {
             id: organizationId,
             name: organizationName,
+            ...organizationProfile,
           },
         });
 
@@ -284,6 +289,273 @@ export const usersSeedModule: SeedModule = {
     logger.info(`Seeded ${SEED_USERS.length} users and related auth fixtures.`);
   },
 };
+
+interface SeedOrganizationProfile {
+  description: string;
+  websiteUrl: string;
+  contactEmail: string;
+  contactPhone: string;
+  addressLine1: string;
+  city: string;
+  region: string;
+  country: string;
+  postalCode: string;
+  customFields: Record<string, string>;
+}
+
+// Deterministic, varied profile data so the upcoming organization-search
+// feature has distinguishable content (distinct cities/countries/descriptions)
+// to query and filter against, not just names.
+const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
+  {
+    description:
+      "Boutique short-term rental group specializing in downtown loft apartments and design-forward studios.",
+    websiteUrl: "https://harbor-loft-rentals.example.com",
+    contactEmail: "hello@harbor-loft-rentals.example.com",
+    contactPhone: "+1 (415) 555-0142",
+    addressLine1: "410 Market Street",
+    city: "San Francisco",
+    region: "California",
+    country: "United States",
+    postalCode: "94111",
+    customFields: { Founded: "2016", "Property type": "Urban lofts" },
+  },
+  {
+    description:
+      "Family-run holiday home network across the Alps offering ski chalets and lakeside cabins.",
+    websiteUrl: "https://alpine-stays.example.com",
+    contactEmail: "book@alpine-stays.example.com",
+    contactPhone: "+41 44 555 0177",
+    addressLine1: "Bahnhofstrasse 22",
+    city: "Zurich",
+    region: "Zurich",
+    country: "Switzerland",
+    postalCode: "8001",
+    customFields: { Founded: "2009", Specialty: "Ski chalets" },
+  },
+  {
+    description:
+      "Coastal vacation rentals with beachfront villas and surf bungalows along the east coast.",
+    websiteUrl: "https://byron-coastal.example.com",
+    contactEmail: "stay@byron-coastal.example.com",
+    contactPhone: "+61 2 5550 0199",
+    addressLine1: "18 Jonson Street",
+    city: "Byron Bay",
+    region: "New South Wales",
+    country: "Australia",
+    postalCode: "2481",
+    customFields: { Founded: "2018", Specialty: "Beachfront villas" },
+  },
+  {
+    description:
+      "Serviced apartments and corporate housing for long-stay business travelers.",
+    websiteUrl: "https://maple-corporate-housing.example.com",
+    contactEmail: "reservations@maple-corporate-housing.example.com",
+    contactPhone: "+1 (416) 555-0168",
+    addressLine1: "88 Queen Street West",
+    city: "Toronto",
+    region: "Ontario",
+    country: "Canada",
+    postalCode: "M5H 2M5",
+    customFields: { Founded: "2012", Specialty: "Corporate housing" },
+  },
+  {
+    description:
+      "Heritage townhouses and canal-side flats for city breaks and extended stays.",
+    websiteUrl: "https://grachten-rentals.example.com",
+    contactEmail: "info@grachten-rentals.example.com",
+    contactPhone: "+31 20 555 0123",
+    addressLine1: "Herengracht 341",
+    city: "Amsterdam",
+    region: "North Holland",
+    country: "Netherlands",
+    postalCode: "1016 AZ",
+    customFields: { Founded: "2014", "Property type": "Heritage townhouses" },
+  },
+  {
+    description:
+      "Modern co-living residences and furnished studios near the tech district.",
+    websiteUrl: "https://nova-coliving.example.com",
+    contactEmail: "team@nova-coliving.example.com",
+    contactPhone: "+44 20 7946 0102",
+    addressLine1: "1 Finsbury Avenue",
+    city: "London",
+    region: "England",
+    country: "United Kingdom",
+    postalCode: "EC2M 2PF",
+    customFields: { Founded: "2020", Specialty: "Co-living" },
+  },
+];
+
+const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
+  {
+    description:
+      "Prairie production and maker rentals for pop-up kitchens, workshops, and flexible studio bookings.",
+    websiteUrl: "https://prairie-production.example.com",
+    contactEmail: "hello@prairie-production.example.com",
+    contactPhone: "+1 (204) 555-0120",
+    addressLine1: "115 Portage Avenue",
+    city: "Winnipeg",
+    region: "Manitoba",
+    country: "Canada",
+    postalCode: "R3B 2A9",
+    customFields: { Founded: "2015", Specialty: "Maker studios" },
+  },
+  {
+    description:
+      "Riverfront creative rentals with compact studios, tool bays, and flexible loading access for small teams.",
+    websiteUrl: "https://riverfront-creative.example.com",
+    contactEmail: "bookings@riverfront-creative.example.com",
+    contactPhone: "+1 (306) 555-0134",
+    addressLine1: "42 River Landing",
+    city: "Saskatoon",
+    region: "Saskatchewan",
+    country: "Canada",
+    postalCode: "S7K 3J6",
+    customFields: { Founded: "2017", Specialty: "Tool bays" },
+  },
+  {
+    description:
+      "Warehouse-adjacent rentals built for fabrication, rehearsal, and local commercial production days.",
+    websiteUrl: "https://warehouse-south.example.com",
+    contactEmail: "team@warehouse-south.example.com",
+    contactPhone: "+1 (306) 555-0148",
+    addressLine1: "86 Broad Street",
+    city: "Regina",
+    region: "Saskatchewan",
+    country: "Canada",
+    postalCode: "S4P 1X8",
+    customFields: { Founded: "2013", Specialty: "Warehouse shoots" },
+  },
+  {
+    description:
+      "Okanagan venue and equipment rentals focused on branded retreats, tastings, and content capture.",
+    websiteUrl: "https://orchard-retreats.example.com",
+    contactEmail: "stay@orchard-retreats.example.com",
+    contactPhone: "+1 (250) 555-0162",
+    addressLine1: "230 Bernard Avenue",
+    city: "Kelowna",
+    region: "British Columbia",
+    country: "Canada",
+    postalCode: "V1Y 6N5",
+    customFields: { Founded: "2019", Specialty: "Retreat venues" },
+  },
+  {
+    description:
+      "Cross-border logistics rentals with storage, vans, and staging rooms for moving crews and events.",
+    websiteUrl: "https://crosswind-logistics.example.com",
+    contactEmail: "ops@crosswind-logistics.example.com",
+    contactPhone: "+1 (519) 555-0176",
+    addressLine1: "18 Riverside Drive West",
+    city: "Windsor",
+    region: "Ontario",
+    country: "Canada",
+    postalCode: "N9A 5K3",
+    customFields: { Founded: "2011", Specialty: "Logistics hubs" },
+  },
+  {
+    description:
+      "Industrial-style studios and gear lockers tailored to product teams, builders, and short design sprints.",
+    websiteUrl: "https://forge-bay.example.com",
+    contactEmail: "hello@forge-bay.example.com",
+    contactPhone: "+1 (905) 555-0184",
+    addressLine1: "67 James Street North",
+    city: "Hamilton",
+    region: "Ontario",
+    country: "Canada",
+    postalCode: "L8R 2K3",
+    customFields: { Founded: "2014", Specialty: "Industrial studios" },
+  },
+  {
+    description:
+      "Historic downtown rentals mixing heritage suites with practical production rooms and tidy storage.",
+    websiteUrl: "https://limestone-works.example.com",
+    contactEmail: "host@limestone-works.example.com",
+    contactPhone: "+1 (613) 555-0198",
+    addressLine1: "91 Princess Street",
+    city: "Kingston",
+    region: "Ontario",
+    country: "Canada",
+    postalCode: "K7L 1A6",
+    customFields: { Founded: "2010", Specialty: "Heritage suites" },
+  },
+  {
+    description:
+      "Maritime rentals for tasting events, remote crews, and small retail activations near the bay.",
+    websiteUrl: "https://tidehouse-rentals.example.com",
+    contactEmail: "crew@tidehouse-rentals.example.com",
+    contactPhone: "+1 (506) 555-0117",
+    addressLine1: "55 Main Street",
+    city: "Moncton",
+    region: "New Brunswick",
+    country: "Canada",
+    postalCode: "E1C 1B9",
+    customFields: { Founded: "2018", Specialty: "Retail activations" },
+  },
+  {
+    description:
+      "Compact coastal rentals for boardwalk pop-ups, market crews, and short family stays.",
+    websiteUrl: "https://harbour-signal.example.com",
+    contactEmail: "book@harbour-signal.example.com",
+    contactPhone: "+1 (902) 555-0126",
+    addressLine1: "14 Water Street",
+    city: "Charlottetown",
+    region: "Prince Edward Island",
+    country: "Canada",
+    postalCode: "C1A 1A9",
+    customFields: { Founded: "2016", Specialty: "Boardwalk pop-ups" },
+  },
+  {
+    description:
+      "Atlantic-facing equipment and venue rentals optimized for documentary crews and weather-flexible stays.",
+    websiteUrl: "https://signal-hill-supply.example.com",
+    contactEmail: "support@signal-hill-supply.example.com",
+    contactPhone: "+1 (709) 555-0139",
+    addressLine1: "7 Duckworth Street",
+    city: "St. John's",
+    region: "Newfoundland and Labrador",
+    country: "Canada",
+    postalCode: "A1C 1E6",
+    customFields: { Founded: "2012", Specialty: "Documentary crews" },
+  },
+  {
+    description:
+      "Northern rentals for expedition teams, remote workshops, and practical crew housing with gear capacity.",
+    websiteUrl: "https://northlight-base.example.com",
+    contactEmail: "hello@northlight-base.example.com",
+    contactPhone: "+1 (867) 555-0145",
+    addressLine1: "29 Main Street",
+    city: "Whitehorse",
+    region: "Yukon",
+    country: "Canada",
+    postalCode: "Y1A 2B2",
+    customFields: { Founded: "2021", Specialty: "Expedition teams" },
+  },
+  {
+    description:
+      "Remote-ready rentals pairing rugged vehicles, bright spaces, and gear lockers for northern travel.",
+    websiteUrl: "https://midnight-sun.example.com",
+    contactEmail: "team@midnight-sun.example.com",
+    contactPhone: "+1 (867) 555-0158",
+    addressLine1: "102 Franklin Avenue",
+    city: "Yellowknife",
+    region: "Northwest Territories",
+    country: "Canada",
+    postalCode: "X1A 2N4",
+    customFields: { Founded: "2022", Specialty: "Remote-ready stays" },
+  },
+];
+
+const SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
+  ...BASE_SEED_ORGANIZATION_PROFILES,
+  ...ADDITIONAL_SEED_ORGANIZATION_PROFILES,
+];
+
+function buildOrganizationProfile(index: number): SeedOrganizationProfile {
+  const sample =
+    SEED_ORGANIZATION_PROFILES[(index - 1) % SEED_ORGANIZATION_PROFILES.length];
+  return sample ?? SEED_ORGANIZATION_PROFILES[0]!;
+}
 
 function buildOrganizationName(fixtureUser: SeedUserFixture): string {
   const fullName = [fixtureUser.firstName, fixtureUser.lastName]

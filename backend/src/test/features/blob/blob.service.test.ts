@@ -189,6 +189,73 @@ describe("BlobService", () => {
     );
   });
 
+  it("deletes staged blobs for the owning user in local development", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    await service.uploadBuffer({
+      blobName: "organizations/user-1/logo.png",
+      body: Buffer.from("logo"),
+      contentType: "image/png",
+    });
+
+    await service.deleteBlobForUser("user-1", "organizations/user-1/logo.png");
+
+    await expect(
+      service.readLocalBlob("organizations/user-1/logo.png"),
+    ).rejects.toThrow(ResourceNotFoundError);
+  });
+
+  it("rejects deleting blobs for another user", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    await expect(
+      service.deleteBlobForUser("user-2", "organizations/user-1/logo.png"),
+    ).rejects.toThrow(BadRequestError);
+  });
+
+  it("returns ownership checks as booleans instead of throwing", () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    expect(
+      service.isBlobOwnedByUser("user-1", "organizations/user-1/logo.png"),
+    ).toBe(true);
+    expect(
+      service.isBlobOwnedByUser("user-1", "organizations/user-2/logo.png"),
+    ).toBe(false);
+    expect(service.isBlobOwnedByUser("user-1", "../escape.txt")).toBe(false);
+  });
+
+  it("treats missing local blob deletes as no-ops and unmanaged urls as false", async () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    await expect(
+      service.deleteBlob("missing/file.txt"),
+    ).resolves.toBeUndefined();
+    expect(
+      service.isManagedBlobUrl(
+        "https://example.test/blob.png",
+        "organizations/user-1/logo.png",
+      ),
+    ).toBe(false);
+  });
+
   it("requires complete Azure configuration and validates SAS ttl configuration", () => {
     process.env.NODE_ENV = "test";
     process.env.AZURE_STORAGE_CONNECTION_STRING =

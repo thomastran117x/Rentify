@@ -15,6 +15,22 @@ function createUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const NULL_ORGANIZATION_PROFILE = {
+  description: null,
+  websiteUrl: null,
+  contactEmail: null,
+  contactPhone: null,
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  region: null,
+  country: null,
+  postalCode: null,
+  logoUrl: null,
+  logoBlobName: null,
+  customFields: null,
+};
+
 function createMembership(overrides: Record<string, unknown> = {}) {
   return {
     membershipId: "membership-1",
@@ -24,6 +40,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
       name: "Northwind",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
+      ...NULL_ORGANIZATION_PROFILE,
     },
     ...overrides,
   };
@@ -98,6 +115,7 @@ function createService(overrides?: {
   auditService?: Record<string, jest.Mock>;
   postingsRepository?: Record<string, jest.Mock>;
   seasonalPricingRepository?: Record<string, jest.Mock>;
+  blobService?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -122,10 +140,17 @@ function createService(overrides?: {
       invitations: [],
     })),
     setPreferredOrganization: jest.fn(async () => undefined),
+    updateOrganization: jest.fn(async () => ({
+      id: "org-1",
+      name: "Renamed",
+      role: "operator",
+      ...NULL_ORGANIZATION_PROFILE,
+    })),
     updateOrganizationName: jest.fn(async () => ({
       id: "org-1",
       name: "Renamed",
       role: "operator",
+      ...NULL_ORGANIZATION_PROFILE,
     })),
     findMemberById: jest.fn(async () => null),
     findMemberByUserId: jest.fn(async () => null),
@@ -138,6 +163,7 @@ function createService(overrides?: {
       role: "manager",
       joinedAt: "2026-05-02T00:00:00.000Z",
     })),
+    restoreMembership: jest.fn(async () => createMember()),
     removeMembership: jest.fn(async () => true),
     reissueInvitation: jest.fn(async () => createInvitation()),
     findInvitationById: jest.fn(async () => createInvitation()),
@@ -181,6 +207,7 @@ function createService(overrides?: {
     record: jest.fn(async (entry) => ({ id: "audit-1", ...entry })),
     list: jest.fn(async () => ({ auditLogs: [], pagination: {} })),
     requireRestorableAudit: jest.fn(),
+    hasRestorableOrganizationLogoReference: jest.fn(async () => false),
     ...(overrides?.auditService ?? {}),
   };
   const postingsRepository = {
@@ -192,6 +219,13 @@ function createService(overrides?: {
     restore: jest.fn(),
     ...(overrides?.seasonalPricingRepository ?? {}),
   };
+  const blobService = {
+    isConfigured: jest.fn(() => true),
+    isManagedBlobUrl: jest.fn(() => true),
+    isBlobOwnedByUser: jest.fn(() => true),
+    deleteBlob: jest.fn(async () => undefined),
+    ...(overrides?.blobService ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
@@ -201,6 +235,7 @@ function createService(overrides?: {
       auditService as never,
       postingsRepository as never,
       seasonalPricingRepository as never,
+      blobService as never,
     ),
     repository,
     authRepository,
@@ -208,6 +243,7 @@ function createService(overrides?: {
     auditService,
     postingsRepository,
     seasonalPricingRepository,
+    blobService,
   };
 }
 
@@ -682,9 +718,9 @@ describe("OrganizationsService", () => {
       name: "Renamed",
       role: "primary_manager",
     });
-    expect(repository.updateOrganizationName).toHaveBeenCalledWith(
+    expect(repository.updateOrganization).toHaveBeenCalledWith(
       "org-1",
-      "Better Northwind",
+      expect.objectContaining({ name: "Better Northwind" }),
     );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -698,6 +734,204 @@ describe("OrganizationsService", () => {
         ],
       }),
     );
+  });
+
+  it("threads profile fields through update and audits changed fields", async () => {
+    const { service, repository, auditService } = createService({
+      repository: {
+        updateOrganization: jest.fn(async () => ({
+          id: "org-1",
+          name: "Northwind",
+          role: "operator",
+          ...NULL_ORGANIZATION_PROFILE,
+          description: "Now with a description",
+          city: "Seattle",
+        })),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      description: "Now with a description",
+      city: "Seattle",
+    });
+
+    expect(repository.updateOrganization).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({
+        name: "Northwind",
+        description: "Now with a description",
+        city: "Seattle",
+      }),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "organization.renamed",
+        changes: expect.arrayContaining([
+          {
+            field: "description",
+            before: null,
+            after: "Now with a description",
+          },
+          { field: "city", before: null, after: "Seattle" },
+        ]),
+      }),
+    );
+  });
+
+  it("rejects organization logo blobs outside the organizations scope", async () => {
+    const { service, repository } = createService();
+
+    await expect(
+      service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        name: "Northwind",
+        logoUrl: "https://cdn.test/postings/user-1/photo.png",
+        logoBlobName: "postings/user-1/photo.png",
+      }),
+    ).rejects.toThrow(
+      "Organization logos must use an organizations-scoped blob.",
+    );
+    expect(repository.updateOrganization).not.toHaveBeenCalled();
+  });
+
+  it("rejects organization logo blobs not owned by the current user", async () => {
+    const nextLogoBlobName = "organizations/user-9/logo-new.png";
+    const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
+    const { service, repository } = createService({
+      blobService: {
+        isBlobOwnedByUser: jest.fn(() => false),
+      },
+    });
+
+    await expect(
+      service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        name: "Northwind",
+        logoUrl: nextLogoUrl,
+        logoBlobName: nextLogoBlobName,
+      }),
+    ).rejects.toThrow(
+      "Organization logo blob must belong to the current user.",
+    );
+    expect(repository.updateOrganization).not.toHaveBeenCalled();
+  });
+
+  it("preserves the previous managed logo when a restorable audit still references it", async () => {
+    const previousLogoBlobName = "organizations/user-1/logo-old.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const nextLogoBlobName = "organizations/user-1/logo-new.png";
+    const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
+    const existingOrganization = {
+      ...createMembership().organization,
+      logoUrl: previousLogoUrl,
+      logoBlobName: previousLogoBlobName,
+    };
+    const { service, blobService, auditService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            organization: existingOrganization,
+          }),
+        ),
+        updateOrganization: jest.fn(async () => ({
+          id: "org-1",
+          name: "Northwind",
+          role: "primary_manager",
+          ...NULL_ORGANIZATION_PROFILE,
+          logoUrl: nextLogoUrl,
+          logoBlobName: nextLogoBlobName,
+        })),
+      },
+      auditService: {
+        hasRestorableOrganizationLogoReference: jest.fn(async () => true),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      logoUrl: nextLogoUrl,
+      logoBlobName: nextLogoBlobName,
+    });
+
+    expect(blobService.isManagedBlobUrl).toHaveBeenCalledWith(
+      previousLogoUrl,
+      previousLogoBlobName,
+    );
+    expect(
+      auditService.hasRestorableOrganizationLogoReference,
+    ).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      blobName: previousLogoBlobName,
+    });
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
+  });
+
+  it("does not delete a previous managed logo the actor does not own", async () => {
+    const previousLogoBlobName = "organizations/user-9/logo-old.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const existingOrganization = {
+      ...createMembership().organization,
+      logoUrl: previousLogoUrl,
+      logoBlobName: previousLogoBlobName,
+    };
+    const { service, blobService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            organization: existingOrganization,
+          }),
+        ),
+      },
+      blobService: {
+        isBlobOwnedByUser: jest.fn(() => false),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      logoUrl: null,
+      logoBlobName: null,
+    });
+
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
+  });
+
+  it("deletes the previous managed logo when no restorable audit references it", async () => {
+    const previousLogoBlobName = "organizations/user-1/logo-old.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const existingOrganization = {
+      ...createMembership().organization,
+      logoUrl: previousLogoUrl,
+      logoBlobName: previousLogoBlobName,
+    };
+    const { service, blobService } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({
+            organization: existingOrganization,
+          }),
+        ),
+      },
+    });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      logoUrl: null,
+      logoBlobName: null,
+    });
+
+    expect(blobService.deleteBlob).toHaveBeenCalledWith(previousLogoBlobName);
   });
 
   it("revokes an operator invitation as a manager", async () => {
@@ -873,6 +1107,52 @@ describe("OrganizationsService", () => {
         membershipId: "membership-1",
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("preserves replaced logos during restore when a restorable audit still references them", async () => {
+    const previousLogoBlobName = "organizations/user-1/logo-current.png";
+    const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
+    const restoredLogoBlobName = "organizations/user-1/logo-restored.png";
+    const restoredLogoUrl = `https://cdn.test/${restoredLogoBlobName}`;
+    const { service, blobService, auditService } = createService({
+      repository: {
+        updateOrganization: jest.fn(async () => ({
+          id: "org-1",
+          name: "Northwind",
+          role: "primary_manager",
+          ...NULL_ORGANIZATION_PROFILE,
+          logoUrl: restoredLogoUrl,
+          logoBlobName: restoredLogoBlobName,
+        })),
+      },
+      auditService: {
+        requireRestorableAudit: jest.fn(async () =>
+          createAuditLog({
+            beforeSnapshot: {
+              id: "org-1",
+              name: "Northwind",
+              logoUrl: restoredLogoUrl,
+              logoBlobName: restoredLogoBlobName,
+            },
+            afterSnapshot: {
+              id: "org-1",
+              name: "Renamed",
+              logoUrl: previousLogoUrl,
+              logoBlobName: previousLogoBlobName,
+            },
+          }),
+        ),
+        hasRestorableOrganizationLogoReference: jest.fn(async () => true),
+      },
+    });
+
+    await service.restoreVersion({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      auditId: "audit-original",
+    });
+
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
   });
 
   it("restores organization audit snapshots and records a compensating audit", async () => {
@@ -1134,7 +1414,7 @@ describe("OrganizationsService", () => {
         auditId: "audit-original",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    expect(repository.updateOrganizationName).not.toHaveBeenCalled();
+    expect(repository.updateOrganization).not.toHaveBeenCalled();
   });
 
   it("prevents managers from restoring member role-update audits", async () => {

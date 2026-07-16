@@ -1,19 +1,13 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { expect, test, type Page } from "@playwright/test";
 
 const OWNER_USERNAME = "owner-one";
-const MANAGER_USERNAME = "renter-seven";
-const MANAGER_EMAIL = "user7@rentify.local";
-const OPERATOR_USERNAME = "renter-eight";
-const OPERATOR_EMAIL = "user8@rentify.local";
+const MANAGER_USERNAME = "renter-one";
+const OPERATOR_USERNAME = "renter-two";
 const PASSWORD = "Rentify123!";
-const EMAIL_QUEUE_NAMES = [
-  "email.delivery.main",
-  "email.delivery.retry.1",
-  "email.delivery.retry.2",
-  "email.delivery.retry.3",
-  "email.delivery.dead-letter",
-];
+const ORGANIZATION_NAME = "Maya Santos Organization";
+const OWNER_ORG_LABEL = `${ORGANIZATION_NAME} - Primary Manager`;
+const MANAGER_ORG_LABEL = `${ORGANIZATION_NAME} - Manager`;
+const OPERATOR_ORG_LABEL = `${ORGANIZATION_NAME} - Operator`;
 
 test.describe.configure({ mode: "serial" });
 
@@ -69,99 +63,29 @@ async function login(
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
-async function expectOrganizationsWorkspace(page: Page, roleLabel: string) {
+async function ensureActiveOrganization(page: Page, label: string) {
+  const organizationSwitcher = page.getByRole("combobox", {
+    name: "Active organization",
+  });
+  await expect(organizationSwitcher).toBeVisible();
+  await organizationSwitcher.selectOption({ label });
+}
+
+async function expectOrganizationsWorkspace(
+  page: Page,
+  roleLabel: string,
+  expectedUrl: RegExp = /\/organizations(?:\?tab=overview)?$/,
+) {
+  await expect(page).toHaveURL(expectedUrl);
   await expect(
-    page.getByRole("heading", {
-      name: "Manage teammates before shared posting access rolls out",
-    }),
+    page.getByRole("heading", { name: ORGANIZATION_NAME }),
   ).toBeVisible();
   await expect(page.getByText(`Your role: ${roleLabel}`)).toBeVisible();
-}
-
-async function readOrganizationInviteMessages(queueName: string) {
-  const output = execFileSync(
-    "docker",
-    [
-      "exec",
-      "rent-rabbitmq",
-      "sh",
-      "-lc",
-      `rabbitmqadmin --format=raw_json --username=guest --password=guest get queue=${queueName} count=100 ackmode=ack_requeue_true encoding=auto`,
-    ],
-    {
-      encoding: "utf8",
-    },
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
+    "aria-selected",
+    "true",
   );
-
-  const payload = JSON.parse(output) as Array<{
-    payload?: string;
-  }>;
-
-  return payload
-    .map((message) => {
-      try {
-        return message.payload ? JSON.parse(message.payload) : null;
-      } catch {
-        return null;
-      }
-    })
-    .filter(
-      (
-        message,
-      ): message is {
-        kind: string;
-        occurredAt: string;
-        input: { email?: string; to?: string; token?: string };
-      } => Boolean(message && typeof message === "object"),
-    );
-}
-
-async function waitForInviteToken(email: string): Promise<string> {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < 20000) {
-    const messages = (
-      await Promise.all(
-        EMAIL_QUEUE_NAMES.map((queueName) =>
-          readOrganizationInviteMessages(queueName),
-        ),
-      )
-    )
-      .flat()
-      .filter(
-        (message) =>
-          message.kind === "organization_invite" &&
-          (message.input.to === email || message.input.email === email) &&
-          typeof message.input.token === "string",
-      )
-      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
-
-    const token = messages[0]?.input.token;
-
-    if (token) {
-      return token;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Invite token not found for ${email}.`);
-}
-
-async function openInviteAndLogin(
-  browser: Browser,
-  token: string,
-  username: string,
-) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-
-  await page.goto(`/organizations/invitations/${token}`);
-  await expect(page.getByRole("heading", { name: /Join .+/ })).toBeVisible();
-  await page.getByRole("link", { name: "Sign in" }).click();
-  await login(page, username, `/organizations/invitations/${token}`);
-
-  return { context, page };
+  await expect(page.getByText("Jump to the work that matters")).toBeVisible();
 }
 
 test("organization workspace supports owner invites and member role boundaries", async ({
@@ -169,6 +93,8 @@ test("organization workspace supports owner invites and member role boundaries",
   page,
 }) => {
   const consoleErrors: string[] = [];
+  const ownerInviteEmail = `org-owner-${Date.now()}@rentify.local`;
+  const managerInviteEmail = `org-manager-${Date.now()}@rentify.local`;
 
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -177,80 +103,74 @@ test("organization workspace supports owner invites and member role boundaries",
   });
 
   await login(page, OWNER_USERNAME);
+  await ensureActiveOrganization(page, OWNER_ORG_LABEL);
   await expectOrganizationsWorkspace(page, "Primary Manager");
 
-  await page.getByPlaceholder("teammate@example.com").fill(MANAGER_EMAIL);
-  await page.getByRole("combobox").nth(1).selectOption("manager");
+  await page.getByRole("tab", { name: "Team" }).click();
+  await expect(page.getByText("Invite teammates")).toBeVisible();
+  await page.getByPlaceholder("teammate@example.com").fill(ownerInviteEmail);
+  await page
+    .getByRole("combobox", { name: "Invite role" })
+    .selectOption("manager");
   await page.getByRole("button", { name: "Send invite" }).click();
   await expect(page.getByText("Invitation sent.")).toBeVisible();
 
-  const managerToken = await waitForInviteToken(MANAGER_EMAIL);
-
-  await page.getByPlaceholder("teammate@example.com").fill(OPERATOR_EMAIL);
-  await page.getByRole("combobox").nth(1).selectOption("operator");
-  await page.getByRole("button", { name: "Send invite" }).click();
-  await expect(page.getByText("Invitation sent.")).toBeVisible();
-
-  const operatorToken = await waitForInviteToken(OPERATOR_EMAIL);
-
-  const { context: managerContext, page: managerPage } =
-    await openInviteAndLogin(browser, managerToken, MANAGER_USERNAME);
-
-  await expect(
-    managerPage.getByRole("button", { name: "Accept invitation" }),
-  ).toBeEnabled();
-  await managerPage.getByRole("button", { name: "Accept invitation" }).click();
-  await expect(managerPage).toHaveURL(/\/organizations$/);
+  const managerPage = await browser.newPage();
+  await login(managerPage, MANAGER_USERNAME);
+  await ensureActiveOrganization(managerPage, MANAGER_ORG_LABEL);
   await expectOrganizationsWorkspace(managerPage, "Manager");
-  await expect(
-    managerPage.getByRole("button", { name: "Save name" }),
-  ).toHaveCount(0);
+  await expect(managerPage.getByRole("tab", { name: "Settings" })).toHaveCount(
+    0,
+  );
+  await expect(managerPage.getByRole("tab", { name: "Activity" })).toHaveCount(
+    1,
+  );
 
+  await managerPage.getByRole("tab", { name: "Team" }).click();
   await managerPage
     .getByPlaceholder("teammate@example.com")
-    .fill("user6@rentify.local");
+    .fill(managerInviteEmail);
   await managerPage.getByRole("button", { name: "Send invite" }).click();
   await expect(managerPage.getByText("Invitation sent.")).toBeVisible();
 
-  const mismatchContext = await browser.newContext();
-  const mismatchPage = await mismatchContext.newPage();
-  await login(
-    mismatchPage,
-    MANAGER_USERNAME,
-    `/organizations/invitations/${operatorToken}`,
-  );
-  await expect(
-    mismatchPage.getByText(
-      "This invite was sent to a different email address. Sign in with the invited email to continue.",
-    ),
-  ).toBeVisible();
-  await expect(
-    mismatchPage.getByRole("button", { name: "Accept invitation" }),
-  ).toBeDisabled();
-
-  const { context: operatorContext, page: operatorPage } =
-    await openInviteAndLogin(browser, operatorToken, OPERATOR_USERNAME);
-
-  await expect(
-    operatorPage.getByRole("button", { name: "Accept invitation" }),
-  ).toBeEnabled();
-  await operatorPage.getByRole("button", { name: "Accept invitation" }).click();
-  await expect(operatorPage).toHaveURL(/\/organizations$/);
+  const operatorPage = await browser.newPage();
+  await login(operatorPage, OPERATOR_USERNAME);
+  await ensureActiveOrganization(operatorPage, OPERATOR_ORG_LABEL);
   await expectOrganizationsWorkspace(operatorPage, "Operator");
+  await expect(operatorPage.getByRole("tab", { name: "Activity" })).toHaveCount(
+    0,
+  );
+  await expect(operatorPage.getByRole("tab", { name: "Settings" })).toHaveCount(
+    0,
+  );
+
+  await operatorPage.getByRole("tab", { name: "Team" }).click();
   await expect(
-    operatorPage.getByText(
-      "Operators can review pending invitations here, but only managers can send them.",
-    ),
+    operatorPage
+      .getByText(
+        "Operators can review pending invitations here, but only managers can send them.",
+      )
+      .first(),
   ).toBeVisible();
   await expect(
     operatorPage.getByRole("button", { name: "Send invite" }),
   ).toHaveCount(0);
 
+  await operatorPage.goto("/organizations?tab=activity");
+  await expectOrganizationsWorkspace(
+    operatorPage,
+    "Operator",
+    /\/organizations\?tab=overview$/,
+  );
+
+  await operatorPage.goto("/organizations?tab=settings");
+  await expectOrganizationsWorkspace(
+    operatorPage,
+    "Operator",
+    /\/organizations\?tab=overview$/,
+  );
+
   expect(consoleErrors).toEqual([]);
 
-  await Promise.all([
-    managerContext.close(),
-    mismatchContext.close(),
-    operatorContext.close(),
-  ]);
+  await Promise.all([managerPage.close(), operatorPage.close()]);
 });

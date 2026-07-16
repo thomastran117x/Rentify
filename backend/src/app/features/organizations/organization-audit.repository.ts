@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { BaseRepository } from "@/features/base/base.repository";
-import type {
-  CreateOrganizationAuditLogInput,
-  ListOrganizationAuditInput,
-  ListOrganizationAuditResult,
-  OrganizationAuditChange,
-  OrganizationAuditRecord,
-  OrganizationAuditResourceType,
+import {
+  toAuditSnapshotRecord,
+  type CreateOrganizationAuditLogInput,
+  type ListOrganizationAuditInput,
+  type ListOrganizationAuditResult,
+  type OrganizationAuditChange,
+  type OrganizationAuditRecord,
+  type OrganizationAuditResourceType,
 } from "@/features/organizations/organization-audit.model";
 
 type AuditLogPersistence = Prisma.OrganizationAuditLogGetPayload<{
@@ -128,6 +129,31 @@ export class OrganizationAuditRepository extends BaseRepository {
     return row ? this.mapAuditLog(row) : null;
   }
 
+  async hasRestorableOrganizationLogoReference(input: {
+    organizationId: string;
+    blobName: string;
+  }): Promise<boolean> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.organizationAuditLog.findMany({
+        where: {
+          organizationId: input.organizationId,
+          resourceType: "organization",
+          restorable: true,
+        },
+        select: {
+          beforeSnapshot: true,
+          afterSnapshot: true,
+        },
+      }),
+    );
+
+    return rows.some(
+      (row) =>
+        this.snapshotReferencesBlobName(row.beforeSnapshot, input.blobName) ||
+        this.snapshotReferencesBlobName(row.afterSnapshot, input.blobName),
+    );
+  }
+
   private includeActor() {
     return {
       actor: {
@@ -179,6 +205,15 @@ export class OrganizationAuditRepository extends BaseRepository {
     return Array.isArray(value)
       ? (value as unknown as OrganizationAuditChange[])
       : [];
+  }
+
+  private snapshotReferencesBlobName(
+    value: Prisma.JsonValue | null,
+    blobName: string,
+  ): boolean {
+    const snapshot = toAuditSnapshotRecord(value);
+
+    return snapshot.logoBlobName === blobName;
   }
 
   private createPagination(page: number, pageSize: number, total: number) {

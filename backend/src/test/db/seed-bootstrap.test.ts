@@ -32,6 +32,8 @@ describe("database seed harness", () => {
       }),
     ).toBe(SEED_POSTINGS.length);
 
+    expect(SEED_POSTINGS).toHaveLength(280);
+
     expect(
       await prisma.bookingRequest.count({
         where: {
@@ -51,6 +53,8 @@ describe("database seed harness", () => {
       select: {
         id: true,
         organizationId: true,
+        status: true,
+        availabilityStatus: true,
       },
     });
 
@@ -58,6 +62,23 @@ describe("database seed harness", () => {
     expect(
       organizationOwnedPostings.every((posting) => posting.organizationId),
     ).toBe(true);
+
+    const publishedAvailable = organizationOwnedPostings.filter(
+      (posting) =>
+        posting.status === "published" &&
+        (posting.availabilityStatus === "available" ||
+          posting.availabilityStatus === "limited"),
+    ).length;
+    const draft = organizationOwnedPostings.filter(
+      (posting) => posting.status === "draft",
+    ).length;
+    const paused = organizationOwnedPostings.filter(
+      (posting) => posting.status === "paused",
+    ).length;
+
+    expect(publishedAvailable).toBe(200);
+    expect(draft).toBe(40);
+    expect(paused).toBe(40);
 
     const ownerOneOrganization = await prisma.organization.findUnique({
       where: {
@@ -77,6 +98,25 @@ describe("database seed harness", () => {
 
     expect(
       ownerOneOrganization?.memberships.map((membership) => membership.role),
+    ).toEqual(
+      expect.arrayContaining(["primary_manager", "manager", "operator"]),
+    );
+
+    const ownerFiveOrganization = await prisma.organization.findUnique({
+      where: {
+        id: createFixtureId(1040, 5),
+      },
+      include: {
+        memberships: {
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    expect(
+      ownerFiveOrganization?.memberships.map((membership) => membership.role),
     ).toEqual(
       expect.arrayContaining(["primary_manager", "manager", "operator"]),
     );

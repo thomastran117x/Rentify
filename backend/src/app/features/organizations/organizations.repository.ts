@@ -7,6 +7,8 @@ import {
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
+  type OrganizationProfileFields,
+  type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
 } from "@/features/organizations/organizations.model";
@@ -106,7 +108,7 @@ export interface OrganizationMembershipAccessRecord {
     name: string;
     createdAt: string;
     updatedAt: string;
-  };
+  } & OrganizationProfileFields;
   role: OrganizationRole;
 }
 
@@ -118,7 +120,92 @@ export interface OrganizationInviteAccessRecord
   };
 }
 
+type OrganizationProfilePersistence = {
+  description: string | null;
+  websiteUrl: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  logoUrl: string | null;
+  logoBlobName: string | null;
+  customFields: Prisma.JsonValue | null;
+};
+
 export class OrganizationsRepository extends BaseRepository {
+  private mapOrganizationProfileFields(
+    organization: OrganizationProfilePersistence,
+  ): OrganizationProfileFields {
+    return {
+      description: organization.description,
+      websiteUrl: organization.websiteUrl,
+      contactEmail: organization.contactEmail,
+      contactPhone: organization.contactPhone,
+      addressLine1: organization.addressLine1,
+      addressLine2: organization.addressLine2,
+      city: organization.city,
+      region: organization.region,
+      country: organization.country,
+      postalCode: organization.postalCode,
+      logoUrl: organization.logoUrl,
+      logoBlobName: organization.logoBlobName,
+      customFields: this.parseCustomFields(organization.customFields),
+    };
+  }
+
+  private parseCustomFields(
+    value: Prisma.JsonValue | null,
+  ): Record<string, string> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    const result: Record<string, string> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (typeof entry === "string") {
+        result[key] = entry;
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  private buildOrganizationWriteData(
+    input: OrganizationProfileInput,
+  ): Prisma.OrganizationUncheckedUpdateInput {
+    const data: Prisma.OrganizationUncheckedUpdateInput = {};
+    const textFields = [
+      "description",
+      "websiteUrl",
+      "contactEmail",
+      "contactPhone",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "region",
+      "country",
+      "postalCode",
+      "logoUrl",
+      "logoBlobName",
+    ] as const;
+    for (const field of textFields) {
+      const value = input[field];
+      if (value !== undefined) {
+        data[field] = value;
+      }
+    }
+    if (input.customFields !== undefined) {
+      data.customFields =
+        input.customFields === null ||
+        Object.keys(input.customFields).length === 0
+          ? Prisma.DbNull
+          : (input.customFields as Prisma.InputJsonValue);
+    }
+    return data;
+  }
+
   async listMembershipsByUserId(
     userId: string,
     preferredOrganizationId?: string | null,
@@ -191,6 +278,7 @@ export class OrganizationsRepository extends BaseRepository {
         name: membership.organization.name,
         createdAt: membership.organization.createdAt.toISOString(),
         updatedAt: membership.organization.updatedAt.toISOString(),
+        ...this.mapOrganizationProfileFields(membership.organization),
       },
       role: membership.role,
     };
@@ -269,6 +357,7 @@ export class OrganizationsRepository extends BaseRepository {
         name: organization.name,
         createdAt: organization.createdAt.toISOString(),
         updatedAt: organization.updatedAt.toISOString(),
+        ...this.mapOrganizationProfileFields(organization),
       },
       viewerRole: "operator",
       members: organization.memberships.map((membership) =>
@@ -296,18 +385,21 @@ export class OrganizationsRepository extends BaseRepository {
     );
   }
 
-  async updateOrganizationName(
+  async updateOrganization(
     organizationId: string,
-    name: string,
-  ): Promise<OrganizationSummary> {
+    input: OrganizationProfileInput & { name?: string },
+  ): Promise<OrganizationSummary & OrganizationProfileFields> {
+    const data = this.buildOrganizationWriteData(input);
+    if (input.name !== undefined) {
+      data.name = input.name;
+    }
+
     const organization = await this.executeAsync(() =>
       this.prisma.organization.update({
         where: {
           id: organizationId,
         },
-        data: {
-          name,
-        },
+        data,
       }),
     );
 
@@ -315,7 +407,15 @@ export class OrganizationsRepository extends BaseRepository {
       id: organization.id,
       name: organization.name,
       role: "operator",
+      ...this.mapOrganizationProfileFields(organization),
     };
+  }
+
+  async updateOrganizationName(
+    organizationId: string,
+    name: string,
+  ): Promise<OrganizationSummary & OrganizationProfileFields> {
+    return this.updateOrganization(organizationId, { name });
   }
 
   async findMemberById(
@@ -772,23 +872,29 @@ export class OrganizationsRepository extends BaseRepository {
     });
   }
 
-  async createOrganizationWithOwner(input: {
-    name: string;
-    ownerUserId: string;
-  }): Promise<OrganizationMembershipSummary> {
+  async createOrganizationWithOwner(
+    input: {
+      name: string;
+      ownerUserId: string;
+    } & OrganizationProfileInput,
+  ): Promise<OrganizationMembershipSummary> {
+    const { name, ownerUserId, ...profile } = input;
     return this.executeTransaction(async (transaction) => {
+      const organizationData: Prisma.OrganizationUncheckedCreateInput = {
+        id: randomUUID(),
+        name,
+      };
+      Object.assign(organizationData, this.buildOrganizationWriteData(profile));
+
       const organization = await transaction.organization.create({
-        data: {
-          id: randomUUID(),
-          name: input.name,
-        },
+        data: organizationData,
       });
 
       const membership = await transaction.organizationMembership.create({
         data: {
           id: randomUUID(),
           organizationId: organization.id,
-          userId: input.ownerUserId,
+          userId: ownerUserId,
           role: "primary_manager",
         },
         include: {

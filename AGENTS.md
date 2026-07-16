@@ -205,6 +205,14 @@ Examples:
 - Categories/tags
 ```
 
+For local browser validation, prefer the seeded accounts defined in `backend/src/app/seeds/fixtures/users.ts`. The most useful role-based logins are:
+
+- `owner-one` / `owner1@rentify.local` / `Rentify123!` for owner and primary-manager organization flows
+- `renter-one` / `user1@rentify.local` / `Rentify123!` for manager organization flows
+- `renter-two` / `user2@rentify.local` / `Rentify123!` for operator and read-only organization flows
+
+Use the username when the UI expects username sign-in, and use the seeded email when validating email-based auth or MFA behavior.
+
 Do not hardcode test-only data into production logic.
 
 ---
@@ -381,3 +389,5 @@ Playwright MCP confirms the flow.
 Errors discovered during testing are fixed.
 Final summary explains what was tested.
 ```
+
+

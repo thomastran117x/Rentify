@@ -5775,12 +5775,54 @@ function buildComponents(): Record<string, unknown> {
           activeOrganization: schemaRef("OrganizationSummary"),
         },
       },
-      CreateOrganizationRequest: {
+      OrganizationProfileFields: {
         type: "object",
-        required: ["name"],
         properties: {
-          name: { type: "string", minLength: 1, maxLength: 160 },
+          description: { type: "string", maxLength: 5000, nullable: true },
+          websiteUrl: {
+            type: "string",
+            format: "uri",
+            maxLength: 500,
+            nullable: true,
+          },
+          contactEmail: {
+            type: "string",
+            format: "email",
+            maxLength: 320,
+            nullable: true,
+          },
+          contactPhone: { type: "string", maxLength: 40, nullable: true },
+          addressLine1: { type: "string", maxLength: 200, nullable: true },
+          addressLine2: { type: "string", maxLength: 200, nullable: true },
+          city: { type: "string", maxLength: 120, nullable: true },
+          region: { type: "string", maxLength: 120, nullable: true },
+          country: { type: "string", maxLength: 120, nullable: true },
+          postalCode: { type: "string", maxLength: 20, nullable: true },
+          logoUrl: {
+            type: "string",
+            format: "uri",
+            maxLength: 1024,
+            nullable: true,
+          },
+          logoBlobName: { type: "string", maxLength: 1024, nullable: true },
+          customFields: {
+            type: "object",
+            additionalProperties: { type: "string", maxLength: 1000 },
+            nullable: true,
+          },
         },
+      },
+      CreateOrganizationRequest: {
+        allOf: [
+          {
+            type: "object",
+            required: ["name"],
+            properties: {
+              name: { type: "string", minLength: 1, maxLength: 160 },
+            },
+          },
+          schemaRef("OrganizationProfileFields"),
+        ],
       },
       CreateOrganizationResult: {
         type: "object",
@@ -5791,21 +5833,31 @@ function buildComponents(): Record<string, unknown> {
         },
       },
       UpdateOrganizationRequest: {
-        type: "object",
-        required: ["name"],
-        properties: {
-          name: { type: "string", minLength: 1, maxLength: 160 },
-        },
+        allOf: [
+          {
+            type: "object",
+            required: ["name"],
+            properties: {
+              name: { type: "string", minLength: 1, maxLength: 160 },
+            },
+          },
+          schemaRef("OrganizationProfileFields"),
+        ],
       },
       OrganizationDetailOrganization: {
-        type: "object",
-        required: ["id", "name", "createdAt", "updatedAt"],
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          createdAt: { type: "string", format: "date-time" },
-          updatedAt: { type: "string", format: "date-time" },
-        },
+        allOf: [
+          {
+            type: "object",
+            required: ["id", "name", "createdAt", "updatedAt"],
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+          schemaRef("OrganizationProfileFields"),
+        ],
       },
       OrganizationMemberRecord: {
         type: "object",

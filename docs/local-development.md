@@ -63,7 +63,13 @@ docker compose up --build
 
 In `development` and `test`, the backend seeds automatically when the database is empty.
 
-Local fixture accounts:
+Useful browser sign-in accounts:
+
+- `owner-one` / `owner1@rentify.local` / `Rentify123!` for owner and primary-manager organization flows
+- `renter-one` / `user1@rentify.local` / `Rentify123!` for manager organization flows
+- `renter-two` / `user2@rentify.local` / `Rentify123!` for operator and read-only organization flows
+
+Additional fixture accounts:
 
 - `owner1@rentify.local` / `Rentify123!`
 - `owner2@rentify.local` / `Rentify123!`
@@ -151,6 +157,8 @@ npm run test:e2e
 - If the frontend is using stale public env values, rebuild with `docker compose up --build`.
 - If auth behavior seems broken after a provider change, verify both backend provider settings and matching frontend public client IDs.
 - If you want a clean reseed of fixture-owned data, use `npm run seed -- --refresh` from `backend/`.
+
+
 
 
 

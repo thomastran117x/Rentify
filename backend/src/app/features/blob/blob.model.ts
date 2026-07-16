@@ -21,6 +21,14 @@ export type CreateBlobUploadUrlRequestBody = z.infer<
   typeof createBlobUploadUrlRequestSchema
 >;
 
+export const deleteBlobRequestQuerySchema = z.object({
+  blobName: z.string().trim().min(1, "Blob name is required.").max(1000),
+});
+
+export type DeleteBlobRequestQuery = z.infer<
+  typeof deleteBlobRequestQuerySchema
+>;
+
 export interface CreateBlobUploadUrlInput {
   userId: string;
   filename: string;
