@@ -270,7 +270,10 @@ export function OrganizationPublicDetailPage({
                 className="inline-flex items-center gap-1 break-all font-semibold text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
               >
                 {websiteHost ?? organization.websiteUrl}
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <ExternalLink
+                  className="h-3.5 w-3.5 shrink-0"
+                  aria-hidden="true"
+                />
               </a>
             ) : (
               "No public website shared."

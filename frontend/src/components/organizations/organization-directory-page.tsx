@@ -27,7 +27,9 @@ import { theme } from "@/styles/theme";
 
 const PAGE_SIZE = 20;
 
-function formatLocation(organization: PublicOrganizationSummary): string | null {
+function formatLocation(
+  organization: PublicOrganizationSummary,
+): string | null {
   const parts = [organization.city, organization.region, organization.country]
     .map((part) => part?.trim())
     .filter(Boolean);
@@ -261,8 +263,8 @@ export function OrganizationDirectoryPage() {
                     Visibility rule
                   </p>
                   <p className={theme.marketplace.utilityDescription}>
-                    Only organizations with at least one published posting appear
-                    here.
+                    Only organizations with at least one published posting
+                    appear here.
                   </p>
                 </div>
               </div>
