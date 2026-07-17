@@ -136,7 +136,7 @@ model OrganizationBlogPost {
   title              String    @db.VarChar(200)
   slug               String    @db.VarChar(220)
   excerpt            String?   @db.VarChar(300)
-  body               String    @db.Text
+  body               String    @db.MediumText
   coverImageUrl      String?   @map("cover_image_url") @db.VarChar(1024)
   coverImageBlobName String?   @map("cover_image_blob_name") @db.VarChar(1024)
   tags               Json?

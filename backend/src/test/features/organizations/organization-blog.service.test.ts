@@ -181,6 +181,43 @@ describe("OrganizationBlogService", () => {
       expect(args.statuses).toEqual(["published"]);
     });
 
+    it("ignores a draft status filter requested by an operator", async () => {
+      const { service, repository } = createService({
+        membership: { role: "operator" },
+      });
+
+      await service.list({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        page: 1,
+        pageSize: 20,
+        status: "draft",
+      });
+
+      const args = repository.list.mock.calls[0][0] as Record<string, unknown>;
+      // The requested status must not leak through; published-only is enforced.
+      expect(args.status).toBeUndefined();
+      expect(args.statuses).toEqual(["published"]);
+    });
+
+    it("forwards a manager's status filter", async () => {
+      const { service, repository } = createService({
+        membership: { role: "manager" },
+      });
+
+      await service.list({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        page: 1,
+        pageSize: 20,
+        status: "draft",
+      });
+
+      const args = repository.list.mock.calls[0][0] as Record<string, unknown>;
+      expect(args.status).toBe("draft");
+      expect(args.statuses).toBeUndefined();
+    });
+
     it("rejects non-members", async () => {
       const { service } = createService({ membership: null });
 

@@ -56,9 +56,12 @@ export class OrganizationBlogService {
       organizationId: input.organizationId,
       page: input.page,
       pageSize: input.pageSize,
-      status: input.status,
       tag: input.tag,
-      ...(canManage ? {} : { statuses: ["published"] }),
+      // Non-managers are restricted to published posts. Crucially, we must NOT
+      // forward their requested `status` filter — the repository gives `status`
+      // precedence over `statuses`, so a `?status=draft` query would otherwise
+      // bypass the published-only scope.
+      ...(canManage ? { status: input.status } : { statuses: ["published"] }),
     });
   }
 

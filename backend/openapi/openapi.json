@@ -17426,7 +17426,12 @@
           "announcement.updated",
           "announcement.published",
           "announcement.unpublished",
-          "announcement.deleted"
+          "announcement.deleted",
+          "blog.created",
+          "blog.updated",
+          "blog.published",
+          "blog.unpublished",
+          "blog.deleted"
         ]
       },
       "OrganizationAuditResourceType": {
@@ -17438,7 +17443,8 @@
           "posting",
           "posting_availability",
           "seasonal_pricing",
-          "announcement"
+          "announcement",
+          "blog"
         ]
       },
       "OrganizationAuditActorSummary": {

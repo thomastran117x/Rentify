@@ -6690,6 +6690,11 @@ function buildComponents(): Record<string, unknown> {
           "announcement.published",
           "announcement.unpublished",
           "announcement.deleted",
+          "blog.created",
+          "blog.updated",
+          "blog.published",
+          "blog.unpublished",
+          "blog.deleted",
         ],
       },
       OrganizationAuditResourceType: {
@@ -6702,6 +6707,7 @@ function buildComponents(): Record<string, unknown> {
           "posting_availability",
           "seasonal_pricing",
           "announcement",
+          "blog",
         ],
       },
       OrganizationAuditActorSummary: {

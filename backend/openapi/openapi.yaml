@@ -11911,6 +11911,11 @@ components:
         - announcement.published
         - announcement.unpublished
         - announcement.deleted
+        - blog.created
+        - blog.updated
+        - blog.published
+        - blog.unpublished
+        - blog.deleted
     OrganizationAuditResourceType:
       type: string
       enum:
@@ -11921,6 +11926,7 @@ components:
         - posting_availability
         - seasonal_pricing
         - announcement
+        - blog
     OrganizationAuditActorSummary:
       type: object
       required:
