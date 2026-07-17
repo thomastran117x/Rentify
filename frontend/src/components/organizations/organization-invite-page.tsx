@@ -93,7 +93,7 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
         setSession(refreshedSession);
       }
 
-      router.replace("/organizations");
+      router.replace("/dashboard/organizations");
     } catch (nextError) {
       setError(
         getApiErrorMessage(nextError, {
@@ -134,10 +134,10 @@ export function OrganizationInvitePage({ token }: OrganizationInvitePageProps) {
             </p>
             <div className="mt-6">
               <Link
-                href="/organizations"
+                href="/dashboard/organizations"
                 className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                Back to organizations
+                Back to workspace
               </Link>
             </div>
           </>

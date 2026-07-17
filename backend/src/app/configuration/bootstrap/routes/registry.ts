@@ -16,6 +16,7 @@ import {
 import { bookingsRouteModule } from "@/configuration/bootstrap/routes/modules/bookings.routes";
 import {
   blobRouteModule,
+  organizationsSearchAdminRouteModule,
   profilesRouteModule,
   searchAdminRouteModule,
 } from "@/configuration/bootstrap/routes/modules/misc.routes";
@@ -62,6 +63,7 @@ export const routeModuleRegistry: RouteModule[] = [
   reportsRouteModule,
   moderationReportsRouteModule,
   searchAdminRouteModule,
+  organizationsSearchAdminRouteModule,
   postingsOwnerRouteModule,
   postingsAnalyticsRouteModule,
   postingsReviewsRouteModule,

@@ -164,7 +164,7 @@ describe("OrganizationInvitePage", () => {
     });
     expect(refreshMock).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalled();
-    expect(routerReplaceMock).toHaveBeenCalledWith("/organizations");
+    expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard/organizations");
   });
 
   it("shows the mismatched email warning for signed-in viewers", async () => {

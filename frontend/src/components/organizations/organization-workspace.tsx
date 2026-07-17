@@ -2134,7 +2134,7 @@ function SettingsPanel({
   );
 }
 export function OrganizationWorkspace() {
-  const pathname = usePathname() || "/organizations";
+  const pathname = usePathname() || "/dashboard/organizations";
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams.toString();
@@ -2336,7 +2336,7 @@ export function OrganizationWorkspace() {
 
   useEffect(() => {
     if (status === "anonymous") {
-      router.replace("/login?next=/organizations");
+      router.replace("/login?next=/dashboard/organizations");
     }
   }, [router, status]);
 
@@ -2364,7 +2364,7 @@ export function OrganizationWorkspace() {
           nextWorkspace.memberships[0]?.id ??
           null;
         const nextDetail = nextOrganizationId
-          ? await organizationsApi.getById(nextOrganizationId)
+          ? await organizationsApi.getWorkspaceById(nextOrganizationId)
           : null;
 
         if (!active) {
@@ -2518,7 +2518,7 @@ export function OrganizationWorkspace() {
       nextWorkspace.memberships[0]?.id ??
       null;
     const nextDetail = resolvedOrganizationId
-      ? await organizationsApi.getById(resolvedOrganizationId)
+      ? await organizationsApi.getWorkspaceById(resolvedOrganizationId)
       : null;
 
     startTransition(() => {

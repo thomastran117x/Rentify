@@ -13,6 +13,35 @@ const memberId = "33333333-3333-4333-8333-333333333333";
 
 function createApp() {
   const organizationsService = {
+    listPublic: jest.fn(async () => ({
+      organizations: [
+        {
+          id: organizationId,
+          name: "Northwind",
+          description: null,
+          websiteUrl: null,
+          addressLine1: null,
+          addressLine2: null,
+          city: null,
+          region: null,
+          country: null,
+          postalCode: null,
+          logoUrl: null,
+          customFields: null,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
+          publishedPostingCount: 2,
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    })),
     createOrganization: jest.fn(async () => ({
       organization: {
         id: organizationId,
@@ -29,36 +58,104 @@ function createApp() {
       },
     })),
     listMine: jest.fn(async () => ({
-      organizations: [
+      memberships: [
         {
+          membershipId: memberId,
           id: organizationId,
           name: "Northwind",
           role: "primary_manager",
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
         },
       ],
-    })),
-    setActiveOrganization: jest.fn(async () => ({
-      activeOrganizationId: organizationId,
-    })),
-    previewInvitation: jest.fn(async () => ({
-      token: "invite-token-1",
-      organization: {
+      activeOrganization: {
         id: organizationId,
         name: "Northwind",
+        role: "primary_manager",
       },
-      inviter: {
-        email: "owner@example.com",
+    })),
+    setActiveOrganization: jest.fn(async () => ({
+      activeOrganization: {
+        id: organizationId,
+        name: "Northwind",
+        role: "primary_manager",
       },
-      role: "manager",
+    })),
+    previewInvitation: jest.fn(async () => ({
+      invitation: {
+        organizationId,
+        organizationName: "Northwind",
+        emailHint: "m***@example.com",
+        role: "manager",
+        status: "pending",
+        expiresAt: "2026-06-08T00:00:00.000Z",
+      },
+      viewer: {
+        authenticated: false,
+        matchesEmail: false,
+        canAccept: false,
+      },
     })),
     acceptInvitation: jest.fn(async () => ({
       accepted: true,
-      organizationId,
+      organization: {
+        id: organizationId,
+        name: "Northwind",
+        role: "manager",
+      },
+      membership: {
+        membershipId: memberId,
+        id: organizationId,
+        name: "Northwind",
+        role: "manager",
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      },
     })),
     getById: jest.fn(async () => ({
-      id: organizationId,
-      name: "Northwind",
-      memberships: [],
+      organization: {
+        id: organizationId,
+        name: "Northwind",
+        description: null,
+        websiteUrl: null,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        region: null,
+        country: null,
+        postalCode: null,
+        logoUrl: null,
+        customFields: null,
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        publishedPostingCount: 2,
+      },
+      stats: {
+        publishedPostingCount: 2,
+      },
+    })),
+    getWorkspaceById: jest.fn(async () => ({
+      organization: {
+        id: organizationId,
+        name: "Northwind",
+        description: null,
+        websiteUrl: null,
+        contactEmail: null,
+        contactPhone: null,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        region: null,
+        country: null,
+        postalCode: null,
+        logoUrl: null,
+        logoBlobName: null,
+        customFields: null,
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+      viewerRole: "primary_manager",
+      members: [],
       invitations: [],
     })),
     update: jest.fn(async () => ({
@@ -66,19 +163,24 @@ function createApp() {
       name: "Northwind Studios",
     })),
     createInvitation: jest.fn(async () => ({
-      id: inviteId,
-      organizationId,
-      email: "manager@example.com",
-      role: "manager",
-      status: "pending",
+      invitation: {
+        id: inviteId,
+        email: "manager@example.com",
+        role: "manager",
+        status: "pending",
+      },
     })),
     revokeInvitation: jest.fn(async () => ({
-      revoked: true,
-      invitationId: inviteId,
+      invitation: {
+        id: inviteId,
+        status: "revoked",
+      },
     })),
     updateMemberRole: jest.fn(async () => ({
-      membershipId: memberId,
-      role: "operator",
+      member: {
+        membershipId: memberId,
+        role: "operator",
+      },
     })),
     removeMember: jest.fn(async () => ({
       removed: true,
@@ -131,9 +233,15 @@ function authHeaders() {
 }
 
 describe("Organizations integration", () => {
-  it("covers organization membership, invitation, and management endpoints", async () => {
+  it("covers public, workspace, invitation, and management endpoints", async () => {
     const { app, organizationsService } = createApp();
 
+    const listPublicResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}`,
+    );
+    const listPublicSortedResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}?q=acme&sort=nameAsc`,
+    );
     const createResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations")}`,
       {
@@ -172,6 +280,9 @@ describe("Organizations integration", () => {
     );
     const getByIdResponse = await app.request(
       `http://rent.test${buildApiPath(`/organizations/${organizationId}`)}`,
+    );
+    const getWorkspaceByIdResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/workspace`)}`,
       {
         headers: authHeaders(),
       },
@@ -222,18 +333,34 @@ describe("Organizations integration", () => {
       },
     );
 
+    expect(listPublicResponse.status).toBe(200);
+    expect(listPublicSortedResponse.status).toBe(200);
     expect(createResponse.status).toBe(201);
     expect(listMineResponse.status).toBe(200);
     expect(setActiveResponse.status).toBe(200);
     expect(previewResponse.status).toBe(200);
     expect(acceptResponse.status).toBe(200);
     expect(getByIdResponse.status).toBe(200);
+    expect(getWorkspaceByIdResponse.status).toBe(200);
     expect(updateResponse.status).toBe(200);
     expect(createInvitationResponse.status).toBe(201);
     expect(revokeInvitationResponse.status).toBe(200);
     expect(updateMemberRoleResponse.status).toBe(200);
     expect(removeMemberResponse.status).toBe(200);
 
+    expect(organizationsService.listPublic).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      query: undefined,
+      sort: undefined,
+    });
+    // Free-text query and sort are parsed and forwarded to the search service.
+    expect(organizationsService.listPublic).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      query: "acme",
+      sort: "nameAsc",
+    });
     expect(organizationsService.createOrganization).toHaveBeenCalledWith({
       actorUserId: "owner-1",
       name: "Acme Rentals",
@@ -251,7 +378,8 @@ describe("Organizations integration", () => {
       token: "invite-token-1",
       userId: "owner-1",
     });
-    expect(organizationsService.getById).toHaveBeenCalledWith(
+    expect(organizationsService.getById).toHaveBeenCalledWith(organizationId);
+    expect(organizationsService.getWorkspaceById).toHaveBeenCalledWith(
       organizationId,
       "owner-1",
     );
@@ -330,9 +458,6 @@ describe("Organizations integration", () => {
     );
     const invalidOrganizationRouteResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations/not-a-uuid")}`,
-      {
-        headers: authHeaders(),
-      },
     );
     const invalidInvitePayloadResponse = await app.request(
       `http://rent.test${buildApiPath(`/organizations/${organizationId}/invitations`)}`,

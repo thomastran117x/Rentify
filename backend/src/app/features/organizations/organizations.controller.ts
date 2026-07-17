@@ -14,11 +14,13 @@ import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import {
   createOrganizationInviteRequestSchema,
   createOrganizationRequestSchema,
+  listPublicOrganizationsQuerySchema,
   organizationInviteTokenSchema,
   organizationResourceIdSchema,
   setActiveOrganizationRequestSchema,
   updateOrganizationMemberRequestSchema,
   updateOrganizationRequestSchema,
+  type ListPublicOrganizationsInput,
 } from "@/features/organizations/organizations.model";
 import {
   listOrganizationAuditQuerySchema,
@@ -28,6 +30,13 @@ import { OrganizationsService } from "@/features/organizations/organizations.ser
 
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
+
+  list = async (context: Context<AppBindings>): Promise<Response> => {
+    const result = await this.organizationsService.listPublic(
+      this.parseListPublicOrganizationsInput(context),
+    );
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
 
   listMine = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
@@ -66,8 +75,17 @@ export class OrganizationsController {
   };
 
   getById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
     const result = await this.organizationsService.getById(
+      this.requireOrganizationId(context),
+    );
+    return ok(context, result);
+  };
+
+  getWorkspaceById = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.getWorkspaceById(
       this.requireOrganizationId(context),
       auth.sub,
     );
@@ -103,6 +121,7 @@ export class OrganizationsController {
       message: "Organization version restored successfully.",
     });
   };
+
   update = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(
@@ -206,6 +225,44 @@ export class OrganizationsController {
       message: "Organization invitation accepted successfully.",
     });
   };
+
+  private parseListPublicOrganizationsInput(
+    context: Context<AppBindings>,
+  ): ListPublicOrganizationsInput {
+    const url = new URL(context.req.url);
+
+    try {
+      const query = listPublicOrganizationsQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        q: url.searchParams.get("q") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
+      });
+
+      return {
+        page: query.page,
+        pageSize: query.pageSize,
+        query: query.q,
+        sort: query.sort,
+      };
+    } catch (error) {
+      if ("issues" in (error as object)) {
+        const issues = (
+          error as { issues?: Array<{ path: PropertyKey[]; message: string }> }
+        ).issues;
+
+        throw new RequestValidationError(
+          "Request query validation failed.",
+          (issues ?? []).map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
+    }
+  }
 
   private requireOrganizationId(context: Context<AppBindings>): string {
     return this.requireResourceId(context, "id");

@@ -30,16 +30,19 @@ import {
   type CreateOrganizationInviteInput,
   type CreateOrganizationInviteResult,
   type CreateOrganizationResult,
-  type OrganizationDetailResult,
+  type ListPublicOrganizationsInput,
   type OrganizationInvitationRecord,
+  type OrganizationInvitePreviewResult,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
   type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationSummary,
+  type OrganizationWorkspaceDetailResult,
   type OrganizationWorkspaceResult,
   type PreviewOrganizationInviteInput,
-  type OrganizationInvitePreviewResult,
+  type PublicOrganizationDetailResult,
+  type PublicOrganizationListResult,
   type RemoveOrganizationMemberInput,
   type RevokeOrganizationInviteInput,
   type SetActiveOrganizationInput,
@@ -52,6 +55,7 @@ import {
   type OrganizationMembershipAccessRecord,
   OrganizationsRepository,
 } from "@/features/organizations/organizations.repository";
+import type { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
 
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -69,6 +73,7 @@ export class OrganizationsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly blobService: BlobService,
+    private readonly organizationsPublicSearchService: OrganizationsPublicSearchService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -106,10 +111,36 @@ export class OrganizationsService {
     };
   }
 
+  async listPublic(
+    input: ListPublicOrganizationsInput,
+  ): Promise<PublicOrganizationListResult> {
+    return this.organizationsPublicSearchService.searchPublic({
+      page: input.page,
+      pageSize: input.pageSize,
+      query: input.query?.trim() || undefined,
+      sort: input.sort,
+    });
+  }
+
   async getById(
     organizationId: string,
+  ): Promise<PublicOrganizationDetailResult> {
+    const detail =
+      await this.organizationsRepository.findPublicOrganizationDetail(
+        organizationId,
+      );
+
+    if (!detail) {
+      throw new ResourceNotFoundError("Organization could not be found.");
+    }
+
+    return detail;
+  }
+
+  async getWorkspaceById(
+    organizationId: string,
     userId: string,
-  ): Promise<OrganizationDetailResult> {
+  ): Promise<OrganizationWorkspaceDetailResult> {
     const membership = await this.requireMembership(userId, organizationId);
     let detail =
       await this.organizationsRepository.findOrganizationDetail(organizationId);

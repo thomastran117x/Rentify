@@ -12,7 +12,7 @@ import {
 const {
   useAuthMock,
   getMineMock,
-  getByIdMock,
+  getWorkspaceByIdMock,
   setActiveMock,
   createInviteMock,
   createUploadUrlMock,
@@ -23,7 +23,7 @@ const {
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMineMock: vi.fn(),
-  getByIdMock: vi.fn(),
+  getWorkspaceByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createInviteMock: vi.fn(),
   createUploadUrlMock: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock("@/lib/blob/api", () => ({
 vi.mock("@/lib/organizations/api", () => ({
   organizationsApi: {
     getMine: getMineMock,
-    getById: getByIdMock,
+    getWorkspaceById: getWorkspaceByIdMock,
     setActive: setActiveMock,
     rename: vi.fn(),
     update: vi.fn(),
@@ -104,7 +104,7 @@ describe("OrganizationWorkspace toast integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
-    usePathnameMock.mockReturnValue("/organizations");
+    usePathnameMock.mockReturnValue("/dashboard/organizations");
     setSearchParams("");
 
     useAuthMock.mockReturnValue({
@@ -144,7 +144,7 @@ describe("OrganizationWorkspace toast integration", () => {
       },
     });
 
-    getByIdMock.mockResolvedValue({
+    getWorkspaceByIdMock.mockResolvedValue({
       organization: {
         id: "org-1",
         name: "Northwind",

@@ -1637,7 +1637,10 @@ export function PostingManagementWorkspace() {
             organization workspace first, then come back here to manage its
             postings.
           </p>
-          <Link href="/organizations" className={`${primaryButtonClass} mt-6`}>
+          <Link
+            href="/dashboard/organizations"
+            className={`${primaryButtonClass} mt-6`}
+          >
             Open organizations
           </Link>
         </div>
@@ -2273,7 +2276,10 @@ export function PostingManagementWorkspace() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Link href="/organizations" className={secondaryButtonClass}>
+            <Link
+              href="/dashboard/organizations"
+              className={secondaryButtonClass}
+            >
               Switch organization
             </Link>
             {canManage && !editorOpen ? (

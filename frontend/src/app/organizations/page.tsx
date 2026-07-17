@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { OrganizationWorkspace } from "@/components/organizations/organization-workspace";
+import { OrganizationDirectoryPage } from "@/components/organizations/organization-directory-page";
 
 export const metadata: Metadata = {
   title: "Organizations | Rentify",
-  description:
-    "Manage organization memberships, pending invites, and your active workspace context on Rentify.",
+  description: "Browse public organizations with published Rentify postings.",
 };
 
 export default function OrganizationsPage() {
   return (
     <Suspense fallback={null}>
-      <OrganizationWorkspace />
+      <OrganizationDirectoryPage />
     </Suspense>
   );
 }

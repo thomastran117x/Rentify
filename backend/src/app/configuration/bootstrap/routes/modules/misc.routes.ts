@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BlobController } from "@/features/blob/blob.controller";
 import type { ProfileController } from "@/features/profile/profile.controller";
 import type { SearchController } from "@/features/search/search.controller";
+import type { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const blobRouteModule: RouteModule = {
@@ -97,6 +98,47 @@ export const searchAdminRouteModule: RouteModule = {
       "/admin/search/cleanup-retained-indices",
       resolveHandler<SearchController>(
         containerTokens.searchController,
+        "cleanupRetainedIndices",
+      ),
+    );
+  },
+};
+
+export const organizationsSearchAdminRouteModule: RouteModule = {
+  id: "organizations-search-admin",
+  register(app, { resolveHandler }) {
+    app.post(
+      "/admin/organizations/search/reindex",
+      resolveHandler<OrganizationsSearchController>(
+        containerTokens.organizationsSearchController,
+        "startReindex",
+      ),
+    );
+    app.get(
+      "/admin/organizations/search/reindex-runs/:id",
+      resolveHandler<OrganizationsSearchController>(
+        containerTokens.organizationsSearchController,
+        "getReindexRun",
+      ),
+    );
+    app.get(
+      "/admin/organizations/search/status",
+      resolveHandler<OrganizationsSearchController>(
+        containerTokens.organizationsSearchController,
+        "getStatus",
+      ),
+    );
+    app.post(
+      "/admin/organizations/search/outbox/replay-dead-lettered",
+      resolveHandler<OrganizationsSearchController>(
+        containerTokens.organizationsSearchController,
+        "replayDeadLettered",
+      ),
+    );
+    app.post(
+      "/admin/organizations/search/cleanup-retained-indices",
+      resolveHandler<OrganizationsSearchController>(
+        containerTokens.organizationsSearchController,
         "cleanupRetainedIndices",
       ),
     );
