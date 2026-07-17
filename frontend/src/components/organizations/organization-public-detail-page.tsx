@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Globe,
   MapPin,
+  Newspaper,
   ShieldCheck,
 } from "lucide-react";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -201,17 +202,26 @@ export function OrganizationPublicDetailPage({
               </div>
             </div>
 
-            {organization.websiteUrl ? (
-              <a
-                href={organization.websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={`${theme.marketplace.primaryButton} shrink-0`}
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
+              <Link
+                href={`/organizations/${id}/blog`}
+                className={theme.marketplace.paginationButton}
               >
-                Visit website
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
-            ) : null}
+                <Newspaper className="h-4 w-4" aria-hidden="true" />
+                Read our blog
+              </Link>
+              {organization.websiteUrl ? (
+                <a
+                  href={organization.websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={theme.marketplace.primaryButton}
+                >
+                  Visit website
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <p className="mt-6 max-w-3xl text-base leading-8 text-slate-600 dark:text-slate-300">

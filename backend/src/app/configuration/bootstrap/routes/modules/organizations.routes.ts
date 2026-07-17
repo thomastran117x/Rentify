@@ -103,6 +103,50 @@ export const organizationsRouteModule: RouteModule = {
         "deleteAnnouncement",
       ),
     );
+    // Public, unauthenticated blog reads (published posts only).
+    app.get(
+      "/organizations/:id/blog",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listPublicBlogPosts",
+      ),
+    );
+    app.get(
+      "/organizations/:id/blog/:slug",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "getPublicBlogPost",
+      ),
+    );
+    // Authenticated, manager-gated blog management.
+    app.get(
+      "/organizations/:id/blog-posts",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listBlogPosts",
+      ),
+    );
+    app.post(
+      "/organizations/:id/blog-posts",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "createBlogPost",
+      ),
+    );
+    app.patch(
+      "/organizations/:id/blog-posts/:blogPostId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "updateBlogPost",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/blog-posts/:blogPostId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "deleteBlogPost",
+      ),
+    );
     app.patch(
       "/organizations/:id",
       resolveHandler<OrganizationsController>(

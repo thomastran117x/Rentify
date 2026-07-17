@@ -15,6 +15,10 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@tiptap/extension-image": "^2.27.2",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "qrcode": "^1.5.4",

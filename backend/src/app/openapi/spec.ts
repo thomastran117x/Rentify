@@ -266,6 +266,39 @@ const organizationAnnouncementListExample = {
     hasPreviousPage: false,
   },
 };
+const organizationBlogPostExample = {
+  id: "blog-1",
+  organizationId: "org-1",
+  author: {
+    id: "user-1",
+    email: "owner1@rentify.local",
+    username: "owner-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+  },
+  title: "Introducing weekend stays at our downtown studios",
+  slug: "introducing-weekend-stays",
+  excerpt: "Weekend bookings are now open across every downtown studio.",
+  body: "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
+  coverImageUrl:
+    "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
+  coverImageBlobName: "organizations/org-1/blog/cover-1.png",
+  tags: ["announcement", "downtown"],
+  status: "published",
+  publishedAt: "2026-05-28T11:15:00.000Z",
+  createdAt: "2026-05-28T11:15:00.000Z",
+  updatedAt: "2026-05-28T11:15:00.000Z",
+};
+const organizationBlogPostListExample = {
+  posts: [organizationBlogPostExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
 const organizationAuditRestoreExample = {
   restored: true,
   auditLog: {
@@ -2592,6 +2625,244 @@ function buildOperations(): OperationDefinition[] {
           {
             deleted: true,
             announcementId: "announcement-1",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/blog",
+      operationId: "listPublicOrganizationBlogPosts",
+      summary: "List published organization blog posts",
+      description:
+        "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of blog posts per page.",
+          20,
+        ),
+        queryParam(
+          "tag",
+          { type: "string" },
+          "Optional tag filter.",
+          "announcement",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogPostListResult",
+          organizationBlogPostListExample,
+          "Organization blog posts returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationBlogPostListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/blog/:slug",
+      operationId: "getPublicOrganizationBlogPost",
+      summary: "Get a published organization blog post by slug",
+      description:
+        "Returns a single published blog post by its slug. This is a public, unauthenticated marketing endpoint; draft posts return 404.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogPostRecord",
+          organizationBlogPostExample,
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/blog-posts",
+      operationId: "listOrganizationBlogPosts",
+      summary: "List organization blog posts (management)",
+      description:
+        "Returns paginated blog posts for organization members. Managers see drafts and published posts; operators and read-only members only receive published posts.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager", "operator"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of blog posts per page.",
+          20,
+        ),
+        queryParam(
+          "status",
+          schemaRef("OrganizationBlogStatus"),
+          "Optional status filter (managers only).",
+          "published",
+        ),
+        queryParam(
+          "tag",
+          { type: "string" },
+          "Optional tag filter.",
+          "downtown",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogPostListResult",
+          organizationBlogPostListExample,
+          "Organization blog posts returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationBlogPostListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/blog-posts",
+      operationId: "createOrganizationBlogPost",
+      summary: "Create an organization blog post",
+      description:
+        "Creates a new blog post. Only primary managers and managers can create posts. The body is sanitized rich-text HTML and a unique slug is derived from the title when not supplied.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      requestBody: requestBody("CreateOrganizationBlogPostRequest", {
+        title: "Introducing weekend stays at our downtown studios",
+        body: "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
+        excerpt: "Weekend bookings are now open across every downtown studio.",
+        tags: ["announcement", "downtown"],
+        status: "published",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Organization blog post created successfully.",
+          "OrganizationBlogPostRecord",
+          organizationBlogPostExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id/blog-posts/:blogPostId",
+      operationId: "updateOrganizationBlogPost",
+      summary: "Update an organization blog post",
+      description:
+        "Updates an existing blog post. Only primary managers and managers can update posts. Changing status to published records a publish event in the audit trail.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "blogPostId",
+          "Organization blog post identifier.",
+          "blog-1",
+        ),
+      ],
+      requestBody: requestBody("UpdateOrganizationBlogPostRequest", {
+        status: "published",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization blog post updated successfully.",
+          "OrganizationBlogPostRecord",
+          organizationBlogPostExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/blog-posts/:blogPostId",
+      operationId: "deleteOrganizationBlogPost",
+      summary: "Delete an organization blog post",
+      description:
+        "Deletes a blog post. Only primary managers and managers can delete posts.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "blogPostId",
+          "Organization blog post identifier.",
+          "blog-1",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization blog post deleted successfully.",
+          "DeleteOrganizationBlogPostResult",
+          {
+            deleted: true,
+            blogPostId: "blog-1",
           },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
@@ -6419,6 +6690,11 @@ function buildComponents(): Record<string, unknown> {
           "announcement.published",
           "announcement.unpublished",
           "announcement.deleted",
+          "blog.created",
+          "blog.updated",
+          "blog.published",
+          "blog.unpublished",
+          "blog.deleted",
         ],
       },
       OrganizationAuditResourceType: {
@@ -6431,6 +6707,7 @@ function buildComponents(): Record<string, unknown> {
           "posting_availability",
           "seasonal_pricing",
           "announcement",
+          "blog",
         ],
       },
       OrganizationAuditActorSummary: {
@@ -6576,6 +6853,104 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           deleted: { type: "boolean" },
           announcementId: { type: "string" },
+        },
+      },
+      OrganizationBlogStatus: {
+        type: "string",
+        enum: ["draft", "published"],
+      },
+      OrganizationBlogAuthorSummary: {
+        type: "object",
+        required: ["id", "email", "username"],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+        },
+      },
+      OrganizationBlogPostRecord: {
+        type: "object",
+        required: [
+          "id",
+          "organizationId",
+          "title",
+          "slug",
+          "body",
+          "tags",
+          "status",
+          "createdAt",
+          "updatedAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          organizationId: { type: "string" },
+          author: schemaRef("OrganizationBlogAuthorSummary"),
+          title: { type: "string" },
+          slug: { type: "string" },
+          excerpt: { type: "string" },
+          body: { type: "string" },
+          coverImageUrl: { type: "string", format: "uri" },
+          coverImageBlobName: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          status: schemaRef("OrganizationBlogStatus"),
+          publishedAt: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationBlogPostListResult: {
+        type: "object",
+        required: ["posts", "pagination"],
+        properties: {
+          posts: {
+            type: "array",
+            items: schemaRef("OrganizationBlogPostRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+        },
+      },
+      CreateOrganizationBlogPostRequest: {
+        type: "object",
+        required: ["title", "body"],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          body: { type: "string", minLength: 1, maxLength: 100000 },
+          excerpt: { type: "string", maxLength: 300, nullable: true },
+          slug: { type: "string", maxLength: 220 },
+          coverImageUrl: { type: "string", format: "uri", nullable: true },
+          coverImageBlobName: { type: "string", nullable: true },
+          tags: {
+            type: "array",
+            items: { type: "string", maxLength: 40 },
+            maxItems: 10,
+          },
+          status: schemaRef("OrganizationBlogStatus"),
+        },
+      },
+      UpdateOrganizationBlogPostRequest: {
+        type: "object",
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          body: { type: "string", minLength: 1, maxLength: 100000 },
+          excerpt: { type: "string", maxLength: 300, nullable: true },
+          slug: { type: "string", maxLength: 220 },
+          coverImageUrl: { type: "string", format: "uri", nullable: true },
+          coverImageBlobName: { type: "string", nullable: true },
+          tags: {
+            type: "array",
+            items: { type: "string", maxLength: 40 },
+            maxItems: 10,
+          },
+          status: schemaRef("OrganizationBlogStatus"),
+        },
+      },
+      DeleteOrganizationBlogPostResult: {
+        type: "object",
+        required: ["deleted", "blogPostId"],
+        properties: {
+          deleted: { type: "boolean" },
+          blogPostId: { type: "string" },
         },
       },
       AuthSessionResponseData: {

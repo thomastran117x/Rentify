@@ -118,6 +118,7 @@ function createService(overrides?: {
   blobService?: Record<string, jest.Mock>;
   publicSearchService?: Record<string, jest.Mock>;
   announcementService?: Record<string, jest.Mock>;
+  blogService?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -250,6 +251,15 @@ function createService(overrides?: {
     delete: jest.fn(),
     ...(overrides?.announcementService ?? {}),
   };
+  const blogService = {
+    list: jest.fn(async () => ({ posts: [], pagination: {} })),
+    listPublished: jest.fn(async () => ({ posts: [], pagination: {} })),
+    getPublishedBySlug: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    ...(overrides?.blogService ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
@@ -262,6 +272,7 @@ function createService(overrides?: {
       blobService as any,
       publicSearchService as any,
       announcementService as any,
+      blogService as any,
     ),
     repository,
     authRepository,

@@ -411,4 +411,106 @@ describe("Organizations persistence integration", () => {
     );
     expect(operatorCreateResponse.status).toBe(403);
   });
+
+  it("creates blog posts, sanitizes HTML, and exposes only published posts publicly", async () => {
+    const manager = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const operator = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/blog-posts`,
+      )}`,
+      {
+        method: "POST",
+        headers: manager.headers(),
+        body: JSON.stringify({
+          title: "Our Spring Refresh",
+          body: '<h2>Spring is here</h2><p>Enjoy new bookings.</p><script>alert("xss")</script>',
+          excerpt: "New bookings for spring.",
+          tags: ["spring", "news"],
+          status: "published",
+        }),
+      },
+    );
+
+    expect(createResponse.status).toBe(201);
+    const createBody = (await createResponse.json()) as {
+      data: { id: string; slug: string; body: string; status: string };
+    };
+    expect(createBody.data.status).toBe("published");
+    expect(createBody.data.slug).toBe("our-spring-refresh");
+    // HTML body is sanitized server-side: script tags are removed.
+    expect(createBody.data.body).not.toContain("<script>");
+    expect(createBody.data.body).toContain("<h2>Spring is here</h2>");
+    const blogPostId = createBody.data.id;
+    const publishedSlug = createBody.data.slug;
+
+    const auditEntry =
+      await persistenceApp.prisma.organizationAuditLog.findFirst({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          resourceType: "blog",
+          resourceId: blogPostId,
+          action: "blog.created",
+        },
+      });
+    expect(auditEntry).not.toBeNull();
+
+    // Public, unauthenticated list returns only published posts.
+    const publicListResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/blog`,
+      )}`,
+      { method: "GET" },
+    );
+    expect(publicListResponse.status).toBe(200);
+    const publicList = (await publicListResponse.json()) as {
+      data: { posts: Array<{ slug: string; status: string }> };
+    };
+    expect(publicList.data.posts.length).toBeGreaterThan(0);
+    expect(
+      publicList.data.posts.every((post) => post.status === "published"),
+    ).toBe(true);
+    expect(
+      publicList.data.posts.some((post) => post.slug === publishedSlug),
+    ).toBe(true);
+
+    // Public, unauthenticated single-post read by slug.
+    const publicPostResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/blog/${publishedSlug}`,
+      )}`,
+      { method: "GET" },
+    );
+    expect(publicPostResponse.status).toBe(200);
+
+    // Draft posts (seeded) are not publicly reachable by slug.
+    const draftPublicResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/blog/behind-the-scenes-preparation`,
+      )}`,
+      { method: "GET" },
+    );
+    expect(draftPublicResponse.status).toBe(404);
+
+    // Operators cannot create blog posts.
+    const operatorCreateResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/blog-posts`,
+      )}`,
+      {
+        method: "POST",
+        headers: operator.headers(),
+        body: JSON.stringify({
+          title: "Operator attempt",
+          body: "<p>Operators should not be able to post.</p>",
+        }),
+      },
+    );
+    expect(operatorCreateResponse.status).toBe(403);
+  });
 });

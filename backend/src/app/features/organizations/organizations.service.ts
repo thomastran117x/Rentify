@@ -17,6 +17,18 @@ import type {
   OrganizationAnnouncementRecord,
   UpdateOrganizationAnnouncementInput,
 } from "@/features/organizations/organization-announcement.model";
+import type { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
+import type {
+  CreateOrganizationBlogPostInput,
+  DeleteOrganizationBlogPostInput,
+  DeleteOrganizationBlogPostResult,
+  GetPublicOrganizationBlogPostInput,
+  ListOrganizationBlogPostsInput,
+  ListOrganizationBlogPostsResult,
+  ListPublicOrganizationBlogPostsInput,
+  OrganizationBlogPostRecord,
+  UpdateOrganizationBlogPostInput,
+} from "@/features/organizations/organization-blog.model";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
   createAuditChanges as buildAuditChanges,
@@ -85,6 +97,7 @@ export class OrganizationsService {
     private readonly blobService: BlobService,
     private readonly organizationsPublicSearchService: OrganizationsPublicSearchService,
     private readonly organizationAnnouncementService: OrganizationAnnouncementService,
+    private readonly organizationBlogService: OrganizationBlogService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -207,6 +220,42 @@ export class OrganizationsService {
     input: DeleteOrganizationAnnouncementInput,
   ): Promise<DeleteOrganizationAnnouncementResult> {
     return this.organizationAnnouncementService.delete(input);
+  }
+
+  async listBlogPosts(
+    input: ListOrganizationBlogPostsInput,
+  ): Promise<ListOrganizationBlogPostsResult> {
+    return this.organizationBlogService.list(input);
+  }
+
+  async listPublicBlogPosts(
+    input: ListPublicOrganizationBlogPostsInput,
+  ): Promise<ListOrganizationBlogPostsResult> {
+    return this.organizationBlogService.listPublished(input);
+  }
+
+  async getPublicBlogPostBySlug(
+    input: GetPublicOrganizationBlogPostInput,
+  ): Promise<OrganizationBlogPostRecord> {
+    return this.organizationBlogService.getPublishedBySlug(input);
+  }
+
+  async createBlogPost(
+    input: CreateOrganizationBlogPostInput,
+  ): Promise<OrganizationBlogPostRecord> {
+    return this.organizationBlogService.create(input);
+  }
+
+  async updateBlogPost(
+    input: UpdateOrganizationBlogPostInput,
+  ): Promise<OrganizationBlogPostRecord> {
+    return this.organizationBlogService.update(input);
+  }
+
+  async deleteBlogPost(
+    input: DeleteOrganizationBlogPostInput,
+  ): Promise<DeleteOrganizationBlogPostResult> {
+    return this.organizationBlogService.delete(input);
   }
 
   async restoreVersion(

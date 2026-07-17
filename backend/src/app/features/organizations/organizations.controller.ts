@@ -8,6 +8,7 @@ import {
 import {
   RequestValidationError,
   parseRequestBody,
+  parseRequestBodyWithRichText,
 } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
@@ -32,6 +33,14 @@ import {
   organizationAnnouncementIdSchema,
   updateOrganizationAnnouncementSchema,
 } from "@/features/organizations/organization-announcement.model";
+import {
+  createOrganizationBlogSchema,
+  listOrganizationBlogQuerySchema,
+  listPublicOrganizationBlogQuerySchema,
+  organizationBlogIdSchema,
+  organizationBlogSlugSchema,
+  updateOrganizationBlogSchema,
+} from "@/features/organizations/organization-blog.model";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
 export class OrganizationsController {
@@ -202,6 +211,102 @@ export class OrganizationsController {
     return ok(context, result, {
       message: "Organization announcement deleted successfully.",
     });
+  };
+
+  listBlogPosts = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const query = listOrganizationBlogQuerySchema.parse(context.req.query());
+    const result = await this.organizationsService.listBlogPosts({
+      ...query,
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+    });
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
+
+  createBlogPost = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBodyWithRichText(
+      context,
+      createOrganizationBlogSchema,
+      ["body"],
+    );
+    const result = await this.organizationsService.createBlogPost({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      ...body,
+    });
+    return created(context, result, {
+      message: "Organization blog post created successfully.",
+    });
+  };
+
+  updateBlogPost = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBodyWithRichText(
+      context,
+      updateOrganizationBlogSchema,
+      ["body"],
+    );
+    const result = await this.organizationsService.updateBlogPost({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      blogPostId: this.requireRouteValue(
+        context,
+        "blogPostId",
+        organizationBlogIdSchema,
+        "Route parameter validation failed.",
+      ),
+      ...body,
+    });
+    return ok(context, result, {
+      message: "Organization blog post updated successfully.",
+    });
+  };
+
+  deleteBlogPost = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.deleteBlogPost({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      blogPostId: this.requireRouteValue(
+        context,
+        "blogPostId",
+        organizationBlogIdSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result, {
+      message: "Organization blog post deleted successfully.",
+    });
+  };
+
+  listPublicBlogPosts = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const query = listPublicOrganizationBlogQuerySchema.parse(
+      context.req.query(),
+    );
+    const result = await this.organizationsService.listPublicBlogPosts({
+      ...query,
+      organizationId: this.requireOrganizationId(context),
+    });
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
+
+  getPublicBlogPost = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const result = await this.organizationsService.getPublicBlogPostBySlug({
+      organizationId: this.requireOrganizationId(context),
+      slug: this.requireRouteValue(
+        context,
+        "slug",
+        organizationBlogSlugSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result);
   };
 
   update = async (context: Context<AppBindings>): Promise<Response> => {

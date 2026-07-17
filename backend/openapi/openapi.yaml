@@ -3179,6 +3179,563 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog':
+    get:
+      operationId: listPublicOrganizationBlogPosts
+      summary: List published organization blog posts
+      description: 'Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned.'
+      tags:
+        - organizations
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: page
+          in: query
+          required: false
+          description: Page number to return.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of blog posts per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 20
+        - name: tag
+          in: query
+          required: false
+          description: Optional tag filter.
+          schema:
+            type: string
+          example: announcement
+      responses:
+        '200':
+          description: Organization blog posts returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogPostListResult'
+                      meta:
+                        $ref: '#/components/schemas/ExtendedRequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  posts:
+                    - id: blog-1
+                      organizationId: org-1
+                      author:
+                        id: user-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                      title: Introducing weekend stays at our downtown studios
+                      slug: introducing-weekend-stays
+                      excerpt: Weekend bookings are now open across every downtown studio.
+                      body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+                      coverImageUrl: 'https://cdn.rentify.local/organizations/org-1/blog/cover-1.png'
+                      coverImageBlobName: organizations/org-1/blog/cover-1.png
+                      tags:
+                        - announcement
+                        - downtown
+                      status: published
+                      publishedAt: '2026-05-28T11:15:00.000Z'
+                      createdAt: '2026-05-28T11:15:00.000Z'
+                      updatedAt: '2026-05-28T11:15:00.000Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog/{slug}':
+    get:
+      operationId: getPublicOrganizationBlogPost
+      summary: Get a published organization blog post by slug
+      description: 'Returns a single published blog post by its slug. This is a public, unauthenticated marketing endpoint; draft posts return 404.'
+      tags:
+        - organizations
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogPostRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  id: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-1
+                    email: owner1@rentify.local
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                  title: Introducing weekend stays at our downtown studios
+                  slug: introducing-weekend-stays
+                  excerpt: Weekend bookings are now open across every downtown studio.
+                  body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+                  coverImageUrl: 'https://cdn.rentify.local/organizations/org-1/blog/cover-1.png'
+                  coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  tags:
+                    - announcement
+                    - downtown
+                  status: published
+                  publishedAt: '2026-05-28T11:15:00.000Z'
+                  createdAt: '2026-05-28T11:15:00.000Z'
+                  updatedAt: '2026-05-28T11:15:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog-posts':
+    get:
+      operationId: listOrganizationBlogPosts
+      summary: List organization blog posts (management)
+      description: Returns paginated blog posts for organization members. Managers see drafts and published posts; operators and read-only members only receive published posts.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+          - operator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: page
+          in: query
+          required: false
+          description: Page number to return.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of blog posts per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 20
+        - name: status
+          in: query
+          required: false
+          description: Optional status filter (managers only).
+          schema:
+            $ref: '#/components/schemas/OrganizationBlogStatus'
+          example: published
+        - name: tag
+          in: query
+          required: false
+          description: Optional tag filter.
+          schema:
+            type: string
+          example: downtown
+      responses:
+        '200':
+          description: Organization blog posts returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogPostListResult'
+                      meta:
+                        $ref: '#/components/schemas/ExtendedRequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  posts:
+                    - id: blog-1
+                      organizationId: org-1
+                      author:
+                        id: user-1
+                        email: owner1@rentify.local
+                        username: owner-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                      title: Introducing weekend stays at our downtown studios
+                      slug: introducing-weekend-stays
+                      excerpt: Weekend bookings are now open across every downtown studio.
+                      body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+                      coverImageUrl: 'https://cdn.rentify.local/organizations/org-1/blog/cover-1.png'
+                      coverImageBlobName: organizations/org-1/blog/cover-1.png
+                      tags:
+                        - announcement
+                        - downtown
+                      status: published
+                      publishedAt: '2026-05-28T11:15:00.000Z'
+                      createdAt: '2026-05-28T11:15:00.000Z'
+                      updatedAt: '2026-05-28T11:15:00.000Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createOrganizationBlogPost
+      summary: Create an organization blog post
+      description: Creates a new blog post. Only primary managers and managers can create posts. The body is sanitized rich-text HTML and a unique slug is derived from the title when not supplied.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationBlogPostRequest'
+            example:
+              title: Introducing weekend stays at our downtown studios
+              body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+              excerpt: Weekend bookings are now open across every downtown studio.
+              tags:
+                - announcement
+                - downtown
+              status: published
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogPostRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization blog post created successfully.
+                data:
+                  id: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-1
+                    email: owner1@rentify.local
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                  title: Introducing weekend stays at our downtown studios
+                  slug: introducing-weekend-stays
+                  excerpt: Weekend bookings are now open across every downtown studio.
+                  body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+                  coverImageUrl: 'https://cdn.rentify.local/organizations/org-1/blog/cover-1.png'
+                  coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  tags:
+                    - announcement
+                    - downtown
+                  status: published
+                  publishedAt: '2026-05-28T11:15:00.000Z'
+                  createdAt: '2026-05-28T11:15:00.000Z'
+                  updatedAt: '2026-05-28T11:15:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog-posts/{blogPostId}':
+    patch:
+      operationId: updateOrganizationBlogPost
+      summary: Update an organization blog post
+      description: Updates an existing blog post. Only primary managers and managers can update posts. Changing status to published records a publish event in the audit trail.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: blogPostId
+          in: path
+          required: true
+          description: Organization blog post identifier.
+          schema:
+            type: string
+          example: blog-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationBlogPostRequest'
+            example:
+              status: published
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogPostRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization blog post updated successfully.
+                data:
+                  id: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-1
+                    email: owner1@rentify.local
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                  title: Introducing weekend stays at our downtown studios
+                  slug: introducing-weekend-stays
+                  excerpt: Weekend bookings are now open across every downtown studio.
+                  body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
+                  coverImageUrl: 'https://cdn.rentify.local/organizations/org-1/blog/cover-1.png'
+                  coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  tags:
+                    - announcement
+                    - downtown
+                  status: published
+                  publishedAt: '2026-05-28T11:15:00.000Z'
+                  createdAt: '2026-05-28T11:15:00.000Z'
+                  updatedAt: '2026-05-28T11:15:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteOrganizationBlogPost
+      summary: Delete an organization blog post
+      description: Deletes a blog post. Only primary managers and managers can delete posts.
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: blogPostId
+          in: path
+          required: true
+          description: Organization blog post identifier.
+          schema:
+            type: string
+          example: blog-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeleteOrganizationBlogPostResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization blog post deleted successfully.
+                data:
+                  deleted: true
+                  blogPostId: blog-1
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /blob/upload-url:
     post:
       operationId: createBlobUploadUrl
@@ -11354,6 +11911,11 @@ components:
         - announcement.published
         - announcement.unpublished
         - announcement.deleted
+        - blog.created
+        - blog.updated
+        - blog.published
+        - blog.unpublished
+        - blog.deleted
     OrganizationAuditResourceType:
       type: string
       enum:
@@ -11364,6 +11926,7 @@ components:
         - posting_availability
         - seasonal_pricing
         - announcement
+        - blog
     OrganizationAuditActorSummary:
       type: object
       required:
@@ -11564,6 +12127,166 @@ components:
         deleted:
           type: boolean
         announcementId:
+          type: string
+    OrganizationBlogStatus:
+      type: string
+      enum:
+        - draft
+        - published
+    OrganizationBlogAuthorSummary:
+      type: object
+      required:
+        - id
+        - email
+        - username
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+    OrganizationBlogPostRecord:
+      type: object
+      required:
+        - id
+        - organizationId
+        - title
+        - slug
+        - body
+        - tags
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        author:
+          $ref: '#/components/schemas/OrganizationBlogAuthorSummary'
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+        body:
+          type: string
+        coverImageUrl:
+          type: string
+          format: uri
+        coverImageBlobName:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/OrganizationBlogStatus'
+        publishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrganizationBlogPostListResult:
+      type: object
+      required:
+        - posts
+        - pagination
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationBlogPostRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateOrganizationBlogPostRequest:
+      type: object
+      required:
+        - title
+        - body
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        body:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        excerpt:
+          type: string
+          maxLength: 300
+          nullable: true
+        slug:
+          type: string
+          maxLength: 220
+        coverImageUrl:
+          type: string
+          format: uri
+          nullable: true
+        coverImageBlobName:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+          maxItems: 10
+        status:
+          $ref: '#/components/schemas/OrganizationBlogStatus'
+    UpdateOrganizationBlogPostRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        body:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        excerpt:
+          type: string
+          maxLength: 300
+          nullable: true
+        slug:
+          type: string
+          maxLength: 220
+        coverImageUrl:
+          type: string
+          format: uri
+          nullable: true
+        coverImageBlobName:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+          maxItems: 10
+        status:
+          $ref: '#/components/schemas/OrganizationBlogStatus'
+    DeleteOrganizationBlogPostResult:
+      type: object
+      required:
+        - deleted
+        - blogPostId
+      properties:
+        deleted:
+          type: boolean
+        blogPostId:
           type: string
     AuthSessionResponseData:
       type: object
