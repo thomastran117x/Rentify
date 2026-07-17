@@ -536,9 +536,7 @@ describe("RecommendationPrecomputeRepository", () => {
         upsert: snapshotUpsert,
       },
     });
-    const repository = new RecommendationPrecomputeRepository(
-      database as any,
-    );
+    const repository = new RecommendationPrecomputeRepository(database as any);
 
     await repository.upsertUserRecommendationArtifacts({
       profile: {

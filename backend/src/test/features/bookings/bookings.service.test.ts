@@ -13,9 +13,7 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 
-function createPostingRecord(
-  overrides: Partial<PostingRecord> = {},
-): any {
+function createPostingRecord(overrides: Partial<PostingRecord> = {}): any {
   return {
     id: "posting-1",
     ownerId: "owner-1",

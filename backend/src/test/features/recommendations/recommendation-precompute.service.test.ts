@@ -106,8 +106,9 @@ describe("RecommendationPrecomputeService", () => {
 
     await service.processBatch(10);
 
-    const snapshotInput =
-      (repository.upsertUserRecommendationArtifacts.mock.calls[0] as any)?.[0]?.snapshot;
+    const snapshotInput = (
+      repository.upsertUserRecommendationArtifacts.mock.calls[0] as any
+    )?.[0]?.snapshot;
     expect(snapshotInput.candidates[0].postingId).toBe("candidate-a");
     expect(snapshotInput.candidates[0].reasonCodes).toEqual(
       expect.arrayContaining([
@@ -224,8 +225,9 @@ describe("RecommendationPrecomputeService", () => {
 
     await service.processBatch(10);
 
-    const snapshotInput =
-      (repository.upsertUserRecommendationArtifacts.mock.calls[0] as any)?.[0]?.snapshot;
+    const snapshotInput = (
+      repository.upsertUserRecommendationArtifacts.mock.calls[0] as any
+    )?.[0]?.snapshot;
     expect(
       snapshotInput.candidates.map(
         (candidate: { postingId: string }) => candidate.postingId,

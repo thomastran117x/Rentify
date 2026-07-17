@@ -81,10 +81,7 @@ function createService(options?: {
   return {
     profileRepository,
     blobService,
-    service: new ProfileService(
-      profileRepository as any,
-      blobService as any,
-    ),
+    service: new ProfileService(profileRepository as any, blobService as any),
   };
 }
 

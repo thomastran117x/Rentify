@@ -504,10 +504,7 @@ describe("PostingsAnalyticsRepository", () => {
         $transaction: async (
           callback: (tx: typeof transaction) => Promise<void>,
         ) => callback(transaction),
-      } as any) as unknown as Record<
-        string,
-        (input: unknown) => Promise<void>
-      >;
+      } as any) as unknown as Record<string, (input: unknown) => Promise<void>>;
 
       await repository[testCase.method]({
         postingId: "posting-1",
@@ -560,8 +557,11 @@ describe("PostingsAnalyticsRepository", () => {
       refundedAmount: 55.5,
     });
 
-    const refundHourlyCall =
-      (refundTransaction.postingAnalyticsHourly.upsert.mock.calls[0] as any[] | undefined)?.[0];
+    const refundHourlyCall = (
+      refundTransaction.postingAnalyticsHourly.upsert.mock.calls[0] as
+        | any[]
+        | undefined
+    )?.[0];
     expect(
       refundHourlyCall?.update?.refundedRevenue?.increment?.toString(),
     ).toBe("55.5");
@@ -589,8 +589,11 @@ describe("PostingsAnalyticsRepository", () => {
       estimatedTotal: 275,
     });
 
-    const rentingDailyCall =
-      (rentingTransaction.postingAnalyticsDaily.upsert.mock.calls[0] as any[] | undefined)?.[0];
+    const rentingDailyCall = (
+      rentingTransaction.postingAnalyticsDaily.upsert.mock.calls[0] as
+        | any[]
+        | undefined
+    )?.[0];
     expect(rentingDailyCall?.create?.confirmedBookings).toBe(1);
     expect(
       rentingDailyCall?.update?.estimatedConfirmedRevenue?.increment?.toString(),

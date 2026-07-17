@@ -59,11 +59,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       withSearchReindexStartLock: jest.fn(async () => null),
     } as any;
-    const service = new SearchService(
-      postingsRepository,
-      {} as any,
-      {} as any,
-    );
+    const service = new SearchService(postingsRepository, {} as any, {} as any);
 
     await expect(service.startReindex()).rejects.toBeInstanceOf(ConflictError);
   });
@@ -1579,11 +1575,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       reviveDeadLetteredSearchOutbox: jest.fn(async () => 7),
     } as any;
-    const service = new SearchService(
-      postingsRepository,
-      {} as any,
-      {} as any,
-    );
+    const service = new SearchService(postingsRepository, {} as any, {} as any);
 
     await expect(service.replayDeadLetteredOutbox(25)).resolves.toEqual({
       revived: 7,

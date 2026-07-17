@@ -672,8 +672,8 @@ describe("AuthService", () => {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       await expect(
         service.resendForgotPassword({
-        client: createClient(),
-            username: "target-user",
+          client: createClient(),
+          username: "target-user",
           deviceId: "device-1",
         }),
       ).resolves.toEqual({

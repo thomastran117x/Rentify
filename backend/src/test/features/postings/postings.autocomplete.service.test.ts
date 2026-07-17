@@ -516,7 +516,9 @@ describe("PostingsSearchIndexService", () => {
 
     await service.createVersionedIndex();
 
-    const body = JSON.parse((requestJson.mock.calls[0] as any)?.[1]?.body as string) as {
+    const body = JSON.parse(
+      (requestJson.mock.calls[0] as any)?.[1]?.body as string,
+    ) as {
       mappings: {
         properties: {
           tags: {

@@ -172,7 +172,9 @@ function readSearchRequest(
   };
   sort: unknown[];
 } {
-  return JSON.parse((requestJson.mock.calls[callIndex] as any)?.[1]?.body as string);
+  return JSON.parse(
+    (requestJson.mock.calls[callIndex] as any)?.[1]?.body as string,
+  );
 }
 
 function readKeywordShouldClauses(
@@ -271,7 +273,8 @@ describe("PostingsSearchIndexService", () => {
     );
 
     const body = JSON.parse(
-      ((requestJson.mock.calls[0] as any[] | undefined)?.[1] as any)?.body as string,
+      ((requestJson.mock.calls[0] as any[] | undefined)?.[1] as any)
+        ?.body as string,
     ) as Record<string, unknown>;
 
     expect(body).toMatchObject({

@@ -75,8 +75,8 @@ describe("RecommendationActivityProcessor", () => {
       personalizationEnabled: false,
     });
 
-    const [activity, jobs] =
-      ((persistActivityAndRefreshJobs.mock.calls[0] ?? []) as unknown as [any, any[]]);
+    const [activity, jobs] = (persistActivityAndRefreshJobs.mock.calls[0] ??
+      []) as unknown as [any, any[]];
     expect(activity.personalizationEligible).toBe(false);
     expect(jobs).not.toEqual(
       expect.arrayContaining([
@@ -200,8 +200,8 @@ describe("RecommendationActivityProcessor", () => {
       personalizationEnabled: true,
     });
 
-    const [activity, jobs] =
-      ((persistActivityAndRefreshJobs.mock.calls[0] ?? []) as unknown as [any, any[]]);
+    const [activity, jobs] = (persistActivityAndRefreshJobs.mock.calls[0] ??
+      []) as unknown as [any, any[]];
     expect(activity.personalizationEligible).toBe(false);
     expect(jobs).not.toEqual(
       expect.arrayContaining([

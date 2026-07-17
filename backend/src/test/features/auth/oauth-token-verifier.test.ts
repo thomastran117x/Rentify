@@ -1,6 +1,8 @@
 const mockCreatePublicKey = jest.fn();
 const mockVerify = jest.fn();
-const mockAssertTrustedOutboundUrl = jest.fn((url: string, _options?: unknown) => new URL(url));
+const mockAssertTrustedOutboundUrl = jest.fn(
+  (url: string, _options?: unknown) => new URL(url),
+);
 
 jest.mock("node:crypto", () => ({
   createPublicKey: (key: unknown) => mockCreatePublicKey(key),

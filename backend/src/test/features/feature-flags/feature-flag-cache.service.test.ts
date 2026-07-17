@@ -107,9 +107,7 @@ describe("FeatureFlagCacheService", () => {
     });
 
     it("returns null on a cache miss", async () => {
-      const service = new FeatureFlagCacheService(
-        createCacheService() as any,
-      );
+      const service = new FeatureFlagCacheService(createCacheService() as any);
 
       await expect(service.getList()).resolves.toBeNull();
     });

@@ -63,11 +63,18 @@ describe("CacheService", () => {
 
     await service.setJson("json-key", { ok: true }, 30);
     await expect(
-      service.setIfNotExists("lock-key", "00000000-0000-0000-0000-000000000001", 15),
+      service.setIfNotExists(
+        "lock-key",
+        "00000000-0000-0000-0000-000000000001",
+        15,
+      ),
     ).resolves.toBe(true);
-    await expect(service.setIfNotExists("lock-key", "00000000-0000-0000-0000-000000000002")).resolves.toBe(
-      false,
-    );
+    await expect(
+      service.setIfNotExists(
+        "lock-key",
+        "00000000-0000-0000-0000-000000000002",
+      ),
+    ).resolves.toBe(false);
     await expect(
       service.getOrSetJson("fresh-key", factory, 45),
     ).resolves.toEqual({ generated: true });
@@ -83,13 +90,23 @@ describe("CacheService", () => {
         EX: 30,
       },
     );
-    expect(client.set).toHaveBeenNthCalledWith(2, "lock-key", "00000000-0000-0000-0000-000000000001", {
-      NX: true,
-      EX: 15,
-    });
-    expect(client.set).toHaveBeenNthCalledWith(3, "lock-key", "00000000-0000-0000-0000-000000000002", {
-      NX: true,
-    });
+    expect(client.set).toHaveBeenNthCalledWith(
+      2,
+      "lock-key",
+      "00000000-0000-0000-0000-000000000001",
+      {
+        NX: true,
+        EX: 15,
+      },
+    );
+    expect(client.set).toHaveBeenNthCalledWith(
+      3,
+      "lock-key",
+      "00000000-0000-0000-0000-000000000002",
+      {
+        NX: true,
+      },
+    );
     expect(client.set).toHaveBeenNthCalledWith(
       4,
       "fresh-key",
@@ -201,24 +218,41 @@ describe("CacheService", () => {
       ok: true,
     });
 
-    const lock = await service.acquireLock("jobs", 5_000, "00000000-0000-0000-0000-000000000001");
-    const missingLock = await service.acquireLock("jobs", 5_000, "00000000-0000-0000-0000-000000000002");
+    const lock = await service.acquireLock(
+      "jobs",
+      5_000,
+      "00000000-0000-0000-0000-000000000001",
+    );
+    const missingLock = await service.acquireLock(
+      "jobs",
+      5_000,
+      "00000000-0000-0000-0000-000000000002",
+    );
 
     expect(lock).not.toBeNull();
     expect(missingLock).toBeNull();
     await expect(lock?.release()).resolves.toBe(true);
     await expect(lock?.extend(6_000)).resolves.toBe(true);
-    await expect(service.releaseLock("lock:jobs", "00000000-0000-0000-0000-000000000001")).resolves.toBe(
-      false,
-    );
     await expect(
-      service.extendLock("lock:jobs", "00000000-0000-0000-0000-000000000001", 7_000),
+      service.releaseLock("lock:jobs", "00000000-0000-0000-0000-000000000001"),
+    ).resolves.toBe(false);
+    await expect(
+      service.extendLock(
+        "lock:jobs",
+        "00000000-0000-0000-0000-000000000001",
+        7_000,
+      ),
     ).resolves.toBe(false);
 
-    expect(client.set).toHaveBeenNthCalledWith(1, "lock:jobs", "00000000-0000-0000-0000-000000000001", {
-      NX: true,
-      PX: 5000,
-    });
+    expect(client.set).toHaveBeenNthCalledWith(
+      1,
+      "lock:jobs",
+      "00000000-0000-0000-0000-000000000001",
+      {
+        NX: true,
+        PX: 5000,
+      },
+    );
     expect(client.eval).toHaveBeenNthCalledWith(2, expect.any(String), {
       keys: ["lock:jobs"],
       arguments: ["00000000-0000-0000-0000-000000000001"],

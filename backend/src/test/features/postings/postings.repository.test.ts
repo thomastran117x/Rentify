@@ -1685,11 +1685,11 @@ describe("PostingsRepository", () => {
         callback: (tx: { $queryRaw: typeof jest.fn }) => Promise<unknown>,
       ) =>
         callback({
-          $queryRaw: (jest.fn(async () => [
+          $queryRaw: jest.fn(async () => [
             {
               acquired: 0,
             },
-          ]) as any),
+          ]) as any,
         } as any),
     } as any);
 

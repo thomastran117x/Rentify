@@ -165,7 +165,9 @@ describe("ProfileController", () => {
 
   it("reads the authenticated user profile from context auth", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (context: Context<AppBindings>) => {
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
       context.set("auth", claims as any);
       return claims;
     }) as any);
@@ -187,7 +189,9 @@ describe("ProfileController", () => {
 
   it("validates update bodies, maps auth to userId, and returns a success message", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (context: Context<AppBindings>) => {
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
       context.set("auth", claims as any);
       return claims;
     }) as any);
@@ -242,7 +246,9 @@ describe("ProfileController", () => {
 
   it("returns request validation errors for invalid update bodies", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (context: Context<AppBindings>) => {
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
       context.set("auth", claims as any);
       return claims;
     }) as any);

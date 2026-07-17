@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
-import { AuthRepository } from '@/features/auth/auth.repository';
-import type { VerifiedOAuthProfile } from '@/features/auth/oauth/oauth.types';
+import { AuthRepository } from "@/features/auth/auth.repository";
+import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import ConflictError from "@/errors/http/conflict.error";
 
 function createOrganizationMembershipPersistence(

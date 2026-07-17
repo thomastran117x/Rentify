@@ -5,22 +5,22 @@ function waitForLogger(): Promise<void> {
 }
 
 function spyStream(stream: NodeJS.WriteStream) {
-  return jest.spyOn(stream, "write").mockImplementation((
-    chunk: any,
-    encodingOrCallback?: any,
-    callback?: any,
-  ) => {
-    const done =
-      typeof encodingOrCallback === "function"
-        ? encodingOrCallback
-        : callback;
+  return jest
+    .spyOn(stream, "write")
+    .mockImplementation(
+      (chunk: any, encodingOrCallback?: any, callback?: any) => {
+        const done =
+          typeof encodingOrCallback === "function"
+            ? encodingOrCallback
+            : callback;
 
-    if (typeof done === "function") {
-      done(null);
-    }
+        if (typeof done === "function") {
+          done(null);
+        }
 
-    return true;
-  });
+        return true;
+      },
+    );
 }
 
 async function loadLoggingModuleWithEnvironment(options?: {
