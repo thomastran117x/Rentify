@@ -103,9 +103,7 @@ function createDb(config?: {
     },
   };
   db.$transaction = jest.fn(async (cb: unknown) =>
-    typeof cb === "function"
-      ? (cb as (client: unknown) => unknown)(db)
-      : cb,
+    typeof cb === "function" ? (cb as (client: unknown) => unknown)(db) : cb,
   );
   return db;
 }
@@ -285,9 +283,9 @@ describe("OrganizationsRepository search methods", () => {
         },
       });
       const repo = repoWith(db);
-      expect(
-        await repo.incrementSearchOutboxAttempt("outbox-1", "boom"),
-      ).toBe(3);
+      expect(await repo.incrementSearchOutboxAttempt("outbox-1", "boom")).toBe(
+        3,
+      );
       await repo.markSearchOutboxDeadLettered("outbox-1", "dead");
       await repo.markSearchOutboxPublishRetry("outbox-1", 2, "retry");
       expect(
@@ -338,7 +336,11 @@ describe("OrganizationsRepository search methods", () => {
 
     it("marks a primary row relayed and its superseded rows indexed", async () => {
       const db = createDb();
-      await repoWith(db).markSearchOutboxRelayed("outbox-1", ["s1"], "broker-1");
+      await repoWith(db).markSearchOutboxRelayed(
+        "outbox-1",
+        ["s1"],
+        "broker-1",
+      );
       const outbox = db.organizationSearchOutbox as {
         update: jest.Mock;
         updateMany: jest.Mock;
@@ -408,12 +410,11 @@ describe("OrganizationsRepository search methods", () => {
       );
       expect((await repo.findActiveSearchReindexRun())?.status).toBe("pending");
       expect((await repo.findLatestSearchReindexRun())?.id).toBe("reindex-1");
+      expect((await repo.findLatestCompletedSearchReindexRun())?.id).toBe(
+        "reindex-1",
+      );
       expect(
-        (await repo.findLatestCompletedSearchReindexRun())?.id,
-      ).toBe("reindex-1");
-      expect(
-        (await repo.listCompletedSearchReindexRunsWithRetainedIndices())
-          .length,
+        (await repo.listCompletedSearchReindexRunsWithRetainedIndices()).length,
       ).toBe(1);
     });
 
@@ -453,7 +454,9 @@ describe("OrganizationsRepository search methods", () => {
           updateMany: jest.fn(async () => ({ count: 0 })),
         },
       });
-      expect(await repoWith(contendedDb).claimNextSearchReindexRun()).toBeNull();
+      expect(
+        await repoWith(contendedDb).claimNextSearchReindexRun(),
+      ).toBeNull();
     });
 
     it("updates run status, progress, and processing markers", async () => {
@@ -494,9 +497,9 @@ describe("OrganizationsRepository search methods", () => {
           findUnique: jest.fn(async () => ({ barrierOutboxId: null })),
         },
       });
-      expect(await repoWith(db).getSearchReindexCatchUpState("reindex-1")).toEqual(
-        expect.objectContaining({ state: "failed" }),
-      );
+      expect(
+        await repoWith(db).getSearchReindexCatchUpState("reindex-1"),
+      ).toEqual(expect.objectContaining({ state: "failed" }));
     });
 
     it("reports waiting until the barrier has been indexed", async () => {

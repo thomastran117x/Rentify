@@ -1998,8 +1998,8 @@ export class OrganizationsRepository extends BaseRepository {
     return this.executeAsync(async () => {
       const now = new Date();
       const staleProcessingThreshold = new Date(now.getTime() - 5 * 60 * 1000);
-      const candidate = await this.prisma.organizationSearchReindexRun.findFirst(
-        {
+      const candidate =
+        await this.prisma.organizationSearchReindexRun.findFirst({
           where: {
             status: {
               in: ["pending", "running", "waiting_for_catchup"],
@@ -2020,8 +2020,7 @@ export class OrganizationsRepository extends BaseRepository {
               createdAt: "asc",
             },
           ],
-        },
-      );
+        });
 
       if (!candidate) {
         return null;

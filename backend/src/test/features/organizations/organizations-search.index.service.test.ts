@@ -91,9 +91,9 @@ describe("OrganizationsSearchIndexService", () => {
     );
     expect(putIndex).toBeDefined();
     expect(aliasWrite).toBeDefined();
-    const aliasBody = JSON.parse(
-      (aliasWrite![1] as { body: string }).body,
-    ) as { actions: Array<Record<string, unknown>> };
+    const aliasBody = JSON.parse((aliasWrite![1] as { body: string }).body) as {
+      actions: Array<Record<string, unknown>>;
+    };
     expect(aliasBody.actions.some((action) => "add" in action)).toBe(true);
   });
 
@@ -181,7 +181,9 @@ describe("OrganizationsSearchIndexService", () => {
       ([path]) => path === "/_aliases",
     );
     const body = JSON.parse((aliasCall![1] as { body: string }).body) as {
-      actions: Array<Record<string, { alias: string; is_write_index?: boolean }>>;
+      actions: Array<
+        Record<string, { alias: string; is_write_index?: boolean }>
+      >;
     };
     expect(
       body.actions.some(
@@ -259,7 +261,9 @@ describe("OrganizationsSearchIndexService", () => {
 
     const failHandler: RequestHandler = () => ({
       errors: true,
-      items: [{ index: { status: 400, error: { type: "mapper", reason: "x" } } }],
+      items: [
+        { index: { status: 400, error: { type: "mapper", reason: "x" } } },
+      ],
     });
     const failing = new OrganizationsSearchIndexService(
       createEsClient({ handler: failHandler }).client as never,
@@ -309,7 +313,9 @@ describe("OrganizationsSearchIndexService", () => {
   it("creates a versioned index and tolerates an already-existing index", async () => {
     const { client, requestJson } = createEsClient();
     const service = new OrganizationsSearchIndexService(client as never);
-    const name = await service.createVersionedIndex("postings-organizations_v9");
+    const name = await service.createVersionedIndex(
+      "postings-organizations_v9",
+    );
     expect(name).toBe("postings-organizations_v9");
 
     const conflictClient = createEsClient({

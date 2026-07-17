@@ -62,7 +62,10 @@ describe("OrganizationsSearchController", () => {
   });
 
   it("starts a reindex through the accepted envelope", async () => {
-    const startReindex = jest.fn(async () => ({ id: "run-1", status: "pending" }));
+    const startReindex = jest.fn(async () => ({
+      id: "run-1",
+      status: "pending",
+    }));
     const controller = new OrganizationsSearchController({
       startReindex,
     } as never);
@@ -77,7 +80,10 @@ describe("OrganizationsSearchController", () => {
   });
 
   it("returns a reindex run by route id", async () => {
-    const getReindexRun = jest.fn(async () => ({ id: "run-1", status: "running" }));
+    const getReindexRun = jest.fn(async () => ({
+      id: "run-1",
+      status: "running",
+    }));
     const controller = new OrganizationsSearchController({
       getReindexRun,
     } as never);
@@ -132,9 +138,8 @@ describe("OrganizationsSearchController", () => {
     } as never);
 
     const statusResponse = await controller.getStatus(createContext());
-    const cleanupResponse = await controller.cleanupRetainedIndices(
-      createContext(),
-    );
+    const cleanupResponse =
+      await controller.cleanupRetainedIndices(createContext());
 
     expect(getStatus).toHaveBeenCalled();
     expect(cleanupRetainedIndices).toHaveBeenCalled();
@@ -149,7 +154,9 @@ describe("OrganizationsSearchController", () => {
       startReindex,
     } as never);
 
-    await expect(controller.startReindex(createContext())).rejects.toBeDefined();
+    await expect(
+      controller.startReindex(createContext()),
+    ).rejects.toBeDefined();
     expect(startReindex).not.toHaveBeenCalled();
   });
 });

@@ -77,10 +77,7 @@ export class OrganizationsSearchService {
     private readonly organizationsSearchIndexService: OrganizationsSearchIndexService,
     private readonly searchQueueService: SearchQueueService,
   ) {
-    this.logger = loggerFactory.forClass(
-      OrganizationsSearchService,
-      "service",
-    );
+    this.logger = loggerFactory.forClass(OrganizationsSearchService, "service");
   }
 
   async startReindex(): Promise<SearchReindexRunRecord> {
@@ -660,12 +657,11 @@ export class OrganizationsSearchService {
     let indexedOrganizations = 0;
 
     while (true) {
-      const documents =
-        await this.organizationsRepository.listForIndexingBatch(
-          batchSize,
-          cursorId,
-          run.sourceSnapshotAt,
-        );
+      const documents = await this.organizationsRepository.listForIndexingBatch(
+        batchSize,
+        cursorId,
+        run.sourceSnapshotAt,
+      );
 
       if (documents.length === 0) {
         break;
@@ -743,7 +739,9 @@ export class OrganizationsSearchService {
     return documents.length;
   }
 
-  private toIndexJob(job: OrganizationSearchOutboxRecord): SearchIndexJobPayload {
+  private toIndexJob(
+    job: OrganizationSearchOutboxRecord,
+  ): SearchIndexJobPayload {
     return {
       outboxId: job.id,
       eventId: job.id,
@@ -815,7 +813,10 @@ export class OrganizationsSearchService {
 
   private coalesceRelayJobs(
     jobs: OrganizationSearchOutboxRecord[],
-  ): Array<{ primary: OrganizationSearchOutboxRecord; supersededIds: string[] }> {
+  ): Array<{
+    primary: OrganizationSearchOutboxRecord;
+    supersededIds: string[];
+  }> {
     const groups = new Map<
       string,
       {

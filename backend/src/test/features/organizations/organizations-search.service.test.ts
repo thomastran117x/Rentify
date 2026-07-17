@@ -765,7 +765,9 @@ describe("OrganizationsSearchService", () => {
       const { service, indexService } = createHarness({
         repository: {
           listCompletedSearchReindexRunsWithRetainedIndices: jest.fn(
-            async () => [createReindexRun({ retainedIndexName: "organizations_v0" })],
+            async () => [
+              createReindexRun({ retainedIndexName: "organizations_v0" }),
+            ],
           ),
         },
       });

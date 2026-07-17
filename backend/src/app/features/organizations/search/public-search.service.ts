@@ -279,10 +279,7 @@ export class OrganizationsPublicSearchService {
   private buildStableRecencySort(
     direction: "asc" | "desc",
   ): Array<Record<string, unknown>> {
-    return [
-      { createdAt: { order: direction } },
-      { id: { order: "asc" } },
-    ];
+    return [{ createdAt: { order: direction } }, { id: { order: "asc" } }];
   }
 
   private createPagination(page: number, pageSize: number, total: number) {

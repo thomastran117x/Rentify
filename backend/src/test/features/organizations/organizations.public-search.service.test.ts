@@ -127,10 +127,7 @@ describe("OrganizationsPublicSearchService", () => {
     expect(requestJson).not.toHaveBeenCalled();
     expect(searchPublicFallback).toHaveBeenCalledTimes(1);
     expect(result.source).toBe("database");
-    expect(result.organizations.map((org) => org.id)).toEqual([
-      "db-1",
-      "db-2",
-    ]);
+    expect(result.organizations.map((org) => org.id)).toEqual(["db-1", "db-2"]);
     expect(result.pagination.total).toBe(2);
   });
 
