@@ -190,8 +190,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run check
+      - name: Type check app and test code
+        run: npm run check:all
 
       - name: Build
         run: npm run build
