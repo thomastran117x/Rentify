@@ -38,7 +38,7 @@ function createBaseUpsertBody(
       country: "Canada",
     },
     ...overrides,
-  };
+  } as any;
 }
 
 function createPostingRecord(
@@ -97,7 +97,7 @@ function createPostingRecord(
     updatedAt: "2026-05-01T00:00:00.000Z",
     publishedAt: "2026-05-01T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 describe("postings.model", () => {

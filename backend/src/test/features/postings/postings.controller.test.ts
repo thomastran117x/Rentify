@@ -136,12 +136,12 @@ function createController(
   },
 ) {
   return new PostingsController(
-    postingsService as never,
-    (overrides?.autocomplete ?? {}) as never,
-    (overrides?.analytics ?? {}) as never,
-    (overrides?.reviews ?? {}) as never,
-    (overrides?.seasonalPricing ?? {}) as never,
-    (overrides?.recommendationActivityPublisher ?? {}) as never,
+    postingsService as any,
+    (overrides?.autocomplete ?? {}) as any,
+    (overrides?.analytics ?? {}) as any,
+    (overrides?.reviews ?? {}) as any,
+    (overrides?.seasonalPricing ?? {}) as any,
+    (overrides?.recommendationActivityPublisher ?? {}) as any,
   );
 }
 
@@ -570,14 +570,9 @@ describe("PostingsController", () => {
   it("rejects create requests that omit the required variant", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const createDraft = jest.fn();
-    const controller = new PostingsController(
-      {
-        createDraft,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      createDraft,
+    });
     const context = createContext({
       body: {
         name: "Test posting",
@@ -610,14 +605,8 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toMatchObject<
-      Partial<RequestValidationError>
-    >({
-      details: [
-        {
-          path: "",
-        },
-      ],
+    await expect(controller.create(context)).rejects.toMatchObject({
+      details: [expect.objectContaining({ path: "" })],
     });
     expect(createDraft).not.toHaveBeenCalled();
   });
@@ -625,14 +614,9 @@ describe("PostingsController", () => {
   it("rejects create requests whose tags contain commas", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const createDraft = jest.fn();
-    const controller = new PostingsController(
-      {
-        createDraft,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      createDraft,
+    });
     const context = createContext({
       body: {
         variant: {
@@ -669,9 +653,7 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toMatchObject<
-      Partial<RequestValidationError>
-    >({
+    await expect(controller.create(context)).rejects.toMatchObject({
       message: "Request body validation failed.",
       details: expect.arrayContaining([
         expect.objectContaining({
@@ -685,14 +667,9 @@ describe("PostingsController", () => {
   it("rejects update requests that include availability blocks", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const update = jest.fn();
-    const controller = new PostingsController(
-      {
-        update,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      update,
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -732,14 +709,8 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.update(context)).rejects.toMatchObject<
-      Partial<RequestValidationError>
-    >({
-      details: [
-        {
-          path: "",
-        },
-      ],
+    await expect(controller.update(context)).rejects.toMatchObject({
+      details: [expect.objectContaining({ path: "" })],
     });
     expect(update).not.toHaveBeenCalled();
   });
@@ -750,14 +721,9 @@ describe("PostingsController", () => {
       id: "posting-2",
       status: "draft",
     }));
-    const controller = new PostingsController(
-      {
-        duplicate,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      duplicate,
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -779,14 +745,9 @@ describe("PostingsController", () => {
       createdAt: "2026-04-18T00:00:00.000Z",
       updatedAt: "2026-04-18T00:00:00.000Z",
     }));
-    const controller = new PostingsController(
-      {
-        createOwnerAvailabilityBlock,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      createOwnerAvailabilityBlock,
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -821,14 +782,9 @@ describe("PostingsController", () => {
       createdAt: "2026-04-18T00:00:00.000Z",
       updatedAt: "2026-04-18T00:00:00.000Z",
     }));
-    const controller = new PostingsController(
-      {
-        updateOwnerAvailabilityBlock,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      updateOwnerAvailabilityBlock,
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -968,14 +924,9 @@ describe("PostingsController", () => {
     const listOwnerAvailabilityBlocks = jest.fn(async () => ({
       availabilityBlocks: [],
     }));
-    const controller = new PostingsController(
-      {
-        listOwnerAvailabilityBlocks,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
+    const controller = createController({
+      listOwnerAvailabilityBlocks,
+    });
     const context = createContext({
       params: {
         id: "posting-1",
@@ -1220,7 +1171,7 @@ describe("PostingsController", () => {
   it("tracks search click activity and returns 202", async () => {
     mockGetOptionalJwtAuth.mockResolvedValue(null);
     const publishSearchClick = jest.fn(async () => undefined);
-    const controller = createController({} as never, {
+    const controller = createController({} as any, {
       analytics: {
         trackSearchClick: jest.fn(async () => undefined),
       },

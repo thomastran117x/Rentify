@@ -16,7 +16,7 @@ describe("FeedbacksRepository", () => {
       feedback: {
         create,
       },
-    } as never);
+    } as any);
 
     const result = await repository.create({
       name: "Taylor Morgan",

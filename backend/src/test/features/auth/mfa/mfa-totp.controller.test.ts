@@ -117,8 +117,8 @@ function createController() {
 
   return {
     controller: new MfaTotpController(
-      mfaTotpService as never,
-      mfaVerificationService as never,
+      mfaTotpService as any,
+      mfaVerificationService as any,
     ),
     mfaTotpService,
   };

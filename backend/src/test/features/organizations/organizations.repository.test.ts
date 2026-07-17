@@ -76,7 +76,7 @@ describe("OrganizationsRepository", () => {
       organizationMembership: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listMembershipsByUserId("user-1", "org-2");
 
@@ -170,7 +170,7 @@ describe("OrganizationsRepository", () => {
       organization: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     const result = await repository.findOrganizationDetail("org-1");
 
@@ -287,7 +287,7 @@ describe("OrganizationsRepository", () => {
           organizationSearchOutbox: { createMany: outboxCreateMany },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
 
     const result = await repository.createOrganizationWithOwner({
       name: "Acme Rentals",
@@ -365,7 +365,7 @@ describe("OrganizationsRepository", () => {
           organizationSearchOutbox: { createMany: outboxCreateMany },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
 
     const result = await repository.updateOrganization("org-1", {
       description: "Updated description",
@@ -427,7 +427,7 @@ describe("OrganizationsRepository", () => {
           organizationSearchOutbox: { createMany: outboxCreateMany },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
 
     await repository.updateOrganization("org-1", { city: "Berlin" });
 
@@ -466,7 +466,7 @@ describe("OrganizationsRepository", () => {
           },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
     const now = new Date("2026-06-01T00:00:00.000Z");
     const expiresAt = new Date("2026-06-08T00:00:00.000Z");
 
@@ -532,7 +532,7 @@ describe("OrganizationsRepository", () => {
           },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
     const now = new Date("2026-06-01T00:00:00.000Z");
 
     await expect(
@@ -584,7 +584,7 @@ describe("OrganizationsRepository", () => {
           },
         }),
     };
-    const repository = new OrganizationsRepository(database as never);
+    const repository = new OrganizationsRepository(database as any);
     const now = new Date("2026-06-01T00:00:00.000Z");
 
     const result = await repository.acceptInvitation({

@@ -1,3 +1,5 @@
+export {};
+
 const mockConnect = jest.fn();
 const mockGetRabbitMqConfig = jest.fn(() => ({
   url: "amqp://rent.test",
@@ -5,19 +7,20 @@ const mockGetRabbitMqConfig = jest.fn(() => ({
 const mockLoggerError = jest.fn();
 
 jest.mock("amqplib", () => ({
-  connect: (...args: unknown[]) => mockConnect(...args),
+  connect: (url: unknown) => mockConnect(url),
 }));
 
 jest.mock("@/configuration/environment/index", () => ({
   environment: {
-    getRabbitMqConfig: (...args: unknown[]) => mockGetRabbitMqConfig(...args),
+    getRabbitMqConfig: () => mockGetRabbitMqConfig(),
   },
 }));
 
 jest.mock("@/configuration/logging", () => ({
   loggerFactory: {
     forComponent: () => ({
-      error: (...args: unknown[]) => mockLoggerError(...args),
+      error: (message: unknown, fields?: unknown, error?: unknown) =>
+        mockLoggerError(message, fields, error),
     }),
   },
 }));

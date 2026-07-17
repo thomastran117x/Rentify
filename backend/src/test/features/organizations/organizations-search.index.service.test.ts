@@ -48,7 +48,7 @@ function createDocument(id: string) {
 describe("OrganizationsSearchIndexService", () => {
   it("derives read/write aliases from the base index name", () => {
     const { client } = createEsClient();
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     expect(service.getBaseIndexName()).toBe("postings-organizations");
     expect(service.getReadAliasName()).toBe("postings-organizations-read");
@@ -59,7 +59,7 @@ describe("OrganizationsSearchIndexService", () => {
 
   it("is a no-op for ensureLiveIndex when Elasticsearch is disabled", async () => {
     const { client, requestJson } = createEsClient({ enabled: false });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.ensureLiveIndex();
 
@@ -77,7 +77,7 @@ describe("OrganizationsSearchIndexService", () => {
       void init;
     };
     const { client, requestJson } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.ensureLiveIndex();
 
@@ -105,7 +105,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     const status = await service.getAliasStatus();
 
@@ -124,7 +124,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     const status = await service.getAliasStatus();
     expect(status.state).toBe("inconsistent");
@@ -144,7 +144,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client, requestJson } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.ensureLiveIndex();
 
@@ -173,7 +173,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client, requestJson } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.ensureLiveIndex();
 
@@ -198,7 +198,7 @@ describe("OrganizationsSearchIndexService", () => {
       items: [{ delete: { status: 404 } }],
     });
     const { client, requestJson } = createEsClient({ handler: okHandler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     // 404 on delete is treated as success (already gone).
     await service.bulkDeleteDocuments(["a", "b"], "idx");
@@ -209,7 +209,7 @@ describe("OrganizationsSearchIndexService", () => {
       items: [{ delete: { status: 500, error: { type: "x", reason: "y" } } }],
     });
     const failing = new OrganizationsSearchIndexService(
-      createEsClient({ handler: failHandler }).client as never,
+      createEsClient({ handler: failHandler }).client as any,
     );
     await expect(
       failing.bulkDeleteDocuments(["a"], "idx"),
@@ -224,7 +224,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client, requestJson } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.upsertDocument(createDocument("org-1"));
     await service.deleteDocument("org-1");
@@ -249,7 +249,7 @@ describe("OrganizationsSearchIndexService", () => {
   it("bulk upserts documents and surfaces bulk errors", async () => {
     const okHandler: RequestHandler = () => ({ errors: false });
     const { client, requestJson } = createEsClient({ handler: okHandler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.bulkUpsertDocuments(
       [createDocument("a"), createDocument("b")],
@@ -266,7 +266,7 @@ describe("OrganizationsSearchIndexService", () => {
       ],
     });
     const failing = new OrganizationsSearchIndexService(
-      createEsClient({ handler: failHandler }).client as never,
+      createEsClient({ handler: failHandler }).client as any,
     );
     await expect(
       failing.bulkUpsertDocuments([createDocument("a")], "idx"),
@@ -275,7 +275,7 @@ describe("OrganizationsSearchIndexService", () => {
 
   it("ignores empty bulk operations", async () => {
     const { client, requestJson } = createEsClient();
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.bulkUpsertDocuments([], "idx");
     await service.bulkDeleteDocuments([], "idx");
@@ -291,7 +291,7 @@ describe("OrganizationsSearchIndexService", () => {
       return {};
     };
     const { client, requestJson } = createEsClient({ handler });
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     const result = await service.swapAliases("postings-organizations_v2");
 
@@ -312,7 +312,7 @@ describe("OrganizationsSearchIndexService", () => {
 
   it("creates a versioned index and tolerates an already-existing index", async () => {
     const { client, requestJson } = createEsClient();
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
     const name = await service.createVersionedIndex(
       "postings-organizations_v9",
     );
@@ -327,7 +327,7 @@ describe("OrganizationsSearchIndexService", () => {
       },
     });
     const conflictService = new OrganizationsSearchIndexService(
-      conflictClient.client as never,
+      conflictClient.client as any,
     );
     await expect(
       conflictService.createVersionedIndex("postings-organizations_v9"),
@@ -338,7 +338,7 @@ describe("OrganizationsSearchIndexService", () => {
 
   it("deletes a concrete index", async () => {
     const { client, requestJson } = createEsClient();
-    const service = new OrganizationsSearchIndexService(client as never);
+    const service = new OrganizationsSearchIndexService(client as any);
 
     await service.deleteConcreteIndex("postings-organizations_v1");
 

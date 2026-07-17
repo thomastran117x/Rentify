@@ -26,10 +26,10 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId,
-      } as never,
+      } as any,
     );
 
     await publisher.publishPostingView({
@@ -37,7 +37,7 @@ describe("RecommendationActivityPublisher", () => {
         id: "posting-draft",
         ownerId: "owner-1",
         status: "draft",
-      } as never,
+      } as any,
       client: createClient(),
     });
 
@@ -46,7 +46,7 @@ describe("RecommendationActivityPublisher", () => {
         id: "posting-1",
         ownerId: "owner-1",
         status: "published",
-      } as never,
+      } as any,
       client: createClient({
         device: {
           id: "bot-1",
@@ -69,12 +69,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => true,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishPostingView({
@@ -82,7 +82,7 @@ describe("RecommendationActivityPublisher", () => {
         id: "posting-1",
         ownerId: "owner-1",
         status: "published",
-      } as never,
+      } as any,
       client: createClient(),
       requestId: "request-1",
       actorUserId: "user-1",
@@ -104,12 +104,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => true,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishPostingView({
@@ -117,7 +117,7 @@ describe("RecommendationActivityPublisher", () => {
         id: "posting-1",
         ownerId: "owner-1",
         status: "published",
-      } as never,
+      } as any,
       client: createClient({
         ip: "203.0.113.10",
         device: {
@@ -145,12 +145,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => false,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishBookingRequestCreated({
@@ -163,7 +163,7 @@ describe("RecommendationActivityPublisher", () => {
         endAt: "2026-05-03T00:00:00.000Z",
         guestCount: 2,
         status: "pending",
-      } as never,
+      } as any,
       client: createClient(),
     });
 
@@ -182,12 +182,12 @@ describe("RecommendationActivityPublisher", () => {
         publishActivityEvent: jest.fn(async () => {
           throw new Error("broker-down");
         }),
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => true,
         ),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -210,12 +210,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => true,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishSearchClick({
@@ -246,12 +246,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => true,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishSearchClick({
@@ -290,12 +290,12 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId: jest.fn(
           async () => undefined,
         ),
-      } as never,
+      } as any,
     );
 
     await publisher.publishRentingConfirmed({
@@ -308,7 +308,7 @@ describe("RecommendationActivityPublisher", () => {
         startAt: "2026-05-10T12:00:00.000Z",
         endAt: "2026-05-12T12:00:00.000Z",
         guestCount: 3,
-      } as never,
+      } as any,
       client: createClient(),
       requestId: "request-9",
     });
@@ -339,10 +339,10 @@ describe("RecommendationActivityPublisher", () => {
     const publisher = new RecommendationActivityPublisher(
       {
         publishActivityEvent,
-      } as never,
+      } as any,
       {
         findRecommendationPersonalizationEnabledByUserId,
-      } as never,
+      } as any,
     );
 
     await publisher.publishPostingLifecycle({
@@ -350,7 +350,7 @@ describe("RecommendationActivityPublisher", () => {
         id: "posting-1",
         ownerId: "owner-1",
         status: "archived",
-      } as never,
+      } as any,
       eventType: "posting_archived",
       client: createClient(),
     });

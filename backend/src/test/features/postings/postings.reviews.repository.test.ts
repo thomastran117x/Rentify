@@ -28,7 +28,7 @@ describe("PostingsReviewsRepository", () => {
       postingReview: {
         create,
       },
-    } as never);
+    } as any);
 
     const result = await repository.create({
       postingId: "posting-1",
@@ -79,7 +79,7 @@ describe("PostingsReviewsRepository", () => {
       postingReview: {
         update,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.updateOwnReview({
@@ -104,7 +104,7 @@ describe("PostingsReviewsRepository", () => {
       postingReview: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.findOwnReview("posting-1", "reviewer-1"),
@@ -148,7 +148,7 @@ describe("PostingsReviewsRepository", () => {
         count,
         aggregate,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByPosting("posting-1", 2, 3);
 
@@ -188,7 +188,7 @@ describe("PostingsReviewsRepository", () => {
       postingReview: {
         aggregate,
       },
-    } as never);
+    } as any);
 
     await expect(repository.getSummary("posting-1")).resolves.toEqual({
       averageRating: 0,

@@ -16,7 +16,7 @@ function createDocument(
 ): PostingSearchDocument {
   return {
     id: "posting-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     variant: {
       family: "place",
@@ -26,6 +26,7 @@ function createDocument(
     description: "Bright loft with workspace",
     tags: ["loft", "workspace"],
     availabilityStatus: "available",
+    instantBooking: false,
     searchableAttributes: {
       bedrooms: 2,
       amenities: ["wifi", "desk"],
@@ -55,7 +56,7 @@ function createDocument(
     updatedAt: "2026-04-20T00:00:00.000Z",
     publishedAt: "2026-04-20T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 function createElasticsearchPublicSearchService(
@@ -93,7 +94,7 @@ function createElasticsearchPublicSearchService(
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never,
+    } as any,
   );
 
   return {
@@ -143,7 +144,7 @@ function createSearchHydrationService(overrides?: {
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never,
+    } as any,
   );
 
   return {
@@ -171,7 +172,7 @@ function readSearchRequest(
   };
   sort: unknown[];
 } {
-  return JSON.parse(requestJson.mock.calls[callIndex]?.[1]?.body as string);
+  return JSON.parse((requestJson.mock.calls[callIndex] as any)?.[1]?.body as string);
 }
 
 function readKeywordShouldClauses(
@@ -187,7 +188,7 @@ function readKeywordShouldClauses(
 function createPublicPosting(overrides: Record<string, unknown> = {}) {
   return {
     id: "posting-1",
-    ownerId: "owner-1",
+    organizationId: "org-1",
     status: "published",
     variant: {
       family: "place",
@@ -223,7 +224,7 @@ function createPublicPosting(overrides: Record<string, unknown> = {}) {
     updatedAt: "2026-04-20T00:00:00.000Z",
     publishedAt: "2026-04-20T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 function createFallbackRepository() {
@@ -241,7 +242,7 @@ function createFallbackRepository() {
   );
   const repository = new PostingsRepository({
     $queryRaw,
-  } as never);
+  } as any);
 
   return {
     queries,
@@ -260,17 +261,17 @@ describe("PostingsSearchIndexService", () => {
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never);
+    } as any);
 
-    await service.upsertDocument(createDocument(), "postings-test_v1");
+    await service.upsertDocument(createDocument() as any, "postings-test_v1");
 
     expect(requestJson).toHaveBeenCalledTimes(1);
-    expect(requestJson.mock.calls[0]?.[0]).toBe(
+    expect((requestJson.mock.calls[0] as any[] | undefined)?.[0]).toBe(
       "/postings-test_v1/_doc/posting-1",
     );
 
     const body = JSON.parse(
-      requestJson.mock.calls[0]?.[1]?.body as string,
+      ((requestJson.mock.calls[0] as any[] | undefined)?.[1] as any)?.body as string,
     ) as Record<string, unknown>;
 
     expect(body).toMatchObject({
@@ -296,7 +297,7 @@ describe("PostingsSearchIndexService", () => {
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never);
+    } as any);
 
     await service.ensureLiveIndex();
 
@@ -332,7 +333,7 @@ describe("PostingsSearchIndexService", () => {
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never);
+    } as any);
 
     await expect(service.ensureLiveIndex()).rejects.toBeInstanceOf(
       ElasticsearchUnavailableError,
@@ -1289,7 +1290,7 @@ describe("PostingsPublicSearchService", () => {
         getPostingsIndexName: () => "postings-test",
         requestJson,
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.searchPublic({
@@ -1362,7 +1363,7 @@ describe("PostingsPublicSearchService", () => {
         getPostingsIndexName: () => "postings-test",
         requestJson,
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.searchPublic({
@@ -1418,7 +1419,7 @@ describe("PostingsPublicSearchService", () => {
           },
         })),
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.searchPublic({
@@ -1457,7 +1458,7 @@ describe("PostingsPublicSearchService", () => {
         getPostingsIndexName: () => "postings-test",
         requestJson,
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.searchPublic({

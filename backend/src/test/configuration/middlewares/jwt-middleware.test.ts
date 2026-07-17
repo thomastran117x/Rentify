@@ -230,7 +230,7 @@ describe("jwt middleware helpers", () => {
         receivedUserId = userId;
         return { id: "profile-1", userId };
       },
-    } as never);
+    } as any);
     const context = createContext({
       authorization: "Bearer profile-token",
       tokenService: new FakeTokenService(() => claims),
@@ -559,16 +559,16 @@ describe("jwt middleware helpers", () => {
             organizationId: "org-1",
           };
         },
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
       {
         trackPublicView,
-      } as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
       {
         publishPostingView: async () => undefined,
-      } as never,
+      } as any,
     );
     const context = createContext({
       url: "https://example.test/postings/posting-123",

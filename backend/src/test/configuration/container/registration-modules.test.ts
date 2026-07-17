@@ -28,7 +28,7 @@ describe("targeted container registration modules", () => {
       register: (registration: (typeof registrations)[number]) => {
         registrations.push(registration);
       },
-    } as never);
+    } as any);
 
     const repositoryRegistration = registrations.find(
       (registration) =>
@@ -86,7 +86,7 @@ describe("targeted container registration modules", () => {
       register: (registration: (typeof registrations)[number]) => {
         registrations.push(registration);
       },
-    } as never);
+    } as any);
 
     const queueRegistration = registrations.find(
       (registration) =>
@@ -121,7 +121,7 @@ describe("targeted container registration modules", () => {
       register: (registration: (typeof registrations)[number]) => {
         registrations.push(registration);
       },
-    } as never);
+    } as any);
 
     const find = (token: unknown) => {
       const reg = registrations.find((r) => r.token === token);

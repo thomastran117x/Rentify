@@ -452,7 +452,7 @@ describe("rateLimiterMiddleware", () => {
       }
 
       return true;
-    }) as never);
+    }) as any);
     const { app } = createApp(
       jest
         .fn()
@@ -483,7 +483,7 @@ describe("rateLimiterMiddleware", () => {
       }
 
       return true;
-    }) as never);
+    }) as any);
     const { app } = createApp(
       jest
         .fn()
@@ -541,7 +541,7 @@ describe("rateLimiterMiddleware", () => {
       }
 
       return true;
-    }) as never);
+    }) as any);
     const { app } = createApp(
       jest
         .fn()

@@ -55,9 +55,9 @@ function createHarness(options?: {
   };
 
   const service = new OrganizationsPublicSearchService(
-    repository as never,
-    indexService as never,
-    elasticsearch as never,
+    repository as any,
+    indexService as any,
+    elasticsearch as any,
   );
 
   return {

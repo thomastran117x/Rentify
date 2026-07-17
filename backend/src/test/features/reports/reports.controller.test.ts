@@ -72,7 +72,7 @@ describe("ReportsController", () => {
     }));
     const controller = new ReportsController({
       create,
-    } as never);
+    } as any);
 
     const response = await controller.create(
       createContext({
@@ -115,7 +115,7 @@ describe("ReportsController", () => {
     }));
     const controller = new ReportsController({
       listModeration,
-    } as never);
+    } as any);
 
     const response = await controller.listModeration(
       createContext({
@@ -143,7 +143,7 @@ describe("ReportsController", () => {
     mockRequireSessionAuth.mockResolvedValue({
       ...createAuth(),
     });
-    const controller = new ReportsController({} as never);
+    const controller = new ReportsController({} as any);
 
     await expect(
       controller.listModeration(
@@ -158,7 +158,7 @@ describe("ReportsController", () => {
     mockRequireSessionAuth.mockResolvedValue({
       ...createAuth({ role: "user" }),
     });
-    const controller = new ReportsController({} as never);
+    const controller = new ReportsController({} as any);
 
     await expect(
       controller.listModeration(createContext()),
@@ -174,7 +174,7 @@ describe("ReportsController", () => {
     }));
     const controller = new ReportsController({
       getModerationDetail,
-    } as never);
+    } as any);
 
     const response = await controller.getModerationById(
       createContext({
@@ -197,7 +197,7 @@ describe("ReportsController", () => {
     }));
     const controller = new ReportsController({
       assign,
-    } as never);
+    } as any);
 
     const response = await controller.assign(
       createContext({
@@ -228,7 +228,7 @@ describe("ReportsController", () => {
     }));
     const controller = new ReportsController({
       updateStatus,
-    } as never);
+    } as any);
 
     const response = await controller.updateStatus(
       createContext({

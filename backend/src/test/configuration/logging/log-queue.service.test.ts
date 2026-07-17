@@ -87,7 +87,7 @@ function createLogEvent(overrides: Record<string, unknown> = {}) {
     component: "logger.test",
     layer: "service",
     ...overrides,
-  } as never;
+  } as any;
 }
 
 describe("ApplicationLogQueueService", () => {

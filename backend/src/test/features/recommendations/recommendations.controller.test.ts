@@ -54,7 +54,7 @@ describe("RecommendationsController", () => {
     }));
     const controller = new RecommendationsController({
       getRecommendations,
-    } as never);
+    } as any);
     const context = createContext(
       "https://example.test/postings/recommendations?page=2&pageSize=5&family=vehicle&subtype=car&latitude=43.7&longitude=-79.4&radiusKm=25&startAt=2026-05-08T00:00:00.000Z&endAt=2026-05-09T00:00:00.000Z",
     );
@@ -144,7 +144,7 @@ describe("RecommendationsController", () => {
     }));
     const controller = new RecommendationsController({
       getRecommendations,
-    } as never);
+    } as any);
     const context = createContext(
       "https://example.test/postings/recommendations",
     );
@@ -212,7 +212,7 @@ describe("RecommendationsController", () => {
     }));
     const controller = new RecommendationsController({
       getRecommendations,
-    } as never);
+    } as any);
     const context = createContext(
       "https://example.test/postings/recommendations",
     );
@@ -236,7 +236,7 @@ describe("RecommendationsController", () => {
   it("rejects incomplete availability window filters", async () => {
     const controller = new RecommendationsController({
       getRecommendations: jest.fn(),
-    } as never);
+    } as any);
     const context = createContext(
       "https://example.test/postings/recommendations?startAt=2026-05-08T00:00:00.000Z",
     );

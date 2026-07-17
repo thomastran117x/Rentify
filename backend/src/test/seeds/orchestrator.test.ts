@@ -36,7 +36,7 @@ describe("runSeedOrchestrator", () => {
       logger: createLogger(),
       modules: [firstModule, secondModule],
       onlyIfEmpty: false,
-      prisma: prisma as never,
+      prisma: prisma as any,
       refresh: true,
       source: "test",
     });
@@ -67,7 +67,7 @@ describe("runSeedOrchestrator", () => {
         },
       ],
       onlyIfEmpty: true,
-      prisma: prisma as never,
+      prisma: prisma as any,
       source: "startup",
     });
 

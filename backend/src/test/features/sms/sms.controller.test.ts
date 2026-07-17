@@ -40,7 +40,7 @@ describe("SmsController", () => {
     const processWebhook = jest.fn(async () => undefined);
     const controller = new SmsController({
       processWebhook,
-    } as never);
+    } as any);
 
     const response = await controller.webhook(
       createContext({

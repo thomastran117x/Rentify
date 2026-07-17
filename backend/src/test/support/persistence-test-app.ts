@@ -705,48 +705,48 @@ function registerDefaultPersistenceOverrides(
     token: containerTokens.captchaService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.captchaService as never,
+    resolve: () => stubs.captchaService as any,
   });
   container.register({
     token: containerTokens.googleOAuthService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.googleOAuthService as never,
+    resolve: () => stubs.googleOAuthService as any,
   });
   container.register({
     token: containerTokens.microsoftOAuthService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.microsoftOAuthService as never,
+    resolve: () => stubs.microsoftOAuthService as any,
   });
   container.register({
     token: containerTokens.appleOAuthService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.appleOAuthService as never,
+    resolve: () => stubs.appleOAuthService as any,
   });
   container.register({
     token: containerTokens.blobService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.blobService as never,
+    resolve: () => stubs.blobService as any,
   });
   container.register({
     token: containerTokens.postingsPublicAutocompleteService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.postingsPublicAutocompleteService as never,
+    resolve: () => stubs.postingsPublicAutocompleteService as any,
   });
   container.register({
     token: containerTokens.postingsPublicSearchService,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.postingsPublicSearchService as never,
+    resolve: () => stubs.postingsPublicSearchService as any,
   });
   container.register({
     token: containerTokens.paymentProvider,
     lifetime: "singleton",
     dependencies: [],
-    resolve: () => stubs.paymentProvider as never,
+    resolve: () => stubs.paymentProvider as any,
   });
 }

@@ -56,7 +56,7 @@ function createService(user: AuthUserRecord | null) {
 
   return {
     authRepository,
-    service: new OrganizationAccessService(authRepository as never),
+    service: new OrganizationAccessService(authRepository as any),
   };
 }
 
@@ -106,7 +106,7 @@ describe("OrganizationAccessService", () => {
 
     await expect(
       service.requireActiveMembership("user-1", "Join a team first."),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message: "Join a team first.",
     });
   });
@@ -142,7 +142,7 @@ describe("OrganizationAccessService", () => {
     await expect(service.findMembership("user-1", "org-9")).resolves.toBeNull();
     await expect(
       service.requireMembership("user-1", "org-9", "No organization access."),
-    ).rejects.toMatchObject<ForbiddenError>({
+    ).rejects.toMatchObject({
       message: "No organization access.",
     });
   });

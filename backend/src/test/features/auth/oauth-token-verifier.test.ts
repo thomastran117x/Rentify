@@ -1,15 +1,20 @@
 const mockCreatePublicKey = jest.fn();
 const mockVerify = jest.fn();
-const mockAssertTrustedOutboundUrl = jest.fn((url: string) => new URL(url));
+const mockAssertTrustedOutboundUrl = jest.fn((url: string, _options?: unknown) => new URL(url));
 
 jest.mock("node:crypto", () => ({
-  createPublicKey: (...args: unknown[]) => mockCreatePublicKey(...args),
-  verify: (...args: unknown[]) => mockVerify(...args),
+  createPublicKey: (key: unknown) => mockCreatePublicKey(key),
+  verify: (
+    algorithm: unknown,
+    data: unknown,
+    key: unknown,
+    signature: unknown,
+  ) => mockVerify(algorithm, data, key, signature),
 }));
 
 jest.mock("@/features/security/outbound-request-guard", () => ({
-  assertTrustedOutboundUrl: (...args: unknown[]) =>
-    mockAssertTrustedOutboundUrl(...args),
+  assertTrustedOutboundUrl: (url: string, options?: unknown) =>
+    mockAssertTrustedOutboundUrl(url, options),
 }));
 
 import BadRequestError from "@/errors/http/bad-request.error";

@@ -96,7 +96,7 @@ describe("ReportsRepository", () => {
           contentReportSearchOutbox: { create: createOutbox },
         }),
     };
-    const repository = new ReportsRepository(database as never);
+    const repository = new ReportsRepository(database as any);
 
     const result = await repository.createReport(
       {
@@ -161,7 +161,7 @@ describe("ReportsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listReportsDb({
       page: 2,
@@ -226,14 +226,14 @@ describe("ReportsRepository", () => {
         ...createReportPersistence(),
         events: [createEventPersistence()],
       })
-      .mockResolvedValueOnce(createReportPersistence());
+      .mockResolvedValueOnce(createReportPersistence() as any);
     const findMany = jest.fn(async () => [createReportPersistence()]);
     const repository = new ReportsRepository({
       contentReport: {
         findUnique,
         findMany,
       },
-    } as never);
+    } as any);
 
     const detail = await repository.findById("report-1");
     const indexDocs = await repository.listReportsForIndexing(["report-1"]);
@@ -327,7 +327,7 @@ describe("ReportsRepository", () => {
       user: {
         findUnique: userFindUnique,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findPostingSubject("posting-1")).resolves.toEqual({
       id: "posting-1",
@@ -388,7 +388,7 @@ describe("ReportsRepository", () => {
         findUnique,
         findMany,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findReportRecordById("report-1")).resolves.toEqual(
       expect.objectContaining({
@@ -420,7 +420,7 @@ describe("ReportsRepository", () => {
         throw missingError;
       }),
     };
-    const repository = new ReportsRepository(database as never);
+    const repository = new ReportsRepository(database as any);
 
     await expect(
       repository.updateAssignment({
@@ -510,7 +510,7 @@ describe("ReportsRepository", () => {
           contentReportSearchOutbox: { create: createOutbox },
         }),
     };
-    const repository = new ReportsRepository(database as never);
+    const repository = new ReportsRepository(database as any);
 
     const assigned = await repository.updateAssignment({
       reportId: "report-1",
@@ -602,7 +602,7 @@ describe("ReportsRepository", () => {
         findMany,
         updateMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.claimSearchOutboxBatch(10);
 
@@ -653,7 +653,7 @@ describe("ReportsRepository", () => {
         updateMany,
         update,
       },
-    } as never);
+    } as any);
 
     const docs = await repository.listReportsForIndexing(["report-1"]);
     await repository.markSearchOutboxProcessed(["outbox-1"]);

@@ -232,7 +232,7 @@ describe("SmsQueueService", () => {
           source: "test",
         },
       },
-    } as ConsumeMessage;
+    } as unknown as ConsumeMessage;
     await createChannel.lastHandler?.(malformedMessage);
 
     expect(channel.publish).toHaveBeenCalledWith(
@@ -278,7 +278,7 @@ describe("SmsQueueService", () => {
         "utf8",
       ),
       properties: {},
-    } as ConsumeMessage;
+    } as unknown as ConsumeMessage;
     await createChannel.lastHandler?.(validMessage);
 
     expect(channel.nack).toHaveBeenCalledWith(validMessage, false, true);

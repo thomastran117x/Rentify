@@ -15,7 +15,7 @@ import type { RentingsRepository } from "@/features/rentings/rentings.repository
 
 function createPostingRecord(
   overrides: Partial<PostingRecord> = {},
-): PostingRecord {
+): any {
   return {
     id: "posting-1",
     ownerId: "owner-1",
@@ -59,7 +59,7 @@ function createPostingRecord(
 
 function createBookingRequestRecord(
   overrides: Partial<BookingRequestRecord> = {},
-): BookingRequestRecord {
+): any {
   return {
     id: "booking-1",
     postingId: "posting-1",
@@ -642,7 +642,7 @@ describe("BookingsService", () => {
   });
 
   it("persists booking contact info as part of the request snapshot", async () => {
-    const { service, bookingsRepository } = createService();
+    const { service, bookingsRepository } = createService() as any;
 
     await service.create({
       postingId: "posting-1",
@@ -805,7 +805,7 @@ describe("BookingsService", () => {
   });
 
   it("lists owned booking requests for account management", async () => {
-    const { service, bookingsRepository } = createService();
+    const { service, bookingsRepository } = createService() as any;
 
     const result = await service.listOwned({
       actorUserId: "owner-1",
@@ -1267,7 +1267,7 @@ describe("BookingsService", () => {
   });
 
   it("lists renter booking requests directly from the repository", async () => {
-    const { service, bookingsRepository } = createService();
+    const { service, bookingsRepository } = createService() as any;
     bookingsRepository.listByRenter = jest.fn(async () => ({
       bookingRequests: [createBookingRequestRecord()],
       pagination: {
@@ -1284,7 +1284,7 @@ describe("BookingsService", () => {
       renterId: "renter-1",
       page: 2,
       pageSize: 5,
-    } as never);
+    } as any);
 
     expect(bookingsRepository.listByRenter).toHaveBeenCalledWith({
       renterId: "renter-1",
@@ -1295,7 +1295,7 @@ describe("BookingsService", () => {
   });
 
   it("returns a conflict when booking creation loses its conditional write race", async () => {
-    const { service, bookingsRepository } = createService();
+    const { service, bookingsRepository } = createService() as any;
     bookingsRepository.createIfWithinActiveRequestLimit.mockResolvedValue(null);
 
     await expect(
@@ -1475,7 +1475,7 @@ describe("BookingsService", () => {
           variant: {
             family: "vehicle",
             subtype: "car",
-          } as never,
+          } as any,
         }),
       ),
     ).toBe(1);

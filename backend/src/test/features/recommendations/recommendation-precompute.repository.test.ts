@@ -38,7 +38,7 @@ describe("RecommendationPrecomputeRepository", () => {
           findMany,
           updateMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const claimed = await repository.claimRefreshJobBatch(10);
@@ -61,7 +61,7 @@ describe("RecommendationPrecomputeRepository", () => {
         recommendationRefreshJob: {
           update,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.markRefreshJobRetry("job-2", 3, "x".repeat(3_000));
@@ -90,7 +90,7 @@ describe("RecommendationPrecomputeRepository", () => {
         recommendationRefreshJob: {
           update,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.markRefreshJobProcessed("job-9");
@@ -133,7 +133,7 @@ describe("RecommendationPrecomputeRepository", () => {
         recommendationActivity: {
           findMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const rows = await repository.listUserActivityRows(
@@ -203,7 +203,7 @@ describe("RecommendationPrecomputeRepository", () => {
         recommendationActivity: {
           findMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const rows = await repository.listPopularActivityRows(
@@ -266,7 +266,7 @@ describe("RecommendationPrecomputeRepository", () => {
         posting: {
           findMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const rows = await repository.listPublishedRecommendationCandidates({
@@ -341,7 +341,7 @@ describe("RecommendationPrecomputeRepository", () => {
         posting: {
           findMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const segments = await repository.listPublishedPopularSegments();
@@ -393,7 +393,7 @@ describe("RecommendationPrecomputeRepository", () => {
         popularRecommendationSnapshot: {
           findMany,
         },
-      }) as never,
+      }) as any,
     );
 
     const rows = await repository.listPopularSnapshotFreshness();
@@ -423,7 +423,7 @@ describe("RecommendationPrecomputeRepository", () => {
           findUnique,
           create,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.enqueueRefreshJobs([
@@ -455,7 +455,7 @@ describe("RecommendationPrecomputeRepository", () => {
         popularRecommendationSnapshot: {
           upsert,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.upsertPopularRecommendationSnapshot({
@@ -512,7 +512,7 @@ describe("RecommendationPrecomputeRepository", () => {
 
   it("creates empty signal count records for all tracked event types", () => {
     const repository = new RecommendationPrecomputeRepository(
-      createDatabaseMock({}) as never,
+      createDatabaseMock({}) as any,
     );
 
     expect(repository.createEmptySignalCounts()).toEqual({
@@ -537,7 +537,7 @@ describe("RecommendationPrecomputeRepository", () => {
       },
     });
     const repository = new RecommendationPrecomputeRepository(
-      database as never,
+      database as any,
     );
 
     await repository.upsertUserRecommendationArtifacts({
@@ -592,7 +592,7 @@ describe("RecommendationPrecomputeRepository", () => {
           create,
           update,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.enqueueRefreshJobs([

@@ -84,7 +84,7 @@ function createMocks() {
 
   const service = new MfaTotpService({
     totpService,
-    mfaTotpRepository: mfaTotpRepository as never,
+    mfaTotpRepository: mfaTotpRepository as any,
     encryptionKey: TEST_ENCRYPTION_KEY,
   });
 

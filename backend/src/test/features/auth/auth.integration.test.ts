@@ -93,7 +93,7 @@ describe("Auth persistence integration", () => {
     });
 
     expect(verificationCode?.code).toBeTruthy();
-    expect(verificationEmail.input.verificationCode).toBe(
+    expect((verificationEmail.input as any).verificationCode).toBe(
       verificationCode?.code,
     );
 

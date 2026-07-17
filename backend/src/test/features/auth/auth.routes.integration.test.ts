@@ -201,15 +201,15 @@ function createApp() {
     [
       containerTokens.authController,
       new AuthController(
-        authService as never,
-        captchaService as never,
-        {} as never,
-        mfaVerificationService as never,
+        authService as any,
+        captchaService as any,
+        {} as any,
+        mfaVerificationService as any,
       ),
     ],
     [
       containerTokens.personalAccessTokenController,
-      new PersonalAccessTokenController(personalAccessTokenService as never),
+      new PersonalAccessTokenController(personalAccessTokenService as any),
     ],
     [containerTokens.tokenService, tokenService],
     [containerTokens.personalAccessTokenService, personalAccessTokenService],

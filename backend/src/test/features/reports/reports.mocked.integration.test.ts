@@ -112,7 +112,7 @@ function createApp() {
     ),
   };
 
-  const controller = new ReportsController(reportsService as never);
+  const controller = new ReportsController(reportsService as any);
   const tokenService = {
     verifyAccessToken: jest.fn(async (token: string) => {
       if (token === "user-token") {

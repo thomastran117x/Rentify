@@ -62,7 +62,7 @@ function installCreateMock(
 describe("PersonalAccessTokenService", () => {
   it("creates a token, stores only a hash, and returns the token once", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const createState = installCreateMock(repository);
@@ -84,7 +84,7 @@ describe("PersonalAccessTokenService", () => {
   it("authenticates a valid PAT and updates lastUsedAt", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
@@ -116,7 +116,7 @@ describe("PersonalAccessTokenService", () => {
 
   it("rejects PATs with invalid formats before repository lookup", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
 
@@ -129,7 +129,7 @@ describe("PersonalAccessTokenService", () => {
 
   it("rejects unknown PAT public ids without updating lastUsedAt", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
 
@@ -146,7 +146,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects PATs when the secret does not match the stored hash", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
@@ -175,7 +175,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects revoked PATs", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
@@ -203,7 +203,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects expired PATs", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
@@ -230,7 +230,7 @@ describe("PersonalAccessTokenService", () => {
 
   it("revokes tokens for the owning user", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as never, {
+    const service = new PersonalAccessTokenService(repository as any, {
       personalAccessTokenSecret: "test-pat-secret",
     });
 

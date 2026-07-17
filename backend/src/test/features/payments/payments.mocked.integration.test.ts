@@ -91,7 +91,7 @@ function createApp() {
   const registry = new Map<unknown, unknown>([
     [
       containerTokens.paymentsController,
-      new PaymentsController(paymentsService as never),
+      new PaymentsController(paymentsService as any),
     ],
     [containerTokens.tokenService, tokenService],
   ]);

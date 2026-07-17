@@ -80,13 +80,13 @@ describe("MFA verification routes integration", () => {
     const registry = new Map<unknown, unknown>([
       [
         containerTokens.mfaVerificationController,
-        new MfaVerificationController(mfaVerificationService as never),
+        new MfaVerificationController(mfaVerificationService as any),
       ],
       [
         containerTokens.mfaTotpController,
         new MfaTotpController(
-          mfaTotpService as never,
-          mfaVerificationService as never,
+          mfaTotpService as any,
+          mfaVerificationService as any,
         ),
       ],
       [containerTokens.tokenService, tokenService],

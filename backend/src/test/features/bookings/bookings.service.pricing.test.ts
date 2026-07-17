@@ -20,7 +20,6 @@ function createPostingRecord(
 ): PostingRecord {
   return {
     id: "posting-1",
-    ownerId: "owner-1",
     organizationId: "org-1",
     status: "published",
     variant: { family: "place", subtype: "entire_place" },
@@ -44,7 +43,7 @@ function createPostingRecord(
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 function createCreatedBooking(
@@ -54,7 +53,6 @@ function createCreatedBooking(
     id: "booking-1",
     postingId: "posting-1",
     renterId: "renter-1",
-    ownerId: "owner-1",
     organizationId: "org-1",
     status: "pending",
     startAt: "2026-05-01T00:00:00.000Z",
@@ -63,7 +61,7 @@ function createCreatedBooking(
     guestCount: 2,
     contactName: "Jordan Lee",
     contactEmail: "jordan@example.com",
-    contactPhoneNumber: null,
+    contactPhoneNumber: undefined,
     pricingCurrency: "CAD",
     pricingSnapshot: { currency: "CAD", daily: { amount: 100 } },
     dailyPriceAmount: 100,
@@ -77,7 +75,7 @@ function createCreatedBooking(
       effectiveMaxBookingDurationDays: 90,
     },
     ...overrides,
-  };
+  } as any;
 }
 
 function buildSeasonalRule(
@@ -93,7 +91,7 @@ function buildSeasonalRule(
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 function createService(options?: {
@@ -568,28 +566,28 @@ describe("BookingsService — pricing and constraint enforcement", () => {
           createIfWithinActiveRequestLimit: jest.fn(),
           countActiveRequestsForRenterPosting: jest.fn(async () => 0),
           hasBlockingAvailabilityOverlap: jest.fn(async () => false),
-        } as never,
+        } as any,
         {
           findById: jest.fn(async () => posting),
           enqueueSearchSync: jest.fn(),
-        } as never,
+        } as any,
         {
           enqueueBookingRequestedEvent: jest.fn(),
           enqueueBookingApprovedEvent: jest.fn(),
-        } as never,
-        { hasOverlap: jest.fn(async () => false) } as never,
+        } as any,
+        { hasOverlap: jest.fn(async () => false) } as any,
         cacheService,
-        { invalidatePublic: jest.fn() } as never,
-        {} as never,
-        {} as never,
+        { invalidatePublic: jest.fn() } as any,
+        {} as any,
+        {} as any,
         {
           findMembership: jest.fn(async () => ({
             organizationId: "org-1",
             userId: "renter-1",
             role: "member",
           })),
-        } as never,
-        { findOverlappingForBooking: jest.fn(async () => []) } as never,
+        } as any,
+        { findOverlappingForBooking: jest.fn(async () => []) } as any,
       );
 
       const result = await service.quote(BASE_QUOTE_INPUT);
@@ -603,9 +601,9 @@ describe("BookingsService — pricing and constraint enforcement", () => {
     it("returns unconstrained guest count for non-place variant postings", async () => {
       const { service } = createService({
         posting: createPostingRecord({
-          variant: { family: "item", subtype: "storage_space" } as never,
+          variant: { family: "item", subtype: "storage_space" } as any,
           pricing: { currency: "CAD", daily: { amount: 50 } },
-          details: { amenities: [] } as never,
+          details: { amenities: [] } as any,
         }),
       });
 

@@ -111,11 +111,11 @@ function createService(
   };
 
   const service = new MfaVerificationService({
-    authRepository: authRepository as never,
-    cache: cache.service as never,
-    otpService: otpService as never,
-    emailService: emailService as never,
-    mfaTotpService: mfaTotpService as never,
+    authRepository: authRepository as any,
+    cache: cache.service as any,
+    otpService: otpService as any,
+    emailService: emailService as any,
+    mfaTotpService: mfaTotpService as any,
   });
 
   return {
@@ -536,7 +536,7 @@ describe("MfaVerificationService", () => {
 
   it("fails preview when no active MFA email verification code exists", async () => {
     const { service, otpService } = createService();
-    otpService.peek.mockResolvedValue(null as never);
+    otpService.peek.mockResolvedValue(null as any);
 
     await expect(
       service.previewCurrentEmailOtp({

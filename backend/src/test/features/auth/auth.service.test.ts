@@ -21,6 +21,7 @@ function createUser(): AuthUserRecord {
     role: "user",
     emailVerified: true,
     oauthIdentities: [],
+    organizationMemberships: [],
     profile: {
       id: "profile-1",
       userId: "user-1",
@@ -442,16 +443,16 @@ function createService(overrides?: {
   };
 
   const service = new AuthService(
-    authRepository as never,
-    tokenService as never,
-    otpService as never,
-    deviceService as never,
-    emailService as never,
-    googleOAuthService as never,
-    microsoftOAuthService as never,
-    appleOAuthService as never,
-    cacheService as never,
-    mfaTotpService as never,
+    authRepository as any,
+    tokenService as any,
+    otpService as any,
+    deviceService as any,
+    emailService as any,
+    googleOAuthService as any,
+    microsoftOAuthService as any,
+    appleOAuthService as any,
+    cacheService as any,
+    mfaTotpService as any,
   );
 
   return service;
@@ -671,8 +672,8 @@ describe("AuthService", () => {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       await expect(
         service.resendForgotPassword({
-          client: createClient(),
-          username: "target-user",
+        client: createClient(),
+            username: "target-user",
           deviceId: "device-1",
         }),
       ).resolves.toEqual({
@@ -798,8 +799,8 @@ describe("AuthService", () => {
 
     await expect(
       service.changePassword({
-        userId: user.id,
         client: createClient(),
+        userId: user.id,
         currentPassword: "WrongPassword1!",
         newPassword: "AnotherStrongPassword1!",
         deviceId: "device-1",
@@ -845,14 +846,15 @@ describe("AuthService", () => {
 
     await expect(
       service.localVerify({
+        client: createClient(),
         auth: {
+          authMethod: "jwt",
           sub: "user-1",
           role: "owner",
           deviceId: "device-99",
           iat: 1,
           exp: 999999,
         },
-        client: createClient(),
       }),
     ).resolves.toEqual({
       verified: true,
@@ -881,15 +883,15 @@ describe("AuthService", () => {
 
     await expect(
       service.logout({
+        client: createClient(),
         auth: {
+          authMethod: "jwt",
           sub: "user-1",
           deviceId: "device-1",
           sessionId: "session-1",
-          authMethod: "jwt",
           iat: 1,
           exp: 999999,
         },
-        client: createClient(),
         refreshToken: "refresh-token-1",
       }),
     ).resolves.toEqual({
@@ -910,13 +912,14 @@ describe("AuthService", () => {
 
     await expect(
       service.devices({
+        client: createClient(),
         auth: {
+          authMethod: "jwt",
           sub: "user-1",
           deviceId: "device-1",
           iat: 1,
           exp: 999999,
         },
-        client: createClient(),
       }),
     ).resolves.toEqual({
       devices: [
@@ -1187,9 +1190,9 @@ describe("AuthService", () => {
 
     await expect(
       service.linkOAuthProvider({
+        client: createClient(),
         userId: localUser.id,
         provider: "google",
-        client: createClient(),
         nonce: "nonce-1",
         code: "code-1",
         codeVerifier: "verifier-1",
@@ -1234,9 +1237,9 @@ describe("AuthService", () => {
 
     await expect(
       service.linkOAuthProvider({
+        client: createClient(),
         userId: localUser.id,
         provider: "google",
-        client: createClient(),
         nonce: "nonce-1",
         code: "code-1",
         codeVerifier: "verifier-1",
@@ -1610,10 +1613,8 @@ describe("AuthService", () => {
 
     await expect(
       service.unlockLocalLogin({
-        client: createClient(),
         email: user.email,
         code: "123456",
-        deviceId: "device-1",
       }),
     ).resolves.toEqual({
       unlocked: true,
@@ -1811,8 +1812,8 @@ describe("AuthService", () => {
 
     await expect(
       service.changePassword({
-        userId: user.id,
         client: createClient(),
+        userId: user.id,
         currentPassword: "CorrectHorseBatteryStaple1!",
         newPassword: "CorrectHorseBatteryStaple1!",
         deviceId: "device-1",

@@ -50,7 +50,7 @@ function createService(options?: {
 }) {
   const cache = createCache();
   const service = new OtpService({
-    cache: cache.service as never,
+    cache: cache.service as any,
     codeLength: options?.codeLength,
     ttlInSeconds: options?.ttlInSeconds,
     resendCooldownInSeconds: options?.resendCooldownInSeconds,

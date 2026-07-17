@@ -3,17 +3,17 @@ const mockGetApiRoutePrefix = jest.fn(() => "/api/v1");
 const mockHonoConstructor = jest.fn();
 
 jest.mock("hono", () => ({
-  Hono: function Hono(...args: unknown[]) {
-    return mockHonoConstructor(...args);
+  Hono: function Hono() {
+    return mockHonoConstructor();
   },
 }));
 
 jest.mock("@/configuration/bootstrap/routes", () => ({
-  mountRoutes: (...args: unknown[]) => mockMountRoutes(...args),
+  mountRoutes: (app: unknown) => mockMountRoutes(app),
 }));
 
 jest.mock("@/configuration/http/api-path", () => ({
-  getApiRoutePrefix: (...args: unknown[]) => mockGetApiRoutePrefix(...args),
+  getApiRoutePrefix: () => mockGetApiRoutePrefix(),
 }));
 
 jest.mock("@/configuration/middlewares/client-context.middleware", () => ({

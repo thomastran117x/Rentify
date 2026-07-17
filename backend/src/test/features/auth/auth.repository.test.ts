@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
-import { AuthRepository } from "@/features/auth/auth.repository";
+import { AuthRepository } from '@/features/auth/auth.repository';
+import type { VerifiedOAuthProfile } from '@/features/auth/oauth/oauth.types';
 import ConflictError from "@/errors/http/conflict.error";
 
 function createOrganizationMembershipPersistence(
@@ -77,7 +78,9 @@ function createUserPersistence(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createOAuthProfile(overrides: Record<string, unknown> = {}) {
+function createOAuthProfile(
+  overrides: Record<string, unknown> = {},
+): VerifiedOAuthProfile {
   return {
     provider: "google",
     providerUserId: "google-user-1",
@@ -106,7 +109,7 @@ describe("AuthRepository", () => {
       user: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.findSessionValidationByUserId("user-1"),
@@ -144,7 +147,7 @@ describe("AuthRepository", () => {
       user: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     const byId = await repository.findUserById("user-1");
     const byEmail = await repository.findUserByEmail("User@Example.com");
@@ -219,7 +222,7 @@ describe("AuthRepository", () => {
         create,
         update,
       },
-    } as never);
+    } as any);
     const created = await repository.createLocalUser(
       {
         username: "New-User",
@@ -307,7 +310,7 @@ describe("AuthRepository", () => {
         findUnique,
         findMany,
       },
-    } as never);
+    } as any);
 
     const created = await repository.createOAuthUser(createOAuthProfile());
     const found = await repository.findUserByOAuthIdentity(
@@ -356,7 +359,7 @@ describe("AuthRepository", () => {
       oAuthIdentity: {
         create,
       },
-    } as never);
+    } as any);
 
     const linked = await repository.linkOAuthIdentity(
       "user-1",
@@ -385,7 +388,7 @@ describe("AuthRepository", () => {
           throw duplicateError;
         }),
       },
-    } as never);
+    } as any);
 
     await expect(
       duplicateRepository.linkOAuthIdentity("user-1", createOAuthProfile()),
@@ -410,7 +413,7 @@ describe("AuthRepository", () => {
       user: {
         update,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.unlinkOAuthIdentity("user-1", "google"),
@@ -464,7 +467,7 @@ describe("AuthRepository", () => {
       profile: {
         findUnique: profileFindUnique,
       },
-    } as never) as unknown as {
+    } as any) as unknown as {
       mapUser: (user: ReturnType<typeof createUserPersistence>) => unknown;
       sanitizeUsername: (value: string) => string;
       createDisplayName: (input: {

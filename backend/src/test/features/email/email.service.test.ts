@@ -5,7 +5,7 @@ describe("EmailService", () => {
     const enqueueEmailJob = jest.fn(async () => undefined);
     const service = new EmailService({
       enqueueEmailJob,
-    } as never);
+    } as any);
 
     await service.sendVerificationEmail({
       to: "user@example.com",
@@ -24,7 +24,7 @@ describe("EmailService", () => {
     const enqueueEmailJob = jest.fn(async () => undefined);
     const service = new EmailService({
       enqueueEmailJob,
-    } as never);
+    } as any);
 
     await service.sendNewDeviceEmail({
       to: "user@example.com",
@@ -45,7 +45,7 @@ describe("EmailService", () => {
     const enqueueEmailJob = jest.fn(async () => undefined);
     const service = new EmailService({
       enqueueEmailJob,
-    } as never);
+    } as any);
 
     await service.sendOrganizationInviteEmail({
       to: "invitee@example.com",

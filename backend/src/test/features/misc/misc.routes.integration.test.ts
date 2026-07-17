@@ -126,14 +126,14 @@ function createApp() {
   };
 
   const registry = new Map<unknown, unknown>([
-    [containerTokens.blobController, new BlobController(blobService as never)],
+    [containerTokens.blobController, new BlobController(blobService as any)],
     [
       containerTokens.profileController,
-      new ProfileController(profileService as never),
+      new ProfileController(profileService as any),
     ],
     [
       containerTokens.searchController,
-      new SearchController(searchService as never),
+      new SearchController(searchService as any),
     ],
     [containerTokens.tokenService, tokenService],
   ]);

@@ -23,6 +23,7 @@ const flag = (name: string, enabled: boolean): ResolvedFeatureFlag => ({
   enabled,
   source: "db",
   description: null,
+  group: null,
 });
 
 describe("FeatureFlagCacheService", () => {
@@ -30,7 +31,7 @@ describe("FeatureFlagCacheService", () => {
     it("returns a cached flag when present", async () => {
       const cached = flag("test-flag", true);
       const service = new FeatureFlagCacheService(
-        createCacheService({ getJson: jest.fn(async () => cached) }) as never,
+        createCacheService({ getJson: jest.fn(async () => cached) }) as any,
       );
 
       await expect(service.getFlag("test-flag")).resolves.toEqual(cached);
@@ -38,7 +39,7 @@ describe("FeatureFlagCacheService", () => {
 
     it("returns null on a cache miss", async () => {
       const service = new FeatureFlagCacheService(
-        createCacheService({ getJson: jest.fn(async () => null) }) as never,
+        createCacheService({ getJson: jest.fn(async () => null) }) as any,
       );
 
       await expect(service.getFlag("test-flag")).resolves.toBeNull();
@@ -48,7 +49,7 @@ describe("FeatureFlagCacheService", () => {
       const service = new FeatureFlagCacheService(
         createCacheService({
           getJson: jest.fn().mockRejectedValue(new Error("connection refused")),
-        }) as never,
+        }) as any,
       );
 
       await expect(service.getFlag("test-flag")).resolves.toBeNull();
@@ -57,7 +58,7 @@ describe("FeatureFlagCacheService", () => {
     it("reads from the versioned key", async () => {
       const getJson = jest.fn(async () => null);
       const service = new FeatureFlagCacheService(
-        createCacheService({ getJson }) as never,
+        createCacheService({ getJson }) as any,
       );
 
       await service.getFlag("my-flag");
@@ -70,7 +71,7 @@ describe("FeatureFlagCacheService", () => {
     it("writes the flag to Redis with the TTL", async () => {
       const setJson = jest.fn(async () => undefined);
       const service = new FeatureFlagCacheService(
-        createCacheService({ setJson }) as never,
+        createCacheService({ setJson }) as any,
       );
 
       await service.setFlag("test-flag", flag("test-flag", true));
@@ -86,7 +87,7 @@ describe("FeatureFlagCacheService", () => {
       const service = new FeatureFlagCacheService(
         createCacheService({
           setJson: jest.fn().mockRejectedValue(new Error("redis down")),
-        }) as never,
+        }) as any,
       );
 
       await expect(
@@ -99,7 +100,7 @@ describe("FeatureFlagCacheService", () => {
     it("returns a cached list when present", async () => {
       const cached = [flag("test-flag", true)];
       const service = new FeatureFlagCacheService(
-        createCacheService({ getJson: jest.fn(async () => cached) }) as never,
+        createCacheService({ getJson: jest.fn(async () => cached) }) as any,
       );
 
       await expect(service.getList()).resolves.toEqual(cached);
@@ -107,7 +108,7 @@ describe("FeatureFlagCacheService", () => {
 
     it("returns null on a cache miss", async () => {
       const service = new FeatureFlagCacheService(
-        createCacheService() as never,
+        createCacheService() as any,
       );
 
       await expect(service.getList()).resolves.toBeNull();
@@ -117,7 +118,7 @@ describe("FeatureFlagCacheService", () => {
       const service = new FeatureFlagCacheService(
         createCacheService({
           getJson: jest.fn().mockRejectedValue(new Error("redis down")),
-        }) as never,
+        }) as any,
       );
 
       await expect(service.getList()).resolves.toBeNull();
@@ -126,7 +127,7 @@ describe("FeatureFlagCacheService", () => {
     it("reads from the list key", async () => {
       const getJson = jest.fn(async () => null);
       const service = new FeatureFlagCacheService(
-        createCacheService({ getJson }) as never,
+        createCacheService({ getJson }) as any,
       );
 
       await service.getList();
@@ -139,7 +140,7 @@ describe("FeatureFlagCacheService", () => {
     it("writes the list to Redis with the TTL", async () => {
       const setJson = jest.fn(async () => undefined);
       const service = new FeatureFlagCacheService(
-        createCacheService({ setJson }) as never,
+        createCacheService({ setJson }) as any,
       );
       const list = [flag("test-flag", true)];
 
@@ -152,7 +153,7 @@ describe("FeatureFlagCacheService", () => {
       const service = new FeatureFlagCacheService(
         createCacheService({
           setJson: jest.fn().mockRejectedValue(new Error("redis down")),
-        }) as never,
+        }) as any,
       );
 
       await expect(service.setList([])).resolves.toBeUndefined();
@@ -163,7 +164,7 @@ describe("FeatureFlagCacheService", () => {
     it("deletes both the flag key and the list key", async () => {
       const del = jest.fn(async () => undefined);
       const service = new FeatureFlagCacheService(
-        createCacheService({ delete: del }) as never,
+        createCacheService({ delete: del }) as any,
       );
 
       await service.invalidate("test-flag");
@@ -176,7 +177,7 @@ describe("FeatureFlagCacheService", () => {
       const service = new FeatureFlagCacheService(
         createCacheService({
           delete: jest.fn().mockRejectedValue(new Error("redis down")),
-        }) as never,
+        }) as any,
       );
 
       await expect(service.invalidate("test-flag")).resolves.toBeUndefined();

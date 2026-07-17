@@ -89,8 +89,8 @@ function createApp() {
     [
       containerTokens.rentingsController,
       new RentingsController(
-        rentingsService as never,
-        recommendationActivityPublisher as never,
+        rentingsService as any,
+        recommendationActivityPublisher as any,
       ),
     ],
     [containerTokens.tokenService, tokenService],

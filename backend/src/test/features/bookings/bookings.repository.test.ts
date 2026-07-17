@@ -112,7 +112,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         create,
       },
-    } as never);
+    } as any);
 
     const result = await repository.create({
       postingId: "posting-1",
@@ -178,12 +178,12 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.createIfWithinActiveRequestLimit(
       {
         postingId: "posting-1",
         renterId: "renter-1",
-        ownerId: "owner-1",
+        organizationId: "org-1",
         startAt: new Date("2026-05-01T00:00:00.000Z"),
         endAt: new Date("2026-05-04T00:00:00.000Z"),
         durationDays: 3,
@@ -228,7 +228,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.createIfWithinActiveRequestLimit(
       createBookingRequestInput({
         contactPhoneNumber: "555-0100",
@@ -264,12 +264,12 @@ describe("BookingsRepository", () => {
       .mockResolvedValueOnce(
         createBookingRequestPersistence({ id: "booking-found" }),
       )
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce(null as any);
     const repository = new BookingsRepository({
       bookingRequest: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findById("booking-found")).resolves.toMatchObject({
       id: "booking-found",
@@ -294,7 +294,7 @@ describe("BookingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByRenter({
       renterId: "renter-1",
@@ -355,7 +355,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     const result = await repository.updatePending("booking-1", "renter-1", {
       ...createBookingRequestInput({
@@ -429,7 +429,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const input = createBookingRequestInput({ holdExpiresAt: undefined });
 
     await expect(
@@ -469,7 +469,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result =
       await repository.listDashboardPostingOptionsByOrganization("org-1");
@@ -506,9 +506,10 @@ describe("BookingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByOwnerAndPosting({
+      actorUserId: "owner-1",
       organizationId: "org-1",
       postingId: "posting-1",
       page: 1,
@@ -543,9 +544,10 @@ describe("BookingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByOwner({
+      actorUserId: "owner-1",
       organizationId: "org-1",
       page: 1,
       pageSize: 25,
@@ -597,7 +599,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         findMany,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.listDashboardByRenter({
@@ -650,7 +652,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         findFirst,
       },
-    } as never);
+    } as any);
 
     const result = await repository.hasOfficialReservationOverlap({
       postingId: "posting-1",
@@ -689,7 +691,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.countActiveRequestsForRenterPosting({
       postingId: "posting-1",
@@ -740,7 +742,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.updatePending("booking-1", "renter-1", {
       startAt: new Date("2026-05-01T00:00:00.000Z"),
       endAt: new Date("2026-05-04T00:00:00.000Z"),
@@ -784,7 +786,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.approve(
       "booking-1",
       "org-1",
@@ -829,7 +831,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.approve(
       "booking-1",
       "org-1",
@@ -902,7 +904,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(
       repository.approve(
@@ -952,7 +954,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(
       repository.approve(
@@ -974,7 +976,7 @@ describe("BookingsRepository", () => {
         throw missingError;
       }),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(
       repository.approve(
@@ -1005,7 +1007,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.decline("booking-1", "org-1", "Declined");
 
     expect(result).toBeNull();
@@ -1038,7 +1040,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.decline("booking-1", "org-1", "Declined");
 
     expect(result).toMatchObject({
@@ -1076,7 +1078,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(
       repository.decline("booking-1", "org-1", null),
@@ -1112,7 +1114,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.cancel({
       bookingRequestId: "booking-1",
       actorUserId: "renter-1",
@@ -1162,7 +1164,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     const result = await repository.cancel({
       bookingRequestId: "booking-1",
@@ -1228,7 +1230,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(
       repository.cancel({
@@ -1292,7 +1294,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
     const result = await repository.expire("booking-1");
 
     expect(result).toBe(true);
@@ -1338,7 +1340,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listExpiredCandidates(5);
 
@@ -1374,12 +1376,12 @@ describe("BookingsRepository", () => {
     const findFirst = jest
       .fn()
       .mockResolvedValueOnce({ id: "block-1" })
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce(null as any);
     const repository = new BookingsRepository({
       postingAvailabilityBlock: {
         findFirst,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.hasBlockingAvailabilityOverlap({
@@ -1490,7 +1492,7 @@ describe("BookingsRepository", () => {
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
     };
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(repository.expire("booking-1")).resolves.toBe(false);
     expect(updateMany).not.toHaveBeenCalled();
@@ -1523,7 +1525,7 @@ describe("BookingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new BookingsRepository(database as never);
+    const repository = new BookingsRepository(database as any);
 
     await expect(repository.expire("booking-1")).resolves.toBe(false);
     expect(deleteMany).not.toHaveBeenCalled();
@@ -1537,7 +1539,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         updateMany,
       },
-    } as never);
+    } as any);
     const reservationExpiresAt = new Date("2026-05-20T12:05:00.000Z");
 
     const result = await repository.reserveForConversion(
@@ -1581,7 +1583,7 @@ describe("BookingsRepository", () => {
           count: 0,
         })),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.reserveForConversion(
@@ -1600,7 +1602,7 @@ describe("BookingsRepository", () => {
       bookingRequest: {
         updateMany,
       },
-    } as never);
+    } as any);
     const reservation = {
       reservedAt: new Date("2026-05-20T12:00:00.000Z"),
       reservationExpiresAt: new Date("2026-05-20T12:05:00.000Z"),

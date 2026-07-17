@@ -70,7 +70,7 @@ describe("SearchController", () => {
     }));
     const controller = new SearchController({
       getReindexRun,
-    } as never);
+    } as any);
 
     const response = await controller.getReindexRun(
       createContext({
@@ -98,7 +98,7 @@ describe("SearchController", () => {
   it("returns a null run payload when the run cannot be found", async () => {
     const controller = new SearchController({
       getReindexRun: jest.fn(async () => null),
-    } as never);
+    } as any);
 
     const response = await controller.getReindexRun(
       createContext({
@@ -128,7 +128,7 @@ describe("SearchController", () => {
       });
     const controller = new SearchController({
       replayDeadLetteredOutbox,
-    } as never);
+    } as any);
 
     await controller.replayDeadLettered(
       createContext({
@@ -165,7 +165,7 @@ describe("SearchController", () => {
     const controller = new SearchController({
       cleanupRetainedIndices,
       getStatus,
-    } as never);
+    } as any);
 
     const cleanupResponse =
       await controller.cleanupRetainedIndices(createContext());

@@ -86,10 +86,10 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         create,
-      } as never,
+      } as any,
       {
         publishBookingRequestCreated,
-      } as never,
+      } as any,
     );
 
     const response = await controller.createForPosting(
@@ -141,8 +141,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         quote,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.quoteForPosting(
@@ -187,8 +187,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         listOwned,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.listOwned(
@@ -235,8 +235,8 @@ describe("BookingsController", () => {
       {
         listMine,
         listForOwnerPosting,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const mineResponse = await controller.listMine(
@@ -302,8 +302,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         dashboardMine,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.dashboardMine(
@@ -361,8 +361,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         dashboardOwned,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.dashboardOwned(
@@ -401,8 +401,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         getCancellationQuote,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.getCancellationQuote(
@@ -443,8 +443,8 @@ describe("BookingsController", () => {
         updateOwnPending,
         approve,
         decline,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const getResponse = await controller.getById(
@@ -553,8 +553,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         cancel,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.cancel(
@@ -582,8 +582,8 @@ describe("BookingsController", () => {
     const controller = new BookingsController(
       {
         listMine,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     await expect(

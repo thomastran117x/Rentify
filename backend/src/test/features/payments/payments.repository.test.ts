@@ -133,7 +133,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     const result = await repository.createPaymentAttemptForBooking({
       bookingRequestId: "booking-1",
       renterId: "renter-1",
@@ -226,7 +226,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
       providerPaymentId: "square-pay-1",
       providerOrderId: "square-order-1",
@@ -308,7 +308,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
       providerPaymentId: "square-pay-1",
       providerOrderId: "square-order-1",
@@ -387,7 +387,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
       providerPaymentId: "square-pay-1",
       providerOrderId: "square-order-1",
@@ -484,7 +484,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     await repository.completeRefund("refund-1", {
       providerRefundId: "square-refund-1",
       status: "COMPLETED",
@@ -577,7 +577,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     await repository.completeRefund("refund-1", {
       providerRefundId: "square-refund-1",
       status: "COMPLETED",
@@ -673,7 +673,7 @@ describe("PaymentsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new PaymentsRepository(database as never);
+    const repository = new PaymentsRepository(database as any);
     await repository.completeRefund(
       "refund-1",
       {
@@ -747,7 +747,7 @@ describe("PaymentsRepository", () => {
       $transaction: async <T>(
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.attachPaymentSession(
       "payment-1",
@@ -821,9 +821,6 @@ describe("PaymentsRepository", () => {
         }),
       },
       payment: {
-        findUniqueOrThrow: jest.fn(async () => ({
-          bookingRequestId: "booking-1",
-        })),
         update: jest.fn(async () => undefined),
         findUniqueOrThrow: jest
           .fn()
@@ -841,7 +838,7 @@ describe("PaymentsRepository", () => {
       $transaction: async <T>(
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.recordAttemptFailure(
       "payment-1",
@@ -874,7 +871,7 @@ describe("PaymentsRepository", () => {
           }),
         ),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.findAccessibleById("payment-1", "renter-1"),
@@ -905,8 +902,8 @@ describe("PaymentsRepository", () => {
               ],
             })),
           },
-        } as never),
-    } as never);
+        } as any),
+    } as any);
 
     const result = await repository.createRefundRecord({
       paymentId: "payment-1",
@@ -947,8 +944,8 @@ describe("PaymentsRepository", () => {
               ],
             })),
           },
-        } as never),
-    } as never);
+        } as any),
+    } as any);
 
     await expect(
       repository.createRefundRecord({
@@ -1017,7 +1014,7 @@ describe("PaymentsRepository", () => {
       $transaction: async <T>(
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.markPaymentFailed(
       {
@@ -1056,7 +1053,7 @@ describe("PaymentsRepository", () => {
           },
         ]),
       },
-    } as never);
+    } as any);
 
     const result = await repository.listRetryCandidates(5);
 
@@ -1101,7 +1098,7 @@ describe("PaymentsRepository", () => {
       $transaction: async <T>(
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.markAttemptForRetry("attempt-1");
 
@@ -1133,7 +1130,7 @@ describe("PaymentsRepository", () => {
           },
         ]),
       },
-    } as never);
+    } as any);
 
     const result = await repository.listRepairCandidates(3);
 
@@ -1154,7 +1151,7 @@ describe("PaymentsRepository", () => {
       payment: {
         update,
       },
-    } as never);
+    } as any);
 
     await repository.markBookingReconciliationRequired("payment-1");
 
@@ -1195,7 +1192,7 @@ describe("PaymentsRepository", () => {
       $transaction: async <T>(
         callback: (client: typeof transaction) => Promise<T>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await repository.markPayoutReleased("payout-1");
 
@@ -1222,7 +1219,7 @@ describe("PaymentsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listPayoutsForOrganization({
       actorUserId: "manager-1",

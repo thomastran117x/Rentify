@@ -78,7 +78,7 @@ describe("PaymentsController", () => {
     }));
     const controller = new PaymentsController({
       createPaymentSession,
-    } as never);
+    } as any);
 
     const response = await controller.createSessionForBooking(
       createContext({
@@ -114,7 +114,7 @@ describe("PaymentsController", () => {
     }));
     const controller = new PaymentsController({
       listPayouts,
-    } as never);
+    } as any);
 
     const response = await controller.listPayouts(createContext());
 
@@ -144,7 +144,7 @@ describe("PaymentsController", () => {
     const processSquareWebhook = jest.fn(async () => undefined);
     const controller = new PaymentsController({
       processSquareWebhook,
-    } as never);
+    } as any);
 
     const response = await controller.webhook(
       createContext({
@@ -180,7 +180,7 @@ describe("PaymentsController", () => {
         status: "succeeded",
       })),
     };
-    const controller = new PaymentsController(service as never);
+    const controller = new PaymentsController(service as any);
     const context = createContext({
       params: {
         id: "payment-1",
@@ -219,7 +219,7 @@ describe("PaymentsController", () => {
   it("returns request validation details for invalid payout queries", async () => {
     const controller = new PaymentsController({
       listPayouts: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       controller.listPayouts(
@@ -227,7 +227,7 @@ describe("PaymentsController", () => {
           url: "https://example.test/api/v1/payments/payouts?page=0&pageSize=999",
         }),
       ),
-    ).rejects.toMatchObject<RequestValidationError>({
+    ).rejects.toMatchObject({
       message: "Request query validation failed.",
       details: [
         {

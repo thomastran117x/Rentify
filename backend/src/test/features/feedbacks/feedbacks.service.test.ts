@@ -18,7 +18,7 @@ describe("FeedbacksService", () => {
     );
     const service = new FeedbacksService({
       create,
-    } as never);
+    } as any);
 
     const result = await service.create({
       userId: "user-1",

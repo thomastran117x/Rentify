@@ -11,7 +11,7 @@ describe("RecommendationActivityProcessor", () => {
         subtype: "entire_place",
       })),
       persistActivityAndRefreshJobs,
-    } as never);
+    } as any);
 
     await processor.process({
       eventId: "event-1",
@@ -62,7 +62,7 @@ describe("RecommendationActivityProcessor", () => {
         subtype: "car",
       })),
       persistActivityAndRefreshJobs,
-    } as never);
+    } as any);
 
     await processor.process({
       eventId: "event-2",
@@ -75,7 +75,8 @@ describe("RecommendationActivityProcessor", () => {
       personalizationEnabled: false,
     });
 
-    const [activity, jobs] = persistActivityAndRefreshJobs.mock.calls[0] ?? [];
+    const [activity, jobs] =
+      ((persistActivityAndRefreshJobs.mock.calls[0] ?? []) as unknown as [any, any[]]);
     expect(activity.personalizationEligible).toBe(false);
     expect(jobs).not.toEqual(
       expect.arrayContaining([
@@ -103,7 +104,7 @@ describe("RecommendationActivityProcessor", () => {
         subtype: "camera",
       })),
       persistActivityAndRefreshJobs,
-    } as never);
+    } as any);
 
     await processor.process({
       eventId: "event-3",
@@ -129,7 +130,7 @@ describe("RecommendationActivityProcessor", () => {
     const processor = new RecommendationActivityProcessor({
       findPostingSummary: jest.fn(async () => null),
       persistActivityAndRefreshJobs: jest.fn(async () => undefined),
-    } as never);
+    } as any);
 
     await expect(
       processor.process({
@@ -157,7 +158,7 @@ describe("RecommendationActivityProcessor", () => {
         subtype: "entire_place",
       })),
       persistActivityAndRefreshJobs,
-    } as never);
+    } as any);
 
     await expect(
       processor.process({
@@ -186,7 +187,7 @@ describe("RecommendationActivityProcessor", () => {
         subtype: "entire_place",
       })),
       persistActivityAndRefreshJobs,
-    } as never);
+    } as any);
 
     await processor.process({
       eventId: "event-lifecycle",
@@ -199,7 +200,8 @@ describe("RecommendationActivityProcessor", () => {
       personalizationEnabled: true,
     });
 
-    const [activity, jobs] = persistActivityAndRefreshJobs.mock.calls[0] ?? [];
+    const [activity, jobs] =
+      ((persistActivityAndRefreshJobs.mock.calls[0] ?? []) as unknown as [any, any[]]);
     expect(activity.personalizationEligible).toBe(false);
     expect(jobs).not.toEqual(
       expect.arrayContaining([

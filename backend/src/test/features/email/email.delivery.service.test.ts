@@ -12,7 +12,7 @@ function createService(
   overrides: Record<string, unknown> = {},
 ) {
   return new EmailDeliveryService({
-    transporter: transporter as never,
+    transporter: transporter as any,
     gmailUser: "gmail-user@example.com",
     gmailAppPassword: "app-password",
     fromEmail: "noreply@example.com",
@@ -236,7 +236,7 @@ describe("EmailDeliveryService", () => {
       platform: "macOS",
       ipAddress: "127.0.0.1",
       userAgent: "Mozilla/5.0",
-      detectedAt: "2026-06-10T12:34:56.000Z" as never,
+      detectedAt: "2026-06-10T12:34:56.000Z" as any,
     });
     await service.sendOrganizationInviteEmail({
       to: "invitee@example.com",

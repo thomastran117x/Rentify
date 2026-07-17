@@ -24,15 +24,15 @@ describe("initializeServerApplication", () => {
       },
       initializeContainer: () => {
         calls.push("initializeContainer");
-        return {} as never;
+        return {} as any;
       },
       createApplication: () => {
         calls.push("createApplication");
-        return app as never;
+        return app as any;
       },
       loadEnvironment: () => {
         calls.push("loadEnvironment");
-        return {} as never;
+        return {} as any;
       },
     });
 
@@ -74,15 +74,15 @@ describe("initializeServerApplication", () => {
       },
       initializeContainer: () => {
         calls.push("initializeContainer");
-        return {} as never;
+        return {} as any;
       },
       createApplication: () => {
         calls.push("createApplication");
-        return { fetch: jest.fn() } as never;
+        return { fetch: jest.fn() } as any;
       },
       loadEnvironment: () => {
         calls.push("loadEnvironment");
-        return {} as never;
+        return {} as any;
       },
     });
 

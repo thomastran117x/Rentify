@@ -73,7 +73,7 @@ describe("requestLoggerMiddleware", () => {
     });
     mockGetRequestContainer.mockReturnValue({
       resolve,
-    } as ReturnType<typeof getRequestContainer>);
+    } as unknown as ReturnType<typeof getRequestContainer>);
 
     const app = createApp();
     const response = await app.request("http://rent.test/request");

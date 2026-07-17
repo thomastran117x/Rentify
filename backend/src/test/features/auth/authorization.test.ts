@@ -168,11 +168,12 @@ describe("authorization", () => {
           createDraftCalled = true;
           return { id: "posting-1" };
         },
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
     );
     const context = createContext({
       authorization: "Bearer user-token",
@@ -223,7 +224,7 @@ describe("authorization", () => {
       repairPayment: async () => {
         repairCalled = true;
       },
-    } as never);
+    } as any);
     const ownerContext = createContext({
       authorization: "Bearer owner-token",
       params: {
@@ -267,7 +268,7 @@ describe("authorization", () => {
       },
       getReindexRun: async () => ({ id: "run-1", status: "running" }),
       getStatus: async () => ({ ok: true }),
-    } as never);
+    } as any);
 
     const ownerContext = createContext({
       authorization: "Bearer owner-token",

@@ -31,11 +31,13 @@ describe("containerScopeMiddleware", () => {
     const createScope = jest.fn().mockReturnValue(scope);
     mockGetContainer.mockReturnValue({
       createScope,
-    } as ReturnType<typeof getContainer>);
+    } as unknown as ReturnType<typeof getContainer>);
 
     const app = createApp();
     app.get("/scope", (context) =>
-      context.text(context.get("container") === scope ? "scoped" : "missing"),
+      context.text(
+        context.get("container") === (scope as unknown) ? "scoped" : "missing",
+      ),
     );
 
     const response = await app.request("http://rent.test/scope");
@@ -51,7 +53,7 @@ describe("containerScopeMiddleware", () => {
     const scope = { dispose };
     mockGetContainer.mockReturnValue({
       createScope: jest.fn().mockReturnValue(scope),
-    } as ReturnType<typeof getContainer>);
+    } as unknown as ReturnType<typeof getContainer>);
 
     const app = createApp();
     app.get("/scope", () => {

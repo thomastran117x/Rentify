@@ -20,23 +20,22 @@ jest.mock("@/configuration/environment", () => ({
 
 jest.mock("@/configuration/resources/elasticsearch", () => ({
   connectElasticsearch: jest.fn(),
-  disconnectElasticsearch: (...args: unknown[]) =>
-    mockDisconnectElasticsearch(...args),
+  disconnectElasticsearch: () => mockDisconnectElasticsearch(),
 }));
 
 jest.mock("@/configuration/resources/database", () => ({
   connectDatabase: jest.fn(),
-  disconnectDatabase: (...args: unknown[]) => mockDisconnectDatabase(...args),
+  disconnectDatabase: () => mockDisconnectDatabase(),
 }));
 
 jest.mock("@/configuration/resources/redis", () => ({
   connectRedis: jest.fn(),
-  disconnectRedis: (...args: unknown[]) => mockDisconnectRedis(...args),
+  disconnectRedis: () => mockDisconnectRedis(),
 }));
 
 jest.mock("@/configuration/resources/rabbitmq", () => ({
   connectRabbitMq: jest.fn(),
-  disconnectRabbitMq: (...args: unknown[]) => mockDisconnectRabbitMq(...args),
+  disconnectRabbitMq: () => mockDisconnectRabbitMq(),
   isRabbitMqEnabled: jest.fn(),
 }));
 
