@@ -20,6 +20,7 @@ import {
   setActiveOrganizationRequestSchema,
   updateOrganizationMemberRequestSchema,
   updateOrganizationRequestSchema,
+  type ListPublicOrganizationsInput,
 } from "@/features/organizations/organizations.model";
 import {
   listOrganizationAuditQuerySchema,
@@ -225,11 +226,9 @@ export class OrganizationsController {
     });
   };
 
-  private parseListPublicOrganizationsInput(context: Context<AppBindings>): {
-    page: number;
-    pageSize: number;
-    query?: string;
-  } {
+  private parseListPublicOrganizationsInput(
+    context: Context<AppBindings>,
+  ): ListPublicOrganizationsInput {
     const url = new URL(context.req.url);
 
     try {
@@ -237,12 +236,14 @@ export class OrganizationsController {
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
         q: url.searchParams.get("q") ?? undefined,
+        sort: url.searchParams.get("sort") ?? undefined,
       });
 
       return {
         page: query.page,
         pageSize: query.pageSize,
         query: query.q,
+        sort: query.sort,
       };
     } catch (error) {
       if ("issues" in (error as object)) {

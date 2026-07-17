@@ -103,10 +103,22 @@ export const updateOrganizationMemberRequestSchema = z.object({
   role: organizationRoleSchema,
 });
 
+export const publicOrganizationSortSchema = z.enum([
+  "relevance",
+  "nameAsc",
+  "nameDesc",
+  "newest",
+  "oldest",
+]);
+export type PublicOrganizationSort = z.infer<
+  typeof publicOrganizationSortSchema
+>;
+
 export const listPublicOrganizationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(),
+  sort: publicOrganizationSortSchema.optional(),
 });
 
 export type CreateOrganizationRequestBody = z.infer<
@@ -196,6 +208,7 @@ export interface PublicOrganizationListResult {
     hasPreviousPage: boolean;
   };
   query?: string;
+  source?: OrganizationSearchSource;
 }
 
 // Field names audited when an organization's profile changes (also used to
@@ -397,6 +410,47 @@ export interface ListPublicOrganizationsInput {
   page: number;
   pageSize: number;
   query?: string;
+  sort?: PublicOrganizationSort;
+}
+
+// Where a public organization list result was served from. Elasticsearch is the
+// primary path; the database fallback keeps the directory working when the
+// search cluster is unavailable.
+export type OrganizationSearchSource = "elasticsearch" | "database";
+
+// The subset of organization fields projected into Elasticsearch. Kept
+// intentionally lean: display data (e.g. publishedPostingCount) is hydrated
+// from the database at read time so the index only carries what we search on.
+export interface OrganizationSearchDocument {
+  id: string;
+  name: string;
+  description: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationSearchOutboxRecord {
+  id: string;
+  organizationId?: string;
+  reindexRunId?: string;
+  operation: "upsert" | "delete" | "barrier";
+  dedupeKey: string;
+  targetIndexName?: string;
+  attempts: number;
+  publishAttempts: number;
+  availableAt: string;
+  processingAt?: string;
+  publishedAt?: string;
+  indexedAt?: string;
+  deadLetteredAt?: string;
+  brokerMessageId?: string;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function normalizeOrganizationInvitationEmail(email: string): string {

@@ -41,6 +41,10 @@ import { OrganizationAuditService } from "@/features/organizations/organization-
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
+import { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
+import { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
+import { OrganizationsSearchService } from "@/features/organizations/search/organizations-search.service";
+import { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -130,6 +134,24 @@ export const containerTokens = {
   organizationsController: createServiceToken<OrganizationsController>(
     "OrganizationsController",
   ),
+  organizationsSearchIndexService:
+    createServiceToken<OrganizationsSearchIndexService>(
+      "OrganizationsSearchIndexService",
+    ),
+  organizationSearchQueueService: createServiceToken<SearchQueueService>(
+    "OrganizationSearchQueueService",
+  ),
+  organizationsPublicSearchService:
+    createServiceToken<OrganizationsPublicSearchService>(
+      "OrganizationsPublicSearchService",
+    ),
+  organizationsSearchService: createServiceToken<OrganizationsSearchService>(
+    "OrganizationsSearchService",
+  ),
+  organizationsSearchController:
+    createServiceToken<OrganizationsSearchController>(
+      "OrganizationsSearchController",
+    ),
   captchaService: createServiceToken<CaptchaService>("CaptchaService"),
   otpService: createServiceToken<OtpService>("OtpService"),
   totpService: createServiceToken<TotpService>("TotpService"),

@@ -55,6 +55,7 @@ import {
   type OrganizationMembershipAccessRecord,
   OrganizationsRepository,
 } from "@/features/organizations/organizations.repository";
+import type { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
 
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -72,6 +73,7 @@ export class OrganizationsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly blobService: BlobService,
+    private readonly organizationsPublicSearchService: OrganizationsPublicSearchService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -112,10 +114,11 @@ export class OrganizationsService {
   async listPublic(
     input: ListPublicOrganizationsInput,
   ): Promise<PublicOrganizationListResult> {
-    return this.organizationsRepository.listPublicOrganizations({
+    return this.organizationsPublicSearchService.searchPublic({
       page: input.page,
       pageSize: input.pageSize,
       query: input.query?.trim() || undefined,
+      sort: input.sort,
     });
   }
 

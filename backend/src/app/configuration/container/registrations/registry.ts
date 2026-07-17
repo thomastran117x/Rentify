@@ -10,6 +10,7 @@ import { bookingsRegistrationModule } from "@/configuration/container/registrati
 import { feedbacksRegistrationModule } from "@/configuration/container/registrations/modules/feedbacks";
 import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
 import { organizationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations";
+import { organizationsSearchRegistrationModule } from "@/configuration/container/registrations/modules/organizations-search";
 import { paymentsRegistrationModule } from "@/configuration/container/registrations/modules/payments";
 import { postingsAnalyticsRegistrationModule } from "@/configuration/container/registrations/modules/postings-analytics";
 import { postingsCoreRegistrationModule } from "@/configuration/container/registrations/modules/postings-core";
@@ -49,6 +50,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authDeviceRegistrationModule,
   authPersonalAccessTokensRegistrationModule,
   organizationsRegistrationModule,
+  organizationsSearchRegistrationModule,
   reportsRegistrationModule,
   recommendationsActivityRegistrationModule,
   recommendationsPrecomputeRegistrationModule,

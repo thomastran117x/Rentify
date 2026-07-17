@@ -282,8 +282,8 @@ export function OrganizationDirectoryPage() {
                       type="search"
                       value={queryInput}
                       onChange={(event) => setQueryInput(event.target.value)}
-                      placeholder="Search organizations by name"
-                      aria-label="Search organizations by name"
+                      placeholder="Search organizations by name, description, or location"
+                      aria-label="Search organizations by name, description, or location"
                       className={theme.marketplace.primaryInput}
                     />
                     {queryInput ? (

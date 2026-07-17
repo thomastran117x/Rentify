@@ -77,6 +77,7 @@ model Organization {
   postingAnalyticsOutbox PostingAnalyticsOutbox[]
   recommendationActivities RecommendationActivity[]
   auditLogs OrganizationAuditLog[]
+  searchOutboxEntries OrganizationSearchOutbox[]
 
   @@map("organizations")
 }
@@ -641,6 +642,58 @@ model SearchReindexRun {
   @@map("search_reindex_runs")
 }
 
+model OrganizationSearchOutbox {
+  id              String                            @id @db.VarChar(36)
+  organizationId  String?                           @map("organization_id") @db.VarChar(36)
+  reindexRunId    String?                           @map("reindex_run_id") @db.VarChar(36)
+  operation       OrganizationSearchOutboxOperation
+  dedupeKey       String                            @map("dedupe_key") @db.VarChar(255)
+  targetIndexName String?                           @map("target_index_name") @db.VarChar(191)
+  attempts        Int                               @default(0)
+  publishAttempts Int                               @default(0) @map("publish_attempts")
+  availableAt     DateTime                          @default(now()) @map("available_at") @db.DateTime(6)
+  processingAt    DateTime?                         @map("processing_at") @db.DateTime(6)
+  processedAt     DateTime?                         @map("processed_at") @db.DateTime(6)
+  indexedAt       DateTime?                         @map("indexed_at") @db.DateTime(6)
+  deadLetteredAt  DateTime?                         @map("dead_lettered_at") @db.DateTime(6)
+  brokerMessageId String?                           @map("broker_message_id") @db.VarChar(255)
+  lastError       String?                           @map("last_error") @db.VarChar(2048)
+  createdAt       DateTime                          @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime                          @updatedAt @map("updated_at") @db.DateTime(6)
+  organization    Organization?                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reindexRun      OrganizationSearchReindexRun?     @relation(fields: [reindexRunId], references: [id], onDelete: SetNull)
+
+  @@index([availableAt, processedAt, deadLetteredAt, processingAt], map: "org_outbox_ready_idx")
+  @@index([organizationId, operation])
+  @@index([reindexRunId, indexedAt, deadLetteredAt], map: "org_outbox_reindex_idx")
+  @@index([targetIndexName, indexedAt, deadLetteredAt], map: "org_outbox_target_idx")
+  @@map("organization_search_outbox")
+}
+
+model OrganizationSearchReindexRun {
+  id                String                     @id @db.VarChar(36)
+  status            SearchReindexStatus
+  targetIndexName   String                     @map("target_index_name") @db.VarChar(191)
+  retainedIndexName String?                    @map("retained_index_name") @db.VarChar(191)
+  sourceSnapshotAt  DateTime                   @map("source_snapshot_at") @db.DateTime(6)
+  barrierOutboxId   String?                    @unique @map("barrier_outbox_id") @db.VarChar(36)
+  totalDocuments    Int                        @default(0) @map("total_documents")
+  indexedDocuments  Int                        @default(0) @map("indexed_documents")
+  failedDocuments   Int                        @default(0) @map("failed_documents")
+  startedAt         DateTime?                  @map("started_at") @db.DateTime(6)
+  completedAt       DateTime?                  @map("completed_at") @db.DateTime(6)
+  failedAt          DateTime?                  @map("failed_at") @db.DateTime(6)
+  processingAt      DateTime?                  @map("processing_at") @db.DateTime(6)
+  lastError         String?                    @map("last_error") @db.VarChar(2048)
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt         DateTime                   @updatedAt @map("updated_at") @db.DateTime(6)
+  outboxEntries     OrganizationSearchOutbox[]
+
+  @@index([status, createdAt])
+  @@index([processingAt, status])
+  @@map("organization_search_reindex_runs")
+}
+
 model PostingViewEvent {
   id             String   @id @db.VarChar(36)
   postingId      String   @map("posting_id") @db.VarChar(36)
@@ -1088,6 +1141,12 @@ enum PostingFamily {
 }
 
 enum PostingSearchOutboxOperation {
+  upsert
+  delete
+  barrier
+}
+
+enum OrganizationSearchOutboxOperation {
   upsert
   delete
   barrier
