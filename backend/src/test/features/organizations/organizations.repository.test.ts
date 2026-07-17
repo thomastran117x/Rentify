@@ -508,7 +508,7 @@ describe("OrganizationsRepository", () => {
 
   it("returns null when revoking a missing or non-pending invitation", async () => {
     const findUnique = jest
-      .fn(async () => null)
+      .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(
         createInvitationPersistence({

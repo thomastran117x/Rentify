@@ -150,6 +150,55 @@ describe("OrganizationsPublicSearchService", () => {
     expect(result.source).toBe("database");
   });
 
+  it("falls back to the database on a generic Elasticsearch error", async () => {
+    const requestJson = jest.fn(async () => {
+      throw new Error("connection reset");
+    });
+    const { service, searchPublicFallback } = createHarness({ requestJson });
+
+    const result = await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "depot",
+    });
+
+    expect(searchPublicFallback).toHaveBeenCalledTimes(1);
+    expect(result.source).toBe("database");
+  });
+
+  it.each([
+    ["relevance"],
+    ["nameAsc"],
+    ["nameDesc"],
+    ["newest"],
+    ["oldest"],
+  ] as const)("builds a sort clause for %s", async (sort) => {
+    const { service, requestJson } = createHarness();
+
+    await service.searchPublic({ page: 2, pageSize: 10, sort });
+
+    const body = JSON.parse(
+      (requestJson.mock.calls[0]![1] as { body: string }).body,
+    );
+    expect(Array.isArray(body.sort)).toBe(true);
+    expect(body.from).toBe(10);
+  });
+
+  it("caps the navigable page count to the search result window", async () => {
+    const requestJson = jest.fn(async () => ({
+      hits: { total: { value: 1_000_000 }, hits: [{ _id: "es-1" }] },
+    }));
+    const { service } = createHarness({ requestJson });
+
+    const result = await service.searchPublic({ page: 1, pageSize: 20 });
+
+    expect(result.pagination.total).toBe(1_000_000);
+    // The navigable window is bounded (10k / 20 = 500 pages) even though the
+    // reported total is far larger.
+    expect(result.pagination.totalPages).toBe(500);
+    expect(result.pagination.hasNextPage).toBe(true);
+  });
+
   it("re-runs against the database when Elasticsearch returns stale ids", async () => {
     const requestJson = jest.fn(async () => ({
       hits: {
