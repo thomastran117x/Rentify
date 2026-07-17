@@ -26,7 +26,7 @@
     },
     {
       "name": "organizations",
-      "description": "Organization memberships, invitations, active-org switching, and member management."
+      "description": "Public organization directory browsing plus protected workspace memberships, invitations, active-org switching, and member management."
     },
     {
       "name": "profiles",
@@ -2597,6 +2597,133 @@
       }
     },
     "/organizations": {
+      "get": {
+        "operationId": "listPublicOrganizations",
+        "summary": "List public organizations",
+        "description": "Returns the public organization directory. Only organizations with at least one published posting are included.",
+        "tags": [
+          "organizations"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public",
+          "minimumRole": null,
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Number of organizations to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "example": 20
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Optional case-insensitive organization name search query.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "example": "north"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PublicOrganizationListResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "organizations": [
+                      {
+                        "id": "org-1",
+                        "name": "Northwind",
+                        "description": "Boutique rental studio for coastal getaways.",
+                        "websiteUrl": "https://northwind.example.com",
+                        "addressLine1": "500 Harbor Way",
+                        "addressLine2": null,
+                        "city": "Santa Cruz",
+                        "region": "CA",
+                        "country": "US",
+                        "postalCode": "95060",
+                        "logoUrl": "https://cdn.rentify.local/logos/org-1.png",
+                        "customFields": {
+                          "Response time": "Within 24 hours"
+                        },
+                        "createdAt": "2026-05-01T00:00:00.000Z",
+                        "updatedAt": "2026-05-28T10:00:00.000Z",
+                        "publishedPostingCount": 2
+                      }
+                    ],
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1,
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    },
+                    "query": "north"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
       "post": {
         "operationId": "createOrganization",
         "summary": "Create an organization",
@@ -3072,11 +3199,11 @@
         }
       }
     },
-    "/organizations/{id}": {
+    "/organizations/{id}/workspace": {
       "get": {
-        "operationId": "getOrganizationById",
-        "summary": "Get organization detail",
-        "description": "Returns organization profile, roster, and pending invitations for a member of the organization.",
+        "operationId": "getOrganizationWorkspaceById",
+        "summary": "Get organization workspace detail",
+        "description": "Returns organization profile, roster, and pending invitations for a signed-in member of the organization.",
         "tags": [
           "organizations"
         ],
@@ -3116,7 +3243,7 @@
                       "type": "object",
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/OrganizationDetailResult"
+                          "$ref": "#/components/schemas/OrganizationWorkspaceDetailResult"
                         },
                         "meta": {
                           "$ref": "#/components/schemas/RequestMeta"
@@ -3191,6 +3318,104 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/organizations/{id}": {
+      "get": {
+        "operationId": "getPublicOrganizationById",
+        "summary": "Get public organization detail",
+        "description": "Returns the public organization profile and published posting count. Organizations without published postings return 404.",
+        "tags": [
+          "organizations"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public",
+          "minimumRole": null,
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "org-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PublicOrganizationDetailResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "organization": {
+                      "id": "org-1",
+                      "name": "Northwind",
+                      "description": "Boutique rental studio for coastal getaways.",
+                      "websiteUrl": "https://northwind.example.com",
+                      "addressLine1": "500 Harbor Way",
+                      "addressLine2": null,
+                      "city": "Santa Cruz",
+                      "region": "CA",
+                      "country": "US",
+                      "postalCode": "95060",
+                      "logoUrl": "https://cdn.rentify.local/logos/org-1.png",
+                      "customFields": {
+                        "Response time": "Within 24 hours"
+                      },
+                      "createdAt": "2026-05-01T00:00:00.000Z",
+                      "updatedAt": "2026-05-28T10:00:00.000Z",
+                      "publishedPostingCount": 2
+                    },
+                    "stats": {
+                      "publishedPostingCount": 2
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -4077,6 +4302,514 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/organizations/{id}/announcements": {
+      "get": {
+        "operationId": "listOrganizationAnnouncements",
+        "summary": "List organization announcements",
+        "description": "Returns paginated announcements for organization members. Managers see drafts and published announcements; operators and read-only members only receive published announcements.",
+        "tags": [
+          "organizations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "organizationRoles": [
+            "primary_manager",
+            "manager",
+            "operator"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "org-1"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Number of announcements per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "example": 20
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Optional announcement status filter (managers only).",
+            "schema": {
+              "$ref": "#/components/schemas/OrganizationAnnouncementStatus"
+            },
+            "example": "published"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization announcements returned successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/OrganizationAnnouncementListResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/ExtendedRequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "announcements": [
+                      {
+                        "id": "announcement-1",
+                        "organizationId": "org-1",
+                        "author": {
+                          "id": "user-1",
+                          "email": "owner1@rentify.local",
+                          "username": "owner-one",
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        },
+                        "title": "Summer availability update",
+                        "body": "Our downtown studios now accept weekend bookings.",
+                        "status": "published",
+                        "publishedAt": "2026-05-28T11:15:00.000Z",
+                        "createdAt": "2026-05-28T11:15:00.000Z",
+                        "updatedAt": "2026-05-28T11:15:00.000Z"
+                      }
+                    ],
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1,
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E",
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 20,
+                      "total": 1,
+                      "totalPages": 1,
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOrganizationAnnouncement",
+        "summary": "Create an organization announcement",
+        "description": "Creates a new announcement for the organization. Only primary managers and managers can create announcements.",
+        "tags": [
+          "organizations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "org-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationAnnouncementRequest"
+              },
+              "example": {
+                "title": "Summer availability update",
+                "body": "Our downtown studios now accept weekend bookings.",
+                "status": "published"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/OrganizationAnnouncementRecord"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization announcement created successfully.",
+                  "data": {
+                    "id": "announcement-1",
+                    "organizationId": "org-1",
+                    "author": {
+                      "id": "user-1",
+                      "email": "owner1@rentify.local",
+                      "username": "owner-one",
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                    },
+                    "title": "Summer availability update",
+                    "body": "Our downtown studios now accept weekend bookings.",
+                    "status": "published",
+                    "publishedAt": "2026-05-28T11:15:00.000Z",
+                    "createdAt": "2026-05-28T11:15:00.000Z",
+                    "updatedAt": "2026-05-28T11:15:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/organizations/{id}/announcements/{announcementId}": {
+      "patch": {
+        "operationId": "updateOrganizationAnnouncement",
+        "summary": "Update an organization announcement",
+        "description": "Updates an existing announcement. Only primary managers and managers can update announcements. Changing status to published records a publish event in the audit trail.",
+        "tags": [
+          "organizations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "org-1"
+          },
+          {
+            "name": "announcementId",
+            "in": "path",
+            "required": true,
+            "description": "Organization announcement identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "announcement-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationAnnouncementRequest"
+              },
+              "example": {
+                "status": "published"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/OrganizationAnnouncementRecord"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization announcement updated successfully.",
+                  "data": {
+                    "id": "announcement-1",
+                    "organizationId": "org-1",
+                    "author": {
+                      "id": "user-1",
+                      "email": "owner1@rentify.local",
+                      "username": "owner-one",
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                    },
+                    "title": "Summer availability update",
+                    "body": "Our downtown studios now accept weekend bookings.",
+                    "status": "published",
+                    "publishedAt": "2026-05-28T11:15:00.000Z",
+                    "createdAt": "2026-05-28T11:15:00.000Z",
+                    "updatedAt": "2026-05-28T11:15:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteOrganizationAnnouncement",
+        "summary": "Delete an organization announcement",
+        "description": "Deletes an announcement. Only primary managers and managers can delete announcements.",
+        "tags": [
+          "organizations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "org-1"
+          },
+          {
+            "name": "announcementId",
+            "in": "path",
+            "required": true,
+            "description": "Organization announcement identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "announcement-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DeleteOrganizationAnnouncementResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization announcement deleted successfully.",
+                  "data": {
+                    "deleted": true,
+                    "announcementId": "announcement-1"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -15364,7 +16097,152 @@
           }
         ]
       },
-      "OrganizationDetailOrganization": {
+      "PublicOrganizationProfileFields": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "nullable": true
+          },
+          "websiteUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "addressLine1": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "addressLine2": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120,
+            "nullable": true
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 120,
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "maxLength": 120,
+            "nullable": true
+          },
+          "postalCode": {
+            "type": "string",
+            "maxLength": 20,
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "customFields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "nullable": true
+          }
+        }
+      },
+      "PublicOrganizationStats": {
+        "type": "object",
+        "required": [
+          "publishedPostingCount"
+        ],
+        "properties": {
+          "publishedPostingCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PublicOrganizationSummary": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "createdAt",
+              "updatedAt",
+              "publishedPostingCount"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publishedPostingCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/PublicOrganizationProfileFields"
+          }
+        ]
+      },
+      "PublicOrganizationListResult": {
+        "type": "object",
+        "required": [
+          "organizations",
+          "pagination"
+        ],
+        "properties": {
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicOrganizationSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          },
+          "query": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicOrganizationDetailResult": {
+        "type": "object",
+        "required": [
+          "organization",
+          "stats"
+        ],
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/PublicOrganizationSummary"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/PublicOrganizationStats"
+          }
+        }
+      },
+      "OrganizationWorkspaceDetailOrganization": {
         "allOf": [
           {
             "type": "object",
@@ -15517,7 +16395,7 @@
           }
         }
       },
-      "OrganizationDetailResult": {
+      "OrganizationWorkspaceDetailResult": {
         "type": "object",
         "required": [
           "organization",
@@ -15527,7 +16405,7 @@
         ],
         "properties": {
           "organization": {
-            "$ref": "#/components/schemas/OrganizationDetailOrganization"
+            "$ref": "#/components/schemas/OrganizationWorkspaceDetailOrganization"
           },
           "viewerRole": {
             "$ref": "#/components/schemas/OrganizationRole"
@@ -15735,7 +16613,12 @@
           "seasonal_pricing.created",
           "seasonal_pricing.updated",
           "seasonal_pricing.deleted",
-          "seasonal_pricing.restored"
+          "seasonal_pricing.restored",
+          "announcement.created",
+          "announcement.updated",
+          "announcement.published",
+          "announcement.unpublished",
+          "announcement.deleted"
         ]
       },
       "OrganizationAuditResourceType": {
@@ -15746,7 +16629,8 @@
           "member",
           "posting",
           "posting_availability",
-          "seasonal_pricing"
+          "seasonal_pricing",
+          "announcement"
         ]
       },
       "OrganizationAuditActorSummary": {
@@ -15881,6 +16765,154 @@
           },
           "auditLog": {
             "$ref": "#/components/schemas/OrganizationAuditRecord"
+          }
+        }
+      },
+      "OrganizationAnnouncementStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "published"
+        ]
+      },
+      "OrganizationAnnouncementAuthorSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "username": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "OrganizationAnnouncementRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "organizationId",
+          "title",
+          "body",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/OrganizationAnnouncementAuthorSummary"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationAnnouncementStatus"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OrganizationAnnouncementListResult": {
+        "type": "object",
+        "required": [
+          "announcements",
+          "pagination"
+        ],
+        "properties": {
+          "announcements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationAnnouncementRecord"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "CreateOrganizationAnnouncementRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "body"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationAnnouncementStatus"
+          }
+        }
+      },
+      "UpdateOrganizationAnnouncementRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationAnnouncementStatus"
+          }
+        }
+      },
+      "DeleteOrganizationAnnouncementResult": {
+        "type": "object",
+        "required": [
+          "deleted",
+          "announcementId"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "announcementId": {
+            "type": "string"
           }
         }
       },

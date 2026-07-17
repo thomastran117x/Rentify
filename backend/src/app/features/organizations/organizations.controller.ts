@@ -26,6 +26,12 @@ import {
   listOrganizationAuditQuerySchema,
   organizationAuditIdSchema,
 } from "@/features/organizations/organization-audit.model";
+import {
+  createOrganizationAnnouncementSchema,
+  listOrganizationAnnouncementsQuerySchema,
+  organizationAnnouncementIdSchema,
+  updateOrganizationAnnouncementSchema,
+} from "@/features/organizations/organization-announcement.model";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
 export class OrganizationsController {
@@ -119,6 +125,82 @@ export class OrganizationsController {
     });
     return ok(context, result, {
       message: "Organization version restored successfully.",
+    });
+  };
+
+  listAnnouncements = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const query = listOrganizationAnnouncementsQuerySchema.parse(
+      context.req.query(),
+    );
+    const result = await this.organizationsService.listAnnouncements({
+      ...query,
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+    });
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
+
+  createAnnouncement = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      createOrganizationAnnouncementSchema,
+    );
+    const result = await this.organizationsService.createAnnouncement({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      ...body,
+    });
+    return created(context, result, {
+      message: "Organization announcement created successfully.",
+    });
+  };
+
+  updateAnnouncement = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      updateOrganizationAnnouncementSchema,
+    );
+    const result = await this.organizationsService.updateAnnouncement({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      announcementId: this.requireRouteValue(
+        context,
+        "announcementId",
+        organizationAnnouncementIdSchema,
+        "Route parameter validation failed.",
+      ),
+      ...body,
+    });
+    return ok(context, result, {
+      message: "Organization announcement updated successfully.",
+    });
+  };
+
+  deleteAnnouncement = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.deleteAnnouncement({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      announcementId: this.requireRouteValue(
+        context,
+        "announcementId",
+        organizationAnnouncementIdSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result, {
+      message: "Organization announcement deleted successfully.",
     });
   };
 

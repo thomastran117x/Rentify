@@ -20,6 +20,10 @@ const {
   createInviteMock,
   listAuditMock,
   restoreAuditEntryMock,
+  listAnnouncementsMock,
+  createAnnouncementMock,
+  updateAnnouncementMock,
+  deleteAnnouncementMock,
   refreshMock,
   listMinePostingsMock,
   publishPostingMock,
@@ -46,6 +50,10 @@ const {
   createInviteMock: vi.fn(),
   listAuditMock: vi.fn(),
   restoreAuditEntryMock: vi.fn(),
+  listAnnouncementsMock: vi.fn(),
+  createAnnouncementMock: vi.fn(),
+  updateAnnouncementMock: vi.fn(),
+  deleteAnnouncementMock: vi.fn(),
   refreshMock: vi.fn(),
   listMinePostingsMock: vi.fn(),
   publishPostingMock: vi.fn(),
@@ -131,6 +139,10 @@ vi.mock("@/lib/organizations/api", () => ({
     createInvite: createInviteMock,
     listAudit: listAuditMock,
     restoreAuditEntry: restoreAuditEntryMock,
+    listAnnouncements: listAnnouncementsMock,
+    createAnnouncement: createAnnouncementMock,
+    updateAnnouncement: updateAnnouncementMock,
+    deleteAnnouncement: deleteAnnouncementMock,
     revokeInvite: revokeInviteMock,
     updateMemberRole: updateMemberRoleMock,
     removeMember: removeMemberMock,
@@ -305,6 +317,39 @@ describe("OrganizationWorkspace", () => {
     restoreAuditEntryMock.mockResolvedValue({
       restored: true,
       auditLog: { id: "audit-restore" },
+    });
+    listAnnouncementsMock.mockResolvedValue({
+      announcements: [],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+    createAnnouncementMock.mockResolvedValue({
+      id: "announcement-1",
+      organizationId: "org-1",
+      title: "Weekend update",
+      body: "We now accept weekend bookings.",
+      status: "published",
+      createdAt: "2026-05-12T00:00:00.000Z",
+      updatedAt: "2026-05-12T00:00:00.000Z",
+    });
+    updateAnnouncementMock.mockResolvedValue({
+      id: "announcement-1",
+      organizationId: "org-1",
+      title: "Weekend update",
+      body: "We now accept weekend bookings.",
+      status: "draft",
+      createdAt: "2026-05-12T00:00:00.000Z",
+      updatedAt: "2026-05-12T00:00:00.000Z",
+    });
+    deleteAnnouncementMock.mockResolvedValue({
+      deleted: true,
+      announcementId: "announcement-1",
     });
     createUploadUrlMock.mockResolvedValue(
       buildBlobTarget("organizations/user-1/logo-default.png"),
@@ -492,6 +537,136 @@ describe("OrganizationWorkspace", () => {
     await waitFor(() => {
       expect(restoreAuditEntryMock).toHaveBeenCalledWith("org-1", "audit-1");
     });
+  });
+
+  it("creates an announcement from the Announcements tab", async () => {
+    const user = userEvent.setup();
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
+
+    await user.type(await screen.findByLabelText("Title"), "Weekend update");
+    await user.type(
+      screen.getByLabelText("Message"),
+      "We now accept weekend bookings.",
+    );
+    await user.click(screen.getByRole("button", { name: "Post announcement" }));
+
+    await waitFor(() => {
+      expect(createAnnouncementMock).toHaveBeenCalledWith("org-1", {
+        title: "Weekend update",
+        body: "We now accept weekend bookings.",
+        status: "draft",
+      });
+    });
+  });
+
+  it("deletes an announcement from the Announcements tab", async () => {
+    const user = userEvent.setup();
+    listAnnouncementsMock.mockResolvedValue({
+      announcements: [
+        {
+          id: "announcement-1",
+          organizationId: "org-1",
+          author: {
+            id: "user-1",
+            email: "owner@example.com",
+            username: "owner-one",
+          },
+          title: "Weekend update",
+          body: "We now accept weekend bookings.",
+          status: "published",
+          publishedAt: "2026-05-12T00:00:00.000Z",
+          createdAt: "2026-05-12T00:00:00.000Z",
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(deleteAnnouncementMock).toHaveBeenCalledWith(
+        "org-1",
+        "announcement-1",
+      );
+    });
+  });
+
+  it("shows announcements read-only for operators", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: setSessionMock,
+      session: buildSession("operator"),
+    });
+    getWorkspaceByIdMock.mockResolvedValue(buildDetailPayload("operator"));
+    getMineMock.mockResolvedValue({
+      memberships: [
+        {
+          membershipId: "membership-2",
+          id: "org-1",
+          name: "Northwind",
+          role: "operator" as const,
+          joinedAt: "2026-05-03T00:00:00.000Z",
+          isActive: true,
+        },
+      ],
+      activeOrganization: {
+        id: "org-1",
+        name: "Northwind",
+        role: "operator" as const,
+      },
+    });
+    listAnnouncementsMock.mockResolvedValue({
+      announcements: [
+        {
+          id: "announcement-1",
+          organizationId: "org-1",
+          title: "Weekend update",
+          body: "We now accept weekend bookings.",
+          status: "published",
+          publishedAt: "2026-05-12T00:00:00.000Z",
+          createdAt: "2026-05-12T00:00:00.000Z",
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    render(<OrganizationWorkspace />);
+
+    await screen.findByRole("heading", { name: "Northwind" });
+    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
+
+    expect(await screen.findByText("Weekend update")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Post announcement" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
   });
 
   it("cleans up an earlier staged logo when it is replaced before saving", async () => {

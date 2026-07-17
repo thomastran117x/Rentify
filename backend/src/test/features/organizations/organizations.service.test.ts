@@ -117,6 +117,7 @@ function createService(overrides?: {
   seasonalPricingRepository?: Record<string, jest.Mock>;
   blobService?: Record<string, jest.Mock>;
   publicSearchService?: Record<string, jest.Mock>;
+  announcementService?: Record<string, jest.Mock>;
 }) {
   const repository = {
     listMembershipsByUserId: jest.fn(async () => []),
@@ -242,6 +243,13 @@ function createService(overrides?: {
     })),
     ...(overrides?.publicSearchService ?? {}),
   };
+  const announcementService = {
+    list: jest.fn(async () => ({ announcements: [], pagination: {} })),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    ...(overrides?.announcementService ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
@@ -253,6 +261,7 @@ function createService(overrides?: {
       seasonalPricingRepository as any,
       blobService as any,
       publicSearchService as any,
+      announcementService as any,
     ),
     repository,
     authRepository,
@@ -262,6 +271,7 @@ function createService(overrides?: {
     seasonalPricingRepository,
     blobService,
     publicSearchService,
+    announcementService,
   };
 }
 

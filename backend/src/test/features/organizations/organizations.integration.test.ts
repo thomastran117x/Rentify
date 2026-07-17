@@ -315,4 +315,100 @@ describe("Organizations persistence integration", () => {
       name: beforeOrganization.name,
     });
   });
+
+  it("creates, lists, and audits announcements while enforcing role visibility", async () => {
+    const manager = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const operator = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/announcements`,
+      )}`,
+      {
+        method: "POST",
+        headers: manager.headers(),
+        body: JSON.stringify({
+          title: "Quarterly roadmap",
+          body: "Here is what we are shipping this quarter.",
+          status: "published",
+        }),
+      },
+    );
+
+    expect(createResponse.status).toBe(201);
+    const createBody = (await createResponse.json()) as {
+      data: { id: string; status: string };
+    };
+    const announcementId = createBody.data.id;
+    expect(createBody.data.status).toBe("published");
+
+    const auditEntry =
+      await persistenceApp.prisma.organizationAuditLog.findFirst({
+        where: {
+          organizationId: ORGANIZATION_ID,
+          resourceType: "announcement",
+          resourceId: announcementId,
+          action: "announcement.created",
+        },
+      });
+    expect(auditEntry).not.toBeNull();
+
+    const managerListResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/announcements`,
+      )}`,
+      {
+        method: "GET",
+        headers: manager.headers(),
+      },
+    );
+    expect(managerListResponse.status).toBe(200);
+    const managerList = (await managerListResponse.json()) as {
+      data: { announcements: Array<{ status: string }> };
+    };
+    expect(
+      managerList.data.announcements.some(
+        (announcement) => announcement.status === "draft",
+      ),
+    ).toBe(true);
+
+    const operatorListResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/announcements`,
+      )}`,
+      {
+        method: "GET",
+        headers: operator.headers(),
+      },
+    );
+    expect(operatorListResponse.status).toBe(200);
+    const operatorList = (await operatorListResponse.json()) as {
+      data: { announcements: Array<{ status: string }> };
+    };
+    expect(operatorList.data.announcements.length).toBeGreaterThan(0);
+    expect(
+      operatorList.data.announcements.every(
+        (announcement) => announcement.status === "published",
+      ),
+    ).toBe(true);
+
+    const operatorCreateResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(
+        `/organizations/${ORGANIZATION_ID}/announcements`,
+      )}`,
+      {
+        method: "POST",
+        headers: operator.headers(),
+        body: JSON.stringify({
+          title: "Operator attempt",
+          body: "Operators should not be able to post announcements.",
+        }),
+      },
+    );
+    expect(operatorCreateResponse.status).toBe(403);
+  });
 });
