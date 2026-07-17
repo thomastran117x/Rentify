@@ -253,8 +253,8 @@ When backend routes, request or response payloads, authentication requirements, 
 Use the existing backend commands:
 
 ```bash
-npm run openapi:generate
-npm run openapi:check
+npm --prefix backend run openapi:generate
+npm --prefix backend run openapi:check
 ```
 
 Recommended response shapes remain:
