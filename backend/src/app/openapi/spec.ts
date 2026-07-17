@@ -239,6 +239,33 @@ const organizationAuditListExample = {
     hasPreviousPage: false,
   },
 };
+const organizationAnnouncementExample = {
+  id: "announcement-1",
+  organizationId: "org-1",
+  author: {
+    id: "user-1",
+    email: "owner1@rentify.local",
+    username: "owner-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+  },
+  title: "Summer availability update",
+  body: "Our downtown studios now accept weekend bookings.",
+  status: "published",
+  publishedAt: "2026-05-28T11:15:00.000Z",
+  createdAt: "2026-05-28T11:15:00.000Z",
+  updatedAt: "2026-05-28T11:15:00.000Z",
+};
+const organizationAnnouncementListExample = {
+  announcements: [organizationAnnouncementExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
 const organizationAuditRestoreExample = {
   restored: true,
   auditLog: {
@@ -2414,6 +2441,160 @@ function buildOperations(): OperationDefinition[] {
           organizationAuditRestoreExample,
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/announcements",
+      operationId: "listOrganizationAnnouncements",
+      summary: "List organization announcements",
+      description:
+        "Returns paginated announcements for organization members. Managers see drafts and published announcements; operators and read-only members only receive published announcements.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager", "operator"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of announcements per page.",
+          20,
+        ),
+        queryParam(
+          "status",
+          schemaRef("OrganizationAnnouncementStatus"),
+          "Optional announcement status filter (managers only).",
+          "published",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationAnnouncementListResult",
+          organizationAnnouncementListExample,
+          "Organization announcements returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationAnnouncementListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/announcements",
+      operationId: "createOrganizationAnnouncement",
+      summary: "Create an organization announcement",
+      description:
+        "Creates a new announcement for the organization. Only primary managers and managers can create announcements.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      requestBody: requestBody("CreateOrganizationAnnouncementRequest", {
+        title: "Summer availability update",
+        body: "Our downtown studios now accept weekend bookings.",
+        status: "published",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Organization announcement created successfully.",
+          "OrganizationAnnouncementRecord",
+          organizationAnnouncementExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id/announcements/:announcementId",
+      operationId: "updateOrganizationAnnouncement",
+      summary: "Update an organization announcement",
+      description:
+        "Updates an existing announcement. Only primary managers and managers can update announcements. Changing status to published records a publish event in the audit trail.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "announcementId",
+          "Organization announcement identifier.",
+          "announcement-1",
+        ),
+      ],
+      requestBody: requestBody("UpdateOrganizationAnnouncementRequest", {
+        status: "published",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization announcement updated successfully.",
+          "OrganizationAnnouncementRecord",
+          organizationAnnouncementExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/announcements/:announcementId",
+      operationId: "deleteOrganizationAnnouncement",
+      summary: "Delete an organization announcement",
+      description:
+        "Deletes an announcement. Only primary managers and managers can delete announcements.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "announcementId",
+          "Organization announcement identifier.",
+          "announcement-1",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization announcement deleted successfully.",
+          "DeleteOrganizationAnnouncementResult",
+          {
+            deleted: true,
+            announcementId: "announcement-1",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },
     {
@@ -6233,6 +6414,11 @@ function buildComponents(): Record<string, unknown> {
           "seasonal_pricing.updated",
           "seasonal_pricing.deleted",
           "seasonal_pricing.restored",
+          "announcement.created",
+          "announcement.updated",
+          "announcement.published",
+          "announcement.unpublished",
+          "announcement.deleted",
         ],
       },
       OrganizationAuditResourceType: {
@@ -6244,6 +6430,7 @@ function buildComponents(): Record<string, unknown> {
           "posting",
           "posting_availability",
           "seasonal_pricing",
+          "announcement",
         ],
       },
       OrganizationAuditActorSummary: {
@@ -6316,6 +6503,79 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           restored: { type: "boolean" },
           auditLog: schemaRef("OrganizationAuditRecord"),
+        },
+      },
+      OrganizationAnnouncementStatus: {
+        type: "string",
+        enum: ["draft", "published"],
+      },
+      OrganizationAnnouncementAuthorSummary: {
+        type: "object",
+        required: ["id", "email", "username"],
+        properties: {
+          id: { type: "string" },
+          email: { type: "string", format: "email" },
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+        },
+      },
+      OrganizationAnnouncementRecord: {
+        type: "object",
+        required: [
+          "id",
+          "organizationId",
+          "title",
+          "body",
+          "status",
+          "createdAt",
+          "updatedAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          organizationId: { type: "string" },
+          author: schemaRef("OrganizationAnnouncementAuthorSummary"),
+          title: { type: "string" },
+          body: { type: "string" },
+          status: schemaRef("OrganizationAnnouncementStatus"),
+          publishedAt: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationAnnouncementListResult: {
+        type: "object",
+        required: ["announcements", "pagination"],
+        properties: {
+          announcements: {
+            type: "array",
+            items: schemaRef("OrganizationAnnouncementRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+        },
+      },
+      CreateOrganizationAnnouncementRequest: {
+        type: "object",
+        required: ["title", "body"],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          body: { type: "string", minLength: 1, maxLength: 10000 },
+          status: schemaRef("OrganizationAnnouncementStatus"),
+        },
+      },
+      UpdateOrganizationAnnouncementRequest: {
+        type: "object",
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          body: { type: "string", minLength: 1, maxLength: 10000 },
+          status: schemaRef("OrganizationAnnouncementStatus"),
+        },
+      },
+      DeleteOrganizationAnnouncementResult: {
+        type: "object",
+        required: ["deleted", "announcementId"],
+        properties: {
+          deleted: { type: "boolean" },
+          announcementId: { type: "string" },
         },
       },
       AuthSessionResponseData: {

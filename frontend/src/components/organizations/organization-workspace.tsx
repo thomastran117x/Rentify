@@ -19,6 +19,8 @@ import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
   type CreateOrganizationInviteInput,
+  type OrganizationAnnouncementRecord,
+  type OrganizationAnnouncementStatus,
   type OrganizationAuditRecord,
   type OrganizationDetailResult,
   type OrganizationInviteStatus,
@@ -120,7 +122,13 @@ function formatPostingVariant(posting: PostingRecord): string {
 }
 
 type PostingLifecycleAction = "publish" | "pause" | "unpause" | "archive";
-type WorkspaceTab = "overview" | "team" | "postings" | "activity" | "settings";
+type WorkspaceTab =
+  | "overview"
+  | "team"
+  | "postings"
+  | "announcements"
+  | "activity"
+  | "settings";
 
 function postingLifecycleActions(status: PostingStatus): Array<{
   id: PostingLifecycleAction;
@@ -190,6 +198,12 @@ const WORKSPACE_TAB_DEFINITIONS: Array<{
       "Listing previews and lifecycle actions for this organization.",
   },
   {
+    id: "announcements",
+    label: "Announcements",
+    description:
+      "Organization-wide updates. Managers write them; everyone can read.",
+  },
+  {
     id: "activity",
     label: "Activity",
     description: "Recent changes, audit history, and restorable versions.",
@@ -208,12 +222,19 @@ function isWorkspaceTab(value: string | null): value is WorkspaceTab {
 
 function getAllowedTabs(role?: OrganizationRole): WorkspaceTab[] {
   if (role === "primary_manager") {
-    return ["overview", "team", "postings", "activity", "settings"];
+    return [
+      "overview",
+      "team",
+      "postings",
+      "announcements",
+      "activity",
+      "settings",
+    ];
   }
   if (role === "manager") {
-    return ["overview", "team", "postings", "activity"];
+    return ["overview", "team", "postings", "announcements", "activity"];
   }
-  return ["overview", "team", "postings"];
+  return ["overview", "team", "postings", "announcements"];
 }
 
 function resolveWorkspaceTab(
@@ -459,6 +480,30 @@ function emptyProfileForm(): ProfileFormValue {
     customFields: [],
   };
 }
+
+interface AnnouncementFormValue {
+  title: string;
+  body: string;
+  status: OrganizationAnnouncementStatus;
+}
+
+function emptyAnnouncementForm(): AnnouncementFormValue {
+  return {
+    title: "",
+    body: "",
+    status: "draft",
+  };
+}
+
+const ANNOUNCEMENT_STATUS_STYLES: Record<
+  OrganizationAnnouncementStatus,
+  string
+> = {
+  draft:
+    "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  published:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+};
 
 function profileFormFromDetail(
   organization: OrganizationDetailResult["organization"],
@@ -1356,6 +1401,7 @@ function OrganizationTabsBar({
   postingsTotal,
   inviteCount,
   auditCount,
+  announcementsCount,
 }: {
   activeTab: WorkspaceTab;
   allowedTabs: WorkspaceTab[];
@@ -1364,6 +1410,7 @@ function OrganizationTabsBar({
   postingsTotal: number;
   inviteCount: number;
   auditCount: number;
+  announcementsCount: number;
 }) {
   const visibleTabs = WORKSPACE_TAB_DEFINITIONS.filter((tab) =>
     allowedTabs.includes(tab.id),
@@ -1392,6 +1439,9 @@ function OrganizationTabsBar({
     }
     if (tab === "postings") {
       return `${postingsTotal} listings`;
+    }
+    if (tab === "announcements") {
+      return `${announcementsCount} posted`;
     }
     if (tab === "activity") {
       return `${auditCount} recent`;
@@ -2074,6 +2124,233 @@ function ActivityPanel({
   );
 }
 
+function AnnouncementsPanel({
+  announcements,
+  loading,
+  error,
+  canManage,
+  form,
+  editingId,
+  savingId,
+  onFormChange,
+  onSubmit,
+  onCancelEdit,
+  onEdit,
+  onToggleStatus,
+  onDelete,
+}: {
+  announcements: OrganizationAnnouncementRecord[];
+  loading: boolean;
+  error: string | null;
+  canManage: boolean;
+  form: AnnouncementFormValue;
+  editingId: string | null;
+  savingId: string | null;
+  onFormChange: (value: AnnouncementFormValue) => void;
+  onSubmit: () => void;
+  onCancelEdit: () => void;
+  onEdit: (announcement: OrganizationAnnouncementRecord) => void;
+  onToggleStatus: (announcement: OrganizationAnnouncementRecord) => void;
+  onDelete: (announcementId: string) => void;
+}) {
+  const isCreating = savingId === "new";
+
+  return (
+    <div className="space-y-6">
+      {canManage ? (
+        <SectionCard
+          eyebrow="Announcements"
+          title={editingId ? "Edit announcement" : "Post an announcement"}
+          description="Share updates with everyone in this organization. Drafts stay hidden from operators until published."
+        >
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="announcement-title"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
+              >
+                Title
+              </label>
+              <input
+                id="announcement-title"
+                type="text"
+                value={form.title}
+                maxLength={200}
+                onChange={(event) =>
+                  onFormChange({ ...form, title: event.target.value })
+                }
+                placeholder="Weekend booking update"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="announcement-body"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
+              >
+                Message
+              </label>
+              <textarea
+                id="announcement-body"
+                value={form.body}
+                maxLength={10000}
+                rows={4}
+                onChange={(event) =>
+                  onFormChange({ ...form, body: event.target.value })
+                }
+                placeholder="Let your team know what's new."
+                className={`${inputClass} h-auto py-3`}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="announcement-status"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
+              >
+                Visibility
+              </label>
+              <select
+                id="announcement-status"
+                value={form.status}
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    status: event.target
+                      .value as OrganizationAnnouncementStatus,
+                  })
+                }
+                className={inputClass}
+              >
+                <option value="draft">Draft (only managers)</option>
+                <option value="published">Published (everyone)</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={savingId !== null}
+                className={primaryButtonClass}
+              >
+                {isCreating || (editingId && savingId === editingId)
+                  ? "Saving..."
+                  : editingId
+                    ? "Save changes"
+                    : "Post announcement"}
+              </button>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  disabled={savingId !== null}
+                  className={secondaryButtonClass}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      <SectionCard
+        eyebrow="Team updates"
+        title="Announcements"
+        description={
+          canManage
+            ? "Everything you've shared with this organization."
+            : "Updates shared by your organization managers."
+        }
+        action={
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            {announcements.length} posted
+          </span>
+        }
+      >
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((key) => (
+              <div
+                key={key}
+                className="h-24 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/70"
+              />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            {error}
+          </div>
+        ) : announcements.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            {canManage
+              ? "No announcements yet. Post the first update above."
+              : "No announcements yet."}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {announcements.map((announcement) => (
+              <div
+                key={announcement.id}
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4 lg:flex-row lg:items-start lg:justify-between dark:border-slate-800 dark:bg-slate-950/40"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-slate-950 dark:text-white">
+                      {announcement.title}
+                    </p>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${ANNOUNCEMENT_STATUS_STYLES[announcement.status]}`}
+                    >
+                      {announcement.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">
+                    {announcement.body}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {announcement.author?.username ?? "System"} /{" "}
+                    {formatDateTime(announcement.createdAt)}
+                  </p>
+                </div>
+                {canManage ? (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onToggleStatus(announcement)}
+                      disabled={savingId !== null}
+                      className={rowActionMutedClass}
+                    >
+                      {announcement.status === "published"
+                        ? "Unpublish"
+                        : "Publish"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(announcement)}
+                      disabled={savingId !== null}
+                      className={rowActionMutedClass}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(announcement.id)}
+                      disabled={savingId !== null}
+                      className={rowActionMutedClass}
+                    >
+                      {savingId === announcement.id ? "Working..." : "Delete"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
 function SettingsPanel({
   organizationName,
   profileForm,
@@ -2170,6 +2447,21 @@ export function OrganizationWorkspace() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [restoringAuditId, setRestoringAuditId] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<
+    OrganizationAnnouncementRecord[]
+  >([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [announcementsError, setAnnouncementsError] = useState<string | null>(
+    null,
+  );
+  const [announcementForm, setAnnouncementForm] =
+    useState<AnnouncementFormValue>(emptyAnnouncementForm());
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<
+    string | null
+  >(null);
+  const [announcementSavingId, setAnnouncementSavingId] = useState<
+    string | null
+  >(null);
   const [pendingTab, setPendingTab] = useState<WorkspaceTab | null>(null);
   const stagedLogoBlobNamesRef = useRef<Set<string>>(new Set());
 
@@ -2509,6 +2801,55 @@ export function OrganizationWorkspace() {
       active = false;
     };
   }, [detail?.viewerRole, selectedOrganizationId, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !selectedOrganizationId) {
+      setAnnouncements([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadAnnouncements() {
+      setAnnouncementsLoading(true);
+      setAnnouncementsError(null);
+
+      try {
+        const result = await organizationsApi.listAnnouncements(
+          selectedOrganizationId!,
+        );
+
+        if (!active) {
+          return;
+        }
+
+        startTransition(() => {
+          setAnnouncements(result.announcements);
+        });
+      } catch (nextError) {
+        if (active) {
+          setAnnouncements([]);
+          setAnnouncementsError(
+            getApiErrorMessage(nextError, {
+              action: "load organization announcements",
+              fallback:
+                "We couldn't load this organization's announcements right now.",
+            }),
+          );
+        }
+      } finally {
+        if (active) {
+          setAnnouncementsLoading(false);
+        }
+      }
+    }
+
+    void loadAnnouncements();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedOrganizationId, status]);
 
   async function refresh(selectedId = selectedOrganizationId) {
     const nextWorkspace = await organizationsApi.getMine();
@@ -2857,6 +3198,178 @@ export function OrganizationWorkspace() {
     }
   }
 
+  async function reloadAnnouncements(organizationId: string) {
+    const result = await organizationsApi.listAnnouncements(organizationId);
+    startTransition(() => {
+      setAnnouncements(result.announcements);
+    });
+  }
+
+  function handleEditAnnouncement(
+    announcement: OrganizationAnnouncementRecord,
+  ) {
+    setEditingAnnouncementId(announcement.id);
+    setAnnouncementForm({
+      title: announcement.title,
+      body: announcement.body,
+      status: announcement.status,
+    });
+  }
+
+  function handleCancelEditAnnouncement() {
+    setEditingAnnouncementId(null);
+    setAnnouncementForm(emptyAnnouncementForm());
+  }
+
+  async function handleSubmitAnnouncement() {
+    if (!detail) {
+      return;
+    }
+
+    const title = announcementForm.title.trim();
+    const body = announcementForm.body.trim();
+
+    if (!title || !body) {
+      showWorkspaceToast(
+        "Couldn't save announcement",
+        "Add a title and a message before saving.",
+      );
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    setAnnouncementSavingId(editingAnnouncementId ?? "new");
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (editingAnnouncementId) {
+        await organizationsApi.updateAnnouncement(
+          organizationId,
+          editingAnnouncementId,
+          { title, body, status: announcementForm.status },
+        );
+        setMessage("Announcement updated.");
+      } else {
+        await organizationsApi.createAnnouncement(organizationId, {
+          title,
+          body,
+          status: announcementForm.status,
+        });
+        setMessage("Announcement posted.");
+      }
+
+      await Promise.all([
+        reloadAnnouncements(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      handleCancelEditAnnouncement();
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "save that announcement",
+        "We couldn't save that announcement right now. Please try again.",
+      );
+      setErrorTitle("Couldn't save announcement");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't save announcement", nextMessage);
+    } finally {
+      setAnnouncementSavingId(null);
+    }
+  }
+
+  async function handleToggleAnnouncementStatus(
+    announcement: OrganizationAnnouncementRecord,
+  ) {
+    if (!detail) {
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    const nextStatus: OrganizationAnnouncementStatus =
+      announcement.status === "published" ? "draft" : "published";
+    setAnnouncementSavingId(announcement.id);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.updateAnnouncement(
+        organizationId,
+        announcement.id,
+        { status: nextStatus },
+      );
+      await Promise.all([
+        reloadAnnouncements(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      setMessage(
+        nextStatus === "published"
+          ? "Announcement published."
+          : "Announcement moved to draft.",
+      );
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "update that announcement",
+        "We couldn't update that announcement right now. Please try again.",
+      );
+      setErrorTitle("Couldn't update announcement");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't update announcement", nextMessage);
+    } finally {
+      setAnnouncementSavingId(null);
+    }
+  }
+
+  async function handleDeleteAnnouncement(announcementId: string) {
+    if (!detail) {
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    setAnnouncementSavingId(announcementId);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.deleteAnnouncement(organizationId, announcementId);
+      if (editingAnnouncementId === announcementId) {
+        handleCancelEditAnnouncement();
+      }
+      await Promise.all([
+        reloadAnnouncements(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      setMessage("Announcement deleted.");
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "delete that announcement",
+        "We couldn't delete that announcement right now. Please try again.",
+      );
+      setErrorTitle("Couldn't delete announcement");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't delete announcement", nextMessage);
+    } finally {
+      setAnnouncementSavingId(null);
+    }
+  }
+
   const allowedTabs = getAllowedTabs(detail?.viewerRole);
   const resolvedTab = detail
     ? resolveWorkspaceTab(rawTab, allowedTabs)
@@ -2946,6 +3459,9 @@ export function OrganizationWorkspace() {
       })
     : false;
   const canSeeActivity = detail?.viewerRole !== "operator";
+  const canManageAnnouncements =
+    detail?.viewerRole === "primary_manager" ||
+    detail?.viewerRole === "manager";
   const canEditSettings = detail?.viewerRole === "primary_manager";
 
   return (
@@ -3003,6 +3519,7 @@ export function OrganizationWorkspace() {
             postingsTotal={postingsTotal}
             inviteCount={inviteCount}
             auditCount={auditLogs.length}
+            announcementsCount={announcements.length}
           />
 
           <WorkspaceTabPanel tab="overview" activeTab={currentTab}>
@@ -3048,6 +3565,28 @@ export function OrganizationWorkspace() {
               saving={saving}
               onPostingLifecycle={(postingId, action) =>
                 void handlePostingLifecycle(postingId, action)
+              }
+            />
+          </WorkspaceTabPanel>
+
+          <WorkspaceTabPanel tab="announcements" activeTab={currentTab}>
+            <AnnouncementsPanel
+              announcements={announcements}
+              loading={announcementsLoading}
+              error={announcementsError}
+              canManage={canManageAnnouncements}
+              form={announcementForm}
+              editingId={editingAnnouncementId}
+              savingId={announcementSavingId}
+              onFormChange={setAnnouncementForm}
+              onSubmit={() => void handleSubmitAnnouncement()}
+              onCancelEdit={handleCancelEditAnnouncement}
+              onEdit={handleEditAnnouncement}
+              onToggleStatus={(announcement) =>
+                void handleToggleAnnouncementStatus(announcement)
+              }
+              onDelete={(announcementId) =>
+                void handleDeleteAnnouncement(announcementId)
               }
             />
           </WorkspaceTabPanel>

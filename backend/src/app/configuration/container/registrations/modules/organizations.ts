@@ -4,6 +4,8 @@ import { OrganizationsController } from "@/features/organizations/organizations.
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationAuditRepository } from "@/features/organizations/organization-audit.repository";
 import { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import { OrganizationAnnouncementRepository } from "@/features/organizations/organization-announcement.repository";
+import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
@@ -43,6 +45,27 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         ),
     });
     container.register({
+      token: containerTokens.organizationAnnouncementRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new OrganizationAnnouncementRepository(),
+    });
+    container.register({
+      token: containerTokens.organizationAnnouncementService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.organizationAnnouncementRepository,
+        containerTokens.organizationAccessService,
+        containerTokens.organizationAuditService,
+      ],
+      resolve: ({ resolve }) =>
+        new OrganizationAnnouncementService(
+          resolve(containerTokens.organizationAnnouncementRepository),
+          resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.organizationAuditService),
+        ),
+    });
+    container.register({
       token: containerTokens.organizationsService,
       lifetime: "scoped",
       dependencies: [
@@ -54,6 +77,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.seasonalPricingRepository,
         containerTokens.blobService,
         containerTokens.organizationsPublicSearchService,
+        containerTokens.organizationAnnouncementService,
       ],
       resolve: ({ resolve }) =>
         new OrganizationsService(
@@ -65,6 +89,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.seasonalPricingRepository),
           resolve(containerTokens.blobService),
           resolve(containerTokens.organizationsPublicSearchService),
+          resolve(containerTokens.organizationAnnouncementService),
         ),
     });
     container.register({

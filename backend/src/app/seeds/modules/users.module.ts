@@ -140,6 +140,44 @@ export const usersSeedModule: SeedModule = {
             preferredOrganizationId: organizationId,
           },
         });
+
+        const announcementIndex = ownerOrganizationIndex - 1;
+        const publishedAnnouncementId = createFixtureId(
+          1090,
+          announcementIndex * 2,
+        );
+        const draftAnnouncementId = createFixtureId(
+          1090,
+          announcementIndex * 2 + 1,
+        );
+
+        await prisma.organizationAnnouncement.upsert({
+          where: { id: publishedAnnouncementId },
+          update: {},
+          create: {
+            id: publishedAnnouncementId,
+            organizationId,
+            authorUserId: user.id,
+            title: "Welcome to our organization workspace",
+            body: "This is where we will share important updates with the whole team. Check back regularly for the latest news.",
+            status: "published",
+            publishedAt: new Date(),
+          },
+        });
+
+        await prisma.organizationAnnouncement.upsert({
+          where: { id: draftAnnouncementId },
+          update: {},
+          create: {
+            id: draftAnnouncementId,
+            organizationId,
+            authorUserId: user.id,
+            title: "Upcoming maintenance window (draft)",
+            body: "We are planning a short maintenance window next week. Details to follow once the schedule is confirmed.",
+            status: "draft",
+            publishedAt: null,
+          },
+        });
       }
     }
 

@@ -7,6 +7,16 @@ import { loggerFactory } from "@/configuration/logging";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { BlobService } from "@/features/blob/blob.service";
 import { EmailService } from "@/features/email/email.service";
+import type { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
+import type {
+  CreateOrganizationAnnouncementInput,
+  DeleteOrganizationAnnouncementInput,
+  DeleteOrganizationAnnouncementResult,
+  ListOrganizationAnnouncementsInput,
+  ListOrganizationAnnouncementsResult,
+  OrganizationAnnouncementRecord,
+  UpdateOrganizationAnnouncementInput,
+} from "@/features/organizations/organization-announcement.model";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
   createAuditChanges as buildAuditChanges,
@@ -74,6 +84,7 @@ export class OrganizationsService {
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly blobService: BlobService,
     private readonly organizationsPublicSearchService: OrganizationsPublicSearchService,
+    private readonly organizationAnnouncementService: OrganizationAnnouncementService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -172,6 +183,30 @@ export class OrganizationsService {
     input: ListOrganizationAuditInput,
   ): Promise<ListOrganizationAuditResult> {
     return this.organizationAuditService.list(input);
+  }
+
+  async listAnnouncements(
+    input: ListOrganizationAnnouncementsInput,
+  ): Promise<ListOrganizationAnnouncementsResult> {
+    return this.organizationAnnouncementService.list(input);
+  }
+
+  async createAnnouncement(
+    input: CreateOrganizationAnnouncementInput,
+  ): Promise<OrganizationAnnouncementRecord> {
+    return this.organizationAnnouncementService.create(input);
+  }
+
+  async updateAnnouncement(
+    input: UpdateOrganizationAnnouncementInput,
+  ): Promise<OrganizationAnnouncementRecord> {
+    return this.organizationAnnouncementService.update(input);
+  }
+
+  async deleteAnnouncement(
+    input: DeleteOrganizationAnnouncementInput,
+  ): Promise<DeleteOrganizationAnnouncementResult> {
+    return this.organizationAnnouncementService.delete(input);
   }
 
   async restoreVersion(

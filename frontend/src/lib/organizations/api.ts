@@ -43,7 +43,12 @@ export type OrganizationAuditAction =
   | "seasonal_pricing.created"
   | "seasonal_pricing.updated"
   | "seasonal_pricing.deleted"
-  | "seasonal_pricing.restored";
+  | "seasonal_pricing.restored"
+  | "announcement.created"
+  | "announcement.updated"
+  | "announcement.published"
+  | "announcement.unpublished"
+  | "announcement.deleted";
 
 export type OrganizationAuditResourceType =
   | "organization"
@@ -51,7 +56,8 @@ export type OrganizationAuditResourceType =
   | "member"
   | "posting"
   | "posting_availability"
-  | "seasonal_pricing";
+  | "seasonal_pricing"
+  | "announcement";
 
 export interface OrganizationMembershipSummary
   extends ActiveOrganizationSummary {
@@ -137,6 +143,49 @@ export interface OrganizationAuditResult {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
   };
+}
+
+export type OrganizationAnnouncementStatus = "draft" | "published";
+
+export interface OrganizationAnnouncementRecord {
+  id: string;
+  organizationId: string;
+  author?: {
+    id: string;
+    email: string;
+    username: string;
+    avatarUrl?: string;
+  };
+  title: string;
+  body: string;
+  status: OrganizationAnnouncementStatus;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationAnnouncementResult {
+  announcements: OrganizationAnnouncementRecord[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export interface CreateOrganizationAnnouncementInput {
+  title: string;
+  body: string;
+  status?: OrganizationAnnouncementStatus;
+}
+
+export interface UpdateOrganizationAnnouncementInput {
+  title?: string;
+  body?: string;
+  status?: OrganizationAnnouncementStatus;
 }
 
 export interface OrganizationProfileFields {
@@ -332,6 +381,38 @@ export const organizationsApi = {
       restored: true;
       auditLog: OrganizationAuditRecord;
     }>(`/organizations/${id}/audit/${auditId}/restore`, {});
+  },
+  listAnnouncements(id: string): Promise<OrganizationAnnouncementResult> {
+    return getAuthenticatedJson<OrganizationAnnouncementResult>(
+      `/organizations/${id}/announcements?pageSize=50`,
+    );
+  },
+  createAnnouncement(
+    id: string,
+    input: CreateOrganizationAnnouncementInput,
+  ): Promise<OrganizationAnnouncementRecord> {
+    return postAuthenticatedJson<OrganizationAnnouncementRecord>(
+      `/organizations/${id}/announcements`,
+      input,
+    );
+  },
+  updateAnnouncement(
+    id: string,
+    announcementId: string,
+    input: UpdateOrganizationAnnouncementInput,
+  ): Promise<OrganizationAnnouncementRecord> {
+    return patchAuthenticatedJson<OrganizationAnnouncementRecord>(
+      `/organizations/${id}/announcements/${announcementId}`,
+      input,
+    );
+  },
+  deleteAnnouncement(
+    id: string,
+    announcementId: string,
+  ): Promise<{ deleted: true; announcementId: string }> {
+    return deleteAuthenticatedJson<{ deleted: true; announcementId: string }>(
+      `/organizations/${id}/announcements/${announcementId}`,
+    );
   },
   getWorkspaceById(id: string): Promise<OrganizationWorkspaceDetailResult> {
     return getAuthenticatedJson<OrganizationWorkspaceDetailResult>(

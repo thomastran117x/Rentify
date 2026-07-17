@@ -15,6 +15,7 @@ const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 const INVITE_ID = "33333333-3333-4333-8333-333333333333";
 const AUDIT_ID = "44444444-4444-4444-8444-444444444444";
+const ANNOUNCEMENT_ID = "55555555-5555-4555-8555-555555555555";
 
 function createAuth(
   overrides: Partial<JwtAuthPrincipal> = {},
@@ -274,6 +275,130 @@ describe("OrganizationsController", () => {
       organizationId: ORGANIZATION_ID,
       actorUserId: "user-1",
       invitationId: INVITE_ID,
+    });
+  });
+
+  it("lists announcements with pagination metadata", async () => {
+    const listAnnouncements = jest.fn(async () => ({
+      announcements: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+      },
+    }));
+    const controller = new OrganizationsController({
+      listAnnouncements,
+    } as any);
+
+    const response = await controller.listAnnouncements(
+      createContext({
+        params: { id: ORGANIZATION_ID },
+        query: { status: "published" },
+      }),
+    );
+
+    expect(listAnnouncements).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: "user-1",
+      page: 1,
+      pageSize: 20,
+      status: "published",
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      meta: {
+        pagination: { page: 1, pageSize: 20, total: 0 },
+      },
+    });
+  });
+
+  it("creates announcements from validated body values", async () => {
+    const createAnnouncement = jest.fn(async () => ({
+      id: ANNOUNCEMENT_ID,
+      status: "published",
+    }));
+    const controller = new OrganizationsController({
+      createAnnouncement,
+    } as any);
+
+    const response = await controller.createAnnouncement(
+      createContext({
+        params: { id: ORGANIZATION_ID },
+        body: {
+          title: "New announcement",
+          body: "Announcement body text",
+          status: "published",
+        },
+      }),
+    );
+
+    expect(createAnnouncement).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: "user-1",
+      title: "New announcement",
+      body: "Announcement body text",
+      status: "published",
+    });
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      message: "Organization announcement created successfully.",
+    });
+  });
+
+  it("updates announcements from route and body values", async () => {
+    const updateAnnouncement = jest.fn(async () => ({
+      id: ANNOUNCEMENT_ID,
+      status: "draft",
+    }));
+    const controller = new OrganizationsController({
+      updateAnnouncement,
+    } as any);
+
+    await controller.updateAnnouncement(
+      createContext({
+        params: {
+          id: ORGANIZATION_ID,
+          announcementId: ANNOUNCEMENT_ID,
+        },
+        body: { status: "draft" },
+      }),
+    );
+
+    expect(updateAnnouncement).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: "user-1",
+      announcementId: ANNOUNCEMENT_ID,
+      status: "draft",
+    });
+  });
+
+  it("deletes announcements by organization and announcement id", async () => {
+    const deleteAnnouncement = jest.fn(async () => ({
+      deleted: true,
+      announcementId: ANNOUNCEMENT_ID,
+    }));
+    const controller = new OrganizationsController({
+      deleteAnnouncement,
+    } as any);
+
+    const response = await controller.deleteAnnouncement(
+      createContext({
+        params: {
+          id: ORGANIZATION_ID,
+          announcementId: ANNOUNCEMENT_ID,
+        },
+      }),
+    );
+
+    expect(deleteAnnouncement).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      actorUserId: "user-1",
+      announcementId: ANNOUNCEMENT_ID,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      message: "Organization announcement deleted successfully.",
+      data: { deleted: true },
     });
   });
 });

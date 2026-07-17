@@ -38,6 +38,8 @@ import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
 import { OrganizationAuditRepository } from "@/features/organizations/organization-audit.repository";
 import { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import { OrganizationAnnouncementRepository } from "@/features/organizations/organization-announcement.repository";
+import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
@@ -125,6 +127,14 @@ export const containerTokens = {
   organizationAuditService: createServiceToken<OrganizationAuditService>(
     "OrganizationAuditService",
   ),
+  organizationAnnouncementRepository:
+    createServiceToken<OrganizationAnnouncementRepository>(
+      "OrganizationAnnouncementRepository",
+    ),
+  organizationAnnouncementService:
+    createServiceToken<OrganizationAnnouncementService>(
+      "OrganizationAnnouncementService",
+    ),
   organizationAccessService: createServiceToken<OrganizationAccessService>(
     "OrganizationAccessService",
   ),

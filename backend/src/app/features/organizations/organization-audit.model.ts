@@ -30,6 +30,11 @@ export const organizationAuditActionSchema = z.enum([
   "seasonal_pricing.updated",
   "seasonal_pricing.deleted",
   "seasonal_pricing.restored",
+  "announcement.created",
+  "announcement.updated",
+  "announcement.published",
+  "announcement.unpublished",
+  "announcement.deleted",
 ]);
 export type OrganizationAuditAction = z.infer<
   typeof organizationAuditActionSchema
@@ -42,6 +47,7 @@ export const organizationAuditResourceTypeSchema = z.enum([
   "posting",
   "posting_availability",
   "seasonal_pricing",
+  "announcement",
 ]);
 export type OrganizationAuditResourceType = z.infer<
   typeof organizationAuditResourceTypeSchema

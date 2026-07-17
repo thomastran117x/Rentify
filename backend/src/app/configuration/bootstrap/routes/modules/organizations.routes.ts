@@ -75,6 +75,34 @@ export const organizationsRouteModule: RouteModule = {
         "restoreAuditEntry",
       ),
     );
+    app.get(
+      "/organizations/:id/announcements",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listAnnouncements",
+      ),
+    );
+    app.post(
+      "/organizations/:id/announcements",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "createAnnouncement",
+      ),
+    );
+    app.patch(
+      "/organizations/:id/announcements/:announcementId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "updateAnnouncement",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/announcements/:announcementId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "deleteAnnouncement",
+      ),
+    );
     app.patch(
       "/organizations/:id",
       resolveHandler<OrganizationsController>(
