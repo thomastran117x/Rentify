@@ -811,9 +811,7 @@ export class OrganizationsSearchService {
     return Math.max(0, Date.now() - startedAt);
   }
 
-  private coalesceRelayJobs(
-    jobs: OrganizationSearchOutboxRecord[],
-  ): Array<{
+  private coalesceRelayJobs(jobs: OrganizationSearchOutboxRecord[]): Array<{
     primary: OrganizationSearchOutboxRecord;
     supersededIds: string[];
   }> {
