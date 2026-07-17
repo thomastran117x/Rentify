@@ -447,6 +447,7 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
+          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,
@@ -494,6 +495,7 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
+          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,
