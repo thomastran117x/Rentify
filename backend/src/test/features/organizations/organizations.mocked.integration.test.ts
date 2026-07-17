@@ -239,6 +239,9 @@ describe("Organizations integration", () => {
     const listPublicResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations")}`,
     );
+    const listPublicSortedResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations")}?q=acme&sort=nameAsc`,
+    );
     const createResponse = await app.request(
       `http://rent.test${buildApiPath("/organizations")}`,
       {
@@ -331,6 +334,7 @@ describe("Organizations integration", () => {
     );
 
     expect(listPublicResponse.status).toBe(200);
+    expect(listPublicSortedResponse.status).toBe(200);
     expect(createResponse.status).toBe(201);
     expect(listMineResponse.status).toBe(200);
     expect(setActiveResponse.status).toBe(200);
@@ -348,6 +352,14 @@ describe("Organizations integration", () => {
       page: 1,
       pageSize: 20,
       query: undefined,
+      sort: undefined,
+    });
+    // Free-text query and sort are parsed and forwarded to the search service.
+    expect(organizationsService.listPublic).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      query: "acme",
+      sort: "nameAsc",
     });
     expect(organizationsService.createOrganization).toHaveBeenCalledWith({
       actorUserId: "owner-1",

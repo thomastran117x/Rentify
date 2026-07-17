@@ -267,16 +267,24 @@ describe("OrganizationsRepository", () => {
         },
       }),
     );
+    const reindexRunFindFirst = jest.fn(async () => null);
+    const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
     const database = {
       $transaction: async <T>(
         callback: (client: {
           organization: { create: typeof organizationCreate };
           organizationMembership: { create: typeof membershipCreate };
+          organizationSearchReindexRun: {
+            findFirst: typeof reindexRunFindFirst;
+          };
+          organizationSearchOutbox: { createMany: typeof outboxCreateMany };
         }) => Promise<T>,
       ) =>
         callback({
           organization: { create: organizationCreate },
           organizationMembership: { create: membershipCreate },
+          organizationSearchReindexRun: { findFirst: reindexRunFindFirst },
+          organizationSearchOutbox: { createMany: outboxCreateMany },
         }),
     };
     const repository = new OrganizationsRepository(database as never);
@@ -291,6 +299,16 @@ describe("OrganizationsRepository", () => {
         id: expect.any(String),
         name: "Acme Rentals",
       }),
+    });
+    // The organization write enqueues a search-index upsert in the same
+    // transaction so the Elasticsearch index stays in sync.
+    expect(outboxCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: "org-9",
+          operation: "upsert",
+        }),
+      ]),
     });
     expect(membershipCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -309,6 +327,124 @@ describe("OrganizationsRepository", () => {
       joinedAt: "2026-06-01T00:00:00.000Z",
       isActive: true,
     });
+  });
+
+  it("enqueues a search-index upsert when updating an organization", async () => {
+    const organizationUpdate = jest.fn(async () => ({
+      id: "org-1",
+      name: "Renamed Org",
+      description: "Updated description",
+      websiteUrl: null,
+      contactEmail: null,
+      contactPhone: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      region: null,
+      country: null,
+      postalCode: null,
+      logoUrl: null,
+      logoBlobName: null,
+      customFields: null,
+    }));
+    const reindexRunFindFirst = jest.fn(async () => null);
+    const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
+    const database = {
+      $transaction: async <T>(
+        callback: (client: {
+          organization: { update: typeof organizationUpdate };
+          organizationSearchReindexRun: {
+            findFirst: typeof reindexRunFindFirst;
+          };
+          organizationSearchOutbox: { createMany: typeof outboxCreateMany };
+        }) => Promise<T>,
+      ) =>
+        callback({
+          organization: { update: organizationUpdate },
+          organizationSearchReindexRun: { findFirst: reindexRunFindFirst },
+          organizationSearchOutbox: { createMany: outboxCreateMany },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as never);
+
+    const result = await repository.updateOrganization("org-1", {
+      description: "Updated description",
+    });
+
+    expect(organizationUpdate).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      data: expect.objectContaining({ description: "Updated description" }),
+    });
+    expect(outboxCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: "org-1",
+          operation: "upsert",
+        }),
+      ]),
+    });
+    expect(result).toEqual(
+      expect.objectContaining({ id: "org-1", name: "Renamed Org" }),
+    );
+  });
+
+  it("also enqueues a reindex-scoped outbox entry while a reindex run is active", async () => {
+    const organizationUpdate = jest.fn(async () => ({
+      id: "org-1",
+      name: "Org",
+      description: null,
+      websiteUrl: null,
+      contactEmail: null,
+      contactPhone: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      region: null,
+      country: null,
+      postalCode: null,
+      logoUrl: null,
+      logoBlobName: null,
+      customFields: null,
+    }));
+    const reindexRunFindFirst = jest.fn(async () => ({
+      id: "reindex-1",
+      targetIndexName: "organizations_v123",
+    }));
+    const outboxCreateMany = jest.fn(async () => ({ count: 2 }));
+    const database = {
+      $transaction: async <T>(
+        callback: (client: {
+          organization: { update: typeof organizationUpdate };
+          organizationSearchReindexRun: {
+            findFirst: typeof reindexRunFindFirst;
+          };
+          organizationSearchOutbox: { createMany: typeof outboxCreateMany };
+        }) => Promise<T>,
+      ) =>
+        callback({
+          organization: { update: organizationUpdate },
+          organizationSearchReindexRun: { findFirst: reindexRunFindFirst },
+          organizationSearchOutbox: { createMany: outboxCreateMany },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as never);
+
+    await repository.updateOrganization("org-1", { city: "Berlin" });
+
+    const outboxCalls = (outboxCreateMany as jest.Mock).mock.calls as Array<
+      [{ data: unknown[] }]
+    >;
+    const outboxArgs = outboxCalls[0]![0];
+    expect(outboxArgs.data).toHaveLength(2);
+    expect(outboxArgs.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: "org-1",
+          reindexRunId: "reindex-1",
+          targetIndexName: "organizations_v123",
+        }),
+      ]),
+    );
   });
 
   it("reissues invitations by revoking prior pending rows and mapping the new invite", async () => {
