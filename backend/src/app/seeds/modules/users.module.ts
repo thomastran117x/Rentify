@@ -11,6 +11,72 @@ import type { SeedModule, SeedUserFixture } from "@/seeds/types";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
+interface OrganizationBlogPostSeed {
+  title: string;
+  slug: string;
+  excerpt: string;
+  body: string;
+  tags: string[];
+  status: "draft" | "published";
+  publishedDaysAgo: number | null;
+}
+
+// Seeded once per owner organization. Slugs only need to be unique within an
+// organization, so the same set is reused across seeded orgs. Ordered newest to
+// oldest via publishedDaysAgo so the public blog feed reads naturally.
+const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
+  {
+    title: "Introducing weekend stays at our downtown studios",
+    slug: "introducing-weekend-stays",
+    excerpt:
+      "Weekend bookings are now open across every downtown studio, with flexible check-in and curated local guides.",
+    body: "<h2>Weekend stays are here</h2><p>We are excited to open <strong>weekend bookings</strong> across all of our downtown studios. Each stay now includes flexible check-in and a curated guide to the neighborhood.</p><ul><li>Flexible check-in and check-out</li><li>Curated local recommendations</li><li>Weekend-only pricing</li></ul>",
+    tags: ["announcement", "downtown", "weekend"],
+    status: "published",
+    publishedDaysAgo: 2,
+  },
+  {
+    title: "Five ways to make your stay feel like home",
+    slug: "five-ways-to-feel-at-home",
+    excerpt:
+      "Small touches make a big difference. Here are our favorite ways to settle in quickly.",
+    body: "<h2>Settle in faster</h2><p>Whether you are staying for a weekend or a month, these small touches help every space feel like home.</p><ol><li>Unpack into the closet on day one</li><li>Find your nearest coffee shop</li><li>Set the lighting for the evening</li><li>Stock the kitchen essentials</li><li>Say hello to your host</li></ol><p><em>Have a tip of your own? We would love to hear it.</em></p>",
+    tags: ["tips", "guests"],
+    status: "published",
+    publishedDaysAgo: 9,
+  },
+  {
+    title: "Meet the team keeping every space guest-ready",
+    slug: "meet-the-team",
+    excerpt:
+      "From housekeeping to local hosts, meet the people behind a great stay.",
+    body: "<h2>The people behind your stay</h2><p>Every booking is supported by a dedicated team of hosts, cleaners, and local guides. We sat down with a few of them to learn what makes a stay special.</p><blockquote>Great hospitality is in the details you never notice.</blockquote><p>Want to join the team? Reach out through our contact page.</p>",
+    tags: ["team", "behind-the-scenes"],
+    status: "published",
+    publishedDaysAgo: 21,
+  },
+  {
+    title: "Seasonal pricing: what to expect this year",
+    slug: "seasonal-pricing-guide",
+    excerpt:
+      "A quick guide to how our seasonal rates work and how to find the best value.",
+    body: "<h2>How seasonal pricing works</h2><p>Rates shift with demand across the year. Booking early during peak seasons and staying midweek are the two easiest ways to find better value.</p><p>Check individual listings for current seasonal rates.</p>",
+    tags: ["pricing", "guide"],
+    status: "published",
+    publishedDaysAgo: 34,
+  },
+  {
+    title: "Behind the scenes: how we prepare each space (draft)",
+    slug: "behind-the-scenes-preparation",
+    excerpt:
+      "A look at the checklist our team follows before every guest arrives.",
+    body: "<p>This post is still a work in progress. We will share the full behind-the-scenes checklist soon.</p>",
+    tags: ["behind-the-scenes"],
+    status: "draft",
+    publishedDaysAgo: null,
+  },
+];
+
 async function hashPasswords(): Promise<Map<string, string>> {
   const values = new Set(SEED_USERS.map((user) => user.password));
   const hashes = new Map<string, string>();
@@ -178,6 +244,42 @@ export const usersSeedModule: SeedModule = {
             publishedAt: null,
           },
         });
+
+        const blogIndex = ownerOrganizationIndex - 1;
+
+        for (const [
+          slotIndex,
+          seed,
+        ] of ORGANIZATION_BLOG_POST_SEEDS.entries()) {
+          const blogPostId = createFixtureId(
+            1091,
+            blogIndex * ORGANIZATION_BLOG_POST_SEEDS.length + slotIndex,
+          );
+
+          await prisma.organizationBlogPost.upsert({
+            where: { id: blogPostId },
+            update: {},
+            create: {
+              id: blogPostId,
+              organizationId,
+              authorUserId: user.id,
+              title: seed.title,
+              slug: seed.slug,
+              excerpt: seed.excerpt,
+              body: seed.body,
+              coverImageUrl: null,
+              coverImageBlobName: null,
+              tags: seed.tags,
+              status: seed.status,
+              publishedAt:
+                seed.status === "published" && seed.publishedDaysAgo !== null
+                  ? new Date(
+                      Date.now() - seed.publishedDaysAgo * 24 * 60 * 60 * 1000,
+                    )
+                  : null,
+            },
+          });
+        }
       }
     }
 

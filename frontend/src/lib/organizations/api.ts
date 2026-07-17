@@ -188,6 +188,70 @@ export interface UpdateOrganizationAnnouncementInput {
   status?: OrganizationAnnouncementStatus;
 }
 
+export type OrganizationBlogStatus = "draft" | "published";
+
+export interface OrganizationBlogPostRecord {
+  id: string;
+  organizationId: string;
+  author?: {
+    id: string;
+    email: string;
+    username: string;
+    avatarUrl?: string;
+  };
+  title: string;
+  slug: string;
+  excerpt?: string;
+  body: string;
+  coverImageUrl?: string;
+  coverImageBlobName?: string;
+  tags: string[];
+  status: OrganizationBlogStatus;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationBlogResult {
+  posts: OrganizationBlogPostRecord[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export interface CreateOrganizationBlogInput {
+  title: string;
+  body: string;
+  excerpt?: string | null;
+  slug?: string;
+  coverImageUrl?: string | null;
+  coverImageBlobName?: string | null;
+  tags?: string[];
+  status?: OrganizationBlogStatus;
+}
+
+export interface UpdateOrganizationBlogInput {
+  title?: string;
+  body?: string;
+  excerpt?: string | null;
+  slug?: string;
+  coverImageUrl?: string | null;
+  coverImageBlobName?: string | null;
+  tags?: string[];
+  status?: OrganizationBlogStatus;
+}
+
+export interface ListPublicBlogInput {
+  page?: number;
+  pageSize?: number;
+  tag?: string;
+}
+
 export interface OrganizationProfileFields {
   description: string | null;
   websiteUrl: string | null;
@@ -335,6 +399,27 @@ function buildPublicOrganizationsPath(
   return query ? `/organizations?${query}` : "/organizations";
 }
 
+function buildPublicBlogPath(id: string, input?: ListPublicBlogInput): string {
+  const searchParams = new URLSearchParams();
+
+  if (input?.page && input.page > 1) {
+    searchParams.set("page", String(input.page));
+  }
+
+  if (input?.pageSize) {
+    searchParams.set("pageSize", String(input.pageSize));
+  }
+
+  if (input?.tag?.trim()) {
+    searchParams.set("tag", input.tag.trim());
+  }
+
+  const query = searchParams.toString();
+  return query
+    ? `/organizations/${id}/blog?${query}`
+    : `/organizations/${id}/blog`;
+}
+
 export const organizationsApi = {
   listPublic(
     input?: ListPublicOrganizationsInput,
@@ -412,6 +497,56 @@ export const organizationsApi = {
   ): Promise<{ deleted: true; announcementId: string }> {
     return deleteAuthenticatedJson<{ deleted: true; announcementId: string }>(
       `/organizations/${id}/announcements/${announcementId}`,
+    );
+  },
+  listBlogPosts(id: string): Promise<OrganizationBlogResult> {
+    return getAuthenticatedJson<OrganizationBlogResult>(
+      `/organizations/${id}/blog-posts?pageSize=50`,
+    );
+  },
+  createBlogPost(
+    id: string,
+    input: CreateOrganizationBlogInput,
+  ): Promise<OrganizationBlogPostRecord> {
+    return postAuthenticatedJson<OrganizationBlogPostRecord>(
+      `/organizations/${id}/blog-posts`,
+      input,
+    );
+  },
+  updateBlogPost(
+    id: string,
+    blogPostId: string,
+    input: UpdateOrganizationBlogInput,
+  ): Promise<OrganizationBlogPostRecord> {
+    return patchAuthenticatedJson<OrganizationBlogPostRecord>(
+      `/organizations/${id}/blog-posts/${blogPostId}`,
+      input,
+    );
+  },
+  deleteBlogPost(
+    id: string,
+    blogPostId: string,
+  ): Promise<{ deleted: true; blogPostId: string }> {
+    return deleteAuthenticatedJson<{ deleted: true; blogPostId: string }>(
+      `/organizations/${id}/blog-posts/${blogPostId}`,
+    );
+  },
+  listPublicBlog(
+    id: string,
+    input?: ListPublicBlogInput,
+  ): Promise<OrganizationBlogResult> {
+    return publicJson<OrganizationBlogResult>(
+      "GET",
+      buildPublicBlogPath(id, input),
+    );
+  },
+  getPublicBlogPost(
+    id: string,
+    slug: string,
+  ): Promise<OrganizationBlogPostRecord> {
+    return publicJson<OrganizationBlogPostRecord>(
+      "GET",
+      `/organizations/${id}/blog/${encodeURIComponent(slug)}`,
     );
   },
   getWorkspaceById(id: string): Promise<OrganizationWorkspaceDetailResult> {

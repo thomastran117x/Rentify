@@ -22,12 +22,19 @@ import {
   type OrganizationAnnouncementRecord,
   type OrganizationAnnouncementStatus,
   type OrganizationAuditRecord,
+  type OrganizationBlogPostRecord,
+  type OrganizationBlogStatus,
   type OrganizationDetailResult,
   type OrganizationInviteStatus,
   type OrganizationProfileInput,
   type OrganizationRole,
   type OrganizationWorkspaceResult,
 } from "@/lib/organizations/api";
+import {
+  BlogPanel,
+  emptyBlogForm,
+  type BlogFormValue,
+} from "@/components/organizations/blog-panel";
 import {
   postingsApi,
   type PostingRecord,
@@ -127,6 +134,7 @@ type WorkspaceTab =
   | "team"
   | "postings"
   | "announcements"
+  | "blog"
   | "activity"
   | "settings";
 
@@ -204,6 +212,12 @@ const WORKSPACE_TAB_DEFINITIONS: Array<{
       "Organization-wide updates. Managers write them; everyone can read.",
   },
   {
+    id: "blog",
+    label: "Blog",
+    description:
+      "Public marketing posts. Managers write them; anyone can read published posts.",
+  },
+  {
     id: "activity",
     label: "Activity",
     description: "Recent changes, audit history, and restorable versions.",
@@ -227,14 +241,22 @@ function getAllowedTabs(role?: OrganizationRole): WorkspaceTab[] {
       "team",
       "postings",
       "announcements",
+      "blog",
       "activity",
       "settings",
     ];
   }
   if (role === "manager") {
-    return ["overview", "team", "postings", "announcements", "activity"];
+    return [
+      "overview",
+      "team",
+      "postings",
+      "announcements",
+      "blog",
+      "activity",
+    ];
   }
-  return ["overview", "team", "postings", "announcements"];
+  return ["overview", "team", "postings", "announcements", "blog"];
 }
 
 function resolveWorkspaceTab(
@@ -2462,6 +2484,14 @@ export function OrganizationWorkspace() {
   const [announcementSavingId, setAnnouncementSavingId] = useState<
     string | null
   >(null);
+  const [blogPosts, setBlogPosts] = useState<OrganizationBlogPostRecord[]>([]);
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogError, setBlogError] = useState<string | null>(null);
+  const [blogForm, setBlogForm] = useState<BlogFormValue>(emptyBlogForm());
+  const [editingBlogPostId, setEditingBlogPostId] = useState<string | null>(
+    null,
+  );
+  const [blogSavingId, setBlogSavingId] = useState<string | null>(null);
   const [pendingTab, setPendingTab] = useState<WorkspaceTab | null>(null);
   const stagedLogoBlobNamesRef = useRef<Set<string>>(new Set());
 
@@ -2845,6 +2875,55 @@ export function OrganizationWorkspace() {
     }
 
     void loadAnnouncements();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedOrganizationId, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !selectedOrganizationId) {
+      setBlogPosts([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadBlogPosts() {
+      setBlogLoading(true);
+      setBlogError(null);
+
+      try {
+        const result = await organizationsApi.listBlogPosts(
+          selectedOrganizationId!,
+        );
+
+        if (!active) {
+          return;
+        }
+
+        startTransition(() => {
+          setBlogPosts(result.posts);
+        });
+      } catch (nextError) {
+        if (active) {
+          setBlogPosts([]);
+          setBlogError(
+            getApiErrorMessage(nextError, {
+              action: "load organization blog posts",
+              fallback:
+                "We couldn't load this organization's blog posts right now.",
+            }),
+          );
+        }
+      } finally {
+        if (active) {
+          setBlogLoading(false);
+        }
+      }
+    }
+
+    void loadBlogPosts();
 
     return () => {
       active = false;
@@ -3370,6 +3449,190 @@ export function OrganizationWorkspace() {
     }
   }
 
+  async function reloadBlogPosts(organizationId: string) {
+    const result = await organizationsApi.listBlogPosts(organizationId);
+    startTransition(() => {
+      setBlogPosts(result.posts);
+    });
+  }
+
+  function handleEditBlogPost(post: OrganizationBlogPostRecord) {
+    setEditingBlogPostId(post.id);
+    setBlogForm({
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt ?? "",
+      body: post.body,
+      tags: post.tags,
+      coverImageUrl: post.coverImageUrl ?? "",
+      coverImageBlobName: post.coverImageBlobName ?? "",
+      status: post.status,
+    });
+  }
+
+  function handleCancelEditBlogPost() {
+    setEditingBlogPostId(null);
+    setBlogForm(emptyBlogForm());
+  }
+
+  function buildBlogPayload() {
+    const title = blogForm.title.trim();
+    const excerpt = blogForm.excerpt.trim();
+    return {
+      title,
+      body: blogForm.body,
+      excerpt: excerpt ? excerpt : null,
+      tags: blogForm.tags,
+      coverImageUrl: blogForm.coverImageBlobName
+        ? blogForm.coverImageUrl
+        : null,
+      coverImageBlobName: blogForm.coverImageBlobName || null,
+      status: blogForm.status,
+    };
+  }
+
+  async function handleSubmitBlogPost() {
+    if (!detail) {
+      return;
+    }
+
+    const title = blogForm.title.trim();
+    const bodyText = blogForm.body.replace(/<[^>]*>/g, "").trim();
+
+    if (!title || !bodyText) {
+      showWorkspaceToast(
+        "Couldn't save blog post",
+        "Add a title and some body content before saving.",
+      );
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    setBlogSavingId(editingBlogPostId ?? "new");
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const payload = buildBlogPayload();
+      if (editingBlogPostId) {
+        await organizationsApi.updateBlogPost(
+          organizationId,
+          editingBlogPostId,
+          payload,
+        );
+        setMessage("Blog post updated.");
+      } else {
+        await organizationsApi.createBlogPost(organizationId, payload);
+        setMessage("Blog post published.");
+      }
+
+      await Promise.all([
+        reloadBlogPosts(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      handleCancelEditBlogPost();
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "save that blog post",
+        "We couldn't save that blog post right now. Please try again.",
+      );
+      setErrorTitle("Couldn't save blog post");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't save blog post", nextMessage);
+    } finally {
+      setBlogSavingId(null);
+    }
+  }
+
+  async function handleToggleBlogStatus(post: OrganizationBlogPostRecord) {
+    if (!detail) {
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    const nextStatus: OrganizationBlogStatus =
+      post.status === "published" ? "draft" : "published";
+    setBlogSavingId(post.id);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.updateBlogPost(organizationId, post.id, {
+        status: nextStatus,
+      });
+      await Promise.all([
+        reloadBlogPosts(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      setMessage(
+        nextStatus === "published"
+          ? "Blog post published."
+          : "Blog post moved to draft.",
+      );
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "update that blog post",
+        "We couldn't update that blog post right now. Please try again.",
+      );
+      setErrorTitle("Couldn't update blog post");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't update blog post", nextMessage);
+    } finally {
+      setBlogSavingId(null);
+    }
+  }
+
+  async function handleDeleteBlogPost(postId: string) {
+    if (!detail) {
+      return;
+    }
+
+    const organizationId = detail.organization.id;
+    setBlogSavingId(postId);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.deleteBlogPost(organizationId, postId);
+      if (editingBlogPostId === postId) {
+        handleCancelEditBlogPost();
+      }
+      await Promise.all([
+        reloadBlogPosts(organizationId),
+        canSeeActivity
+          ? organizationsApi
+              .listAudit(organizationId)
+              .then((auditResult) => setAuditLogs(auditResult.auditLogs))
+          : Promise.resolve(),
+      ]);
+      setMessage("Blog post deleted.");
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "delete that blog post",
+        "We couldn't delete that blog post right now. Please try again.",
+      );
+      setErrorTitle("Couldn't delete blog post");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't delete blog post", nextMessage);
+    } finally {
+      setBlogSavingId(null);
+    }
+  }
+
   const allowedTabs = getAllowedTabs(detail?.viewerRole);
   const resolvedTab = detail
     ? resolveWorkspaceTab(rawTab, allowedTabs)
@@ -3460,6 +3723,9 @@ export function OrganizationWorkspace() {
     : false;
   const canSeeActivity = detail?.viewerRole !== "operator";
   const canManageAnnouncements =
+    detail?.viewerRole === "primary_manager" ||
+    detail?.viewerRole === "manager";
+  const canManageBlog =
     detail?.viewerRole === "primary_manager" ||
     detail?.viewerRole === "manager";
   const canEditSettings = detail?.viewerRole === "primary_manager";
@@ -3588,6 +3854,26 @@ export function OrganizationWorkspace() {
               onDelete={(announcementId) =>
                 void handleDeleteAnnouncement(announcementId)
               }
+            />
+          </WorkspaceTabPanel>
+
+          <WorkspaceTabPanel tab="blog" activeTab={currentTab}>
+            <BlogPanel
+              organizationId={detail?.organization.id ?? ""}
+              posts={blogPosts}
+              loading={blogLoading}
+              error={blogError}
+              canManage={canManageBlog}
+              form={blogForm}
+              editingId={editingBlogPostId}
+              savingId={blogSavingId}
+              onFormChange={setBlogForm}
+              onSubmit={() => void handleSubmitBlogPost()}
+              onCancelEdit={handleCancelEditBlogPost}
+              onEdit={handleEditBlogPost}
+              onToggleStatus={(post) => void handleToggleBlogStatus(post)}
+              onDelete={(postId) => void handleDeleteBlogPost(postId)}
+              onError={(msg) => showWorkspaceToast("Cover image", msg)}
             />
           </WorkspaceTabPanel>
 

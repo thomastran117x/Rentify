@@ -76,3 +76,103 @@ input {
 ::selection {
   background: rgba(212, 168, 95, 0.3);
 }
+
+/* Shared styling for rendered/edited blog rich-text content. Used by both the
+   Tiptap editor surface and the public blog post renderer so authoring and the
+   published page look identical. */
+.rich-text {
+  color: inherit;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.rich-text > :first-child {
+  margin-top: 0;
+}
+.rich-text > :last-child {
+  margin-bottom: 0;
+}
+.rich-text p {
+  margin: 0 0 1rem;
+}
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4 {
+  font-family: var(--font-serif-display-stack);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.75rem 0 0.75rem;
+}
+.rich-text h1 {
+  font-size: 1.875rem;
+}
+.rich-text h2 {
+  font-size: 1.5rem;
+}
+.rich-text h3 {
+  font-size: 1.25rem;
+}
+.rich-text h4 {
+  font-size: 1.125rem;
+}
+.rich-text ul,
+.rich-text ol {
+  margin: 0 0 1rem;
+  padding-left: 1.5rem;
+}
+.rich-text ul {
+  list-style: disc;
+}
+.rich-text ol {
+  list-style: decimal;
+}
+.rich-text li {
+  margin: 0.25rem 0;
+}
+.rich-text a {
+  color: var(--brand-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-text blockquote {
+  border-left: 3px solid var(--brand-gold);
+  margin: 0 0 1rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  color: var(--brand-muted);
+  font-style: italic;
+}
+.rich-text pre {
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+.rich-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+}
+.rich-text :not(pre) > code {
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.35rem;
+}
+.rich-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--brand-line);
+  margin: 1.5rem 0;
+}
+.dark .rich-text pre,
+.dark .rich-text :not(pre) > code {
+  background: rgba(226, 232, 240, 0.1);
+}
+.rich-text .ProseMirror-selectednode {
+  outline: 2px solid var(--brand-accent);
+}

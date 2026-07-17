@@ -6,6 +6,8 @@ import { OrganizationAuditRepository } from "@/features/organizations/organizati
 import { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import { OrganizationAnnouncementRepository } from "@/features/organizations/organization-announcement.repository";
 import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
+import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
+import { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
@@ -66,6 +68,29 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         ),
     });
     container.register({
+      token: containerTokens.organizationBlogRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new OrganizationBlogRepository(),
+    });
+    container.register({
+      token: containerTokens.organizationBlogService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.organizationBlogRepository,
+        containerTokens.organizationAccessService,
+        containerTokens.organizationAuditService,
+        containerTokens.blobService,
+      ],
+      resolve: ({ resolve }) =>
+        new OrganizationBlogService(
+          resolve(containerTokens.organizationBlogRepository),
+          resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.organizationAuditService),
+          resolve(containerTokens.blobService),
+        ),
+    });
+    container.register({
       token: containerTokens.organizationsService,
       lifetime: "scoped",
       dependencies: [
@@ -78,6 +103,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.organizationsPublicSearchService,
         containerTokens.organizationAnnouncementService,
+        containerTokens.organizationBlogService,
       ],
       resolve: ({ resolve }) =>
         new OrganizationsService(
@@ -90,6 +116,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.blobService),
           resolve(containerTokens.organizationsPublicSearchService),
           resolve(containerTokens.organizationAnnouncementService),
+          resolve(containerTokens.organizationBlogService),
         ),
     });
     container.register({

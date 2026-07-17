@@ -41,6 +41,7 @@ model User {
   acceptedOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationAccepter")
   organizationAuditLogs OrganizationAuditLog[] @relation("OrganizationAuditActor")
   organizationAnnouncements OrganizationAnnouncement[] @relation("OrganizationAnnouncementAuthor")
+  organizationBlogPosts OrganizationBlogPost[] @relation("OrganizationBlogPostAuthor")
   mfaTotp                UserMfaTotp?
 
   @@map("users")
@@ -79,6 +80,7 @@ model Organization {
   recommendationActivities RecommendationActivity[]
   auditLogs OrganizationAuditLog[]
   announcements OrganizationAnnouncement[]
+  blogPosts OrganizationBlogPost[]
   searchOutboxEntries OrganizationSearchOutbox[]
 
   @@map("organizations")
@@ -125,6 +127,30 @@ model OrganizationAnnouncement {
   @@index([organizationId, status, createdAt])
   @@index([authorUserId, createdAt])
   @@map("organization_announcements")
+}
+
+model OrganizationBlogPost {
+  id                 String    @id @db.VarChar(36)
+  organizationId     String    @map("organization_id") @db.VarChar(36)
+  authorUserId       String?   @map("author_user_id") @db.VarChar(36)
+  title              String    @db.VarChar(200)
+  slug               String    @db.VarChar(220)
+  excerpt            String?   @db.VarChar(300)
+  body               String    @db.Text
+  coverImageUrl      String?   @map("cover_image_url") @db.VarChar(1024)
+  coverImageBlobName String?   @map("cover_image_blob_name") @db.VarChar(1024)
+  tags               Json?
+  status             String    @default("draft") @db.VarChar(20)
+  publishedAt        DateTime? @map("published_at") @db.DateTime(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author             User?     @relation("OrganizationBlogPostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status, publishedAt])
+  @@index([authorUserId, createdAt])
+  @@map("organization_blog_posts")
 }
 
 model OrganizationMembership {
