@@ -73,7 +73,9 @@ function createService(options?: {
     ),
     delete: jest.fn(async () => undefined),
     findById: jest.fn(async () => existing),
-    list: jest.fn(async () => createListResult()),
+    list: jest.fn(
+      async (_input: Record<string, unknown>) => createListResult(),
+    ),
   };
   const organizationAccessService = {
     findMembership: jest.fn(async () => membership),

@@ -333,6 +333,9 @@ export class OrganizationsService {
         summary = `${invitation.emailHint} invitation was restored.`;
         break;
       }
+      default: {
+        throw new ConflictError("This version cannot be restored.");
+      }
     }
 
     const restoredAuditLog = await this.organizationAuditService.record({
