@@ -36,7 +36,7 @@ describe("systemRouteModule", () => {
     );
     const app = createApp();
 
-    systemRouteModule.register(app, {} as never);
+    systemRouteModule.register(app, {} as any);
 
     const response = await app.request("http://rent.test/");
 
@@ -65,7 +65,7 @@ describe("systemRouteModule", () => {
     );
     const app = createApp();
 
-    systemRouteModule.register(app, {} as never);
+    systemRouteModule.register(app, {} as any);
 
     const response = await app.request("http://rent.test/health");
 
@@ -97,7 +97,7 @@ describe("systemRouteModule", () => {
     );
     const app = createApp();
 
-    systemRouteModule.register(app, {} as never);
+    systemRouteModule.register(app, {} as any);
 
     const response = await app.request("http://rent.test/health");
 
@@ -131,7 +131,7 @@ describe("systemRouteModule", () => {
     );
     const app = createApp();
 
-    systemRouteModule.register(app, {} as never);
+    systemRouteModule.register(app, {} as any);
 
     const response = await app.request("http://rent.test/openapi.yaml");
 
@@ -150,7 +150,7 @@ describe("systemRouteModule", () => {
     );
     const app = createApp();
 
-    systemRouteModule.register(app, {} as never);
+    systemRouteModule.register(app, {} as any);
 
     const response = await app.request("http://rent.test/openapi.json");
 

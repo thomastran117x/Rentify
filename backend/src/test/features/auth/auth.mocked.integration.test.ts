@@ -38,6 +38,7 @@ function createAuthUser(
     availableRentPostingsCount: 0,
     role: "user",
     emailVerified: true,
+    organizationMembershipCount: 0,
     ...overrides,
   };
 }
@@ -205,9 +206,10 @@ function createApp(overrides?: {
     ),
   };
   const controller = new AuthController(
-    authService as never,
-    captchaService as never,
-    {} as never,
+    authService as any,
+    captchaService as any,
+    {} as any,
+    {} as any,
   );
   const container = new FakeRequestContainer(controller, tokenService);
   const app = new Hono<AppBindings>();

@@ -27,12 +27,12 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("does nothing when ensuring the index while Elasticsearch is disabled", async () => {
-    const requestJson = jest.fn(async () => undefined);
+    const requestJson: any = jest.fn(async (): Promise<any> => undefined);
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         isEnabled: () => false,
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.ensureIndex();
@@ -48,7 +48,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await expect(service.ensureIndex()).resolves.toBeUndefined();
@@ -69,14 +69,14 @@ describe("ReportsSearchIndexService", () => {
         ? "custom-reports-index"
         : undefined,
     );
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined);
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.upsertDocument(createDocument());
@@ -102,11 +102,11 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("deletes indexed documents with allowNotFound enabled", async () => {
-    const requestJson = jest.fn(async () => undefined);
+    const requestJson: any = jest.fn(async (): Promise<any> => undefined);
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.deleteDocument("report-1");
@@ -123,11 +123,11 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("skips bulk indexing when there are no documents", async () => {
-    const requestJson = jest.fn(async () => undefined);
+    const requestJson: any = jest.fn(async (): Promise<any> => undefined);
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.bulkUpsertDocuments([]);
@@ -136,8 +136,8 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("bulk indexes reports as ndjson payloads", async () => {
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         errors: false,
@@ -145,7 +145,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.bulkUpsertDocuments([createDocument()]);
@@ -166,8 +166,8 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("classifies bulk client failures as request errors", async () => {
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         errors: true,
@@ -186,7 +186,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await expect(
@@ -198,8 +198,8 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("classifies bulk server failures as unavailable errors", async () => {
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         errors: true,
@@ -218,7 +218,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await expect(
@@ -227,8 +227,8 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("builds a filtered multi-match search request and returns ids with totals", async () => {
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         hits: {
@@ -241,7 +241,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     const result = await service.search({
@@ -271,7 +271,7 @@ describe("ReportsSearchIndexService", () => {
     );
 
     const body = JSON.parse(
-      requestJson.mock.calls[1]?.[1]?.body as string,
+      (requestJson.mock.calls[1] as any)?.[1]?.body as string,
     ) as Record<string, unknown>;
 
     expect(body).toMatchObject({
@@ -337,8 +337,8 @@ describe("ReportsSearchIndexService", () => {
   });
 
   it("uses match_all queries and oldest sorting when no search text is provided", async () => {
-    const requestJson = jest
-      .fn(async () => undefined)
+    const requestJson: any = jest
+      .fn(async (): Promise<any> => undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         hits: {},
@@ -346,7 +346,7 @@ describe("ReportsSearchIndexService", () => {
     const service = new ReportsSearchIndexService(
       createElasticsearchClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     const result = await service.search({
@@ -361,7 +361,7 @@ describe("ReportsSearchIndexService", () => {
     });
 
     const body = JSON.parse(
-      requestJson.mock.calls[1]?.[1]?.body as string,
+      (requestJson.mock.calls[1] as any)?.[1]?.body as string,
     ) as Record<string, unknown>;
 
     expect(body).toMatchObject({

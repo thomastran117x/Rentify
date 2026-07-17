@@ -103,7 +103,7 @@ describe("PostingThumbnailService", () => {
       thumbnailBlobName: "postings/thumbnails/photo-1.webp",
       thumbnailBlobUrl:
         "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
-    };
+    } as any;
     const downloadBlob = jest.fn();
     const postingsPublicCacheService = {
       invalidatePublic: jest.fn(async () => 1),
@@ -124,7 +124,7 @@ describe("PostingThumbnailService", () => {
 
   it("does nothing when the posting has no primary photo", async () => {
     const repository = new FakePostingsRepository();
-    repository.primaryPhoto = null as never;
+    repository.primaryPhoto = null as any;
     const downloadBlob = jest.fn();
     const postingsPublicCacheService = {
       invalidatePublic: jest.fn(async () => 1),

@@ -21,7 +21,7 @@ function createElasticsearchAutocompleteService(response: unknown | unknown[]) {
     getPostingsIndexName: () => "postings-test",
     requestJson,
     isEnabled: () => true,
-  } as never);
+  } as any);
 
   return {
     autocompletePublicFallback,
@@ -307,7 +307,7 @@ describe("PostingsPublicAutocompleteService", () => {
           );
         }),
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.autocompletePublic({
@@ -352,12 +352,10 @@ describe("PostingsPublicAutocompleteService", () => {
       {
         getPostingsIndexName: () => "postings-test",
         requestJson: jest.fn(async () => {
-          throw new ElasticsearchCircuitOpenError(
-            "Elasticsearch circuit is open.",
-          );
+          throw new ElasticsearchCircuitOpenError(new Date());
         }),
         isEnabled: () => true,
-      } as never,
+      } as any,
     );
 
     const result = await service.autocompletePublic({
@@ -417,7 +415,7 @@ describe("PostingsPublicAutocompleteService", () => {
   });
 
   it("covers autocomplete helper ranking, formatting, and fuzzy guard branches", () => {
-    const { service } = createElasticsearchAutocompleteService();
+    const { service } = createElasticsearchAutocompleteService({} as any);
     const helper = service as unknown as {
       rankSuggestions(
         documents: Array<{
@@ -514,11 +512,13 @@ describe("PostingsSearchIndexService", () => {
       getPostingsIndexName: () => "postings-test",
       requestJson,
       isEnabled: () => true,
-    } as never);
+    } as any);
 
     await service.createVersionedIndex();
 
-    const body = JSON.parse(requestJson.mock.calls[0]?.[1]?.body as string) as {
+    const body = JSON.parse(
+      (requestJson.mock.calls[0] as any)?.[1]?.body as string,
+    ) as {
       mappings: {
         properties: {
           tags: {

@@ -164,9 +164,9 @@ function createService(overrides?: {
 
   return {
     service: new ReportsService(
-      repository as never,
-      search as never,
-      sanitizer as never,
+      repository as any,
+      search as any,
+      sanitizer as any,
       organizationAccessService as unknown as OrganizationAccessService,
     ),
     repository,
@@ -243,7 +243,7 @@ describe("ReportsService", () => {
               ? {
                   organizationId,
                   userId,
-                  role: "primary_manager",
+                  role: "primary_manager" as const,
                 }
               : null,
         ),

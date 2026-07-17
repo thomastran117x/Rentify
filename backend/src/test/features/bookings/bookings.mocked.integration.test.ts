@@ -130,8 +130,8 @@ function createApp() {
     [
       containerTokens.bookingsController,
       new BookingsController(
-        bookingsService as never,
-        recommendationActivityPublisher as never,
+        bookingsService as any,
+        recommendationActivityPublisher as any,
       ),
     ],
     [containerTokens.tokenService, tokenService],

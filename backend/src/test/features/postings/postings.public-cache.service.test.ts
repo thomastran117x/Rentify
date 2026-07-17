@@ -119,7 +119,7 @@ function createPublicPosting(
     updatedAt: "2026-05-01T00:00:00.000Z",
     publishedAt: "2026-05-01T00:00:00.000Z",
     ...overrides,
-  };
+  } as any;
 }
 
 function createBatchResult(

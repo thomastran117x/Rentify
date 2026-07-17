@@ -54,7 +54,7 @@ describe("httpLoggingMiddleware", () => {
       }
 
       return true;
-    }) as never);
+    }) as any);
   }
 
   it("keeps safe query params in the log output", async () => {

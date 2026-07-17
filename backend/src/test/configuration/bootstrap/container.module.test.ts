@@ -8,13 +8,13 @@ const mockContainerTokens = {
 };
 
 jest.mock("@/configuration/container/core", () => ({
-  createRootContainer: (...args: unknown[]) => mockCreateRootContainer(...args),
-  createServiceToken: (...args: unknown[]) => mockCreateServiceToken(...args),
+  createRootContainer: () => mockCreateRootContainer(),
+  createServiceToken: (name: string) => mockCreateServiceToken(name),
 }));
 
 jest.mock("@/configuration/container/registrations", () => ({
-  registerApplicationServices: (...args: unknown[]) =>
-    mockRegisterApplicationServices(...args),
+  registerApplicationServices: (container: unknown) =>
+    mockRegisterApplicationServices(container),
 }));
 
 jest.mock("@/configuration/container/tokens", () => ({
@@ -67,7 +67,7 @@ describe("bootstrap container module", () => {
       get: jest.fn(() => requestContainer),
     };
 
-    const resolved = containerModule.getRequestContainer(context as never);
+    const resolved = containerModule.getRequestContainer(context as any);
 
     expect(context.get).toHaveBeenCalledWith("container");
     expect(resolved).toBe(requestContainer);

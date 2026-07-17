@@ -109,7 +109,7 @@ function createDb(config?: {
 }
 
 function repoWith(db: Record<string, unknown>) {
-  return new OrganizationsRepository(db as never);
+  return new OrganizationsRepository(db as any);
 }
 
 describe("OrganizationsRepository search methods", () => {

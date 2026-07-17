@@ -22,7 +22,7 @@ describe("CacheService", () => {
     const client = createRedisClientMock();
     client.get.mockResolvedValue("value-1");
     client.set.mockResolvedValue("OK");
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.get("key-1")).resolves.toBe("value-1");
 
@@ -41,7 +41,7 @@ describe("CacheService", () => {
       .mockResolvedValueOnce(JSON.stringify({ ok: true }))
       .mockResolvedValueOnce("{bad json");
     client.del.mockResolvedValue(1);
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.getJson("good")).resolves.toEqual({ ok: true });
     await expect(service.getJson("bad")).resolves.toBeNull();
@@ -58,16 +58,23 @@ describe("CacheService", () => {
     client.get
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(JSON.stringify({ cached: true }));
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
     const factory = jest.fn(async () => ({ generated: true }));
 
     await service.setJson("json-key", { ok: true }, 30);
     await expect(
-      service.setIfNotExists("lock-key", "token-1", 15),
+      service.setIfNotExists(
+        "lock-key",
+        "00000000-0000-0000-0000-000000000001",
+        15,
+      ),
     ).resolves.toBe(true);
-    await expect(service.setIfNotExists("lock-key", "token-2")).resolves.toBe(
-      false,
-    );
+    await expect(
+      service.setIfNotExists(
+        "lock-key",
+        "00000000-0000-0000-0000-000000000002",
+      ),
+    ).resolves.toBe(false);
     await expect(
       service.getOrSetJson("fresh-key", factory, 45),
     ).resolves.toEqual({ generated: true });
@@ -83,13 +90,23 @@ describe("CacheService", () => {
         EX: 30,
       },
     );
-    expect(client.set).toHaveBeenNthCalledWith(2, "lock-key", "token-1", {
-      NX: true,
-      EX: 15,
-    });
-    expect(client.set).toHaveBeenNthCalledWith(3, "lock-key", "token-2", {
-      NX: true,
-    });
+    expect(client.set).toHaveBeenNthCalledWith(
+      2,
+      "lock-key",
+      "00000000-0000-0000-0000-000000000001",
+      {
+        NX: true,
+        EX: 15,
+      },
+    );
+    expect(client.set).toHaveBeenNthCalledWith(
+      3,
+      "lock-key",
+      "00000000-0000-0000-0000-000000000002",
+      {
+        NX: true,
+      },
+    );
     expect(client.set).toHaveBeenNthCalledWith(
       4,
       "fresh-key",
@@ -109,7 +126,7 @@ describe("CacheService", () => {
     client.ttl.mockResolvedValue(55);
     client.incrBy.mockResolvedValue(7);
     client.decrBy.mockResolvedValue(2);
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.delete("key-1")).resolves.toBe(true);
     await expect(service.deleteMany([])).resolves.toBe(0);
@@ -131,7 +148,7 @@ describe("CacheService", () => {
     const client = createRedisClientMock();
     client.mGet.mockResolvedValue(["one", null]);
     client.mSet.mockResolvedValue("OK");
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.mget([])).resolves.toEqual([]);
     await expect(service.mget(["a", "b"])).resolves.toEqual(["one", null]);
@@ -166,7 +183,7 @@ describe("CacheService", () => {
         keys: [],
       });
     client.del.mockResolvedValue(2);
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.scanKeys("postings:*", 50)).resolves.toEqual([
       "postings:1",
@@ -195,55 +212,72 @@ describe("CacheService", () => {
       .mockResolvedValueOnce(1)
       .mockResolvedValueOnce(1);
     client.set.mockResolvedValueOnce("OK").mockResolvedValueOnce(null);
-    const service = new CacheService(client as never);
+    const service = new CacheService(client as any);
 
     await expect(service.eval("return 1", ["a"], ["b"])).resolves.toEqual({
       ok: true,
     });
 
-    const lock = await service.acquireLock("jobs", 5_000, "token-1");
-    const missingLock = await service.acquireLock("jobs", 5_000, "token-2");
+    const lock = await service.acquireLock(
+      "jobs",
+      5_000,
+      "00000000-0000-0000-0000-000000000001",
+    );
+    const missingLock = await service.acquireLock(
+      "jobs",
+      5_000,
+      "00000000-0000-0000-0000-000000000002",
+    );
 
     expect(lock).not.toBeNull();
     expect(missingLock).toBeNull();
     await expect(lock?.release()).resolves.toBe(true);
     await expect(lock?.extend(6_000)).resolves.toBe(true);
-    await expect(service.releaseLock("lock:jobs", "token-1")).resolves.toBe(
-      false,
-    );
     await expect(
-      service.extendLock("lock:jobs", "token-1", 7_000),
+      service.releaseLock("lock:jobs", "00000000-0000-0000-0000-000000000001"),
+    ).resolves.toBe(false);
+    await expect(
+      service.extendLock(
+        "lock:jobs",
+        "00000000-0000-0000-0000-000000000001",
+        7_000,
+      ),
     ).resolves.toBe(false);
 
-    expect(client.set).toHaveBeenNthCalledWith(1, "lock:jobs", "token-1", {
-      NX: true,
-      PX: 5000,
-    });
+    expect(client.set).toHaveBeenNthCalledWith(
+      1,
+      "lock:jobs",
+      "00000000-0000-0000-0000-000000000001",
+      {
+        NX: true,
+        PX: 5000,
+      },
+    );
     expect(client.eval).toHaveBeenNthCalledWith(2, expect.any(String), {
       keys: ["lock:jobs"],
-      arguments: ["token-1"],
+      arguments: ["00000000-0000-0000-0000-000000000001"],
     });
     expect(client.eval).toHaveBeenNthCalledWith(3, expect.any(String), {
       keys: ["lock:jobs"],
-      arguments: ["token-1", "6000"],
+      arguments: ["00000000-0000-0000-0000-000000000001", "6000"],
     });
   });
 
   it("runs callbacks under a lock and releases the lock on success and failure", async () => {
-    const service = new CacheService({} as never);
+    const service = new CacheService({} as any);
     const release = jest.fn(async () => true);
     const acquireLock = jest
       .spyOn(service, "acquireLock")
       .mockResolvedValueOnce({
         key: "lock:sync",
-        token: "token-1",
+        token: "00000000-0000-0000-0000-000000000001",
         release,
         extend: jest.fn(async () => true),
       })
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         key: "lock:sync",
-        token: "token-2",
+        token: "00000000-0000-0000-0000-000000000002",
         release,
         extend: jest.fn(async () => true),
       });

@@ -124,7 +124,7 @@ describe("RentingsRepository", () => {
       ) => callback(transaction),
     };
 
-    const repository = new RentingsRepository(database as never);
+    const repository = new RentingsRepository(database as any);
     const result = await repository.convertApprovedBookingRequest(
       "booking-1",
       "org-1",
@@ -182,7 +182,7 @@ describe("RentingsRepository", () => {
       },
     };
 
-    const repository = new RentingsRepository(database as never);
+    const repository = new RentingsRepository(database as any);
 
     await expect(
       repository.convertApprovedBookingRequest("booking-1", "owner-1"),
@@ -197,7 +197,7 @@ describe("RentingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listMine({
       userId: "renter-1",
@@ -255,7 +255,7 @@ describe("RentingsRepository", () => {
           }),
         ),
       },
-    } as never);
+    } as any);
 
     const result = await repository.findById("renting-1");
 
@@ -279,7 +279,7 @@ describe("RentingsRepository", () => {
       renting: {
         findUnique: jest.fn(async () => null),
       },
-    } as never);
+    } as any);
 
     await expect(repository.findById("missing-renting")).resolves.toBeNull();
   });
@@ -290,7 +290,7 @@ describe("RentingsRepository", () => {
       renting: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByRenterForDashboard("renter-1");
 
@@ -316,7 +316,7 @@ describe("RentingsRepository", () => {
       renting: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByOwnerForDashboard({
       organizationId: "org-1",
@@ -344,10 +344,12 @@ describe("RentingsRepository", () => {
       renting: {
         update,
       },
-    } as never);
+    } as any);
 
     const result = await repository.updateInstructions({
       rentingId: "renting-1",
+      actorUserId: "owner-1",
+      actorRole: "owner",
       pickupInstructions: "Call from the curb.",
       returnInstructions: "Return to concierge desk.",
     });
@@ -385,11 +387,13 @@ describe("RentingsRepository", () => {
           throw error;
         }),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.updateInstructions({
         rentingId: "missing-renting",
+        actorUserId: "owner-1",
+        actorRole: "owner",
         pickupInstructions: "Meet outside.",
         returnInstructions: "Leave with the doorman.",
       }),
@@ -408,7 +412,7 @@ describe("RentingsRepository", () => {
         findUnique: jest.fn(async () => createRentingPersistence()),
         update,
       },
-    } as never);
+    } as any);
 
     const result = await repository.markCheckInReady(
       "renting-1",
@@ -437,7 +441,7 @@ describe("RentingsRepository", () => {
           }),
         ),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.markCheckInReady(
@@ -452,7 +456,7 @@ describe("RentingsRepository", () => {
       renting: {
         findUnique: jest.fn(async () => null),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.markCheckInComplete(
@@ -480,7 +484,7 @@ describe("RentingsRepository", () => {
         ),
         update,
       },
-    } as never);
+    } as any);
 
     const result = await repository.markCheckInComplete(
       "renting-1",
@@ -511,7 +515,7 @@ describe("RentingsRepository", () => {
           }),
         ),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.markCheckInComplete(
@@ -526,7 +530,7 @@ describe("RentingsRepository", () => {
       renting: {
         findUnique: jest.fn(async () => null),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.markCompleted(
@@ -556,7 +560,7 @@ describe("RentingsRepository", () => {
         ),
         update,
       },
-    } as never);
+    } as any);
 
     const result = await repository.markCompleted(
       "renting-1",
@@ -596,7 +600,7 @@ describe("RentingsRepository", () => {
         ),
         update,
       },
-    } as never);
+    } as any);
 
     await repository.markCompleted(
       "renting-1",
@@ -625,7 +629,7 @@ describe("RentingsRepository", () => {
           }),
         ),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.markCompleted(
@@ -641,13 +645,14 @@ describe("RentingsRepository", () => {
         findUnique: jest.fn(async () => null),
       },
       $transaction: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       repository.createDispute(
         {
           rentingId: "missing-renting",
           actorUserId: "moderator-1",
+          actorRole: "moderator",
           reason: "damage",
         },
         new Date("2026-05-20T12:00:00.000Z"),
@@ -696,11 +701,12 @@ describe("RentingsRepository", () => {
         }),
     };
 
-    const repository = new RentingsRepository(database as never);
+    const repository = new RentingsRepository(database as any);
     const result = await repository.createDispute(
       {
         rentingId: "renting-1",
         actorUserId: "moderator-1",
+        actorRole: "moderator",
         reason: "damage",
         details: "Cracked lamp base.",
       },
@@ -744,13 +750,14 @@ describe("RentingsRepository", () => {
         ),
       },
       $transaction: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       repository.createDispute(
         {
           rentingId: "renting-1",
           actorUserId: "moderator-2",
+          actorRole: "moderator",
           reason: "damage",
         },
         new Date("2026-05-20T12:00:00.000Z"),
@@ -766,7 +773,7 @@ describe("RentingsRepository", () => {
       renting: {
         findFirst,
       },
-    } as never);
+    } as any);
 
     const result = await repository.hasOverlap(
       "posting-1",
@@ -806,7 +813,7 @@ describe("RentingsRepository", () => {
       renting: {
         updateMany,
       },
-    } as never);
+    } as any);
 
     await repository.promoteReturnDueForRenting(
       "renting-1",
@@ -836,7 +843,7 @@ describe("RentingsRepository", () => {
       renting: {
         updateMany,
       },
-    } as never);
+    } as any);
 
     await repository.promoteReturnDueForUser(
       "renter-1",
@@ -866,7 +873,7 @@ describe("RentingsRepository", () => {
       renting: {
         updateMany,
       },
-    } as never);
+    } as any);
 
     await repository.promoteReturnDueForOwner(
       {
@@ -902,7 +909,7 @@ describe("RentingsRepository", () => {
         findFirst,
       },
     };
-    const repository = new RentingsRepository(database as never);
+    const repository = new RentingsRepository(database as any);
 
     const result = await repository.hasEligibleReviewRenting({
       postingId: "posting-1",

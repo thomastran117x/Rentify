@@ -45,7 +45,7 @@ describe("logger failure handling", () => {
       .mockImplementation(() => {});
     const loggingModule = await import("@/configuration/logging");
     const dispatcher = (
-      loggingModule.loggerFactory as {
+      loggingModule.loggerFactory as unknown as {
         dispatcher: {
           queueService: {
             publishLogEvent: (event: unknown) => Promise<void>;

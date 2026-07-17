@@ -51,7 +51,7 @@ describe("FeatureFlagRepository", () => {
           }),
         ),
       });
-      const repo = new FeatureFlagRepository(prisma as never);
+      const repo = new FeatureFlagRepository(prisma as any);
 
       const result = await repo.findByName("test-flag");
 
@@ -67,7 +67,7 @@ describe("FeatureFlagRepository", () => {
       const prisma = createPrisma({
         featureFlagFindUnique: jest.fn(async () => null),
       });
-      const repo = new FeatureFlagRepository(prisma as never);
+      const repo = new FeatureFlagRepository(prisma as any);
 
       await expect(repo.findByName("unknown")).resolves.toBeNull();
     });
@@ -75,7 +75,7 @@ describe("FeatureFlagRepository", () => {
     it("queries by name", async () => {
       const findUnique = jest.fn(async () => makeDbRow());
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagFindUnique: findUnique }) as never,
+        createPrisma({ featureFlagFindUnique: findUnique }) as any,
       );
 
       await repo.findByName("my-flag");
@@ -92,7 +92,7 @@ describe("FeatureFlagRepository", () => {
           makeDbRow({ name: "zz-flag" }),
         ]),
       });
-      const repo = new FeatureFlagRepository(prisma as never);
+      const repo = new FeatureFlagRepository(prisma as any);
 
       const result = await repo.listAll();
 
@@ -104,7 +104,7 @@ describe("FeatureFlagRepository", () => {
     it("orders results by name ascending", async () => {
       const findMany = jest.fn(async () => []);
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagFindMany: findMany }) as never,
+        createPrisma({ featureFlagFindMany: findMany }) as any,
       );
 
       await repo.listAll();
@@ -125,7 +125,7 @@ describe("FeatureFlagRepository", () => {
         }),
       );
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagUpsert: upsert }) as never,
+        createPrisma({ featureFlagUpsert: upsert }) as any,
       );
 
       const result = await repo.upsert(
@@ -156,7 +156,7 @@ describe("FeatureFlagRepository", () => {
     it("stores null for omitted description", async () => {
       const upsert = jest.fn(async () => makeDbRow({ description: null }));
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagUpsert: upsert }) as never,
+        createPrisma({ featureFlagUpsert: upsert }) as any,
       );
 
       await repo.upsert("my-flag", false);
@@ -172,7 +172,7 @@ describe("FeatureFlagRepository", () => {
     it("persists the group field when provided", async () => {
       const upsert = jest.fn(async () => makeDbRow({ group: "payments" }));
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagUpsert: upsert }) as never,
+        createPrisma({ featureFlagUpsert: upsert }) as any,
       );
 
       const result = await repo.upsert(
@@ -198,7 +198,7 @@ describe("FeatureFlagRepository", () => {
     it("deletes the row by name", async () => {
       const del = jest.fn(async () => makeDbRow());
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagDelete: del }) as never,
+        createPrisma({ featureFlagDelete: del }) as any,
       );
 
       await repo.deleteByName("test-flag");
@@ -211,7 +211,7 @@ describe("FeatureFlagRepository", () => {
     it("persists the audit log entry", async () => {
       const create = jest.fn(async () => undefined);
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagAuditLogCreate: create }) as never,
+        createPrisma({ featureFlagAuditLogCreate: create }) as any,
       );
 
       await repo.createAuditLog({
@@ -239,7 +239,7 @@ describe("FeatureFlagRepository", () => {
     it("coerces undefined audit fields to null", async () => {
       const create = jest.fn(async () => undefined);
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagAuditLogCreate: create }) as never,
+        createPrisma({ featureFlagAuditLogCreate: create }) as any,
       );
 
       await repo.createAuditLog({ flagName: "test-flag", action: "created" });
@@ -260,7 +260,7 @@ describe("FeatureFlagRepository", () => {
     it("persists oldGroup and newGroup in the audit log", async () => {
       const create = jest.fn(async () => undefined);
       const repo = new FeatureFlagRepository(
-        createPrisma({ featureFlagAuditLogCreate: create }) as never,
+        createPrisma({ featureFlagAuditLogCreate: create }) as any,
       );
 
       await repo.createAuditLog({

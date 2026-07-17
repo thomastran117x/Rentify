@@ -15,6 +15,7 @@ function createUser(): AuthUserRecord {
     role: "user",
     emailVerified: true,
     oauthIdentities: [],
+    organizationMemberships: [],
     profile: {
       id: "profile-1",
       userId: "user-1",
@@ -150,9 +151,9 @@ function createService(overrides?: {
     set: jest.fn(overrides?.cacheSet ?? (async () => {})),
   };
   const service = new DeviceService({
-    deviceRepository: deviceRepository as never,
-    emailService: emailService as never,
-    cache: cache as never,
+    deviceRepository: deviceRepository as any,
+    emailService: emailService as any,
+    cache: cache as any,
     unknownDeviceAlertCooldownInSeconds:
       overrides?.unknownDeviceAlertCooldownInSeconds,
   });

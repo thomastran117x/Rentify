@@ -81,10 +81,7 @@ function createService(options?: {
   return {
     profileRepository,
     blobService,
-    service: new ProfileService(
-      profileRepository as never,
-      blobService as never,
-    ),
+    service: new ProfileService(profileRepository as any, blobService as any),
   };
 }
 
@@ -193,7 +190,7 @@ describe("ProfileService", () => {
         rentPostingsCount: 1,
         availableRentPostingsCount: 2,
       }),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message:
         "Available rent postings count cannot exceed total rent postings count.",
     });
@@ -208,7 +205,7 @@ describe("ProfileService", () => {
         username: "owner-one",
         avatarUrl: "https://storage.example.com/avatars/user-1.png",
       }),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message:
         "Avatar URL and avatar blob name must be provided together when updating the avatar.",
     });
@@ -224,7 +221,7 @@ describe("ProfileService", () => {
         avatarUrl: null,
         avatarBlobName: "avatars/user-1.png",
       }),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message:
         "Avatar URL and avatar blob name must both be set or both be null.",
     });
@@ -271,7 +268,7 @@ describe("ProfileService", () => {
         avatarUrl: "https://storage.example.com/avatars/user-1.png",
         avatarBlobName: "avatars/user-1.png",
       }),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message:
         "Avatar images require Azure Blob Storage to be configured on the backend.",
     });
@@ -289,7 +286,7 @@ describe("ProfileService", () => {
         avatarUrl: "https://cdn.example.com/avatars/user-1.png",
         avatarBlobName: "avatars/user-1.png",
       }),
-    ).rejects.toMatchObject<BadRequestError>({
+    ).rejects.toMatchObject({
       message:
         "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
     });

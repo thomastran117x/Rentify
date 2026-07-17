@@ -87,10 +87,10 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         convertApprovedBookingRequest,
-      } as never,
+      } as any,
       {
         publishRentingConfirmed,
-      } as never,
+      } as any,
     );
 
     const response = await controller.convertBookingRequest(
@@ -127,8 +127,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         getById,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.getById(
@@ -160,8 +160,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         listMine,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.listMine(
@@ -181,7 +181,7 @@ describe("RentingsController", () => {
 
   it("rejects invalid renting list queries", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
-    const controller = new RentingsController({} as never, {} as never);
+    const controller = new RentingsController({} as any, {} as any);
 
     await expect(
       controller.listMine(
@@ -200,8 +200,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         updateInstructions,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.updateInstructions(
@@ -234,8 +234,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         markCheckInReady,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.markCheckInReady(
@@ -262,8 +262,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         markCheckInComplete,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.markCheckInComplete(
@@ -290,8 +290,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         markCompleted,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.markCompleted(
@@ -318,8 +318,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController(
       {
         createDispute,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     const response = await controller.createDispute(

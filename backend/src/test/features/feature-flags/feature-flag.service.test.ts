@@ -64,8 +64,8 @@ function createService(
   const repository = createRepository(repositoryOverrides);
   const flagCache = createFlagCache(cacheOverrides);
   const service = new FeatureFlagService(
-    repository as never,
-    flagCache as never,
+    repository as any,
+    flagCache as any,
     env,
   );
   return { repository, flagCache, service };

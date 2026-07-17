@@ -55,7 +55,7 @@ describe("MicrosoftOAuthService", () => {
         },
       ),
     );
-    const service = new MicrosoftOAuthService(tokenVerifier as never);
+    const service = new MicrosoftOAuthService(tokenVerifier as any);
 
     const profile = await service.verify({
       code: "auth-code",
@@ -107,7 +107,7 @@ describe("MicrosoftOAuthService", () => {
         name: "Direct Person",
       })),
     };
-    const service = new MicrosoftOAuthService(tokenVerifier as never);
+    const service = new MicrosoftOAuthService(tokenVerifier as any);
 
     const profile = await service.verify({
       idToken: "pre-issued-id-token",
@@ -132,7 +132,7 @@ describe("MicrosoftOAuthService", () => {
     });
     const service = new MicrosoftOAuthService({
       verifyIdToken: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -151,7 +151,7 @@ describe("MicrosoftOAuthService", () => {
       verifyIdToken: jest.fn(async () => ({
         name: "No Email User",
       })),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -173,7 +173,7 @@ describe("MicrosoftOAuthService", () => {
         preferred_username: "alias@example.com",
         name: "Alias Person",
       })),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -197,7 +197,7 @@ describe("MicrosoftOAuthService", () => {
     );
     const service = new MicrosoftOAuthService({
       verifyIdToken: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({

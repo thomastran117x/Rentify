@@ -94,7 +94,7 @@ describe("ProfileController", () => {
     }));
     const controller = new ProfileController({
       list,
-    } as never);
+    } as any);
     const context = createContext({
       url: "https://example.test/api/v1/profile?page=2&pageSize=5&q=owner",
     });
@@ -140,7 +140,7 @@ describe("ProfileController", () => {
   it("returns query validation details for invalid list parameters", async () => {
     const controller = new ProfileController({
       list: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       controller.list(
@@ -148,7 +148,7 @@ describe("ProfileController", () => {
           url: "https://example.test/api/v1/profile?page=0&pageSize=101",
         }),
       ),
-    ).rejects.toMatchObject<RequestValidationError>({
+    ).rejects.toMatchObject({
       message: "Request query validation failed.",
       details: [
         {
@@ -165,19 +165,19 @@ describe("ProfileController", () => {
 
   it("reads the authenticated user profile from context auth", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", claims);
-        return claims;
-      },
-    );
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
+      context.set("auth", claims as any);
+      return claims;
+    }) as any);
     const getByUserId = jest.fn(async (userId: string) => ({
       id: "profile-1",
       userId,
     }));
     const controller = new ProfileController({
       getByUserId,
-    } as never);
+    } as any);
     const context = createContext();
 
     const response = await controller.getMe(context);
@@ -189,19 +189,19 @@ describe("ProfileController", () => {
 
   it("validates update bodies, maps auth to userId, and returns a success message", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", claims);
-        return claims;
-      },
-    );
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
+      context.set("auth", claims as any);
+      return claims;
+    }) as any);
     const update = jest.fn(async (input) => ({
       id: "profile-1",
       ...input,
     }));
     const controller = new ProfileController({
       update,
-    } as never);
+    } as any);
     const context = createContext({
       body: {
         username: "owner-one",
@@ -246,16 +246,16 @@ describe("ProfileController", () => {
 
   it("returns request validation errors for invalid update bodies", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", claims);
-        return claims;
-      },
-    );
+    mockRequireJwtAuth.mockImplementation((async (
+      context: Context<AppBindings>,
+    ) => {
+      context.set("auth", claims as any);
+      return claims;
+    }) as any);
     const update = jest.fn();
     const controller = new ProfileController({
       update,
-    } as never);
+    } as any);
 
     await expect(
       controller.updateMe(
@@ -265,7 +265,7 @@ describe("ProfileController", () => {
           },
         }),
       ),
-    ).rejects.toMatchObject<RequestValidationError>({
+    ).rejects.toMatchObject({
       message: "Request body validation failed.",
       details: [
         {

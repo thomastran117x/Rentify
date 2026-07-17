@@ -72,7 +72,7 @@ function createAuthUser(
 ): AuthUserProfile {
   return {
     id: "user-1",
-    username: "test-user",
+    email: "user@example.com",
     firstName: "Test",
     lastName: "User",
     username: "test-user",
@@ -361,10 +361,10 @@ function createController(overrides?: {
 
   return {
     controller: new AuthController(
-      authService as never,
-      captchaService as never,
-      tokenService as never,
-      mfaVerificationService as never,
+      authService as any,
+      captchaService as any,
+      tokenService as any,
+      mfaVerificationService as any,
     ),
     authService,
     captchaService,
@@ -447,6 +447,7 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
+          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,
@@ -494,6 +495,7 @@ describe("AuthController", () => {
         },
         user: {
           id: "user-1",
+          email: "user@example.com",
           username: "test-user",
           role: "user",
           organizationMembershipCount: 0,

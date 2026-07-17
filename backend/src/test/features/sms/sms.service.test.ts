@@ -27,8 +27,8 @@ describe("SmsService", () => {
     const service = new SmsService(
       {
         enqueueSmsJob,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     await service.sendMessage({
@@ -58,11 +58,11 @@ describe("SmsService", () => {
     }));
     const parseWebhookEvent = jest.fn();
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature,
         parseWebhookEvent,
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -77,7 +77,7 @@ describe("SmsService", () => {
   it("returns parsed webhook events after successful verification", async () => {
     const event = createParsedWebhookEvent();
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -86,7 +86,7 @@ describe("SmsService", () => {
           payload: event.payload,
         })),
         parseWebhookEvent: jest.fn(() => event),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -99,7 +99,7 @@ describe("SmsService", () => {
 
   it("normalizes unexpected parse failures into bad-request errors", async () => {
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -110,7 +110,7 @@ describe("SmsService", () => {
         parseWebhookEvent: jest.fn(() => {
           throw new Error("provider exploded");
         }),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -123,7 +123,7 @@ describe("SmsService", () => {
 
   it("preserves explicit bad-request payload failures from the adapter", async () => {
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -134,7 +134,7 @@ describe("SmsService", () => {
         parseWebhookEvent: jest.fn(() => {
           throw new BadRequestError("SMS webhook payload is invalid.");
         }),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -154,7 +154,7 @@ describe("SmsService", () => {
       errors: [{ code: "30007" }],
     };
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -163,7 +163,7 @@ describe("SmsService", () => {
           payload: event.payload,
         })),
         parseWebhookEvent: jest.fn(() => event),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -181,7 +181,7 @@ describe("SmsService", () => {
       errors: [],
     };
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -190,7 +190,7 @@ describe("SmsService", () => {
           payload: event.payload,
         })),
         parseWebhookEvent: jest.fn(() => event),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -209,7 +209,7 @@ describe("SmsService", () => {
       errors: [],
     };
     const service = new SmsService(
-      {} as never,
+      {} as any,
       {
         verifyWebhookSignature: jest.fn(() => ({
           isValid: true,
@@ -218,7 +218,7 @@ describe("SmsService", () => {
           payload: event.payload,
         })),
         parseWebhookEvent: jest.fn(() => event),
-      } as never,
+      } as any,
     );
 
     await expect(

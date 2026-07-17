@@ -80,7 +80,7 @@ describe("PostingsSearchIndexService", () => {
       createClient({
         requestJson,
         isEnabled: () => false,
-      }) as never,
+      }) as any,
     );
 
     await expect(service.ensureLiveIndex()).resolves.toBeUndefined();
@@ -98,7 +98,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.ensureLiveIndex();
@@ -167,7 +167,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.ensureLiveIndex();
@@ -201,7 +201,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.ensureLiveIndex();
@@ -234,7 +234,7 @@ describe("PostingsSearchIndexService", () => {
             'Elasticsearch request failed with status 400: {"error":{"type":"resource_already_exists_exception"}}',
           );
         }),
-      }) as never,
+      }) as any,
     );
 
     await expect(
@@ -254,7 +254,7 @@ describe("PostingsSearchIndexService", () => {
           .mockResolvedValueOnce({
             "postings-test_v2": {},
           }),
-      }) as never,
+      }) as any,
     );
 
     await expect(service.ensureLiveIndex()).rejects.toBeInstanceOf(
@@ -276,7 +276,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await expect(service.swapAliases("postings-test_v2")).resolves.toEqual({
@@ -330,10 +330,10 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
-    await service.upsertDocument(createDocument() as never, "custom-index");
+    await service.upsertDocument(createDocument() as any, "custom-index");
 
     expect(requestJson).toHaveBeenCalledWith(
       "/custom-index/_doc/posting-1",
@@ -342,7 +342,8 @@ describe("PostingsSearchIndexService", () => {
       }),
     );
 
-    const body = JSON.parse(requestJson.mock.calls[0]?.[1]?.body as string) as {
+    const requestCall = requestJson.mock.calls[0] as any[];
+    const body = JSON.parse(requestCall[1].body as string) as {
       primaryPhotoUrl: string;
       photoUrls: string[];
       geoPoint: {
@@ -383,7 +384,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.deleteDocument("posting-1");
@@ -404,7 +405,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await service.bulkUpsertDocuments([], "postings-test_v2");
@@ -430,12 +431,12 @@ describe("PostingsSearchIndexService", () => {
             },
           ],
         })),
-      }) as never,
+      }) as any,
     );
 
     await expect(
       service.bulkUpsertDocuments(
-        [createDocument() as never],
+        [createDocument() as any],
         "postings-test_v2",
       ),
     ).rejects.toBeInstanceOf(ElasticsearchRequestError);
@@ -475,7 +476,7 @@ describe("PostingsSearchIndexService", () => {
     const service = new PostingsSearchIndexService(
       createClient({
         requestJson,
-      }) as never,
+      }) as any,
     );
 
     await expect(

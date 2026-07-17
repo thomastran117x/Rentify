@@ -89,7 +89,7 @@ function createApp() {
     feedback: {
       create: feedbackCreate,
     },
-  } as never);
+  } as any);
   const feedbacksService = new FeedbacksService(feedbacksRepository);
   const captchaService = {
     verify: jest.fn(async ({ token }: { token?: string }) => ({
@@ -100,7 +100,7 @@ function createApp() {
   };
   const controller = new FeedbacksController(
     feedbacksService,
-    captchaService as never,
+    captchaService as any,
   );
   const tokenService = {
     verifyAccessToken: jest.fn(async (token: string) => {

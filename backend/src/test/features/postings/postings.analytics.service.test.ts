@@ -9,7 +9,7 @@ function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function createPublicPosting(overrides: Record<string, unknown> = {}) {
+function createPublicPosting(overrides: Record<string, unknown> = {}): any {
   return {
     id: "posting-1",
     organizationId: "org-1",
@@ -24,13 +24,13 @@ function createClient(
     ip: string;
     device: {
       id?: string;
-      type: string;
+      type: "unknown" | "mobile" | "tablet" | "desktop" | "bot";
       isMobile: boolean;
       userAgent?: string;
       platform?: string;
     };
   }>,
-) {
+): any {
   return {
     ip: "203.0.113.10",
     device: {
@@ -94,10 +94,10 @@ describe("PostingsAnalyticsService", () => {
       enqueuePostingViewedEvent: jest.fn(async () => undefined),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
+      analyticsRepository as any,
       {
         findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
-      } as never,
+      } as any,
       createOrganizationAccessService(),
     );
     const client = createClient();
@@ -123,10 +123,10 @@ describe("PostingsAnalyticsService", () => {
       enqueuePostingViewedEvent: jest.fn(async () => undefined),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
+      analyticsRepository as any,
       {
         findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
-      } as never,
+      } as any,
       createOrganizationAccessService(),
     );
 
@@ -161,10 +161,10 @@ describe("PostingsAnalyticsService", () => {
       enqueueSearchImpressionEvent: jest.fn(async () => undefined),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
+      analyticsRepository as any,
       {
         findPublicReadMetadataById: jest.fn(async () => createPublicPosting()),
-      } as never,
+      } as any,
       createOrganizationAccessService(),
     );
 
@@ -174,7 +174,7 @@ describe("PostingsAnalyticsService", () => {
       createPublicPosting({
         id: "posting-2",
       }),
-    ] as never);
+    ] as any);
 
     expect(
       analyticsRepository.enqueueSearchImpressionEvent,
@@ -203,8 +203,8 @@ describe("PostingsAnalyticsService", () => {
         }),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
-      postingsRepository as never,
+      analyticsRepository as any,
+      postingsRepository as any,
       createOrganizationAccessService(),
     );
 
@@ -230,8 +230,8 @@ describe("PostingsAnalyticsService", () => {
       listOwnerPostingsAnalytics: jest.fn(async () => ({ postings: [] })),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
-      {} as never,
+      analyticsRepository as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -269,8 +269,8 @@ describe("PostingsAnalyticsService", () => {
         .mockResolvedValueOnce(createPublicPosting()),
     };
     const service = new PostingsAnalyticsService(
-      analyticsRepository as never,
-      postingsRepository as never,
+      analyticsRepository as any,
+      postingsRepository as any,
       createOrganizationAccessService(),
     );
 

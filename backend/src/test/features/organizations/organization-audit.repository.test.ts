@@ -44,7 +44,7 @@ describe("OrganizationAuditRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.list({
@@ -146,7 +146,7 @@ describe("OrganizationAuditRepository", () => {
       organizationAuditLog: {
         findMany,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.hasRestorableOrganizationLogoReference({
@@ -179,7 +179,7 @@ describe("OrganizationAuditRepository", () => {
           },
         ]),
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.hasRestorableOrganizationLogoReference({

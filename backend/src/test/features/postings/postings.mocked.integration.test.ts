@@ -369,12 +369,12 @@ function createApp() {
   };
 
   const controller = new PostingsController(
-    postingsService as never,
-    postingsPublicAutocompleteService as never,
-    postingsAnalyticsService as never,
-    postingsReviewsService as never,
-    seasonalPricingService as never,
-    recommendationActivityPublisher as never,
+    postingsService as any,
+    postingsPublicAutocompleteService as any,
+    postingsAnalyticsService as any,
+    postingsReviewsService as any,
+    seasonalPricingService as any,
+    recommendationActivityPublisher as any,
   );
   const tokenService = {
     verifyAccessToken: jest.fn(async (token: string) => {
@@ -1436,7 +1436,7 @@ describe("Postings integration", () => {
     } = createApp();
     const { organizationId, ...publicPosting } = createPosting();
     void organizationId;
-    postingsService.getById.mockResolvedValueOnce(publicPosting);
+    postingsService.getById.mockResolvedValueOnce(publicPosting as any);
 
     const response = await app.request(
       `http://rent.test${buildApiPath("/postings/posting-1")}`,

@@ -17,7 +17,7 @@ describe("RecommendationQueryRepository", () => {
             .mockResolvedValueOnce({
               recommendationPersonalizationEnabled: false,
             })
-            .mockResolvedValueOnce(null),
+            .mockResolvedValueOnce(null as any),
         },
         userRecommendationProfile: {
           findUnique: jest.fn(async () => ({
@@ -56,7 +56,7 @@ describe("RecommendationQueryRepository", () => {
             ],
           })),
         },
-      }) as never,
+      }) as any,
     );
 
     const context = await repository.getPersonalizationContext("user-1");
@@ -105,7 +105,7 @@ describe("RecommendationQueryRepository", () => {
       createDatabaseMock({
         popularRecommendationSnapshot: {
           findUnique: jest.fn(async () => ({
-            segmentType: "region",
+            segmentType: "region" as any,
             segmentValue: "toronto",
             generatedAt: new Date("2026-05-12T00:00:00.000Z"),
             sourceLastSignalAt: null,
@@ -120,11 +120,11 @@ describe("RecommendationQueryRepository", () => {
           })),
         },
         $queryRaw,
-      }) as never,
+      }) as any,
     );
 
     await expect(
-      repository.getPopularSnapshot("region", "toronto"),
+      repository.getPopularSnapshot("region" as any, "toronto"),
     ).resolves.toEqual({
       segmentType: "region",
       segmentValue: "toronto",
@@ -166,7 +166,7 @@ describe("RecommendationQueryRepository", () => {
             { postingId: "confirmed-renting-posting" },
           ]),
         },
-      }) as never,
+      }) as any,
     );
 
     const excludedIds =
@@ -193,7 +193,7 @@ describe("RecommendationQueryRepository", () => {
             return [{ id: "candidate-3" }, { id: "candidate-1" }];
           },
         ),
-      }) as never,
+      }) as any,
     );
 
     const eligibleIds = await repository.filterCandidateIdsByAvailabilityWindow(

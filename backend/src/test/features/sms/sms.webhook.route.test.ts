@@ -9,7 +9,7 @@ function createApp(processWebhook: jest.Mock) {
   const app = new Hono<AppBindings>();
   const controller = new SmsController({
     processWebhook,
-  } as never);
+  } as any);
 
   app.use("*", async (context, next) => {
     context.set("requestId", "request-1");
@@ -21,7 +21,7 @@ function createApp(processWebhook: jest.Mock) {
       error: jest.fn(),
       critical: jest.fn(),
       child: jest.fn(),
-    } as never);
+    } as any);
     await next();
   });
   app.post("/sms/webhooks/telnyx", controller.webhook);

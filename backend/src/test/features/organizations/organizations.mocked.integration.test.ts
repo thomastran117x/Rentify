@@ -212,7 +212,7 @@ function createApp() {
   const registry = new Map<unknown, unknown>([
     [
       containerTokens.organizationsController,
-      new OrganizationsController(organizationsService as never),
+      new OrganizationsController(organizationsService as any),
     ],
     [containerTokens.tokenService, tokenService],
     [containerTokens.personalAccessTokenService, personalAccessTokenService],

@@ -179,7 +179,7 @@ function createUpsertPostingInput(overrides: Record<string, unknown> = {}) {
       postalCode: "M5H 2N2",
     },
     ...overrides,
-  } as never;
+  } as any;
 }
 
 describe("PostingsRepository", () => {
@@ -199,7 +199,7 @@ describe("PostingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.listByOwner({
       organizationId: "org-1",
@@ -246,7 +246,7 @@ describe("PostingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     await repository.listByOwner({
       organizationId: "org-1",
@@ -278,7 +278,7 @@ describe("PostingsRepository", () => {
       posting: {
         groupBy,
       },
-    } as never);
+    } as any);
 
     const summary = await repository.countByOwnerStatus("org-1");
 
@@ -307,7 +307,7 @@ describe("PostingsRepository", () => {
       posting: {
         findMany,
       },
-    } as never);
+    } as any);
 
     const result = await repository.batchFindPublic({
       ids: ["posting-1", "posting-3", "posting-2"],
@@ -356,7 +356,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.createOwnerAvailabilityBlock("posting-1", {
       startAt: "2026-06-01T00:00:00.000Z",
@@ -413,7 +413,7 @@ describe("PostingsRepository", () => {
       renting: {
         findFirst: rentingFindFirst,
       },
-    } as never);
+    } as any);
     const startAt = new Date("2026-06-01T00:00:00.000Z");
     const endAt = new Date("2026-06-03T00:00:00.000Z");
 
@@ -511,7 +511,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.claimSearchOutboxBatch(2);
 
@@ -582,7 +582,7 @@ describe("PostingsRepository", () => {
         findUnique: postingSearchOutboxFindUnique,
         count: postingSearchOutboxCount,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.getSearchReindexCatchUpState("run-1"),
@@ -627,7 +627,7 @@ describe("PostingsRepository", () => {
         findFirst,
         update,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.findPrimaryPhotoForThumbnailing("posting-1"),
@@ -682,7 +682,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.create(createUpsertPostingInput());
 
@@ -766,7 +766,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     const result = await repository.update(
       "posting-1",
@@ -822,7 +822,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await expect(
       repository.update("missing-posting", createUpsertPostingInput()),
@@ -846,7 +846,7 @@ describe("PostingsRepository", () => {
         $transaction: async (
           callback: (tx: typeof transaction) => Promise<unknown>,
         ) => callback(transaction),
-      } as never);
+      } as any);
 
       return {
         repository,
@@ -1000,7 +1000,7 @@ describe("PostingsRepository", () => {
         findUnique,
         findMany,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findById("posting-1")).resolves.toMatchObject({
       id: "posting-1",
@@ -1065,7 +1065,7 @@ describe("PostingsRepository", () => {
     ]);
     const repository = new PostingsRepository({
       $queryRaw: queryRaw,
-    } as never);
+    } as any);
 
     await expect(
       repository.autocompletePublicFallback({
@@ -1177,7 +1177,7 @@ describe("PostingsRepository", () => {
       posting: {
         findMany,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findByIdsForIndexing([])).resolves.toEqual([]);
     await expect(
@@ -1255,7 +1255,7 @@ describe("PostingsRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
     const longError = "x".repeat(3000);
 
     await repository.markSearchOutboxPublished("outbox-1", "broker-1");
@@ -1286,7 +1286,7 @@ describe("PostingsRepository", () => {
       repository.hasNewerSearchOutboxJob({
         id: "outbox-1",
         createdAt: "2026-05-20T11:00:00.000Z",
-      } as never),
+      } as any),
     ).resolves.toBe(false);
     await expect(
       repository.hasNewerSearchOutboxJob({
@@ -1428,7 +1428,7 @@ describe("PostingsRepository", () => {
         updateMany,
         update,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.createSearchReindexRun("postings-reindex-2"),
@@ -1582,7 +1582,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof relayTransaction) => Promise<unknown>,
       ) => callback(relayTransaction),
-    } as never);
+    } as any);
 
     await expect(
       repository.countPublishedPostingsForIndexing("2026-05-20T12:00:00.000Z"),
@@ -1689,9 +1689,9 @@ describe("PostingsRepository", () => {
             {
               acquired: 0,
             },
-          ]),
-        }),
-    } as never);
+          ]) as any,
+        } as any),
+    } as any);
 
     await expect(
       unlockedRepository.withSearchReindexStartLock(async () => "nope"),
@@ -1736,7 +1736,7 @@ describe("PostingsRepository", () => {
             findFirst,
           },
         }),
-    } as never);
+    } as any);
 
     await expect(
       lockedRepository.withSearchReindexStartLock(async (helpers) => {
@@ -1877,7 +1877,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await expect(repository.restoreFromSnapshot(snapshot)).resolves.toEqual(
       expect.objectContaining({
@@ -1965,7 +1965,7 @@ describe("PostingsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<unknown>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await expect(
       repository.listOwnerAvailabilityBlocks("posting-1"),
@@ -2022,7 +2022,7 @@ describe("PostingsRepository", () => {
   });
 
   it("covers posting repository helper branches for photos, ranges, and detail columns", async () => {
-    const repository = new PostingsRepository({} as never) as unknown as {
+    const repository = new PostingsRepository({} as any) as unknown as {
       mergePhotosWithExisting: (
         existingPhotos: Array<{
           blobUrl: string;

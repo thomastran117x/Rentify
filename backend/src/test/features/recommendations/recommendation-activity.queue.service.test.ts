@@ -52,7 +52,7 @@ function createMockChannel() {
   };
 }
 
-function createEventPayload(overrides: Record<string, unknown> = {}) {
+function createEventPayload(overrides: Record<string, unknown> = {}): any {
   return {
     eventId: "event-1",
     eventType: "posting_view",

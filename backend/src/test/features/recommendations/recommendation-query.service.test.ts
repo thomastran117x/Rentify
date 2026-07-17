@@ -421,8 +421,8 @@ function createService(overrides: Record<string, unknown>) {
   };
 
   return new RecommendationQueryService(
-    repository as never,
-    postingsPublicCacheService as never,
+    repository as any,
+    postingsPublicCacheService as any,
   );
 }
 
@@ -447,7 +447,7 @@ function createJwtAuth() {
     authMethod: "jwt" as const,
     sub: "user-1",
     email: "user@example.com",
-    role: "renter" as const,
+    role: "user" as const,
     deviceId: "device-1",
     iat: 1,
     exp: 9999999999,

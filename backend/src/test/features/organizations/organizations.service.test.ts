@@ -245,14 +245,14 @@ function createService(overrides?: {
 
   return {
     service: new OrganizationsService(
-      repository as never,
-      authRepository as never,
-      emailService as never,
-      auditService as never,
-      postingsRepository as never,
-      seasonalPricingRepository as never,
-      blobService as never,
-      publicSearchService as never,
+      repository as any,
+      authRepository as any,
+      emailService as any,
+      auditService as any,
+      postingsRepository as any,
+      seasonalPricingRepository as any,
+      blobService as any,
+      publicSearchService as any,
     ),
     repository,
     authRepository,

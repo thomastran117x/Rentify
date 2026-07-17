@@ -68,7 +68,7 @@ describe("OrganizationsSearchController", () => {
     }));
     const controller = new OrganizationsSearchController({
       startReindex,
-    } as never);
+    } as any);
 
     const response = await controller.startReindex(createContext());
 
@@ -86,7 +86,7 @@ describe("OrganizationsSearchController", () => {
     }));
     const controller = new OrganizationsSearchController({
       getReindexRun,
-    } as never);
+    } as any);
 
     const response = await controller.getReindexRun(
       createContext({ params: { id: "run-1" } }),
@@ -101,7 +101,7 @@ describe("OrganizationsSearchController", () => {
   it("returns a null run payload when the run is missing", async () => {
     const controller = new OrganizationsSearchController({
       getReindexRun: jest.fn(async () => null),
-    } as never);
+    } as any);
 
     const response = await controller.getReindexRun(
       createContext({ params: { id: "missing" } }),
@@ -116,7 +116,7 @@ describe("OrganizationsSearchController", () => {
     const replayDeadLetteredOutbox = jest.fn(async () => ({ revived: 3 }));
     const controller = new OrganizationsSearchController({
       replayDeadLetteredOutbox,
-    } as never);
+    } as any);
 
     await controller.replayDeadLettered(
       createContext({ url: "https://example.test/x?limit=7" }),
@@ -135,7 +135,7 @@ describe("OrganizationsSearchController", () => {
     const controller = new OrganizationsSearchController({
       getStatus,
       cleanupRetainedIndices,
-    } as never);
+    } as any);
 
     const statusResponse = await controller.getStatus(createContext());
     const cleanupResponse =
@@ -152,7 +152,7 @@ describe("OrganizationsSearchController", () => {
     const startReindex = jest.fn();
     const controller = new OrganizationsSearchController({
       startReindex,
-    } as never);
+    } as any);
 
     await expect(
       controller.startReindex(createContext()),

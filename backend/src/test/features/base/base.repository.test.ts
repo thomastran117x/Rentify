@@ -9,10 +9,10 @@ class TestRepository extends BaseRepository {
   }
 
   runTransaction<T>(
-    operation: Parameters<BaseRepository["executeTransaction"]>[0],
+    operation: (tx: any) => Promise<T>,
     options?: Parameters<BaseRepository["executeTransaction"]>[1],
   ): Promise<T> {
-    return this.executeTransaction(operation, options);
+    return this.executeTransaction<T>(operation as any, options);
   }
 }
 
@@ -38,8 +38,8 @@ describe("BaseRepository", () => {
       }
 
       return true;
-    }) as never);
-    const repository = new TestRepository({} as never);
+    }) as any);
+    const repository = new TestRepository({} as any);
     const transientError = Object.assign(new Error("connection dropped"), {
       code: "ECONNRESET",
     });
@@ -74,7 +74,7 @@ describe("BaseRepository", () => {
           callback(transaction),
       ),
     };
-    const repository = new TestRepository(database as never);
+    const repository = new TestRepository(database as any);
 
     await expect(
       repository.runTransaction(async (tx) => {

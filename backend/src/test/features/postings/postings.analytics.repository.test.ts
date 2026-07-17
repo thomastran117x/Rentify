@@ -35,7 +35,7 @@ describe("PostingsAnalyticsRepository", () => {
       postingAnalyticsOutbox: {
         create,
       },
-    } as never);
+    } as any);
 
     await repository.enqueuePostingViewedEvent({
       postingId: "posting-1",
@@ -73,7 +73,7 @@ describe("PostingsAnalyticsRepository", () => {
       postingAnalyticsOutbox: {
         create,
       },
-    } as never) as unknown as Record<string, (input: unknown) => Promise<void>>;
+    } as any) as unknown as Record<string, (input: unknown) => Promise<void>>;
 
     const cases = [
       {
@@ -246,7 +246,7 @@ describe("PostingsAnalyticsRepository", () => {
         findMany,
         updateMany,
       },
-    } as never);
+    } as any);
 
     await expect(repository.claimOutboxBatch(10)).resolves.toEqual([
       {
@@ -279,7 +279,7 @@ describe("PostingsAnalyticsRepository", () => {
       postingAnalyticsOutbox: {
         update,
       },
-    } as never);
+    } as any);
 
     await repository.markOutboxRetry("outbox-1", 3, "x".repeat(3000));
 
@@ -306,7 +306,7 @@ describe("PostingsAnalyticsRepository", () => {
       postingAnalyticsOutbox: {
         update,
       },
-    } as never);
+    } as any);
 
     await repository.markOutboxProcessed("outbox-1");
 
@@ -342,7 +342,7 @@ describe("PostingsAnalyticsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<void>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await repository.processPostingViewedEvent({
       postingId: "posting-1",
@@ -426,7 +426,7 @@ describe("PostingsAnalyticsRepository", () => {
       $transaction: async (
         callback: (tx: typeof transaction) => Promise<void>,
       ) => callback(transaction),
-    } as never);
+    } as any);
 
     await repository.processPostingViewedEvent({
       postingId: "posting-1",
@@ -504,10 +504,7 @@ describe("PostingsAnalyticsRepository", () => {
         $transaction: async (
           callback: (tx: typeof transaction) => Promise<void>,
         ) => callback(transaction),
-      } as never) as unknown as Record<
-        string,
-        (input: unknown) => Promise<void>
-      >;
+      } as any) as unknown as Record<string, (input: unknown) => Promise<void>>;
 
       await repository[testCase.method]({
         postingId: "posting-1",
@@ -549,7 +546,7 @@ describe("PostingsAnalyticsRepository", () => {
       $transaction: async (
         callback: (tx: typeof refundTransaction) => Promise<void>,
       ) => callback(refundTransaction),
-    } as never);
+    } as any);
 
     await refundRepository.processRefundRecordedEvent({
       postingId: "posting-1",
@@ -560,8 +557,11 @@ describe("PostingsAnalyticsRepository", () => {
       refundedAmount: 55.5,
     });
 
-    const refundHourlyCall =
-      refundTransaction.postingAnalyticsHourly.upsert.mock.calls[0]?.[0];
+    const refundHourlyCall = (
+      refundTransaction.postingAnalyticsHourly.upsert.mock.calls[0] as
+        | any[]
+        | undefined
+    )?.[0];
     expect(
       refundHourlyCall?.update?.refundedRevenue?.increment?.toString(),
     ).toBe("55.5");
@@ -578,7 +578,7 @@ describe("PostingsAnalyticsRepository", () => {
       $transaction: async (
         callback: (tx: typeof rentingTransaction) => Promise<void>,
       ) => callback(rentingTransaction),
-    } as never);
+    } as any);
 
     await rentingRepository.processRentingConfirmedEvent({
       postingId: "posting-1",
@@ -589,8 +589,11 @@ describe("PostingsAnalyticsRepository", () => {
       estimatedTotal: 275,
     });
 
-    const rentingDailyCall =
-      rentingTransaction.postingAnalyticsDaily.upsert.mock.calls[0]?.[0];
+    const rentingDailyCall = (
+      rentingTransaction.postingAnalyticsDaily.upsert.mock.calls[0] as
+        | any[]
+        | undefined
+    )?.[0];
     expect(rentingDailyCall?.create?.confirmedBookings).toBe(1);
     expect(
       rentingDailyCall?.update?.estimatedConfirmedRevenue?.increment?.toString(),
@@ -642,7 +645,7 @@ describe("PostingsAnalyticsRepository", () => {
       ]);
     const repository = new PostingsAnalyticsRepository({
       $queryRaw: queryRaw,
-    } as never);
+    } as any);
 
     const result = await repository.getOwnerSummary({
       actorUserId: "owner-1",
@@ -714,7 +717,7 @@ describe("PostingsAnalyticsRepository", () => {
       ]);
     const repository = new PostingsAnalyticsRepository({
       $queryRaw: queryRaw,
-    } as never);
+    } as any);
 
     const result = await repository.listOwnerPostingsAnalytics({
       actorUserId: "owner-1",
@@ -800,7 +803,7 @@ describe("PostingsAnalyticsRepository", () => {
       .mockResolvedValueOnce([]);
     const repository = new PostingsAnalyticsRepository({
       $queryRaw: queryRaw,
-    } as never);
+    } as any);
 
     const result = await repository.getPostingAnalyticsDetail({
       actorUserId: "owner-1",
@@ -832,7 +835,7 @@ describe("PostingsAnalyticsRepository", () => {
     const queryRaw = jest.fn(async () => []);
     const repository = new PostingsAnalyticsRepository({
       $queryRaw: queryRaw,
-    } as never);
+    } as any);
 
     await expect(
       repository.getPostingAnalyticsDetail({
@@ -847,7 +850,7 @@ describe("PostingsAnalyticsRepository", () => {
 
   it("covers analytics repository helper branches for ranges, metrics, and pagination", async () => {
     const repository = new PostingsAnalyticsRepository(
-      {} as never,
+      {} as any,
     ) as unknown as {
       createWindowRange: (window: "7d" | "30d" | "all") => {
         startAt?: Date;

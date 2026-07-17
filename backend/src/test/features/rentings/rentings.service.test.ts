@@ -271,12 +271,12 @@ describe("RentingsService", () => {
       findById: jest.fn(async () => null),
     } as unknown as BookingsRepository;
     const service = new RentingsService(
-      {} as never,
+      {} as any,
       bookingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -297,18 +297,18 @@ describe("RentingsService", () => {
       })),
     } as unknown as BookingsRepository;
     const service = new RentingsService(
-      {} as never,
+      {} as any,
       bookingsRepository,
-      {} as never,
+      {} as any,
       {
         findById: jest.fn(async () => ({
           id: "posting-1",
           status: "published",
           archivedAt: "2026-04-22T00:00:00.000Z",
         })),
-      } as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -351,7 +351,7 @@ describe("RentingsService", () => {
     const service = new RentingsService(
       rentingsRepository,
       bookingsRepository,
-      {} as never,
+      {} as any,
       postingsRepository,
       createCacheService(),
       postingsPublicCacheService,
@@ -383,11 +383,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -404,12 +404,12 @@ describe("RentingsService", () => {
       {
         promoteReturnDueForRenting: jest.fn(async () => undefined),
         findById: jest.fn(async () => null),
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -423,12 +423,12 @@ describe("RentingsService", () => {
       {
         promoteReturnDueForRenting: jest.fn(async () => undefined),
         findById: jest.fn(async () => createRentingRecord()),
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -458,12 +458,12 @@ describe("RentingsService", () => {
       {
         promoteReturnDueForUser: jest.fn(async () => undefined),
         listMine,
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
       organizationAccessService,
     );
 
@@ -489,11 +489,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -521,11 +521,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -560,11 +560,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -587,11 +587,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -618,11 +618,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -651,11 +651,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -688,11 +688,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -732,11 +732,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -766,12 +766,12 @@ describe("RentingsService", () => {
             },
           }),
         ),
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 
@@ -800,11 +800,11 @@ describe("RentingsService", () => {
     } as unknown as RentingsRepository;
     const service = new RentingsService(
       rentingsRepository,
-      {} as never,
-      {} as never,
-      {} as never,
+      {} as any,
+      {} as any,
+      {} as any,
       createCacheService(),
-      {} as never,
+      {} as any,
       createOrganizationAccessService(),
     );
 

@@ -4,6 +4,7 @@
     "composite": true,
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "moduleDetection": "force",
     "isolatedModules": true,
     "rootDir": "./src",
     "noEmit": true,

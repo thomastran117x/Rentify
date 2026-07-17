@@ -55,6 +55,7 @@ function createAuthUser(
     availableRentPostingsCount: 0,
     role: "user",
     emailVerified: true,
+    organizationMembershipCount: 0,
     ...overrides,
   };
 }
@@ -303,22 +304,23 @@ function createSecurityApp(options?: {
     [
       containerTokens.authController,
       new AuthController(
-        authService as never,
-        captchaService as never,
-        {} as never,
+        authService as any,
+        captchaService as any,
+        {} as any,
+        {} as any,
       ),
     ],
     [
       containerTokens.profileController,
-      new ProfileController(profileService as never),
+      new ProfileController(profileService as any),
     ],
     [
       containerTokens.personalAccessTokenController,
-      new PersonalAccessTokenController(personalAccessTokenService as never),
+      new PersonalAccessTokenController(personalAccessTokenService as any),
     ],
     [
       containerTokens.searchController,
-      new SearchController(searchService as never),
+      new SearchController(searchService as any),
     ],
     [containerTokens.loggerFactory, loggerFactory],
     [containerTokens.tokenService, tokenService],

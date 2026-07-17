@@ -32,7 +32,7 @@ describe("RecommendationActivityRepository", () => {
         posting: {
           findUnique,
         },
-      }) as never,
+      }) as any,
     );
 
     await expect(repository.findPostingSummary("posting-1")).resolves.toEqual({
@@ -60,7 +60,7 @@ describe("RecommendationActivityRepository", () => {
         posting: {
           findUnique: jest.fn(async () => null),
         },
-      }) as never,
+      }) as any,
     );
 
     await expect(repository.findPostingSummary("missing")).resolves.toBeNull();
@@ -75,12 +75,12 @@ describe("RecommendationActivityRepository", () => {
         dedupeKey: "user:user-1",
         processedAt: null,
         availableAt: new Date("2026-06-01T08:00:00.000Z"),
-      })
+      } as any)
       .mockResolvedValueOnce({
         dedupeKey: "popular:global",
         processedAt: new Date("2026-05-31T08:00:00.000Z"),
         availableAt: new Date("2026-05-31T08:00:00.000Z"),
-      });
+      } as any);
     const jobCreate = jest.fn(async () => undefined);
     const jobUpdate = jest.fn(async () => undefined);
     const repository = new RecommendationActivityRepository(
@@ -93,7 +93,7 @@ describe("RecommendationActivityRepository", () => {
           create: jobCreate,
           update: jobUpdate,
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.persistActivityAndRefreshJobs(createActivity(), [
@@ -200,7 +200,7 @@ describe("RecommendationActivityRepository", () => {
           create: jest.fn(async () => undefined),
           update: jest.fn(async () => undefined),
         },
-      }) as never,
+      }) as any,
     );
 
     await repository.persistActivityAndRefreshJobs(

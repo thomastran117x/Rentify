@@ -86,7 +86,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       createOrganization,
-    } as never);
+    } as any);
 
     const response = await controller.create(
       createContext({
@@ -123,7 +123,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       listAudit,
-    } as never);
+    } as any);
 
     const response = await controller.listAudit(
       createContext({
@@ -167,7 +167,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       restoreVersion,
-    } as never);
+    } as any);
 
     const response = await controller.restoreAuditEntry(
       createContext({
@@ -201,7 +201,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       updateMemberRole,
-    } as never);
+    } as any);
 
     await controller.updateMemberRole(
       createContext({
@@ -235,7 +235,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       previewInvitation,
-    } as never);
+    } as any);
 
     await controller.previewInvitation(
       createContext({
@@ -259,7 +259,7 @@ describe("OrganizationsController", () => {
     }));
     const controller = new OrganizationsController({
       revokeInvitation,
-    } as never);
+    } as any);
 
     await controller.revokeInvitation(
       createContext({

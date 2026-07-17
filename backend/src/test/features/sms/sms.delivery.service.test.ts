@@ -7,7 +7,7 @@ describe("SmsDeliveryService", () => {
       providerStatus: "queued",
       raw: { ok: true },
     }));
-    const service = new SmsDeliveryService({ sendMessage } as never);
+    const service = new SmsDeliveryService({ sendMessage } as any);
 
     const result = await service.deliver({
       jobId: "job-1",
@@ -31,7 +31,7 @@ describe("SmsDeliveryService", () => {
       message: "connection reset",
       retryable: true,
     }));
-    const service = new SmsDeliveryService({ classifyError } as never);
+    const service = new SmsDeliveryService({ classifyError } as any);
     const error = new Error("connection reset");
 
     const result = service.classifyError(error);

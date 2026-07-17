@@ -68,7 +68,7 @@ describe("FeatureFlagController", () => {
   describe("list", () => {
     it("returns all flags for an admin", async () => {
       const listAll = jest.fn(async () => [flag("test-flag", true)]);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       const response = await controller.list(createContext());
       const body = await response.json();
@@ -79,7 +79,7 @@ describe("FeatureFlagController", () => {
 
     it("passes enabled=true filter from query param", async () => {
       const listAll = jest.fn(async () => []);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       await controller.list(createContext({ query: { enabled: "true" } }));
 
@@ -90,7 +90,7 @@ describe("FeatureFlagController", () => {
 
     it("passes enabled=false filter from query param", async () => {
       const listAll = jest.fn(async () => []);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       await controller.list(createContext({ query: { enabled: "false" } }));
 
@@ -101,7 +101,7 @@ describe("FeatureFlagController", () => {
 
     it("passes search filter from query param", async () => {
       const listAll = jest.fn(async () => []);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       await controller.list(createContext({ query: { search: "payments" } }));
 
@@ -112,7 +112,7 @@ describe("FeatureFlagController", () => {
 
     it("passes group filter from query param", async () => {
       const listAll = jest.fn(async () => []);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       await controller.list(createContext({ query: { group: "payments" } }));
 
@@ -123,7 +123,7 @@ describe("FeatureFlagController", () => {
 
     it("passes no filter when no query params are set", async () => {
       const listAll = jest.fn(async () => []);
-      const controller = new FeatureFlagController({ listAll } as never);
+      const controller = new FeatureFlagController({ listAll } as any);
 
       await controller.list(createContext());
 
@@ -132,7 +132,7 @@ describe("FeatureFlagController", () => {
 
     it("rejects non-admin callers", async () => {
       mockRequireJwtAuth.mockResolvedValue(createAuth({ role: "user" }));
-      const controller = new FeatureFlagController({} as never);
+      const controller = new FeatureFlagController({} as any);
 
       await expect(controller.list(createContext())).rejects.toBeInstanceOf(
         ForbiddenError,
@@ -143,7 +143,7 @@ describe("FeatureFlagController", () => {
   describe("set", () => {
     it("creates or updates a flag and returns it", async () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
-      const controller = new FeatureFlagController({ setFlag } as never);
+      const controller = new FeatureFlagController({ setFlag } as any);
 
       const response = await controller.set(
         createContext({
@@ -166,7 +166,7 @@ describe("FeatureFlagController", () => {
 
     it("passes description when provided", async () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
-      const controller = new FeatureFlagController({ setFlag } as never);
+      const controller = new FeatureFlagController({ setFlag } as any);
 
       await controller.set(
         createContext({
@@ -182,7 +182,7 @@ describe("FeatureFlagController", () => {
 
     it("passes group when provided", async () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
-      const controller = new FeatureFlagController({ setFlag } as never);
+      const controller = new FeatureFlagController({ setFlag } as any);
 
       await controller.set(
         createContext({
@@ -198,7 +198,7 @@ describe("FeatureFlagController", () => {
 
     it("rejects non-admin callers", async () => {
       mockRequireJwtAuth.mockResolvedValue(createAuth({ role: "moderator" }));
-      const controller = new FeatureFlagController({} as never);
+      const controller = new FeatureFlagController({} as any);
 
       await expect(
         controller.set(
@@ -220,7 +220,7 @@ describe("FeatureFlagController", () => {
         effectiveSource: "default" as const,
       };
       const deleteFlag = jest.fn(async () => deleteResult);
-      const controller = new FeatureFlagController({ deleteFlag } as never);
+      const controller = new FeatureFlagController({ deleteFlag } as any);
 
       const response = await controller.delete(
         createContext({ params: { name: "my-flag" } }),
@@ -236,7 +236,7 @@ describe("FeatureFlagController", () => {
 
     it("rejects non-admin callers", async () => {
       mockRequireJwtAuth.mockResolvedValue(createAuth({ role: "owner" }));
-      const controller = new FeatureFlagController({} as never);
+      const controller = new FeatureFlagController({} as any);
 
       await expect(
         controller.delete(createContext({ params: { name: "my-flag" } })),

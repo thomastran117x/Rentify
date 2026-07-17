@@ -55,7 +55,7 @@ describe("GoogleOAuthService", () => {
         },
       ),
     );
-    const service = new GoogleOAuthService(tokenVerifier as never);
+    const service = new GoogleOAuthService(tokenVerifier as any);
 
     const profile = await service.verify({
       code: "auth-code",
@@ -117,7 +117,7 @@ describe("GoogleOAuthService", () => {
         family_name: "Name",
       })),
     };
-    const service = new GoogleOAuthService(tokenVerifier as never);
+    const service = new GoogleOAuthService(tokenVerifier as any);
 
     const profile = await service.verify({
       code: "auth-code",
@@ -138,7 +138,7 @@ describe("GoogleOAuthService", () => {
     const fetchMock = jest.spyOn(globalThis, "fetch");
     const service = new GoogleOAuthService({
       verifyIdToken: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -169,7 +169,7 @@ describe("GoogleOAuthService", () => {
         email: "user@example.com",
         email_verified: false,
       })),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -193,7 +193,7 @@ describe("GoogleOAuthService", () => {
     );
     const service = new GoogleOAuthService({
       verifyIdToken: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({
@@ -226,7 +226,7 @@ describe("GoogleOAuthService", () => {
     );
     const service = new GoogleOAuthService({
       verifyIdToken: jest.fn(),
-    } as never);
+    } as any);
 
     await expect(
       service.verify({

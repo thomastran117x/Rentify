@@ -113,7 +113,7 @@ function createController() {
   };
 
   return {
-    controller: new MfaVerificationController(mfaVerificationService as never),
+    controller: new MfaVerificationController(mfaVerificationService as any),
     mfaVerificationService,
   };
 }

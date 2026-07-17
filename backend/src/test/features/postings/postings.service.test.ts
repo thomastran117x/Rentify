@@ -1665,7 +1665,7 @@ describe("PostingsService", () => {
 
   it("rejects archive when the repository no longer returns the posting", async () => {
     const repository = new FakePostingsRepository();
-    repository.archive = jest.fn(async () => null) as never;
+    repository.archive = jest.fn(async () => null) as any;
     const service = createService(repository);
 
     await expect(
@@ -1756,7 +1756,7 @@ describe("PostingsService", () => {
 
   it("returns not found when public-read metadata is missing for an authenticated viewer", async () => {
     const repository = new FakePostingsRepository();
-    repository.findPublicReadMetadataById = jest.fn(async () => null) as never;
+    repository.findPublicReadMetadataById = jest.fn(async () => null) as any;
     const service = createService(repository);
 
     await expect(
@@ -1766,7 +1766,7 @@ describe("PostingsService", () => {
 
   it("returns not found when an owner viewer can see metadata but the posting row disappears", async () => {
     const repository = new FakePostingsRepository();
-    repository.findById = jest.fn(async () => null) as never;
+    repository.findById = jest.fn(async () => null) as any;
     const service = createService(repository);
 
     await expect(
@@ -1897,8 +1897,8 @@ describe("PostingsService", () => {
       attributeFilters: [
         {
           key: "guest_capacity",
-          min: "2",
-          max: "5",
+          min: 2,
+          max: 5,
         },
       ],
       sort: "relevance",
@@ -1970,7 +1970,7 @@ describe("PostingsService", () => {
 
   it("surfaces missing-row conflicts for write operations after authorization succeeds", async () => {
     const updateRepository = new FakePostingsRepository();
-    updateRepository.update = jest.fn(async () => null) as never;
+    updateRepository.update = jest.fn(async () => null) as any;
     const updateService = createService(updateRepository);
 
     await expect(
@@ -1980,7 +1980,7 @@ describe("PostingsService", () => {
     const blockRepository = new FakePostingsRepository();
     blockRepository.updateOwnerAvailabilityBlock = jest.fn(
       async () => null,
-    ) as never;
+    ) as any;
     const blockService = createService(blockRepository);
 
     await expect(
@@ -2010,7 +2010,7 @@ describe("PostingsService", () => {
     ).rejects.toThrow("Availability block could not be found.");
 
     const publishRepository = new FakePostingsRepository();
-    publishRepository.publish = jest.fn(async () => null) as never;
+    publishRepository.publish = jest.fn(async () => null) as any;
     const publishService = createService(publishRepository);
 
     await expect(
@@ -2023,7 +2023,7 @@ describe("PostingsService", () => {
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
-    pauseRepository.pause = jest.fn(async () => null) as never;
+    pauseRepository.pause = jest.fn(async () => null) as any;
     const pauseService = createService(pauseRepository);
 
     await expect(pauseService.pause("posting-1", "owner-1")).rejects.toThrow(
@@ -2037,7 +2037,7 @@ describe("PostingsService", () => {
       pausedAt: "2026-04-23T00:00:00.000Z",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
-    unpauseRepository.unpause = jest.fn(async () => null) as never;
+    unpauseRepository.unpause = jest.fn(async () => null) as any;
     const unpauseService = createService(unpauseRepository);
 
     await expect(
@@ -2452,7 +2452,7 @@ describe("PostingsService", () => {
           },
           {
             key: "guest_capacity",
-            min: "2",
+            min: 2,
             max: "4",
           },
         ],

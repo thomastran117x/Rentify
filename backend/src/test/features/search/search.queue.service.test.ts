@@ -382,7 +382,7 @@ describe("SearchQueueService", () => {
       await Promise.resolve();
 
       expect(onBatch).toHaveBeenCalledTimes(1);
-      expect(onBatch.mock.calls[0]?.[0]).toHaveLength(2);
+      expect((onBatch.mock.calls[0] as any)?.[0]).toHaveLength(2);
     } finally {
       jest.useRealTimers();
     }
@@ -440,11 +440,11 @@ describe("SearchQueueService", () => {
     const startedBatches: string[][] = [];
     const onBatch = jest
       .fn()
-      .mockImplementationOnce(async (entries) => {
+      .mockImplementationOnce(async (entries: any[]) => {
         startedBatches.push(entries.map((entry) => entry.payload.outboxId));
         await releaseFirstBatch.promise;
       })
-      .mockImplementationOnce(async (entries) => {
+      .mockImplementationOnce(async (entries: any[]) => {
         startedBatches.push(entries.map((entry) => entry.payload.outboxId));
         await releaseSecondBatch.promise;
       });
@@ -492,7 +492,7 @@ describe("SearchQueueService", () => {
       await stop();
 
       expect(onBatch).toHaveBeenCalledTimes(1);
-      expect(onBatch.mock.calls[0]?.[0]).toHaveLength(1);
+      expect((onBatch.mock.calls[0] as any)?.[0]).toHaveLength(1);
       expect(channel.cancel).toHaveBeenCalledWith("consumer-1");
       expect(channel.close).toHaveBeenCalled();
     } finally {

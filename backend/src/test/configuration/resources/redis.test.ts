@@ -1,3 +1,5 @@
+export {};
+
 const mockCreateClient = jest.fn();
 const mockGetRedisConfig = jest.fn(() => ({
   url: "redis://cache.test:6379",
@@ -10,19 +12,20 @@ const mockGetRedisConfig = jest.fn(() => ({
 const mockLoggerError = jest.fn();
 
 jest.mock("redis", () => ({
-  createClient: (...args: unknown[]) => mockCreateClient(...args),
+  createClient: (options: unknown) => mockCreateClient(options),
 }));
 
 jest.mock("@/configuration/environment", () => ({
   environment: {
-    getRedisConfig: (...args: unknown[]) => mockGetRedisConfig(...args),
+    getRedisConfig: () => mockGetRedisConfig(),
   },
 }));
 
 jest.mock("@/configuration/logging", () => ({
   loggerFactory: {
     forComponent: () => ({
-      error: (...args: unknown[]) => mockLoggerError(...args),
+      error: (message: unknown, fields?: unknown, error?: unknown) =>
+        mockLoggerError(message, fields, error),
     }),
   },
 }));

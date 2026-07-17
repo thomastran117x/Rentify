@@ -75,8 +75,8 @@ function createService(options?: {
     repository,
     organizationAccessService,
     service: new OrganizationAuditService(
-      repository as never,
-      organizationAccessService as never,
+      repository as any,
+      organizationAccessService as any,
     ),
   };
 }

@@ -50,7 +50,7 @@ describe("ProfileRepository", () => {
         findMany,
         count,
       },
-    } as never);
+    } as any);
 
     const result = await repository.findPublicProfiles({
       page: 2,
@@ -175,12 +175,12 @@ describe("ProfileRepository", () => {
     const findUnique = jest
       .fn(async () => createProfilePersistence())
       .mockResolvedValueOnce(createProfilePersistence())
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce(null as any);
     const repository = new ProfileRepository({
       profile: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     await expect(repository.findByUserId("user-1")).resolves.toEqual({
       id: "profile-1",
@@ -207,13 +207,13 @@ describe("ProfileRepository", () => {
     const findUnique = jest
       .fn(async () => ({ recommendationPersonalizationEnabled: false }))
       .mockResolvedValueOnce({ recommendationPersonalizationEnabled: false })
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce({} as any)
+      .mockResolvedValueOnce(null as any);
     const repository = new ProfileRepository({
       profile: {
         findUnique,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.findRecommendationPersonalizationEnabledByUserId("user-1"),
@@ -240,7 +240,7 @@ describe("ProfileRepository", () => {
       profile: {
         update,
       },
-    } as never);
+    } as any);
 
     const result = await repository.update({
       userId: "user-1",
@@ -302,7 +302,7 @@ describe("ProfileRepository", () => {
       profile: {
         update,
       },
-    } as never);
+    } as any);
 
     await expect(
       repository.update({

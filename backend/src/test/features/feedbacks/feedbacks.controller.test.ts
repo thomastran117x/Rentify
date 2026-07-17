@@ -93,10 +93,10 @@ describe("FeedbacksController", () => {
     const controller = new FeedbacksController(
       {
         create,
-      } as never,
+      } as any,
       {
         verify,
-      } as never,
+      } as any,
     );
 
     const response = await controller.create(
@@ -134,10 +134,10 @@ describe("FeedbacksController", () => {
     const controller = new FeedbacksController(
       {
         create,
-      } as never,
+      } as any,
       {
         verify,
-      } as never,
+      } as any,
     );
 
     await controller.create(
@@ -165,7 +165,7 @@ describe("FeedbacksController", () => {
 
   it("rejects anonymous submissions without captcha", async () => {
     mockGetOptionalJwtAuth.mockResolvedValue(null);
-    const controller = new FeedbacksController({} as never, {} as never);
+    const controller = new FeedbacksController({} as any, {} as any);
 
     await expect(
       controller.create(
@@ -187,10 +187,10 @@ describe("FeedbacksController", () => {
       errors: ["invalid-input-response"],
     }));
     const controller = new FeedbacksController(
-      {} as never,
+      {} as any,
       {
         verify,
-      } as never,
+      } as any,
     );
 
     await expect(

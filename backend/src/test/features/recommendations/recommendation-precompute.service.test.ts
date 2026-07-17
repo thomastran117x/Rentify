@@ -21,7 +21,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularActivityRows: jest.fn(async () => []),
       listPublishedRecommendationCandidates: jest.fn(async () => []),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     const processed = await service.processBatch(10);
 
@@ -102,12 +102,13 @@ describe("RecommendationPrecomputeService", () => {
         }),
       ]),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(10);
 
-    const snapshotInput =
-      repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
+    const snapshotInput = (
+      repository.upsertUserRecommendationArtifacts.mock.calls[0] as any
+    )?.[0]?.snapshot;
     expect(snapshotInput.candidates[0].postingId).toBe("candidate-a");
     expect(snapshotInput.candidates[0].reasonCodes).toEqual(
       expect.arrayContaining([
@@ -145,7 +146,7 @@ describe("RecommendationPrecomputeService", () => {
         }),
       ]),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(10);
 
@@ -220,12 +221,13 @@ describe("RecommendationPrecomputeService", () => {
         }),
       ]),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(10);
 
-    const snapshotInput =
-      repository.upsertUserRecommendationArtifacts.mock.calls[0]?.[0]?.snapshot;
+    const snapshotInput = (
+      repository.upsertUserRecommendationArtifacts.mock.calls[0] as any
+    )?.[0]?.snapshot;
     expect(
       snapshotInput.candidates.map(
         (candidate: { postingId: string }) => candidate.postingId,
@@ -269,7 +271,7 @@ describe("RecommendationPrecomputeService", () => {
         }),
       ]),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(10);
 
@@ -314,7 +316,7 @@ describe("RecommendationPrecomputeService", () => {
         },
       ]),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.enqueueMissingOrStalePopularJobs(now);
 
@@ -344,7 +346,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularSnapshotFreshness: jest.fn(async () => []),
       enqueueRefreshJobs: jest.fn(async () => undefined),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     const processed = await service.processBatch(5);
 
@@ -370,7 +372,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularSnapshotFreshness: jest.fn(async () => []),
       enqueueRefreshJobs: jest.fn(async () => undefined),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(5);
 
@@ -395,7 +397,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularSnapshotFreshness: jest.fn(async () => []),
       enqueueRefreshJobs: jest.fn(async () => undefined),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(5);
 
@@ -419,7 +421,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularSnapshotFreshness: jest.fn(async () => []),
       enqueueRefreshJobs: jest.fn(async () => undefined),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(5);
 
@@ -443,7 +445,7 @@ describe("RecommendationPrecomputeService", () => {
       listPopularSnapshotFreshness: jest.fn(async () => []),
       enqueueRefreshJobs: jest.fn(async () => undefined),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(5);
 
@@ -466,7 +468,7 @@ describe("RecommendationPrecomputeService", () => {
         throw "boom";
       }),
     });
-    const service = new RecommendationPrecomputeService(repository as never);
+    const service = new RecommendationPrecomputeService(repository as any);
 
     await service.processBatch(5);
 

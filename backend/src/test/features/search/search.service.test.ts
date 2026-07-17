@@ -28,16 +28,16 @@ describe("SearchService", () => {
     );
     const postingsRepository = {
       withSearchReindexStartLock,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       buildVersionedIndexName: jest.fn(() => "postings_v2"),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     const result = await service.startReindex();
@@ -58,12 +58,8 @@ describe("SearchService", () => {
   it("returns a conflict when the start lock cannot be acquired", async () => {
     const postingsRepository = {
       withSearchReindexStartLock: jest.fn(async () => null),
-    } as never;
-    const service = new SearchService(
-      postingsRepository,
-      {} as never,
-      {} as never,
-    );
+    } as any;
+    const service = new SearchService(postingsRepository, {} as any, {} as any);
 
     await expect(service.startReindex()).rejects.toBeInstanceOf(ConflictError);
   });
@@ -82,12 +78,12 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         withSearchReindexStartLock,
-      } as never,
+      } as any,
       {
         ensureLiveIndex: jest.fn(async () => undefined),
         createVersionedIndex: jest.fn(async () => "postings_v2"),
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     await expect(service.startReindex()).rejects.toBeInstanceOf(ConflictError);
@@ -109,7 +105,7 @@ describe("SearchService", () => {
           barrier: 0,
         },
       })),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => false,
       getReadAliasName: () => "postings-read",
@@ -120,12 +116,12 @@ describe("SearchService", () => {
         failureThreshold: 3,
         cooldownMs: 30_000,
       }),
-    } as never;
+    } as any;
     const searchQueueService = {
       getQueueCounts: jest.fn(async () => ({
         main: { ready: 99, consumers: 9 },
       })),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -167,7 +163,7 @@ describe("SearchService", () => {
           barrier: 0,
         },
       })),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       getAliasStatus: jest.fn(async () => {
@@ -181,7 +177,7 @@ describe("SearchService", () => {
         failureThreshold: 3,
         cooldownMs: 30_000,
       }),
-    } as never;
+    } as any;
     const searchQueueService = {
       getQueueCounts: jest.fn(async () => ({
         main: { ready: 0, consumers: 0 },
@@ -190,7 +186,7 @@ describe("SearchService", () => {
         retry3: { ready: 0, consumers: 0 },
         deadLetter: { ready: 0, consumers: 0 },
       })),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -226,9 +222,9 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         findSearchReindexRunById,
-      } as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
     );
 
     await expect(service.getReindexRun("run-42")).resolves.toMatchObject({
@@ -267,7 +263,7 @@ describe("SearchService", () => {
           barrier: 0,
         },
       })),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       getAliasStatus: jest.fn(async () => ({
@@ -285,12 +281,12 @@ describe("SearchService", () => {
         failureThreshold: 3,
         cooldownMs: 30_000,
       }),
-    } as never;
+    } as any;
     const searchQueueService = {
       getQueueCounts: jest.fn(async () => {
         throw new Error("broker unavailable");
       }),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -357,14 +353,14 @@ describe("SearchService", () => {
       ]),
       markSearchOutboxRelayed,
       releaseSearchOutboxClaims,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -414,14 +410,14 @@ describe("SearchService", () => {
       releaseSearchOutboxClaims,
       markSearchOutboxDeadLettered,
       markSearchOutboxPublishRetry,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -465,16 +461,16 @@ describe("SearchService", () => {
       releaseSearchOutboxClaims,
       markSearchOutboxPublishRetry,
       markSearchOutboxDeadLettered: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => {
         throw new Error("broker unavailable");
       }),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -516,16 +512,16 @@ describe("SearchService", () => {
       releaseSearchOutboxClaims,
       markSearchOutboxDeadLettered,
       markSearchOutboxPublishRetry: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
       publishIndexJob: jest.fn(async () => {
         throw new Error("broker unavailable");
       }),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -561,14 +557,14 @@ describe("SearchService", () => {
       })),
       hasNewerSearchOutboxJob: jest.fn(async () => true),
       markSearchOutboxIndexed,
-    } as never;
+    } as any;
     const postingsSearchService = {
       deleteDocument: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await service.processIndexJob(
@@ -596,7 +592,7 @@ describe("SearchService", () => {
       {
         getSearchOutboxById: jest.fn(async () => ({
           id: "barrier-1",
-          postingId: null,
+          postingId: undefined,
           reindexRunId: "run-1",
           operation: "barrier",
           dedupeKey: "barrier-1",
@@ -607,9 +603,9 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         })),
         markSearchOutboxIndexed,
-      } as never,
-      {} as never,
-      {} as never,
+      } as any,
+      {} as any,
+      {} as any,
     );
 
     await service.processIndexJob(
@@ -619,7 +615,7 @@ describe("SearchService", () => {
         dedupeKey: "barrier-1",
         operation: "barrier",
         jobType: "barrier",
-        postingId: null,
+        postingId: undefined,
         reindexRunId: "run-1",
         targetIndexScope: "reindex",
         targetIndexName: "postings_v2",
@@ -637,12 +633,12 @@ describe("SearchService", () => {
     const searchQueueService = {
       publishRetryJob: jest.fn(async () => undefined),
       publishDeadLetterJob: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
           id: "outbox-1",
-          postingId: null,
+          postingId: undefined,
           reindexRunId: undefined,
           operation: "upsert",
           dedupeKey: "outbox-1",
@@ -654,8 +650,8 @@ describe("SearchService", () => {
         })),
         incrementSearchOutboxAttempt,
         markSearchOutboxDeadLettered: jest.fn(async () => undefined),
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
       searchQueueService,
     );
 
@@ -666,7 +662,7 @@ describe("SearchService", () => {
         dedupeKey: "outbox-1",
         operation: "upsert",
         jobType: "upsert",
-        postingId: null,
+        postingId: undefined,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 0,
@@ -693,12 +689,12 @@ describe("SearchService", () => {
     const searchQueueService = {
       publishRetryJob: jest.fn(async () => undefined),
       publishDeadLetterJob: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
           id: "outbox-3",
-          postingId: null,
+          postingId: undefined,
           reindexRunId: undefined,
           operation: "delete",
           dedupeKey: "outbox-3",
@@ -710,8 +706,8 @@ describe("SearchService", () => {
         })),
         incrementSearchOutboxAttempt: jest.fn(async () => 3),
         markSearchOutboxDeadLettered,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
       searchQueueService,
     );
 
@@ -722,7 +718,7 @@ describe("SearchService", () => {
         dedupeKey: "outbox-3",
         operation: "delete",
         jobType: "delete",
-        postingId: null,
+        postingId: undefined,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 2,
@@ -753,7 +749,7 @@ describe("SearchService", () => {
       {
         getSearchOutboxById: jest.fn(async () => ({
           id: "outbox-retry-failure",
-          postingId: null,
+          postingId: undefined,
           reindexRunId: undefined,
           operation: "upsert",
           dedupeKey: "outbox-retry-failure",
@@ -765,12 +761,12 @@ describe("SearchService", () => {
         })),
         incrementSearchOutboxAttempt,
         markSearchOutboxDeadLettered,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
       {
         publishRetryJob,
         publishDeadLetterJob: jest.fn(async () => undefined),
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -781,7 +777,7 @@ describe("SearchService", () => {
           dedupeKey: "outbox-retry-failure",
           operation: "upsert",
           jobType: "upsert",
-          postingId: null,
+          postingId: undefined,
           targetIndexScope: "live",
           occurredAt: "2026-04-27T00:00:00.000Z",
           attempt: 0,
@@ -813,7 +809,7 @@ describe("SearchService", () => {
       {
         getSearchOutboxById: jest.fn(async () => ({
           id: "outbox-dead-letter-failure",
-          postingId: null,
+          postingId: undefined,
           reindexRunId: undefined,
           operation: "delete",
           dedupeKey: "outbox-dead-letter-failure",
@@ -825,12 +821,12 @@ describe("SearchService", () => {
         })),
         incrementSearchOutboxAttempt: jest.fn(async () => 3),
         markSearchOutboxDeadLettered,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
       {
         publishRetryJob: jest.fn(async () => undefined),
         publishDeadLetterJob,
-      } as never,
+      } as any,
     );
 
     await expect(
@@ -841,7 +837,7 @@ describe("SearchService", () => {
           dedupeKey: "outbox-dead-letter-failure",
           operation: "delete",
           jobType: "delete",
-          postingId: null,
+          postingId: undefined,
           targetIndexScope: "live",
           occurredAt: "2026-04-27T00:00:00.000Z",
           attempt: 2,
@@ -911,15 +907,15 @@ describe("SearchService", () => {
         state: "waiting" as const,
       })),
       clearSearchReindexRunProcessing,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -956,14 +952,14 @@ describe("SearchService", () => {
       markSearchReindexRunRunning,
       listPublishedForIndexingBatch: jest.fn(async () => []),
       enqueueSearchReindexBarrier: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -1010,13 +1006,13 @@ describe("SearchService", () => {
       })),
       markSearchReindexRunFailed,
       clearSearchReindexRunProcessing,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -1064,17 +1060,17 @@ describe("SearchService", () => {
       touchSearchReindexRunProcessing: jest.fn(async () => undefined),
       clearSearchReindexRunProcessing,
       markSearchReindexRunFailed,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => {
         throw new Error("amqp broker unavailable");
       }),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -1133,16 +1129,16 @@ describe("SearchService", () => {
           },
         },
       ]),
-    } as never;
+    } as any;
     const postingsSearchService = {
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await service.processIndexJobsBatch(
@@ -1253,7 +1249,7 @@ describe("SearchService", () => {
             },
           },
         ]),
-    } as never;
+    } as any;
     const postingsSearchService = {
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => {
@@ -1264,14 +1260,14 @@ describe("SearchService", () => {
       }),
       upsertDocument: jest.fn(async () => undefined),
       deleteDocument: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
       {
         publishRetryJob: jest.fn(async () => undefined),
         publishDeadLetterJob: jest.fn(async () => undefined),
-      } as never,
+      } as any,
     );
 
     await service.processIndexJobsBatch(
@@ -1357,7 +1353,7 @@ describe("SearchService", () => {
       })),
       markSearchReindexRunCompleted,
       clearSearchReindexRunRetainedIndexName,
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
       swapAliases: jest.fn(async () => ({
@@ -1372,10 +1368,10 @@ describe("SearchService", () => {
         writeTargets: ["postings_v3"],
       })),
       deleteConcreteIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -1403,13 +1399,13 @@ describe("SearchService", () => {
   it("returns zero when no reindex run is available to process", async () => {
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => null),
-    } as never;
+    } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
@@ -1447,18 +1443,18 @@ describe("SearchService", () => {
           },
         },
       ]),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     const processed = await service.processReconciliationBatch(25);
@@ -1500,7 +1496,7 @@ describe("SearchService", () => {
           },
         },
       ]),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
@@ -1513,11 +1509,11 @@ describe("SearchService", () => {
       }),
       upsertDocument: jest.fn(async () => undefined),
       deleteDocument: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     const processed = await service.processReconciliationBatch(25);
@@ -1534,15 +1530,15 @@ describe("SearchService", () => {
   it("skips reconciliation when Elasticsearch is disabled", async () => {
     const postingsRepository = {
       listRecentForIndexReconciliation: jest.fn(async () => []),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => false,
       ensureLiveIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await expect(service.processReconciliationBatch(25)).resolves.toBe(0);
@@ -1555,18 +1551,18 @@ describe("SearchService", () => {
   it("returns zero reconciliation work when there are no recent postings", async () => {
     const postingsRepository = {
       listRecentForIndexReconciliation: jest.fn(async () => []),
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await expect(service.processReconciliationBatch(25)).resolves.toBe(0);
@@ -1578,12 +1574,8 @@ describe("SearchService", () => {
   it("replays dead-lettered outbox rows back into the relay pipeline", async () => {
     const postingsRepository = {
       reviveDeadLetteredSearchOutbox: jest.fn(async () => 7),
-    } as never;
-    const service = new SearchService(
-      postingsRepository,
-      {} as never,
-      {} as never,
-    );
+    } as any;
+    const service = new SearchService(postingsRepository, {} as any, {} as any);
 
     await expect(service.replayDeadLetteredOutbox(25)).resolves.toEqual({
       revived: 7,
@@ -1597,11 +1589,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         listCompletedSearchReindexRunsWithRetainedIndices: jest.fn(),
-      } as never,
+      } as any,
       {
         isElasticsearchEnabled: () => false,
-      } as never,
-      {} as never,
+      } as any,
+      {} as any,
     );
 
     await expect(service.cleanupRetainedIndices()).resolves.toEqual({
@@ -1643,7 +1635,7 @@ describe("SearchService", () => {
         },
       ]),
       clearSearchReindexRunRetainedIndexName,
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       getAliasStatus: jest.fn(async () => ({
@@ -1654,11 +1646,11 @@ describe("SearchService", () => {
         writeTargets: ["postings_v4"],
       })),
       deleteConcreteIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await expect(service.cleanupRetainedIndices()).resolves.toEqual({
@@ -1712,7 +1704,7 @@ describe("SearchService", () => {
         },
       ]),
       clearSearchReindexRunRetainedIndexName,
-    } as never;
+    } as any;
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       getAliasStatus: jest.fn(async () => ({
@@ -1723,11 +1715,11 @@ describe("SearchService", () => {
         writeTargets: ["postings_v4"],
       })),
       deleteConcreteIndex: jest.fn(async () => undefined),
-    } as never;
+    } as any;
     const service = new SearchService(
       postingsRepository,
       postingsSearchService,
-      {} as never,
+      {} as any,
     );
 
     await expect(service.cleanupRetainedIndices()).resolves.toEqual({

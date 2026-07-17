@@ -60,7 +60,7 @@ describe("logger", () => {
       }
 
       return true;
-    }) as never);
+    }) as any);
 
     loggerFactory
       .forComponent("logger.test", "service")

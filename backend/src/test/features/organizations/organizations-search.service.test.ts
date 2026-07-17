@@ -151,9 +151,9 @@ function createHarness(overrides?: {
   };
 
   const service = new OrganizationsSearchService(
-    repository as never,
-    indexService as never,
-    queueService as never,
+    repository as any,
+    indexService as any,
+    queueService as any,
   );
 
   return { service, repository, indexService, queueService };

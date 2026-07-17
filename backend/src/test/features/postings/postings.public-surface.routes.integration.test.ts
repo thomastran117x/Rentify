@@ -83,16 +83,17 @@ function createApp() {
     [
       containerTokens.postingsController,
       new PostingsController(
-        postingsService as never,
-        postingsPublicAutocompleteService as never,
-        postingsAnalyticsService as never,
-        postingsReviewsService as never,
-        recommendationActivityPublisher as never,
+        postingsService as any,
+        postingsPublicAutocompleteService as any,
+        postingsAnalyticsService as any,
+        postingsReviewsService as any,
+        {} as any,
+        recommendationActivityPublisher as any,
       ),
     ],
     [
       containerTokens.recommendationsController,
-      new RecommendationsController(recommendationQueryService as never),
+      new RecommendationsController(recommendationQueryService as any),
     ],
   ]);
 
