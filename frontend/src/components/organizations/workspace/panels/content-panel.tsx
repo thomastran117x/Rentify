@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import type { OrganizationAnnouncementStatus } from "@/lib/organizations/api";
 import {
   inputClass,
@@ -280,12 +280,15 @@ const CONTENT_TABS: Array<{ id: ContentTab; label: string }> = [
   { id: "blog", label: "Blog" },
 ];
 
+// The active sub-tab is driven by the `?view=` search param (resolved to
+// `initialTab` by the Content route) rather than local state, so refreshing,
+// bookmarking, or navigating back to /content?view=blog reopens the Blog tab.
 export function ContentPanel({
   initialTab = "announcements",
 }: {
   initialTab?: ContentTab;
 } = {}) {
-  const [tab, setTab] = useState<ContentTab>(initialTab);
+  const activeTab = initialTab;
 
   return (
     <div className="space-y-6">
@@ -295,14 +298,14 @@ export function ContentPanel({
         className="inline-flex rounded-2xl border border-slate-200 bg-white/90 p-1 dark:border-slate-800 dark:bg-slate-900/90"
       >
         {CONTENT_TABS.map((entry) => {
-          const selected = tab === entry.id;
+          const selected = activeTab === entry.id;
           return (
-            <button
+            <Link
               key={entry.id}
-              type="button"
+              href={`/dashboard/organizations/content?view=${entry.id}`}
+              scroll={false}
               role="tab"
               aria-selected={selected}
-              onClick={() => setTab(entry.id)}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                 selected
                   ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
@@ -310,12 +313,16 @@ export function ContentPanel({
               }`}
             >
               {entry.label}
-            </button>
+            </Link>
           );
         })}
       </div>
 
-      {tab === "announcements" ? <AnnouncementsSection /> : <BlogSection />}
+      {activeTab === "announcements" ? (
+        <AnnouncementsSection />
+      ) : (
+        <BlogSection />
+      )}
     </div>
   );
 }
