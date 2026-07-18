@@ -8,6 +8,17 @@ import type {
   OrganizationBlogStatus,
 } from "@/lib/organizations/api";
 import { RichTextEditor } from "@/components/organizations/rich-text-editor";
+import {
+  cardClass,
+  dangerButtonClass,
+  inputClass,
+  labelClass,
+  primaryButtonClass,
+  rowActionMutedClass,
+  secondaryButtonClass,
+} from "@/components/organizations/shared/styles";
+import { BLOG_STATUS_STYLES } from "@/components/organizations/shared/badges";
+import { formatDate } from "@/components/organizations/shared/format";
 
 export interface BlogFormValue {
   title: string;
@@ -31,34 +42,6 @@ export function emptyBlogForm(): BlogFormValue {
     coverImageBlobName: "",
     status: "draft",
   };
-}
-
-const BLOG_STATUS_STYLES: Record<OrganizationBlogStatus, string> = {
-  draft:
-    "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  published:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
-};
-
-const inputClass =
-  "h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-500/20";
-const labelClass =
-  "mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200";
-const primaryButtonClass =
-  "inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-slate-800 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200";
-const secondaryButtonClass =
-  "inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-900/60 dark:hover:bg-sky-950/30 dark:hover:text-sky-300";
-const rowActionClass =
-  "inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-900/60 dark:hover:bg-sky-950/30 dark:hover:text-sky-300";
-const dangerButtonClass =
-  "inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/40";
-const cardClass =
-  "rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/40";
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-  }).format(new Date(value));
 }
 
 function CoverImageUploader({
@@ -479,7 +462,7 @@ export function BlogPanel({
                         type="button"
                         onClick={() => onToggleStatus(post)}
                         disabled={isSaving}
-                        className={rowActionClass}
+                        className={rowActionMutedClass}
                       >
                         {post.status === "published" ? "Unpublish" : "Publish"}
                       </button>
@@ -487,7 +470,7 @@ export function BlogPanel({
                         type="button"
                         onClick={() => onEdit(post)}
                         disabled={isSaving}
-                        className={rowActionClass}
+                        className={rowActionMutedClass}
                       >
                         Edit
                       </button>
@@ -495,7 +478,7 @@ export function BlogPanel({
                         type="button"
                         onClick={() => onDelete(post.id)}
                         disabled={isSaving}
-                        className={rowActionClass}
+                        className={rowActionMutedClass}
                       >
                         {savingId === post.id ? "Working..." : "Delete"}
                       </button>

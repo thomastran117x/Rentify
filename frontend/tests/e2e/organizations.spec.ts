@@ -71,19 +71,29 @@ async function ensureActiveOrganization(page: Page, label: string) {
   await organizationSwitcher.selectOption({ label });
 }
 
+// The dashboard now uses a sidebar with one route per section instead of a
+// single-page tab bar. Sidebar entries are links to /dashboard/organizations/*.
+function sidebarLink(page: Page, name: RegExp) {
+  return page
+    .getByRole("navigation", {
+      name: "Organization workspace sections",
+    })
+    .getByRole("link", { name });
+}
+
 async function expectOrganizationsWorkspace(
   page: Page,
   roleLabel: string,
-  expectedUrl: RegExp = /\/dashboard\/organizations(?:\?tab=overview)?$/,
+  expectedUrl: RegExp = /\/dashboard\/organizations\/overview$/,
 ) {
   await expect(page).toHaveURL(expectedUrl);
   await expect(
     page.getByRole("heading", { name: ORGANIZATION_NAME }),
   ).toBeVisible();
   await expect(page.getByText(`Your role: ${roleLabel}`)).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
-    "aria-selected",
-    "true",
+  await expect(sidebarLink(page, /Overview/)).toHaveAttribute(
+    "aria-current",
+    "page",
   );
   await expect(page.getByText("Jump to the work that matters")).toBeVisible();
 }
@@ -106,7 +116,8 @@ test("organization workspace supports owner invites and member role boundaries",
   await ensureActiveOrganization(page, OWNER_ORG_LABEL);
   await expectOrganizationsWorkspace(page, "Primary Manager");
 
-  await page.getByRole("tab", { name: "Team" }).click();
+  await sidebarLink(page, /Team/).click();
+  await expect(page).toHaveURL(/\/dashboard\/organizations\/team$/);
   await expect(page.getByText("Invite teammates")).toBeVisible();
   await page.getByPlaceholder("teammate@example.com").fill(ownerInviteEmail);
   await page
@@ -119,14 +130,10 @@ test("organization workspace supports owner invites and member role boundaries",
   await login(managerPage, MANAGER_USERNAME);
   await ensureActiveOrganization(managerPage, MANAGER_ORG_LABEL);
   await expectOrganizationsWorkspace(managerPage, "Manager");
-  await expect(managerPage.getByRole("tab", { name: "Settings" })).toHaveCount(
-    0,
-  );
-  await expect(managerPage.getByRole("tab", { name: "Activity" })).toHaveCount(
-    1,
-  );
+  await expect(sidebarLink(managerPage, /Settings/)).toHaveCount(0);
+  await expect(sidebarLink(managerPage, /Activity/)).toHaveCount(1);
 
-  await managerPage.getByRole("tab", { name: "Team" }).click();
+  await sidebarLink(managerPage, /Team/).click();
   await managerPage
     .getByPlaceholder("teammate@example.com")
     .fill(managerInviteEmail);
@@ -137,14 +144,10 @@ test("organization workspace supports owner invites and member role boundaries",
   await login(operatorPage, OPERATOR_USERNAME);
   await ensureActiveOrganization(operatorPage, OPERATOR_ORG_LABEL);
   await expectOrganizationsWorkspace(operatorPage, "Operator");
-  await expect(operatorPage.getByRole("tab", { name: "Activity" })).toHaveCount(
-    0,
-  );
-  await expect(operatorPage.getByRole("tab", { name: "Settings" })).toHaveCount(
-    0,
-  );
+  await expect(sidebarLink(operatorPage, /Activity/)).toHaveCount(0);
+  await expect(sidebarLink(operatorPage, /Settings/)).toHaveCount(0);
 
-  await operatorPage.getByRole("tab", { name: "Team" }).click();
+  await sidebarLink(operatorPage, /Team/).click();
   await expect(
     operatorPage
       .getByText(
@@ -156,19 +159,13 @@ test("organization workspace supports owner invites and member role boundaries",
     operatorPage.getByRole("button", { name: "Send invite" }),
   ).toHaveCount(0);
 
+  // Legacy ?tab= deep links redirect onto the new section routes, and a
+  // forbidden section falls back to overview for an operator.
   await operatorPage.goto("/dashboard/organizations?tab=activity");
-  await expectOrganizationsWorkspace(
-    operatorPage,
-    "Operator",
-    /\/dashboard\/organizations\?tab=overview$/,
-  );
+  await expectOrganizationsWorkspace(operatorPage, "Operator");
 
-  await operatorPage.goto("/dashboard/organizations?tab=settings");
-  await expectOrganizationsWorkspace(
-    operatorPage,
-    "Operator",
-    /\/dashboard\/organizations\?tab=overview$/,
-  );
+  await operatorPage.goto("/dashboard/organizations/settings");
+  await expectOrganizationsWorkspace(operatorPage, "Operator");
 
   expect(consoleErrors).toEqual([]);
 

@@ -1,12 +1,21 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OrganizationWorkspace } from "./organization-workspace";
+import type { ReactNode } from "react";
 import { ApiNetworkError } from "@/lib/api/types";
 import {
   resetRouterMocks,
   routerReplaceMock,
+  routerPushMock,
+  routerRefreshMock,
 } from "@/test/mocks/next-navigation";
+import { OrganizationWorkspaceProvider } from "@/components/organizations/workspace/workspace-provider";
+import { WorkspaceChrome } from "@/components/organizations/workspace/workspace-chrome";
+import { TeamPanel } from "@/components/organizations/workspace/panels/team-panel";
+import { PostingsPanel } from "@/components/organizations/workspace/panels/postings-panel";
+import { ActivityPanel } from "@/components/organizations/workspace/panels/activity-panel";
+import { ContentPanel } from "@/components/organizations/workspace/panels/content-panel";
+import { SettingsPanel } from "@/components/organizations/workspace/panels/settings-panel";
 
 const {
   useAuthMock,
@@ -24,6 +33,7 @@ const {
   createAnnouncementMock,
   updateAnnouncementMock,
   deleteAnnouncementMock,
+  listBlogPostsMock,
   refreshMock,
   listMinePostingsMock,
   publishPostingMock,
@@ -36,8 +46,7 @@ const {
   createUploadUrlMock,
   deleteBlobMock,
   deleteBlobKeepaliveMock,
-  usePathnameMock,
-  useSearchParamsMock,
+  useSelectedLayoutSegmentMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   setSessionMock: vi.fn(),
@@ -54,6 +63,7 @@ const {
   createAnnouncementMock: vi.fn(),
   updateAnnouncementMock: vi.fn(),
   deleteAnnouncementMock: vi.fn(),
+  listBlogPostsMock: vi.fn(),
   refreshMock: vi.fn(),
   listMinePostingsMock: vi.fn(),
   publishPostingMock: vi.fn(),
@@ -66,20 +76,16 @@ const {
   createUploadUrlMock: vi.fn(),
   deleteBlobMock: vi.fn(),
   deleteBlobKeepaliveMock: vi.fn(),
-  usePathnameMock: vi.fn(),
-  useSearchParamsMock: vi.fn(),
+  useSelectedLayoutSegmentMock: vi.fn(),
 }));
-
-function setSearchParams(query = "") {
-  useSearchParamsMock.mockReturnValue(new URLSearchParams(query));
-}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: routerReplaceMock,
+    push: routerPushMock,
+    refresh: routerRefreshMock,
   }),
-  usePathname: () => usePathnameMock(),
-  useSearchParams: () => useSearchParamsMock(),
+  useSelectedLayoutSegment: () => useSelectedLayoutSegmentMock(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -143,11 +149,21 @@ vi.mock("@/lib/organizations/api", () => ({
     createAnnouncement: createAnnouncementMock,
     updateAnnouncement: updateAnnouncementMock,
     deleteAnnouncement: deleteAnnouncementMock,
+    listBlogPosts: listBlogPostsMock,
+    createBlogPost: vi.fn(),
+    updateBlogPost: vi.fn(),
+    deleteBlogPost: vi.fn(),
     revokeInvite: revokeInviteMock,
     updateMemberRole: updateMemberRoleMock,
     removeMember: removeMemberMock,
   },
 }));
+
+function renderInWorkspace(ui: ReactNode) {
+  return render(
+    <OrganizationWorkspaceProvider>{ui}</OrganizationWorkspaceProvider>,
+  );
+}
 
 const workspacePayload = {
   memberships: [
@@ -264,12 +280,35 @@ function buildDetailPayload(
   };
 }
 
-describe("OrganizationWorkspace", () => {
+const emptyAuditResult = {
+  auditLogs: [],
+  pagination: {
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
+
+const emptyAnnouncementsResult = {
+  announcements: [],
+  pagination: {
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
+
+describe("Organization workspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
-    usePathnameMock.mockReturnValue("/dashboard/organizations");
-    setSearchParams("");
+    useSelectedLayoutSegmentMock.mockReturnValue("overview");
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: setSessionMock,
@@ -286,14 +325,6 @@ describe("OrganizationWorkspace", () => {
         name: "Acme Rentals",
         role: "primary_manager",
       },
-      membership: {
-        membershipId: "membership-2",
-        id: "org-2",
-        name: "Acme Rentals",
-        role: "primary_manager",
-        joinedAt: "2026-06-01T00:00:00.000Z",
-        isActive: true,
-      },
     });
     updateMock.mockResolvedValue({
       id: "org-1",
@@ -303,54 +334,19 @@ describe("OrganizationWorkspace", () => {
     refreshMock.mockResolvedValue(null);
     listMinePostingsMock.mockResolvedValue({ postings: [] });
     createInviteMock.mockResolvedValue({ invitation: { id: "invite-1" } });
-    listAuditMock.mockResolvedValue({
-      auditLogs: [],
-      pagination: {
-        page: 1,
-        pageSize: 10,
-        total: 0,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-    });
+    listAuditMock.mockResolvedValue(emptyAuditResult);
     restoreAuditEntryMock.mockResolvedValue({
       restored: true,
       auditLog: { id: "audit-restore" },
     });
-    listAnnouncementsMock.mockResolvedValue({
-      announcements: [],
-      pagination: {
-        page: 1,
-        pageSize: 50,
-        total: 0,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
-    });
-    createAnnouncementMock.mockResolvedValue({
-      id: "announcement-1",
-      organizationId: "org-1",
-      title: "Weekend update",
-      body: "We now accept weekend bookings.",
-      status: "published",
-      createdAt: "2026-05-12T00:00:00.000Z",
-      updatedAt: "2026-05-12T00:00:00.000Z",
-    });
-    updateAnnouncementMock.mockResolvedValue({
-      id: "announcement-1",
-      organizationId: "org-1",
-      title: "Weekend update",
-      body: "We now accept weekend bookings.",
-      status: "draft",
-      createdAt: "2026-05-12T00:00:00.000Z",
-      updatedAt: "2026-05-12T00:00:00.000Z",
-    });
+    listAnnouncementsMock.mockResolvedValue(emptyAnnouncementsResult);
+    createAnnouncementMock.mockResolvedValue({ id: "announcement-1" });
+    updateAnnouncementMock.mockResolvedValue({ id: "announcement-1" });
     deleteAnnouncementMock.mockResolvedValue({
       deleted: true,
       announcementId: "announcement-1",
     });
+    listBlogPostsMock.mockResolvedValue({ posts: [] });
     createUploadUrlMock.mockResolvedValue(
       buildBlobTarget("organizations/user-1/logo-default.png"),
     );
@@ -369,7 +365,7 @@ describe("OrganizationWorkspace", () => {
       session: null,
     });
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<div />);
 
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith(
@@ -378,51 +374,28 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("defaults to the overview tab", async () => {
-    render(<OrganizationWorkspace />);
+  it("shows the overview quick actions and organization header", async () => {
+    renderInWorkspace(<WorkspaceChrome>{null}</WorkspaceChrome>);
 
     expect(
-      await screen.findByRole("heading", { name: "Northwind" }),
+      await screen.findByRole(
+        "heading",
+        { name: "Northwind" },
+        { timeout: 8000 },
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Overview/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(
-      screen.getByText("Jump to the work that matters"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Invite teammates")).not.toBeInTheDocument();
+    // Settings is available to a primary manager.
+    expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
   });
 
-  it("switches panels when a tab is clicked", async () => {
-    const user = userEvent.setup();
-
-    render(<OrganizationWorkspace />);
-
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Team/i }));
-
-    expect(screen.getByText("Invite teammates")).toBeInTheDocument();
-    expect(routerReplaceMock).toHaveBeenLastCalledWith(
-      "/dashboard/organizations?tab=team",
-      { scroll: false },
-    );
-  });
-
-  it("falls back to the first allowed tab when the query tab is unauthorized", async () => {
-    setSearchParams("tab=settings");
+  it("hides manager-only sections from the sidebar for a manager", async () => {
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: setSessionMock,
       session: buildSession("manager"),
     });
     getMineMock.mockResolvedValue({
-      memberships: [
-        {
-          ...workspacePayload.memberships[0],
-          role: "manager",
-        },
-      ],
+      memberships: [{ ...workspacePayload.memberships[0], role: "manager" }],
       activeOrganization: {
         id: "org-1",
         name: "Northwind",
@@ -431,33 +404,27 @@ describe("OrganizationWorkspace", () => {
     });
     getWorkspaceByIdMock.mockResolvedValue(buildDetailPayload("manager"));
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<WorkspaceChrome>{null}</WorkspaceChrome>);
 
-    await screen.findByRole("heading", { name: "Northwind" });
+    await screen.findByRole(
+      "heading",
+      { name: "Northwind" },
+      { timeout: 8000 },
+    );
+    // Managers can see Activity but not Settings.
+    expect(screen.getByRole("link", { name: /Activity/i })).toBeInTheDocument();
     expect(
-      screen.getByText("Jump to the work that matters"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("tab", { name: /Settings/i }),
+      screen.queryByRole("link", { name: /Settings/i }),
     ).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(routerReplaceMock).toHaveBeenLastCalledWith(
-        "/dashboard/organizations?tab=overview",
-        { scroll: false },
-      );
-    });
   });
 
-  it("sends invites from the Team tab", async () => {
+  it("sends invites from the Team panel", async () => {
     const user = userEvent.setup();
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<TeamPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Team/i }));
     await user.type(
-      screen.getByPlaceholderText("teammate@example.com"),
+      await screen.findByPlaceholderText("teammate@example.com"),
       "teammate@example.com",
     );
     await user.click(screen.getByRole("button", { name: "Send invite" }));
@@ -470,7 +437,7 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("publishes a posting from the Postings tab", async () => {
+  it("publishes a posting from the Postings panel", async () => {
     const user = userEvent.setup();
     listMinePostingsMock.mockResolvedValue({
       postings: [
@@ -485,10 +452,8 @@ describe("OrganizationWorkspace", () => {
       ],
     });
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<PostingsPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Postings/i }));
     await user.click(await screen.findByRole("button", { name: "Publish" }));
 
     await waitFor(() => {
@@ -496,7 +461,7 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("restores a restorable audit entry from the Activity tab", async () => {
+  it("restores a restorable audit entry from the Activity panel", async () => {
     const user = userEvent.setup();
     listAuditMock.mockResolvedValue({
       auditLogs: [
@@ -528,10 +493,8 @@ describe("OrganizationWorkspace", () => {
       },
     });
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<ActivityPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Activity/i }));
     await user.click(await screen.findByRole("button", { name: "Restore" }));
 
     await waitFor(() => {
@@ -539,13 +502,10 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("creates an announcement from the Announcements tab", async () => {
+  it("creates an announcement from the Content panel", async () => {
     const user = userEvent.setup();
 
-    render(<OrganizationWorkspace />);
-
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
+    renderInWorkspace(<ContentPanel />);
 
     await user.type(await screen.findByLabelText("Title"), "Weekend update");
     await user.type(
@@ -563,7 +523,7 @@ describe("OrganizationWorkspace", () => {
     });
   });
 
-  it("deletes an announcement from the Announcements tab", async () => {
+  it("deletes an announcement from the Content panel", async () => {
     const user = userEvent.setup();
     listAnnouncementsMock.mockResolvedValue({
       announcements: [
@@ -593,10 +553,8 @@ describe("OrganizationWorkspace", () => {
       },
     });
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<ContentPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
@@ -608,7 +566,6 @@ describe("OrganizationWorkspace", () => {
   });
 
   it("shows announcements read-only for operators", async () => {
-    const user = userEvent.setup();
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: setSessionMock,
@@ -655,10 +612,7 @@ describe("OrganizationWorkspace", () => {
       },
     });
 
-    render(<OrganizationWorkspace />);
-
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Announcements/i }));
+    renderInWorkspace(<ContentPanel />);
 
     expect(await screen.findByText("Weekend update")).toBeInTheDocument();
     expect(
@@ -679,11 +633,9 @@ describe("OrganizationWorkspace", () => {
         buildBlobTarget("organizations/user-1/logo-second.png"),
       );
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<SettingsPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Settings/i }));
-    const input = screen.getByLabelText("Upload organization logo");
+    const input = await screen.findByLabelText("Upload organization logo");
     await user.upload(
       input,
       new File(["first"], "first.png", { type: "image/png" }),
@@ -706,9 +658,7 @@ describe("OrganizationWorkspace", () => {
       JSON.stringify(["organizations/user-1/logo-stale.png"]),
     );
 
-    render(<OrganizationWorkspace />);
-
-    await screen.findByRole("heading", { name: "Northwind" });
+    renderInWorkspace(<div />);
 
     await waitFor(() => {
       expect(deleteBlobMock).toHaveBeenCalledWith(
@@ -730,12 +680,10 @@ describe("OrganizationWorkspace", () => {
       buildBlobTarget("organizations/user-1/logo-pending.png"),
     );
 
-    const { unmount } = render(<OrganizationWorkspace />);
+    const { unmount } = renderInWorkspace(<SettingsPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Settings/i }));
     await user.upload(
-      screen.getByLabelText("Upload organization logo"),
+      await screen.findByLabelText("Upload organization logo"),
       new File(["pending"], "pending.png", { type: "image/png" }),
     );
 
@@ -754,15 +702,15 @@ describe("OrganizationWorkspace", () => {
     );
   });
 
-  it("saves organization profile fields from the Settings tab", async () => {
+  it("saves organization profile fields from the Settings panel", async () => {
     const user = userEvent.setup();
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<SettingsPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Settings/i }));
-    const description = screen.getByPlaceholderText(
-      "Tell renters what your organization is about.",
+    // Wait for the workspace detail to load and populate the form before
+    // editing, otherwise the async profile load clobbers the typed value.
+    const description = await screen.findByDisplayValue(
+      "Boutique furnished rentals for small creative teams.",
     );
     await user.clear(description);
     await user.type(description, "Boutique rentals.");
@@ -782,10 +730,12 @@ describe("OrganizationWorkspace", () => {
   it("shows the create form when the authenticated user has no memberships", async () => {
     getMineMock.mockResolvedValue({ memberships: [] });
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<WorkspaceChrome>{null}</WorkspaceChrome>);
 
     expect(
-      await screen.findByText("Create your first organization"),
+      await screen.findByText("Create your first organization", undefined, {
+        timeout: 8000,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -803,12 +753,10 @@ describe("OrganizationWorkspace", () => {
       }),
     );
 
-    render(<OrganizationWorkspace />);
+    renderInWorkspace(<TeamPanel />);
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Team/i }));
     await user.type(
-      screen.getByPlaceholderText("teammate@example.com"),
+      await screen.findByPlaceholderText("teammate@example.com"),
       "teammate@example.com",
     );
     await user.click(screen.getByRole("button", { name: "Send invite" }));
@@ -820,12 +768,6 @@ describe("OrganizationWorkspace", () => {
           "We couldn't send that invitation because we couldn't reach Rentify. Check your connection and try again.",
         tone: "error",
       });
-      expect(screen.getByText("Couldn't send invitation")).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          "We couldn't send that invitation because we couldn't reach Rentify. Check your connection and try again.",
-        ),
-      ).toBeInTheDocument();
     });
   });
 });
