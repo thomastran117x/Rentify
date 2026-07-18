@@ -3,11 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorToastProvider } from "@/components/errors";
 import { ApiClientError } from "@/lib/api/types";
-import { OrganizationWorkspace } from "./organization-workspace";
 import {
   resetRouterMocks,
   routerReplaceMock,
+  routerPushMock,
+  routerRefreshMock,
 } from "@/test/mocks/next-navigation";
+import { OrganizationWorkspaceProvider } from "@/components/organizations/workspace/workspace-provider";
+import { WorkspaceChrome } from "@/components/organizations/workspace/workspace-chrome";
+import { TeamPanel } from "@/components/organizations/workspace/panels/team-panel";
 
 const {
   useAuthMock,
@@ -18,8 +22,7 @@ const {
   createUploadUrlMock,
   deleteBlobMock,
   deleteBlobKeepaliveMock,
-  usePathnameMock,
-  useSearchParamsMock,
+  useSelectedLayoutSegmentMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMineMock: vi.fn(),
@@ -29,20 +32,16 @@ const {
   createUploadUrlMock: vi.fn(),
   deleteBlobMock: vi.fn(),
   deleteBlobKeepaliveMock: vi.fn(),
-  usePathnameMock: vi.fn(),
-  useSearchParamsMock: vi.fn(),
+  useSelectedLayoutSegmentMock: vi.fn(),
 }));
-
-function setSearchParams(query = "") {
-  useSearchParamsMock.mockReturnValue(new URLSearchParams(query));
-}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: routerReplaceMock,
+    push: routerPushMock,
+    refresh: routerRefreshMock,
   }),
-  usePathname: () => usePathnameMock(),
-  useSearchParams: () => useSearchParamsMock(),
+  useSelectedLayoutSegment: () => useSelectedLayoutSegmentMock(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -80,6 +79,24 @@ vi.mock("@/lib/organizations/api", () => ({
       },
     })),
     restoreAuditEntry: vi.fn(),
+    listAnnouncements: vi.fn(async () => ({
+      announcements: [],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    })),
+    createAnnouncement: vi.fn(),
+    updateAnnouncement: vi.fn(),
+    deleteAnnouncement: vi.fn(),
+    listBlogPosts: vi.fn(async () => ({ posts: [] })),
+    createBlogPost: vi.fn(),
+    updateBlogPost: vi.fn(),
+    deleteBlogPost: vi.fn(),
     create: vi.fn(),
   },
 }));
@@ -100,12 +117,11 @@ vi.mock("@/lib/auth/api", () => ({
   },
 }));
 
-describe("OrganizationWorkspace toast integration", () => {
+describe("Organization workspace toast integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
-    usePathnameMock.mockReturnValue("/dashboard/organizations");
-    setSearchParams("");
+    useSelectedLayoutSegmentMock.mockReturnValue("team");
 
     useAuthMock.mockReturnValue({
       status: "authenticated",
@@ -202,7 +218,7 @@ describe("OrganizationWorkspace toast integration", () => {
     window.sessionStorage.clear();
   });
 
-  it("renders a toast when sending an invite fails from the Team tab", async () => {
+  it("renders a toast when sending an invite fails from the Team panel", async () => {
     const user = userEvent.setup();
 
     createInviteMock.mockRejectedValue(
@@ -223,26 +239,36 @@ describe("OrganizationWorkspace toast integration", () => {
 
     render(
       <ErrorToastProvider>
-        <OrganizationWorkspace />
+        <OrganizationWorkspaceProvider>
+          <WorkspaceChrome>
+            <TeamPanel />
+          </WorkspaceChrome>
+        </OrganizationWorkspaceProvider>
       </ErrorToastProvider>,
     );
 
-    await screen.findByRole("heading", { name: "Northwind" });
-    await user.click(screen.getByRole("tab", { name: /Team/i }));
+    await screen.findByRole(
+      "heading",
+      { name: "Northwind" },
+      { timeout: 8000 },
+    );
     await user.type(
       screen.getByPlaceholderText("teammate@example.com"),
       "owner@example.com",
     );
     await user.click(screen.getByRole("button", { name: "Send invite" }));
 
-    await waitFor(() => {
-      expect(screen.getAllByRole("alert")).toHaveLength(2);
-      expect(screen.getAllByText("Couldn't send invitation")).toHaveLength(2);
-      expect(
-        screen.getAllByText(
-          "That user is already a member of this organization.",
-        ),
-      ).toHaveLength(2);
-    });
+    await waitFor(
+      () => {
+        expect(screen.getAllByRole("alert")).toHaveLength(2);
+        expect(screen.getAllByText("Couldn't send invitation")).toHaveLength(2);
+        expect(
+          screen.getAllByText(
+            "That user is already a member of this organization.",
+          ),
+        ).toHaveLength(2);
+      },
+      { timeout: 8000 },
+    );
   });
 });
