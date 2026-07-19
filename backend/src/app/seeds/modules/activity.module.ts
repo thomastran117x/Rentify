@@ -1,6 +1,7 @@
 import { createFixtureId } from "@/seeds/types";
 import {
   SEED_ANALYTICS_OUTBOX_EVENTS,
+  SEED_ORGANIZATION_REVIEWS,
   SEED_POSTING_REVIEWS,
   SEED_POSTING_VIEW_EVENTS,
 } from "@/seeds/fixtures/activity";
@@ -107,6 +108,83 @@ export const activitySeedModule: SeedModule = {
           createdAt: new Date(review.createdAt),
         },
       });
+    }
+
+    const reviewedOrganizationIds = new Set<string>();
+    for (const review of SEED_ORGANIZATION_REVIEWS) {
+      const organizationId = state.organizationIdsByOwnerEmail.get(
+        review.ownerEmail,
+      );
+
+      if (!organizationId) {
+        throw new Error(`Missing seeded organization for review ${review.id}.`);
+      }
+
+      reviewedOrganizationIds.add(organizationId);
+    }
+
+    // Clear any existing reviews for the seeded organizations (including ones
+    // created at runtime with non-fixture ids) so a refresh is deterministic.
+    await prisma.organizationReview.deleteMany({
+      where: { organizationId: { in: Array.from(reviewedOrganizationIds) } },
+    });
+
+    for (const review of SEED_ORGANIZATION_REVIEWS) {
+      const organizationId = state.organizationIdsByOwnerEmail.get(
+        review.ownerEmail,
+      );
+      const reviewerId = state.userIdsByEmail.get(review.reviewerEmail);
+
+      if (!organizationId) {
+        throw new Error(`Missing seeded organization for review ${review.id}.`);
+      }
+
+      if (!reviewerId) {
+        throw new Error(
+          `Missing seeded reviewer for organization review ${review.id}.`,
+        );
+      }
+
+      let responseAuthorId: string | null = null;
+      if (review.reply) {
+        responseAuthorId =
+          state.userIdsByEmail.get(review.reply.authorEmail) ?? null;
+
+        if (!responseAuthorId) {
+          throw new Error(
+            `Missing seeded reply author for organization review ${review.id}.`,
+          );
+        }
+      }
+
+      await prisma.organizationReview.create({
+        data: {
+          id: review.id,
+          organizationId,
+          reviewerId,
+          rating: review.rating,
+          title: review.title ?? null,
+          comment: review.comment ?? null,
+          response: review.reply?.body ?? null,
+          responseAuthorId,
+          respondedAt: review.reply ? new Date(review.reply.respondedAt) : null,
+          createdAt: new Date(review.createdAt),
+        },
+      });
+    }
+
+    for (const organizationId of reviewedOrganizationIds) {
+      await prisma.$executeRaw`
+        UPDATE organizations
+        SET
+          average_rating = (
+            SELECT AVG(rating) FROM organization_reviews WHERE organization_id = ${organizationId}
+          ),
+          review_count = (
+            SELECT COUNT(*) FROM organization_reviews WHERE organization_id = ${organizationId}
+          )
+        WHERE id = ${organizationId}
+      `;
     }
 
     const uniqueViewKeys = new Set<string>();

@@ -4,6 +4,7 @@ import {
   getOptionalAuthJson,
   patchAuthenticatedJson,
   postAuthenticatedJson,
+  putAuthenticatedJson,
 } from "@/lib/auth/api";
 import { publicJson } from "@/lib/api/client";
 import type { ActiveOrganizationSummary } from "@/lib/auth/types";
@@ -48,7 +49,10 @@ export type OrganizationAuditAction =
   | "announcement.updated"
   | "announcement.published"
   | "announcement.unpublished"
-  | "announcement.deleted";
+  | "announcement.deleted"
+  | "review.replied"
+  | "review.reply_removed"
+  | "review.deleted";
 
 export type OrganizationAuditResourceType =
   | "organization"
@@ -57,7 +61,8 @@ export type OrganizationAuditResourceType =
   | "posting"
   | "posting_availability"
   | "seasonal_pricing"
-  | "announcement";
+  | "announcement"
+  | "review";
 
 export interface OrganizationMembershipSummary
   extends ActiveOrganizationSummary {
@@ -252,6 +257,61 @@ export interface ListPublicBlogInput {
   tag?: string;
 }
 
+export interface OrganizationReviewResponse {
+  body: string;
+  respondedAt: string;
+  author?: {
+    id: string;
+    username?: string;
+    avatarUrl?: string;
+  };
+}
+
+export interface OrganizationReviewRecord {
+  id: string;
+  organizationId: string;
+  reviewerId: string;
+  rating: number;
+  title?: string;
+  comment?: string;
+  reviewer: {
+    username?: string;
+    avatarUrl?: string;
+  };
+  response?: OrganizationReviewResponse | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationReviewSummary {
+  averageRating: number;
+  reviewCount: number;
+}
+
+export interface OrganizationReviewsResult {
+  reviews: OrganizationReviewRecord[];
+  summary: OrganizationReviewSummary;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export interface UpsertOrganizationReviewInput {
+  rating: number;
+  title?: string | null;
+  comment?: string | null;
+}
+
+export interface ListPublicReviewsInput {
+  page?: number;
+  pageSize?: number;
+}
+
 export interface OrganizationProfileFields {
   description: string | null;
   websiteUrl: string | null;
@@ -420,6 +480,26 @@ function buildPublicBlogPath(id: string, input?: ListPublicBlogInput): string {
     : `/organizations/${id}/blog`;
 }
 
+function buildPublicReviewsPath(
+  id: string,
+  input?: ListPublicReviewsInput,
+): string {
+  const searchParams = new URLSearchParams();
+
+  if (input?.page && input.page > 1) {
+    searchParams.set("page", String(input.page));
+  }
+
+  if (input?.pageSize) {
+    searchParams.set("pageSize", String(input.pageSize));
+  }
+
+  const query = searchParams.toString();
+  return query
+    ? `/organizations/${id}/reviews?${query}`
+    : `/organizations/${id}/reviews`;
+}
+
 export const organizationsApi = {
   listPublic(
     input?: ListPublicOrganizationsInput,
@@ -547,6 +627,69 @@ export const organizationsApi = {
     return publicJson<OrganizationBlogPostRecord>(
       "GET",
       `/organizations/${id}/blog/${encodeURIComponent(slug)}`,
+    );
+  },
+  listPublicReviews(
+    id: string,
+    input?: ListPublicReviewsInput,
+  ): Promise<OrganizationReviewsResult> {
+    return publicJson<OrganizationReviewsResult>(
+      "GET",
+      buildPublicReviewsPath(id, input),
+    );
+  },
+  getOwnReview(id: string): Promise<OrganizationReviewRecord | null> {
+    return getAuthenticatedJson<OrganizationReviewRecord | null>(
+      `/organizations/${id}/reviews/me`,
+    );
+  },
+  createReview(
+    id: string,
+    input: UpsertOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord> {
+    return postAuthenticatedJson<OrganizationReviewRecord>(
+      `/organizations/${id}/reviews`,
+      input,
+    );
+  },
+  updateOwnReview(
+    id: string,
+    input: UpsertOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord> {
+    return putAuthenticatedJson<OrganizationReviewRecord>(
+      `/organizations/${id}/reviews/me`,
+      input,
+    );
+  },
+  deleteOwnReview(id: string): Promise<{ deleted: true; reviewId: string }> {
+    return deleteAuthenticatedJson<{ deleted: true; reviewId: string }>(
+      `/organizations/${id}/reviews/me`,
+    );
+  },
+  replyToReview(
+    id: string,
+    reviewId: string,
+    body: string,
+  ): Promise<OrganizationReviewRecord> {
+    return putAuthenticatedJson<OrganizationReviewRecord>(
+      `/organizations/${id}/reviews/${reviewId}/reply`,
+      { body },
+    );
+  },
+  removeReviewReply(
+    id: string,
+    reviewId: string,
+  ): Promise<OrganizationReviewRecord> {
+    return deleteAuthenticatedJson<OrganizationReviewRecord>(
+      `/organizations/${id}/reviews/${reviewId}/reply`,
+    );
+  },
+  deleteReview(
+    id: string,
+    reviewId: string,
+  ): Promise<{ deleted: true; reviewId: string }> {
+    return deleteAuthenticatedJson<{ deleted: true; reviewId: string }>(
+      `/organizations/${id}/reviews/${reviewId}`,
     );
   },
   getWorkspaceById(id: string): Promise<OrganizationWorkspaceDetailResult> {

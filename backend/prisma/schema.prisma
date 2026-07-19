@@ -42,6 +42,8 @@ model User {
   organizationAuditLogs OrganizationAuditLog[] @relation("OrganizationAuditActor")
   organizationAnnouncements OrganizationAnnouncement[] @relation("OrganizationAnnouncementAuthor")
   organizationBlogPosts OrganizationBlogPost[] @relation("OrganizationBlogPostAuthor")
+  organizationReviews OrganizationReview[] @relation("OrganizationReviewAuthor")
+  organizationReviewReplies OrganizationReview[] @relation("OrganizationReviewResponder")
   mfaTotp                UserMfaTotp?
 
   @@map("users")
@@ -63,6 +65,8 @@ model Organization {
   logoUrl      String?  @map("logo_url") @db.VarChar(1024)
   logoBlobName String?  @map("logo_blob_name") @db.VarChar(1024)
   customFields Json?    @map("custom_fields")
+  averageRating Decimal? @map("average_rating") @db.Decimal(3, 2)
+  reviewCount  Int      @default(0) @map("review_count")
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
   memberships OrganizationMembership[]
@@ -81,6 +85,7 @@ model Organization {
   auditLogs OrganizationAuditLog[]
   announcements OrganizationAnnouncement[]
   blogPosts OrganizationBlogPost[]
+  reviews OrganizationReview[]
   searchOutboxEntries OrganizationSearchOutbox[]
 
   @@map("organizations")
@@ -151,6 +156,28 @@ model OrganizationBlogPost {
   @@index([organizationId, status, publishedAt])
   @@index([authorUserId, createdAt])
   @@map("organization_blog_posts")
+}
+
+model OrganizationReview {
+  id               String    @id @db.VarChar(36)
+  organizationId   String    @map("organization_id") @db.VarChar(36)
+  reviewerId       String    @map("reviewer_id") @db.VarChar(36)
+  rating           Int
+  title            String?   @db.VarChar(120)
+  comment          String?   @db.Text
+  response         String?   @db.Text
+  responseAuthorId String?   @map("response_author_id") @db.VarChar(36)
+  respondedAt      DateTime? @map("responded_at") @db.DateTime(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewer         User      @relation("OrganizationReviewAuthor", fields: [reviewerId], references: [id], onDelete: Cascade)
+  responseAuthor   User?     @relation("OrganizationReviewResponder", fields: [responseAuthorId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, reviewerId])
+  @@index([organizationId, createdAt])
+  @@index([reviewerId])
+  @@map("organization_reviews")
 }
 
 model OrganizationMembership {

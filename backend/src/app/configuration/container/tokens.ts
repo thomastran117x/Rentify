@@ -42,6 +42,8 @@ import { OrganizationAnnouncementRepository } from "@/features/organizations/org
 import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
 import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
 import { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
+import { OrganizationReviewRepository } from "@/features/organizations/organization-review.repository";
+import { OrganizationReviewService } from "@/features/organizations/organization-review.service";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
@@ -142,6 +144,13 @@ export const containerTokens = {
   ),
   organizationBlogService: createServiceToken<OrganizationBlogService>(
     "OrganizationBlogService",
+  ),
+  organizationReviewRepository:
+    createServiceToken<OrganizationReviewRepository>(
+      "OrganizationReviewRepository",
+    ),
+  organizationReviewService: createServiceToken<OrganizationReviewService>(
+    "OrganizationReviewService",
   ),
   organizationAccessService: createServiceToken<OrganizationAccessService>(
     "OrganizationAccessService",

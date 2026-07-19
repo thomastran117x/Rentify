@@ -12,9 +12,10 @@ import { ANNOUNCEMENT_STATUS_STYLES } from "@/components/organizations/shared/ba
 import { formatDateTime } from "@/components/organizations/shared/format";
 import { SectionCard } from "@/components/organizations/shared/primitives";
 import { BlogPanel } from "@/components/organizations/blog-panel";
+import { ReviewsPanel } from "@/components/organizations/reviews-panel";
 import { useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
 
-type ContentTab = "announcements" | "blog";
+type ContentTab = "announcements" | "blog" | "reviews";
 
 function AnnouncementsSection() {
   const {
@@ -275,9 +276,21 @@ function BlogSection() {
   );
 }
 
+function ReviewsSection() {
+  const { detail, canManageBlog } = useOrganizationWorkspace();
+
+  return (
+    <ReviewsPanel
+      organizationId={detail?.organization.id ?? ""}
+      canManage={canManageBlog}
+    />
+  );
+}
+
 const CONTENT_TABS: Array<{ id: ContentTab; label: string }> = [
   { id: "announcements", label: "Announcements" },
   { id: "blog", label: "Blog" },
+  { id: "reviews", label: "Reviews" },
 ];
 
 // The active sub-tab is driven by the `?view=` search param (resolved to
@@ -320,8 +333,10 @@ export function ContentPanel({
 
       {activeTab === "announcements" ? (
         <AnnouncementsSection />
-      ) : (
+      ) : activeTab === "blog" ? (
         <BlogSection />
+      ) : (
+        <ReviewsSection />
       )}
     </div>
   );

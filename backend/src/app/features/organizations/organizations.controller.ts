@@ -41,6 +41,13 @@ import {
   organizationBlogSlugSchema,
   updateOrganizationBlogSchema,
 } from "@/features/organizations/organization-blog.model";
+import {
+  createOrganizationReviewSchema,
+  listOrganizationReviewsQuerySchema,
+  organizationReviewIdSchema,
+  replyOrganizationReviewSchema,
+  updateOrganizationReviewSchema,
+} from "@/features/organizations/organization-review.model";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
 
 export class OrganizationsController {
@@ -307,6 +314,126 @@ export class OrganizationsController {
       ),
     });
     return ok(context, result);
+  };
+
+  listReviews = async (context: Context<AppBindings>): Promise<Response> => {
+    const query = listOrganizationReviewsQuerySchema.parse(context.req.query());
+    const result = await this.organizationsService.listReviews({
+      ...query,
+      organizationId: this.requireOrganizationId(context),
+    });
+    return ok(context, result, { meta: paginationMeta(result) });
+  };
+
+  getOwnReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.getOwnReview({
+      organizationId: this.requireOrganizationId(context),
+      reviewerId: auth.sub,
+    });
+    return ok(context, result);
+  };
+
+  createReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      createOrganizationReviewSchema,
+    );
+    const result = await this.organizationsService.createReview({
+      organizationId: this.requireOrganizationId(context),
+      reviewerId: auth.sub,
+      ...body,
+    });
+    return created(context, result, {
+      message: "Review submitted successfully.",
+    });
+  };
+
+  updateOwnReview = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      updateOrganizationReviewSchema,
+    );
+    const result = await this.organizationsService.updateOwnReview({
+      organizationId: this.requireOrganizationId(context),
+      reviewerId: auth.sub,
+      ...body,
+    });
+    return ok(context, result, {
+      message: "Review updated successfully.",
+    });
+  };
+
+  deleteOwnReview = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.deleteOwnReview({
+      organizationId: this.requireOrganizationId(context),
+      reviewerId: auth.sub,
+    });
+    return ok(context, result, {
+      message: "Review deleted successfully.",
+    });
+  };
+
+  replyToReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(context, replyOrganizationReviewSchema);
+    const result = await this.organizationsService.replyToReview({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      reviewId: this.requireRouteValue(
+        context,
+        "reviewId",
+        organizationReviewIdSchema,
+        "Route parameter validation failed.",
+      ),
+      ...body,
+    });
+    return ok(context, result, {
+      message: "Reply saved successfully.",
+    });
+  };
+
+  removeReviewReply = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.removeReviewReply({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      reviewId: this.requireRouteValue(
+        context,
+        "reviewId",
+        organizationReviewIdSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result, {
+      message: "Reply removed successfully.",
+    });
+  };
+
+  deleteReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.deleteReview({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      reviewId: this.requireRouteValue(
+        context,
+        "reviewId",
+        organizationReviewIdSchema,
+        "Route parameter validation failed.",
+      ),
+    });
+    return ok(context, result, {
+      message: "Review deleted successfully.",
+    });
   };
 
   update = async (context: Context<AppBindings>): Promise<Response> => {
