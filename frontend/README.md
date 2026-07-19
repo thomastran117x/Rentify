@@ -64,6 +64,8 @@ The frontend normalizes loopback API URLs and will add `/api/v1` when the config
 npm run dev
 npm run build
 npm run start
+npm run format
+npm run format:diff
 npm run lint
 npm run test:unit
 npm run test:unit:watch
