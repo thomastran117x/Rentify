@@ -61,6 +61,8 @@ Environment notes:
 npm run dev
 npm run build
 npm run start
+npm run format
+npm run format:diff
 npm run check
 npm run check:test
 npm run check:all
