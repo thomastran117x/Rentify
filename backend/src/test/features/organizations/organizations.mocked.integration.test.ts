@@ -10,6 +10,7 @@ import {
 const organizationId = "00000000-0000-0000-1040-000000000001";
 const inviteId = "22222222-2222-4222-8222-222222222222";
 const memberId = "33333333-3333-4333-8333-333333333333";
+const reviewId = "44444444-4444-4444-8444-444444444444";
 
 function createApp() {
   const organizationsService = {
@@ -185,6 +186,77 @@ function createApp() {
     removeMember: jest.fn(async () => ({
       removed: true,
       membershipId: memberId,
+    })),
+    listReviews: jest.fn(async () => ({
+      reviews: [
+        {
+          id: "review-1",
+          organizationId,
+          reviewerId: "user-22",
+          rating: 5,
+          reviewer: { username: "renter-two" },
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      summary: { averageRating: 5, reviewCount: 1 },
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    })),
+    createReview: jest.fn(async () => ({
+      id: "review-1",
+      organizationId,
+      reviewerId: "user-22",
+      rating: 5,
+      reviewer: { username: "renter-two" },
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    })),
+    updateOwnReview: jest.fn(async () => ({
+      id: "review-1",
+      organizationId,
+      reviewerId: "user-22",
+      rating: 4,
+      reviewer: { username: "renter-two" },
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    })),
+    deleteOwnReview: jest.fn(async () => ({
+      deleted: true,
+      reviewId,
+    })),
+    replyToReview: jest.fn(async () => ({
+      id: "review-1",
+      organizationId,
+      reviewerId: "user-22",
+      rating: 5,
+      reviewer: { username: "renter-two" },
+      response: {
+        body: "Thanks!",
+        respondedAt: "2026-06-02T00:00:00.000Z",
+        author: { id: "owner-1", username: "owner-one" },
+      },
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    })),
+    removeReviewReply: jest.fn(async () => ({
+      id: "review-1",
+      organizationId,
+      reviewerId: "user-22",
+      rating: 5,
+      reviewer: { username: "renter-two" },
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    })),
+    deleteReview: jest.fn(async () => ({
+      deleted: true,
+      reviewId,
     })),
   };
 
@@ -409,6 +481,126 @@ describe("Organizations integration", () => {
       organizationId,
       actorUserId: "owner-1",
       membershipId: memberId,
+    });
+  });
+
+  it("covers organization review public read, submission, and moderation", async () => {
+    const { app, organizationsService } = createApp();
+
+    const listReviewsResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews`)}`,
+    );
+    const createReviewResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews`)}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer user-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          rating: 5,
+          title: "Great",
+          comment: "Loved it",
+        }),
+      },
+    );
+    const updateOwnReviewResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/me`)}`,
+      {
+        method: "PUT",
+        headers: {
+          authorization: "Bearer user-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ rating: 4 }),
+      },
+    );
+    const deleteOwnReviewResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/me`)}`,
+      {
+        method: "DELETE",
+        headers: { authorization: "Bearer user-token" },
+      },
+    );
+    const replyResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/${reviewId}/reply`)}`,
+      {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ body: "Thanks!" }),
+      },
+    );
+    const removeReplyResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/${reviewId}/reply`)}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      },
+    );
+    const deleteReviewResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/${reviewId}`)}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      },
+    );
+    const unauthenticatedCreateResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews`)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rating: 5 }),
+      },
+    );
+
+    expect(listReviewsResponse.status).toBe(200);
+    expect(createReviewResponse.status).toBe(201);
+    expect(updateOwnReviewResponse.status).toBe(200);
+    expect(deleteOwnReviewResponse.status).toBe(200);
+    expect(replyResponse.status).toBe(200);
+    expect(removeReplyResponse.status).toBe(200);
+    expect(deleteReviewResponse.status).toBe(200);
+    expect(unauthenticatedCreateResponse.status).toBe(401);
+
+    expect(organizationsService.listReviews).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+    );
+    expect(organizationsService.createReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId,
+        reviewerId: "user-22",
+        rating: 5,
+      }),
+    );
+    expect(organizationsService.updateOwnReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId,
+        reviewerId: "user-22",
+        rating: 4,
+      }),
+    );
+    expect(organizationsService.deleteOwnReview).toHaveBeenCalledWith({
+      organizationId,
+      reviewerId: "user-22",
+    });
+    expect(organizationsService.replyToReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId,
+        actorUserId: "owner-1",
+        reviewId,
+        body: "Thanks!",
+      }),
+    );
+    expect(organizationsService.removeReviewReply).toHaveBeenCalledWith({
+      organizationId,
+      actorUserId: "owner-1",
+      reviewId,
+    });
+    expect(organizationsService.deleteReview).toHaveBeenCalledWith({
+      organizationId,
+      actorUserId: "owner-1",
+      reviewId,
     });
   });
 

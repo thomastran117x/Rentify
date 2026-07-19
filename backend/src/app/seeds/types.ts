@@ -299,6 +299,21 @@ export interface SeedPostingReviewFixture {
   createdAt: string;
 }
 
+export interface SeedOrganizationReviewFixture {
+  id: string;
+  ownerEmail: string;
+  reviewerEmail: string;
+  rating: number;
+  title?: string;
+  comment?: string;
+  createdAt: string;
+  reply?: {
+    body: string;
+    authorEmail: string;
+    respondedAt: string;
+  };
+}
+
 export interface SeedPostingViewEventFixture {
   id: string;
   postingId: string;

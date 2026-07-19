@@ -7,7 +7,11 @@ export default async function OrganizationContentPage({
 }) {
   const { view } = await searchParams;
   const rawView = Array.isArray(view) ? view[0] : view;
-  return (
-    <ContentPanel initialTab={rawView === "blog" ? "blog" : "announcements"} />
-  );
+  const initialTab =
+    rawView === "blog"
+      ? "blog"
+      : rawView === "reviews"
+        ? "reviews"
+        : "announcements";
+  return <ContentPanel initialTab={initialTab} />;
 }

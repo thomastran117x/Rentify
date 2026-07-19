@@ -147,6 +147,58 @@ export const organizationsRouteModule: RouteModule = {
         "deleteBlogPost",
       ),
     );
+    // Public, unauthenticated review reads.
+    app.get(
+      "/organizations/:id/reviews",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "listReviews",
+      ),
+    );
+    // Authenticated reviewer submission (renters with a completed rental).
+    app.post(
+      "/organizations/:id/reviews",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "createReview",
+      ),
+    );
+    app.put(
+      "/organizations/:id/reviews/me",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "updateOwnReview",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/reviews/me",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "deleteOwnReview",
+      ),
+    );
+    // Manager-gated review moderation.
+    app.put(
+      "/organizations/:id/reviews/:reviewId/reply",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "replyToReview",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/reviews/:reviewId/reply",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "removeReviewReply",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/reviews/:reviewId",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "deleteReview",
+      ),
+    );
     app.patch(
       "/organizations/:id",
       resolveHandler<OrganizationsController>(

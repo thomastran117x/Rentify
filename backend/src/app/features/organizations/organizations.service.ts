@@ -29,6 +29,18 @@ import type {
   OrganizationBlogPostRecord,
   UpdateOrganizationBlogPostInput,
 } from "@/features/organizations/organization-blog.model";
+import type { OrganizationReviewService } from "@/features/organizations/organization-review.service";
+import type {
+  DeleteOrganizationReviewInput,
+  DeleteOrganizationReviewResult,
+  DeleteOwnOrganizationReviewInput,
+  ListOrganizationReviewsInput,
+  ListOrganizationReviewsResult,
+  OrganizationReviewRecord,
+  RemoveOrganizationReviewReplyInput,
+  ReplyOrganizationReviewInput,
+  UpsertOrganizationReviewInput,
+} from "@/features/organizations/organization-review.model";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
   createAuditChanges as buildAuditChanges,
@@ -98,6 +110,7 @@ export class OrganizationsService {
     private readonly organizationsPublicSearchService: OrganizationsPublicSearchService,
     private readonly organizationAnnouncementService: OrganizationAnnouncementService,
     private readonly organizationBlogService: OrganizationBlogService,
+    private readonly organizationReviewService: OrganizationReviewService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -256,6 +269,48 @@ export class OrganizationsService {
     input: DeleteOrganizationBlogPostInput,
   ): Promise<DeleteOrganizationBlogPostResult> {
     return this.organizationBlogService.delete(input);
+  }
+
+  async listReviews(
+    input: ListOrganizationReviewsInput,
+  ): Promise<ListOrganizationReviewsResult> {
+    return this.organizationReviewService.list(input);
+  }
+
+  async createReview(
+    input: UpsertOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord> {
+    return this.organizationReviewService.create(input);
+  }
+
+  async updateOwnReview(
+    input: UpsertOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord> {
+    return this.organizationReviewService.updateOwn(input);
+  }
+
+  async deleteOwnReview(
+    input: DeleteOwnOrganizationReviewInput,
+  ): Promise<DeleteOrganizationReviewResult> {
+    return this.organizationReviewService.deleteOwn(input);
+  }
+
+  async replyToReview(
+    input: ReplyOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord> {
+    return this.organizationReviewService.reply(input);
+  }
+
+  async removeReviewReply(
+    input: RemoveOrganizationReviewReplyInput,
+  ): Promise<OrganizationReviewRecord> {
+    return this.organizationReviewService.removeReply(input);
+  }
+
+  async deleteReview(
+    input: DeleteOrganizationReviewInput,
+  ): Promise<DeleteOrganizationReviewResult> {
+    return this.organizationReviewService.delete(input);
   }
 
   async restoreVersion(

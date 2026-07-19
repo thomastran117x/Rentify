@@ -933,4 +933,57 @@ describe("RentingsRepository", () => {
       },
     });
   });
+
+  it("queries for a completed non-disputed renting when checking organization review eligibility", async () => {
+    const now = new Date("2026-04-23T12:00:00.000Z");
+    const findFirst = jest.fn(async () => ({
+      id: "renting-1",
+    }));
+    const database = {
+      renting: {
+        findFirst,
+      },
+    };
+    const repository = new RentingsRepository(database as any);
+
+    const result = await repository.hasEligibleReviewRentingForOrganization({
+      organizationId: "org-1",
+      renterId: "renter-1",
+      now,
+    });
+
+    expect(result).toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        organizationId: "org-1",
+        renterId: "renter-1",
+        status: "completed",
+        completedAt: {
+          lte: now,
+        },
+        dispute: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+
+  it("returns false when there is no eligible organization renting", async () => {
+    const findFirst = jest.fn(async () => null);
+    const database = {
+      renting: {
+        findFirst,
+      },
+    };
+    const repository = new RentingsRepository(database as any);
+
+    const result = await repository.hasEligibleReviewRentingForOrganization({
+      organizationId: "org-1",
+      renterId: "renter-1",
+      now: new Date("2026-04-23T12:00:00.000Z"),
+    });
+
+    expect(result).toBe(false);
+  });
 });

@@ -4,6 +4,7 @@ import {
 } from "@/seeds/fixtures/posting-expansion";
 import {
   createFixtureId,
+  type SeedOrganizationReviewFixture,
   type SeedPostingAnalyticsOutboxFixture,
   type SeedPostingReviewFixture,
   type SeedPostingViewEventFixture,
@@ -473,6 +474,39 @@ const ADDITIONAL_SEED_ANALYTICS_OUTBOX_EVENTS: SeedPostingAnalyticsOutboxFixture
 export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
   ...BASE_SEED_POSTING_REVIEWS,
   ...ADDITIONAL_SEED_POSTING_REVIEWS,
+];
+
+// Organization reviews are authored by non-member renters who completed a
+// rental with the organization. owner1@rentify.local owns postings 2000-2 /
+// 2000-4, which renter-five (user5) and renter-six (user6) rented to
+// completion (see the completed-renting booking fixtures), so both satisfy the
+// service's eligibility rules (completed rental + not an organization member).
+export const SEED_ORGANIZATION_REVIEWS: SeedOrganizationReviewFixture[] = [
+  {
+    id: createFixtureId(4200, 1),
+    ownerEmail: "owner1@rentify.local",
+    reviewerEmail: "user5@rentify.local",
+    rating: 5,
+    title: "Consistently great to rent from",
+    comment:
+      "Every booking with this team has been smooth — clear instructions and quick responses.",
+    createdAt: "2026-06-20T18:00:00.000Z",
+    reply: {
+      body: "Thank you! We love having you back — see you next time.",
+      authorEmail: "owner1@rentify.local",
+      respondedAt: "2026-06-21T09:30:00.000Z",
+    },
+  },
+  {
+    id: createFixtureId(4200, 2),
+    ownerEmail: "owner1@rentify.local",
+    reviewerEmail: "user6@rentify.local",
+    rating: 4,
+    title: "Reliable organization",
+    comment:
+      "Handoffs are dependable and the listings match reality. Would rent again.",
+    createdAt: "2026-06-22T16:45:00.000Z",
+  },
 ];
 
 export const SEED_POSTING_VIEW_EVENTS: SeedPostingViewEventFixture[] = [

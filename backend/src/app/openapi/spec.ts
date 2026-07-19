@@ -299,6 +299,44 @@ const organizationBlogPostListExample = {
     hasPreviousPage: false,
   },
 };
+const organizationReviewExample = {
+  id: "review-1",
+  organizationId: "org-1",
+  reviewerId: "user-2",
+  rating: 5,
+  title: "Smooth end-to-end rental",
+  comment: "Pickup was effortless and the team was responsive throughout.",
+  reviewer: {
+    username: "renter-two",
+    avatarUrl: "https://cdn.rentify.local/avatars/renter-2.png",
+  },
+  response: {
+    body: "Thank you for renting with us — see you next time!",
+    respondedAt: "2026-06-02T09:00:00.000Z",
+    author: {
+      id: "user-1",
+      username: "owner-one",
+      avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    },
+  },
+  createdAt: "2026-06-01T18:30:00.000Z",
+  updatedAt: "2026-06-01T18:30:00.000Z",
+};
+const organizationReviewListExample = {
+  reviews: [organizationReviewExample],
+  summary: {
+    averageRating: 5,
+    reviewCount: 1,
+  },
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
 const organizationAuditRestoreExample = {
   restored: true,
   auditLog: {
@@ -2863,6 +2901,243 @@ function buildOperations(): OperationDefinition[] {
           {
             deleted: true,
             blogPostId: "blog-1",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/organizations/:id/reviews",
+      operationId: "listOrganizationReviews",
+      summary: "List organization reviews",
+      description:
+        "Returns paginated reviews and the aggregate rating summary for an organization. This is a public, unauthenticated endpoint.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of reviews per page.",
+          20,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationReviewListResult",
+          organizationReviewListExample,
+          "Organization reviews returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationReviewListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/reviews",
+      operationId: "createOrganizationReview",
+      summary: "Submit an organization review",
+      description:
+        "Creates a review for an organization. The reviewer must be authenticated, must not be a member of the organization, and must have at least one completed, non-disputed rental with the organization. Each user may submit one review per organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      requestBody: requestBody("CreateOrganizationReviewRequest", {
+        rating: 5,
+        title: "Smooth end-to-end rental",
+        comment:
+          "Pickup was effortless and the team was responsive throughout.",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Review submitted successfully.",
+          "OrganizationReviewRecord",
+          organizationReviewExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "put",
+      path: "/organizations/:id/reviews/me",
+      operationId: "updateOwnOrganizationReview",
+      summary: "Update your organization review",
+      description:
+        "Updates the authenticated reviewer's existing review for the organization. The same eligibility rules as creation apply.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      requestBody: requestBody("UpdateOrganizationReviewRequest", {
+        rating: 4,
+        title: "Still a great experience",
+        comment: "Second rental went just as smoothly as the first.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Review updated successfully.",
+          "OrganizationReviewRecord",
+          organizationReviewExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/reviews/me",
+      operationId: "deleteOwnOrganizationReview",
+      summary: "Delete your organization review",
+      description:
+        "Deletes the authenticated reviewer's own review for the organization.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Review deleted successfully.",
+          "DeleteOrganizationReviewResult",
+          {
+            deleted: true,
+            reviewId: "review-1",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "put",
+      path: "/organizations/:id/reviews/:reviewId/reply",
+      operationId: "replyToOrganizationReview",
+      summary: "Reply to an organization review",
+      description:
+        "Adds or updates a public manager reply to a review. Only primary managers and managers can respond.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "reviewId",
+          "Organization review identifier.",
+          "review-1",
+        ),
+      ],
+      requestBody: requestBody("ReplyOrganizationReviewRequest", {
+        body: "Thank you for renting with us — see you next time!",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Reply saved successfully.",
+          "OrganizationReviewRecord",
+          organizationReviewExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/reviews/:reviewId/reply",
+      operationId: "removeOrganizationReviewReply",
+      summary: "Remove a reply from an organization review",
+      description:
+        "Removes the public manager reply from a review. Only primary managers and managers can remove replies.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "reviewId",
+          "Organization review identifier.",
+          "review-1",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Reply removed successfully.",
+          "OrganizationReviewRecord",
+          { ...organizationReviewExample, response: null },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/reviews/:reviewId",
+      operationId: "deleteOrganizationReview",
+      summary: "Delete an organization review",
+      description:
+        "Deletes a review as a moderation action. Only primary managers and managers can delete reviews.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam(
+          "reviewId",
+          "Organization review identifier.",
+          "review-1",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Review deleted successfully.",
+          "DeleteOrganizationReviewResult",
+          {
+            deleted: true,
+            reviewId: "review-1",
           },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
@@ -6951,6 +7226,130 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           deleted: { type: "boolean" },
           blogPostId: { type: "string" },
+        },
+      },
+      OrganizationReviewerSummary: {
+        type: "object",
+        properties: {
+          username: { type: "string" },
+          avatarUrl: { type: "string", format: "uri" },
+        },
+      },
+      OrganizationReviewResponse: {
+        type: "object",
+        required: ["body", "respondedAt"],
+        properties: {
+          body: { type: "string" },
+          respondedAt: { type: "string", format: "date-time" },
+          author: {
+            type: "object",
+            required: ["id"],
+            properties: {
+              id: { type: "string" },
+              username: { type: "string" },
+              avatarUrl: { type: "string", format: "uri" },
+            },
+          },
+        },
+      },
+      OrganizationReviewRecord: {
+        type: "object",
+        required: [
+          "id",
+          "organizationId",
+          "reviewerId",
+          "rating",
+          "reviewer",
+          "createdAt",
+          "updatedAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          organizationId: { type: "string" },
+          reviewerId: { type: "string" },
+          rating: { type: "integer", minimum: 1, maximum: 5 },
+          title: { type: "string" },
+          comment: { type: "string" },
+          reviewer: schemaRef("OrganizationReviewerSummary"),
+          response: {
+            ...schemaRef("OrganizationReviewResponse"),
+            nullable: true,
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      OrganizationReviewSummary: {
+        type: "object",
+        required: ["averageRating", "reviewCount"],
+        properties: {
+          averageRating: { type: "number" },
+          reviewCount: { type: "integer" },
+        },
+      },
+      OrganizationReviewListResult: {
+        type: "object",
+        required: ["reviews", "summary", "pagination"],
+        properties: {
+          reviews: {
+            type: "array",
+            items: schemaRef("OrganizationReviewRecord"),
+          },
+          summary: schemaRef("OrganizationReviewSummary"),
+          pagination: schemaRef("Pagination"),
+        },
+      },
+      CreateOrganizationReviewRequest: {
+        type: "object",
+        required: ["rating"],
+        properties: {
+          rating: { type: "integer", minimum: 1, maximum: 5 },
+          title: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            nullable: true,
+          },
+          comment: {
+            type: "string",
+            minLength: 1,
+            maxLength: 2000,
+            nullable: true,
+          },
+        },
+      },
+      UpdateOrganizationReviewRequest: {
+        type: "object",
+        required: ["rating"],
+        properties: {
+          rating: { type: "integer", minimum: 1, maximum: 5 },
+          title: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            nullable: true,
+          },
+          comment: {
+            type: "string",
+            minLength: 1,
+            maxLength: 2000,
+            nullable: true,
+          },
+        },
+      },
+      ReplyOrganizationReviewRequest: {
+        type: "object",
+        required: ["body"],
+        properties: {
+          body: { type: "string", minLength: 1, maxLength: 2000 },
+        },
+      },
+      DeleteOrganizationReviewResult: {
+        type: "object",
+        required: ["deleted", "reviewId"],
+        properties: {
+          deleted: { type: "boolean" },
+          reviewId: { type: "string" },
         },
       },
       AuthSessionResponseData: {

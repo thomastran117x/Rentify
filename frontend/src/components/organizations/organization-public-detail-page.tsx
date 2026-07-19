@@ -23,6 +23,7 @@ import {
   formatOrganizationDate,
   getWebsiteHost,
 } from "@/components/organizations/organization-public-visuals";
+import { OrganizationReviewsSection } from "@/components/organizations/organization-reviews-section";
 import { theme } from "@/styles/theme";
 
 interface OrganizationPublicDetailPageProps {
@@ -339,6 +340,8 @@ export function OrganizationPublicDetailPage({
           </div>
         ) : null}
       </section>
+
+      <OrganizationReviewsSection organizationId={id} />
     </PageChrome>
   );
 }

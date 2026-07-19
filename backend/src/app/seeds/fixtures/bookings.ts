@@ -413,6 +413,10 @@ function createRentingFixture(
     10: "return_due",
     11: "completed",
     14: "disputed",
+    // Completed rentals by non-member renters so they are eligible to review
+    // the organization they rented from (see SEED_ORGANIZATION_REVIEWS).
+    52: "completed",
+    53: "completed",
   };
   const status = statusByIndex[index] ?? "confirmed";
   const pickupInstructions = `Meet at the main entrance for renting fixture ${index}.`;
@@ -948,6 +952,36 @@ const BASE_BOOKING_SPECS: BookingSpec[] = [
     dailyPriceAmount: 96,
     contactName: "Sam Turner",
     note: "Refunded due to charging access problem.",
+  },
+  // Completed rentals by non-member renters with owner-one's organization
+  // (postings 2000-2 / 2000-4). These make renter-five and renter-six eligible
+  // to leave organization reviews (see SEED_ORGANIZATION_REVIEWS).
+  // Template dates are rebased at seed time (the 2026-05-12 anchor maps to
+  // now+3 days), so these early-April template windows resolve to rentals that
+  // completed comfortably in the past — a prerequisite for review eligibility.
+  {
+    index: 52,
+    postingIndex: 2,
+    renterEmail: "user5@rentify.local",
+    lifecycle: "paid_confirmed",
+    startAt: "2026-04-12T15:00:00.000Z",
+    endAt: "2026-04-15T15:00:00.000Z",
+    guestCount: 2,
+    dailyPriceAmount: 150,
+    contactName: "Riley Adams",
+    note: "First rental with this organization.",
+  },
+  {
+    index: 53,
+    postingIndex: 4,
+    renterEmail: "user6@rentify.local",
+    lifecycle: "paid_confirmed",
+    startAt: "2026-04-18T15:00:00.000Z",
+    endAt: "2026-04-20T15:00:00.000Z",
+    guestCount: 3,
+    dailyPriceAmount: 130,
+    contactName: "Morgan Diaz",
+    note: "Smooth handoff for a weekend project.",
   },
 ];
 
