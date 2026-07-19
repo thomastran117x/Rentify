@@ -156,6 +156,13 @@ export const organizationsRouteModule: RouteModule = {
       ),
     );
     // Authenticated reviewer submission (renters with a completed rental).
+    app.get(
+      "/organizations/:id/reviews/me",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "getOwnReview",
+      ),
+    );
     app.post(
       "/organizations/:id/reviews",
       resolveHandler<OrganizationsController>(

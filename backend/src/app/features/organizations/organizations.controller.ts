@@ -325,6 +325,15 @@ export class OrganizationsController {
     return ok(context, result, { meta: paginationMeta(result) });
   };
 
+  getOwnReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.organizationsService.getOwnReview({
+      organizationId: this.requireOrganizationId(context),
+      reviewerId: auth.sub,
+    });
+    return ok(context, result);
+  };
+
   createReview = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(

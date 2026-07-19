@@ -209,6 +209,15 @@ function createApp() {
         hasPreviousPage: false,
       },
     })),
+    getOwnReview: jest.fn(async () => ({
+      id: "review-1",
+      organizationId,
+      reviewerId: "user-22",
+      rating: 5,
+      reviewer: { username: "renter-two" },
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    })),
     createReview: jest.fn(async () => ({
       id: "review-1",
       organizationId,
@@ -490,6 +499,12 @@ describe("Organizations integration", () => {
     const listReviewsResponse = await app.request(
       `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews`)}`,
     );
+    const getOwnReviewResponse = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews/me`)}`,
+      {
+        headers: { authorization: "Bearer user-token" },
+      },
+    );
     const createReviewResponse = await app.request(
       `http://rent.test${buildApiPath(`/organizations/${organizationId}/reviews`)}`,
       {
@@ -555,6 +570,7 @@ describe("Organizations integration", () => {
     );
 
     expect(listReviewsResponse.status).toBe(200);
+    expect(getOwnReviewResponse.status).toBe(200);
     expect(createReviewResponse.status).toBe(201);
     expect(updateOwnReviewResponse.status).toBe(200);
     expect(deleteOwnReviewResponse.status).toBe(200);
@@ -566,6 +582,10 @@ describe("Organizations integration", () => {
     expect(organizationsService.listReviews).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),
     );
+    expect(organizationsService.getOwnReview).toHaveBeenCalledWith({
+      organizationId,
+      reviewerId: "user-22",
+    });
     expect(organizationsService.createReview).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId,

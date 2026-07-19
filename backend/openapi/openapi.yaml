@@ -3923,6 +3923,75 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
   '/organizations/{id}/reviews/me':
+    get:
+      operationId: getOwnOrganizationReview
+      summary: Get your organization review
+      description: 'Returns the authenticated user''s own review for the organization, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      responses:
+        '200':
+          description: Your organization review returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NullableOrganizationReviewRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  id: review-1
+                  organizationId: org-1
+                  reviewerId: user-2
+                  rating: 5
+                  title: Smooth end-to-end rental
+                  comment: Pickup was effortless and the team was responsive throughout.
+                  reviewer:
+                    username: renter-two
+                    avatarUrl: 'https://cdn.rentify.local/avatars/renter-2.png'
+                  response:
+                    body: Thank you for renting with us — see you next time!
+                    respondedAt: '2026-06-02T09:00:00.000Z'
+                    author:
+                      id: user-1
+                      username: owner-one
+                      avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                  createdAt: '2026-06-01T18:30:00.000Z'
+                  updatedAt: '2026-06-01T18:30:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     put:
       operationId: updateOwnOrganizationReview
       summary: Update your organization review
@@ -12909,6 +12978,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+    NullableOrganizationReviewRecord:
+      $ref: '#/components/schemas/OrganizationReviewRecord'
+      nullable: true
     OrganizationReviewSummary:
       type: object
       required:

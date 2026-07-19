@@ -638,6 +638,11 @@ export const organizationsApi = {
       buildPublicReviewsPath(id, input),
     );
   },
+  getOwnReview(id: string): Promise<OrganizationReviewRecord | null> {
+    return getAuthenticatedJson<OrganizationReviewRecord | null>(
+      `/organizations/${id}/reviews/me`,
+    );
+  },
   createReview(
     id: string,
     input: UpsertOrganizationReviewInput,

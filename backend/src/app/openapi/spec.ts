@@ -2950,6 +2950,32 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/organizations/:id/reviews/me",
+      operationId: "getOwnOrganizationReview",
+      summary: "Get your organization review",
+      description:
+        "Returns the authenticated user's own review for the organization, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "NullableOrganizationReviewRecord",
+          organizationReviewExample,
+          "Your organization review returned successfully.",
+        ),
+        ...commonErrors([400, 401, 404, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/organizations/:id/reviews",
       operationId: "createOrganizationReview",
@@ -7278,6 +7304,10 @@ function buildComponents(): Record<string, unknown> {
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
+      },
+      NullableOrganizationReviewRecord: {
+        ...schemaRef("OrganizationReviewRecord"),
+        nullable: true,
       },
       OrganizationReviewSummary: {
         type: "object",

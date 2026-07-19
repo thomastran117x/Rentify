@@ -959,9 +959,11 @@ const BASE_BOOKING_SPECS: BookingSpec[] = [
   // Template dates are rebased at seed time (the 2026-05-12 anchor maps to
   // now+3 days), so these early-April template windows resolve to rentals that
   // completed comfortably in the past — a prerequisite for review eligibility.
+  // Both postings (2000-3 / 2000-4) are published so the completed rentals also
+  // satisfy the posting-review eligibility scenario used in integration tests.
   {
     index: 52,
-    postingIndex: 2,
+    postingIndex: 3,
     renterEmail: "user5@rentify.local",
     lifecycle: "paid_confirmed",
     startAt: "2026-04-12T15:00:00.000Z",

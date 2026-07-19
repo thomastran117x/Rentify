@@ -129,6 +129,36 @@ describe("OrganizationReviewService", () => {
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
+  it("returns the viewer's own review when one exists", async () => {
+    const { service, repository } = createService({
+      existingOwnReview: createReview(),
+    });
+
+    const result = await service.getOwn({
+      organizationId: "org-1",
+      reviewerId: "user-2",
+    });
+
+    expect(repository.findOwnReview).toHaveBeenCalledWith("org-1", "user-2");
+    expect(result?.id).toBe("review-1");
+  });
+
+  it("returns null when the viewer has no review", async () => {
+    const { service } = createService({ existingOwnReview: null });
+
+    await expect(
+      service.getOwn({ organizationId: "org-1", reviewerId: "user-2" }),
+    ).resolves.toBeNull();
+  });
+
+  it("throws when fetching own review for a missing organization", async () => {
+    const { service } = createService({ organizationExists: false });
+
+    await expect(
+      service.getOwn({ organizationId: "missing", reviewerId: "user-2" }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
   it("creates a review for an eligible non-member and recomputes stats", async () => {
     const { service, repository } = createService({
       membership: null,

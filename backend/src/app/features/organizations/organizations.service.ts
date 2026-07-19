@@ -277,6 +277,12 @@ export class OrganizationsService {
     return this.organizationReviewService.list(input);
   }
 
+  async getOwnReview(
+    input: DeleteOwnOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord | null> {
+    return this.organizationReviewService.getOwn(input);
+  }
+
   async createReview(
     input: UpsertOrganizationReviewInput,
   ): Promise<OrganizationReviewRecord> {

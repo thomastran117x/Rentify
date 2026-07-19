@@ -45,6 +45,17 @@ export class OrganizationReviewService {
     );
   }
 
+  async getOwn(
+    input: DeleteOwnOrganizationReviewInput,
+  ): Promise<OrganizationReviewRecord | null> {
+    await this.requireOrganization(input.organizationId);
+
+    return this.repository.findOwnReview(
+      input.organizationId,
+      input.reviewerId,
+    );
+  }
+
   async create(
     input: UpsertOrganizationReviewInput,
   ): Promise<OrganizationReviewRecord> {

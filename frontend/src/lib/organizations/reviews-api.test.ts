@@ -89,6 +89,32 @@ describe("organizationsApi reviews", () => {
     );
   });
 
+  it("fetches the viewer's own review with an authenticated GET", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(review));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { organizationsApi } = await import("./api");
+    await organizationsApi.getOwnReview("org-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8040/api/v1/organizations/org-1/reviews/me",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          authorization: "Bearer org-access-token",
+        }),
+      }),
+    );
+  });
+
+  it("returns null when the viewer has no review", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(null));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { organizationsApi } = await import("./api");
+    await expect(organizationsApi.getOwnReview("org-1")).resolves.toBeNull();
+  });
+
   it("creates a review with a POST request", async () => {
     const fetchMock = vi.fn(async () => jsonResponse(review, 201));
     vi.stubGlobal("fetch", fetchMock);

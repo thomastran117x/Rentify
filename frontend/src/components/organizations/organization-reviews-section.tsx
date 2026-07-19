@@ -94,17 +94,32 @@ export function OrganizationReviewsSection({
     [],
   );
 
+  // Fetch the viewer's own review directly rather than scanning the current
+  // page of public reviews — their review may live on a later page, and the
+  // form must open in edit mode (and submit PUT) whenever a review exists.
   useEffect(() => {
     if (!viewerId) {
       syncOwnReview(null);
       return;
     }
 
-    const mine = reviews.find((review) => review.reviewerId === viewerId);
-    if (mine) {
-      syncOwnReview(mine);
-    }
-  }, [reviews, viewerId, syncOwnReview]);
+    let active = true;
+
+    void organizationsApi
+      .getOwnReview(organizationId)
+      .then((record) => {
+        if (active) {
+          syncOwnReview(record ?? null);
+        }
+      })
+      .catch(() => {
+        // Non-fatal: fall back to "write a review" mode if the lookup fails.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [organizationId, viewerId, syncOwnReview]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

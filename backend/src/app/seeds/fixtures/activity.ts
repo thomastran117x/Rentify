@@ -477,7 +477,7 @@ export const SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
 ];
 
 // Organization reviews are authored by non-member renters who completed a
-// rental with the organization. owner1@rentify.local owns postings 2000-2 /
+// rental with the organization. owner1@rentify.local owns postings 2000-3 /
 // 2000-4, which renter-five (user5) and renter-six (user6) rented to
 // completion (see the completed-renting booking fixtures), so both satisfy the
 // service's eligibility rules (completed rental + not an organization member).
