@@ -193,11 +193,14 @@ describe("OrganizationBlogRepository search methods", () => {
   });
 
   describe("public feed fallback and hydration", () => {
-    it("returns ordered ids and a total for a query", async () => {
+    it("returns ordered ids and a total for a query (raw SQL, all text fields)", async () => {
+      const seenSql: string[] = [];
       const db = createDb({
-        blogPost: {
-          findMany: jest.fn(async () => [{ id: "post-1" }, { id: "post-2" }]),
-          count: jest.fn(async () => 2),
+        queryRaw: (text) => {
+          seenSql.push(text);
+          return text.includes("COUNT(*)")
+            ? [{ total: 2 }]
+            : [{ id: "post-1" }, { id: "post-2" }];
         },
       });
       const result = await repoWith(db).searchPublicFallback({
@@ -207,35 +210,36 @@ describe("OrganizationBlogRepository search methods", () => {
         sort: "newest",
       });
       expect(result).toEqual({ ids: ["post-1", "post-2"], total: 2 });
+      // The fallback matches title, excerpt, AND body — not title alone.
+      const selectSql = seenSql.find((text) => text.includes("SELECT b.id"));
+      expect(selectSql).toContain("b.title");
+      expect(selectSql).toContain("b.excerpt");
+      expect(selectSql).toContain("b.body");
     });
 
-    it("scopes the fallback to an organization and supports oldest sort", async () => {
-      const findMany = jest.fn(async () => []);
-      const db = createDb({ blogPost: { findMany, count: jest.fn(async () => 0) } });
+    it("scopes the fallback to an organization and filters tags case-insensitively", async () => {
+      const seenSql: string[] = [];
+      const db = createDb({
+        queryRaw: (text) => {
+          seenSql.push(text);
+          return text.includes("COUNT(*)") ? [{ total: 0 }] : [];
+        },
+      });
       await repoWith(db).searchPublicFallback({
         page: 1,
         pageSize: 20,
         organizationId: "org-9",
-        tag: "news",
+        tag: "News",
         sort: "oldest",
       });
-      expect(findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: "published",
-            organizationId: "org-9",
-            tags: { array_contains: "news" },
-          }),
-          orderBy: [
-            { publishedAt: "asc" },
-            { createdAt: "asc" },
-            { id: "asc" },
-          ],
-        }),
-      );
+      const selectSql = seenSql.find((text) => text.includes("SELECT b.id"))!;
+      expect(selectSql).toContain("b.organization_id");
+      // Tags are matched case-insensitively via JSON_SEARCH over a lowered copy.
+      expect(selectSql).toContain("JSON_SEARCH");
+      expect(selectSql).toContain("b.published_at ASC");
     });
 
-    it("hydrates published rows by id, preserving order", async () => {
+    it("hydrates published rows preserving order, precomputing reading time and omitting body", async () => {
       const db = createDb({
         blogPost: {
           findMany: jest.fn(async () => [
@@ -251,6 +255,9 @@ describe("OrganizationBlogRepository search methods", () => {
       expect(rows.map((row) => row.id)).toEqual(["post-1", "post-2"]);
       expect(rows[0]?.organization?.name).toBe("Org post-1");
       expect(rows[0]?.author?.username).toBe("author-one");
+      // List payloads carry a precomputed reading time and drop the body.
+      expect(rows[0]?.readingMinutes).toBeGreaterThanOrEqual(1);
+      expect(rows[0]?.body).toBe("");
     });
 
     it("returns an empty hydration for empty id lists", async () => {

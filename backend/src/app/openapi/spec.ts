@@ -7286,6 +7286,12 @@ function buildComponents(): Record<string, unknown> {
           publishedAt: { type: "string", format: "date-time" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
+          readingMinutes: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "Precomputed reading-time estimate in minutes. Present on public list responses (where body is omitted); absent on single-post reads.",
+          },
         },
       },
       OrganizationBlogPostListResult: {

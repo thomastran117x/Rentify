@@ -23,7 +23,7 @@ import { formatOrganizationDate } from "@/components/organizations/organization-
 import {
   AuthorAvatar,
   authorName,
-  readingTimeMinutes,
+  displayReadingMinutes,
 } from "@/components/organizations/blog-visuals";
 import { theme } from "@/styles/theme";
 
@@ -137,7 +137,7 @@ function FeaturedPost({ post }: { post: OrganizationBlogPostRecord }) {
           <span className="text-slate-300 dark:text-slate-600">·</span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            {readingTimeMinutes(post.body)} min read
+            {displayReadingMinutes(post)} min read
           </span>
         </div>
         <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300">
@@ -188,7 +188,7 @@ function FeedCard({ post }: { post: OrganizationBlogPostRecord }) {
           <span className="text-slate-300 dark:text-slate-600">·</span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" aria-hidden="true" />
-            {readingTimeMinutes(post.body)} min
+            {displayReadingMinutes(post)} min
           </span>
         </div>
       </div>

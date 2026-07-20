@@ -12,6 +12,16 @@ export function readingTimeMinutes(html: string): number {
   return Math.max(1, Math.round(words / 200));
 }
 
+/**
+ * Reading time for a post, preferring the API-precomputed value. List payloads
+ * omit `body` and carry `readingMinutes`; single-post reads carry the full body.
+ */
+export function displayReadingMinutes(
+  post: Pick<OrganizationBlogPostRecord, "readingMinutes" | "body">,
+): number {
+  return post.readingMinutes ?? readingTimeMinutes(post.body);
+}
+
 function authorInitials(author: BlogAuthor): string {
   const source = author?.username || author?.email || "?";
   const parts = source

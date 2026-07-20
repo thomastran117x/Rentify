@@ -151,6 +151,10 @@ export interface OrganizationBlogPostRecord {
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // Precomputed estimated reading time (minutes). Populated on public list
+  // hydration so the client does not need the full `body` just to render it;
+  // omitted on single-post reads where the full body is already present.
+  readingMinutes?: number;
 }
 
 export interface OrganizationBlogPagination {

@@ -195,6 +195,29 @@ describe("OrganizationBlogPublicSearchService", () => {
     },
   );
 
+  it("clamps an out-of-range page to the result window instead of erroring", async () => {
+    // page 600 * pageSize 20 => from 11980, beyond the 10k window. The request
+    // must stay within from + size <= 10000 (so ES returns no 400), report the
+    // real total, and NOT record a database fallback.
+    const requestJson = jest.fn(async (_path: string, init: unknown) => {
+      const body = JSON.parse((init as { body: string }).body) as {
+        from: number;
+        size: number;
+      };
+      expect(body.from).toBeLessThanOrEqual(10_000);
+      expect(body.from + body.size).toBeLessThanOrEqual(10_000);
+      return { hits: { total: { value: 42 }, hits: [] } };
+    });
+    const { service, searchPublicFallback } = createHarness({ requestJson });
+
+    const result = await service.searchGlobal({ page: 600, pageSize: 20 });
+
+    expect(result.source).toBe("elasticsearch");
+    expect(result.posts).toEqual([]);
+    expect(result.pagination.total).toBe(42);
+    expect(searchPublicFallback).not.toHaveBeenCalled();
+  });
+
   it("caps the navigable page count to the search result window", async () => {
     const requestJson = jest.fn(async () => ({
       hits: { total: { value: 1_000_000 }, hits: [{ _id: "es-1" }] },

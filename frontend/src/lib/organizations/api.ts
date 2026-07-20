@@ -224,6 +224,9 @@ export interface OrganizationBlogPostRecord {
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // Precomputed by the API on list responses (where `body` is omitted); absent
+  // on single-post reads, where `body` is present and reading time is derived.
+  readingMinutes?: number;
 }
 
 export interface OrganizationBlogResult {

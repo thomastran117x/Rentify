@@ -69,6 +69,14 @@ interface SearchOutboxIdRow {
   id: string;
 }
 
+interface SearchIdRow {
+  id: string;
+}
+
+interface CountRow {
+  total?: bigint | number | null;
+}
+
 interface SearchOutboxLagRow {
   unpublishedCount?: bigint | number | null;
   unpublishedOldestCreatedAt?: Date | null;
@@ -300,41 +308,64 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   // Database fallback for the public blog feeds. Returns only ordered ids + the
-  // total; the caller hydrates via batchFindPublishedByIds. Matches published
-  // posts on title (case-insensitive substring under the default collation).
+  // total; the caller hydrates via batchFindPublishedByIds. To stay consistent
+  // with the Elasticsearch read path, it matches published posts on
+  // title/excerpt/body (case-insensitive substring) and filters tags
+  // case-insensitively, mirroring the ES query + lowercase-normalized tag term.
   async searchPublicFallback(
     input: OrganizationBlogSearchFallbackInput,
   ): Promise<{ ids: string[]; total: number }> {
-    const where: Prisma.OrganizationBlogPostWhereInput = {
-      status: "published",
-      ...(input.organizationId
-        ? { organizationId: input.organizationId }
-        : {}),
-      ...(input.tag ? { tags: { array_contains: input.tag } } : {}),
-      ...(input.query ? { title: { contains: input.query } } : {}),
-    };
-    const skip = (input.page - 1) * input.pageSize;
-    const orderBy: Prisma.OrganizationBlogPostOrderByWithRelationInput[] =
-      input.sort === "oldest"
-        ? [{ publishedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
-        : [{ publishedAt: "desc" }, { createdAt: "desc" }, { id: "asc" }];
+    const clauses: Prisma.Sql[] = [Prisma.sql`b.status = 'published'`];
 
-    const [rows, total] = await this.executeAsync(() =>
+    if (input.organizationId) {
+      clauses.push(Prisma.sql`b.organization_id = ${input.organizationId}`);
+    }
+
+    if (input.query) {
+      const pattern = this.createLikePattern(input.query);
+      clauses.push(
+        Prisma.sql`(LOWER(b.title) LIKE ${pattern} ESCAPE '\\\\' OR LOWER(b.excerpt) LIKE ${pattern} ESCAPE '\\\\' OR LOWER(b.body) LIKE ${pattern} ESCAPE '\\\\')`,
+      );
+    }
+
+    if (input.tag) {
+      // JSON_SEARCH over a lowercased copy of the tags array gives a
+      // case-insensitive exact element match without a data migration.
+      clauses.push(
+        Prisma.sql`JSON_SEARCH(LOWER(CAST(b.tags AS CHAR)), 'one', ${input.tag
+          .trim()
+          .toLowerCase()}) IS NOT NULL`,
+      );
+    }
+
+    const whereSql = Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`;
+    const orderBySql =
+      input.sort === "oldest"
+        ? Prisma.sql`b.published_at ASC, b.created_at ASC, b.id ASC`
+        : Prisma.sql`b.published_at DESC, b.created_at DESC, b.id ASC`;
+    const offset = (input.page - 1) * input.pageSize;
+
+    const [rows, countRows] = await this.executeAsync(() =>
       Promise.all([
-        this.prisma.organizationBlogPost.findMany({
-          where,
-          orderBy,
-          skip,
-          take: input.pageSize,
-          select: { id: true },
-        }),
-        this.prisma.organizationBlogPost.count({ where }),
+        this.prisma.$queryRaw<SearchIdRow[]>(Prisma.sql`
+          SELECT b.id AS id
+          FROM organization_blog_posts b
+          ${whereSql}
+          ORDER BY ${orderBySql}
+          LIMIT ${input.pageSize}
+          OFFSET ${offset}
+        `),
+        this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+          SELECT COUNT(*) AS total
+          FROM organization_blog_posts b
+          ${whereSql}
+        `),
       ]),
     );
 
     return {
       ids: rows.map((row) => row.id),
-      total,
+      total: this.readNumberLike(countRows[0]?.total),
     };
   }
 
@@ -1202,7 +1233,11 @@ export class OrganizationBlogRepository extends BaseRepository {
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt ?? undefined,
-      body: row.body,
+      // The list UI only needs the body to show a reading-time estimate, so we
+      // precompute it here and omit the (potentially large) body from list
+      // payloads. Single-post reads use mapBlogPost, which keeps the full body.
+      body: "",
+      readingMinutes: this.estimateReadingMinutes(row.body),
       coverImageUrl: row.coverImageUrl ?? undefined,
       coverImageBlobName: row.coverImageBlobName ?? undefined,
       tags: this.parseTags(row.tags),
@@ -1211,6 +1246,14 @@ export class OrganizationBlogRepository extends BaseRepository {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  // Rough reading-time estimate (minutes) at ~200 words per minute, from the
+  // sanitized HTML body. Mirrors the client's readingTimeMinutes heuristic.
+  private estimateReadingMinutes(html: string): number {
+    const plain = htmlToPlainText(html);
+    const words = plain ? plain.split(/\s+/).filter(Boolean).length : 0;
+    return Math.max(1, Math.round(words / 200));
   }
 
   private mapAuthor(author: BlogPostPersistence["author"]) {
@@ -1320,6 +1363,16 @@ export class OrganizationBlogRepository extends BaseRepository {
     }
 
     return typeof value === "number" ? value : 0;
+  }
+
+  // Builds a lowercased, wildcard-escaped LIKE pattern for case-insensitive
+  // substring matching (paired with LOWER(column) ... ESCAPE '\\').
+  private createLikePattern(query: string): string {
+    const escaped = query
+      .trim()
+      .toLowerCase()
+      .replace(/[\\%_]/g, "\\$&");
+    return `%${escaped}%`;
   }
 
   private readMysqlLockResult(

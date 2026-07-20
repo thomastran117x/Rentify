@@ -160,13 +160,27 @@ export class OrganizationBlogPublicSearchService {
     params: BlogSearchParams,
   ): Promise<SearchIdsResult> {
     const indexName = this.organizationBlogSearchIndexService.getReadAliasName();
-    const from = (params.page - 1) * params.pageSize;
+    // Elasticsearch rejects `from + size` beyond index.max_result_window with a
+    // 400. Clamp both into the navigable window so an out-of-range page returns
+    // an empty page with the true total (size 0 still reports total_hits) rather
+    // than a 400 that would be misread as an ES outage and record a false
+    // database fallback.
+    const from = Math.min(
+      (params.page - 1) * params.pageSize,
+      MAX_SEARCH_RESULT_WINDOW,
+    );
+    const size = Math.max(
+      0,
+      Math.min(params.pageSize, MAX_SEARCH_RESULT_WINDOW - from),
+    );
     let response =
       await this.elasticsearch.requestJson<ElasticsearchSearchResponse>(
         `/${encodeURIComponent(indexName)}/_search`,
         {
           method: "POST",
-          body: JSON.stringify(this.buildSearchRequest(params, from, "strict")),
+          body: JSON.stringify(
+            this.buildSearchRequest(params, from, size, "strict"),
+          ),
         },
       );
     let hits = response.hits?.hits ?? [];
@@ -185,7 +199,7 @@ export class OrganizationBlogPublicSearchService {
           {
             method: "POST",
             body: JSON.stringify(
-              this.buildSearchRequest(params, from, "tolerant"),
+              this.buildSearchRequest(params, from, size, "tolerant"),
             ),
           },
         );
@@ -203,6 +217,7 @@ export class OrganizationBlogPublicSearchService {
   private buildSearchRequest(
     params: BlogSearchParams,
     from: number,
+    size: number,
     mode: SearchQueryMode,
   ): Record<string, unknown> {
     const filter: Array<Record<string, unknown>> = [
@@ -265,7 +280,7 @@ export class OrganizationBlogPublicSearchService {
 
     return {
       from,
-      size: params.pageSize,
+      size,
       _source: false,
       query: {
         bool: {
