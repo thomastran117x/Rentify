@@ -767,6 +767,60 @@ model OrganizationSearchReindexRun {
   @@map("organization_search_reindex_runs")
 }
 
+model OrganizationBlogSearchOutbox {
+  id              String                                @id @db.VarChar(36)
+  blogPostId      String?                               @map("blog_post_id") @db.VarChar(36)
+  reindexRunId    String?                               @map("reindex_run_id") @db.VarChar(36)
+  operation       OrganizationBlogSearchOutboxOperation
+  dedupeKey       String                                @map("dedupe_key") @db.VarChar(255)
+  targetIndexName String?                               @map("target_index_name") @db.VarChar(191)
+  attempts        Int                                   @default(0)
+  publishAttempts Int                                   @default(0) @map("publish_attempts")
+  availableAt     DateTime                              @default(now()) @map("available_at") @db.DateTime(6)
+  processingAt    DateTime?                             @map("processing_at") @db.DateTime(6)
+  processedAt     DateTime?                             @map("processed_at") @db.DateTime(6)
+  indexedAt       DateTime?                             @map("indexed_at") @db.DateTime(6)
+  deadLetteredAt  DateTime?                             @map("dead_lettered_at") @db.DateTime(6)
+  brokerMessageId String?                               @map("broker_message_id") @db.VarChar(255)
+  lastError       String?                               @map("last_error") @db.VarChar(2048)
+  createdAt       DateTime                              @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime                              @updatedAt @map("updated_at") @db.DateTime(6)
+  reindexRun      OrganizationBlogSearchReindexRun?     @relation(fields: [reindexRunId], references: [id], onDelete: SetNull)
+
+  // blogPostId is intentionally NOT a foreign key: a "delete" outbox row must
+  // outlive the blog post it removes from the index, so the id is carried as a
+  // plain column rather than an FK that would cascade the row away on delete.
+  @@index([availableAt, processedAt, deadLetteredAt, processingAt], map: "obs_outbox_ready_idx")
+  @@index([blogPostId, operation])
+  @@index([reindexRunId, indexedAt, deadLetteredAt], map: "obs_outbox_reindex_idx")
+  @@index([targetIndexName, indexedAt, deadLetteredAt], map: "obs_outbox_target_idx")
+  @@map("organization_blog_search_outbox")
+}
+
+model OrganizationBlogSearchReindexRun {
+  id                String                         @id @db.VarChar(36)
+  status            SearchReindexStatus
+  targetIndexName   String                         @map("target_index_name") @db.VarChar(191)
+  retainedIndexName String?                        @map("retained_index_name") @db.VarChar(191)
+  sourceSnapshotAt  DateTime                       @map("source_snapshot_at") @db.DateTime(6)
+  barrierOutboxId   String?                        @unique @map("barrier_outbox_id") @db.VarChar(36)
+  totalDocuments    Int                            @default(0) @map("total_documents")
+  indexedDocuments  Int                            @default(0) @map("indexed_documents")
+  failedDocuments   Int                            @default(0) @map("failed_documents")
+  startedAt         DateTime?                      @map("started_at") @db.DateTime(6)
+  completedAt       DateTime?                      @map("completed_at") @db.DateTime(6)
+  failedAt          DateTime?                      @map("failed_at") @db.DateTime(6)
+  processingAt      DateTime?                      @map("processing_at") @db.DateTime(6)
+  lastError         String?                        @map("last_error") @db.VarChar(2048)
+  createdAt         DateTime                       @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt         DateTime                       @updatedAt @map("updated_at") @db.DateTime(6)
+  outboxEntries     OrganizationBlogSearchOutbox[]
+
+  @@index([status, createdAt])
+  @@index([processingAt, status])
+  @@map("organization_blog_search_reindex_runs")
+}
+
 model PostingViewEvent {
   id             String   @id @db.VarChar(36)
   postingId      String   @map("posting_id") @db.VarChar(36)
@@ -1220,6 +1274,12 @@ enum PostingSearchOutboxOperation {
 }
 
 enum OrganizationSearchOutboxOperation {
+  upsert
+  delete
+  barrier
+}
+
+enum OrganizationBlogSearchOutboxOperation {
   upsert
   delete
   barrier

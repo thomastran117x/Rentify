@@ -25,6 +25,7 @@ import type {
   GetPublicOrganizationBlogPostInput,
   ListOrganizationBlogPostsInput,
   ListOrganizationBlogPostsResult,
+  ListPublicBlogFeedInput,
   ListPublicOrganizationBlogPostsInput,
   OrganizationBlogPostRecord,
   UpdateOrganizationBlogPostInput,
@@ -245,6 +246,12 @@ export class OrganizationsService {
     input: ListPublicOrganizationBlogPostsInput,
   ): Promise<ListOrganizationBlogPostsResult> {
     return this.organizationBlogService.listPublished(input);
+  }
+
+  async searchPublicBlogFeed(
+    input: ListPublicBlogFeedInput,
+  ): Promise<ListOrganizationBlogPostsResult> {
+    return this.organizationBlogService.searchGlobal(input);
   }
 
   async getPublicBlogPostBySlug(

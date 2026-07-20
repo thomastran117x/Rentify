@@ -51,6 +51,10 @@ import { OrganizationsSearchIndexService } from "@/features/organizations/search
 import { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
 import { OrganizationsSearchService } from "@/features/organizations/search/organizations-search.service";
 import { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
+import { OrganizationBlogSearchIndexService } from "@/features/organizations/blog-search/index.service";
+import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog-search/public-search.service";
+import { OrganizationBlogSearchService } from "@/features/organizations/blog-search/organization-blog-search.service";
+import { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -178,6 +182,25 @@ export const containerTokens = {
   organizationsSearchController:
     createServiceToken<OrganizationsSearchController>(
       "OrganizationsSearchController",
+    ),
+  organizationBlogSearchIndexService:
+    createServiceToken<OrganizationBlogSearchIndexService>(
+      "OrganizationBlogSearchIndexService",
+    ),
+  organizationBlogSearchQueueService: createServiceToken<SearchQueueService>(
+    "OrganizationBlogSearchQueueService",
+  ),
+  organizationBlogPublicSearchService:
+    createServiceToken<OrganizationBlogPublicSearchService>(
+      "OrganizationBlogPublicSearchService",
+    ),
+  organizationBlogSearchService:
+    createServiceToken<OrganizationBlogSearchService>(
+      "OrganizationBlogSearchService",
+    ),
+  organizationBlogSearchController:
+    createServiceToken<OrganizationBlogSearchController>(
+      "OrganizationBlogSearchController",
     ),
   captchaService: createServiceToken<CaptchaService>("CaptchaService"),
   otpService: createServiceToken<OtpService>("OtpService"),

@@ -103,7 +103,16 @@ export const organizationsRouteModule: RouteModule = {
         "deleteAnnouncement",
       ),
     );
-    // Public, unauthenticated blog reads (published posts only).
+    // Public, unauthenticated global blog feed/search across all organizations
+    // (Elasticsearch-backed, published posts only).
+    app.get(
+      "/blog",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "searchPublicBlogFeed",
+      ),
+    );
+    // Public, unauthenticated per-organization blog reads (published posts only).
     app.get(
       "/organizations/:id/blog",
       resolveHandler<OrganizationsController>(

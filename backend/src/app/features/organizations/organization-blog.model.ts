@@ -6,6 +6,19 @@ export type OrganizationBlogStatus = z.infer<
   typeof organizationBlogStatusSchema
 >;
 
+// Ordering options for the public (Elasticsearch-backed) blog reads. "relevance"
+// only differs from "newest" when a free-text query is present.
+export const organizationBlogSortSchema = z.enum([
+  "relevance",
+  "newest",
+  "oldest",
+]);
+export type OrganizationBlogSort = z.infer<typeof organizationBlogSortSchema>;
+
+// Where a public blog list result was served from. Elasticsearch is the primary
+// path; the database fallback keeps blogs readable when the cluster is down.
+export type OrganizationBlogSearchSource = "elasticsearch" | "database";
+
 const slugSchema = z
   .string()
   .trim()
@@ -69,6 +82,21 @@ export const listPublicOrganizationBlogQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(50).default(20),
     tag: z.string().trim().min(1).max(40).optional(),
+    // Free-text query for the Elasticsearch-backed per-organization blog feed.
+    q: z.string().trim().min(1).max(200).optional(),
+    sort: organizationBlogSortSchema.optional(),
+  })
+  .strict();
+
+// Global (cross-organization) published blog feed/search. Same shape as the
+// per-org query but not scoped to a single organization.
+export const listPublicBlogFeedQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+    tag: z.string().trim().min(1).max(40).optional(),
+    q: z.string().trim().min(1).max(200).optional(),
+    sort: organizationBlogSortSchema.optional(),
   })
   .strict();
 
@@ -87,6 +115,9 @@ export type ListOrganizationBlogQuery = z.infer<
 export type ListPublicOrganizationBlogQuery = z.infer<
   typeof listPublicOrganizationBlogQuerySchema
 >;
+export type ListPublicBlogFeedQuery = z.infer<
+  typeof listPublicBlogFeedQuerySchema
+>;
 
 export interface OrganizationBlogAuthorSummary {
   id: string;
@@ -95,9 +126,19 @@ export interface OrganizationBlogAuthorSummary {
   avatarUrl?: string;
 }
 
+// Minimal organization identity attached to a blog post when it is surfaced
+// outside of a single organization context (e.g. the global blog feed), so the
+// UI can label and link the post back to its organization.
+export interface OrganizationBlogOrganizationSummary {
+  id: string;
+  name: string;
+  logoUrl?: string;
+}
+
 export interface OrganizationBlogPostRecord {
   id: string;
   organizationId: string;
+  organization?: OrganizationBlogOrganizationSummary;
   author?: OrganizationBlogAuthorSummary;
   title: string;
   slug: string;
@@ -124,6 +165,10 @@ export interface OrganizationBlogPagination {
 export interface ListOrganizationBlogPostsResult {
   posts: OrganizationBlogPostRecord[];
   pagination: OrganizationBlogPagination;
+  // Present on public (Elasticsearch-backed) reads to indicate where the result
+  // was served from and echo the free-text query that produced it.
+  source?: OrganizationBlogSearchSource;
+  query?: string;
 }
 
 export interface ListOrganizationBlogPostsInput
@@ -135,6 +180,45 @@ export interface ListOrganizationBlogPostsInput
 export interface ListPublicOrganizationBlogPostsInput
   extends ListPublicOrganizationBlogQuery {
   organizationId: string;
+}
+
+export interface ListPublicBlogFeedInput extends ListPublicBlogFeedQuery {}
+
+// The subset of blog fields projected into Elasticsearch. Kept lean: display
+// data (author, cover image, organization) is hydrated from the database at read
+// time, so the index only carries what we search, filter, and sort on. `body` is
+// stored as plain text (HTML stripped) for full-text relevance.
+export interface OrganizationBlogSearchDocument {
+  id: string;
+  organizationId: string;
+  title: string;
+  excerpt: string | null;
+  body: string;
+  tags: string[];
+  status: OrganizationBlogStatus;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationBlogSearchOutboxRecord {
+  id: string;
+  blogPostId?: string;
+  reindexRunId?: string;
+  operation: "upsert" | "delete" | "barrier";
+  dedupeKey: string;
+  targetIndexName?: string;
+  attempts: number;
+  publishAttempts: number;
+  availableAt: string;
+  processingAt?: string;
+  publishedAt?: string;
+  indexedAt?: string;
+  deadLetteredAt?: string;
+  brokerMessageId?: string;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GetPublicOrganizationBlogPostInput {

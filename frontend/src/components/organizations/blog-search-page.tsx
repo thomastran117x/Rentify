@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
-  CalendarDays,
   Clock,
   Newspaper,
   Search,
@@ -18,17 +16,12 @@ import {
   type OrganizationBlogPostRecord,
   type OrganizationBlogResult,
 } from "@/lib/organizations/api";
-import { formatOrganizationDate } from "@/components/organizations/organization-public-visuals";
 import {
   AuthorAvatar,
   authorName,
   readingTimeMinutes,
 } from "@/components/organizations/blog-visuals";
 import { theme } from "@/styles/theme";
-
-interface OrganizationBlogListPageProps {
-  id: string;
-}
 
 function PageChrome({ children }: { children: React.ReactNode }) {
   return (
@@ -38,38 +31,6 @@ function PageChrome({ children }: { children: React.ReactNode }) {
       <div className={theme.marketplace.orbSecondary} aria-hidden="true" />
       <div className={theme.marketplace.container}>{children}</div>
     </main>
-  );
-}
-
-function PostMeta({
-  post,
-  className = "",
-}: {
-  post: OrganizationBlogPostRecord;
-  className?: string;
-}) {
-  const published = post.publishedAt ?? post.createdAt;
-  return (
-    <div
-      className={`flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 ${className}`}
-    >
-      <span className="flex items-center gap-2">
-        <AuthorAvatar author={post.author} size="sm" />
-        <span className="font-medium text-slate-700 dark:text-slate-200">
-          {authorName(post.author)}
-        </span>
-      </span>
-      <span className="text-slate-300 dark:text-slate-600">·</span>
-      <span className="inline-flex items-center gap-1">
-        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-        {formatOrganizationDate(published, "long")}
-      </span>
-      <span className="text-slate-300 dark:text-slate-600">·</span>
-      <span className="inline-flex items-center gap-1">
-        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-        {readingTimeMinutes(post.body)} min read
-      </span>
-    </div>
   );
 }
 
@@ -91,62 +52,10 @@ function TagPills({ tags }: { tags: string[] }) {
   );
 }
 
-function FeaturedPost({
-  organizationId,
-  post,
-}: {
-  organizationId: string;
-  post: OrganizationBlogPostRecord;
-}) {
-  return (
-    <Link
-      href={`/organizations/${organizationId}/blog/${post.slug}`}
-      className="group mt-6 grid overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white/80 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/5 lg:grid-cols-2 dark:border-slate-800 dark:bg-slate-950/40"
-    >
-      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 lg:aspect-auto dark:bg-slate-900">
-        {post.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.coverImageUrl}
-            alt=""
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500/10 to-sky-500/10 text-violet-300 dark:text-violet-500">
-            <Newspaper className="h-14 w-14" aria-hidden="true" />
-          </div>
-        )}
-        <span className="absolute left-4 top-4 inline-flex items-center rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
-          Featured
-        </span>
-      </div>
-      <div className="flex flex-col justify-center gap-4 p-7 lg:p-9">
-        <TagPills tags={post.tags} />
-        <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-950 group-hover:text-violet-700 sm:text-3xl dark:text-white dark:group-hover:text-violet-300">
-          {post.title}
-        </h2>
-        {post.excerpt ? (
-          <p className="line-clamp-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-            {post.excerpt}
-          </p>
-        ) : null}
-        <PostMeta post={post} />
-        <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300">
-          Read article
-          <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-        </span>
-      </div>
-    </Link>
-  );
-}
+function FeedCard({ post }: { post: OrganizationBlogPostRecord }) {
+  const organizationId = post.organization?.id ?? post.organizationId;
+  const organizationName = post.organization?.name;
 
-function BlogCard({
-  organizationId,
-  post,
-}: {
-  organizationId: string;
-  post: OrganizationBlogPostRecord;
-}) {
   return (
     <Link
       href={`/organizations/${organizationId}/blog/${post.slug}`}
@@ -167,6 +76,11 @@ function BlogCard({
         )}
       </div>
       <div className="flex flex-1 flex-col gap-3 p-5">
+        {organizationName ? (
+          <span className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">
+            {organizationName}
+          </span>
+        ) : null}
         <TagPills tags={post.tags} />
         <h2 className="text-lg font-semibold leading-snug tracking-[-0.02em] text-slate-950 group-hover:text-violet-700 dark:text-white dark:group-hover:text-violet-300">
           {post.title}
@@ -192,12 +106,9 @@ function BlogCard({
   );
 }
 
-export function OrganizationBlogListPage({
-  id,
-}: OrganizationBlogListPageProps) {
+export function BlogSearchPage() {
   const [result, setResult] = useState<OrganizationBlogResult | null>(null);
   const [page, setPage] = useState(1);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeQuery, setActiveQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -211,9 +122,8 @@ export function OrganizationBlogListPage({
       setError(null);
 
       try {
-        const nextResult = await organizationsApi.listPublicBlog(id, {
+        const nextResult = await organizationsApi.searchBlogFeed({
           page,
-          ...(activeTag ? { tag: activeTag } : {}),
           ...(activeQuery ? { q: activeQuery } : {}),
         });
 
@@ -229,8 +139,8 @@ export function OrganizationBlogListPage({
 
         setError(
           getApiErrorMessage(nextError, {
-            action: "load this organization's blog",
-            fallback: "We couldn't load these blog posts right now.",
+            action: "load the blog feed",
+            fallback: "We couldn't load blog posts right now.",
           }),
         );
       } finally {
@@ -245,20 +155,9 @@ export function OrganizationBlogListPage({
     return () => {
       active = false;
     };
-  }, [id, page, activeTag, activeQuery]);
+  }, [page, activeQuery]);
 
   const posts = result?.posts ?? [];
-  const availableTags = useMemo(() => {
-    const set = new Set<string>();
-    (result?.posts ?? []).forEach((post) =>
-      post.tags.forEach((tag) => set.add(tag)),
-    );
-    return Array.from(set).slice(0, 8);
-  }, [result]);
-
-  const isFirstPage = page === 1 && !activeTag && !activeQuery;
-  const featured = isFirstPage ? posts[0] : undefined;
-  const gridPosts = featured ? posts.slice(1) : posts;
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
@@ -276,11 +175,11 @@ export function OrganizationBlogListPage({
   return (
     <PageChrome>
       <Link
-        href={`/organizations/${id}`}
+        href="/organizations"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to organization
+        Browse organizations
       </Link>
 
       <header className="mt-8">
@@ -289,10 +188,11 @@ export function OrganizationBlogListPage({
           Blog
         </p>
         <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-5xl dark:text-white">
-          Stories &amp; updates
+          Stories from every organization
         </h1>
         <p className="mt-3 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300">
-          News, guides, and announcements from our team.
+          Search published news, guides, and announcements across the whole
+          marketplace.
         </p>
 
         <form onSubmit={submitSearch} className="mt-6 flex max-w-xl gap-2">
@@ -305,8 +205,8 @@ export function OrganizationBlogListPage({
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search posts…"
-              aria-label="Search blog posts"
+              placeholder="Search all blog posts…"
+              aria-label="Search all blog posts"
               className="w-full rounded-full border border-slate-200 bg-white/80 py-2.5 pl-10 pr-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-200 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-100 dark:focus:ring-violet-900"
             />
             {activeQuery ? (
@@ -324,55 +224,16 @@ export function OrganizationBlogListPage({
             Search
           </button>
         </form>
-
-        {availableTags.length > 0 ? (
-          <div className="mt-6 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTag(null);
-                setPage(1);
-              }}
-              className={
-                activeTag === null
-                  ? theme.marketplace.chipActive
-                  : theme.marketplace.chip
-              }
-            >
-              All
-            </button>
-            {availableTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => {
-                  setActiveTag(tag);
-                  setPage(1);
-                }}
-                className={
-                  activeTag === tag
-                    ? theme.marketplace.chipActive
-                    : theme.marketplace.chip
-                }
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </header>
 
       {loading ? (
-        <div className="mt-8 space-y-6">
-          <div className="h-72 animate-pulse rounded-[1.75rem] bg-slate-200 dark:bg-slate-800" />
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((key) => (
-              <div
-                key={key}
-                className="h-80 animate-pulse rounded-[1.5rem] bg-slate-200 dark:bg-slate-800"
-              />
-            ))}
-          </div>
+        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((key) => (
+            <div
+              key={key}
+              className="h-80 animate-pulse rounded-[1.5rem] bg-slate-200 dark:bg-slate-800"
+            />
+          ))}
         </div>
       ) : error ? (
         <section className={`${theme.marketplace.resultsShell} mt-8`}>
@@ -386,33 +247,21 @@ export function OrganizationBlogListPage({
             <Newspaper className="h-6 w-6" aria-hidden="true" />
           </div>
           <h2 className="mt-5 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
-            {activeQuery
-              ? "No matching posts"
-              : activeTag
-                ? "No posts with this tag"
-                : "No posts yet"}
+            {activeQuery ? "No matching posts" : "No posts yet"}
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600 dark:text-slate-300">
             {activeQuery
               ? `No published posts matched “${activeQuery}”. Try a different search.`
-              : activeTag
-                ? "Try a different tag or view all posts."
-                : "This organization hasn't published any blog posts yet. Check back soon."}
+              : "No organizations have published blog posts yet. Check back soon."}
           </p>
         </section>
       ) : (
         <>
-          {featured ? (
-            <FeaturedPost organizationId={id} post={featured} />
-          ) : null}
-
-          {gridPosts.length > 0 ? (
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {gridPosts.map((post) => (
-                <BlogCard key={post.id} organizationId={id} post={post} />
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {posts.map((post) => (
+              <FeedCard key={post.id} post={post} />
+            ))}
+          </div>
 
           {result && result.pagination.totalPages > 1 ? (
             <div className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6 dark:border-slate-800">

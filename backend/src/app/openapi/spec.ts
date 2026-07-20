@@ -2670,11 +2670,74 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/blog",
+      operationId: "searchPublicBlogFeed",
+      summary: "Search the global organization blog feed",
+      description:
+        "Returns paginated, published blog posts across all organizations. This is a public, unauthenticated marketing endpoint backed by Elasticsearch (with a database fallback); each result carries a minimal organization summary. Draft posts are never returned.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of blog posts per page.",
+          20,
+        ),
+        queryParam(
+          "tag",
+          { type: "string" },
+          "Optional tag filter.",
+          "announcement",
+        ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 200 },
+          "Optional free-text search over the post title, excerpt, body, and tags.",
+          "weekend stays",
+        ),
+        queryParam(
+          "sort",
+          {
+            type: "string",
+            enum: ["relevance", "newest", "oldest"],
+          },
+          "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
+          "relevance",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogPostListResult",
+          organizationBlogPostListExample,
+          "Organization blog posts returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationBlogPostListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/organizations/:id/blog",
       operationId: "listPublicOrganizationBlogPosts",
       summary: "List published organization blog posts",
       description:
-        "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned.",
+        "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned. Backed by Elasticsearch (with a database fallback) so an optional free-text query is supported.",
       tags: ["organizations"],
       permissions: {
         authMode: "public",
@@ -2700,6 +2763,21 @@ function buildOperations(): OperationDefinition[] {
           { type: "string" },
           "Optional tag filter.",
           "announcement",
+        ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 200 },
+          "Optional free-text search over the post title, excerpt, body, and tags.",
+          "weekend stays",
+        ),
+        queryParam(
+          "sort",
+          {
+            type: "string",
+            enum: ["relevance", "newest", "oldest"],
+          },
+          "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
+          "relevance",
         ),
       ],
       responses: {
@@ -7170,6 +7248,15 @@ function buildComponents(): Record<string, unknown> {
           avatarUrl: { type: "string", format: "uri" },
         },
       },
+      OrganizationBlogOrganizationSummary: {
+        type: "object",
+        required: ["id", "name"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          logoUrl: { type: "string", format: "uri" },
+        },
+      },
       OrganizationBlogPostRecord: {
         type: "object",
         required: [
@@ -7186,6 +7273,7 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           id: { type: "string" },
           organizationId: { type: "string" },
+          organization: schemaRef("OrganizationBlogOrganizationSummary"),
           author: schemaRef("OrganizationBlogAuthorSummary"),
           title: { type: "string" },
           slug: { type: "string" },
@@ -7209,6 +7297,16 @@ function buildComponents(): Record<string, unknown> {
             items: schemaRef("OrganizationBlogPostRecord"),
           },
           pagination: schemaRef("Pagination"),
+          source: {
+            type: "string",
+            enum: ["elasticsearch", "database"],
+            description:
+              "Which backend served the result. Present only on public, Elasticsearch-backed reads.",
+          },
+          query: {
+            type: "string",
+            description: "Echoes the free-text query, when one was provided.",
+          },
         },
       },
       CreateOrganizationBlogPostRequest: {

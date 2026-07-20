@@ -36,6 +36,7 @@ import {
 import {
   createOrganizationBlogSchema,
   listOrganizationBlogQuerySchema,
+  listPublicBlogFeedQuerySchema,
   listPublicOrganizationBlogQuerySchema,
   organizationBlogIdSchema,
   organizationBlogSlugSchema,
@@ -314,6 +315,15 @@ export class OrganizationsController {
       ),
     });
     return ok(context, result);
+  };
+
+  // Public, cross-organization published blog feed/search (Elasticsearch-backed).
+  searchPublicBlogFeed = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const query = listPublicBlogFeedQuerySchema.parse(context.req.query());
+    const result = await this.organizationsService.searchPublicBlogFeed(query);
+    return ok(context, result, { meta: paginationMeta(result) });
   };
 
   listReviews = async (context: Context<AppBindings>): Promise<Response> => {

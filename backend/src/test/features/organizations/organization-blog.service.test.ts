@@ -132,17 +132,23 @@ function createService(options?: {
     isBlobOwnedByUser: jest.fn(() => options?.blob?.owned ?? true),
     deleteBlob: jest.fn(async () => undefined),
   };
+  const publicSearchService = {
+    searchByOrganization: jest.fn(async () => createListResult()),
+    searchGlobal: jest.fn(async () => createListResult()),
+  };
 
   return {
     repository,
     organizationAccessService,
     organizationAuditService,
     blobService,
+    publicSearchService,
     service: new OrganizationBlogService(
       repository as never,
       organizationAccessService as never,
       organizationAuditService as never,
       blobService as never,
+      publicSearchService as never,
     ),
   };
 }
@@ -233,17 +239,29 @@ describe("OrganizationBlogService", () => {
   });
 
   describe("public reads", () => {
-    it("lists only published posts without auth", async () => {
-      const { service, repository } = createService();
+    it("delegates the per-organization public feed to the search service", async () => {
+      const { service, publicSearchService } = createService();
 
       await service.listPublished({
         organizationId: "org-1",
         page: 1,
         pageSize: 20,
+        q: "weekend",
       });
 
-      const args = repository.list.mock.calls[0][0] as Record<string, unknown>;
-      expect(args.statuses).toEqual(["published"]);
+      expect(publicSearchService.searchByOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: "org-1", q: "weekend" }),
+      );
+    });
+
+    it("delegates the global blog feed to the search service", async () => {
+      const { service, publicSearchService } = createService();
+
+      await service.searchGlobal({ page: 1, pageSize: 20, q: "guides" });
+
+      expect(publicSearchService.searchGlobal).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "guides" }),
+      );
     });
 
     it("returns a published post by slug", async () => {

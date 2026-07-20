@@ -3,6 +3,7 @@ import type { BlobController } from "@/features/blob/blob.controller";
 import type { ProfileController } from "@/features/profile/profile.controller";
 import type { SearchController } from "@/features/search/search.controller";
 import type { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
+import type { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const blobRouteModule: RouteModule = {
@@ -139,6 +140,47 @@ export const organizationsSearchAdminRouteModule: RouteModule = {
       "/admin/organizations/search/cleanup-retained-indices",
       resolveHandler<OrganizationsSearchController>(
         containerTokens.organizationsSearchController,
+        "cleanupRetainedIndices",
+      ),
+    );
+  },
+};
+
+export const organizationsBlogSearchAdminRouteModule: RouteModule = {
+  id: "organizations-blog-search-admin",
+  register(app, { resolveHandler }) {
+    app.post(
+      "/admin/organizations/blog-search/reindex",
+      resolveHandler<OrganizationBlogSearchController>(
+        containerTokens.organizationBlogSearchController,
+        "startReindex",
+      ),
+    );
+    app.get(
+      "/admin/organizations/blog-search/reindex-runs/:id",
+      resolveHandler<OrganizationBlogSearchController>(
+        containerTokens.organizationBlogSearchController,
+        "getReindexRun",
+      ),
+    );
+    app.get(
+      "/admin/organizations/blog-search/status",
+      resolveHandler<OrganizationBlogSearchController>(
+        containerTokens.organizationBlogSearchController,
+        "getStatus",
+      ),
+    );
+    app.post(
+      "/admin/organizations/blog-search/outbox/replay-dead-lettered",
+      resolveHandler<OrganizationBlogSearchController>(
+        containerTokens.organizationBlogSearchController,
+        "replayDeadLettered",
+      ),
+    );
+    app.post(
+      "/admin/organizations/blog-search/cleanup-retained-indices",
+      resolveHandler<OrganizationBlogSearchController>(
+        containerTokens.organizationBlogSearchController,
         "cleanupRetainedIndices",
       ),
     );

@@ -1,5 +1,29 @@
 import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
 
+// Builds a fake Prisma client whose $transaction runs its callback with the same
+// client, so create/update/delete (which now enqueue a transactional search
+// outbox row) can be exercised. `createMany` on the outbox is captured so tests
+// can assert the enqueue happened.
+function buildTransactionalPrisma(
+  blogPostMethods: Record<string, jest.Mock>,
+  options?: { activeReindexRun?: unknown },
+) {
+  const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
+  const client: Record<string, unknown> = {
+    organizationBlogPost: blogPostMethods,
+    organizationBlogSearchReindexRun: {
+      findFirst: jest.fn(async () => options?.activeReindexRun ?? null),
+    },
+    organizationBlogSearchOutbox: {
+      createMany: outboxCreateMany,
+    },
+  };
+  client.$transaction = jest.fn(
+    async (cb: (tx: typeof client) => Promise<unknown>) => cb(client),
+  );
+  return { client, outboxCreateMany };
+}
+
 function buildRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "blog-1",
@@ -30,9 +54,8 @@ function buildRow(overrides: Record<string, unknown> = {}) {
 describe("OrganizationBlogRepository", () => {
   it("creates and maps a blog post", async () => {
     const create = jest.fn(async () => buildRow());
-    const repository = new OrganizationBlogRepository({
-      organizationBlogPost: { create },
-    } as never);
+    const { client, outboxCreateMany } = buildTransactionalPrisma({ create });
+    const repository = new OrganizationBlogRepository(client as never);
 
     const result = await repository.create({
       organizationId: "org-1",
@@ -79,6 +102,14 @@ describe("OrganizationBlogRepository", () => {
       createdAt: "2026-07-16T00:00:00.000Z",
       updatedAt: "2026-07-16T00:00:00.000Z",
     });
+    // A search "upsert" outbox row is enqueued in the same transaction.
+    expect(outboxCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ blogPostId: "blog-1", operation: "upsert" }),
+        ]),
+      }),
+    );
   });
 
   it("maps a draft post without author, cover, tags, or published date", async () => {
@@ -137,9 +168,8 @@ describe("OrganizationBlogRepository", () => {
 
   it("updates only the provided fields", async () => {
     const update = jest.fn(async () => buildRow({ title: "Updated" }));
-    const repository = new OrganizationBlogRepository({
-      organizationBlogPost: { update },
-    } as never);
+    const { client, outboxCreateMany } = buildTransactionalPrisma({ update });
+    const repository = new OrganizationBlogRepository(client as never);
 
     await repository.update("org-1", "blog-1", {
       title: "Updated",
@@ -152,19 +182,61 @@ describe("OrganizationBlogRepository", () => {
         data: { title: "Updated", tags: ["x"] },
       }),
     );
+    expect(outboxCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ blogPostId: "blog-1", operation: "upsert" }),
+        ]),
+      }),
+    );
   });
 
-  it("deletes a post scoped to its organization", async () => {
+  it("also targets the active reindex run when one is in progress", async () => {
+    const update = jest.fn(async () => buildRow());
+    const { client, outboxCreateMany } = buildTransactionalPrisma(
+      { update },
+      {
+        activeReindexRun: {
+          id: "reindex-9",
+          targetIndexName: "organization-blogs_v9",
+        },
+      },
+    );
+    const repository = new OrganizationBlogRepository(client as never);
+
+    await repository.update("org-1", "blog-1", { title: "Updated" });
+
+    const [firstCall] = outboxCreateMany.mock.calls as unknown as Array<
+      [{ data: Array<Record<string, unknown>> }]
+    >;
+    const entries = firstCall![0].data;
+    // One live row + one row targeting the active reindex run.
+    expect(entries).toHaveLength(2);
+    expect(entries[1]).toMatchObject({
+      reindexRunId: "reindex-9",
+      targetIndexName: "organization-blogs_v9",
+    });
+  });
+
+  it("deletes a post scoped to its organization and enqueues a delete", async () => {
     const deleteFn = jest.fn(async () => buildRow());
-    const repository = new OrganizationBlogRepository({
-      organizationBlogPost: { delete: deleteFn },
-    } as never);
+    const { client, outboxCreateMany } = buildTransactionalPrisma({
+      delete: deleteFn,
+    });
+    const repository = new OrganizationBlogRepository(client as never);
 
     await repository.delete("org-1", "blog-1");
 
     expect(deleteFn).toHaveBeenCalledWith({
       where: { id: "blog-1", organizationId: "org-1" },
     });
+    expect(outboxCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ blogPostId: "blog-1", operation: "delete" }),
+        ]),
+      }),
+    );
   });
 
   it("orders published listings by publish date and supports tag filtering", async () => {

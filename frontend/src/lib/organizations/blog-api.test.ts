@@ -188,6 +188,25 @@ describe("organizationsApi blog posts", () => {
     expect(headers.authorization).toBeUndefined();
   });
 
+  it("searches the global blog feed publicly with query and sort", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(emptyList));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { organizationsApi } = await import("./api");
+    await organizationsApi.searchBlogFeed({ q: "weekend", sort: "newest" });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(
+      "http://localhost:8040/api/v1/blog?q=weekend&sort=newest",
+    );
+    expect(init.method).toBe("GET");
+    const headers = (init.headers ?? {}) as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+  });
+
   it("fetches a single published post by slug publicly", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({

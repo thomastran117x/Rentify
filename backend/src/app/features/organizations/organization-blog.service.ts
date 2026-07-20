@@ -9,6 +9,7 @@ import {
 import type { BlobService } from "@/features/blob/blob.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
+import type { OrganizationBlogPublicSearchService } from "@/features/organizations/blog-search/public-search.service";
 import type {
   CreateOrganizationBlogPostInput,
   DeleteOrganizationBlogPostInput,
@@ -16,6 +17,7 @@ import type {
   GetPublicOrganizationBlogPostInput,
   ListOrganizationBlogPostsInput,
   ListOrganizationBlogPostsResult,
+  ListPublicBlogFeedInput,
   ListPublicOrganizationBlogPostsInput,
   OrganizationBlogPostRecord,
   OrganizationBlogStatus,
@@ -42,6 +44,7 @@ export class OrganizationBlogService {
     private readonly organizationAccessService: OrganizationAccessService,
     private readonly organizationAuditService: OrganizationAuditService,
     private readonly blobService: BlobService,
+    private readonly publicSearchService: OrganizationBlogPublicSearchService,
   ) {}
 
   async list(
@@ -68,13 +71,16 @@ export class OrganizationBlogService {
   async listPublished(
     input: ListPublicOrganizationBlogPostsInput,
   ): Promise<ListOrganizationBlogPostsResult> {
-    return this.repository.list({
-      organizationId: input.organizationId,
-      page: input.page,
-      pageSize: input.pageSize,
-      statuses: ["published"],
-      tag: input.tag,
-    });
+    // Elasticsearch-backed (published only), with a transparent database
+    // fallback when the cluster is unavailable.
+    return this.publicSearchService.searchByOrganization(input);
+  }
+
+  async searchGlobal(
+    input: ListPublicBlogFeedInput,
+  ): Promise<ListOrganizationBlogPostsResult> {
+    // Cross-organization published blog feed/search.
+    return this.publicSearchService.searchGlobal(input);
   }
 
   async getPublishedBySlug(
@@ -123,8 +129,9 @@ export class OrganizationBlogService {
       publishedAt: input.status === "published" ? new Date() : null,
     });
 
-    // TODO(search): enqueue an OrganizationSearchOutbox "upsert" here when blog
-    // posts are added to Elasticsearch (mirror organizations.repository).
+    // The Elasticsearch upsert is enqueued transactionally in the repository
+    // (OrganizationBlogRepository.create) so indexing can never diverge from the
+    // committed write.
     await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
@@ -202,8 +209,9 @@ export class OrganizationBlogService {
 
     await this.cleanupReplacedCoverImage(input.actorUserId, existing, updated);
 
-    // TODO(search): enqueue an OrganizationSearchOutbox "upsert"/"delete" here
-    // (delete when unpublished) once blog posts are indexed in Elasticsearch.
+    // The Elasticsearch upsert is enqueued transactionally in the repository
+    // (OrganizationBlogRepository.update). Drafts stay indexed with their status,
+    // so an unpublish is just an upsert the public queries filter out.
     await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
@@ -237,8 +245,9 @@ export class OrganizationBlogService {
       existing.coverImageBlobName,
     );
 
-    // TODO(search): enqueue an OrganizationSearchOutbox "delete" here when blog
-    // posts are indexed in Elasticsearch.
+    // The Elasticsearch delete is enqueued transactionally in the repository
+    // (OrganizationBlogRepository.delete) so the document is removed from the
+    // index even though the source row is gone.
     await this.recordAuditSafely({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
