@@ -60,8 +60,9 @@ export class OrganizationBlogSearchIndexService {
       "service",
     );
     this.baseIndexName =
-      getOptionalEnvironmentVariable("ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX") ??
-      `${this.elasticsearch.getPostingsIndexName()}-organization-blogs`;
+      getOptionalEnvironmentVariable(
+        "ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX",
+      ) ?? `${this.elasticsearch.getPostingsIndexName()}-organization-blogs`;
   }
 
   async ensureLiveIndex(): Promise<void> {

@@ -85,21 +85,22 @@ export class OrganizationBlogSearchService {
   }
 
   async startReindex(): Promise<SearchReindexRunRecord> {
-    const run = await this.organizationBlogRepository.withSearchReindexStartLock(
-      async ({ findActiveSearchReindexRun, createSearchReindexRun }) => {
-        const activeRun = await findActiveSearchReindexRun();
+    const run =
+      await this.organizationBlogRepository.withSearchReindexStartLock(
+        async ({ findActiveSearchReindexRun, createSearchReindexRun }) => {
+          const activeRun = await findActiveSearchReindexRun();
 
-        if (activeRun) {
-          throw new ConflictError(
-            "An organization blog search reindex run is already active.",
+          if (activeRun) {
+            throw new ConflictError(
+              "An organization blog search reindex run is already active.",
+            );
+          }
+
+          return createSearchReindexRun(
+            this.organizationBlogSearchIndexService.buildVersionedIndexName(),
           );
-        }
-
-        return createSearchReindexRun(
-          this.organizationBlogSearchIndexService.buildVersionedIndexName(),
-        );
-      },
-    );
+        },
+      );
 
     if (!run) {
       throw new ConflictError(
@@ -433,7 +434,9 @@ export class OrganizationBlogSearchService {
           throw new Error("Search outbox job is missing a blog post id.");
         }
 
-        if (await this.organizationBlogRepository.hasNewerSearchOutboxJob(job)) {
+        if (
+          await this.organizationBlogRepository.hasNewerSearchOutboxJob(job)
+        ) {
           this.logStaleOutboxJob(job);
           immediateIndexIds.push(job.id);
           continue;

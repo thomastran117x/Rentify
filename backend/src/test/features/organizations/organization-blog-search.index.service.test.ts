@@ -53,9 +53,7 @@ describe("OrganizationBlogSearchIndexService", () => {
     const service = new OrganizationBlogSearchIndexService(client as any);
 
     expect(service.getBaseIndexName()).toBe("postings-organization-blogs");
-    expect(service.getReadAliasName()).toBe(
-      "postings-organization-blogs-read",
-    );
+    expect(service.getReadAliasName()).toBe("postings-organization-blogs-read");
     expect(service.getWriteAliasName()).toBe(
       "postings-organization-blogs-write",
     );
@@ -159,8 +157,7 @@ describe("OrganizationBlogSearchIndexService", () => {
     };
     expect(
       body.actions.some(
-        (action) =>
-          action.add?.alias === "postings-organization-blogs-read",
+        (action) => action.add?.alias === "postings-organization-blogs-read",
       ),
     ).toBe(true);
   });
@@ -190,8 +187,7 @@ describe("OrganizationBlogSearchIndexService", () => {
     };
     expect(
       body.actions.some(
-        (action) =>
-          action.add?.alias === "postings-organization-blogs-write",
+        (action) => action.add?.alias === "postings-organization-blogs-write",
       ),
     ).toBe(true);
   });

@@ -106,7 +106,10 @@ describe("OrganizationBlogRepository", () => {
     expect(outboxCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.arrayContaining([
-          expect.objectContaining({ blogPostId: "blog-1", operation: "upsert" }),
+          expect.objectContaining({
+            blogPostId: "blog-1",
+            operation: "upsert",
+          }),
         ]),
       }),
     );
@@ -185,7 +188,10 @@ describe("OrganizationBlogRepository", () => {
     expect(outboxCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.arrayContaining([
-          expect.objectContaining({ blogPostId: "blog-1", operation: "upsert" }),
+          expect.objectContaining({
+            blogPostId: "blog-1",
+            operation: "upsert",
+          }),
         ]),
       }),
     );
@@ -233,7 +239,10 @@ describe("OrganizationBlogRepository", () => {
     expect(outboxCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.arrayContaining([
-          expect.objectContaining({ blogPostId: "blog-1", operation: "delete" }),
+          expect.objectContaining({
+            blogPostId: "blog-1",
+            operation: "delete",
+          }),
         ]),
       }),
     );

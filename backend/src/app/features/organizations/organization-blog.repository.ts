@@ -583,7 +583,9 @@ export class OrganizationBlogRepository extends BaseRepository {
         where: { id: { in: ids } },
       }),
     );
-    const byId = new Map(rows.map((row) => [row.id, this.mapSearchOutbox(row)]));
+    const byId = new Map(
+      rows.map((row) => [row.id, this.mapSearchOutbox(row)]),
+    );
 
     return ids
       .map((id) => byId.get(id))
@@ -962,10 +964,12 @@ export class OrganizationBlogRepository extends BaseRepository {
     id: string,
   ): Promise<SearchReindexCatchUpState> {
     return this.executeAsync(async () => {
-      const run = await this.prisma.organizationBlogSearchReindexRun.findUnique({
-        where: { id },
-        select: { barrierOutboxId: true },
-      });
+      const run = await this.prisma.organizationBlogSearchReindexRun.findUnique(
+        {
+          where: { id },
+          select: { barrierOutboxId: true },
+        },
+      );
 
       if (!run?.barrierOutboxId) {
         return {
@@ -975,15 +979,17 @@ export class OrganizationBlogRepository extends BaseRepository {
         };
       }
 
-      const barrier = await this.prisma.organizationBlogSearchOutbox.findUnique({
-        where: { id: run.barrierOutboxId },
-        select: {
-          createdAt: true,
-          indexedAt: true,
-          deadLetteredAt: true,
-          lastError: true,
+      const barrier = await this.prisma.organizationBlogSearchOutbox.findUnique(
+        {
+          where: { id: run.barrierOutboxId },
+          select: {
+            createdAt: true,
+            indexedAt: true,
+            deadLetteredAt: true,
+            lastError: true,
+          },
         },
-      });
+      );
 
       if (!barrier) {
         return {

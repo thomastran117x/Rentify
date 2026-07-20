@@ -199,9 +199,7 @@ describe("organizationsApi blog posts", () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe(
-      "http://localhost:8040/api/v1/blog?q=weekend&sort=newest",
-    );
+    expect(url).toBe("http://localhost:8040/api/v1/blog?q=weekend&sort=newest");
     expect(init.method).toBe("GET");
     const headers = (init.headers ?? {}) as Record<string, string>;
     expect(headers.authorization).toBeUndefined();

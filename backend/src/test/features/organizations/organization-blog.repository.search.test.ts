@@ -355,7 +355,11 @@ describe("OrganizationBlogRepository search methods", () => {
 
     it("marks a primary row relayed and its superseded rows indexed", async () => {
       const db = createDb();
-      await repoWith(db).markSearchOutboxRelayed("outbox-1", ["s1"], "broker-1");
+      await repoWith(db).markSearchOutboxRelayed(
+        "outbox-1",
+        ["s1"],
+        "broker-1",
+      );
       const outbox = db.organizationBlogSearchOutbox as {
         update: jest.Mock;
         updateMany: jest.Mock;
@@ -468,7 +472,9 @@ describe("OrganizationBlogRepository search methods", () => {
           updateMany: jest.fn(async () => ({ count: 0 })),
         },
       });
-      expect(await repoWith(contendedDb).claimNextSearchReindexRun()).toBeNull();
+      expect(
+        await repoWith(contendedDb).claimNextSearchReindexRun(),
+      ).toBeNull();
     });
 
     it("updates run status, progress, and processing markers", async () => {

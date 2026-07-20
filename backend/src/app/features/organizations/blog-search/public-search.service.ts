@@ -108,7 +108,10 @@ export class OrganizationBlogPublicSearchService {
       searchIds.ids,
     );
 
-    if (searchIds.source === "elasticsearch" && posts.length < searchIds.ids.length) {
+    if (
+      searchIds.source === "elasticsearch" &&
+      posts.length < searchIds.ids.length
+    ) {
       this.logger.warn(
         "Organization blog search falling back to database because Elasticsearch returned stale ids.",
       );
@@ -159,7 +162,8 @@ export class OrganizationBlogPublicSearchService {
   private async searchIdsInElasticsearch(
     params: BlogSearchParams,
   ): Promise<SearchIdsResult> {
-    const indexName = this.organizationBlogSearchIndexService.getReadAliasName();
+    const indexName =
+      this.organizationBlogSearchIndexService.getReadAliasName();
     // Elasticsearch rejects `from + size` beyond index.max_result_window with a
     // 400. Clamp both into the navigable window so an out-of-range page returns
     // an empty page with the true total (size 0 still reports total_hits) rather

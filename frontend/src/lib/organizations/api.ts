@@ -689,10 +689,7 @@ export const organizationsApi = {
     );
   },
   searchBlogFeed(input?: ListBlogFeedInput): Promise<OrganizationBlogResult> {
-    return publicJson<OrganizationBlogResult>(
-      "GET",
-      buildBlogFeedPath(input),
-    );
+    return publicJson<OrganizationBlogResult>("GET", buildBlogFeedPath(input));
   },
   listPublicReviews(
     id: string,

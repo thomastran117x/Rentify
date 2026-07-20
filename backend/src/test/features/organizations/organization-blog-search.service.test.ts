@@ -426,8 +426,14 @@ describe("OrganizationBlogSearchService", () => {
       const { service, queueService, repository } = createHarness({
         repository: {
           claimSearchOutboxBatch: jest.fn(async () => [
-            createOutbox({ id: "newer", createdAt: "2026-05-01T00:00:05.000Z" }),
-            createOutbox({ id: "older", createdAt: "2026-05-01T00:00:00.000Z" }),
+            createOutbox({
+              id: "newer",
+              createdAt: "2026-05-01T00:00:05.000Z",
+            }),
+            createOutbox({
+              id: "older",
+              createdAt: "2026-05-01T00:00:00.000Z",
+            }),
           ]),
         },
       });

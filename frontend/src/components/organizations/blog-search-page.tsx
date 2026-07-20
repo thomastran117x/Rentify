@@ -331,7 +331,10 @@ export function BlogSearchPage() {
                 </button>
               ) : null}
             </div>
-            <button type="submit" className={theme.marketplace.paginationButton}>
+            <button
+              type="submit"
+              className={theme.marketplace.paginationButton}
+            >
               Search
             </button>
           </form>
