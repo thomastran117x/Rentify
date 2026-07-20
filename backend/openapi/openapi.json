@@ -67,6 +67,14 @@
     {
       "name": "moderation",
       "description": "Safety reporting and moderator review workflows."
+    },
+    {
+      "name": "mfa",
+      "description": "Multi-factor step-up verification and authenticator (TOTP) enrollment."
+    },
+    {
+      "name": "feature-flags",
+      "description": "Administrative feature-flag resolution and overrides."
     }
   ],
   "paths": {
@@ -2307,6 +2315,774 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/verify/options": {
+      "get": {
+        "operationId": "getMfaVerificationOptions",
+        "summary": "Get MFA step-up verification options",
+        "description": "Returns whether the current session already holds a valid step-up proof for the requested scope, along with the factors available to the signed-in user. Requires a signed-in session; PAT authentication is rejected.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Step-up verification scope.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mfa-management",
+                "device-login"
+              ]
+            },
+            "example": "mfa-management"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaVerificationOptionsResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "scope": "mfa-management",
+                    "verified": false,
+                    "verifiedUntil": null,
+                    "availableFactors": [
+                      "email",
+                      "totp"
+                    ],
+                    "recommendedFactor": "totp"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/verify/challenge": {
+      "post": {
+        "operationId": "issueMfaVerificationChallenge",
+        "summary": "Issue an MFA step-up challenge",
+        "description": "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP factors signal the client to prompt for an authenticator code. Rate limited per user, session, scope, and factor.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "rateLimitPolicy": "auth-sensitive"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerificationChallengeRequest"
+              },
+              "example": {
+                "scope": "mfa-management",
+                "factor": "email"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaVerificationChallengeResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Verification challenge issued.",
+                  "data": {
+                    "scope": "mfa-management",
+                    "factor": "email",
+                    "challengeId": null,
+                    "cooldownUntil": "2026-07-20T18:15:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/verify/confirm": {
+      "post": {
+        "operationId": "confirmMfaVerificationChallenge",
+        "summary": "Confirm an MFA step-up challenge",
+        "description": "Verifies a step-up challenge code and persists a short-lived MFA proof for the scope. Rate limited, with a temporary lockout after repeated failed attempts.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false,
+          "rateLimitPolicy": "auth-sensitive"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerificationConfirmRequest"
+              },
+              "example": {
+                "scope": "mfa-management",
+                "factor": "email",
+                "code": "123456"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaVerificationConfirmResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Verification confirmed.",
+                  "data": {
+                    "verified": true,
+                    "scope": "mfa-management",
+                    "factor": "email",
+                    "verifiedUntil": "2026-07-20T18:30:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/verify/dev/otp": {
+      "get": {
+        "operationId": "previewMfaEmailOtp",
+        "summary": "Preview the current MFA email OTP (development only)",
+        "description": "Returns the active email step-up OTP for the signed-in session. This route is only registered in non-production environments to aid local testing and must not be relied upon in production.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Step-up verification scope.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mfa-management",
+                "device-login"
+              ]
+            },
+            "example": "mfa-management"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaVerificationPreviewResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "scope": "mfa-management",
+                    "factor": "email",
+                    "code": "123456",
+                    "expiresInSeconds": 300
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/status": {
+      "get": {
+        "operationId": "getMfaTotpStatus",
+        "summary": "Get authenticator (TOTP) status",
+        "description": "Returns whether the signed-in user has an authenticator app (TOTP) enabled.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaTotpStatusResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "enabled": false
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/begin": {
+      "post": {
+        "operationId": "beginMfaTotpEnrollment",
+        "summary": "Begin authenticator (TOTP) enrollment",
+        "description": "Starts authenticator enrollment and returns the shared secret and otpauth provisioning URI. Requires a recent MFA step-up verification for the management scope.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaTotpBeginRequest"
+              },
+              "example": {
+                "accountName": "owner-one@rentify.local"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaTotpBeginResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Authenticator enrollment started.",
+                  "data": {
+                    "secret": "JBSWY3DPEHPK3PXP",
+                    "uri": "otpauth://totp/Rentify:owner-one@rentify.local?secret=JBSWY3DPEHPK3PXP&issuer=Rentify"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/confirm": {
+      "post": {
+        "operationId": "confirmMfaTotpEnrollment",
+        "summary": "Confirm authenticator (TOTP) enrollment",
+        "description": "Confirms authenticator enrollment with a code from the authenticator app. Requires a recent MFA step-up verification for the management scope.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaTotpConfirmRequest"
+              },
+              "example": {
+                "code": "123456"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaTotpConfirmResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Authenticator app enabled.",
+                  "data": {
+                    "confirmed": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/disable": {
+      "post": {
+        "operationId": "disableMfaTotp",
+        "summary": "Disable authenticator (TOTP)",
+        "description": "Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaTotpDisableRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaTotpDisableResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Authenticator app disabled.",
+                  "data": {
+                    "disabled": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/mfa/totp/pending": {
+      "delete": {
+        "operationId": "cancelMfaTotpEnrollment",
+        "summary": "Cancel a pending authenticator (TOTP) enrollment",
+        "description": "Cancels an in-progress, unconfirmed authenticator enrollment. Requires a recent MFA step-up verification for the management scope.",
+        "tags": [
+          "mfa"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MfaTotpPendingCancelResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Pending authenticator enrollment cancelled.",
+                  "data": {
+                    "cancelled": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -6852,6 +7628,92 @@
         }
       }
     },
+    "/blob": {
+      "delete": {
+        "operationId": "deleteBlob",
+        "summary": "Delete a managed blob",
+        "description": "Deletes a blob owned by the authenticated user. The target blob is identified by the `blobName` query parameter.",
+        "tags": [
+          "blob"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "blobName",
+            "in": "query",
+            "required": true,
+            "description": "Managed blob name to delete.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "example": "postings/user-1/photo-1.jpg"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BlobDeleteResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Blob deleted successfully.",
+                  "data": {
+                    "deleted": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/blob/upload": {
       "put": {
         "operationId": "uploadLocalBlob",
@@ -7827,6 +8689,521 @@
         }
       }
     },
+    "/admin/organizations/search/reindex": {
+      "post": {
+        "operationId": "startOrganizationSearchReindex",
+        "summary": "Start an organization search reindex run",
+        "description": "Starts a full organization search reindex. Admin bearer authentication is required.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchReindexRunRecord"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization search reindex has been started.",
+                  "data": {
+                    "id": "reindex-1",
+                    "status": "running",
+                    "targetIndexName": "postings_v4",
+                    "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                    "totalPostings": 62,
+                    "indexedPostings": 40,
+                    "failedPostings": 0,
+                    "startedAt": "2026-05-25T10:05:00.000Z",
+                    "createdAt": "2026-05-25T10:05:00.000Z",
+                    "updatedAt": "2026-05-25T10:10:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/search/reindex-runs/{id}": {
+      "get": {
+        "operationId": "getOrganizationSearchReindexRun",
+        "summary": "Get an organization search reindex run",
+        "description": "Returns the specified organization search reindex run, or `run: null` if the identifier does not exist.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Search reindex run identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "reindex-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchReindexRunLookupResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "run": {
+                      "id": "reindex-1",
+                      "status": "running",
+                      "targetIndexName": "postings_v4",
+                      "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                      "totalPostings": 62,
+                      "indexedPostings": 40,
+                      "failedPostings": 0,
+                      "startedAt": "2026-05-25T10:05:00.000Z",
+                      "createdAt": "2026-05-25T10:05:00.000Z",
+                      "updatedAt": "2026-05-25T10:10:00.000Z"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/admin/organizations/search/status": {
+      "get": {
+        "operationId": "getOrganizationSearchStatus",
+        "summary": "Get organization search subsystem status",
+        "description": "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization search index.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchStatusResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "aliases": {
+                      "read": "postings-read",
+                      "write": "postings-write",
+                      "readTargets": [
+                        "postings_v3"
+                      ],
+                      "writeTargets": [
+                        "postings_v3"
+                      ],
+                      "health": {
+                        "state": "ready",
+                        "readAlias": "postings-read",
+                        "writeAlias": "postings-write",
+                        "readTargets": [
+                          "postings_v3"
+                        ],
+                        "writeTargets": [
+                          "postings_v3"
+                        ]
+                      }
+                    },
+                    "elasticsearch": {
+                      "enabled": true,
+                      "circuitBreaker": {
+                        "state": "closed",
+                        "consecutiveFailures": 0,
+                        "failureThreshold": 5,
+                        "cooldownMs": 30000
+                      },
+                      "telemetry": {
+                        "total": 100,
+                        "totalLatencyMs": 2400,
+                        "serverErrorCount": 0,
+                        "timeoutCount": 0,
+                        "transportErrorCount": 0,
+                        "openedCount": 0,
+                        "shortCircuitCount": 0
+                      }
+                    },
+                    "currentReindexRun": {
+                      "id": "reindex-1",
+                      "status": "running",
+                      "targetIndexName": "postings_v4",
+                      "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                      "totalPostings": 62,
+                      "indexedPostings": 40,
+                      "failedPostings": 0,
+                      "startedAt": "2026-05-25T10:05:00.000Z",
+                      "createdAt": "2026-05-25T10:05:00.000Z",
+                      "updatedAt": "2026-05-25T10:10:00.000Z"
+                    },
+                    "pendingOutboxCount": 2,
+                    "pendingOutboxOldestAgeMs": 12000,
+                    "lag": {
+                      "unpublishedCount": 1,
+                      "unpublishedOldestAgeMs": 4000,
+                      "publishedNotIndexedCount": 1,
+                      "publishedNotIndexedOldestAgeMs": 8000,
+                      "deadLetteredByOperation": {
+                        "upsert": 0,
+                        "delete": 0,
+                        "barrier": 0
+                      }
+                    },
+                    "queueInspection": {
+                      "ok": true
+                    },
+                    "queueCounts": {
+                      "main": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry1": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry2": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry3": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "deadLetter": {
+                        "ready": 0,
+                        "consumers": 1
+                      }
+                    },
+                    "telemetry": {
+                      "fallbacks": {
+                        "circuit-open": 0,
+                        "es-unavailable": 0,
+                        "index-drift": 0
+                      },
+                      "queueInspectionFailures": 0,
+                      "reindexRuns": {
+                        "completed": 4,
+                        "failed": 0,
+                        "lastDurationMs": 180000
+                      },
+                      "aliasActions": {
+                        "createdIndexCount": 4,
+                        "repairedReadAliasCount": 0,
+                        "repairedWriteAliasCount": 0,
+                        "lastAction": "created_index"
+                      }
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/search/outbox/replay-dead-lettered": {
+      "post": {
+        "operationId": "replayDeadLetteredOrganizationSearchOutbox",
+        "summary": "Replay dead-lettered organization search outbox entries",
+        "description": "Requeues dead-lettered organization search sync entries. The optional `limit` query controls how many items to revive.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of dead-lettered entries to revive.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 100
+            },
+            "example": 100
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ReplayDeadLetteredSearchOutboxResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Dead-lettered organization search outbox entries are being replayed.",
+                  "data": {
+                    "revived": 4
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/search/cleanup-retained-indices": {
+      "post": {
+        "operationId": "cleanupRetainedOrganizationSearchIndices",
+        "summary": "Delete retained organization search indices",
+        "description": "Deletes retained organization search indices that are no longer needed after reindex completion.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CleanupRetainedSearchIndicesResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization search index cleanup has been started.",
+                  "data": {
+                    "deleted": 1
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/admin/organizations/blog-search/reindex": {
       "post": {
         "operationId": "startOrganizationBlogSearchReindex",
@@ -8338,6 +9715,315 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/feature-flags": {
+      "get": {
+        "operationId": "listFeatureFlags",
+        "summary": "List resolved feature flags",
+        "description": "Lists all resolved feature flags, merging database overrides, environment values, and code defaults. Admin bearer authentication is required.",
+        "tags": [
+          "feature-flags"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "enabled",
+            "in": "query",
+            "required": false,
+            "description": "Filter by resolved enabled state.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "example": "true"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Filter by flag name or description substring.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "checkout"
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "description": "Filter by flag group.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "payments"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FeatureFlagListResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": [
+                    {
+                      "name": "payments.new-checkout",
+                      "enabled": true,
+                      "source": "db",
+                      "description": "Enables the redesigned checkout flow.",
+                      "group": "payments"
+                    },
+                    {
+                      "name": "search.elasticsearch",
+                      "enabled": false,
+                      "source": "default",
+                      "description": null,
+                      "group": "search"
+                    }
+                  ],
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/admin/feature-flags/{name}": {
+      "put": {
+        "operationId": "setFeatureFlag",
+        "summary": "Create or update a feature-flag override",
+        "description": "Upserts a database override for the named feature flag, records an audit-log entry, and invalidates the flag cache. Admin bearer authentication is required.",
+        "tags": [
+          "feature-flags"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Feature-flag name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "payments.new-checkout"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFeatureFlagRequest"
+              },
+              "example": {
+                "enabled": true,
+                "description": "Enables the redesigned checkout flow.",
+                "group": "payments"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ResolvedFeatureFlag"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Feature flag updated successfully.",
+                  "data": {
+                    "name": "payments.new-checkout",
+                    "enabled": true,
+                    "source": "db",
+                    "description": "Enables the redesigned checkout flow.",
+                    "group": "payments"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFeatureFlag",
+        "summary": "Delete a feature-flag override",
+        "description": "Removes the database override for the named feature flag so it falls back to the environment value or code default. The deletion is audit-logged. Admin bearer authentication is required.",
+        "tags": [
+          "feature-flags"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Feature-flag name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "payments.new-checkout"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DeleteFeatureFlagResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Feature flag override removed successfully.",
+                  "data": {
+                    "name": "payments.new-checkout",
+                    "deletedOverride": true,
+                    "effectiveEnabled": false,
+                    "effectiveSource": "default"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -10891,6 +12577,73 @@
                       "hasPreviousPage": false
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/postings/analytics/export": {
+      "get": {
+        "operationId": "exportPostingAnalytics",
+        "summary": "Export owner analytics as CSV",
+        "description": "Streams owner-level posting analytics for the selected reporting window as a downloadable CSV file. PAT bearer authentication with `mcp:read` is allowed.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "owner",
+          "patAllowed": true,
+          "patScope": "mcp:read"
+        },
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "description": "Reporting window.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "all"
+              ],
+              "default": "7d"
+            },
+            "example": "7d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics CSV exported successfully.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -20397,6 +22150,391 @@
             "additionalProperties": {
               "type": "string"
             }
+          }
+        }
+      },
+      "BlobDeleteResult": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "MfaVerificationScope": {
+        "type": "string",
+        "enum": [
+          "mfa-management",
+          "device-login"
+        ],
+        "description": "Step-up verification scope."
+      },
+      "MfaVerificationFactor": {
+        "type": "string",
+        "enum": [
+          "email",
+          "totp",
+          "sms"
+        ]
+      },
+      "MfaVerificationChallengeFactor": {
+        "type": "string",
+        "enum": [
+          "email",
+          "totp"
+        ]
+      },
+      "MfaVerificationOptionsResult": {
+        "type": "object",
+        "required": [
+          "scope",
+          "verified",
+          "verifiedUntil",
+          "availableFactors",
+          "recommendedFactor"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/MfaVerificationScope"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "verifiedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "availableFactors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MfaVerificationFactor"
+            }
+          },
+          "recommendedFactor": {
+            "type": "string",
+            "enum": [
+              "email",
+              "totp",
+              "sms"
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "MfaVerificationChallengeRequest": {
+        "type": "object",
+        "required": [
+          "scope",
+          "factor"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/MfaVerificationScope"
+          },
+          "factor": {
+            "$ref": "#/components/schemas/MfaVerificationChallengeFactor"
+          }
+        }
+      },
+      "MfaVerificationChallengeResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "scope",
+              "factor",
+              "challengeId",
+              "cooldownUntil"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/MfaVerificationScope"
+              },
+              "factor": {
+                "type": "string",
+                "const": "email"
+              },
+              "challengeId": {
+                "type": "null"
+              },
+              "cooldownUntil": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "scope",
+              "factor",
+              "challengeId",
+              "prompt"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/MfaVerificationScope"
+              },
+              "factor": {
+                "type": "string",
+                "const": "totp"
+              },
+              "challengeId": {
+                "type": "null"
+              },
+              "prompt": {
+                "type": "boolean",
+                "const": true
+              }
+            }
+          }
+        ]
+      },
+      "MfaVerificationConfirmRequest": {
+        "type": "object",
+        "required": [
+          "scope",
+          "factor",
+          "code"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/MfaVerificationScope"
+          },
+          "factor": {
+            "$ref": "#/components/schemas/MfaVerificationChallengeFactor"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "MfaVerificationConfirmResult": {
+        "type": "object",
+        "required": [
+          "verified",
+          "scope",
+          "factor",
+          "verifiedUntil"
+        ],
+        "properties": {
+          "verified": {
+            "type": "boolean",
+            "const": true
+          },
+          "scope": {
+            "$ref": "#/components/schemas/MfaVerificationScope"
+          },
+          "factor": {
+            "$ref": "#/components/schemas/MfaVerificationChallengeFactor"
+          },
+          "verifiedUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MfaVerificationPreviewResult": {
+        "type": "object",
+        "required": [
+          "scope",
+          "factor",
+          "code",
+          "expiresInSeconds"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/MfaVerificationScope"
+          },
+          "factor": {
+            "type": "string",
+            "const": "email"
+          },
+          "code": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "type": "integer"
+          }
+        }
+      },
+      "MfaTotpStatusResult": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MfaTotpBeginRequest": {
+        "type": "object",
+        "properties": {
+          "accountName": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "MfaTotpBeginResult": {
+        "type": "object",
+        "required": [
+          "secret",
+          "uri"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaTotpConfirmRequest": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "MfaTotpConfirmResult": {
+        "type": "object",
+        "required": [
+          "confirmed"
+        ],
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "MfaTotpDisableRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "MfaTotpDisableResult": {
+        "type": "object",
+        "required": [
+          "disabled"
+        ],
+        "properties": {
+          "disabled": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "MfaTotpPendingCancelResult": {
+        "type": "object",
+        "required": [
+          "cancelled"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "FeatureFlagSource": {
+        "type": "string",
+        "enum": [
+          "db",
+          "env",
+          "default"
+        ]
+      },
+      "ResolvedFeatureFlag": {
+        "type": "object",
+        "required": [
+          "name",
+          "enabled",
+          "source",
+          "group"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FeatureFlagSource"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FeatureFlagListResult": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ResolvedFeatureFlag"
+        }
+      },
+      "SetFeatureFlagRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "nullable": true
+          }
+        }
+      },
+      "DeleteFeatureFlagResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "deletedOverride",
+          "effectiveEnabled",
+          "effectiveSource"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "deletedOverride": {
+            "type": "boolean"
+          },
+          "effectiveEnabled": {
+            "type": "boolean"
+          },
+          "effectiveSource": {
+            "$ref": "#/components/schemas/FeatureFlagSource"
           }
         }
       },

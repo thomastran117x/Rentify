@@ -1929,6 +1929,282 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/auth/mfa/verify/options",
+      operationId: "getMfaVerificationOptions",
+      summary: "Get MFA step-up verification options",
+      description:
+        "Returns whether the current session already holds a valid step-up proof for the requested scope, along with the factors available to the signed-in user. Requires a signed-in session; PAT authentication is rejected.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "scope",
+          { type: "string", enum: ["mfa-management", "device-login"] },
+          "Step-up verification scope.",
+          "mfa-management",
+          true,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "MfaVerificationOptionsResult",
+          {
+            scope: "mfa-management",
+            verified: false,
+            verifiedUntil: null,
+            availableFactors: ["email", "totp"],
+            recommendedFactor: "totp",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/verify/challenge",
+      operationId: "issueMfaVerificationChallenge",
+      summary: "Issue an MFA step-up challenge",
+      description:
+        "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP factors signal the client to prompt for an authenticator code. Rate limited per user, session, scope, and factor.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("MfaVerificationChallengeRequest", {
+        scope: "mfa-management",
+        factor: "email",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Verification challenge issued.",
+          "MfaVerificationChallengeResult",
+          {
+            scope: "mfa-management",
+            factor: "email",
+            challengeId: null,
+            cooldownUntil: "2026-07-20T18:15:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/verify/confirm",
+      operationId: "confirmMfaVerificationChallenge",
+      summary: "Confirm an MFA step-up challenge",
+      description:
+        "Verifies a step-up challenge code and persists a short-lived MFA proof for the scope. Rate limited, with a temporary lockout after repeated failed attempts.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("MfaVerificationConfirmRequest", {
+        scope: "mfa-management",
+        factor: "email",
+        code: "123456",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Verification confirmed.",
+          "MfaVerificationConfirmResult",
+          {
+            verified: true,
+            scope: "mfa-management",
+            factor: "email",
+            verifiedUntil: "2026-07-20T18:30:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/verify/dev/otp",
+      operationId: "previewMfaEmailOtp",
+      summary: "Preview the current MFA email OTP (development only)",
+      description:
+        "Returns the active email step-up OTP for the signed-in session. This route is only registered in non-production environments to aid local testing and must not be relied upon in production.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "scope",
+          { type: "string", enum: ["mfa-management", "device-login"] },
+          "Step-up verification scope.",
+          "mfa-management",
+          true,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "MfaVerificationPreviewResult",
+          {
+            scope: "mfa-management",
+            factor: "email",
+            code: "123456",
+            expiresInSeconds: 300,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/totp/status",
+      operationId: "getMfaTotpStatus",
+      summary: "Get authenticator (TOTP) status",
+      description:
+        "Returns whether the signed-in user has an authenticator app (TOTP) enabled.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "MfaTotpStatusResult",
+          { enabled: false },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/begin",
+      operationId: "beginMfaTotpEnrollment",
+      summary: "Begin authenticator (TOTP) enrollment",
+      description:
+        "Starts authenticator enrollment and returns the shared secret and otpauth provisioning URI. Requires a recent MFA step-up verification for the management scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpBeginRequest", {
+        accountName: "owner-one@rentify.local",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticator enrollment started.",
+          "MfaTotpBeginResult",
+          {
+            secret: "JBSWY3DPEHPK3PXP",
+            uri: "otpauth://totp/Rentify:owner-one@rentify.local?secret=JBSWY3DPEHPK3PXP&issuer=Rentify",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/confirm",
+      operationId: "confirmMfaTotpEnrollment",
+      summary: "Confirm authenticator (TOTP) enrollment",
+      description:
+        "Confirms authenticator enrollment with a code from the authenticator app. Requires a recent MFA step-up verification for the management scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpConfirmRequest", {
+        code: "123456",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticator app enabled.",
+          "MfaTotpConfirmResult",
+          { confirmed: true },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/totp/disable",
+      operationId: "disableMfaTotp",
+      summary: "Disable authenticator (TOTP)",
+      description:
+        "Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("MfaTotpDisableRequest", {}),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticator app disabled.",
+          "MfaTotpDisableResult",
+          { disabled: true },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/auth/mfa/totp/pending",
+      operationId: "cancelMfaTotpEnrollment",
+      summary: "Cancel a pending authenticator (TOTP) enrollment",
+      description:
+        "Cancels an in-progress, unconfirmed authenticator enrollment. Requires a recent MFA step-up verification for the management scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Pending authenticator enrollment cancelled.",
+          "MfaTotpPendingCancelResult",
+          { cancelled: true },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/auth/personal-access-tokens",
       operationId: "listPersonalAccessTokens",
       summary: "List personal access tokens",
@@ -3277,6 +3553,39 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "delete",
+      path: "/blob",
+      operationId: "deleteBlob",
+      summary: "Delete a managed blob",
+      description:
+        "Deletes a blob owned by the authenticated user. The target blob is identified by the `blobName` query parameter.",
+      tags: ["blob"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "blobName",
+          { type: "string", maxLength: 1000 },
+          "Managed blob name to delete.",
+          "postings/user-1/photo-1.jpg",
+          true,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Blob deleted successfully.",
+          "BlobDeleteResult",
+          { deleted: true },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
       method: "put",
       path: "/blob/upload",
       operationId: "uploadLocalBlob",
@@ -3627,6 +3936,143 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/admin/organizations/search/reindex",
+      operationId: "startOrganizationSearchReindex",
+      summary: "Start an organization search reindex run",
+      description:
+        "Starts a full organization search reindex. Admin bearer authentication is required.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization search reindex has been started.",
+          "SearchReindexRunRecord",
+          searchStatusExample.currentReindexRun,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/search/reindex-runs/:id",
+      operationId: "getOrganizationSearchReindexRun",
+      summary: "Get an organization search reindex run",
+      description:
+        "Returns the specified organization search reindex run, or `run: null` if the identifier does not exist.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Search reindex run identifier.", "reindex-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchReindexRunLookupResult",
+          {
+            run: searchStatusExample.currentReindexRun,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/search/status",
+      operationId: "getOrganizationSearchStatus",
+      summary: "Get organization search subsystem status",
+      description:
+        "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization search index.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchStatusResult",
+          searchStatusExample,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/search/outbox/replay-dead-lettered",
+      operationId: "replayDeadLetteredOrganizationSearchOutbox",
+      summary: "Replay dead-lettered organization search outbox entries",
+      description:
+        "Requeues dead-lettered organization search sync entries. The optional `limit` query controls how many items to revive.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "limit",
+          { type: "integer", minimum: 1, default: 100 },
+          "Maximum number of dead-lettered entries to revive.",
+          100,
+        ),
+      ],
+      responses: {
+        "202": successResponse(
+          202,
+          "Dead-lettered organization search outbox entries are being replayed.",
+          "ReplayDeadLetteredSearchOutboxResult",
+          {
+            revived: 4,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/search/cleanup-retained-indices",
+      operationId: "cleanupRetainedOrganizationSearchIndices",
+      summary: "Delete retained organization search indices",
+      description:
+        "Deletes retained organization search indices that are no longer needed after reindex completion.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization search index cleanup has been started.",
+          "CleanupRetainedSearchIndicesResult",
+          {
+            deleted: 1,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
       path: "/admin/organizations/blog-search/reindex",
       operationId: "startOrganizationBlogSearchReindex",
       summary: "Start an organization blog search reindex run",
@@ -3760,6 +4206,135 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/feature-flags",
+      operationId: "listFeatureFlags",
+      summary: "List resolved feature flags",
+      description:
+        "Lists all resolved feature flags, merging database overrides, environment values, and code defaults. Admin bearer authentication is required.",
+      tags: ["feature-flags"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "enabled",
+          { type: "string", enum: ["true", "false"] },
+          "Filter by resolved enabled state.",
+          "true",
+        ),
+        queryParam(
+          "search",
+          { type: "string" },
+          "Filter by flag name or description substring.",
+          "checkout",
+        ),
+        queryParam(
+          "group",
+          { type: "string" },
+          "Filter by flag group.",
+          "payments",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "FeatureFlagListResult",
+          [
+            {
+              name: "payments.new-checkout",
+              enabled: true,
+              source: "db",
+              description: "Enables the redesigned checkout flow.",
+              group: "payments",
+            },
+            {
+              name: "search.elasticsearch",
+              enabled: false,
+              source: "default",
+              description: null,
+              group: "search",
+            },
+          ],
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "put",
+      path: "/admin/feature-flags/:name",
+      operationId: "setFeatureFlag",
+      summary: "Create or update a feature-flag override",
+      description:
+        "Upserts a database override for the named feature flag, records an audit-log entry, and invalidates the flag cache. Admin bearer authentication is required.",
+      tags: ["feature-flags"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("name", "Feature-flag name.", "payments.new-checkout"),
+      ],
+      requestBody: requestBody("SetFeatureFlagRequest", {
+        enabled: true,
+        description: "Enables the redesigned checkout flow.",
+        group: "payments",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Feature flag updated successfully.",
+          "ResolvedFeatureFlag",
+          {
+            name: "payments.new-checkout",
+            enabled: true,
+            source: "db",
+            description: "Enables the redesigned checkout flow.",
+            group: "payments",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/admin/feature-flags/:name",
+      operationId: "deleteFeatureFlag",
+      summary: "Delete a feature-flag override",
+      description:
+        "Removes the database override for the named feature flag so it falls back to the environment value or code default. The deletion is audit-logged. Admin bearer authentication is required.",
+      tags: ["feature-flags"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("name", "Feature-flag name.", "payments.new-checkout"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Feature flag override removed successfully.",
+          "DeleteFeatureFlagResult",
+          {
+            name: "payments.new-checkout",
+            deletedOverride: true,
+            effectiveEnabled: false,
+            effectiveSource: "default",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
       },
     },
     {
@@ -4208,6 +4783,44 @@ function buildOperations(): OperationDefinition[] {
             pagination: searchResultExample.pagination,
           },
         ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/analytics/export",
+      operationId: "exportPostingAnalytics",
+      summary: "Export owner analytics as CSV",
+      description:
+        "Streams owner-level posting analytics for the selected reporting window as a downloadable CSV file. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "owner",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [
+        queryParam(
+          "window",
+          { type: "string", enum: ["7d", "30d", "all"], default: "7d" },
+          "Reporting window.",
+          "7d",
+        ),
+      ],
+      responses: {
+        "200": {
+          description: "Analytics CSV exported successfully.",
+          content: {
+            "text/csv": {
+              schema: {
+                type: "string",
+                format: "binary",
+              },
+            },
+          },
+        },
         ...commonErrors([400, 401, 403, 429, 500]),
       },
     },
@@ -7919,6 +8532,216 @@ function buildComponents(): Record<string, unknown> {
           },
         },
       },
+      BlobDeleteResult: {
+        type: "object",
+        required: ["deleted"],
+        properties: {
+          deleted: { type: "boolean", const: true },
+        },
+      },
+      MfaVerificationScope: {
+        type: "string",
+        enum: ["mfa-management", "device-login"],
+        description: "Step-up verification scope.",
+      },
+      MfaVerificationFactor: {
+        type: "string",
+        enum: ["email", "totp", "sms"],
+      },
+      MfaVerificationChallengeFactor: {
+        type: "string",
+        enum: ["email", "totp"],
+      },
+      MfaVerificationOptionsResult: {
+        type: "object",
+        required: [
+          "scope",
+          "verified",
+          "verifiedUntil",
+          "availableFactors",
+          "recommendedFactor",
+        ],
+        properties: {
+          scope: schemaRef("MfaVerificationScope"),
+          verified: { type: "boolean" },
+          verifiedUntil: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+          },
+          availableFactors: {
+            type: "array",
+            items: schemaRef("MfaVerificationFactor"),
+          },
+          recommendedFactor: {
+            type: "string",
+            enum: ["email", "totp", "sms"],
+            nullable: true,
+          },
+        },
+      },
+      MfaVerificationChallengeRequest: {
+        type: "object",
+        required: ["scope", "factor"],
+        properties: {
+          scope: schemaRef("MfaVerificationScope"),
+          factor: schemaRef("MfaVerificationChallengeFactor"),
+        },
+      },
+      MfaVerificationChallengeResult: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["scope", "factor", "challengeId", "cooldownUntil"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "email" },
+              challengeId: { type: "null" },
+              cooldownUntil: { type: "string", format: "date-time" },
+            },
+          },
+          {
+            type: "object",
+            required: ["scope", "factor", "challengeId", "prompt"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "totp" },
+              challengeId: { type: "null" },
+              prompt: { type: "boolean", const: true },
+            },
+          },
+        ],
+      },
+      MfaVerificationConfirmRequest: {
+        type: "object",
+        required: ["scope", "factor", "code"],
+        properties: {
+          scope: schemaRef("MfaVerificationScope"),
+          factor: schemaRef("MfaVerificationChallengeFactor"),
+          code: { type: "string", minLength: 1 },
+        },
+      },
+      MfaVerificationConfirmResult: {
+        type: "object",
+        required: ["verified", "scope", "factor", "verifiedUntil"],
+        properties: {
+          verified: { type: "boolean", const: true },
+          scope: schemaRef("MfaVerificationScope"),
+          factor: schemaRef("MfaVerificationChallengeFactor"),
+          verifiedUntil: { type: "string", format: "date-time" },
+        },
+      },
+      MfaVerificationPreviewResult: {
+        type: "object",
+        required: ["scope", "factor", "code", "expiresInSeconds"],
+        properties: {
+          scope: schemaRef("MfaVerificationScope"),
+          factor: { type: "string", const: "email" },
+          code: { type: "string" },
+          expiresInSeconds: { type: "integer" },
+        },
+      },
+      MfaTotpStatusResult: {
+        type: "object",
+        required: ["enabled"],
+        properties: {
+          enabled: { type: "boolean" },
+        },
+      },
+      MfaTotpBeginRequest: {
+        type: "object",
+        properties: {
+          accountName: { type: "string", minLength: 1 },
+        },
+      },
+      MfaTotpBeginResult: {
+        type: "object",
+        required: ["secret", "uri"],
+        properties: {
+          secret: { type: "string" },
+          uri: { type: "string" },
+        },
+      },
+      MfaTotpConfirmRequest: {
+        type: "object",
+        required: ["code"],
+        properties: {
+          code: { type: "string", minLength: 1 },
+        },
+      },
+      MfaTotpConfirmResult: {
+        type: "object",
+        required: ["confirmed"],
+        properties: {
+          confirmed: { type: "boolean", const: true },
+        },
+      },
+      MfaTotpDisableRequest: {
+        type: "object",
+        additionalProperties: false,
+      },
+      MfaTotpDisableResult: {
+        type: "object",
+        required: ["disabled"],
+        properties: {
+          disabled: { type: "boolean", const: true },
+        },
+      },
+      MfaTotpPendingCancelResult: {
+        type: "object",
+        required: ["cancelled"],
+        properties: {
+          cancelled: { type: "boolean", const: true },
+        },
+      },
+      FeatureFlagSource: {
+        type: "string",
+        enum: ["db", "env", "default"],
+      },
+      ResolvedFeatureFlag: {
+        type: "object",
+        required: ["name", "enabled", "source", "group"],
+        properties: {
+          name: { type: "string" },
+          enabled: { type: "boolean" },
+          source: schemaRef("FeatureFlagSource"),
+          description: { type: "string", nullable: true },
+          group: { type: "string", nullable: true },
+        },
+      },
+      FeatureFlagListResult: {
+        type: "array",
+        items: schemaRef("ResolvedFeatureFlag"),
+      },
+      SetFeatureFlagRequest: {
+        type: "object",
+        required: ["enabled"],
+        properties: {
+          enabled: { type: "boolean" },
+          description: { type: "string", maxLength: 1000, nullable: true },
+          group: {
+            type: "string",
+            minLength: 1,
+            maxLength: 100,
+            nullable: true,
+          },
+        },
+      },
+      DeleteFeatureFlagResult: {
+        type: "object",
+        required: [
+          "name",
+          "deletedOverride",
+          "effectiveEnabled",
+          "effectiveSource",
+        ],
+        properties: {
+          name: { type: "string" },
+          deletedOverride: { type: "boolean" },
+          effectiveEnabled: { type: "boolean" },
+          effectiveSource: schemaRef("FeatureFlagSource"),
+        },
+      },
       PublicProfileRecord: {
         type: "object",
         additionalProperties: true,
@@ -8746,6 +9569,15 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "moderation",
         description: "Safety reporting and moderator review workflows.",
+      },
+      {
+        name: "mfa",
+        description:
+          "Multi-factor step-up verification and authenticator (TOTP) enrollment.",
+      },
+      {
+        name: "feature-flags",
+        description: "Administrative feature-flag resolution and overrides.",
       },
     ],
     paths: buildDocumentPaths(),
