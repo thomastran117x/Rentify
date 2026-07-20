@@ -26,6 +26,7 @@ export type SiteHeaderUserRole = AuthResponseUser["role"];
 
 export const navigationLinks: HeaderNavigationLink[] = [
   { href: "/postings", label: "Browse" },
+  { href: "/blog", label: "Blog" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/services", label: "Services" },
   { href: "/contact", label: "Contact" },
