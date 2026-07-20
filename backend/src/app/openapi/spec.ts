@@ -3627,6 +3627,143 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/admin/organizations/blog-search/reindex",
+      operationId: "startOrganizationBlogSearchReindex",
+      summary: "Start an organization blog search reindex run",
+      description:
+        "Starts a full organization blog search reindex. Admin bearer authentication is required.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization blog search reindex has been started.",
+          "SearchReindexRunRecord",
+          searchStatusExample.currentReindexRun,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/blog-search/reindex-runs/:id",
+      operationId: "getOrganizationBlogSearchReindexRun",
+      summary: "Get an organization blog search reindex run",
+      description:
+        "Returns the specified organization blog search reindex run, or `run: null` if the identifier does not exist.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Search reindex run identifier.", "reindex-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchReindexRunLookupResult",
+          {
+            run: searchStatusExample.currentReindexRun,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/blog-search/status",
+      operationId: "getOrganizationBlogSearchStatus",
+      summary: "Get organization blog search subsystem status",
+      description:
+        "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization blog search index.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchStatusResult",
+          searchStatusExample,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/blog-search/outbox/replay-dead-lettered",
+      operationId: "replayDeadLetteredOrganizationBlogSearchOutbox",
+      summary: "Replay dead-lettered organization blog search outbox entries",
+      description:
+        "Requeues dead-lettered organization blog search sync entries. The optional `limit` query controls how many items to revive.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "limit",
+          { type: "integer", minimum: 1, default: 100 },
+          "Maximum number of dead-lettered entries to revive.",
+          100,
+        ),
+      ],
+      responses: {
+        "202": successResponse(
+          202,
+          "Dead-lettered organization blog search outbox entries are being replayed.",
+          "ReplayDeadLetteredSearchOutboxResult",
+          {
+            revived: 4,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/blog-search/cleanup-retained-indices",
+      operationId: "cleanupRetainedOrganizationBlogSearchIndices",
+      summary: "Delete retained organization blog search indices",
+      description:
+        "Deletes retained organization blog search indices that are no longer needed after reindex completion.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization blog search index cleanup has been started.",
+          "CleanupRetainedSearchIndicesResult",
+          {
+            deleted: 1,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
       path: "/postings",
       operationId: "createPosting",
       summary: "Create a draft posting",

@@ -7827,6 +7827,521 @@
         }
       }
     },
+    "/admin/organizations/blog-search/reindex": {
+      "post": {
+        "operationId": "startOrganizationBlogSearchReindex",
+        "summary": "Start an organization blog search reindex run",
+        "description": "Starts a full organization blog search reindex. Admin bearer authentication is required.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchReindexRunRecord"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization blog search reindex has been started.",
+                  "data": {
+                    "id": "reindex-1",
+                    "status": "running",
+                    "targetIndexName": "postings_v4",
+                    "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                    "totalPostings": 62,
+                    "indexedPostings": 40,
+                    "failedPostings": 0,
+                    "startedAt": "2026-05-25T10:05:00.000Z",
+                    "createdAt": "2026-05-25T10:05:00.000Z",
+                    "updatedAt": "2026-05-25T10:10:00.000Z"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/blog-search/reindex-runs/{id}": {
+      "get": {
+        "operationId": "getOrganizationBlogSearchReindexRun",
+        "summary": "Get an organization blog search reindex run",
+        "description": "Returns the specified organization blog search reindex run, or `run: null` if the identifier does not exist.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Search reindex run identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "reindex-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchReindexRunLookupResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "run": {
+                      "id": "reindex-1",
+                      "status": "running",
+                      "targetIndexName": "postings_v4",
+                      "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                      "totalPostings": 62,
+                      "indexedPostings": 40,
+                      "failedPostings": 0,
+                      "startedAt": "2026-05-25T10:05:00.000Z",
+                      "createdAt": "2026-05-25T10:05:00.000Z",
+                      "updatedAt": "2026-05-25T10:10:00.000Z"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/admin/organizations/blog-search/status": {
+      "get": {
+        "operationId": "getOrganizationBlogSearchStatus",
+        "summary": "Get organization blog search subsystem status",
+        "description": "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization blog search index.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SearchStatusResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "aliases": {
+                      "read": "postings-read",
+                      "write": "postings-write",
+                      "readTargets": [
+                        "postings_v3"
+                      ],
+                      "writeTargets": [
+                        "postings_v3"
+                      ],
+                      "health": {
+                        "state": "ready",
+                        "readAlias": "postings-read",
+                        "writeAlias": "postings-write",
+                        "readTargets": [
+                          "postings_v3"
+                        ],
+                        "writeTargets": [
+                          "postings_v3"
+                        ]
+                      }
+                    },
+                    "elasticsearch": {
+                      "enabled": true,
+                      "circuitBreaker": {
+                        "state": "closed",
+                        "consecutiveFailures": 0,
+                        "failureThreshold": 5,
+                        "cooldownMs": 30000
+                      },
+                      "telemetry": {
+                        "total": 100,
+                        "totalLatencyMs": 2400,
+                        "serverErrorCount": 0,
+                        "timeoutCount": 0,
+                        "transportErrorCount": 0,
+                        "openedCount": 0,
+                        "shortCircuitCount": 0
+                      }
+                    },
+                    "currentReindexRun": {
+                      "id": "reindex-1",
+                      "status": "running",
+                      "targetIndexName": "postings_v4",
+                      "sourceSnapshotAt": "2026-05-25T10:00:00.000Z",
+                      "totalPostings": 62,
+                      "indexedPostings": 40,
+                      "failedPostings": 0,
+                      "startedAt": "2026-05-25T10:05:00.000Z",
+                      "createdAt": "2026-05-25T10:05:00.000Z",
+                      "updatedAt": "2026-05-25T10:10:00.000Z"
+                    },
+                    "pendingOutboxCount": 2,
+                    "pendingOutboxOldestAgeMs": 12000,
+                    "lag": {
+                      "unpublishedCount": 1,
+                      "unpublishedOldestAgeMs": 4000,
+                      "publishedNotIndexedCount": 1,
+                      "publishedNotIndexedOldestAgeMs": 8000,
+                      "deadLetteredByOperation": {
+                        "upsert": 0,
+                        "delete": 0,
+                        "barrier": 0
+                      }
+                    },
+                    "queueInspection": {
+                      "ok": true
+                    },
+                    "queueCounts": {
+                      "main": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry1": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry2": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "retry3": {
+                        "ready": 0,
+                        "consumers": 1
+                      },
+                      "deadLetter": {
+                        "ready": 0,
+                        "consumers": 1
+                      }
+                    },
+                    "telemetry": {
+                      "fallbacks": {
+                        "circuit-open": 0,
+                        "es-unavailable": 0,
+                        "index-drift": 0
+                      },
+                      "queueInspectionFailures": 0,
+                      "reindexRuns": {
+                        "completed": 4,
+                        "failed": 0,
+                        "lastDurationMs": 180000
+                      },
+                      "aliasActions": {
+                        "createdIndexCount": 4,
+                        "repairedReadAliasCount": 0,
+                        "repairedWriteAliasCount": 0,
+                        "lastAction": "created_index"
+                      }
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/blog-search/outbox/replay-dead-lettered": {
+      "post": {
+        "operationId": "replayDeadLetteredOrganizationBlogSearchOutbox",
+        "summary": "Replay dead-lettered organization blog search outbox entries",
+        "description": "Requeues dead-lettered organization blog search sync entries. The optional `limit` query controls how many items to revive.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of dead-lettered entries to revive.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 100
+            },
+            "example": 100
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ReplayDeadLetteredSearchOutboxResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Dead-lettered organization blog search outbox entries are being replayed.",
+                  "data": {
+                    "revived": 4
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/admin/organizations/blog-search/cleanup-retained-indices": {
+      "post": {
+        "operationId": "cleanupRetainedOrganizationBlogSearchIndices",
+        "summary": "Delete retained organization blog search indices",
+        "description": "Deletes retained organization blog search indices that are no longer needed after reindex completion.",
+        "tags": [
+          "admin-search"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CleanupRetainedSearchIndicesResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Organization blog search index cleanup has been started.",
+                  "data": {
+                    "deleted": 1
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/postings": {
       "post": {
         "operationId": "createPosting",

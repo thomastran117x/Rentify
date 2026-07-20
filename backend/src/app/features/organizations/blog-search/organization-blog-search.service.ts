@@ -856,8 +856,22 @@ export class OrganizationBlogSearchService {
         continue;
       }
 
-      existing.supersededIds.push(existing.primary.id);
-      existing.primary = job;
+      // Keep the NEWEST event (by createdAt) as primary. Claim order follows
+      // availableAt, and a retried older row can have a later availableAt than a
+      // newer row, so the newer job may arrive first. If we blindly made the
+      // last-seen job primary, the older job could win, the newer row would be
+      // marked superseded, and when the older message is later consumed it would
+      // stale-skip against that newer superseded row — leaving neither event
+      // applied to Elasticsearch.
+      if (
+        new Date(job.createdAt).getTime() >=
+        new Date(existing.primary.createdAt).getTime()
+      ) {
+        existing.supersededIds.push(existing.primary.id);
+        existing.primary = job;
+      } else {
+        existing.supersededIds.push(job.id);
+      }
     }
 
     return Array.from(groups.values());

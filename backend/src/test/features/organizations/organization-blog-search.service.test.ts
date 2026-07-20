@@ -406,8 +406,8 @@ describe("OrganizationBlogSearchService", () => {
       const { service, queueService, repository } = createHarness({
         repository: {
           claimSearchOutboxBatch: jest.fn(async () => [
-            createOutbox({ id: "o1" }),
-            createOutbox({ id: "o2" }),
+            createOutbox({ id: "o1", createdAt: "2026-05-01T00:00:00.000Z" }),
+            createOutbox({ id: "o2", createdAt: "2026-05-01T00:00:05.000Z" }),
           ]),
         },
       });
@@ -417,6 +417,29 @@ describe("OrganizationBlogSearchService", () => {
         "o2",
         ["o1"],
         "o2",
+      );
+    });
+
+    it("keeps the newest event as primary even when it is claimed first", async () => {
+      // A retried older row can have a later availableAt, so claim order can put
+      // the newer job first; the newer createdAt must still win as primary.
+      const { service, queueService, repository } = createHarness({
+        repository: {
+          claimSearchOutboxBatch: jest.fn(async () => [
+            createOutbox({ id: "newer", createdAt: "2026-05-01T00:00:05.000Z" }),
+            createOutbox({ id: "older", createdAt: "2026-05-01T00:00:00.000Z" }),
+          ]),
+        },
+      });
+      await service.processOutboxRelayBatch(10, 5);
+      expect(queueService.publishIndexJob).toHaveBeenCalledTimes(1);
+      expect(queueService.publishIndexJob).toHaveBeenCalledWith(
+        expect.objectContaining({ outboxId: "newer" }),
+      );
+      expect(repository.markSearchOutboxRelayed).toHaveBeenCalledWith(
+        "newer",
+        ["older"],
+        "newer",
       );
     });
 
