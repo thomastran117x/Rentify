@@ -15,6 +15,7 @@ x-backend-environment: &backend-environment
   ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
   ELASTICSEARCH_POSTINGS_INDEX: ${ELASTICSEARCH_POSTINGS_INDEX:-postings}
   ELASTICSEARCH_ORGANIZATIONS_INDEX: ${ELASTICSEARCH_ORGANIZATIONS_INDEX:-organizations}
+  ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX: ${ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX:-organization-blogs}
   LOG_LEVEL: ${LOG_LEVEL:-debug}
   LOG_SERVICE_NAME: ${LOG_SERVICE_NAME:-backend}
   LOG_FALLBACK_DIRECTORY: ${LOG_FALLBACK_DIRECTORY:-/app/logs/fallback}
@@ -358,6 +359,34 @@ services:
       [
         "node",
         "dist/workers/organizations/organization-search-indexer.worker.js",
+      ]
+
+  organization-blog-search-maintainer-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-organization-blog-search-maintainer-worker
+    restart: unless-stopped
+    depends_on: *search-worker-depends-on
+    environment: *backend-environment
+    volumes: *backend-log-volume
+    command:
+      [
+        "node",
+        "dist/workers/organizations/organization-blog-search-maintainer.worker.js",
+      ]
+
+  organization-blog-search-indexer-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-organization-blog-search-indexer-worker
+    restart: unless-stopped
+    depends_on: *search-worker-depends-on
+    environment: *backend-environment
+    volumes: *backend-log-volume
+    command:
+      [
+        "node",
+        "dist/workers/organizations/organization-blog-search-indexer.worker.js",
       ]
 
   frontend:

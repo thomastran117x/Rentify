@@ -195,9 +195,18 @@ export interface UpdateOrganizationAnnouncementInput {
 
 export type OrganizationBlogStatus = "draft" | "published";
 
+export type OrganizationBlogSort = "relevance" | "newest" | "oldest";
+
+export type OrganizationBlogSearchSource = "elasticsearch" | "database";
+
 export interface OrganizationBlogPostRecord {
   id: string;
   organizationId: string;
+  organization?: {
+    id: string;
+    name: string;
+    logoUrl?: string;
+  };
   author?: {
     id: string;
     email: string;
@@ -215,6 +224,9 @@ export interface OrganizationBlogPostRecord {
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // Precomputed by the API on list responses (where `body` is omitted); absent
+  // on single-post reads, where `body` is present and reading time is derived.
+  readingMinutes?: number;
 }
 
 export interface OrganizationBlogResult {
@@ -227,6 +239,8 @@ export interface OrganizationBlogResult {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
   };
+  source?: OrganizationBlogSearchSource;
+  query?: string;
 }
 
 export interface CreateOrganizationBlogInput {
@@ -255,6 +269,16 @@ export interface ListPublicBlogInput {
   page?: number;
   pageSize?: number;
   tag?: string;
+  q?: string;
+  sort?: OrganizationBlogSort;
+}
+
+export interface ListBlogFeedInput {
+  page?: number;
+  pageSize?: number;
+  tag?: string;
+  q?: string;
+  sort?: OrganizationBlogSort;
 }
 
 export interface OrganizationReviewResponse {
@@ -474,10 +498,45 @@ function buildPublicBlogPath(id: string, input?: ListPublicBlogInput): string {
     searchParams.set("tag", input.tag.trim());
   }
 
+  if (input?.q?.trim()) {
+    searchParams.set("q", input.q.trim());
+  }
+
+  if (input?.sort) {
+    searchParams.set("sort", input.sort);
+  }
+
   const query = searchParams.toString();
   return query
     ? `/organizations/${id}/blog?${query}`
     : `/organizations/${id}/blog`;
+}
+
+function buildBlogFeedPath(input?: ListBlogFeedInput): string {
+  const searchParams = new URLSearchParams();
+
+  if (input?.page && input.page > 1) {
+    searchParams.set("page", String(input.page));
+  }
+
+  if (input?.pageSize) {
+    searchParams.set("pageSize", String(input.pageSize));
+  }
+
+  if (input?.tag?.trim()) {
+    searchParams.set("tag", input.tag.trim());
+  }
+
+  if (input?.q?.trim()) {
+    searchParams.set("q", input.q.trim());
+  }
+
+  if (input?.sort) {
+    searchParams.set("sort", input.sort);
+  }
+
+  const query = searchParams.toString();
+  return query ? `/blog?${query}` : "/blog";
 }
 
 function buildPublicReviewsPath(
@@ -628,6 +687,9 @@ export const organizationsApi = {
       "GET",
       `/organizations/${id}/blog/${encodeURIComponent(slug)}`,
     );
+  },
+  searchBlogFeed(input?: ListBlogFeedInput): Promise<OrganizationBlogResult> {
+    return publicJson<OrganizationBlogResult>("GET", buildBlogFeedPath(input));
   },
   listPublicReviews(
     id: string,

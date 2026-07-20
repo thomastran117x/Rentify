@@ -18,6 +18,7 @@ export const ROUTE_MODULE_IDS = [
   "moderation-reports",
   "search-admin",
   "organizations-search-admin",
+  "organizations-blog-search-admin",
   "postings-owner",
   "postings-analytics",
   "postings-reviews",

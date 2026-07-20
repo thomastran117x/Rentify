@@ -2670,11 +2670,74 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/blog",
+      operationId: "searchPublicBlogFeed",
+      summary: "Search the global organization blog feed",
+      description:
+        "Returns paginated, published blog posts across all organizations. This is a public, unauthenticated marketing endpoint backed by Elasticsearch (with a database fallback); each result carries a minimal organization summary. Draft posts are never returned.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of blog posts per page.",
+          20,
+        ),
+        queryParam(
+          "tag",
+          { type: "string" },
+          "Optional tag filter.",
+          "announcement",
+        ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 200 },
+          "Optional free-text search over the post title, excerpt, body, and tags.",
+          "weekend stays",
+        ),
+        queryParam(
+          "sort",
+          {
+            type: "string",
+            enum: ["relevance", "newest", "oldest"],
+          },
+          "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
+          "relevance",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogPostListResult",
+          organizationBlogPostListExample,
+          "Organization blog posts returned successfully.",
+          {
+            requestId: requestIdExample,
+            pagination: organizationBlogPostListExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/organizations/:id/blog",
       operationId: "listPublicOrganizationBlogPosts",
       summary: "List published organization blog posts",
       description:
-        "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned.",
+        "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned. Backed by Elasticsearch (with a database fallback) so an optional free-text query is supported.",
       tags: ["organizations"],
       permissions: {
         authMode: "public",
@@ -2700,6 +2763,21 @@ function buildOperations(): OperationDefinition[] {
           { type: "string" },
           "Optional tag filter.",
           "announcement",
+        ),
+        queryParam(
+          "q",
+          { type: "string", minLength: 1, maxLength: 200 },
+          "Optional free-text search over the post title, excerpt, body, and tags.",
+          "weekend stays",
+        ),
+        queryParam(
+          "sort",
+          {
+            type: "string",
+            enum: ["relevance", "newest", "oldest"],
+          },
+          "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
+          "relevance",
         ),
       ],
       responses: {
@@ -3539,6 +3617,143 @@ function buildOperations(): OperationDefinition[] {
         "202": successResponse(
           202,
           "Search index cleanup has been started.",
+          "CleanupRetainedSearchIndicesResult",
+          {
+            deleted: 1,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/blog-search/reindex",
+      operationId: "startOrganizationBlogSearchReindex",
+      summary: "Start an organization blog search reindex run",
+      description:
+        "Starts a full organization blog search reindex. Admin bearer authentication is required.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization blog search reindex has been started.",
+          "SearchReindexRunRecord",
+          searchStatusExample.currentReindexRun,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/blog-search/reindex-runs/:id",
+      operationId: "getOrganizationBlogSearchReindexRun",
+      summary: "Get an organization blog search reindex run",
+      description:
+        "Returns the specified organization blog search reindex run, or `run: null` if the identifier does not exist.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Search reindex run identifier.", "reindex-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchReindexRunLookupResult",
+          {
+            run: searchStatusExample.currentReindexRun,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/organizations/blog-search/status",
+      operationId: "getOrganizationBlogSearchStatus",
+      summary: "Get organization blog search subsystem status",
+      description:
+        "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization blog search index.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SearchStatusResult",
+          searchStatusExample,
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/blog-search/outbox/replay-dead-lettered",
+      operationId: "replayDeadLetteredOrganizationBlogSearchOutbox",
+      summary: "Replay dead-lettered organization blog search outbox entries",
+      description:
+        "Requeues dead-lettered organization blog search sync entries. The optional `limit` query controls how many items to revive.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "limit",
+          { type: "integer", minimum: 1, default: 100 },
+          "Maximum number of dead-lettered entries to revive.",
+          100,
+        ),
+      ],
+      responses: {
+        "202": successResponse(
+          202,
+          "Dead-lettered organization blog search outbox entries are being replayed.",
+          "ReplayDeadLetteredSearchOutboxResult",
+          {
+            revived: 4,
+          },
+        ),
+        ...commonErrors([401, 403, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/organizations/blog-search/cleanup-retained-indices",
+      operationId: "cleanupRetainedOrganizationBlogSearchIndices",
+      summary: "Delete retained organization blog search indices",
+      description:
+        "Deletes retained organization blog search indices that are no longer needed after reindex completion.",
+      tags: ["admin-search"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "202": successResponse(
+          202,
+          "Organization blog search index cleanup has been started.",
           "CleanupRetainedSearchIndicesResult",
           {
             deleted: 1,
@@ -7170,6 +7385,15 @@ function buildComponents(): Record<string, unknown> {
           avatarUrl: { type: "string", format: "uri" },
         },
       },
+      OrganizationBlogOrganizationSummary: {
+        type: "object",
+        required: ["id", "name"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          logoUrl: { type: "string", format: "uri" },
+        },
+      },
       OrganizationBlogPostRecord: {
         type: "object",
         required: [
@@ -7186,6 +7410,7 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           id: { type: "string" },
           organizationId: { type: "string" },
+          organization: schemaRef("OrganizationBlogOrganizationSummary"),
           author: schemaRef("OrganizationBlogAuthorSummary"),
           title: { type: "string" },
           slug: { type: "string" },
@@ -7198,6 +7423,12 @@ function buildComponents(): Record<string, unknown> {
           publishedAt: { type: "string", format: "date-time" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
+          readingMinutes: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "Precomputed reading-time estimate in minutes. Present on public list responses (where body is omitted); absent on single-post reads.",
+          },
         },
       },
       OrganizationBlogPostListResult: {
@@ -7209,6 +7440,16 @@ function buildComponents(): Record<string, unknown> {
             items: schemaRef("OrganizationBlogPostRecord"),
           },
           pagination: schemaRef("Pagination"),
+          source: {
+            type: "string",
+            enum: ["elasticsearch", "database"],
+            description:
+              "Which backend served the result. Present only on public, Elasticsearch-backed reads.",
+          },
+          query: {
+            type: "string",
+            description: "Echoes the free-text query, when one was provided.",
+          },
         },
       },
       CreateOrganizationBlogPostRequest: {

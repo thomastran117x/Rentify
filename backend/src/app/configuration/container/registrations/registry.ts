@@ -11,6 +11,7 @@ import { feedbacksRegistrationModule } from "@/configuration/container/registrat
 import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
 import { organizationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations";
 import { organizationsSearchRegistrationModule } from "@/configuration/container/registrations/modules/organizations-search";
+import { organizationsBlogSearchRegistrationModule } from "@/configuration/container/registrations/modules/organizations-blog-search";
 import { paymentsRegistrationModule } from "@/configuration/container/registrations/modules/payments";
 import { postingsAnalyticsRegistrationModule } from "@/configuration/container/registrations/modules/postings-analytics";
 import { postingsCoreRegistrationModule } from "@/configuration/container/registrations/modules/postings-core";
@@ -51,6 +52,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authPersonalAccessTokensRegistrationModule,
   organizationsRegistrationModule,
   organizationsSearchRegistrationModule,
+  organizationsBlogSearchRegistrationModule,
   reportsRegistrationModule,
   recommendationsActivityRegistrationModule,
   recommendationsPrecomputeRegistrationModule,

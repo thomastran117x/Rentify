@@ -83,6 +83,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.organizationAccessService,
         containerTokens.organizationAuditService,
         containerTokens.blobService,
+        containerTokens.organizationBlogPublicSearchService,
       ],
       resolve: ({ resolve }) =>
         new OrganizationBlogService(
@@ -90,6 +91,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.organizationAccessService),
           resolve(containerTokens.organizationAuditService),
           resolve(containerTokens.blobService),
+          resolve(containerTokens.organizationBlogPublicSearchService),
         ),
     });
     container.register({
