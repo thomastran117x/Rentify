@@ -92,6 +92,8 @@ describe("ForgotUsernameForm", () => {
       });
     });
     expect(await screen.findByText("Check your inbox")).toBeInTheDocument();
+    // The consumed captcha token is cleared so other auth forms can't reuse it.
+    expect(clearCaptchaTokenMock).toHaveBeenCalled();
   });
 
   it("shows the same confirmation panel regardless of account existence", async () => {

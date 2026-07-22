@@ -117,6 +117,10 @@ export function ForgotUsernameForm() {
         captchaToken,
       });
 
+      // The captcha token is a shared store across auth forms and has now been
+      // consumed by the backend. Clear it so a later sign-in or recovery attempt
+      // doesn't reuse a spent token and fail server-side captcha verification.
+      handleCaptchaReset();
       setRequestComplete(true);
       setGeneralError(null);
     } catch (error) {
