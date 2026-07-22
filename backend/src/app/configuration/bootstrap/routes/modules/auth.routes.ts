@@ -45,6 +45,13 @@ export const authLocalRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/auth/local/username/forgot",
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "forgotUsername",
+      ),
+    );
+    app.post(
       "/auth/local/email/verify",
       resolveHandler<AuthController>(
         containerTokens.authController,

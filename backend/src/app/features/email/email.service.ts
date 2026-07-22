@@ -36,6 +36,12 @@ export interface SendPasswordResetEmailInput {
   expiresInMinutes?: number;
 }
 
+export interface SendUsernameReminderEmailInput {
+  to: string;
+  username: string;
+  firstName?: string;
+}
+
 export interface SendOrganizationInviteEmailInput {
   to: string;
   organizationName: string;
@@ -69,6 +75,12 @@ export class EmailService {
     input: SendPasswordResetEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("password_reset", input);
+  }
+
+  async sendUsernameReminderEmail(
+    input: SendUsernameReminderEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("username_reminder", input);
   }
 
   async sendOrganizationInviteEmail(

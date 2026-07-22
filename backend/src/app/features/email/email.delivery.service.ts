@@ -11,6 +11,7 @@ import type {
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
+  SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
 import nodemailer, { type Transporter } from "nodemailer";
@@ -142,6 +143,9 @@ export class EmailDeliveryService {
         return;
       case "password_reset":
         await this.sendPasswordResetEmail(payload.input);
+        return;
+      case "username_reminder":
+        await this.sendUsernameReminderEmail(payload.input);
         return;
       case "organization_invite":
         await this.sendOrganizationInviteEmail(payload.input);
@@ -336,6 +340,46 @@ export class EmailDeliveryService {
     });
   }
 
+  async sendUsernameReminderEmail(
+    input: SendUsernameReminderEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const escapedGreetingName = escapeHtml(greetingName);
+    const escapedUsername = escapeHtml(input.username);
+    const signInUrl = `${this.appBaseUrl}/login`;
+    const escapedSignInUrl = escapeHtml(signInUrl);
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Your Rentify username",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        "You asked us to remind you of the username for your Rentify account.",
+        "",
+        `Username: ${input.username}`,
+        "",
+        "Use this username to sign in, and to reset your password if you ever need to.",
+        `Sign in here: ${signInUrl}`,
+        "",
+        "If you didn't request this, you can safely ignore this email.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your username</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapedGreetingName},</p>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">You asked us to remind you of the username for your Rentify account. Use it to sign in &mdash; and to reset your password if you ever need to.</p>`,
+          this.buildValueBlock("Username", escapedUsername),
+          this.buildCTAButton(escapedSignInUrl, "Sign in"),
+          this.buildAlertBox(
+            "Didn&rsquo;t request this? You can safely ignore this email &mdash; nothing about your account has changed.",
+            "info",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
   async sendOrganizationInviteEmail(
     input: SendOrganizationInviteEmailInput,
   ): Promise<void> {
@@ -484,6 +528,15 @@ export class EmailDeliveryService {
       `<div style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:12px;padding:24px 20px;text-align:center;margin:20px 0;">`,
       `<p style="margin:0 0 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#7c3aed;">${label}</p>`,
       `<p style="margin:0;font-size:32px;font-weight:700;letter-spacing:0.35em;color:#020617;">${code}</p>`,
+      `</div>`,
+    ].join("");
+  }
+
+  private buildValueBlock(label: string, value: string): string {
+    return [
+      `<div style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:12px;padding:24px 20px;text-align:center;margin:20px 0;">`,
+      `<p style="margin:0 0 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#7c3aed;">${label}</p>`,
+      `<p style="margin:0;font-size:24px;font-weight:700;color:#020617;word-break:break-all;">${value}</p>`,
       `</div>`,
     ].join("");
   }

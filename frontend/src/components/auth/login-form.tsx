@@ -19,6 +19,7 @@ import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { AccountRecoveryDialog } from "@/components/auth/account-recovery-dialog";
+import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
 import {
   mfaVerificationApi,
   type MfaVerificationChallengeFactor,
@@ -344,6 +345,9 @@ export function LoginForm({
   const [unlockEmail, setUnlockEmail] = useState<string | null>(null);
   const [accountRecoveryOpen, setAccountRecoveryOpen] =
     useState(initialRecoveryOpen);
+  const [welcomeSession, setWelcomeSession] = useState<AuthResponseBody | null>(
+    null,
+  );
   const [devicePending, setDevicePending] = useState(false);
   const [deviceMfaDialogState, setDeviceMfaDialogState] =
     useState<DeviceMfaDialogState | null>(null);
@@ -381,7 +385,8 @@ export function LoginForm({
       status === "authenticated" &&
       !devicePending &&
       !authFlowRestorePending &&
-      !deviceLoginPendingFlow
+      !deviceLoginPendingFlow &&
+      !welcomeSession
     ) {
       router.replace(nextPath);
     }
@@ -392,6 +397,7 @@ export function LoginForm({
     nextPath,
     router,
     status,
+    welcomeSession,
   ]);
 
   useEffect(() => {
@@ -592,6 +598,22 @@ export function LoginForm({
     if (!session.device.known) {
       authApi.verifyDevice().catch(() => {});
     }
+    if (session.isNewUser) {
+      setWelcomeSession(session);
+    }
+  }
+
+  function handleWelcomeUsernameSaved(nextUsername: string) {
+    if (!welcomeSession) {
+      return;
+    }
+
+    const updated: AuthResponseBody = {
+      ...welcomeSession,
+      user: { ...welcomeSession.user, username: nextUsername },
+    };
+    setWelcomeSession(updated);
+    setSession(updated);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -655,6 +677,16 @@ export function LoginForm({
   }
 
   if (status === "authenticated" && !devicePending && !deviceLoginPendingFlow) {
+    if (welcomeSession) {
+      return (
+        <OAuthWelcomeModal
+          open={true}
+          username={welcomeSession.user.username}
+          onUsernameSaved={handleWelcomeUsernameSaved}
+          onClose={() => setWelcomeSession(null)}
+        />
+      );
+    }
     return null;
   }
 

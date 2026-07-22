@@ -1416,6 +1416,35 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/auth/local/username/forgot",
+      operationId: "forgotUsername",
+      summary: "Recover a forgotten username",
+      description:
+        "Emails the account username to the address on file. Useful for OAuth-created accounts whose username was auto-generated, and for any local account that forgot its username. The accepted response does not confirm whether an account exists for the email.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("ForgotUsernameRequest", {
+        email: "owner1@rentify.local",
+        captchaToken: "turnstile-token",
+      }),
+      responses: {
+        "202": successResponse(
+          202,
+          "Username reminder instructions have been accepted.",
+          "AcceptedActionResult",
+          actionAcceptedExample,
+        ),
+        ...commonErrors([400, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
       path: "/auth/local/password/reset",
       operationId: "resetPassword",
       summary: "Complete a password reset",
@@ -8252,6 +8281,11 @@ function buildComponents(): Record<string, unknown> {
             },
           },
           user: schemaRef("AuthResponseUser"),
+          isNewUser: {
+            type: "boolean",
+            description:
+              "Present and true only when a first-time OAuth sign-in just created this account, so the client can surface the generated-username onboarding flow. Absent for returning sign-ins and all local flows.",
+          },
         },
       },
       SignupVerificationPendingResult: {
@@ -8344,6 +8378,14 @@ function buildComponents(): Record<string, unknown> {
         required: ["username", "captchaToken"],
         properties: {
           username: { type: "string" },
+          captchaToken: { type: "string" },
+        },
+      },
+      ForgotUsernameRequest: {
+        type: "object",
+        required: ["email", "captchaToken"],
+        properties: {
+          email: { type: "string", format: "email" },
           captchaToken: { type: "string" },
         },
       },

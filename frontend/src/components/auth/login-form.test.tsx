@@ -22,6 +22,7 @@ const {
   verifyDeviceMock,
   logoutMock,
   getOptionsMock,
+  oauthSuccessSessionMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
@@ -30,6 +31,7 @@ const {
   verifyDeviceMock: vi.fn(),
   logoutMock: vi.fn(),
   getOptionsMock: vi.fn(),
+  oauthSuccessSessionMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -82,7 +84,25 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
 }));
 
 vi.mock("@/components/auth/oauth-buttons", () => ({
-  AuthOAuthButtons: () => <div>OAuth buttons</div>,
+  AuthOAuthButtons: ({
+    onSuccess,
+  }: {
+    onSuccess: (session: unknown) => void;
+  }) => (
+    <button type="button" onClick={() => onSuccess(oauthSuccessSessionMock())}>
+      Trigger OAuth success
+    </button>
+  ),
+}));
+
+vi.mock("@/components/auth/oauth-welcome-modal", () => ({
+  OAuthWelcomeModal: ({
+    open,
+    username,
+  }: {
+    open: boolean;
+    username: string;
+  }) => (open ? <div>Welcome modal for {username}</div> : null),
 }));
 
 vi.mock("@/components/auth/login-unlock-panel", () => ({
@@ -259,6 +279,86 @@ describe("LoginForm", () => {
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
     });
+  });
+
+  it("opens the welcome modal and defers redirect for a first-time OAuth user", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn().mockImplementation(() => {
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        setSession,
+        clearSession: vi.fn(),
+      });
+    });
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+      clearSession: vi.fn(),
+    });
+    oauthSuccessSessionMock.mockReturnValue({
+      accessToken: "access-token",
+      isNewUser: true,
+      device: { known: true, knownByIp: true },
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person.generated",
+        role: "user",
+      },
+    });
+
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+
+    expect(
+      await screen.findByText("Welcome modal for person.generated"),
+    ).toBeInTheDocument();
+    expect(setSession).toHaveBeenCalled();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects a returning OAuth user without showing the welcome modal", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn().mockImplementation(() => {
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        setSession,
+        clearSession: vi.fn(),
+      });
+    });
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+      clearSession: vi.fn(),
+    });
+    oauthSuccessSessionMock.mockReturnValue({
+      accessToken: "access-token",
+      device: { known: true, knownByIp: true },
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person",
+        role: "user",
+      },
+    });
+
+    const { rerender } = render(<LoginForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+
+    // The real AuthProvider re-renders consumers once the session is stored;
+    // simulate that propagation so the authenticated-redirect effect runs.
+    rerender(<LoginForm nextPath="/dashboard" />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    });
+    expect(screen.queryByText(/Welcome modal for/)).not.toBeInTheDocument();
   });
 
   it("maps invalid credential failures to a friendly message", async () => {

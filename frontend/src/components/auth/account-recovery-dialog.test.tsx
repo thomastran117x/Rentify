@@ -7,6 +7,10 @@ vi.mock("./forgot-password-form", () => ({
   ForgotPasswordForm: () => <div>Forgot password form content</div>,
 }));
 
+vi.mock("./forgot-username-form", () => ({
+  ForgotUsernameForm: () => <div>Forgot username form content</div>,
+}));
+
 describe("AccountRecoveryDialog", () => {
   it("shows account recovery options when opened", () => {
     render(<AccountRecoveryDialog open={true} onClose={vi.fn()} />);
@@ -22,7 +26,7 @@ describe("AccountRecoveryDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the username placeholder and lets the user return", async () => {
+  it("shows the username recovery form and lets the user return", async () => {
     const user = userEvent.setup();
 
     render(<AccountRecoveryDialog open={true} onClose={vi.fn()} />);
@@ -32,10 +36,15 @@ describe("AccountRecoveryDialog", () => {
     );
 
     expect(
-      screen.getByText(/Forgot username is still a placeholder/i),
+      screen.getByRole("heading", { name: "Forgot username" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Forgot username form content"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(
+      screen.getByRole("button", { name: "Back to recovery options" }),
+    );
 
     expect(
       screen.getByRole("button", { name: /I forgot my password/i }),

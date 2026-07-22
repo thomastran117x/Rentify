@@ -173,6 +173,7 @@ function createController(overrides?: {
   localAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
   localSignup?: (input: unknown) => Promise<unknown>;
   forgotPassword?: (input: unknown) => Promise<unknown>;
+  forgotUsername?: (input: unknown) => Promise<unknown>;
   resendForgotPassword?: (input: unknown) => Promise<unknown>;
   resetPassword?: (input: unknown) => Promise<AuthSessionResult>;
   verifyEmail?: (input: unknown) => Promise<AuthSessionResult>;
@@ -210,6 +211,12 @@ function createController(overrides?: {
     ),
     forgotPassword: jest.fn(
       overrides?.forgotPassword ??
+        (async () => ({
+          accepted: true,
+        })),
+    ),
+    forgotUsername: jest.fn(
+      overrides?.forgotUsername ??
         (async () => ({
           accepted: true,
         })),
@@ -806,6 +813,30 @@ describe("AuthController", () => {
     expect(authService.resendUnlockLocalLogin).toHaveBeenCalledTimes(1);
   });
 
+  it("forgotUsername verifies captcha, lowercases the email, and accepts the request", async () => {
+    const { controller, authService, captchaService } = createController();
+
+    const response = await controller.forgotUsername(
+      createContext({
+        body: {
+          email: "OWNER1@rentify.local",
+          captchaToken: "forgot-username-captcha",
+        },
+        headers: {
+          "x-request-id": "req-forgot-username",
+        },
+      }),
+    );
+
+    expect(captchaService.verify).toHaveBeenCalledTimes(1);
+    expect(authService.forgotUsername).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      email: "owner1@rentify.local",
+      deviceId: "device-1",
+    });
+    expect(response.status).toBe(202);
+  });
+
   it("localSignup rejects html in profile fields before calling the auth service", async () => {
     const { controller, authService, captchaService } = createController();
     const context = createContext({
@@ -1140,6 +1171,51 @@ describe("AuthController", () => {
     expect(linkResponse.status).toBe(200);
     expect(listResponse.status).toBe(200);
     expect(unlinkResponse.status).toBe(200);
+  });
+
+  it("forwards the isNewUser flag from a first-time OAuth sign-in into the response body", async () => {
+    const { controller } = createController({
+      googleAuthenticate: async () =>
+        createSessionResult({
+          accessToken: "google-access-token",
+          isNewUser: true,
+        }),
+    });
+
+    const response = await controller.googleAuthenticate(
+      createContext({
+        body: {
+          code: "oauth-code",
+          codeVerifier: "oauth-verifier",
+          nonce: "oauth-nonce",
+        },
+      }),
+    );
+
+    const body = await response.json();
+    expect(body.data.isNewUser).toBe(true);
+  });
+
+  it("omits isNewUser from the response body for returning OAuth sign-ins", async () => {
+    const { controller } = createController({
+      googleAuthenticate: async () =>
+        createSessionResult({
+          accessToken: "google-access-token",
+        }),
+    });
+
+    const response = await controller.googleAuthenticate(
+      createContext({
+        body: {
+          code: "oauth-code",
+          codeVerifier: "oauth-verifier",
+          nonce: "oauth-nonce",
+        },
+      }),
+    );
+
+    const body = await response.json();
+    expect(body.data).not.toHaveProperty("isNewUser");
   });
 
   it("validates oauth provider route params before calling the service", async () => {

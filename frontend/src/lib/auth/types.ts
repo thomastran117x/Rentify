@@ -46,6 +46,12 @@ export interface AuthResponseBody {
     knownByIp: boolean;
   };
   user: AuthResponseUser;
+  /**
+   * Present and true only when a first-time OAuth sign-in just created this
+   * account. Drives the generated-username onboarding welcome modal. Absent for
+   * returning sign-ins and all local flows.
+   */
+  isNewUser?: boolean;
 }
 
 export interface SignupVerificationPendingResult {

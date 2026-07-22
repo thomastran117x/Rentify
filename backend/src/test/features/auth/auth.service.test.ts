@@ -208,6 +208,11 @@ function createService(overrides?: {
     unlockCode: string;
     firstName?: string;
   }) => Promise<void>;
+  sendUsernameReminderEmail?: (input: {
+    to: string;
+    username: string;
+    firstName?: string;
+  }) => Promise<void>;
   verifyGoogle?: (input: unknown) => Promise<{
     email: string;
     provider: string;
@@ -386,6 +391,8 @@ function createService(overrides?: {
     sendPasswordResetEmail:
       overrides?.sendPasswordResetEmail ?? (async () => {}),
     sendLoginUnlockEmail: overrides?.sendLoginUnlockEmail ?? (async () => {}),
+    sendUsernameReminderEmail:
+      overrides?.sendUsernameReminderEmail ?? (async () => {}),
   };
   const googleOAuthService = {
     verify:
@@ -573,6 +580,121 @@ describe("AuthService", () => {
     });
 
     expect(resetEmailSent).toBe(false);
+  });
+
+  it("sends a username reminder to the email on file", async () => {
+    let reminder: { to: string; username: string } | undefined;
+    const service = createService({
+      findUserByEmail: async () => ({
+        ...createUser(),
+        email: "owner@example.com",
+        profile: {
+          ...createUser().profile,
+          username: "owner-one",
+        },
+      }),
+      sendUsernameReminderEmail: async (input) => {
+        reminder = { to: input.to, username: input.username };
+      },
+    });
+
+    await expect(
+      service.forgotUsername({
+        client: createClient(),
+        email: "owner@example.com",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(reminder).toEqual({
+      to: "owner@example.com",
+      username: "owner-one",
+    });
+  });
+
+  it("reminds OAuth-only accounts of their auto-generated username", async () => {
+    let reminder: { username: string } | undefined;
+    const service = createService({
+      findUserByEmail: async () => ({
+        ...createUser(),
+        email: "social@example.com",
+        passwordHash: undefined,
+        profile: {
+          ...createUser().profile,
+          username: "social",
+        },
+        oauthIdentities: [
+          {
+            id: "oauth-identity-1",
+            userId: "user-1",
+            provider: "google",
+            providerUserId: "provider-user-1",
+            providerEmail: "social@example.com",
+            emailVerified: true,
+            linkedAt: "2026-01-01T00:00:00.000Z",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+      sendUsernameReminderEmail: async (input) => {
+        reminder = { username: input.username };
+      },
+    });
+
+    await expect(
+      service.forgotUsername({
+        client: createClient(),
+        email: "social@example.com",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(reminder).toEqual({ username: "social" });
+  });
+
+  it("accepts username reminder requests without sending email for unknown accounts", async () => {
+    let reminderSent = false;
+    const service = createService({
+      findUserByEmail: async () => null,
+      sendUsernameReminderEmail: async () => {
+        reminderSent = true;
+      },
+    });
+
+    await expect(
+      service.forgotUsername({
+        client: createClient(),
+        email: "missing@example.com",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(reminderSent).toBe(false);
+  });
+
+  it("does not send a username reminder when the request is rate limited", async () => {
+    let reminderSent = false;
+    const service = createService({
+      cacheGetJson: async (key: string) =>
+        key.includes("username-reminder") ? { count: 999 } : null,
+      findUserByEmail: async () => {
+        throw new Error("Lookup should not run when rate limited.");
+      },
+      sendUsernameReminderEmail: async () => {
+        reminderSent = true;
+      },
+    });
+
+    await expect(
+      service.forgotUsername({
+        client: createClient(),
+        email: "owner@example.com",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(reminderSent).toBe(false);
   });
 
   it("accepts unknown verification resend requests without sending email", async () => {
@@ -1081,6 +1203,7 @@ describe("AuthService", () => {
     expect(createdOAuthEmail).toBe(createdUser.email);
     expect(result.accessToken).toBe("access-token");
     expect(result.user.email).toBe(createdUser.email);
+    expect(result.isNewUser).toBe(true);
   });
 
   it("rejects OAuth authentication when the email belongs to an unlinked account", async () => {
@@ -1153,6 +1276,7 @@ describe("AuthService", () => {
     });
 
     expect(result.user.email).toBe("renamed@example.com");
+    expect(result.isNewUser).toBeUndefined();
   });
 
   it("links a Google provider to an authenticated local account", async () => {

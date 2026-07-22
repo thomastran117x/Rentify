@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
+import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
 import { SignupVerificationPanel } from "@/components/auth/signup-verification-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
@@ -352,6 +353,9 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const [errors, setErrors] = useState<SignupErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [welcomeSession, setWelcomeSession] = useState<AuthResponseBody | null>(
+    null,
+  );
   const persistedAuthFlow = usePersistedAuthPendingFlow();
   const verificationPending =
     persistedAuthFlow?.flow === "signup-verification"
@@ -360,15 +364,32 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const authFlowRestorePending = persistedAuthFlow === undefined;
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !welcomeSession) {
       clearPersistedAuthPendingFlowByType("signup-verification");
       router.replace(nextPath);
     }
-  }, [nextPath, router, status]);
+  }, [nextPath, router, status, welcomeSession]);
+
+  function handleWelcomeUsernameSaved(nextUsername: string) {
+    if (!welcomeSession) {
+      return;
+    }
+
+    const updated: AuthResponseBody = {
+      ...welcomeSession,
+      user: { ...welcomeSession.user, username: nextUsername },
+    };
+    setWelcomeSession(updated);
+    setSession(updated);
+  }
 
   function handleOAuthSuccess(session: AuthResponseBody) {
     setGeneralError(null);
     setSession(session);
+    if (session.isNewUser) {
+      setWelcomeSession(session);
+      return;
+    }
     router.replace(nextPath);
   }
 
@@ -453,6 +474,16 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   }
 
   if (status === "authenticated") {
+    if (welcomeSession) {
+      return (
+        <OAuthWelcomeModal
+          open={true}
+          username={welcomeSession.user.username}
+          onUsernameSaved={handleWelcomeUsernameSaved}
+          onClose={() => setWelcomeSession(null)}
+        />
+      );
+    }
     return null;
   }
 

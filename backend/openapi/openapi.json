@@ -650,6 +650,87 @@
         }
       }
     },
+    "/auth/local/username/forgot": {
+      "post": {
+        "operationId": "forgotUsername",
+        "summary": "Recover a forgotten username",
+        "description": "Emails the account username to the address on file. Useful for OAuth-created accounts whose username was auto-generated, and for any local account that forgot its username. The accepted response does not confirm whether an account exists for the email.",
+        "tags": [
+          "auth"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public",
+          "minimumRole": null,
+          "patAllowed": false,
+          "csrf": "Required for browser-origin requests to /auth/*.",
+          "rateLimitPolicy": "auth-sensitive"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotUsernameRequest"
+              },
+              "example": {
+                "email": "owner1@rentify.local",
+                "captchaToken": "turnstile-token"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AcceptedActionResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Username reminder instructions have been accepted.",
+                  "data": {
+                    "accepted": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/auth/local/password/reset": {
       "post": {
         "operationId": "resetPassword",
@@ -21633,6 +21714,10 @@
           },
           "user": {
             "$ref": "#/components/schemas/AuthResponseUser"
+          },
+          "isNewUser": {
+            "type": "boolean",
+            "description": "Present and true only when a first-time OAuth sign-in just created this account, so the client can surface the generated-username onboarding flow. Absent for returning sign-ins and all local flows."
           }
         }
       },
@@ -21799,6 +21884,22 @@
         "properties": {
           "username": {
             "type": "string"
+          },
+          "captchaToken": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotUsernameRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "captchaToken"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
           },
           "captchaToken": {
             "type": "string"
