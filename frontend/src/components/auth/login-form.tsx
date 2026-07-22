@@ -604,18 +604,16 @@ export function LoginForm({
   }
 
   function handleWelcomeUsernameSaved(nextUsername: string) {
-    setWelcomeSession((current) => {
-      if (!current) {
-        return current;
-      }
+    if (!welcomeSession) {
+      return;
+    }
 
-      const updated: AuthResponseBody = {
-        ...current,
-        user: { ...current.user, username: nextUsername },
-      };
-      setSession(updated);
-      return updated;
-    });
+    const updated: AuthResponseBody = {
+      ...welcomeSession,
+      user: { ...welcomeSession.user, username: nextUsername },
+    };
+    setWelcomeSession(updated);
+    setSession(updated);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

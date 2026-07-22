@@ -96,6 +96,10 @@ function OAuthWelcomeModalContent({
     setPending(true);
 
     try {
+      // Sends only the username. PUT /profile/me coerces omitted phoneNumber and
+      // avatar fields to null, but a just-created OAuth account has neither yet,
+      // so nothing is lost here. If OAuth signup is ever extended to store a
+      // provider phone/avatar, pass those through (or load the profile first).
       const result = await profilesApi.updateMine({ username: trimmed });
       onUsernameSaved(result.username);
       onClose();

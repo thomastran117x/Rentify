@@ -76,8 +76,10 @@ recovery path. `POST /auth/local/username/forgot` closes that gap:
   (`username_reminder` email job). This works for OAuth-only accounts and local accounts
   alike.
 - The endpoint always returns `202 { accepted: true }` regardless of whether an account
-  exists (anti-enumeration), is captcha-protected, and is rate-limited on the same
-  auth-sensitive public-OTP buckets as password reset.
+  exists (anti-enumeration), is captcha-protected, and is rate-limited with the same
+  public-OTP mechanism and per-scope limits as password reset. The buckets are
+  independent: rate-limit keys are namespaced by purpose (`username-reminder` vs
+  `local-password-reset`), so the two flows do not share a counter.
 - In the UI it lives in the sign-in "I can't log in" recovery dialog
   (`account-recovery-dialog.tsx` → `forgot-username-form.tsx`), alongside password reset.
 

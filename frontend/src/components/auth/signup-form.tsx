@@ -371,18 +371,16 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   }, [nextPath, router, status, welcomeSession]);
 
   function handleWelcomeUsernameSaved(nextUsername: string) {
-    setWelcomeSession((current) => {
-      if (!current) {
-        return current;
-      }
+    if (!welcomeSession) {
+      return;
+    }
 
-      const updated: AuthResponseBody = {
-        ...current,
-        user: { ...current.user, username: nextUsername },
-      };
-      setSession(updated);
-      return updated;
-    });
+    const updated: AuthResponseBody = {
+      ...welcomeSession,
+      user: { ...welcomeSession.user, username: nextUsername },
+    };
+    setWelcomeSession(updated);
+    setSession(updated);
   }
 
   function handleOAuthSuccess(session: AuthResponseBody) {
