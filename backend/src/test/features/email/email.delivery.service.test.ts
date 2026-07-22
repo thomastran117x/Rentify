@@ -43,6 +43,9 @@ describe("EmailDeliveryService", () => {
     const resetSpy = jest
       .spyOn(service, "sendPasswordResetEmail")
       .mockResolvedValue(undefined);
+    const usernameReminderSpy = jest
+      .spyOn(service, "sendUsernameReminderEmail")
+      .mockResolvedValue(undefined);
     const inviteSpy = jest
       .spyOn(service, "sendOrganizationInviteEmail")
       .mockResolvedValue(undefined);
@@ -87,6 +90,16 @@ describe("EmailDeliveryService", () => {
       occurredAt: "2026-06-11T00:00:00.000Z",
     });
     await service.deliver({
+      jobId: "job-5b",
+      kind: "username_reminder",
+      input: {
+        to: "user@example.com",
+        username: "owner-one",
+      },
+      attempt: 1,
+      occurredAt: "2026-06-11T00:00:00.000Z",
+    });
+    await service.deliver({
       jobId: "job-5",
       kind: "organization_invite",
       input: {
@@ -114,6 +127,10 @@ describe("EmailDeliveryService", () => {
     expect(resetSpy).toHaveBeenCalledWith({
       to: "user@example.com",
       resetCode: "555666",
+    });
+    expect(usernameReminderSpy).toHaveBeenCalledWith({
+      to: "user@example.com",
+      username: "owner-one",
     });
     expect(inviteSpy).toHaveBeenCalledWith({
       to: "invitee@example.com",
@@ -292,6 +309,26 @@ describe("EmailDeliveryService", () => {
         subject: "Reset your Rent password",
         text: expect.stringContaining("Reset code: 999000"),
         html: expect.stringContaining("This code expires in 10 minutes."),
+      }),
+    );
+  });
+
+  it("renders the username inside the reminder email", async () => {
+    const transporter = createTransporterMock();
+    transporter.sendMail.mockResolvedValue(undefined);
+    const service = createService(transporter);
+
+    await service.sendUsernameReminderEmail({
+      to: "user@example.com",
+      firstName: "Kai",
+      username: "kai-owner",
+    });
+
+    expect(transporter.sendMail.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        subject: "Your Rentify username",
+        text: expect.stringContaining("Username: kai-owner"),
+        html: expect.stringContaining("kai-owner"),
       }),
     );
   });

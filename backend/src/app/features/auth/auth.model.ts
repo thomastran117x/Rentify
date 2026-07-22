@@ -173,6 +173,11 @@ export const resendForgotPasswordRequestSchema = z.object({
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
+export const forgotUsernameRequestSchema = z.object({
+  email: z.email().transform((value) => value.trim().toLowerCase()),
+  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
+});
+
 export const resetPasswordRequestSchema = z.object({
   username: authUsernameSchema,
   code: z
@@ -240,6 +245,10 @@ export type ForgotPasswordRequestBody = z.infer<
 
 export type ResendForgotPasswordRequestBody = z.infer<
   typeof resendForgotPasswordRequestSchema
+>;
+
+export type ForgotUsernameRequestBody = z.infer<
+  typeof forgotUsernameRequestSchema
 >;
 
 export type ResetPasswordRequestBody = z.infer<
@@ -335,6 +344,12 @@ export interface ForgotPasswordInput {
 export interface ResendForgotPasswordInput {
   client: ClientRequestContext;
   username: string;
+  deviceId?: string;
+}
+
+export interface ForgotUsernameInput {
+  client: ClientRequestContext;
+  email: string;
   deviceId?: string;
 }
 
@@ -451,6 +466,12 @@ export interface AuthSessionResult {
     knownByIp: boolean;
   };
   user: AuthUserProfile;
+  /**
+   * Set only when this session was created by a first-time OAuth sign-in, so
+   * clients can surface the auto-generated username onboarding flow. Absent for
+   * every returning sign-in and every local flow.
+   */
+  isNewUser?: boolean;
 }
 
 export interface AuthResponseUser {
@@ -472,6 +493,11 @@ export interface AuthResponseBody {
     knownByIp: boolean;
   };
   user: AuthResponseUser;
+  /**
+   * True only for the response of a first-time OAuth sign-in that just created
+   * the account. Clients use it to launch the generated-username onboarding.
+   */
+  isNewUser?: boolean;
 }
 
 export interface SignupVerificationPendingResult {

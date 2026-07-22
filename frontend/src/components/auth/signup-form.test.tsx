@@ -14,11 +14,13 @@ const {
   useAuthCaptchaTokenMock,
   signupMock,
   clearCaptchaTokenMock,
+  oauthSuccessSessionMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   signupMock: vi.fn(),
   clearCaptchaTokenMock: vi.fn(),
+  oauthSuccessSessionMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -51,7 +53,25 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
 }));
 
 vi.mock("@/components/auth/oauth-buttons", () => ({
-  AuthOAuthButtons: () => <div>OAuth buttons</div>,
+  AuthOAuthButtons: ({
+    onSuccess,
+  }: {
+    onSuccess: (session: unknown) => void;
+  }) => (
+    <button type="button" onClick={() => onSuccess(oauthSuccessSessionMock())}>
+      Trigger OAuth success
+    </button>
+  ),
+}));
+
+vi.mock("@/components/auth/oauth-welcome-modal", () => ({
+  OAuthWelcomeModal: ({
+    open,
+    username,
+  }: {
+    open: boolean;
+    username: string;
+  }) => (open ? <div>Welcome modal for {username}</div> : null),
 }));
 
 vi.mock("@/components/auth/signup-verification-panel", () => ({
@@ -121,6 +141,68 @@ describe("SignupForm", () => {
         "/organizations/invitations/token-123",
       );
     });
+  });
+
+  it("opens the welcome modal and defers redirect for a first-time OAuth user", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn().mockImplementation(() => {
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        setSession,
+      });
+    });
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+    });
+    oauthSuccessSessionMock.mockReturnValue({
+      accessToken: "access-token",
+      isNewUser: true,
+      device: { known: true, knownByIp: true },
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person.generated",
+        role: "user",
+      },
+    });
+
+    render(<SignupForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+
+    expect(
+      await screen.findByText("Welcome modal for person.generated"),
+    ).toBeInTheDocument();
+    expect(setSession).toHaveBeenCalled();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects a returning OAuth user without showing the welcome modal", async () => {
+    const user = userEvent.setup();
+    oauthSuccessSessionMock.mockReturnValue({
+      accessToken: "access-token",
+      device: { known: true, knownByIp: true },
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person",
+        role: "user",
+      },
+    });
+
+    render(<SignupForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+    });
+    expect(screen.queryByText(/Welcome modal for/)).not.toBeInTheDocument();
   });
 
   it("shows validation errors for missing and invalid values", async () => {

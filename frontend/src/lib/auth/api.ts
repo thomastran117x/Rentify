@@ -59,6 +59,11 @@ interface ResendForgotPasswordInput {
   captchaToken: string;
 }
 
+interface ForgotUsernameInput {
+  email: string;
+  captchaToken: string;
+}
+
 interface ResetPasswordInput {
   username: string;
   code: string;
@@ -271,6 +276,15 @@ export const authApi = {
     return publicJson<ForgotPasswordAcceptedResult, ResendForgotPasswordInput>(
       "POST",
       "/auth/local/password/forgot/resend",
+      input,
+    );
+  },
+  forgotUsername(
+    input: ForgotUsernameInput,
+  ): Promise<ForgotPasswordAcceptedResult> {
+    return publicJson<ForgotPasswordAcceptedResult, ForgotUsernameInput>(
+      "POST",
+      "/auth/local/username/forgot",
       input,
     );
   },

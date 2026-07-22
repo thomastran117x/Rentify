@@ -575,6 +575,13 @@ export default function AccountPage() {
                 placeholder={profile?.username ?? "username"}
                 className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
               />
+              <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                This is how you sign in and how you recover your account. If you
+                signed up with Google or Microsoft, this username was generated
+                for you &mdash; change it here any time. Forgot it? Use &ldquo;I
+                can&apos;t log in&rdquo; on the sign-in page to have it emailed
+                to you.
+              </span>
             </label>
 
             <button

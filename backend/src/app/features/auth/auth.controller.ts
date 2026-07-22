@@ -24,6 +24,8 @@ import type {
   ChangePasswordRequestBody,
   ForgotPasswordInput,
   ForgotPasswordRequestBody,
+  ForgotUsernameInput,
+  ForgotUsernameRequestBody,
   LinkOAuthProviderInput,
   LocalAuthenticateInput,
   LocalAuthenticateRequestBody,
@@ -54,6 +56,7 @@ import type {
 import {
   changePasswordRequestSchema,
   forgotPasswordRequestSchema,
+  forgotUsernameRequestSchema,
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
   oauthAuthenticateRequestSchema,
@@ -133,6 +136,17 @@ export class AuthController {
     );
     return accepted(context, result, {
       message: "Password reset instructions have been re-sent.",
+    });
+  };
+
+  forgotUsername = async (context: Context<AppBindings>): Promise<Response> => {
+    const input = await parseRequestBody(context, forgotUsernameRequestSchema);
+    await this.verifyCaptcha(context, input.captchaToken);
+    const result = await this.authService.forgotUsername(
+      this.toForgotUsernameInput(context, input),
+    );
+    return accepted(context, result, {
+      message: "Username reminder instructions have been accepted.",
     });
   };
 
@@ -546,6 +560,17 @@ export class AuthController {
     };
   }
 
+  private toForgotUsernameInput(
+    context: Context<AppBindings>,
+    input: ForgotUsernameRequestBody,
+  ): ForgotUsernameInput {
+    return {
+      client: context.get("client"),
+      email: input.email,
+      deviceId: this.resolveDeviceId(context),
+    };
+  }
+
   private toRefreshInput(
     context: Context<AppBindings>,
     input: RefreshRequestBody,
@@ -633,6 +658,10 @@ export class AuthController {
 
     if (!this.shouldSetRefreshCookie(context)) {
       responseBody.refreshToken = result.refreshToken;
+    }
+
+    if (result.isNewUser) {
+      responseBody.isNewUser = true;
     }
 
     return responseBody;

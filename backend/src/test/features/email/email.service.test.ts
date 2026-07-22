@@ -41,6 +41,25 @@ describe("EmailService", () => {
     });
   });
 
+  it("queues username reminder jobs", async () => {
+    const enqueueEmailJob = jest.fn(async () => undefined);
+    const service = new EmailService({
+      enqueueEmailJob,
+    } as any);
+
+    await service.sendUsernameReminderEmail({
+      to: "user@example.com",
+      username: "owner-one",
+      firstName: "Test",
+    });
+
+    expect(enqueueEmailJob).toHaveBeenCalledWith("username_reminder", {
+      to: "user@example.com",
+      username: "owner-one",
+      firstName: "Test",
+    });
+  });
+
   it("queues organization invite jobs", async () => {
     const enqueueEmailJob = jest.fn(async () => undefined);
     const service = new EmailService({

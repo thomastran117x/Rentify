@@ -17,6 +17,7 @@ import {
   type AuthUserRecord,
   type ChangePasswordInput,
   type ForgotPasswordInput,
+  type ForgotUsernameInput,
   type LinkedOAuthProvidersResult,
   type LinkOAuthProviderInput,
   type LocalAuthenticateInput,
@@ -74,6 +75,7 @@ const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
 const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
 const LOCAL_LOGIN_UNLOCK_OTP_PURPOSE = "local-login-unlock";
 const LOCAL_PASSWORD_RESET_OTP_PURPOSE = "local-password-reset";
+const USERNAME_REMINDER_RATE_LIMIT_PURPOSE = "username-reminder";
 const EMAIL_VERIFICATION_OTP_PURPOSE = "email-verification";
 const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
 const PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX =
@@ -268,6 +270,35 @@ export class AuthService {
 
     if (user && this.isEligibleForLocalPasswordManagement(user)) {
       await this.sendPasswordResetCode(user);
+    }
+
+    return {
+      accepted: true,
+    };
+  }
+
+  async forgotUsername(input: ForgotUsernameInput): Promise<{
+    accepted: true;
+  }> {
+    const rateLimitResult = await this.consumePublicOtpRateLimit({
+      purpose: USERNAME_REMINDER_RATE_LIMIT_PURPOSE,
+      subject: input.email,
+      client: input.client,
+      deviceId: input.deviceId,
+      flow: "forgot-username",
+    });
+
+    if (!rateLimitResult.allowed) {
+      this.logSuspiciousOtpPattern(rateLimitResult);
+      return {
+        accepted: true,
+      };
+    }
+
+    const user = await this.authRepository.findUserByEmail(input.email);
+
+    if (user) {
+      await this.sendUsernameReminder(user);
     }
 
     return {
@@ -937,7 +968,8 @@ export class AuthService {
     }
 
     const user = await this.authRepository.createOAuthUser(profile);
-    return this.authenticateVerifiedUser(user, input);
+    const session = await this.authenticateVerifiedUser(user, input);
+    return { ...session, isNewUser: true };
   }
 
   private async verifyOAuthInput(
@@ -1105,6 +1137,14 @@ export class AuthService {
 
       throw error;
     }
+  }
+
+  private async sendUsernameReminder(user: AuthUserRecord): Promise<void> {
+    await this.emailService.sendUsernameReminderEmail({
+      to: user.email,
+      username: user.profile.username,
+      firstName: user.firstName,
+    });
   }
 
   private async requireMfaIfEnabled(

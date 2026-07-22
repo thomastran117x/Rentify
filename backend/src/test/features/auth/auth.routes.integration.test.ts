@@ -65,6 +65,9 @@ function createApp() {
     forgotPassword: jest.fn(async () => ({
       accepted: true,
     })),
+    forgotUsername: jest.fn(async () => ({
+      accepted: true,
+    })),
     resendForgotPassword: jest.fn(async () => ({
       accepted: true,
     })),
@@ -257,6 +260,17 @@ describe("Auth routes integration", () => {
         }),
       },
     );
+    const forgotUsernameResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/local/username/forgot")}`,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          email: "OWNER1@rentify.local",
+          captchaToken: "forgot-username-captcha",
+        }),
+      },
+    );
     const resetResponse = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/reset")}`,
       {
@@ -339,6 +353,7 @@ describe("Auth routes integration", () => {
 
     expect(forgotResponse.status).toBe(202);
     expect(resendForgotResponse.status).toBe(202);
+    expect(forgotUsernameResponse.status).toBe(202);
     expect(resetResponse.status).toBe(200);
     expect(verifyEmailResponse.status).toBe(200);
     expect(resendVerifyResponse.status).toBe(202);
@@ -347,10 +362,15 @@ describe("Auth routes integration", () => {
     expect(changePasswordResponse.status).toBe(200);
     expect(refreshResponse.status).toBe(200);
 
-    expect(captchaService.verify).toHaveBeenCalledTimes(4);
+    expect(captchaService.verify).toHaveBeenCalledTimes(5);
     expect(authService.forgotPassword).toHaveBeenCalledWith(
       expect.objectContaining({
         username: "owner-one",
+      }),
+    );
+    expect(authService.forgotUsername).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "owner1@rentify.local",
       }),
     );
     expect(authService.resendForgotPassword).toHaveBeenCalledWith(

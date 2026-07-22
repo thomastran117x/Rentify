@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { HelpCircle, KeyRound, UserRound, X } from "lucide-react";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { ForgotUsernameForm } from "@/components/auth/forgot-username-form";
 import { clearPersistedAuthPendingFlowByType } from "@/lib/auth/pending-flow";
 
 type RecoveryView = "options" | "username" | "password";
@@ -48,7 +49,7 @@ function AccountRecoveryDialogContent({
     view === "options"
       ? "Choose the account help you need and we'll guide you through the next step."
       : view === "username"
-        ? "Username recovery is coming next."
+        ? "Enter your email and we'll send the username on file, including auto-generated usernames for social sign-in accounts."
         : "Use your username to request a reset code and choose a new password.";
 
   function clearPasswordRecoveryIfNeeded() {
@@ -126,7 +127,8 @@ function AccountRecoveryDialogContent({
                   I forgot my username
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Start an email-based username recovery flow once it ships.
+                  Get your username emailed to you, including the one generated
+                  for a Google or Microsoft sign-in.
                 </p>
               </div>
             </button>
@@ -154,27 +156,14 @@ function AccountRecoveryDialogContent({
 
         {view === "username" ? (
           <div className="mt-6 space-y-5">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-              Forgot username is still a placeholder in this branch. We&apos;ll
-              add the email-based username recovery workflow next.
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setView("options")}
-                className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-              >
-                Back to sign in
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setView("options")}
+              className="text-sm font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Back to recovery options
+            </button>
+            <ForgotUsernameForm />
           </div>
         ) : null}
 
