@@ -39,12 +39,12 @@ test("username recovery is reachable from the sign-in recovery dialog", async ({
   // Client-side validation rejects a malformed email before any network call.
   await dialog.getByLabel("Email").fill("not-an-email");
   await dialog.getByRole("button", { name: "Email me my username" }).click();
-  await expect(
-    dialog.getByText("Enter a valid email address."),
-  ).toBeVisible();
+  await expect(dialog.getByText("Enter a valid email address.")).toBeVisible();
 
   // The user can return to the recovery options.
-  await dialog.getByRole("button", { name: "Back to recovery options" }).click();
+  await dialog
+    .getByRole("button", { name: "Back to recovery options" })
+    .click();
   await expect(
     dialog.getByRole("button", { name: /I forgot my password/i }),
   ).toBeVisible();
