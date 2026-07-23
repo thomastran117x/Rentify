@@ -311,6 +311,21 @@ function BookingItemCard({
   const canManageCurrentView = view !== "owner" || canManageOwnerActions;
   const canEditInstructions =
     item.kind === "renting" && view === "owner" && canManageOwnerActions;
+  const showRenterInstructions =
+    item.kind === "renting" && Boolean(item.rentingId) && !canEditInstructions;
+  const showPickupInstructions = [
+    "check_in_ready",
+    "active",
+    "return_due",
+    "completed",
+    "disputed",
+  ].includes(item.sourceStatus);
+  const showReturnInstructions = [
+    "active",
+    "return_due",
+    "completed",
+    "disputed",
+  ].includes(item.sourceStatus);
   const isRentingActionPending = (action: string) =>
     rentingMutationPendingKey === `${action}:${item.rentingId}`;
 
@@ -537,18 +552,68 @@ function BookingItemCard({
             </div>
           </div>
 
-          {item.kind === "renting" && item.rentingId ? (
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
-                    <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-950 dark:text-white">
-                      Rental instructions
+          {showRenterInstructions ? (
+            <div className="mt-4 rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-950/30 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300">
+                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                    Pickup &amp; return instructions
+                  </p>
+                  {showPickupInstructions || showReturnInstructions ? (
+                    <div className="mt-3 grid gap-4 text-sm text-slate-700 dark:text-slate-200 sm:grid-cols-2">
+                      {showPickupInstructions ? (
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-white">
+                            Pickup / check-in
+                          </p>
+                          <p className="mt-1 leading-6 whitespace-pre-line">
+                            {item.pickupInstructions?.trim()
+                              ? item.pickupInstructions
+                              : "No instructions provided yet"}
+                          </p>
+                        </div>
+                      ) : null}
+                      {showReturnInstructions ? (
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-white">
+                            Return / check-out
+                          </p>
+                          <p className="mt-1 leading-6 whitespace-pre-line">
+                            {item.returnInstructions?.trim()
+                              ? item.returnInstructions
+                              : "No instructions provided yet"}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                      Pickup and return instructions will appear here once the
+                      owner marks the renting ready for check-in.
                     </p>
-                    {canEditInstructions && rentingInstructions ? (
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {item.kind === "renting" && item.rentingId ? (
+            <div
+              className={`mt-4 grid gap-4 ${canEditInstructions ? "xl:grid-cols-2" : ""}`}
+            >
+              {canEditInstructions && rentingInstructions ? (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                      <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                        Rental instructions
+                      </p>
                       <div className="mt-3 grid gap-3">
                         <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
                           <span className="font-medium">Pickup / check-in</span>
@@ -585,31 +650,10 @@ function BookingItemCard({
                           />
                         </label>
                       </div>
-                    ) : (
-                      <div className="mt-3 grid gap-3 text-sm text-slate-700 dark:text-slate-200">
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            Pickup / check-in
-                          </p>
-                          <p className="mt-1 leading-6">
-                            {item.pickupInstructions ??
-                              "Instructions will appear here once the owner adds them."}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            Return / check-out
-                          </p>
-                          <p className="mt-1 leading-6">
-                            {item.returnInstructions ??
-                              "Return instructions will appear here once the owner adds them."}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
                 <div className="flex items-start gap-3">
