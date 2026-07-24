@@ -2438,6 +2438,47 @@ describe("PostingsRepository", () => {
     });
   });
 
+  it("filters active booking requests in range by status, hold, and conversion", async () => {
+    const findMany = jest.fn(async () => [
+      {
+        startAt: new Date("2026-07-22T00:00:00.000Z"),
+        endAt: new Date("2026-07-24T00:00:00.000Z"),
+      },
+    ]);
+    const repository = new PostingsRepository({
+      bookingRequest: { findMany },
+    } as any);
+
+    const startAt = new Date("2026-07-01T00:00:00.000Z");
+    const endAt = new Date("2026-08-01T00:00:00.000Z");
+    const bookingRequests = await repository.findActiveBookingRequestsInRange({
+      postingId: "posting-1",
+      startAt,
+      endAt,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          postingId: "posting-1",
+          status: {
+            in: ["pending", "awaiting_payment", "payment_processing", "paid"],
+          },
+          convertedAt: null,
+          holdExpiresAt: { gt: new Date("2026-05-20T12:00:00.000Z") },
+          startAt: { lt: endAt },
+          endAt: { gt: startAt },
+        }),
+      }),
+    );
+    expect(bookingRequests).toEqual([
+      {
+        startAt: new Date("2026-07-22T00:00:00.000Z"),
+        endAt: new Date("2026-07-24T00:00:00.000Z"),
+      },
+    ]);
+  });
+
   it("filters confirmed rentings in range by status", async () => {
     const findMany = jest.fn(async () => [
       {

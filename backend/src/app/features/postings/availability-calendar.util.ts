@@ -171,21 +171,23 @@ export function buildMonthDayWindows(
  * Earliest bookable UTC instant given an advance-notice window. Days whose
  * `startUtc` is before this threshold fall inside the advance-notice window.
  * Returns `undefined` when no advance notice applies.
+ *
+ * This deliberately mirrors the booking endpoint's advance-notice check
+ * (`checkBookingDateConstraints`), which compares against UTC midnight today
+ * plus `advanceNoticeDays`. Computing the cutoff in UTC (rather than the
+ * calendar's display timezone) keeps the calendar from advertising a start date
+ * the booking API would reject near timezone/date boundaries.
  */
 export function advanceNoticeThreshold(
   now: Date,
   advanceNoticeDays: number | undefined,
-  timeZone: string,
 ): Date | undefined {
   if (!advanceNoticeDays || advanceNoticeDays <= 0) {
     return undefined;
   }
 
-  const today = readZonedParts(now, timeZone);
-  return zonedTimeToUtc(
-    today.year,
-    today.month,
-    today.day + advanceNoticeDays,
-    timeZone,
-  );
+  const minStart = new Date(now);
+  minStart.setUTCHours(0, 0, 0, 0);
+  minStart.setUTCDate(minStart.getUTCDate() + advanceNoticeDays);
+  return minStart;
 }

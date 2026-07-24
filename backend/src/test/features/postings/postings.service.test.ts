@@ -9,6 +9,7 @@ import {
   toPublicPostingRecord,
 } from "@/features/postings/postings.model";
 import type {
+  ActiveBookingRequestRange,
   AvailabilityBlockRange,
   AvailabilityCalendarPostingFields,
   ConfirmedRentingRange,
@@ -103,8 +104,11 @@ class FakePostingsRepository {
   calendarPostingMissing = false;
   calendarBlocks: AvailabilityBlockRange[] = [];
   calendarRentings: ConfirmedRentingRange[] = [];
+  calendarBookingRequests: ActiveBookingRequestRange[] = [];
   lastCalendarBlocksRange: { startAt: Date; endAt: Date } | null = null;
   lastCalendarRentingsRange: { startAt: Date; endAt: Date } | null = null;
+  lastCalendarBookingRequestsRange: { startAt: Date; endAt: Date } | null =
+    null;
 
   async findAvailabilityCalendarPosting(
     id: string,
@@ -146,6 +150,18 @@ class FakePostingsRepository {
       endAt: input.endAt,
     };
     return this.calendarRentings;
+  }
+
+  async findActiveBookingRequestsInRange(input: {
+    postingId: string;
+    startAt: Date;
+    endAt: Date;
+  }): Promise<ActiveBookingRequestRange[]> {
+    this.lastCalendarBookingRequestsRange = {
+      startAt: input.startAt,
+      endAt: input.endAt,
+    };
+    return this.calendarBookingRequests;
   }
 
   async publish(id: string): Promise<PostingRecord> {
@@ -2847,6 +2863,30 @@ describe("PostingsService availability calendar", () => {
     });
   });
 
+  it("marks days under an active booking request as held even without a hold block", async () => {
+    const repository = createPublishedRepository();
+    // A pending booking request that has not yet materialized a hold block.
+    repository.calendarBookingRequests = [
+      {
+        startAt: new Date("2026-07-22T00:00:00.000Z"),
+        endAt: new Date("2026-07-24T00:00:00.000Z"),
+      },
+    ];
+    const service = createService(repository);
+
+    const calendar = await service.getAvailabilityCalendar("posting-1", {
+      year: 2026,
+      month: 7,
+    });
+
+    expect(calendar["2026-07-22"]).toEqual({
+      status: "unavailable",
+      reason: "held",
+    });
+    expect(calendar["2026-07-23"].status).toBe("unavailable");
+    expect(calendar["2026-07-24"].status).toBe("available");
+  });
+
   it("ignores expired or converted booking holds", async () => {
     const repository = createPublishedRepository();
     repository.calendarBlocks = [
@@ -2954,6 +2994,37 @@ describe("PostingsService availability calendar", () => {
         status: "unavailable",
         reason: "advance_notice",
       });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("computes the advance-notice cutoff in UTC to match booking validation", async () => {
+    // 01:00Z is still July 9 in America/Toronto (UTC-4). Booking validation
+    // uses UTC midnight today (July 10) + 1 day => earliest start July 11 00:00Z.
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-10T01:00:00.000Z"));
+
+    try {
+      const repository = createPublishedRepository();
+      repository.posting = {
+        ...repository.posting,
+        advanceNoticeDays: 1,
+      };
+      const service = createService(repository);
+
+      const calendar = await service.getAvailabilityCalendar("posting-1", {
+        year: 2026,
+        month: 7,
+        tz: "America/Toronto",
+      });
+
+      // Local July 10 starts at July 10 04:00Z, before the UTC cutoff, so it is
+      // within advance notice even though the display timezone is behind UTC.
+      expect(calendar["2026-07-10"]).toEqual({
+        status: "unavailable",
+        reason: "advance_notice",
+      });
+      expect(calendar["2026-07-11"].status).toBe("available");
     } finally {
       jest.useRealTimers();
     }

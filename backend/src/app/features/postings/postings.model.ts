@@ -651,6 +651,12 @@ export interface ConfirmedRentingRange {
   endAt: Date;
 }
 
+/** Active (unexpired, unconverted) booking request holding a date range. */
+export interface ActiveBookingRequestRange {
+  startAt: Date;
+  endAt: Date;
+}
+
 export interface PostingLocationRecord {
   city: string;
   region: string;

@@ -19,6 +19,7 @@ import {
   MAX_ADVANCE_NOTICE_DAYS_LIMIT,
   MAX_POSTING_PHOTOS,
   MAX_SEARCH_RESULT_WINDOW,
+  type ActiveBookingRequestRange,
   type AvailabilityBlockRange,
   type AvailabilityCalendarDay,
   type AvailabilityCalendarQuery,
@@ -593,13 +594,18 @@ export class PostingsService {
     const rangeStart = windows[0].startUtc;
     const rangeEnd = windows[windows.length - 1].endUtc;
 
-    const [blocks, rentings] = await Promise.all([
+    const [blocks, rentings, bookingRequests] = await Promise.all([
       this.postingsRepository.findAvailabilityBlocksInRange({
         postingId: id,
         startAt: rangeStart,
         endAt: rangeEnd,
       }),
       this.postingsRepository.findConfirmedRentingsInRange({
+        postingId: id,
+        startAt: rangeStart,
+        endAt: rangeEnd,
+      }),
+      this.postingsRepository.findActiveBookingRequestsInRange({
         postingId: id,
         startAt: rangeStart,
         endAt: rangeEnd,
@@ -613,7 +619,6 @@ export class PostingsService {
     const noticeThreshold = advanceNoticeThreshold(
       now,
       posting.advanceNoticeDays,
-      timeZone,
     );
     const postingUnavailable = posting.availabilityStatus === "unavailable";
 
@@ -626,6 +631,7 @@ export class PostingsService {
         noticeThreshold,
         activeBlocks,
         rentings,
+        bookingRequests,
         exposeBlockNotes: isOwnerViewer,
       }),
     );
@@ -681,6 +687,7 @@ export class PostingsService {
     noticeThreshold?: Date;
     activeBlocks: AvailabilityBlockRange[];
     rentings: ConfirmedRentingRange[];
+    bookingRequests: ActiveBookingRequestRange[];
     exposeBlockNotes: boolean;
   }): { status: AvailabilityDayStatus; reason?: string } {
     const { window } = input;
@@ -706,10 +713,19 @@ export class PostingsService {
       return { status: "booked", reason: "booked" };
     }
 
-    const isHeld = input.activeBlocks.some(
-      (block) =>
-        block.source === "booking_hold" && overlaps(block.startAt, block.endAt),
-    );
+    // A day is held when covered by an active booking-hold block or by an
+    // active (unexpired, unconverted) booking request. Booking requests are
+    // included directly so that pending requests without a materialized hold
+    // block still register, matching the public search availability filter.
+    const isHeld =
+      input.activeBlocks.some(
+        (block) =>
+          block.source === "booking_hold" &&
+          overlaps(block.startAt, block.endAt),
+      ) ||
+      input.bookingRequests.some((bookingRequest) =>
+        overlaps(bookingRequest.startAt, bookingRequest.endAt),
+      );
     if (isHeld) {
       return { status: "unavailable", reason: "held" };
     }

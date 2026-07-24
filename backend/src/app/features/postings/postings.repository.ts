@@ -18,6 +18,7 @@ import type {
   ManagedPostingPhotoInput,
   OwnerPostingsStatusSummary,
   PublicPostingRecord,
+  ActiveBookingRequestRange,
   AvailabilityBlockRange,
   AvailabilityCalendarPostingFields,
   ConfirmedRentingRange,
@@ -582,6 +583,53 @@ export class PostingsRepository extends BaseRepository {
             },
           }
         : {}),
+    }));
+  }
+
+  async findActiveBookingRequestsInRange(input: {
+    postingId: string;
+    startAt: Date;
+    endAt: Date;
+  }): Promise<ActiveBookingRequestRange[]> {
+    const now = new Date();
+    const bookingRequests = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where: {
+          postingId: input.postingId,
+          status: {
+            in: ["pending", "awaiting_payment", "payment_processing", "paid"],
+          },
+          convertedAt: null,
+          holdExpiresAt: {
+            gt: now,
+          },
+          OR: [
+            {
+              conversionReservationExpiresAt: null,
+            },
+            {
+              conversionReservationExpiresAt: {
+                lte: now,
+              },
+            },
+          ],
+          startAt: {
+            lt: input.endAt,
+          },
+          endAt: {
+            gt: input.startAt,
+          },
+        },
+        select: {
+          startAt: true,
+          endAt: true,
+        },
+      }),
+    );
+
+    return bookingRequests.map((bookingRequest) => ({
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
     }));
   }
 
