@@ -744,7 +744,7 @@ const bookingRequestExample = {
   postingId: "posting-1",
   renterId: "user-1",
   organizationId: "org-1",
-  status: "approved",
+  status: "awaiting_payment",
   startAt: "2026-06-14T15:00:00.000Z",
   endAt: "2026-06-17T11:00:00.000Z",
   durationDays: 3,
@@ -769,6 +769,18 @@ const bookingRequestExample = {
     primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
     effectiveMaxBookingDurationDays: 30,
   },
+};
+// A freshly created request on a non-instant posting stays pending until the
+// owner approves it. Instant-book postings instead return the awaiting_payment
+// example above with an additional `autoApproved: true` flag.
+const bookingRequestPendingExample = {
+  ...bookingRequestExample,
+  status: "pending",
+  decisionNote: undefined,
+  approvedAt: undefined,
+  paymentRequiredAt: undefined,
+  holdExpiresAt: "2026-05-26T11:00:00.000Z",
+  updatedAt: "2026-05-25T11:00:00.000Z",
 };
 const bookingQuoteExample = {
   postingId: "posting-1",
@@ -5883,7 +5895,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createBookingRequest",
       summary: "Create a booking request for a posting",
       description:
-        "Creates a booking request for the selected posting. PAT bearer authentication with `mcp:write` is allowed.",
+        "Creates a booking request for the selected posting. On a standard posting the request starts in `pending` and awaits owner approval. On an instant-book posting it is auto-approved on creation and returned in `awaiting_payment` with `autoApproved: true`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["booking-requests"],
       security: ownerSecurity,
       permissions: {
@@ -5907,7 +5919,7 @@ function buildOperations(): OperationDefinition[] {
           201,
           "Booking request created successfully.",
           "BookingRequestRecord",
-          bookingRequestExample,
+          bookingRequestPendingExample,
         ),
         ...commonErrors([400, 401, 403, 404, 409, 422, 429, 500]),
       },

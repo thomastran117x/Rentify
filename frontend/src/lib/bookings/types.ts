@@ -86,6 +86,9 @@ export interface BookingRequestRecord {
   createdAt: string;
   updatedAt: string;
   posting: BookingRequestPostingSummary;
+  // Present and true only on the create response for instant-book postings,
+  // where the request is auto-approved and returned in awaiting_payment.
+  autoApproved?: boolean;
 }
 
 export interface BookingRequestsListResult {

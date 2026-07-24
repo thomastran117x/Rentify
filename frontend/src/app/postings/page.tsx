@@ -24,6 +24,7 @@ import {
   isRenderablePreviewImageUrl,
 } from "@/lib/postings/public-format";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
+import { InstantBookBadge } from "@/components/postings/instant-book-badge";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 import { theme } from "@/styles/theme";
 
@@ -1127,6 +1128,9 @@ function SearchResults({
                       <div className="flex flex-wrap items-center gap-2">
                         <AvailabilityBadge
                           status={posting.availabilityStatus}
+                        />
+                        <InstantBookBadge
+                          instantBooking={posting.instantBooking}
                         />
                         <span className="text-lg font-semibold text-slate-950 dark:text-white">
                           {formatPostingPrice(

@@ -10538,7 +10538,7 @@ paths:
     post:
       operationId: createBookingRequest
       summary: Create a booking request for a posting
-      description: 'Creates a booking request for the selected posting. PAT bearer authentication with `mcp:write` is allowed.'
+      description: 'Creates a booking request for the selected posting. On a standard posting the request starts in `pending` and awaits owner approval. On an instant-book posting it is auto-approved on creation and returned in `awaiting_payment` with `autoApproved: true`. PAT bearer authentication with `mcp:write` is allowed.'
       tags:
         - booking-requests
       security:
@@ -10592,7 +10592,7 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  status: approved
+                  status: pending
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
                   durationDays: 3
@@ -10610,12 +10610,9 @@ paths:
                       amount: 25
                   dailyPriceAmount: 150
                   estimatedTotal: 450
-                  decisionNote: Approved for the requested dates.
-                  approvedAt: '2026-05-25T12:00:00.000Z'
-                  paymentRequiredAt: '2026-05-25T12:05:00.000Z'
-                  holdExpiresAt: '2026-05-28T12:00:00.000Z'
+                  holdExpiresAt: '2026-05-26T11:00:00.000Z'
                   createdAt: '2026-05-25T11:00:00.000Z'
-                  updatedAt: '2026-05-25T12:00:00.000Z'
+                  updatedAt: '2026-05-25T11:00:00.000Z'
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
@@ -10704,7 +10701,7 @@ paths:
                       postingId: posting-1
                       renterId: user-1
                       organizationId: org-1
-                      status: approved
+                      status: awaiting_payment
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
                       durationDays: 3
@@ -10899,7 +10896,7 @@ paths:
                       postingId: posting-1
                       renterId: user-1
                       organizationId: org-1
-                      status: approved
+                      status: awaiting_payment
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
                       durationDays: 3
@@ -11014,7 +11011,7 @@ paths:
                       postingId: posting-1
                       renterId: user-1
                       organizationId: org-1
-                      status: approved
+                      status: awaiting_payment
                       startAt: '2026-06-14T15:00:00.000Z'
                       endAt: '2026-06-17T11:00:00.000Z'
                       durationDays: 3
@@ -11407,7 +11404,7 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  status: approved
+                  status: awaiting_payment
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
                   durationDays: 3
@@ -11506,7 +11503,7 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  status: approved
+                  status: awaiting_payment
                   startAt: '2026-06-15T15:00:00.000Z'
                   endAt: '2026-06-18T11:00:00.000Z'
                   durationDays: 3
@@ -11669,7 +11666,7 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  status: approved
+                  status: awaiting_payment
                   startAt: '2026-06-14T15:00:00.000Z'
                   endAt: '2026-06-17T11:00:00.000Z'
                   durationDays: 3
