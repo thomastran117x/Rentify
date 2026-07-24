@@ -88,6 +88,7 @@ export interface PublicPostingSummary {
   };
   tags: string[];
   availabilityStatus: "available" | "limited" | "unavailable";
+  instantBooking?: boolean;
   publishedAt?: string;
 }
 

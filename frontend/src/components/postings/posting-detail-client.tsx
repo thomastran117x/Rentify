@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { ReportDialog } from "@/components/reports/report-dialog";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
+import { InstantBookBadge } from "@/components/postings/instant-book-badge";
+import { BookingRequestPanel } from "@/components/bookings/booking-request-panel";
 import { PostingDetailGallery } from "@/components/postings/posting-detail-gallery";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -154,6 +156,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <AvailabilityBadge status={posting.availabilityStatus} />
+                <InstantBookBadge instantBooking={posting.instantBooking} />
                 <span className="text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
                   {formatPostingPrice(
                     posting.pricing.daily.amount,
@@ -389,6 +392,8 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
           </div>
 
           <div className="space-y-6">
+            <BookingRequestPanel posting={posting} />
+
             {posting.organization ? (
               <Panel
                 icon={
@@ -463,11 +468,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                         : `${posting.advanceNoticeDays} day${posting.advanceNoticeDays === 1 ? "" : "s"} advance notice required`}
                     </span>
                   ) : null}
-                  {posting.instantBooking ? (
-                    <span className="text-sky-700 dark:text-sky-300">
-                      Instant booking
-                    </span>
-                  ) : null}
+                  <InstantBookBadge instantBooking={posting.instantBooking} />
                 </div>
                 {posting.availabilityNotes ? (
                   <p className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
