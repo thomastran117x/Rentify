@@ -499,6 +499,14 @@ export const publicAutocompletePostingsQuerySchema = z
   })
   .strict();
 
+export const availabilityCalendarQuerySchema = z
+  .object({
+    year: z.coerce.number().int().min(2000).max(2100),
+    month: z.coerce.number().int().min(1).max(12),
+    tz: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
+
 export type PostingStatus = z.infer<typeof postingStatusSchema>;
 export type PostingAvailabilityStatus = z.infer<
   typeof postingAvailabilityStatusSchema
@@ -587,6 +595,66 @@ export interface PostingAvailabilityBlockRecord {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export type AvailabilityCalendarQuery = z.infer<
+  typeof availabilityCalendarQuerySchema
+>;
+
+export type AvailabilityDayStatus =
+  | "available"
+  | "blocked"
+  | "booked"
+  | "unavailable";
+
+export interface AvailabilityCalendarDay {
+  status: AvailabilityDayStatus;
+  reason?: string;
+  validStart?: boolean;
+}
+
+/**
+ * Map of `YYYY-MM-DD` (in the requested timezone) to that day's availability.
+ */
+export type AvailabilityCalendarResult = Record<
+  string,
+  AvailabilityCalendarDay
+>;
+
+/** Lightweight posting fields needed to compute an availability calendar. */
+export interface AvailabilityCalendarPostingFields {
+  id: string;
+  organizationId: string;
+  status: PostingStatus;
+  archivedAt?: string;
+  availabilityStatus: PostingAvailabilityStatus;
+  advanceNoticeDays?: number;
+  minBookingDurationDays?: number;
+}
+
+/** Availability block occupying a date range, with any linked booking hold. */
+export interface AvailabilityBlockRange {
+  startAt: Date;
+  endAt: Date;
+  note?: string;
+  source: "owner" | "booking_hold" | "renting";
+  bookingRequestHold?: {
+    status: string;
+    holdExpiresAt?: Date;
+    convertedAt?: Date;
+  };
+}
+
+/** Confirmed renting occupying a date range. */
+export interface ConfirmedRentingRange {
+  startAt: Date;
+  endAt: Date;
+}
+
+/** Active (unexpired, unconverted) booking request holding a date range. */
+export interface ActiveBookingRequestRange {
+  startAt: Date;
+  endAt: Date;
 }
 
 export interface PostingLocationRecord {

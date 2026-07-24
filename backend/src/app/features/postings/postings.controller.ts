@@ -46,6 +46,7 @@ import {
 } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
 import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 import {
+  availabilityCalendarQuerySchema,
   listOwnerPostingsQuerySchema,
   ownerAvailabilityBlockRequestSchema,
   postingBatchIdsQuerySchema,
@@ -53,6 +54,7 @@ import {
   publicAutocompletePostingsQuerySchema,
   publicSearchPostingsQuerySchema,
   searchAttributeFiltersSchema,
+  type AvailabilityCalendarQuery,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsQuery,
   type OwnerAvailabilityBlockRequestBody,
@@ -280,6 +282,20 @@ export class PostingsController {
         actorUserId: auth?.sub,
       });
     }
+
+    return ok(context, result);
+  };
+
+  getAvailabilityCalendar = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.getOptionalAuth(context);
+    const query = this.parseAvailabilityCalendarQuery(context);
+    const result = await this.postingsService.getAvailabilityCalendar(
+      this.requireRouteId(context),
+      query,
+      auth?.sub,
+    );
 
     return ok(context, result);
   };
@@ -685,6 +701,22 @@ export class PostingsController {
     try {
       return postingAnalyticsSummaryQuerySchema.parse({
         window: url.searchParams.get("window") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseAvailabilityCalendarQuery(
+    context: Context<AppBindings>,
+  ): AvailabilityCalendarQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return availabilityCalendarQuerySchema.parse({
+        year: url.searchParams.get("year") ?? undefined,
+        month: url.searchParams.get("month") ?? undefined,
+        tz: url.searchParams.get("tz") ?? undefined,
       });
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");

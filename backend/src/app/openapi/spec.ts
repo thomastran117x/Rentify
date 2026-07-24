@@ -5265,6 +5265,58 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/postings/:id/availability-calendar",
+      operationId: "getPostingAvailabilityCalendar",
+      summary: "Get a posting's availability calendar",
+      description:
+        "Returns day-by-day availability for the requested month, combining posting availability status, advance notice, owner availability blocks, active booking holds, and confirmed rentings. The response maps each `YYYY-MM-DD` day (in the requested timezone) to its status. Authentication is optional; owners may preview the calendar of their own non-published posting.",
+      tags: ["postings"],
+      security: optionalSecurity,
+      permissions: {
+        authMode: "optional-bearer",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Posting identifier.", "posting-1"),
+        queryParam(
+          "year",
+          { type: "integer", minimum: 2000, maximum: 2100 },
+          "Four-digit calendar year of the requested month.",
+          2026,
+          true,
+        ),
+        queryParam(
+          "month",
+          { type: "integer", minimum: 1, maximum: 12 },
+          "Calendar month (1-12) to compute availability for.",
+          7,
+          true,
+        ),
+        queryParam(
+          "tz",
+          { type: "string" },
+          "IANA timezone used for day boundaries and advance-notice calculations. Defaults to UTC.",
+          "America/Toronto",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "AvailabilityCalendarResult",
+          {
+            "2026-07-01": { status: "available", validStart: true },
+            "2026-07-02": { status: "blocked", reason: "Owner maintenance" },
+            "2026-07-03": { status: "booked", reason: "booked" },
+            "2026-07-04": { status: "unavailable", reason: "advance_notice" },
+          },
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/postings/:id/availability-blocks",
       operationId: "listPostingAvailabilityBlocks",
       summary: "List owner availability blocks",
@@ -9036,6 +9088,24 @@ function buildComponents(): Record<string, unknown> {
             items: schemaRef("PostingAvailabilityBlockRecord"),
           },
         },
+      },
+      AvailabilityCalendarDay: {
+        type: "object",
+        required: ["status"],
+        properties: {
+          status: {
+            type: "string",
+            enum: ["available", "blocked", "booked", "unavailable"],
+          },
+          reason: { type: "string" },
+          validStart: { type: "boolean" },
+        },
+      },
+      AvailabilityCalendarResult: {
+        type: "object",
+        description:
+          "Map of `YYYY-MM-DD` (in the requested timezone) to that day's availability.",
+        additionalProperties: schemaRef("AvailabilityCalendarDay"),
       },
       OwnerAvailabilityBlockRequest: {
         type: "object",

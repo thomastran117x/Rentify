@@ -2327,4 +2327,194 @@ describe("PostingsRepository", () => {
     expect(repository.readNumberLike(7)).toBe(7);
     expect(repository.readNumberLike(null)).toBe(0);
   });
+
+  it("selects lightweight posting fields for the availability calendar", async () => {
+    const findUnique = jest.fn(async () => ({
+      id: "posting-1",
+      organizationId: "org-1",
+      status: "published",
+      archivedAt: null,
+      availabilityStatus: "available",
+      advanceNoticeDays: 2,
+      minBookingDurationDays: null,
+    }));
+    const repository = new PostingsRepository({
+      posting: { findUnique },
+    } as any);
+
+    const result =
+      await repository.findAvailabilityCalendarPosting("posting-1");
+
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "posting-1" },
+        select: expect.objectContaining({
+          availabilityStatus: true,
+          advanceNoticeDays: true,
+          minBookingDurationDays: true,
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      id: "posting-1",
+      organizationId: "org-1",
+      status: "published",
+      archivedAt: undefined,
+      availabilityStatus: "available",
+      advanceNoticeDays: 2,
+      minBookingDurationDays: undefined,
+    });
+  });
+
+  it("returns null when the availability calendar posting is missing", async () => {
+    const findUnique = jest.fn(async () => null);
+    const repository = new PostingsRepository({
+      posting: { findUnique },
+    } as any);
+
+    await expect(
+      repository.findAvailabilityCalendarPosting("missing"),
+    ).resolves.toBeNull();
+  });
+
+  it("maps availability blocks in range with linked holds", async () => {
+    const findMany = jest.fn(async () => [
+      {
+        startAt: new Date("2026-07-05T00:00:00.000Z"),
+        endAt: new Date("2026-07-07T00:00:00.000Z"),
+        note: "Owner stay",
+        source: "owner",
+        bookingRequestHold: null,
+      },
+      {
+        startAt: new Date("2026-07-10T00:00:00.000Z"),
+        endAt: new Date("2026-07-11T00:00:00.000Z"),
+        note: null,
+        source: "booking_hold",
+        bookingRequestHold: {
+          status: "paid",
+          holdExpiresAt: new Date("2026-07-12T00:00:00.000Z"),
+          convertedAt: null,
+        },
+      },
+    ]);
+    const repository = new PostingsRepository({
+      postingAvailabilityBlock: { findMany },
+    } as any);
+
+    const startAt = new Date("2026-07-01T00:00:00.000Z");
+    const endAt = new Date("2026-08-01T00:00:00.000Z");
+    const blocks = await repository.findAvailabilityBlocksInRange({
+      postingId: "posting-1",
+      startAt,
+      endAt,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          postingId: "posting-1",
+          startAt: { lt: endAt },
+          endAt: { gt: startAt },
+        },
+      }),
+    );
+    expect(blocks[0]).toEqual({
+      startAt: new Date("2026-07-05T00:00:00.000Z"),
+      endAt: new Date("2026-07-07T00:00:00.000Z"),
+      note: "Owner stay",
+      source: "owner",
+    });
+    expect(blocks[1]).toEqual({
+      startAt: new Date("2026-07-10T00:00:00.000Z"),
+      endAt: new Date("2026-07-11T00:00:00.000Z"),
+      note: undefined,
+      source: "booking_hold",
+      bookingRequestHold: {
+        status: "paid",
+        holdExpiresAt: new Date("2026-07-12T00:00:00.000Z"),
+        convertedAt: undefined,
+      },
+    });
+  });
+
+  it("filters active booking requests in range by status, hold, and conversion", async () => {
+    const findMany = jest.fn(async () => [
+      {
+        startAt: new Date("2026-07-22T00:00:00.000Z"),
+        endAt: new Date("2026-07-24T00:00:00.000Z"),
+      },
+    ]);
+    const repository = new PostingsRepository({
+      bookingRequest: { findMany },
+    } as any);
+
+    const startAt = new Date("2026-07-01T00:00:00.000Z");
+    const endAt = new Date("2026-08-01T00:00:00.000Z");
+    const bookingRequests = await repository.findActiveBookingRequestsInRange({
+      postingId: "posting-1",
+      startAt,
+      endAt,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          postingId: "posting-1",
+          status: {
+            in: ["pending", "awaiting_payment", "payment_processing", "paid"],
+          },
+          convertedAt: null,
+          holdExpiresAt: { gt: new Date("2026-05-20T12:00:00.000Z") },
+          startAt: { lt: endAt },
+          endAt: { gt: startAt },
+        }),
+      }),
+    );
+    expect(bookingRequests).toEqual([
+      {
+        startAt: new Date("2026-07-22T00:00:00.000Z"),
+        endAt: new Date("2026-07-24T00:00:00.000Z"),
+      },
+    ]);
+  });
+
+  it("filters confirmed rentings in range by status", async () => {
+    const findMany = jest.fn(async () => [
+      {
+        startAt: new Date("2026-07-10T00:00:00.000Z"),
+        endAt: new Date("2026-07-12T00:00:00.000Z"),
+      },
+    ]);
+    const repository = new PostingsRepository({
+      renting: { findMany },
+    } as any);
+
+    const startAt = new Date("2026-07-01T00:00:00.000Z");
+    const endAt = new Date("2026-08-01T00:00:00.000Z");
+    const rentings = await repository.findConfirmedRentingsInRange({
+      postingId: "posting-1",
+      startAt,
+      endAt,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          postingId: "posting-1",
+          status: {
+            in: ["confirmed", "check_in_ready", "active", "return_due"],
+          },
+          startAt: { lt: endAt },
+          endAt: { gt: startAt },
+        },
+      }),
+    );
+    expect(rentings).toEqual([
+      {
+        startAt: new Date("2026-07-10T00:00:00.000Z"),
+        endAt: new Date("2026-07-12T00:00:00.000Z"),
+      },
+    ]);
+  });
 });

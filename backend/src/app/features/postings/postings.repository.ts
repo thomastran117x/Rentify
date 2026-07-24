@@ -18,6 +18,10 @@ import type {
   ManagedPostingPhotoInput,
   OwnerPostingsStatusSummary,
   PublicPostingRecord,
+  ActiveBookingRequestRange,
+  AvailabilityBlockRange,
+  AvailabilityCalendarPostingFields,
+  ConfirmedRentingRange,
   PostingAttributeValue,
   PostingAvailabilityBlockInput,
   PostingAvailabilityBlockRecord,
@@ -494,6 +498,171 @@ export class PostingsRepository extends BaseRepository {
     );
 
     return Boolean(renting);
+  }
+
+  async findAvailabilityCalendarPosting(
+    id: string,
+  ): Promise<AvailabilityCalendarPostingFields | null> {
+    const posting = await this.executeAsync(() =>
+      this.prisma.posting.findUnique({
+        where: {
+          id,
+        },
+        select: {
+          id: true,
+          organizationId: true,
+          status: true,
+          archivedAt: true,
+          availabilityStatus: true,
+          advanceNoticeDays: true,
+          minBookingDurationDays: true,
+        },
+      }),
+    );
+
+    if (!posting) {
+      return null;
+    }
+
+    return {
+      id: posting.id,
+      organizationId: posting.organizationId,
+      status: posting.status as PostingStatus,
+      archivedAt: posting.archivedAt?.toISOString(),
+      availabilityStatus:
+        posting.availabilityStatus as PostingAvailabilityStatus,
+      advanceNoticeDays: posting.advanceNoticeDays ?? undefined,
+      minBookingDurationDays: posting.minBookingDurationDays ?? undefined,
+    };
+  }
+
+  async findAvailabilityBlocksInRange(input: {
+    postingId: string;
+    startAt: Date;
+    endAt: Date;
+  }): Promise<AvailabilityBlockRange[]> {
+    const blocks = await this.executeAsync(() =>
+      this.prisma.postingAvailabilityBlock.findMany({
+        where: {
+          postingId: input.postingId,
+          startAt: {
+            lt: input.endAt,
+          },
+          endAt: {
+            gt: input.startAt,
+          },
+        },
+        select: {
+          startAt: true,
+          endAt: true,
+          note: true,
+          source: true,
+          bookingRequestHold: {
+            select: {
+              status: true,
+              holdExpiresAt: true,
+              convertedAt: true,
+            },
+          },
+        },
+      }),
+    );
+
+    return blocks.map((block) => ({
+      startAt: block.startAt,
+      endAt: block.endAt,
+      note: block.note ?? undefined,
+      source: block.source,
+      ...(block.bookingRequestHold
+        ? {
+            bookingRequestHold: {
+              status: block.bookingRequestHold.status,
+              holdExpiresAt:
+                block.bookingRequestHold.holdExpiresAt ?? undefined,
+              convertedAt: block.bookingRequestHold.convertedAt ?? undefined,
+            },
+          }
+        : {}),
+    }));
+  }
+
+  async findActiveBookingRequestsInRange(input: {
+    postingId: string;
+    startAt: Date;
+    endAt: Date;
+  }): Promise<ActiveBookingRequestRange[]> {
+    const now = new Date();
+    const bookingRequests = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findMany({
+        where: {
+          postingId: input.postingId,
+          status: {
+            in: ["pending", "awaiting_payment", "payment_processing", "paid"],
+          },
+          convertedAt: null,
+          holdExpiresAt: {
+            gt: now,
+          },
+          OR: [
+            {
+              conversionReservationExpiresAt: null,
+            },
+            {
+              conversionReservationExpiresAt: {
+                lte: now,
+              },
+            },
+          ],
+          startAt: {
+            lt: input.endAt,
+          },
+          endAt: {
+            gt: input.startAt,
+          },
+        },
+        select: {
+          startAt: true,
+          endAt: true,
+        },
+      }),
+    );
+
+    return bookingRequests.map((bookingRequest) => ({
+      startAt: bookingRequest.startAt,
+      endAt: bookingRequest.endAt,
+    }));
+  }
+
+  async findConfirmedRentingsInRange(input: {
+    postingId: string;
+    startAt: Date;
+    endAt: Date;
+  }): Promise<ConfirmedRentingRange[]> {
+    const rentings = await this.executeAsync(() =>
+      this.prisma.renting.findMany({
+        where: {
+          postingId: input.postingId,
+          status: {
+            in: ["confirmed", "check_in_ready", "active", "return_due"],
+          },
+          startAt: {
+            lt: input.endAt,
+          },
+          endAt: {
+            gt: input.startAt,
+          },
+        },
+        select: {
+          startAt: true,
+          endAt: true,
+        },
+      }),
+    );
+
+    return rentings.map((renting) => ({
+      startAt: renting.startAt,
+      endAt: renting.endAt,
+    }));
   }
 
   async publish(id: string): Promise<PostingRecord | null> {

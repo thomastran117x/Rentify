@@ -9562,6 +9562,94 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/availability-calendar':
+    get:
+      operationId: getPostingAvailabilityCalendar
+      summary: Get a posting's availability calendar
+      description: 'Returns day-by-day availability for the requested month, combining posting availability status, advance notice, owner availability blocks, active booking holds, and confirmed rentings. The response maps each `YYYY-MM-DD` day (in the requested timezone) to its status. Authentication is optional; owners may preview the calendar of their own non-published posting.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+        - {}
+      x-rentify-permissions:
+        authMode: optional-bearer
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+        - name: year
+          in: query
+          required: true
+          description: Four-digit calendar year of the requested month.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+          example: 2026
+        - name: month
+          in: query
+          required: true
+          description: Calendar month (1-12) to compute availability for.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          example: 7
+        - name: tz
+          in: query
+          required: false
+          description: IANA timezone used for day boundaries and advance-notice calculations. Defaults to UTC.
+          schema:
+            type: string
+          example: America/Toronto
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AvailabilityCalendarResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  '2026-07-01':
+                    status: available
+                    validStart: true
+                  '2026-07-02':
+                    status: blocked
+                    reason: Owner maintenance
+                  '2026-07-03':
+                    status: booked
+                    reason: booked
+                  '2026-07-04':
+                    status: unavailable
+                    reason: advance_notice
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/postings/{id}/availability-blocks':
     get:
       operationId: listPostingAvailabilityBlocks
@@ -15713,6 +15801,27 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PostingAvailabilityBlockRecord'
+    AvailabilityCalendarDay:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - available
+            - blocked
+            - booked
+            - unavailable
+        reason:
+          type: string
+        validStart:
+          type: boolean
+    AvailabilityCalendarResult:
+      type: object
+      description: Map of `YYYY-MM-DD` (in the requested timezone) to that day's availability.
+      additionalProperties:
+        $ref: '#/components/schemas/AvailabilityCalendarDay'
     OwnerAvailabilityBlockRequest:
       type: object
       required:

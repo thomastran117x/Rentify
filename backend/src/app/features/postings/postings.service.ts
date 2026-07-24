@@ -19,6 +19,13 @@ import {
   MAX_ADVANCE_NOTICE_DAYS_LIMIT,
   MAX_POSTING_PHOTOS,
   MAX_SEARCH_RESULT_WINDOW,
+  type ActiveBookingRequestRange,
+  type AvailabilityBlockRange,
+  type AvailabilityCalendarDay,
+  type AvailabilityCalendarQuery,
+  type AvailabilityCalendarResult,
+  type AvailabilityDayStatus,
+  type ConfirmedRentingRange,
   type BatchPostingsResult,
   type ListOwnerPostingsInput,
   type ListOwnerPostingsResult,
@@ -40,6 +47,12 @@ import {
   type UpsertPostingInput,
   isPostingPubliclyVisible,
 } from "@/features/postings/postings.model";
+import {
+  advanceNoticeThreshold,
+  buildMonthDayWindows,
+  resolveTimeZone,
+  type CalendarDayWindow,
+} from "@/features/postings/availability-calendar.util";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import {
@@ -542,6 +555,221 @@ export class PostingsService {
         hasOwnReview: Boolean(ownReview),
       },
     };
+  }
+
+  async getAvailabilityCalendar(
+    id: string,
+    query: AvailabilityCalendarQuery,
+    viewerId?: string,
+  ): Promise<AvailabilityCalendarResult> {
+    const posting =
+      await this.postingsRepository.findAvailabilityCalendarPosting(id);
+
+    if (!posting) {
+      throw new ResourceNotFoundError("Posting could not be found.");
+    }
+
+    // Owners/managers may preview the calendar of their own non-published
+    // posting, and only they may see private owner block notes; everyone else
+    // gets a 404 for non-published postings, mirroring getById.
+    const membership = viewerId
+      ? await this.findMembership(viewerId, posting.organizationId)
+      : null;
+    const isOwnerViewer = Boolean(membership);
+
+    if (!isPostingPubliclyVisible(posting) && !isOwnerViewer) {
+      throw new ResourceNotFoundError("Posting could not be found.");
+    }
+
+    const timeZone = resolveTimeZone(query.tz);
+    const minDuration = posting.minBookingDurationDays ?? 0;
+    const lookAheadDays = minDuration > 1 ? minDuration - 1 : 0;
+    const windows = buildMonthDayWindows(
+      query.year,
+      query.month,
+      timeZone,
+      lookAheadDays,
+    );
+
+    const rangeStart = windows[0].startUtc;
+    const rangeEnd = windows[windows.length - 1].endUtc;
+
+    const [blocks, rentings, bookingRequests] = await Promise.all([
+      this.postingsRepository.findAvailabilityBlocksInRange({
+        postingId: id,
+        startAt: rangeStart,
+        endAt: rangeEnd,
+      }),
+      this.postingsRepository.findConfirmedRentingsInRange({
+        postingId: id,
+        startAt: rangeStart,
+        endAt: rangeEnd,
+      }),
+      this.postingsRepository.findActiveBookingRequestsInRange({
+        postingId: id,
+        startAt: rangeStart,
+        endAt: rangeEnd,
+      }),
+    ]);
+
+    const now = new Date();
+    const activeBlocks = blocks.filter((block) =>
+      this.isActiveAvailabilityBlock(block, now),
+    );
+    const noticeThreshold = advanceNoticeThreshold(
+      now,
+      posting.advanceNoticeDays,
+    );
+    const postingUnavailable = posting.availabilityStatus === "unavailable";
+
+    // Resolve a base status for every window (including the min-duration
+    // look-ahead days that extend past month end).
+    const statuses = windows.map((window) =>
+      this.resolveAvailabilityDayStatus({
+        window,
+        postingUnavailable,
+        noticeThreshold,
+        activeBlocks,
+        rentings,
+        bookingRequests,
+        exposeBlockNotes: isOwnerViewer,
+      }),
+    );
+
+    const monthDayCount = windows.length - lookAheadDays;
+    const result: AvailabilityCalendarResult = {};
+
+    for (let index = 0; index < monthDayCount; index += 1) {
+      const day = statuses[index];
+      const entry: AvailabilityCalendarDay = { status: day.status };
+
+      if (day.reason) {
+        entry.reason = day.reason;
+      }
+
+      if (day.status === "available") {
+        entry.validStart = this.hasValidBookingStart(
+          statuses,
+          index,
+          minDuration,
+        );
+      }
+
+      result[windows[index].date] = entry;
+    }
+
+    return result;
+  }
+
+  private isActiveAvailabilityBlock(
+    block: AvailabilityBlockRange,
+    now: Date,
+  ): boolean {
+    const hold = block.bookingRequestHold;
+
+    if (!hold) {
+      return true;
+    }
+
+    return (
+      ["awaiting_payment", "payment_processing", "paid"].includes(
+        hold.status,
+      ) &&
+      !hold.convertedAt &&
+      hold.holdExpiresAt !== undefined &&
+      hold.holdExpiresAt.getTime() > now.getTime()
+    );
+  }
+
+  private resolveAvailabilityDayStatus(input: {
+    window: CalendarDayWindow;
+    postingUnavailable: boolean;
+    noticeThreshold?: Date;
+    activeBlocks: AvailabilityBlockRange[];
+    rentings: ConfirmedRentingRange[];
+    bookingRequests: ActiveBookingRequestRange[];
+    exposeBlockNotes: boolean;
+  }): { status: AvailabilityDayStatus; reason?: string } {
+    const { window } = input;
+
+    if (input.postingUnavailable) {
+      return { status: "unavailable", reason: "posting_unavailable" };
+    }
+
+    const overlaps = (startAt: Date, endAt: Date): boolean =>
+      startAt.getTime() < window.endUtc.getTime() &&
+      endAt.getTime() > window.startUtc.getTime();
+
+    // Actual occupancy (booked/held/blocked) is reported ahead of the softer
+    // advance-notice constraint so an already-taken day is never masked as
+    // merely "too soon". Confirmed rentings come from the status-filtered
+    // renting query; the parallel `source: "renting"` availability blocks are
+    // intentionally ignored here because those blocks are not cleaned up when a
+    // renting is cancelled or completed and would otherwise report stale days.
+    const isBooked = input.rentings.some((renting) =>
+      overlaps(renting.startAt, renting.endAt),
+    );
+    if (isBooked) {
+      return { status: "booked", reason: "booked" };
+    }
+
+    // A day is held when covered by an active booking-hold block or by an
+    // active (unexpired, unconverted) booking request. Booking requests are
+    // included directly so that pending requests without a materialized hold
+    // block still register, matching the public search availability filter.
+    const isHeld =
+      input.activeBlocks.some(
+        (block) =>
+          block.source === "booking_hold" &&
+          overlaps(block.startAt, block.endAt),
+      ) ||
+      input.bookingRequests.some((bookingRequest) =>
+        overlaps(bookingRequest.startAt, bookingRequest.endAt),
+      );
+    if (isHeld) {
+      return { status: "unavailable", reason: "held" };
+    }
+
+    const ownerBlock = input.activeBlocks.find(
+      (block) =>
+        block.source === "owner" && overlaps(block.startAt, block.endAt),
+    );
+    if (ownerBlock) {
+      // Owner block notes are private (owner-only via listAvailabilityBlocks),
+      // so they are only surfaced to a member viewer; public callers get a
+      // generic reason.
+      const reason = input.exposeBlockNotes
+        ? (ownerBlock.note ?? "blocked")
+        : "blocked";
+      return { status: "blocked", reason };
+    }
+
+    if (
+      input.noticeThreshold &&
+      window.startUtc.getTime() < input.noticeThreshold.getTime()
+    ) {
+      return { status: "unavailable", reason: "advance_notice" };
+    }
+
+    return { status: "available" };
+  }
+
+  private hasValidBookingStart(
+    statuses: Array<{ status: AvailabilityDayStatus }>,
+    index: number,
+    minDuration: number,
+  ): boolean {
+    const required = Math.max(minDuration, 1);
+
+    for (let offset = 0; offset < required; offset += 1) {
+      const day = statuses[index + offset];
+
+      if (!day || day.status !== "available") {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   async listByOwner(
