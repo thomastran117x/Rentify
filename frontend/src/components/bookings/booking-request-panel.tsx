@@ -132,18 +132,23 @@ export function BookingRequestPanel({ posting }: BookingRequestPanelProps) {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  // Prefill contact details from the signed-in account.
+  // Prefill contact details from the signed-in account. Depend on the primitive
+  // values (not the session object) so a fresh session reference can't loop the
+  // effect, and coalesce to "" so a partial session never sets an undefined value.
+  const sessionUsername = isAuthenticated ? session?.user.username : undefined;
+  const sessionEmail = isAuthenticated ? session?.user.email : undefined;
+
   useEffect(() => {
-    if (!isAuthenticated || !session) {
+    if (!sessionUsername && !sessionEmail) {
       return;
     }
 
     setValues((current) => ({
       ...current,
-      contactName: current.contactName.trim() || session.user.username,
-      contactEmail: current.contactEmail.trim() || session.user.email,
+      contactName: current.contactName.trim() || sessionUsername || "",
+      contactEmail: current.contactEmail.trim() || sessionEmail || "",
     }));
-  }, [isAuthenticated, session]);
+  }, [sessionUsername, sessionEmail]);
 
   const datesReady = useMemo(
     () =>
