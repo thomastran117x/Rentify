@@ -247,6 +247,10 @@ function createApp() {
       }),
     ),
     deleteOwnerAvailabilityBlock: jest.fn(async () => undefined),
+    getAvailabilityCalendar: jest.fn(async () => ({
+      "2026-07-01": { status: "available", validStart: true },
+      "2026-07-02": { status: "booked", reason: "booked" },
+    })),
   };
 
   const postingsAnalyticsService = {
@@ -1462,5 +1466,47 @@ describe("Postings integration", () => {
         actorUserId: "owner-1",
       }),
     );
+  });
+
+  it("serves the public availability calendar through the route layer", async () => {
+    const { app, postingsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(
+        "/postings/posting-1/availability-calendar?year=2026&month=07&tz=America/Toronto",
+      )}`,
+    );
+
+    expect(postingsService.getAvailabilityCalendar).toHaveBeenCalledWith(
+      "posting-1",
+      { year: 2026, month: 7, tz: "America/Toronto" },
+      undefined,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: {
+        "2026-07-01": { status: "available", validStart: true },
+        "2026-07-02": { status: "booked", reason: "booked" },
+      },
+      error: null,
+      message: "Request completed successfully.",
+      meta: {
+        requestId: "unknown",
+      },
+    });
+  });
+
+  it("rejects an availability calendar request with an invalid month", async () => {
+    const { app, postingsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(
+        "/postings/posting-1/availability-calendar?year=2026&month=13",
+      )}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(postingsService.getAvailabilityCalendar).not.toHaveBeenCalled();
   });
 });

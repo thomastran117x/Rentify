@@ -145,6 +145,13 @@ export const postingsAvailabilityRouteModule: RouteModule = {
   id: "postings-availability",
   register(app, { resolveHandler }) {
     app.get(
+      "/postings/:id/availability-calendar",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "getAvailabilityCalendar",
+      ),
+    );
+    app.get(
       "/postings/:id/availability-blocks",
       resolveHandler<PostingsController>(
         containerTokens.postingsController,
