@@ -568,16 +568,16 @@ export class PostingsService {
       throw new ResourceNotFoundError("Posting could not be found.");
     }
 
-    if (!isPostingPubliclyVisible(posting)) {
-      // Owners/managers may preview the calendar of their own non-published
-      // posting; everyone else gets a 404, mirroring getById.
-      const membership = viewerId
-        ? await this.findMembership(viewerId, posting.organizationId)
-        : null;
+    // Owners/managers may preview the calendar of their own non-published
+    // posting, and only they may see private owner block notes; everyone else
+    // gets a 404 for non-published postings, mirroring getById.
+    const membership = viewerId
+      ? await this.findMembership(viewerId, posting.organizationId)
+      : null;
+    const isOwnerViewer = Boolean(membership);
 
-      if (!membership) {
-        throw new ResourceNotFoundError("Posting could not be found.");
-      }
+    if (!isPostingPubliclyVisible(posting) && !isOwnerViewer) {
+      throw new ResourceNotFoundError("Posting could not be found.");
     }
 
     const timeZone = resolveTimeZone(query.tz);
@@ -626,6 +626,7 @@ export class PostingsService {
         noticeThreshold,
         activeBlocks,
         rentings,
+        exposeBlockNotes: isOwnerViewer,
       }),
     );
 
@@ -680,6 +681,7 @@ export class PostingsService {
     noticeThreshold?: Date;
     activeBlocks: AvailabilityBlockRange[];
     rentings: ConfirmedRentingRange[];
+    exposeBlockNotes: boolean;
   }): { status: AvailabilityDayStatus; reason?: string } {
     const { window } = input;
 
@@ -687,16 +689,22 @@ export class PostingsService {
       return { status: "unavailable", reason: "posting_unavailable" };
     }
 
-    if (
-      input.noticeThreshold &&
-      window.startUtc.getTime() < input.noticeThreshold.getTime()
-    ) {
-      return { status: "unavailable", reason: "advance_notice" };
-    }
-
     const overlaps = (startAt: Date, endAt: Date): boolean =>
       startAt.getTime() < window.endUtc.getTime() &&
       endAt.getTime() > window.startUtc.getTime();
+
+    // Actual occupancy (booked/held/blocked) is reported ahead of the softer
+    // advance-notice constraint so an already-taken day is never masked as
+    // merely "too soon". Confirmed rentings come from the status-filtered
+    // renting query; the parallel `source: "renting"` availability blocks are
+    // intentionally ignored here because those blocks are not cleaned up when a
+    // renting is cancelled or completed and would otherwise report stale days.
+    const isBooked = input.rentings.some((renting) =>
+      overlaps(renting.startAt, renting.endAt),
+    );
+    if (isBooked) {
+      return { status: "booked", reason: "booked" };
+    }
 
     const isHeld = input.activeBlocks.some(
       (block) =>
@@ -706,24 +714,25 @@ export class PostingsService {
       return { status: "unavailable", reason: "held" };
     }
 
-    const isBooked =
-      input.rentings.some((renting) =>
-        overlaps(renting.startAt, renting.endAt),
-      ) ||
-      input.activeBlocks.some(
-        (block) =>
-          block.source === "renting" && overlaps(block.startAt, block.endAt),
-      );
-    if (isBooked) {
-      return { status: "booked", reason: "booked" };
-    }
-
     const ownerBlock = input.activeBlocks.find(
       (block) =>
         block.source === "owner" && overlaps(block.startAt, block.endAt),
     );
     if (ownerBlock) {
-      return { status: "blocked", reason: ownerBlock.note ?? "blocked" };
+      // Owner block notes are private (owner-only via listAvailabilityBlocks),
+      // so they are only surfaced to a member viewer; public callers get a
+      // generic reason.
+      const reason = input.exposeBlockNotes
+        ? (ownerBlock.note ?? "blocked")
+        : "blocked";
+      return { status: "blocked", reason };
+    }
+
+    if (
+      input.noticeThreshold &&
+      window.startUtc.getTime() < input.noticeThreshold.getTime()
+    ) {
+      return { status: "unavailable", reason: "advance_notice" };
     }
 
     return { status: "available" };

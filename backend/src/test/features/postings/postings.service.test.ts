@@ -2704,14 +2704,14 @@ describe("PostingsService availability calendar", () => {
     });
   });
 
-  it("marks days covered by an owner availability block as blocked", async () => {
+  it("marks days covered by an owner availability block as blocked without leaking the private note to the public", async () => {
     const repository = createPublishedRepository();
     repository.calendarBlocks = [
       {
         startAt: new Date("2026-07-05T00:00:00.000Z"),
         endAt: new Date("2026-07-07T00:00:00.000Z"),
         source: "owner",
-        note: "Owner maintenance",
+        note: "Reserved for family / John Smith",
       },
     ];
     const service = createService(repository);
@@ -2721,13 +2721,38 @@ describe("PostingsService availability calendar", () => {
       month: 7,
     });
 
+    // Anonymous callers must not see the owner's private note.
     expect(calendar["2026-07-05"]).toEqual({
       status: "blocked",
-      reason: "Owner maintenance",
+      reason: "blocked",
     });
     expect(calendar["2026-07-06"].status).toBe("blocked");
     // endAt is exclusive: the block ends before July 7 becomes occupied.
     expect(calendar["2026-07-07"].status).toBe("available");
+  });
+
+  it("exposes the owner block note to a member viewer", async () => {
+    const repository = createPublishedRepository();
+    repository.calendarBlocks = [
+      {
+        startAt: new Date("2026-07-05T00:00:00.000Z"),
+        endAt: new Date("2026-07-06T00:00:00.000Z"),
+        source: "owner",
+        note: "Reserved for family / John Smith",
+      },
+    ];
+    const service = createService(repository);
+
+    const calendar = await service.getAvailabilityCalendar(
+      "posting-1",
+      { year: 2026, month: 7 },
+      "owner-1",
+    );
+
+    expect(calendar["2026-07-05"]).toEqual({
+      status: "blocked",
+      reason: "Reserved for family / John Smith",
+    });
   });
 
   it("falls back to a generic reason for a note-less owner block", async () => {
@@ -2775,8 +2800,10 @@ describe("PostingsService availability calendar", () => {
     expect(calendar["2026-07-12"].status).toBe("available");
   });
 
-  it("marks days covered by a renting-sourced block as booked", async () => {
+  it("ignores stale renting-sourced blocks and relies on the confirmed-renting query", async () => {
     const repository = createPublishedRepository();
+    // A `source: "renting"` block lingers after its renting was cancelled, so
+    // it is not in the (status-filtered) renting query and must not surface.
     repository.calendarBlocks = [
       {
         startAt: new Date("2026-07-20T00:00:00.000Z"),
@@ -2791,7 +2818,7 @@ describe("PostingsService availability calendar", () => {
       month: 7,
     });
 
-    expect(calendar["2026-07-20"].status).toBe("booked");
+    expect(calendar["2026-07-20"].status).toBe("available");
   });
 
   it("marks days under an active booking hold as unavailable", async () => {
@@ -2889,6 +2916,44 @@ describe("PostingsService availability calendar", () => {
         reason: "advance_notice",
       });
       expect(calendar["2026-07-13"].status).toBe("available");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("reports occupancy ahead of the advance-notice window", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    try {
+      const repository = createPublishedRepository();
+      repository.posting = {
+        ...repository.posting,
+        advanceNoticeDays: 5,
+      };
+      // July 12 is inside the advance-notice window but is also booked.
+      repository.calendarRentings = [
+        {
+          startAt: new Date("2026-07-12T00:00:00.000Z"),
+          endAt: new Date("2026-07-13T00:00:00.000Z"),
+        },
+      ];
+      const service = createService(repository);
+
+      const calendar = await service.getAvailabilityCalendar("posting-1", {
+        year: 2026,
+        month: 7,
+      });
+
+      // The occupied day is reported as booked, not masked as advance_notice.
+      expect(calendar["2026-07-12"]).toEqual({
+        status: "booked",
+        reason: "booked",
+      });
+      // A free day still inside the window remains advance_notice.
+      expect(calendar["2026-07-13"]).toEqual({
+        status: "unavailable",
+        reason: "advance_notice",
+      });
     } finally {
       jest.useRealTimers();
     }
