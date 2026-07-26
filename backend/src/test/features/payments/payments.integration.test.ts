@@ -284,6 +284,69 @@ describe("Payments persistence integration", () => {
     });
   });
 
+  it("returns a payment by booking request for the renter and org members but not strangers", async () => {
+    const booking = SEED_BOOKINGS[11]!;
+    const payment = await getPaymentForBooking(persistenceApp, booking.id);
+
+    const renter = await createAuthenticatedRequestContext({
+      email: booking.renterEmail,
+    });
+    const renterResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${booking.id}/payment`)}`,
+      {
+        method: "GET",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(renterResponse.status).toBe(200);
+    await expect(renterResponse.json()).resolves.toMatchObject({
+      data: {
+        id: payment.id,
+        bookingRequestId: booking.id,
+        rentalSubtotalAmount: expect.any(Number),
+        platformFeeAmount: expect.any(Number),
+        totalAmount: expect.any(Number),
+      },
+    });
+
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const ownerResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${booking.id}/payment`)}`,
+      {
+        method: "GET",
+        headers: owner.headers(),
+      },
+    );
+
+    expect(ownerResponse.status).toBe(200);
+
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const strangerResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${booking.id}/payment`)}`,
+      {
+        method: "GET",
+        headers: stranger.headers(),
+      },
+    );
+
+    expect(strangerResponse.status).toBe(403);
+
+    const missingResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/booking-requests/booking-does-not-exist/payment")}`,
+      {
+        method: "GET",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(missingResponse.status).toBe(404);
+  });
+
   it("does not persist invalid refunds or forbidden repair attempts", async () => {
     const refundBooking = SEED_BOOKINGS[11]!;
     const owner = await createAuthenticatedRequestContext({

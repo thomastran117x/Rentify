@@ -1,5 +1,6 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
+import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
@@ -727,5 +728,86 @@ describe("PaymentsService", () => {
     expect(
       paymentsRepository.markPayoutFailed as unknown as jest.Mock,
     ).toHaveBeenCalledWith("payout-2", "bank offline");
+  });
+
+  describe("getPaymentByBookingRequest", () => {
+    it("returns the payment for the renter without requiring org membership", async () => {
+      const { service, paymentsRepository, organizationAccessService } =
+        createService({
+          repository: {
+            findByBookingRequestId: jest.fn(async () =>
+              createPaymentRecord({ renterId: "renter-1" }),
+            ),
+          },
+        });
+
+      const result = await service.getPaymentByBookingRequest(
+        "booking-1",
+        "renter-1",
+      );
+
+      expect(result.id).toBe("payment-1");
+      expect(
+        paymentsRepository.findByBookingRequestId as unknown as jest.Mock,
+      ).toHaveBeenCalledWith("booking-1");
+      expect(
+        organizationAccessService.requireMembership as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("returns the payment for an organization member", async () => {
+      const { service, organizationAccessService } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () =>
+            createPaymentRecord({ renterId: "renter-1" }),
+          ),
+        },
+      });
+
+      const result = await service.getPaymentByBookingRequest(
+        "booking-1",
+        "manager-1",
+      );
+
+      expect(result.id).toBe("payment-1");
+      expect(
+        organizationAccessService.requireMembership as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        "manager-1",
+        "org-1",
+        "You do not have access to this payment.",
+      );
+    });
+
+    it("rejects a caller who is neither the renter nor an org member", async () => {
+      const { service } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () =>
+            createPaymentRecord({ renterId: "renter-1" }),
+          ),
+        },
+        orgAccess: {
+          requireMembership: jest.fn(async () => {
+            throw new ForbiddenError("You do not have access to this payment.");
+          }),
+        },
+      });
+
+      await expect(
+        service.getPaymentByBookingRequest("booking-1", "stranger-1"),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+
+    it("throws when no payment exists for the booking request", async () => {
+      const { service } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        service.getPaymentByBookingRequest("booking-missing", "renter-1"),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    });
   });
 });

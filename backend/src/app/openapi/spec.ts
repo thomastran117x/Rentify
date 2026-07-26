@@ -6786,6 +6786,33 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/booking-requests/:id/payment",
+      operationId: "getPaymentByBookingRequest",
+      summary: "Get a payment by booking request ID",
+      description:
+        "Returns the payment record associated with a booking request when the authenticated caller is allowed to access it.",
+      tags: ["payments"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PaymentRecord",
+          paymentExample,
+        ),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/payments/:id/retry",
       operationId: "retryPayment",

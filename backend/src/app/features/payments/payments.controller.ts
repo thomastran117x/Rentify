@@ -51,6 +51,17 @@ export class PaymentsController {
     return ok(context, result);
   };
 
+  getByBookingRequest = async (
+    context: Context<AppBindings>,
+  ): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.paymentsService.getPaymentByBookingRequest(
+      this.requireBookingRequestId(context),
+      auth.sub,
+    );
+    return ok(context, result);
+  };
+
   retry = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(context, retryPaymentSchema);

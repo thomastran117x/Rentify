@@ -361,6 +361,30 @@ describe("BookingsDashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("links renting items to their detail page", async () => {
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [
+          buildDashboardItem({
+            id: "renting-item",
+            kind: "renting",
+            rentingId: "renting-1",
+            bookingRequestId: "booking-1",
+            status: "active",
+            sourceStatus: "active",
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    const detailsLink = await screen.findByRole("link", {
+      name: "View details",
+    });
+    expect(detailsLink).toHaveAttribute("href", "/rentings/renting-1");
+  });
+
   it("keeps operators in the owner view but hides owner mutation controls", async () => {
     useAuthMock.mockReturnValue({
       status: "authenticated",

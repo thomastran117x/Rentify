@@ -156,6 +156,12 @@ export const paymentsApi = {
       `/payments/${encodeURIComponent(paymentId)}`,
     );
   },
+  getByBookingRequest(bookingRequestId: string): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord>(
+      "GET",
+      `/booking-requests/${encodeURIComponent(bookingRequestId)}/payment`,
+    );
+  },
   retry(
     paymentId: string,
     input: RetryPaymentInput = {},

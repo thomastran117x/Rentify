@@ -20,6 +20,14 @@ import {
 } from "@/lib/auth/roles";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { bookingsApi } from "@/lib/bookings/api";
+import {
+  canDisputeRenting,
+  formatDateRange,
+  formatDateTime,
+  formatMoney,
+  humanizeStatus,
+  statusClasses,
+} from "@/lib/rentings/format";
 import type {
   BookingCancellationQuoteResult,
   BookingDashboardItem,
@@ -83,45 +91,6 @@ const OWNER_ACTION_OPTIONS: Array<{
   { label: "Convert to renting", value: "conversion" },
 ];
 
-function formatDateRange(startAt: string, endAt: string): string {
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return `${formatter.format(new Date(startAt))} - ${formatter.format(new Date(endAt))}`;
-}
-
-function formatDateTime(value?: string): string | null {
-  if (!value) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function humanizeStatus(status: string): string {
-  return status
-    .split("_")
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function humanizeActionNeeded(value?: string): string | null {
   if (!value) {
     return null;
@@ -166,57 +135,17 @@ function urgencyClasses(
   return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
-function statusClasses(status: BookingDashboardItem["status"]): string {
-  if (
-    ["payment_failed", "declined", "expired", "cancelled", "refunded"].includes(
-      status,
-    )
-  ) {
-    return "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300";
-  }
-
-  if (status === "disputed") {
-    return "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300";
-  }
-
-  if (
-    ["pending", "approved", "awaiting_payment", "payment_processing"].includes(
-      status,
-    )
-  ) {
-    return "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300";
-  }
-
-  if (status === "paid" || status === "confirmed" || status === "completed") {
-    return "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300";
-  }
-
-  if (
-    status === "check_in_ready" ||
-    status === "active" ||
-    status === "return_due"
-  ) {
-    return "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300";
-  }
-
-  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
-}
-
 function canOpenDispute(item: BookingDashboardItem): boolean {
-  if (item.kind !== "renting" || item.dispute) {
+  if (item.kind !== "renting") {
     return false;
   }
 
-  if (item.sourceStatus === "active" || item.sourceStatus === "return_due") {
-    return true;
-  }
-
-  if (item.sourceStatus !== "completed") {
-    return false;
-  }
-
-  const anchor = item.completedAt ?? item.endAt;
-  return Date.now() - new Date(anchor).getTime() <= 7 * 24 * 60 * 60 * 1000;
+  return canDisputeRenting({
+    status: item.sourceStatus,
+    hasDispute: Boolean(item.dispute),
+    completedAt: item.completedAt,
+    endAt: item.endAt,
+  });
 }
 
 interface BookingItemCardProps {
@@ -387,6 +316,12 @@ function BookingItemCard({
 
             {item.kind === "renting" && item.rentingId ? (
               <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/rentings/${item.rentingId}`}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100"
+                >
+                  View details
+                </Link>
                 {canEditInstructions && (
                   <button
                     type="button"
