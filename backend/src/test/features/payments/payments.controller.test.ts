@@ -216,6 +216,29 @@ describe("PaymentsController", () => {
     );
   });
 
+  it("maps get-by-booking-request calls to the service layer", async () => {
+    const service = {
+      getPaymentByBookingRequest: jest.fn(async () => ({ id: "payment-1" })),
+    };
+    const controller = new PaymentsController(service as any);
+    const context = createContext({
+      params: {
+        id: "booking-1",
+      },
+    });
+
+    const response = await controller.getByBookingRequest(context);
+
+    expect(service.getPaymentByBookingRequest).toHaveBeenCalledWith(
+      "booking-1",
+      "user-1",
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { id: "payment-1" },
+    });
+  });
+
   it("returns request validation details for invalid payout queries", async () => {
     const controller = new PaymentsController({
       listPayouts: jest.fn(),

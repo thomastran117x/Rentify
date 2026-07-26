@@ -12294,6 +12294,84 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  '/booking-requests/{id}/payment':
+    get:
+      operationId: getPaymentByBookingRequest
+      summary: Get a payment by booking request ID
+      description: Returns the payment record associated with a booking request when the authenticated caller is allowed to access it.
+      tags:
+        - payments
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Booking request identifier.
+          schema:
+            type: string
+          example: booking-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PaymentRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  id: payment-1
+                  bookingRequestId: booking-1
+                  postingId: posting-1
+                  renterId: user-1
+                  organizationId: org-1
+                  provider: square
+                  status: awaiting_method
+                  pricingCurrency: CAD
+                  rentalSubtotalAmount: 450
+                  platformFeeAmount: 45
+                  totalAmount: 495
+                  squarePaymentId: sq-payment-1
+                  squareOrderId: sq-order-1
+                  squareLocationId: sq-location-1
+                  checkoutUrl: 'https://square.link/u/abc123'
+                  createdAt: '2026-05-25T12:05:00.000Z'
+                  updatedAt: '2026-05-25T12:05:00.000Z'
+                  booking:
+                    id: booking-1
+                    status: awaiting_payment
+                    startAt: '2026-06-14T15:00:00.000Z'
+                    endAt: '2026-06-17T11:00:00.000Z'
+                    holdExpiresAt: '2026-05-28T12:00:00.000Z'
+                    paymentReconciliationRequired: false
+                  attempts: []
+                  refunds: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/payments/{id}/retry':
     post:
       operationId: retryPayment

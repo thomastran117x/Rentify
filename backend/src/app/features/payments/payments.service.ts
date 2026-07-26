@@ -134,6 +134,20 @@ export class PaymentsService {
     return this.requirePaymentAccess(paymentId, userId, "read");
   }
 
+  async getPaymentByBookingRequest(
+    bookingRequestId: string,
+    userId: string,
+  ): Promise<PaymentRecord> {
+    const payment =
+      await this.paymentsRepository.findByBookingRequestId(bookingRequestId);
+
+    if (!payment) {
+      throw new ResourceNotFoundError("Payment could not be found.");
+    }
+
+    return this.requirePaymentRecordAccess(payment, userId, "read");
+  }
+
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
     await this.requirePaymentAccess(
       input.paymentId,
@@ -452,6 +466,14 @@ export class PaymentsService {
       throw new ResourceNotFoundError("Payment could not be found.");
     }
 
+    return this.requirePaymentRecordAccess(payment, userId, access);
+  }
+
+  private async requirePaymentRecordAccess(
+    payment: PaymentRecord,
+    userId: string,
+    access: "read" | "manage",
+  ): Promise<PaymentRecord> {
     if (payment.renterId === userId) {
       return payment;
     }

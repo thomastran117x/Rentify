@@ -12,6 +12,13 @@ export const paymentsRouteModule: RouteModule = {
         "createSessionForBooking",
       ),
     );
+    app.get(
+      "/booking-requests/:id/payment",
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "getByBookingRequest",
+      ),
+    );
     app.post(
       "/payments/webhooks/square",
       resolveHandler<PaymentsController>(
