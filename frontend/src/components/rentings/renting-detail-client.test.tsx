@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiClientError } from "@/lib/api/types";
 import type { PaymentRecord } from "@/lib/payments/api";
 import type { RentingRecord } from "@/lib/rentings/api";
 import { RentingDetailClient } from "./renting-detail-client";
@@ -177,10 +178,14 @@ describe("RentingDetailClient", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lets an owner edit and save instructions", async () => {
+  it("lets a managing org member edit and save instructions", async () => {
     useAuthMock.mockReturnValue({
       status: "authenticated",
-      session: buildSession("owner", "owner-9"),
+      session: buildSession("user", "manager-9", {
+        id: "org-1",
+        name: "Org One",
+        role: "manager",
+      }),
     });
 
     render(<RentingDetailClient rentingId="renting-1" />);
@@ -201,6 +206,23 @@ describe("RentingDetailClient", () => {
     expect(await screen.findByText("Instructions saved.")).toBeInTheDocument();
   });
 
+  it("hides owner controls from a global owner role without managing membership", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner", "owner-9"),
+    });
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(await screen.findByText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save instructions" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Confirm check-in" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the review link for a completed, undisputed renting", async () => {
     getByIdMock.mockResolvedValue(
       buildRenting({
@@ -212,18 +234,54 @@ describe("RentingDetailClient", () => {
     render(<RentingDetailClient rentingId="renting-1" />);
 
     const reviewLink = await screen.findByRole("link", {
-      name: "Leave / view a review",
+      name: "View reviews",
     });
     expect(reviewLink).toHaveAttribute("href", "/postings/posting-1");
   });
 
-  it("treats a missing receipt as a soft empty state", async () => {
-    getPaymentMock.mockRejectedValue(new Error("no payment"));
+  it("treats a 404 receipt as a soft empty state", async () => {
+    getPaymentMock.mockRejectedValue(
+      new ApiClientError("Payment could not be found.", {
+        status: 404,
+        code: "RESOURCE_NOT_FOUND",
+        request: {
+          method: "GET",
+          path: "/booking-requests/booking-1/payment",
+          requestUrl: "http://test/booking-requests/booking-1/payment",
+        },
+      }),
+    );
 
     render(<RentingDetailClient rentingId="renting-1" />);
 
     expect(
-      await screen.findByText("A receipt is not available for this renting yet."),
+      await screen.findByText(
+        "A receipt is not available for this renting yet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces an error state when the receipt fails to load", async () => {
+    getPaymentMock.mockRejectedValue(
+      new ApiClientError("Forbidden.", {
+        status: 403,
+        code: "FORBIDDEN",
+        request: {
+          method: "GET",
+          path: "/booking-requests/booking-1/payment",
+          requestUrl: "http://test/booking-requests/booking-1/payment",
+        },
+      }),
+    );
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(await screen.findByText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      screen.queryByText("A receipt is not available for this renting yet."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn't load the payment receipt/i),
     ).toBeInTheDocument();
   });
 });

@@ -13,10 +13,7 @@ import {
   Star,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
-import {
-  canManageOrganizationPostings,
-  isOwnerRole,
-} from "@/lib/auth/roles";
+import { canManageOrganizationPostings } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { rentingsApi, type RentingRecord } from "@/lib/rentings/api";
@@ -89,6 +86,7 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
   const [renting, setRenting] = useState<RentingRecord | null>(null);
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -120,6 +118,7 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
     setLoading(true);
     setNotFound(false);
     setLoadError(null);
+    setPaymentError(null);
 
     async function loadRenting() {
       try {
@@ -138,11 +137,27 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
           if (active) {
             setPayment(paymentRecord);
+            setPaymentError(null);
           }
-        } catch {
-          // A missing receipt is a soft empty state, not a page error.
-          if (active) {
-            setPayment(null);
+        } catch (paymentErr) {
+          if (!active) {
+            return;
+          }
+
+          setPayment(null);
+
+          // A genuine 404 means no receipt exists yet (soft empty state);
+          // any other failure is operational and must surface as an error.
+          if (paymentErr instanceof ApiError && paymentErr.status === 404) {
+            setPaymentError(null);
+          } else {
+            setPaymentError(
+              getApiErrorMessage(paymentErr, {
+                action: "load the payment receipt",
+                fallback:
+                  "We couldn't load the payment receipt. Please try again.",
+              }),
+            );
           }
         }
       } catch (error) {
@@ -239,8 +254,11 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
   }
 
   const activeOrg = session?.user.activeOrganization;
+  // Mirror the backend's assertOwnerOrAdmin: only global admins are exempt from
+  // needing a managing membership in the renting's own organization. A global
+  // "owner" role alone does not grant management over another org's renting.
   const canManageAsOwner =
-    isOwnerRole(session?.user.role) ||
+    session?.user.role === "admin" ||
     (canManageOrganizationPostings(activeOrg) &&
       activeOrg?.id === renting.organizationId);
 
@@ -333,7 +351,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
           {/* Lifecycle timeline */}
           <Panel
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" aria-hidden="true" />}
+            icon={
+              <CheckCircle2
+                className="h-5 w-5 text-emerald-500"
+                aria-hidden="true"
+              />
+            }
             title="Lifecycle timeline"
           >
             <ol className="space-y-3">
@@ -371,7 +394,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
           {/* Instructions */}
           <Panel
-            icon={<ClipboardList className="h-5 w-5 text-slate-500" aria-hidden="true" />}
+            icon={
+              <ClipboardList
+                className="h-5 w-5 text-slate-500"
+                aria-hidden="true"
+              />
+            }
             title="Pickup & return instructions"
           >
             {canManageAsOwner ? (
@@ -460,7 +488,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
           {/* Owner lifecycle actions */}
           {canManageAsOwner ? (
             <Panel
-              icon={<CalendarDays className="h-5 w-5 text-sky-500" aria-hidden="true" />}
+              icon={
+                <CalendarDays
+                  className="h-5 w-5 text-sky-500"
+                  aria-hidden="true"
+                />
+              }
               title="Lifecycle actions"
             >
               <div className="flex flex-wrap gap-2">
@@ -525,9 +558,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
                       : "Confirm return"}
                   </button>
                 ) : null}
-                {!["confirmed", "check_in_ready", "active", "return_due"].includes(
-                  renting.status,
-                ) ? (
+                {![
+                  "confirmed",
+                  "check_in_ready",
+                  "active",
+                  "return_due",
+                ].includes(renting.status) ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     No lifecycle actions are available for this renting.
                   </p>
@@ -538,7 +574,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
           {/* Payment receipt */}
           <Panel
-            icon={<ReceiptText className="h-5 w-5 text-emerald-500" aria-hidden="true" />}
+            icon={
+              <ReceiptText
+                className="h-5 w-5 text-emerald-500"
+                aria-hidden="true"
+              />
+            }
             title="Payment receipt"
           >
             {payment ? (
@@ -584,6 +625,10 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
                   </div>
                 ) : null}
               </dl>
+            ) : paymentError ? (
+              <p className="text-sm font-medium text-rose-700 dark:text-rose-300">
+                {paymentError}
+              </p>
             ) : (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 A receipt is not available for this renting yet.
@@ -593,7 +638,12 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
 
           {/* Dispute */}
           <Panel
-            icon={<AlertTriangle className="h-5 w-5 text-rose-500" aria-hidden="true" />}
+            icon={
+              <AlertTriangle
+                className="h-5 w-5 text-rose-500"
+                aria-hidden="true"
+              />
+            }
             title="Dispute"
           >
             {renting.dispute ? (
@@ -662,18 +712,19 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
           {/* Review */}
           {canLeaveReview ? (
             <Panel
-              icon={<Star className="h-5 w-5 text-amber-500" aria-hidden="true" />}
+              icon={
+                <Star className="h-5 w-5 text-amber-500" aria-hidden="true" />
+              }
               title="Review"
             >
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                This renting is complete. Share your experience with other
-                renters.
+                This renting is complete. Open the posting to read its reviews.
               </p>
               <Link
                 href={`/postings/${renting.postingId}`}
                 className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-700"
               >
-                Leave / view a review
+                View reviews
               </Link>
             </Panel>
           ) : null}
