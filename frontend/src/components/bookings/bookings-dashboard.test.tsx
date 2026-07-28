@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -19,12 +20,14 @@ const {
   getOwnerDashboardMock,
   getCancellationQuoteMock,
   cancelMock,
+  getOwnReviewMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMyDashboardMock: vi.fn(),
   getOwnerDashboardMock: vi.fn(),
   getCancellationQuoteMock: vi.fn(),
   cancelMock: vi.fn(),
+  getOwnReviewMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -55,6 +58,14 @@ vi.mock("@/lib/bookings/api", () => ({
     getOwnerDashboard: getOwnerDashboardMock,
     getCancellationQuote: getCancellationQuoteMock,
     cancel: cancelMock,
+  },
+}));
+
+vi.mock("@/lib/postings/api", () => ({
+  postingsApi: {
+    getOwnReview: getOwnReviewMock,
+    createReview: vi.fn(),
+    updateOwnReview: vi.fn(),
   },
 }));
 
@@ -216,6 +227,7 @@ describe("BookingsDashboard", () => {
     getMyDashboardMock.mockResolvedValue(buildRenterDashboard());
     getOwnerDashboardMock.mockResolvedValue(buildOwnerDashboard());
     getCancellationQuoteMock.mockResolvedValue(buildCancellationQuote());
+    getOwnReviewMock.mockResolvedValue({ eligible: true, review: null });
     cancelMock.mockResolvedValue({
       id: "booking-1",
       status: "cancelled",
@@ -413,6 +425,101 @@ describe("BookingsDashboard", () => {
     expect(screen.getByRole("button", { name: "Renter" })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Review cancellation" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a review form on completed rentings in the renter view", async () => {
+    const user = userEvent.setup();
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [
+          buildDashboardItem({
+            id: "renting-item",
+            kind: "renting",
+            rentingId: "renting-1",
+            status: "completed",
+            sourceStatus: "completed",
+            completedAt: "2026-07-01T10:00:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Leave a review" }),
+    );
+
+    await waitFor(() => {
+      expect(getOwnReviewMock).toHaveBeenCalledWith("posting-1");
+    });
+    expect(
+      await screen.findByRole("button", { name: "Submit review" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the review action once a dispute exists", async () => {
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [
+          buildDashboardItem({
+            id: "renting-item",
+            kind: "renting",
+            rentingId: "renting-1",
+            status: "disputed",
+            sourceStatus: "completed",
+            completedAt: "2026-07-01T10:00:00.000Z",
+            dispute: {
+              id: "dispute-1",
+              rentingId: "renting-1",
+              openedByUserId: "renter-1",
+              reason: "Damage",
+              createdAt: "2026-07-02T10:00:00.000Z",
+              updatedAt: "2026-07-02T10:00:00.000Z",
+            },
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await waitFor(() => {
+      expect(getMyDashboardMock).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Leave a review" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("never offers the review action in the owner view", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner"),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            id: "owner-renting",
+            kind: "renting",
+            rentingId: "renting-1",
+            status: "completed",
+            sourceStatus: "completed",
+            completedAt: "2026-07-01T10:00:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await waitFor(() => {
+      expect(getOwnerDashboardMock).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Leave a review" }),
     ).not.toBeInTheDocument();
   });
 });

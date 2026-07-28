@@ -248,6 +248,68 @@ describe("PostingsReviewsService", () => {
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
+  describe("getOwn", () => {
+    it("reports eligibility with no existing review", async () => {
+      const rentingsRepository = new FakeRentingsRepository();
+      rentingsRepository.eligible = true;
+      const service = createService({ rentingsRepository });
+
+      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+        eligible: true,
+        review: null,
+      });
+    });
+
+    it("returns the caller's existing review so the form can prefill", async () => {
+      const postingsReviewsRepository = new FakePostingsReviewsRepository();
+      postingsReviewsRepository.ownReview = buildReviewRecord();
+      const rentingsRepository = new FakeRentingsRepository();
+      rentingsRepository.eligible = true;
+      const service = createService({
+        postingsReviewsRepository,
+        rentingsRepository,
+      });
+
+      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+        eligible: true,
+        review: buildReviewRecord(),
+      });
+    });
+
+    it("reports ineligible without a completed eligible renting", async () => {
+      const service = createService();
+
+      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+        eligible: false,
+        review: null,
+      });
+    });
+
+    it("reports ineligible for members of the owning organization", async () => {
+      const rentingsRepository = new FakeRentingsRepository();
+      rentingsRepository.eligible = true;
+      const service = createService({ rentingsRepository });
+
+      await expect(service.getOwn("posting-1", "owner-1")).resolves.toEqual({
+        eligible: false,
+        review: null,
+      });
+    });
+
+    it("returns not found for postings that are not publicly visible", async () => {
+      const postingsRepository = new FakePostingsRepository();
+      postingsRepository.posting = {
+        ...postingsRepository.posting,
+        status: "paused",
+      };
+      const service = createService({ postingsRepository });
+
+      await expect(
+        service.getOwn("posting-1", "renter-1"),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    });
+  });
+
   it("lists reviews only for published postings", async () => {
     const postingsRepository = new FakePostingsRepository();
     postingsRepository.posting = {

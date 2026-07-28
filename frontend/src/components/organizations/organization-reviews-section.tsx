@@ -10,10 +10,7 @@ import {
   type OrganizationReviewRecord,
   type OrganizationReviewSummary,
 } from "@/lib/organizations/api";
-import {
-  StarRating,
-  StarRatingInput,
-} from "@/components/organizations/star-rating";
+import { StarRating, StarRatingInput } from "@/components/reviews/star-rating";
 import { formatOrganizationDate } from "@/components/organizations/organization-public-visuals";
 
 const PAGE_SIZE = 5;

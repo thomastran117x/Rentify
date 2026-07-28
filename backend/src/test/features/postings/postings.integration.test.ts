@@ -690,6 +690,28 @@ describe("Postings persistence integration", () => {
       email: eligibleRenting.renter.email,
     });
 
+    const ownReviewPath = buildApiPath(
+      `/postings/${eligibleRenting.postingId}/reviews/me`,
+    );
+
+    const anonymousOwnReviewResponse = await persistenceApp.app.request(
+      `http://rent.test${ownReviewPath}`,
+    );
+    expect(anonymousOwnReviewResponse.status).toBe(401);
+
+    const eligibleBeforeResponse = await persistenceApp.app.request(
+      `http://rent.test${ownReviewPath}`,
+      {
+        headers: reviewer.headers(),
+      },
+    );
+
+    expect(eligibleBeforeResponse.status).toBe(200);
+    expect((await eligibleBeforeResponse.json()).data).toEqual({
+      eligible: true,
+      review: null,
+    });
+
     const createReviewResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/postings/${eligibleRenting.postingId}/reviews`)}`,
       {
@@ -747,6 +769,47 @@ describe("Postings persistence integration", () => {
       rating: 4,
       title: "Updated review",
       comment: "The handoff was smooth and the space was clean.",
+    });
+
+    // The same lookup now returns the saved review so the client form opens in
+    // edit mode with real values instead of a blank rating.
+    const ownReviewAfterResponse = await persistenceApp.app.request(
+      `http://rent.test${ownReviewPath}`,
+      {
+        headers: reviewer.headers(),
+      },
+    );
+
+    expect(ownReviewAfterResponse.status).toBe(200);
+    expect((await ownReviewAfterResponse.json()).data).toMatchObject({
+      eligible: true,
+      review: {
+        rating: 4,
+        title: "Updated review",
+        comment: "The handoff was smooth and the space was clean.",
+      },
+    });
+
+    // Organization members can read the posting but are never eligible to review it.
+    const member = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: {
+        id: eligibleRenting.posting.organization.memberships[0]!.userId,
+      },
+    });
+    const memberContext = await createAuthenticatedRequestContext({
+      email: member.email,
+    });
+    const memberOwnReviewResponse = await persistenceApp.app.request(
+      `http://rent.test${ownReviewPath}`,
+      {
+        headers: memberContext.headers(),
+      },
+    );
+
+    expect(memberOwnReviewResponse.status).toBe(200);
+    expect((await memberOwnReviewResponse.json()).data).toEqual({
+      eligible: false,
+      review: null,
     });
   });
 

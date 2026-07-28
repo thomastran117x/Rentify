@@ -468,6 +468,15 @@ export class PostingsController {
     });
   };
 
+  getOwnReview = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.postingsReviewsService.getOwn(
+      this.requireRouteId(context),
+      auth.sub,
+    );
+    return ok(context, result);
+  };
+
   createReview = async (context: Context<AppBindings>): Promise<Response> => {
     const auth = await this.requireAuth(context);
     const body = await parseRequestBody(

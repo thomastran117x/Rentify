@@ -13179,6 +13179,104 @@
       }
     },
     "/postings/{id}/reviews/me": {
+      "get": {
+        "operationId": "getOwnPostingReview",
+        "summary": "Get the caller's review state for a posting",
+        "description": "Returns whether the authenticated caller may review this posting and their existing review, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination. PAT bearer authentication with `mcp:read` is allowed.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": true,
+          "patScope": "mcp:read"
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Posting identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "posting-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/GetOwnPostingReviewResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "eligible": true,
+                    "review": {
+                      "id": "review-1",
+                      "postingId": "posting-1",
+                      "reviewerId": "user-1",
+                      "rating": 5,
+                      "title": "Great space",
+                      "comment": "Exactly as advertised and easy to book.",
+                      "reviewer": {
+                        "username": "taylor-renter",
+                        "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
+                      },
+                      "createdAt": "2026-05-18T10:00:00.000Z",
+                      "updatedAt": "2026-05-18T10:00:00.000Z"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
       "put": {
         "operationId": "updateOwnPostingReview",
         "summary": "Update the caller's review for a posting",
@@ -23399,16 +23497,39 @@
             "maximum": 5
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "nullable": true
           },
           "comment": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "nullable": true
           }
         }
       },
       "PostingReviewRecord": {
         "type": "object",
         "additionalProperties": true
+      },
+      "GetOwnPostingReviewResult": {
+        "type": "object",
+        "required": [
+          "eligible",
+          "review"
+        ],
+        "properties": {
+          "eligible": {
+            "type": "boolean",
+            "description": "Whether the caller may currently create or update a review for this posting."
+          },
+          "review": {
+            "$ref": "#/components/schemas/PostingReviewRecord",
+            "nullable": true
+          }
+        }
       },
       "ListPostingReviewsResult": {
         "type": "object",

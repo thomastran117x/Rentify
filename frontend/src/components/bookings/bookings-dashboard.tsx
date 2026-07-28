@@ -10,9 +10,11 @@ import {
   CircleDollarSign,
   ClipboardList,
   ReceiptText,
+  Star,
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { PostingReviewForm } from "@/components/reviews/posting-review-form";
 import {
   canManageOrganizationPostings,
   canReadOrganizationPostings,
@@ -22,6 +24,7 @@ import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { bookingsApi } from "@/lib/bookings/api";
 import {
   canDisputeRenting,
+  canReviewRenting,
   formatDateRange,
   formatDateTime,
   formatMoney,
@@ -148,9 +151,30 @@ function canOpenDispute(item: BookingDashboardItem): boolean {
   });
 }
 
+/**
+ * Renters review the posting they rented. Owners are organization members and
+ * are rejected by the API, so the affordance is renter-only.
+ */
+function canLeaveReview(
+  item: BookingDashboardItem,
+  view: DashboardView,
+): boolean {
+  if (item.kind !== "renting" || view === "owner") {
+    return false;
+  }
+
+  return canReviewRenting({
+    status: item.sourceStatus,
+    hasDispute: Boolean(item.dispute),
+  });
+}
+
 interface BookingItemCardProps {
   item: BookingDashboardItem;
   view: DashboardView;
+  reviewFormOpenRentingId: string | null;
+  onToggleReviewForm: (rentingId: string) => void;
+  onReviewSaved: () => void;
   canManageOwnerActions: boolean;
   quoteByBookingId: Record<string, BookingCancellationQuoteResult | undefined>;
   reasonByBookingId: Record<string, string>;
@@ -188,6 +212,9 @@ interface BookingItemCardProps {
 function BookingItemCard({
   item,
   view,
+  reviewFormOpenRentingId,
+  onToggleReviewForm,
+  onReviewSaved,
   canManageOwnerActions,
   quoteByBookingId,
   reasonByBookingId,
@@ -257,6 +284,9 @@ function BookingItemCard({
   ].includes(item.sourceStatus);
   const isRentingActionPending = (action: string) =>
     rentingMutationPendingKey === `${action}:${item.rentingId}`;
+  const showReviewAction = canLeaveReview(item, view);
+  const reviewFormOpen =
+    showReviewAction && reviewFormOpenRentingId === item.rentingId;
 
   return (
     <article className="overflow-hidden rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
@@ -374,6 +404,17 @@ function BookingItemCard({
                     {isRentingActionPending("complete-return")
                       ? "Updating..."
                       : "Confirm return"}
+                  </button>
+                ) : null}
+                {showReviewAction ? (
+                  <button
+                    type="button"
+                    onClick={() => onToggleReviewForm(item.rentingId!)}
+                    aria-expanded={reviewFormOpen}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <Star className="h-4 w-4" aria-hidden="true" />
+                    {reviewFormOpen ? "Hide review form" : "Leave a review"}
                   </button>
                 ) : null}
               </div>
@@ -660,6 +701,27 @@ function BookingItemCard({
             </div>
           ) : null}
 
+          {reviewFormOpen ? (
+            <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-950 text-amber-500">
+                  <Star className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                    Review {item.posting.name}
+                  </p>
+                  <PostingReviewForm
+                    postingId={item.postingId}
+                    onSaved={onReviewSaved}
+                    showIneligibleNotice
+                    className="mt-3"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {item.kind === "renting" &&
           item.rentingId &&
           canManageCurrentView &&
@@ -842,6 +904,9 @@ export function BookingsDashboard() {
     useState<OwnerBookingDashboardResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<DashboardBanner | null>(null);
+  const [reviewFormOpenRentingId, setReviewFormOpenRentingId] = useState<
+    string | null
+  >(null);
   const [renterFilters, setRenterFilters] = useState<{
     page: number;
     pageSize: number;
@@ -1518,6 +1583,18 @@ export function BookingsDashboard() {
                 key={`${item.kind}-${item.id}`}
                 item={item}
                 view={activeView}
+                reviewFormOpenRentingId={reviewFormOpenRentingId}
+                onToggleReviewForm={(rentingId) =>
+                  setReviewFormOpenRentingId((current) =>
+                    current === rentingId ? null : rentingId,
+                  )
+                }
+                onReviewSaved={() =>
+                  setBanner({
+                    tone: "success",
+                    text: "Your review was saved.",
+                  })
+                }
                 canManageOwnerActions={canManageOwnerView}
                 quoteByBookingId={quoteByBookingId}
                 reasonByBookingId={reasonByBookingId}

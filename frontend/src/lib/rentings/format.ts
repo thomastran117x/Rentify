@@ -76,6 +76,19 @@ export function statusClasses(status: string): string {
 }
 
 /**
+ * Core review eligibility for a renting, shared by the bookings dashboard card
+ * and the renting detail page. The backend is the authority (it also checks
+ * that the rental actually completed in the past and that the reviewer is not
+ * an organization member), so this only gates whether to offer the affordance.
+ */
+export function canReviewRenting(input: {
+  status: string;
+  hasDispute: boolean;
+}): boolean {
+  return input.status === "completed" && !input.hasDispute;
+}
+
+/**
  * Core dispute eligibility for a renting, shared by the bookings dashboard card
  * and the renting detail page. A dispute can be opened while a renting is
  * active or return due, or within the dispute window after completion, and only

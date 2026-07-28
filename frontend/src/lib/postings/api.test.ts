@@ -86,6 +86,93 @@ describe("postingsApi", () => {
     );
   });
 
+  it("fetches the caller's own review state for a posting", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              eligible: true,
+              review: {
+                id: "review-1",
+                rating: 4,
+              },
+            },
+            error: null,
+            meta: {
+              requestId: "request-own-review",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { postingsApi } = await import("./api");
+    const result = await postingsApi.getOwnReview("posting/1");
+
+    expect(result.eligible).toBe(true);
+    expect(result.review?.rating).toBe(4);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8040/api/v1/postings/posting%2F1/reviews/me",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          authorization: "Bearer posting-access-token",
+        }),
+      }),
+    );
+  });
+
+  it("sends null for blank optional review fields when creating a review", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              id: "review-1",
+              rating: 5,
+            },
+            error: null,
+            meta: {
+              requestId: "request-create-review",
+            },
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { postingsApi } = await import("./api");
+    await postingsApi.createReview("posting-1", {
+      rating: 5,
+      title: null,
+      comment: null,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8040/api/v1/postings/posting-1/reviews",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ rating: 5, title: null, comment: null }),
+      }),
+    );
+  });
+
   it("posts booking quote requests with the provided payload", async () => {
     const fetchMock = vi.fn(
       async () =>

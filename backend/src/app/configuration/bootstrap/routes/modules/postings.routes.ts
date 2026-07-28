@@ -124,6 +124,15 @@ export const postingsReviewsRouteModule: RouteModule = {
         "listReviews",
       ),
     );
+    // Authenticated reviewer state: eligibility plus the caller's own review,
+    // so the client can open its form in create or edit mode.
+    app.get(
+      "/postings/:id/reviews/me",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "getOwnReview",
+      ),
+    );
     app.post(
       "/postings/:id/reviews",
       resolveHandler<PostingsController>(

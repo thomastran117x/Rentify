@@ -357,6 +357,10 @@ function createApp() {
         comment: "Updated review",
       }),
     ),
+    getOwn: jest.fn(async () => ({
+      eligible: true,
+      review: createReview(),
+    })),
   };
 
   const recommendationActivityPublisher = {
@@ -862,6 +866,12 @@ describe("Postings integration", () => {
         }),
       },
     );
+    const getOwnReviewResponse = await app.request(
+      `http://rent.test${buildApiPath("/postings/posting-1/reviews/me")}`,
+      {
+        headers: userHeaders(),
+      },
+    );
     const updateReviewResponse = await app.request(
       `http://rent.test${buildApiPath("/postings/posting-1/reviews/me")}`,
       {
@@ -916,6 +926,7 @@ describe("Postings integration", () => {
     expect(deleteAvailabilityResponse.status).toBe(204);
     expect(listReviewsResponse.status).toBe(200);
     expect(createReviewResponse.status).toBe(201);
+    expect(getOwnReviewResponse.status).toBe(200);
     expect(updateReviewResponse.status).toBe(200);
     expect(summaryResponse.status).toBe(200);
     expect(listAnalyticsResponse.status).toBe(200);
