@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   CalendarClock,
@@ -19,6 +19,7 @@ import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
 import { BookingRequestPanel } from "@/components/bookings/booking-request-panel";
 import { PostingDetailGallery } from "@/components/postings/posting-detail-gallery";
+import { PostingReviewForm } from "@/components/reviews/posting-review-form";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   fetchPublicPostingReviews,
@@ -61,6 +62,16 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
     useState<ListPublicPostingReviewsResult | null>(null);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [reviewsRefreshToken, setReviewsRefreshToken] = useState(0);
+
+  // Bumping the token refetches even when the viewer is already on page 1,
+  // which is the common case right after submitting a review.
+  const refreshReviews = useCallback(() => {
+    setReviewsLoading(true);
+    setReviewsError(null);
+    setReviewsPage(1);
+    setReviewsRefreshToken((token) => token + 1);
+  }, []);
 
   function setNextReviewsPage(
     updater: number | ((current: number) => number),
@@ -103,7 +114,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
     return () => {
       active = false;
     };
-  }, [posting.id, reviewsPage]);
+  }, [posting.id, reviewsPage, reviewsRefreshToken]);
 
   return (
     <main className={theme.marketplace.page}>
@@ -283,6 +294,12 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               title="Reviews"
               description="Recent renter feedback for this posting."
             >
+              <PostingReviewForm
+                postingId={posting.id}
+                onSaved={refreshReviews}
+                className="mb-5"
+              />
+
               {reviewsLoading ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Loading reviews...

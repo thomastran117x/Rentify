@@ -74,6 +74,11 @@ export interface ListPostingReviewsResult {
   };
 }
 
+export interface GetOwnPostingReviewResult {
+  eligible: boolean;
+  review: PostingReviewRecord | null;
+}
+
 export interface UpsertPostingReviewInput {
   postingId: string;
   reviewerId: string;

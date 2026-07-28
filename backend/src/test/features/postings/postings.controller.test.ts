@@ -1067,6 +1067,7 @@ describe("PostingsController", () => {
     }));
     const create = jest.fn(async () => ({ id: "review-1" }));
     const updateOwn = jest.fn(async () => ({ id: "review-1" }));
+    const getOwn = jest.fn(async () => ({ eligible: true, review: null }));
     const controller = createController(
       {},
       {
@@ -1079,6 +1080,7 @@ describe("PostingsController", () => {
           list,
           create,
           updateOwn,
+          getOwn,
         },
       },
     );
@@ -1133,6 +1135,13 @@ describe("PostingsController", () => {
         },
       }),
     );
+    const getOwnReviewResponse = await controller.getOwnReview(
+      createContext({
+        params: {
+          id: "posting-1",
+        },
+      }),
+    );
 
     expect(getOwnerSummary).toHaveBeenCalledWith("owner-1", "30d");
     expect(listOwnerPostingsAnalytics).toHaveBeenCalledWith({
@@ -1160,12 +1169,14 @@ describe("PostingsController", () => {
       title: "Updated",
       comment: "Still good.",
     });
+    expect(getOwn).toHaveBeenCalledWith("posting-1", "owner-1");
     expect(summaryResponse.status).toBe(200);
     expect(analyticsResponse.status).toBe(200);
     expect(detailResponse.status).toBe(200);
     expect(listReviewsResponse.status).toBe(200);
     expect(createReviewResponse.status).toBe(201);
     expect(updateReviewResponse.status).toBe(200);
+    expect(getOwnReviewResponse.status).toBe(200);
   });
 
   it("tracks search click activity and returns 202", async () => {

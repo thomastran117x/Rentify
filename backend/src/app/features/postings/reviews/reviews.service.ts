@@ -3,6 +3,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
   CreatePostingReviewRequestBody,
+  GetOwnPostingReviewResult,
   ListPostingReviewsResult,
   PostingReviewRecord,
   UpsertPostingReviewInput,
@@ -99,6 +100,29 @@ export class PostingsReviewsService {
     );
   }
 
+  /**
+   * Read-only companion to create/updateOwn: reports whether the caller may
+   * review this posting and returns their existing review so the client can
+   * open its form in edit mode regardless of review pagination.
+   */
+  async getOwn(
+    postingId: string,
+    reviewerId: string,
+  ): Promise<GetOwnPostingReviewResult> {
+    const posting = await this.requirePublishedPosting(postingId);
+
+    const [isMember, hasCompletedRenting, review] = await Promise.all([
+      this.isOrganizationMember(posting.organizationId, reviewerId),
+      this.hasCompletedRenting(postingId, reviewerId),
+      this.postingsReviewsRepository.findOwnReview(postingId, reviewerId),
+    ]);
+
+    return {
+      eligible: !isMember && hasCompletedRenting,
+      review,
+    };
+  }
+
   private async requirePublishedPosting(postingId: string) {
     const posting = await this.postingsRepository.findById(postingId);
 
@@ -109,16 +133,34 @@ export class PostingsReviewsService {
     return posting;
   }
 
-  private async assertReviewerIsNotOrganizationMember(
+  private async isOrganizationMember(
     organizationId: string,
     reviewerId: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const membership = await this.organizationAccessService.findMembership(
       reviewerId,
       organizationId,
     );
 
-    if (membership) {
+    return Boolean(membership);
+  }
+
+  private async hasCompletedRenting(
+    postingId: string,
+    reviewerId: string,
+  ): Promise<boolean> {
+    return this.rentingsRepository.hasEligibleReviewRenting({
+      postingId,
+      renterId: reviewerId,
+      now: new Date(),
+    });
+  }
+
+  private async assertReviewerIsNotOrganizationMember(
+    organizationId: string,
+    reviewerId: string,
+  ): Promise<void> {
+    if (await this.isOrganizationMember(organizationId, reviewerId)) {
       throw new ForbiddenError("You cannot review your own posting.");
     }
   }
@@ -127,13 +169,7 @@ export class PostingsReviewsService {
     postingId: string,
     reviewerId: string,
   ): Promise<void> {
-    const eligible = await this.rentingsRepository.hasEligibleReviewRenting({
-      postingId,
-      renterId: reviewerId,
-      now: new Date(),
-    });
-
-    if (!eligible) {
+    if (!(await this.hasCompletedRenting(postingId, reviewerId))) {
       throw new ForbiddenError(
         "You can only review postings you have completed a rental for.",
       );

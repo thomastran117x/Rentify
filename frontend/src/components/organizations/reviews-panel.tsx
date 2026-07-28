@@ -7,7 +7,7 @@ import {
   type OrganizationReviewRecord,
   type OrganizationReviewSummary,
 } from "@/lib/organizations/api";
-import { StarRating } from "@/components/organizations/star-rating";
+import { StarRating } from "@/components/reviews/star-rating";
 import {
   inputClass,
   primaryButtonClass,

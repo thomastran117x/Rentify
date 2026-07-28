@@ -4946,6 +4946,36 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/postings/:id/reviews/me",
+      operationId: "getOwnPostingReview",
+      summary: "Get the caller's review state for a posting",
+      description:
+        "Returns whether the authenticated caller may review this posting and their existing review, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [routePathParam("id", "Posting identifier.", "posting-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "GetOwnPostingReviewResult",
+          {
+            eligible: true,
+            review: reviewExample,
+          },
+          "Successful response.",
+        ),
+        ...commonErrors([400, 401, 404, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/postings/:id/reviews",
       operationId: "createPostingReview",
@@ -9166,13 +9196,38 @@ function buildComponents(): Record<string, unknown> {
         required: ["rating"],
         properties: {
           rating: { type: "integer", minimum: 1, maximum: 5 },
-          title: { type: "string" },
-          comment: { type: "string" },
+          title: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            nullable: true,
+          },
+          comment: {
+            type: "string",
+            minLength: 1,
+            maxLength: 2000,
+            nullable: true,
+          },
         },
       },
       PostingReviewRecord: {
         type: "object",
         additionalProperties: true,
+      },
+      GetOwnPostingReviewResult: {
+        type: "object",
+        required: ["eligible", "review"],
+        properties: {
+          eligible: {
+            type: "boolean",
+            description:
+              "Whether the caller may currently create or update a review for this posting.",
+          },
+          review: {
+            ...schemaRef("PostingReviewRecord"),
+            nullable: true,
+          },
+        },
       },
       ListPostingReviewsResult: {
         type: "object",

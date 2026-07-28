@@ -192,11 +192,17 @@ export interface BatchPostingsResult<TRecord> {
 
 export interface CreatePostingReviewInput {
   rating: number;
-  title?: string;
-  comment?: string;
+  // The API rejects empty strings, so blank fields must be sent as null.
+  title?: string | null;
+  comment?: string | null;
 }
 
 export type UpdateOwnPostingReviewInput = CreatePostingReviewInput;
+
+export interface PostingOwnReviewState {
+  eligible: boolean;
+  review: PublicPostingReviewRecord | null;
+}
 
 export interface ListRecommendationsFilters {
   page?: number;
@@ -394,6 +400,13 @@ export const postingsApi = {
         page,
         pageSize,
       }),
+    );
+  },
+
+  getOwnReview(postingId: string): Promise<PostingOwnReviewState> {
+    return authenticatedJson<PostingOwnReviewState>(
+      "GET",
+      `/postings/${encodeURIComponent(postingId)}/reviews/me`,
     );
   },
 
