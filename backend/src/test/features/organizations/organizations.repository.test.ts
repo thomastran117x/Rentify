@@ -291,12 +291,14 @@ describe("OrganizationsRepository", () => {
 
     const result = await repository.createOrganizationWithOwner({
       name: "Acme Rentals",
+      slug: "acme-rentals",
       ownerUserId: "user-1",
     });
 
     expect(organizationCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.any(String),
+        slug: "acme-rentals",
         name: "Acme Rentals",
       }),
     });

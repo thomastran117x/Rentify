@@ -8,6 +8,11 @@ import {
   SEED_USERS,
 } from "@/seeds/fixtures/users";
 import type { SeedModule, SeedUserFixture } from "@/seeds/types";
+import {
+  ORGANIZATION_SLUG_MAX_LENGTH,
+  isReservedOrganizationSlug,
+  slugify,
+} from "@/features/organizations/organization-slug";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -90,7 +95,7 @@ async function hashPasswords(): Promise<Map<string, string>> {
 
 export const usersSeedModule: SeedModule = {
   name: "users",
-  async run({ logger, prisma, state }) {
+  async run({ logger, prisma, refresh, state }) {
     const passwordHashes = await hashPasswords();
     let ownerOrganizationIndex = 1;
 
@@ -155,6 +160,10 @@ export const usersSeedModule: SeedModule = {
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
         const organizationName = buildOrganizationName(fixtureUser);
+        const organizationSlug = buildOrganizationSlug(
+          organizationName,
+          ownerOrganizationIndex,
+        );
         const organizationProfile = buildOrganizationProfile(
           ownerOrganizationIndex,
         );
@@ -166,10 +175,15 @@ export const usersSeedModule: SeedModule = {
           },
           update: {
             name: organizationName,
+            // Only reset the slug on an explicit refresh: a slug edited while
+            // developing locally should survive a plain reseed, and rewriting
+            // it would orphan any alias rows created by that edit.
+            ...(refresh ? { slug: organizationSlug } : {}),
             ...organizationProfile,
           },
           create: {
             id: organizationId,
+            slug: organizationSlug,
             name: organizationName,
             ...organizationProfile,
           },
@@ -714,3 +728,33 @@ function buildOrganizationName(fixtureUser: SeedUserFixture): string {
   const [localPart] = fixtureUser.email.split("@");
   return `${(localPart ?? "owner").trim()} Organization`;
 }
+
+/**
+ * Deterministic, readable slug for a seeded organization.
+ *
+ * Uses the same slugify() the runtime uses so seeded data matches what the
+ * application would generate. The index suffix only kicks in for a reserved
+ * result or a duplicate owner name, keeping the common case clean
+ * (`maya-santos-organization`) for Playwright assertions to rely on.
+ */
+function buildOrganizationSlug(
+  organizationName: string,
+  ownerOrganizationIndex: number,
+): string {
+  const base = slugify(organizationName, {
+    maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
+    fallback: "organization",
+  });
+
+  if (isReservedOrganizationSlug(base) || seenOrganizationSlugs.has(base)) {
+    const disambiguated = `${base}-${ownerOrganizationIndex}`;
+    seenOrganizationSlugs.add(disambiguated);
+    return disambiguated;
+  }
+
+  seenOrganizationSlugs.add(base);
+  return base;
+}
+
+// Reset per process; the seed module runs once per invocation.
+const seenOrganizationSlugs = new Set<string>();

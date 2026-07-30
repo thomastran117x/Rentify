@@ -4,6 +4,7 @@ import { organizationResourceIdSchema } from "@/features/organizations/organizat
 export const organizationAuditActionSchema = z.enum([
   "organization.created",
   "organization.renamed",
+  "organization.slug_changed",
   "organization.restored",
   "invitation.created",
   "invitation.reissued",

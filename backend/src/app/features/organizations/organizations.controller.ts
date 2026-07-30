@@ -18,9 +18,11 @@ import {
   listPublicOrganizationsQuerySchema,
   organizationInviteTokenSchema,
   organizationResourceIdSchema,
+  organizationSlugPathSchema,
   setActiveOrganizationRequestSchema,
   updateOrganizationMemberRequestSchema,
   updateOrganizationRequestSchema,
+  updateOrganizationSlugRequestSchema,
   type ListPublicOrganizationsInput,
 } from "@/features/organizations/organizations.model";
 import {
@@ -462,6 +464,29 @@ export class OrganizationsController {
     });
   };
 
+  resolveBySlug = async (context: Context<AppBindings>): Promise<Response> => {
+    const result = await this.organizationsService.resolveBySlug(
+      this.requireOrganizationSlug(context),
+    );
+    return ok(context, result);
+  };
+
+  updateSlug = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const body = await parseRequestBody(
+      context,
+      updateOrganizationSlugRequestSchema,
+    );
+    const result = await this.organizationsService.changeSlug({
+      organizationId: this.requireOrganizationId(context),
+      actorUserId: auth.sub,
+      slug: body.slug,
+    });
+    return ok(context, result, {
+      message: "Organization URL updated successfully.",
+    });
+  };
+
   createInvitation = async (
     context: Context<AppBindings>,
   ): Promise<Response> => {
@@ -590,6 +615,22 @@ export class OrganizationsController {
 
   private requireOrganizationId(context: Context<AppBindings>): string {
     return this.requireResourceId(context, "id");
+  }
+
+  /**
+   * Reads the slug from /organizations/by-slug/:slug.
+   *
+   * Validates the canonical form without normalizing, so a non-canonical
+   * reference (uppercase, trailing hyphen) is rejected here rather than served
+   * at a non-canonical URL. Callers normalize before requesting.
+   */
+  private requireOrganizationSlug(context: Context<AppBindings>): string {
+    return this.requireRouteValue(
+      context,
+      "slug",
+      organizationSlugPathSchema,
+      "Route parameter validation failed.",
+    );
   }
 
   private requireInviteToken(context: Context<AppBindings>): string {

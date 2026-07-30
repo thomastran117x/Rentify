@@ -18,6 +18,7 @@ import {
   organizationsApi,
   type PublicOrganizationDetailResult,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import {
   OrganizationLogo,
   formatOrganizationDate,
@@ -205,7 +206,7 @@ export function OrganizationPublicDetailPage({
 
             <div className="flex shrink-0 flex-wrap items-center gap-3">
               <Link
-                href={`/organizations/${id}/blog`}
+                href={organizationHref(organization.slug ?? id, "blog")}
                 className={theme.marketplace.paginationButton}
               >
                 <Newspaper className="h-4 w-4" aria-hidden="true" />

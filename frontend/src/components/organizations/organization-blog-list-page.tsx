@@ -18,6 +18,7 @@ import {
   type OrganizationBlogPostRecord,
   type OrganizationBlogResult,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import { formatOrganizationDate } from "@/components/organizations/organization-public-visuals";
 import {
   AuthorAvatar,
@@ -27,7 +28,10 @@ import {
 import { theme } from "@/styles/theme";
 
 interface OrganizationBlogListPageProps {
+  /** Organization id used for API calls. */
   id: string;
+  /** Canonical slug used to build public links. Falls back to `id`. */
+  organizationSlug?: string;
 }
 
 function PageChrome({ children }: { children: React.ReactNode }) {
@@ -92,15 +96,15 @@ function TagPills({ tags }: { tags: string[] }) {
 }
 
 function FeaturedPost({
-  organizationId,
+  organizationSlug,
   post,
 }: {
-  organizationId: string;
+  organizationSlug: string;
   post: OrganizationBlogPostRecord;
 }) {
   return (
     <Link
-      href={`/organizations/${organizationId}/blog/${post.slug}`}
+      href={organizationHref(organizationSlug, "blog", post.slug)}
       className="group mt-6 grid overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white/80 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/5 lg:grid-cols-2 dark:border-slate-800 dark:bg-slate-950/40"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 lg:aspect-auto dark:bg-slate-900">
@@ -141,15 +145,15 @@ function FeaturedPost({
 }
 
 function BlogCard({
-  organizationId,
+  organizationSlug,
   post,
 }: {
-  organizationId: string;
+  organizationSlug: string;
   post: OrganizationBlogPostRecord;
 }) {
   return (
     <Link
-      href={`/organizations/${organizationId}/blog/${post.slug}`}
+      href={organizationHref(organizationSlug, "blog", post.slug)}
       className="group flex flex-col overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/80 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-950/40"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
@@ -194,7 +198,9 @@ function BlogCard({
 
 export function OrganizationBlogListPage({
   id,
+  organizationSlug,
 }: OrganizationBlogListPageProps) {
+  const publicSlug = organizationSlug ?? id;
   const [result, setResult] = useState<OrganizationBlogResult | null>(null);
   const [page, setPage] = useState(1);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -276,7 +282,7 @@ export function OrganizationBlogListPage({
   return (
     <PageChrome>
       <Link
-        href={`/organizations/${id}`}
+        href={organizationHref(publicSlug)}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -403,13 +409,17 @@ export function OrganizationBlogListPage({
       ) : (
         <>
           {featured ? (
-            <FeaturedPost organizationId={id} post={featured} />
+            <FeaturedPost organizationSlug={publicSlug} post={featured} />
           ) : null}
 
           {gridPosts.length > 0 ? (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {gridPosts.map((post) => (
-                <BlogCard key={post.id} organizationId={id} post={post} />
+                <BlogCard
+                  key={post.id}
+                  organizationSlug={publicSlug}
+                  post={post}
+                />
               ))}
             </div>
           ) : null}

@@ -38,6 +38,7 @@ type PublicBlogPostPersistence = Prisma.OrganizationBlogPostGetPayload<{
     organization: {
       select: {
         id: true;
+        slug: true;
         name: true;
         logoUrl: true;
       };
@@ -290,6 +291,7 @@ export class OrganizationBlogRepository extends BaseRepository {
           organization: {
             select: {
               id: true,
+              slug: true,
               name: true,
               logoUrl: true,
             },
@@ -1232,6 +1234,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       organizationId: row.organizationId,
       organization: {
         id: row.organization.id,
+        slug: row.organization.slug,
         name: row.organization.name,
         logoUrl: row.organization.logoUrl ?? undefined,
       },

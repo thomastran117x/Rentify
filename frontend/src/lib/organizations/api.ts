@@ -19,6 +19,7 @@ export type OrganizationInviteStatus =
 export type OrganizationAuditAction =
   | "organization.created"
   | "organization.renamed"
+  | "organization.slug_changed"
   | "organization.restored"
   | "invitation.created"
   | "invitation.reissued"
@@ -66,6 +67,9 @@ export type OrganizationAuditResourceType =
 
 export interface OrganizationMembershipSummary
   extends ActiveOrganizationSummary {
+  // Declared here rather than on ActiveOrganizationSummary: that type mirrors
+  // the auth session payload, which does not carry the slug.
+  slug: string;
   membershipId: string;
   joinedAt: string;
   isActive: boolean;
@@ -204,6 +208,7 @@ export interface OrganizationBlogPostRecord {
   organizationId: string;
   organization?: {
     id: string;
+    slug: string;
     name: string;
     logoUrl?: string;
   };
@@ -375,6 +380,7 @@ export interface PublicOrganizationSummary
   extends PublicOrganizationProfileFields,
     PublicOrganizationStats {
   id: string;
+  slug: string;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -401,6 +407,7 @@ export interface PublicOrganizationDetailResult {
 export interface OrganizationWorkspaceDetailResult {
   organization: {
     id: string;
+    slug: string;
     name: string;
     createdAt: string;
     updatedAt: string;
@@ -770,6 +777,17 @@ export const organizationsApi = {
   },
   rename(id: string, name: string): Promise<ActiveOrganizationSummary> {
     return this.update(id, { name });
+  },
+  // Separate from update(): changing the public URL retires the old one, so it
+  // must never ride along on a routine profile save.
+  updateSlug(
+    id: string,
+    slug: string,
+  ): Promise<ActiveOrganizationSummary & { slug: string }> {
+    return patchAuthenticatedJson<ActiveOrganizationSummary & { slug: string }>(
+      `/organizations/${id}/slug`,
+      { slug },
+    );
   },
   createInvite(
     id: string,

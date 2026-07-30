@@ -19,6 +19,7 @@ import {
   type OrganizationBlogResult,
   type OrganizationBlogSort,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import { formatOrganizationDate } from "@/components/organizations/organization-public-visuals";
 import {
   AuthorAvatar,
@@ -83,8 +84,10 @@ function TagPills({ tags }: { tags: string[] }) {
 }
 
 function blogPostHref(post: OrganizationBlogPostRecord): string {
-  const organizationId = post.organization?.id ?? post.organizationId;
-  return `/organizations/${organizationId}/blog/${post.slug}`;
+  // Falls back to the id, which still resolves and then redirects to the
+  // canonical slug URL.
+  const reference = post.organization?.slug ?? post.organizationId;
+  return organizationHref(reference, "blog", post.slug);
 }
 
 function FeaturedPost({ post }: { post: OrganizationBlogPostRecord }) {

@@ -18,6 +18,7 @@ import {
   type PublicOrganizationListResult,
   type PublicOrganizationSummary,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import {
   OrganizationLogo,
   formatOrganizationDate,
@@ -120,7 +121,7 @@ function OrganizationCard({
               View the public profile and marketplace presence.
             </p>
             <Link
-              href={`/organizations/${organization.id}`}
+              href={organizationHref(organization.slug ?? organization.id)}
               className={theme.marketplace.paginationButton}
             >
               View organization

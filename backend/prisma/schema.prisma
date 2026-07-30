@@ -51,6 +51,7 @@ model User {
 
 model Organization {
   id           String   @id @db.VarChar(36)
+  slug         String   @unique @db.VarChar(160)
   name         String   @db.VarChar(160)
   description  String?  @db.Text
   websiteUrl   String?  @map("website_url") @db.VarChar(500)
@@ -87,8 +88,24 @@ model Organization {
   blogPosts OrganizationBlogPost[]
   reviews OrganizationReview[]
   searchOutboxEntries OrganizationSearchOutbox[]
+  slugAliases OrganizationSlugAlias[]
 
   @@map("organizations")
+}
+
+// Retired organization slugs. Every rename writes the previous slug here so old
+// links keep resolving, and so a retired slug can never be claimed by a
+// different organization (which would silently point old links at the wrong
+// org). Rows are never deleted except when an organization reclaims its own
+// former slug.
+model OrganizationSlugAlias {
+  slug           String       @id @db.VarChar(160)
+  organizationId String       @map("organization_id") @db.VarChar(36)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_slug_aliases")
 }
 model OrganizationAuditLog {
   id                    String   @id @db.VarChar(36)

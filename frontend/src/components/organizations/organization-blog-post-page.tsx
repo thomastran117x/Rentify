@@ -8,6 +8,7 @@ import {
   organizationsApi,
   type OrganizationBlogPostRecord,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import { formatOrganizationDate } from "@/components/organizations/organization-public-visuals";
 import {
   AuthorAvatar,
@@ -17,8 +18,12 @@ import {
 import { theme } from "@/styles/theme";
 
 interface OrganizationBlogPostPageProps {
+  /** Organization id used for API calls. */
   id: string;
+  /** Blog post slug. */
   slug: string;
+  /** Canonical organization slug used to build public links. Falls back to `id`. */
+  organizationSlug?: string;
 }
 
 function PageChrome({ children }: { children: React.ReactNode }) {
@@ -35,7 +40,9 @@ function PageChrome({ children }: { children: React.ReactNode }) {
 export function OrganizationBlogPostPage({
   id,
   slug,
+  organizationSlug,
 }: OrganizationBlogPostPageProps) {
+  const publicSlug = organizationSlug ?? id;
   const [post, setPost] = useState<OrganizationBlogPostRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +111,7 @@ export function OrganizationBlogPostPage({
     return (
       <PageChrome>
         <Link
-          href={`/organizations/${id}/blog`}
+          href={organizationHref(publicSlug, "blog")}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -131,7 +138,7 @@ export function OrganizationBlogPostPage({
     <PageChrome>
       <div className="mx-auto max-w-[760px]">
         <Link
-          href={`/organizations/${id}/blog`}
+          href={organizationHref(publicSlug, "blog")}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -217,7 +224,7 @@ export function OrganizationBlogPostPage({
             </div>
           </div>
           <Link
-            href={`/organizations/${id}/blog`}
+            href={organizationHref(publicSlug, "blog")}
             className={`${theme.marketplace.paginationButton} mt-6`}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />

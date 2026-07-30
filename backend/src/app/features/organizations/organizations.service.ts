@@ -79,6 +79,8 @@ import {
   type PublicOrganizationDetailResult,
   type PublicOrganizationListResult,
   type RemoveOrganizationMemberInput,
+  type ResolvedOrganizationReference,
+  type ChangeOrganizationSlugInput,
   type RevokeOrganizationInviteInput,
   type SetActiveOrganizationInput,
   type SetActiveOrganizationResult,
@@ -91,8 +93,44 @@ import {
   OrganizationsRepository,
 } from "@/features/organizations/organizations.repository";
 import type { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
+import {
+  ORGANIZATION_SLUG_MAX_LENGTH,
+  generateShortSlugSuffix,
+  isReservedOrganizationSlug,
+  nextSlugCandidate,
+  slugify,
+  withSuffix,
+} from "@/features/organizations/organization-slug";
 
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const CREATE_SLUG_ATTEMPTS = 10;
+
+/**
+ * True when the error is the organizations.slug unique-index violation.
+ *
+ * Deliberately narrow: a P2002 on some other unique constraint means something
+ * genuinely unexpected happened and must not be retried away.
+ */
+function isOrganizationSlugConflict(error: unknown): boolean {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    (error as { code?: unknown }).code !== "P2002"
+  ) {
+    return false;
+  }
+
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+
+  if (typeof target === "string") {
+    return target.includes("slug");
+  }
+
+  return (
+    Array.isArray(target) &&
+    target.some((entry) => typeof entry === "string" && entry.includes("slug"))
+  );
+}
 
 export class OrganizationsService {
   private readonly logger = loggerFactory.forClass(
@@ -143,6 +181,7 @@ export class OrganizationsService {
     return {
       activeOrganization: {
         id: membership.organization.id,
+        slug: membership.organization.slug,
         name: membership.organization.name,
         role: membership.role,
       },
@@ -493,12 +532,12 @@ export class OrganizationsService {
 
     const profile = pickOrganizationProfileInput(input);
     this.assertOrganizationLogoInput(input.actorUserId, profile);
-    const membership =
-      await this.organizationsRepository.createOrganizationWithOwner({
-        name: input.name.trim(),
-        ownerUserId: input.actorUserId,
-        ...profile,
-      });
+    const name = input.name.trim();
+    const membership = await this.createOrganizationWithUniqueSlug({
+      name,
+      ownerUserId: input.actorUserId,
+      profile,
+    });
 
     await this.organizationsRepository.setPreferredOrganization(
       input.actorUserId,
@@ -525,6 +564,7 @@ export class OrganizationsService {
     return {
       organization: {
         id: membership.id,
+        slug: membership.slug,
         name: membership.name,
         role: membership.role,
       },
@@ -533,6 +573,76 @@ export class OrganizationsService {
         isActive: true,
       },
     };
+  }
+
+  /**
+   * Insert the organization, letting the unique index arbitrate slug
+   * collisions.
+   *
+   * Probing for a free slug before inserting is racy: two concurrent creates
+   * with the same name both observe `harbor-rentals` as free and one of them
+   * fails on the constraint. Retrying on the constraint violation is what makes
+   * concurrent creates correct.
+   */
+  private async createOrganizationWithUniqueSlug(input: {
+    name: string;
+    ownerUserId: string;
+    profile: OrganizationProfileInput;
+  }): Promise<OrganizationMembershipSummary> {
+    const base = slugify(input.name, {
+      maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
+      fallback: "organization",
+    });
+
+    for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
+      const candidate = nextSlugCandidate(
+        base,
+        attempt,
+        ORGANIZATION_SLUG_MAX_LENGTH,
+      );
+
+      // A reserved slug would shadow a sibling route, so skip straight past it
+      // rather than letting the database accept it.
+      if (isReservedOrganizationSlug(candidate)) {
+        continue;
+      }
+
+      try {
+        return await this.organizationsRepository.createOrganizationWithOwner({
+          name: input.name,
+          slug: candidate,
+          ownerUserId: input.ownerUserId,
+          ...input.profile,
+        });
+      } catch (error) {
+        if (!isOrganizationSlugConflict(error)) {
+          throw error;
+        }
+      }
+    }
+
+    // Still colliding after the readable candidates; fall back to a short
+    // random suffix, then to the id-derived reserved namespace.
+    for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.organizationsRepository.createOrganizationWithOwner({
+          name: input.name,
+          slug: withSuffix(
+            base,
+            `-${generateShortSlugSuffix()}`,
+            ORGANIZATION_SLUG_MAX_LENGTH,
+          ),
+          ownerUserId: input.ownerUserId,
+          ...input.profile,
+        });
+      } catch (error) {
+        if (!isOrganizationSlugConflict(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ConflictError("Could not allocate an organization URL.");
   }
 
   async update(input: UpdateOrganizationInput): Promise<OrganizationSummary> {
@@ -586,6 +696,98 @@ export class OrganizationsService {
 
     return {
       id: updated.id,
+      slug: updated.slug,
+      name: updated.name,
+      role: membership.role,
+    };
+  }
+
+  /**
+   * Map a public URL slug (current or retired) onto an organization.
+   */
+  async resolveBySlug(slug: string): Promise<ResolvedOrganizationReference> {
+    const resolved = await this.organizationsRepository.resolveBySlug(slug);
+
+    if (!resolved) {
+      throw new ResourceNotFoundError("Organization could not be found.");
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Change an organization's public URL, retiring the previous slug as an
+   * alias so existing links keep resolving.
+   */
+  async changeSlug(
+    input: ChangeOrganizationSlugInput,
+  ): Promise<OrganizationSummary> {
+    const membership = await this.requireMembership(
+      input.actorUserId,
+      input.organizationId,
+    );
+    this.requirePrimaryManager(membership.role);
+
+    const previousSlug = membership.organization.slug;
+    const nextSlug = input.slug;
+
+    if (previousSlug === nextSlug) {
+      return {
+        id: membership.organization.id,
+        slug: previousSlug,
+        name: membership.organization.name,
+        role: membership.role,
+      };
+    }
+
+    // A slug that is in use, or that was ever retired, can never be adopted --
+    // not even by the organization that previously held it.
+    //
+    // Reassigning another organization's slug would point its old links here.
+    // Re-adopting one's own retired slug is just as unsafe: after A -> B, a
+    // client may hold a cached permanent redirect A -> B, so renaming back to A
+    // would make that cache bounce A -> B -> A indefinitely. Aliases are only
+    // safe to serve as 308s because they are never reused.
+    const existing = await this.organizationsRepository.resolveBySlug(nextSlug);
+    if (existing) {
+      throw new ConflictError("That organization URL is already taken.");
+    }
+
+    let updated;
+    try {
+      updated = await this.organizationsRepository.changeOrganizationSlug({
+        organizationId: input.organizationId,
+        previousSlug,
+        nextSlug,
+      });
+    } catch (error) {
+      if (isOrganizationSlugConflict(error)) {
+        throw new ConflictError("That organization URL is already taken.");
+      }
+
+      throw error;
+    }
+
+    await this.recordAuditSafely({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      action: "organization.slug_changed",
+      resourceType: "organization",
+      resourceId: input.organizationId,
+      summary: `Organization URL changed from ${previousSlug} to ${nextSlug}.`,
+      changes: this.createChanges({ slug: previousSlug }, { slug: nextSlug }, [
+        "slug",
+      ]),
+      beforeSnapshot: { slug: previousSlug },
+      afterSnapshot: { slug: nextSlug },
+      // Restoring would revive a slug that may since have been claimed, so slug
+      // changes are audited but not rewindable.
+      restorable: false,
+    });
+
+    return {
+      id: updated.id,
+      slug: updated.slug,
       name: updated.name,
       role: membership.role,
     };
@@ -865,6 +1067,7 @@ export class OrganizationsService {
         accepted: true,
         organization: {
           id: invitation.organization.id,
+          slug: invitation.organization.slug,
           name: invitation.organization.name,
           role: membership.role,
         },
@@ -924,6 +1127,7 @@ export class OrganizationsService {
       accepted: true,
       organization: {
         id: invitation.organization.id,
+        slug: invitation.organization.slug,
         name: invitation.organization.name,
         role: membership.role,
       },
@@ -1386,6 +1590,7 @@ export class OrganizationsService {
 
     return {
       id: activeMembership.id,
+      slug: activeMembership.slug,
       name: activeMembership.name,
       role: activeMembership.role,
     };

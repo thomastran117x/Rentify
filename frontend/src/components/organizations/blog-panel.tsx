@@ -7,6 +7,7 @@ import type {
   OrganizationBlogPostRecord,
   OrganizationBlogStatus,
 } from "@/lib/organizations/api";
+import { organizationHref } from "@/lib/organizations/urls";
 import { RichTextEditor } from "@/components/organizations/rich-text-editor";
 import {
   cardClass,
@@ -205,6 +206,7 @@ function TagsInput({
 
 export function BlogPanel({
   organizationId,
+  organizationSlug,
   posts,
   loading,
   error,
@@ -221,6 +223,8 @@ export function BlogPanel({
   onError,
 }: {
   organizationId: string;
+  /** Canonical slug for public links. Falls back to the id. */
+  organizationSlug?: string;
   posts: OrganizationBlogPostRecord[];
   loading: boolean;
   error: string | null;
@@ -446,7 +450,11 @@ export function BlogPanel({
                         <>
                           {" · "}
                           <Link
-                            href={`/organizations/${organizationId}/blog/${post.slug}`}
+                            href={organizationHref(
+                              organizationSlug ?? organizationId,
+                              "blog",
+                              post.slug,
+                            )}
                             className="text-sky-600 hover:underline dark:text-sky-400"
                             target="_blank"
                           >

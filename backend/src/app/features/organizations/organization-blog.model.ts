@@ -131,6 +131,7 @@ export interface OrganizationBlogAuthorSummary {
 // UI can label and link the post back to its organization.
 export interface OrganizationBlogOrganizationSummary {
   id: string;
+  slug: string;
   name: string;
   logoUrl?: string;
 }
