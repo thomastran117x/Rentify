@@ -90,47 +90,21 @@ import {
 import {
   OrganizationInviteAccessRecord,
   type OrganizationMembershipAccessRecord,
+  OrganizationSlugTakenError,
   OrganizationsRepository,
 } from "@/features/organizations/organizations.repository";
 import type { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
   generateShortSlugSuffix,
-  isReservedOrganizationSlug,
   nextSlugCandidate,
   slugify,
+  toRouteSafeSlug,
   withSuffix,
 } from "@/features/organizations/organization-slug";
 
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CREATE_SLUG_ATTEMPTS = 10;
-
-/**
- * True when the error is the organizations.slug unique-index violation.
- *
- * Deliberately narrow: a P2002 on some other unique constraint means something
- * genuinely unexpected happened and must not be retried away.
- */
-function isOrganizationSlugConflict(error: unknown): boolean {
-  if (
-    typeof error !== "object" ||
-    error === null ||
-    (error as { code?: unknown }).code !== "P2002"
-  ) {
-    return false;
-  }
-
-  const target = (error as { meta?: { target?: unknown } }).meta?.target;
-
-  if (typeof target === "string") {
-    return target.includes("slug");
-  }
-
-  return (
-    Array.isArray(target) &&
-    target.some((entry) => typeof entry === "string" && entry.includes("slug"))
-  );
-}
 
 export class OrganizationsService {
   private readonly logger = loggerFactory.forClass(
@@ -576,13 +550,13 @@ export class OrganizationsService {
   }
 
   /**
-   * Insert the organization, letting the unique index arbitrate slug
-   * collisions.
+   * Insert the organization, letting the slug reservation arbitrate collisions.
    *
    * Probing for a free slug before inserting is racy: two concurrent creates
    * with the same name both observe `harbor-rentals` as free and one of them
    * fails on the constraint. Retrying on the constraint violation is what makes
-   * concurrent creates correct.
+   * concurrent creates correct, and reserving through the same key as renames is
+   * what stops a new organization from claiming a retired slug.
    */
   private async createOrganizationWithUniqueSlug(input: {
     name: string;
@@ -595,17 +569,14 @@ export class OrganizationsService {
     });
 
     for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
+      // Always route-safe: reserved, UUID-shaped, and too-short candidates are
+      // adjusted rather than skipped, so creation cannot hand out a slug the
+      // slug route would refuse to resolve.
       const candidate = nextSlugCandidate(
         base,
         attempt,
         ORGANIZATION_SLUG_MAX_LENGTH,
       );
-
-      // A reserved slug would shadow a sibling route, so skip straight past it
-      // rather than letting the database accept it.
-      if (isReservedOrganizationSlug(candidate)) {
-        continue;
-      }
 
       try {
         return await this.organizationsRepository.createOrganizationWithOwner({
@@ -615,28 +586,31 @@ export class OrganizationsService {
           ...input.profile,
         });
       } catch (error) {
-        if (!isOrganizationSlugConflict(error)) {
+        if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
         }
       }
     }
 
     // Still colliding after the readable candidates; fall back to a short
-    // random suffix, then to the id-derived reserved namespace.
+    // random suffix.
     for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
       try {
         return await this.organizationsRepository.createOrganizationWithOwner({
           name: input.name,
-          slug: withSuffix(
-            base,
-            `-${generateShortSlugSuffix()}`,
+          slug: toRouteSafeSlug(
+            withSuffix(
+              base,
+              `-${generateShortSlugSuffix()}`,
+              ORGANIZATION_SLUG_MAX_LENGTH,
+            ),
             ORGANIZATION_SLUG_MAX_LENGTH,
           ),
           ownerUserId: input.ownerUserId,
           ...input.profile,
         });
       } catch (error) {
-        if (!isOrganizationSlugConflict(error)) {
+        if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
         }
       }
@@ -746,8 +720,11 @@ export class OrganizationsService {
     // Reassigning another organization's slug would point its old links here.
     // Re-adopting one's own retired slug is just as unsafe: after A -> B, a
     // client may hold a cached permanent redirect A -> B, so renaming back to A
-    // would make that cache bounce A -> B -> A indefinitely. Aliases are only
-    // safe to serve as 308s because they are never reused.
+    // would make that cache bounce A -> B -> A indefinitely. Retired slugs are
+    // only safe to serve as 308s because they are never reused.
+    //
+    // This read is for a clear error message only; the reservation's primary key
+    // is what actually enforces it.
     const existing = await this.organizationsRepository.resolveBySlug(nextSlug);
     if (existing) {
       throw new ConflictError("That organization URL is already taken.");
@@ -757,11 +734,10 @@ export class OrganizationsService {
     try {
       updated = await this.organizationsRepository.changeOrganizationSlug({
         organizationId: input.organizationId,
-        previousSlug,
         nextSlug,
       });
     } catch (error) {
-      if (isOrganizationSlugConflict(error)) {
+      if (error instanceof OrganizationSlugTakenError) {
         throw new ConflictError("That organization URL is already taken.");
       }
 

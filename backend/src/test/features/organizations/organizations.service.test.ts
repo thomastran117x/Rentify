@@ -3,6 +3,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
+import { OrganizationSlugTakenError } from "@/features/organizations/organizations.repository";
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
@@ -1523,11 +1524,8 @@ describe("OrganizationsService", () => {
 
   // --- Organization slug ------------------------------------------------
 
-  function slugConflictError() {
-    return Object.assign(new Error("Unique constraint failed"), {
-      code: "P2002",
-      meta: { target: ["slug"] },
-    });
+  function slugTakenError() {
+    return new OrganizationSlugTakenError("harbor-rentals");
   }
 
   it("derives the slug from the organization name on create", async () => {
@@ -1555,12 +1553,12 @@ describe("OrganizationsService", () => {
     expect(repository.createOrganizationWithOwner).toHaveBeenCalledTimes(1);
   });
 
-  it("retries the next candidate when the slug unique index rejects the insert", async () => {
+  it("retries the next candidate when the slug reservation rejects the insert", async () => {
     // Two concurrent creates with the same name both observe the slug as free;
     // the database arbitrates, so the loser must retry rather than 500.
     const createOrganizationWithOwner = jest
       .fn()
-      .mockRejectedValueOnce(slugConflictError())
+      .mockRejectedValueOnce(slugTakenError())
       .mockImplementation(async (input) => ({
         membershipId: "membership-9",
         id: "org-9",
@@ -1591,7 +1589,7 @@ describe("OrganizationsService", () => {
     const createOrganizationWithOwner = jest.fn(async (input) => {
       const { slug } = input as { slug: string };
       if (claimed.has(slug)) {
-        throw slugConflictError();
+        throw slugTakenError();
       }
       claimed.add(slug);
       return {
@@ -1623,11 +1621,8 @@ describe("OrganizationsService", () => {
     expect(claimed.size).toBe(2);
   });
 
-  it("does not swallow a unique violation on a different column", async () => {
-    const otherConflict = Object.assign(new Error("Unique constraint failed"), {
-      code: "P2002",
-      meta: { target: ["name"] },
-    });
+  it("does not swallow an unrelated failure as a slug collision", async () => {
+    const otherConflict = new Error("database exploded");
     const createOrganizationWithOwner = jest
       .fn()
       .mockRejectedValue(otherConflict);
@@ -1642,6 +1637,115 @@ describe("OrganizationsService", () => {
       }),
     ).rejects.toBe(otherConflict);
     expect(createOrganizationWithOwner).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips past a retired slug when creating an organization", async () => {
+    // A new organization named Harbor must not take `harbor` back off an
+    // organization that retired it, or that organization's old links would
+    // silently start resolving to the newcomer.
+    const claimed = new Set(["harbor"]);
+    const createOrganizationWithOwner = jest.fn(async (input) => {
+      const { slug } = input as { slug: string };
+      if (claimed.has(slug)) {
+        throw new OrganizationSlugTakenError(slug);
+      }
+      claimed.add(slug);
+      return {
+        membershipId: "membership-9",
+        id: "org-9",
+        slug,
+        name: "Harbor",
+        role: "primary_manager" as const,
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      };
+    });
+    const { service } = createService({
+      repository: { createOrganizationWithOwner },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Harbor",
+    });
+
+    expect(result.organization.slug).toBe("harbor-2");
+  });
+
+  it("generates a resolvable slug for a one-character organization name", async () => {
+    // "A" slugifies to "a", which the slug route rejects as too short, leaving
+    // the organization with a public URL that cannot resolve.
+    const { service, repository } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "A",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "A",
+    });
+
+    expect(result.organization.slug).toBe("a-org");
+    expect(repository.createOrganizationWithOwner).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "a-org" }),
+    );
+  });
+
+  it("generates a slug that cannot be mistaken for an organization id", async () => {
+    const { service } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "uuid-named",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "00000000-0000-0000-1040-000000000001",
+    });
+
+    expect(result.organization.slug).toBe(
+      "org-00000000-0000-0000-1040-000000000001",
+    );
+  });
+
+  it("generates a slug that does not shadow a sibling route", async () => {
+    const { service } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "Invitations",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Invitations",
+    });
+
+    expect(result.organization.slug).toBe("invitations-org");
   });
 
   it("resolves an organization by its canonical slug", async () => {
@@ -1715,7 +1819,6 @@ describe("OrganizationsService", () => {
 
     expect(changeOrganizationSlug).toHaveBeenCalledWith({
       organizationId: "org-1",
-      previousSlug: "northwind",
       nextSlug: "northwind-creative",
     });
     expect(result.slug).toBe("northwind-creative");
@@ -1803,7 +1906,7 @@ describe("OrganizationsService", () => {
       repository: {
         resolveBySlug: jest.fn(async () => null),
         changeOrganizationSlug: jest.fn(async () => {
-          throw slugConflictError();
+          throw slugTakenError();
         }),
       },
     });

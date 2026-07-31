@@ -41,7 +41,13 @@ UPDATE `organizations`
 SET `slug` = CONCAT('org-', `slug`)
 WHERE `slug` REGEXP '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
--- 5. Dedupe, pass 1: readable numeric suffixes; the oldest row keeps the bare
+-- 5. A one-character slug is below the minimum the slug route accepts, so an
+--    organization named "A" would end up with a public URL that cannot resolve.
+UPDATE `organizations`
+SET `slug` = CONCAT(`slug`, '-org')
+WHERE CHAR_LENGTH(`slug`) < 2;
+
+-- 6. Dedupe, pass 1: readable numeric suffixes; the oldest row keeps the bare
 --    slug. LEFT() reserves room so the suffix cannot overflow the column.
 UPDATE `organizations` AS o
 JOIN (
@@ -55,7 +61,7 @@ JOIN (
 SET o.`slug` = CONCAT(LEFT(o.`slug`, 150), '-', ranked.rn)
 WHERE ranked.rn > 1;
 
--- 6. Dedupe, pass 2: pass 1 can still collide with a pre-existing literal
+-- 7. Dedupe, pass 2: pass 1 can still collide with a pre-existing literal
 --    "foo-2". Anything still duplicated moves into the id-derived reserved
 --    namespace, which is unique by construction (id is the primary key) and
 --    which slug validation forbids users from choosing.
@@ -76,14 +82,23 @@ ALTER TABLE `organizations`
 
 CREATE UNIQUE INDEX `organizations_slug_key` ON `organizations`(`slug`);
 
-CREATE TABLE `organization_slug_aliases` (
+-- Every slug any organization has ever held, current ones included. Because
+-- `slug` is the primary key, claiming one is a single INSERT the database checks
+-- against current data -- which is what makes creation and renaming compete for
+-- the same key instead of each trusting its own snapshot.
+CREATE TABLE `organization_slug_reservations` (
   `slug` VARCHAR(160) NOT NULL,
   `organization_id` VARCHAR(36) NOT NULL,
   `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`slug`),
-  INDEX `organization_slug_aliases_organization_id_idx`(`organization_id`)
+  INDEX `organization_slug_reservations_organization_id_idx`(`organization_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-ALTER TABLE `organization_slug_aliases`
-  ADD CONSTRAINT `organization_slug_aliases_organization_id_fkey`
+ALTER TABLE `organization_slug_reservations`
+  ADD CONSTRAINT `organization_slug_reservations_organization_id_fkey`
   FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Reserve the slugs the backfill just assigned, so they compete for the same key
+-- as anything allocated later.
+INSERT INTO `organization_slug_reservations` (`slug`, `organization_id`)
+SELECT `slug`, `id` FROM `organizations`;

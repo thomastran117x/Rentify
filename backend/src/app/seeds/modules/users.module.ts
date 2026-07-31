@@ -10,8 +10,8 @@ import {
 import type { SeedModule, SeedUserFixture } from "@/seeds/types";
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
-  isReservedOrganizationSlug,
   slugify,
+  toRouteSafeSlug,
 } from "@/features/organizations/organization-slug";
 
 const BCRYPT_SALT_ROUNDS = 12;
@@ -169,25 +169,61 @@ export const usersSeedModule: SeedModule = {
         );
         ownerOrganizationIndex += 1;
 
-        await prisma.organization.upsert({
-          where: {
-            id: organizationId,
-          },
-          update: {
-            name: organizationName,
-            // Only reset the slug on an explicit refresh: a slug edited while
-            // developing locally should survive a plain reseed, and rewriting
-            // it would orphan any alias rows created by that edit.
-            ...(refresh ? { slug: organizationSlug } : {}),
-            ...organizationProfile,
-          },
-          create: {
-            id: organizationId,
-            slug: organizationSlug,
-            name: organizationName,
-            ...organizationProfile,
-          },
-        });
+        // A plain reseed leaves the slug alone: one edited while developing
+        // locally should survive, and rewriting it would strand its reservation.
+        //
+        // A refresh restores fixture state, which means dropping the
+        // organization's reservations as well. Resetting the slug without them
+        // would leave a reservation for the fixture slug still on file, and the
+        // next rename would then collide with it on the reservation primary key
+        // and roll back -- permanently breaking renames for that fixture.
+        if (refresh) {
+          await prisma.$transaction([
+            prisma.organizationSlugReservation.deleteMany({
+              where: { organizationId },
+            }),
+            prisma.organization.upsert({
+              where: { id: organizationId },
+              update: {
+                name: organizationName,
+                slug: organizationSlug,
+                ...organizationProfile,
+              },
+              create: {
+                id: organizationId,
+                slug: organizationSlug,
+                name: organizationName,
+                ...organizationProfile,
+              },
+            }),
+            prisma.organizationSlugReservation.create({
+              data: { slug: organizationSlug, organizationId },
+            }),
+          ]);
+        } else {
+          await prisma.organization.upsert({
+            where: {
+              id: organizationId,
+            },
+            update: {
+              name: organizationName,
+              ...organizationProfile,
+            },
+            create: {
+              id: organizationId,
+              slug: organizationSlug,
+              name: organizationName,
+              ...organizationProfile,
+            },
+          });
+
+          // Newly created fixtures need their slug reserved too.
+          await prisma.organizationSlugReservation.upsert({
+            where: { slug: organizationSlug },
+            update: {},
+            create: { slug: organizationSlug, organizationId },
+          });
+        }
 
         state.organizationIdsByOwnerEmail.set(
           fixtureUser.email,
@@ -741,13 +777,18 @@ function buildOrganizationSlug(
   organizationName: string,
   ownerOrganizationIndex: number,
 ): string {
-  const base = slugify(organizationName, {
-    maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
-    fallback: "organization",
-  });
+  // toRouteSafeSlug covers the reserved list, the UUID shape, and the minimum
+  // length, so a fixture can never be seeded with a slug its own public URL
+  // would reject.
+  const base = toRouteSafeSlug(
+    slugify(organizationName, {
+      maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
+      fallback: "organization",
+    }),
+  );
 
-  if (isReservedOrganizationSlug(base) || seenOrganizationSlugs.has(base)) {
-    const disambiguated = `${base}-${ownerOrganizationIndex}`;
+  if (seenOrganizationSlugs.has(base)) {
+    const disambiguated = toRouteSafeSlug(`${base}-${ownerOrganizationIndex}`);
     seenOrganizationSlugs.add(disambiguated);
     return disambiguated;
   }

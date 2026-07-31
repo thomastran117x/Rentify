@@ -114,6 +114,35 @@ type InvitationWithOrganizationPersistence =
     };
   }>;
 
+/**
+ * A slug is already spoken for -- as some organization's current slug, or as one
+ * it has retired.
+ *
+ * Callers generating a slug should move to the next candidate; callers honouring
+ * an explicit choice should surface a conflict to the user.
+ */
+export class OrganizationSlugTakenError extends Error {
+  constructor(readonly slug: string) {
+    super(`Organization slug "${slug}" is already reserved.`);
+    this.name = "OrganizationSlugTakenError";
+  }
+}
+
+/**
+ * Translate a unique-constraint violation on either slug key into the typed
+ * error. Anything else is genuinely unexpected and passes through untouched.
+ */
+function toOrganizationSlugTakenError(error: unknown, slug: string): unknown {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    return new OrganizationSlugTakenError(slug);
+  }
+
+  return error;
+}
+
 export interface OrganizationMembershipAccessRecord {
   membershipId: string;
   organization: {
@@ -668,10 +697,11 @@ export class OrganizationsRepository extends BaseRepository {
   }
 
   /**
-   * Map a slug onto an organization, following retired aliases.
+   * Map a slug onto an organization, following retired slugs.
    *
-   * The current slug wins over an alias, which matters when an organization
-   * reclaims a slug another of its own renames retired.
+   * The current slug is checked first. Reservations cover every slug an
+   * organization has ever held, so a hit there that is not the current slug is
+   * by definition a retired one.
    */
   async resolveBySlug(
     slug: string,
@@ -698,8 +728,8 @@ export class OrganizationsRepository extends BaseRepository {
       };
     }
 
-    const alias = await this.executeAsync(() =>
-      this.prisma.organizationSlugAlias.findUnique({
+    const reservation = await this.executeAsync(() =>
+      this.prisma.organizationSlugReservation.findUnique({
         where: {
           slug,
         },
@@ -715,46 +745,58 @@ export class OrganizationsRepository extends BaseRepository {
       }),
     );
 
-    if (!alias) {
+    if (!reservation) {
       return null;
     }
 
     return {
-      organizationId: alias.organization.id,
-      canonicalSlug: alias.organization.slug,
-      name: alias.organization.name,
+      organizationId: reservation.organization.id,
+      canonicalSlug: reservation.organization.slug,
+      name: reservation.organization.name,
       matchedBy: "alias",
     };
   }
 
   /**
-   * Retire the current slug and adopt a new one, atomically.
+   * Claim a new slug and retire the current one, atomically.
    *
-   * The unique index on organizations.slug and the primary key on
-   * organization_slug_aliases remain the authority; a caller racing us will see
-   * a P2002 rather than a silently lost write.
+   * The reservation is inserted first and deliberately: its primary key is the
+   * authority on who owns a slug, and unlike a preceding read it is evaluated
+   * against current data. The previous slug keeps its own reservation, which is
+   * what makes it resolve as a retired slug forever and never be re-adopted.
+   *
+   * A caller racing us sees an OrganizationSlugTakenError rather than silently
+   * overwriting the other claim.
    */
   async changeOrganizationSlug(input: {
     organizationId: string;
-    previousSlug: string;
     nextSlug: string;
   }): Promise<OrganizationSummary & OrganizationProfileFields> {
     const organization = await this.executeTransaction(async (transaction) => {
-      const updated = await transaction.organization.update({
-        where: {
-          id: input.organizationId,
-        },
-        data: {
-          slug: input.nextSlug,
-        },
-      });
+      try {
+        await transaction.organizationSlugReservation.create({
+          data: {
+            slug: input.nextSlug,
+            organizationId: input.organizationId,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, input.nextSlug);
+      }
 
-      await transaction.organizationSlugAlias.create({
-        data: {
-          slug: input.previousSlug,
-          organizationId: input.organizationId,
-        },
-      });
+      let updated;
+      try {
+        updated = await transaction.organization.update({
+          where: {
+            id: input.organizationId,
+          },
+          data: {
+            slug: input.nextSlug,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, input.nextSlug);
+      }
 
       await this.enqueueSearchOutbox(
         transaction,
@@ -1298,9 +1340,25 @@ export class OrganizationsRepository extends BaseRepository {
       };
       Object.assign(organizationData, this.buildOrganizationWriteData(profile));
 
-      const organization = await transaction.organization.create({
-        data: organizationData,
-      });
+      let organization;
+      try {
+        organization = await transaction.organization.create({
+          data: organizationData,
+        });
+
+        // Reserving the slug is what stops a new organization from taking one
+        // another organization has retired -- the unique index on
+        // organizations.slug cannot see retired slugs at all, so without this a
+        // newcomer would quietly inherit the original's old links.
+        await transaction.organizationSlugReservation.create({
+          data: {
+            slug,
+            organizationId: organization.id,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, slug);
+      }
 
       await this.enqueueSearchOutbox(transaction, organization.id, "upsert");
 

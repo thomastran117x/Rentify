@@ -88,24 +88,32 @@ model Organization {
   blogPosts OrganizationBlogPost[]
   reviews OrganizationReview[]
   searchOutboxEntries OrganizationSearchOutbox[]
-  slugAliases OrganizationSlugAlias[]
+  slugReservations OrganizationSlugReservation[]
 
   @@map("organizations")
 }
 
-// Retired organization slugs. Every rename writes the previous slug here so old
-// links keep resolving, and so a retired slug can never be claimed by a
-// different organization (which would silently point old links at the wrong
-// org). Rows are never deleted except when an organization reclaims its own
-// former slug.
-model OrganizationSlugAlias {
+// Every slug any organization has ever held, including the one it holds now.
+//
+// This is the authoritative allocation mechanism for slugs: because `slug` is
+// the primary key, claiming one is a single INSERT that the database checks
+// against current data. A read-then-write check could not close the gap -- under
+// REPEATABLE READ a transaction's SELECT sees a stale snapshot, so two writers
+// could both believe a slug were free.
+//
+// Holding current slugs here too (not just retired ones) is what makes creation
+// and renaming compete for the same key. Rows are never deleted, so a retired
+// slug can never be re-adopted -- not by another organization, which would
+// silently point the original's old links elsewhere, and not by the original,
+// which would let a cached permanent redirect bounce between two slugs forever.
+model OrganizationSlugReservation {
   slug           String       @id @db.VarChar(160)
   organizationId String       @map("organization_id") @db.VarChar(36)
   createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(6)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
-  @@map("organization_slug_aliases")
+  @@map("organization_slug_reservations")
 }
 model OrganizationAuditLog {
   id                    String   @id @db.VarChar(36)

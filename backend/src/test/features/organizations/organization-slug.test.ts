@@ -1,5 +1,7 @@
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
+  ORGANIZATION_SLUG_MIN_LENGTH,
+  ORGANIZATION_SLUG_PATTERN,
   RESERVED_ORGANIZATION_SLUGS,
   generateShortSlugSuffix,
   isReservedOrganizationSlug,
@@ -8,6 +10,7 @@ import {
   reservedNamespaceSlug,
   resolveUniqueSlug,
   slugify,
+  toRouteSafeSlug,
   withSuffix,
 } from "@/features/organizations/organization-slug";
 
@@ -218,6 +221,88 @@ describe("RESERVED_ORGANIZATION_SLUGS", () => {
   it("is exported as a set of lowercase slugs", () => {
     for (const slug of RESERVED_ORGANIZATION_SLUGS) {
       expect(slug).toBe(slug.toLowerCase());
+    }
+  });
+});
+
+describe("toRouteSafeSlug", () => {
+  // Everything here must also satisfy canonicalOrganizationSlugSchema, or the
+  // organization gets a public URL that cannot resolve.
+  function expectRouteResolvable(slug: string) {
+    expect(slug.length).toBeGreaterThanOrEqual(ORGANIZATION_SLUG_MIN_LENGTH);
+    expect(slug.length).toBeLessThanOrEqual(ORGANIZATION_SLUG_MAX_LENGTH);
+    expect(slug).toMatch(ORGANIZATION_SLUG_PATTERN);
+    expect(looksLikeUuid(slug)).toBe(false);
+    expect(isReservedOrganizationSlug(slug)).toBe(false);
+  }
+
+  it("leaves an already-valid slug alone", () => {
+    expect(toRouteSafeSlug("harbor-rentals")).toBe("harbor-rentals");
+  });
+
+  it("pads a one-character slug up to the route minimum", () => {
+    // An organization literally named "A" slugifies to "a", which the slug
+    // route rejects for being shorter than two characters.
+    const slug = toRouteSafeSlug("a");
+
+    expect(slug).toBe("a-org");
+    expectRouteResolvable(slug);
+  });
+
+  it("defuses a UUID-shaped slug", () => {
+    const slug = toRouteSafeSlug("00000000-0000-0000-1040-000000000001");
+
+    expect(slug).toBe("org-00000000-0000-0000-1040-000000000001");
+    expectRouteResolvable(slug);
+  });
+
+  it("defuses a reserved slug", () => {
+    const slug = toRouteSafeSlug("invitations");
+
+    expect(slug).toBe("invitations-org");
+    expectRouteResolvable(slug);
+  });
+
+  it("defuses the generated id namespace", () => {
+    const slug = toRouteSafeSlug(
+      reservedNamespaceSlug("00000000-0000-0000-1040-000000000001"),
+    );
+
+    expectRouteResolvable(slug);
+  });
+
+  it("stays within the length limit while padding", () => {
+    const slug = toRouteSafeSlug("by-slug".padEnd(160, "x").slice(0, 160));
+
+    expect(slug.length).toBeLessThanOrEqual(ORGANIZATION_SLUG_MAX_LENGTH);
+    expectRouteResolvable(slug);
+  });
+
+  it("never leaves a trailing hyphen after truncation", () => {
+    expect(toRouteSafeSlug(`${"a".repeat(158)}-b`, 160)).not.toMatch(/-$/);
+    expect(toRouteSafeSlug("harbor-", 160)).toBe("harbor");
+  });
+});
+
+describe("nextSlugCandidate route safety", () => {
+  it("returns route-resolvable candidates for a pathological base", () => {
+    // "a" is too short and "invitations" is reserved; every attempt must still
+    // be something the slug route accepts.
+    for (const base of ["a", "invitations", "by-slug"]) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const candidate = nextSlugCandidate(
+          base,
+          attempt,
+          ORGANIZATION_SLUG_MAX_LENGTH,
+        );
+
+        expect(candidate.length).toBeGreaterThanOrEqual(
+          ORGANIZATION_SLUG_MIN_LENGTH,
+        );
+        expect(candidate).toMatch(ORGANIZATION_SLUG_PATTERN);
+        expect(isReservedOrganizationSlug(candidate)).toBe(false);
+        expect(looksLikeUuid(candidate)).toBe(false);
+      }
     }
   });
 });

@@ -100,17 +100,21 @@ export function withSuffix(
 
 /**
  * Candidate for the nth attempt: the bare base first, then -2, -3, and so on.
+ *
+ * Always route-safe, so a caller looping over candidates cannot land on one the
+ * slug route would refuse to resolve.
  */
 export function nextSlugCandidate(
   base: string,
   attempt: number,
   maxLength: number,
 ): string {
-  if (attempt === 0) {
-    return base.slice(0, maxLength);
-  }
+  const candidate =
+    attempt === 0
+      ? base.slice(0, maxLength)
+      : withSuffix(base, `-${attempt + 1}`, maxLength);
 
-  return withSuffix(base, `-${attempt + 1}`, maxLength);
+  return toRouteSafeSlug(candidate, maxLength);
 }
 
 /**
@@ -119,6 +123,43 @@ export function nextSlugCandidate(
  */
 export function generateShortSlugSuffix(): string {
   return randomBytes(3).toString("hex");
+}
+
+/**
+ * Force a generated slug to satisfy every rule the slug *route* enforces.
+ *
+ * slugify() only guarantees the character set. Anything that generates a slug
+ * without asking a human -- organization creation, the seed fixtures, the
+ * migration backfill -- must also clear the minimum length, the reserved list,
+ * and the UUID shape, or it hands the organization a public URL that
+ * `organizationSlugPathSchema` rejects and that therefore cannot resolve at all.
+ *
+ * Keep in sync with `canonicalOrganizationSlugSchema` in organizations.model.ts,
+ * and with the equivalent steps in the organization slug migration.
+ */
+export function toRouteSafeSlug(
+  slug: string,
+  maxLength = ORGANIZATION_SLUG_MAX_LENGTH,
+): string {
+  let safe = slug.slice(0, maxLength).replace(/-+$/g, "");
+
+  // A UUID-shaped slug would be read as an organization id instead.
+  if (looksLikeUuid(safe)) {
+    safe = `org-${safe}`.slice(0, maxLength).replace(/-+$/g, "");
+  }
+
+  // Reserved segments would shadow a sibling route under /organizations/.
+  if (isReservedOrganizationSlug(safe)) {
+    safe = withSuffix(safe, "-org", maxLength);
+  }
+
+  // A single character is below the route's minimum, e.g. an organization
+  // literally named "A".
+  if (safe.length < ORGANIZATION_SLUG_MIN_LENGTH) {
+    safe = `${safe}-org`;
+  }
+
+  return safe;
 }
 
 /**
