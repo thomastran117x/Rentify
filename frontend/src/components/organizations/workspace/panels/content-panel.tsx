@@ -258,6 +258,7 @@ function BlogSection() {
   return (
     <BlogPanel
       organizationId={detail?.organization.id ?? ""}
+      organizationSlug={detail?.organization.slug}
       posts={blogPosts}
       loading={blogLoading}
       error={blogError}

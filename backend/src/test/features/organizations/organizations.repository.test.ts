@@ -1,4 +1,8 @@
-import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import { Prisma } from "@prisma/client";
+import {
+  OrganizationSlugTakenError,
+  OrganizationsRepository,
+} from "@/features/organizations/organizations.repository";
 
 function createMembershipPersistence(overrides: Record<string, unknown> = {}) {
   return {
@@ -269,11 +273,16 @@ describe("OrganizationsRepository", () => {
     );
     const reindexRunFindFirst = jest.fn(async () => null);
     const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
+    const reservationCreate = jest.fn(async () => ({
+      slug: "acme-rentals",
+      organizationId: "org-9",
+    }));
     const database = {
       $transaction: async <T>(
         callback: (client: {
           organization: { create: typeof organizationCreate };
           organizationMembership: { create: typeof membershipCreate };
+          organizationSlugReservation: { create: typeof reservationCreate };
           organizationSearchReindexRun: {
             findFirst: typeof reindexRunFindFirst;
           };
@@ -283,6 +292,7 @@ describe("OrganizationsRepository", () => {
         callback({
           organization: { create: organizationCreate },
           organizationMembership: { create: membershipCreate },
+          organizationSlugReservation: { create: reservationCreate },
           organizationSearchReindexRun: { findFirst: reindexRunFindFirst },
           organizationSearchOutbox: { createMany: outboxCreateMany },
         }),
@@ -291,14 +301,21 @@ describe("OrganizationsRepository", () => {
 
     const result = await repository.createOrganizationWithOwner({
       name: "Acme Rentals",
+      slug: "acme-rentals",
       ownerUserId: "user-1",
     });
 
     expect(organizationCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.any(String),
+        slug: "acme-rentals",
         name: "Acme Rentals",
       }),
+    });
+    // Creation claims the slug through the same reservation key renames use, so
+    // it cannot take one another organization has retired.
+    expect(reservationCreate).toHaveBeenCalledWith({
+      data: { slug: "acme-rentals", organizationId: "org-9" },
     });
     // The organization write enqueues a search-index upsert in the same
     // transaction so the Elasticsearch index stays in sync.
@@ -326,6 +343,144 @@ describe("OrganizationsRepository", () => {
       role: "primary_manager",
       joinedAt: "2026-06-01T00:00:00.000Z",
       isActive: true,
+    });
+  });
+
+  it("reports a retired slug as taken when creating an organization", async () => {
+    // The unique index on organizations.slug cannot see retired slugs, so the
+    // reservation insert is the thing that rejects this. Without it a new
+    // organization would inherit the original's old links.
+    const reservationConflict = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`slug`)",
+      { code: "P2002", clientVersion: "6.19.3" },
+    );
+    const database = {
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({
+          organization: {
+            create: jest.fn(async () => ({
+              id: "org-9",
+              name: "Harbor Rentals",
+              createdAt: new Date("2026-06-01T00:00:00.000Z"),
+              updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+            })),
+          },
+          organizationSlugReservation: {
+            create: jest.fn(async () => {
+              throw reservationConflict;
+            }),
+          },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as any);
+
+    await expect(
+      repository.createOrganizationWithOwner({
+        name: "Harbor Rentals",
+        slug: "harbor",
+        ownerUserId: "user-1",
+      }),
+    ).rejects.toBeInstanceOf(OrganizationSlugTakenError);
+  });
+
+  it("claims the new slug through a reservation when changing a slug", async () => {
+    const reservationCreate = jest.fn(async () => ({
+      slug: "harbor-new",
+      organizationId: "org-1",
+    }));
+    const organizationUpdate = jest.fn(async () => ({
+      id: "org-1",
+      slug: "harbor-new",
+      name: "Harbor",
+      description: null,
+      websiteUrl: null,
+      contactEmail: null,
+      contactPhone: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      region: null,
+      country: null,
+      postalCode: null,
+      logoUrl: null,
+      logoBlobName: null,
+      customFields: null,
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    }));
+    const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
+    const database = {
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({
+          organizationSlugReservation: { create: reservationCreate },
+          organization: { update: organizationUpdate },
+          organizationSearchReindexRun: {
+            findFirst: jest.fn(async () => null),
+          },
+          organizationSearchOutbox: { createMany: outboxCreateMany },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as any);
+
+    const result = await repository.changeOrganizationSlug({
+      organizationId: "org-1",
+      nextSlug: "harbor-new",
+    });
+
+    // The new slug is reserved; the previous one keeps its existing reservation,
+    // which is what makes it resolve forever and never be re-adopted.
+    expect(reservationCreate).toHaveBeenCalledWith({
+      data: { slug: "harbor-new", organizationId: "org-1" },
+    });
+    expect(organizationUpdate).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      data: { slug: "harbor-new" },
+    });
+    expect(result.slug).toBe("harbor-new");
+  });
+
+  it("reports a slug as taken when the reservation is already held", async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`slug`)",
+      { code: "P2002", clientVersion: "6.19.3" },
+    );
+    const database = {
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({
+          organizationSlugReservation: {
+            create: jest.fn(async () => {
+              throw conflict;
+            }),
+          },
+          organization: { update: jest.fn() },
+        }),
+    };
+    const repository = new OrganizationsRepository(database as any);
+
+    await expect(
+      repository.changeOrganizationSlug({
+        organizationId: "org-1",
+        nextSlug: "harbor",
+      }),
+    ).rejects.toBeInstanceOf(OrganizationSlugTakenError);
+  });
+
+  it("resolves a retired slug through its reservation", async () => {
+    const organizationFindUnique = jest.fn(async () => null);
+    const reservationFindUnique = jest.fn(async () => ({
+      organization: { id: "org-1", slug: "harbor-new", name: "Harbor" },
+    }));
+    const database = {
+      organization: { findUnique: organizationFindUnique },
+      organizationSlugReservation: { findUnique: reservationFindUnique },
+    };
+    const repository = new OrganizationsRepository(database as any);
+
+    await expect(repository.resolveBySlug("harbor")).resolves.toEqual({
+      organizationId: "org-1",
+      canonicalSlug: "harbor-new",
+      name: "Harbor",
+      matchedBy: "alias",
     });
   });
 

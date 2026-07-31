@@ -44,6 +44,7 @@ import {
   emptyProfileForm,
   profileFormFromDetail,
   profileFormToInput,
+  validateOrganizationSlug,
   type AnnouncementFormValue,
   type ProfileFormValue,
 } from "@/components/organizations/workspace/forms";
@@ -162,6 +163,11 @@ export interface OrganizationWorkspaceContextValue {
   // Settings
   organizationName: string;
   setOrganizationName: (value: string) => void;
+  organizationSlug: string;
+  setOrganizationSlug: (value: string) => void;
+  organizationSlugError: string | null;
+  savingSlug: boolean;
+  handleSaveSlug: () => Promise<void>;
   profileForm: ProfileFormValue;
   handleProfileFormChange: (next: ProfileFormValue) => void;
   handleSaveProfile: () => Promise<void>;
@@ -200,6 +206,8 @@ export function OrganizationWorkspaceProvider({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
+  const [organizationSlug, setOrganizationSlug] = useState("");
+  const [savingSlug, setSavingSlug] = useState(false);
   const [newOrganizationName, setNewOrganizationName] = useState("");
   const [createProfile, setCreateProfile] =
     useState<ProfileFormValue>(emptyProfileForm());
@@ -456,6 +464,7 @@ export function OrganizationWorkspaceProvider({
           setSelectedOrganizationId(nextOrganizationId);
           setDetail(nextDetail);
           setOrganizationName(nextDetail?.organization.name ?? "");
+          setOrganizationSlug(nextDetail?.organization.slug ?? "");
           setProfileForm(
             nextDetail
               ? profileFormFromDetail(nextDetail.organization)
@@ -706,6 +715,7 @@ export function OrganizationWorkspaceProvider({
       setSelectedOrganizationId(resolvedOrganizationId);
       setDetail(nextDetail);
       setOrganizationName(nextDetail?.organization.name ?? "");
+      setOrganizationSlug(nextDetail?.organization.slug ?? "");
       setProfileForm(
         nextDetail
           ? profileFormFromDetail(nextDetail.organization)
@@ -789,6 +799,49 @@ export function OrganizationWorkspaceProvider({
       showWorkspaceToast("Couldn't switch organizations", nextMessage);
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Deliberately separate from handleSaveProfile: changing the public URL
+  // retires the old one, so it must not ride along on a routine profile save.
+  async function handleSaveSlug() {
+    if (!detail) {
+      return;
+    }
+
+    const nextSlug = organizationSlug.trim().toLowerCase();
+
+    if (nextSlug === detail.organization.slug) {
+      return;
+    }
+
+    if (validateOrganizationSlug(nextSlug)) {
+      return;
+    }
+
+    setSavingSlug(true);
+    setErrorTitle(null);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await organizationsApi.updateSlug(detail.organization.id, nextSlug);
+      await refresh(detail.organization.id);
+      setMessage("Organization URL updated. Existing links now redirect here.");
+    } catch (nextError) {
+      const nextMessage = getWorkspaceActionError(
+        nextError,
+        "change this organization's URL",
+        "We couldn't change this organization's URL right now. Please try again.",
+      );
+      setErrorTitle("Couldn't update organization URL");
+      setError(nextMessage);
+      showWorkspaceToast("Couldn't update organization URL", nextMessage);
+      // Put the field back to the persisted value so the UI never implies a
+      // change that did not happen.
+      setOrganizationSlug(detail.organization.slug);
+    } finally {
+      setSavingSlug(false);
     }
   }
 
@@ -1484,6 +1537,13 @@ export function OrganizationWorkspaceProvider({
     handleDeleteBlogPost,
     organizationName,
     setOrganizationName,
+    organizationSlug,
+    setOrganizationSlug,
+    organizationSlugError: organizationSlug.trim()
+      ? validateOrganizationSlug(organizationSlug)
+      : null,
+    savingSlug,
+    handleSaveSlug,
     profileForm,
     handleProfileFormChange,
     handleSaveProfile,

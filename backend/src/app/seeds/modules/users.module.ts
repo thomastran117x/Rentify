@@ -8,6 +8,11 @@ import {
   SEED_USERS,
 } from "@/seeds/fixtures/users";
 import type { SeedModule, SeedUserFixture } from "@/seeds/types";
+import {
+  ORGANIZATION_SLUG_MAX_LENGTH,
+  slugify,
+  toRouteSafeSlug,
+} from "@/features/organizations/organization-slug";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -90,7 +95,7 @@ async function hashPasswords(): Promise<Map<string, string>> {
 
 export const usersSeedModule: SeedModule = {
   name: "users",
-  async run({ logger, prisma, state }) {
+  async run({ logger, prisma, refresh, state }) {
     const passwordHashes = await hashPasswords();
     let ownerOrganizationIndex = 1;
 
@@ -155,25 +160,70 @@ export const usersSeedModule: SeedModule = {
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
         const organizationName = buildOrganizationName(fixtureUser);
+        const organizationSlug = buildOrganizationSlug(
+          organizationName,
+          ownerOrganizationIndex,
+        );
         const organizationProfile = buildOrganizationProfile(
           ownerOrganizationIndex,
         );
         ownerOrganizationIndex += 1;
 
-        await prisma.organization.upsert({
-          where: {
-            id: organizationId,
-          },
-          update: {
-            name: organizationName,
-            ...organizationProfile,
-          },
-          create: {
-            id: organizationId,
-            name: organizationName,
-            ...organizationProfile,
-          },
-        });
+        // A plain reseed leaves the slug alone: one edited while developing
+        // locally should survive, and rewriting it would strand its reservation.
+        //
+        // A refresh restores fixture state, which means dropping the
+        // organization's reservations as well. Resetting the slug without them
+        // would leave a reservation for the fixture slug still on file, and the
+        // next rename would then collide with it on the reservation primary key
+        // and roll back -- permanently breaking renames for that fixture.
+        if (refresh) {
+          await prisma.$transaction([
+            prisma.organizationSlugReservation.deleteMany({
+              where: { organizationId },
+            }),
+            prisma.organization.upsert({
+              where: { id: organizationId },
+              update: {
+                name: organizationName,
+                slug: organizationSlug,
+                ...organizationProfile,
+              },
+              create: {
+                id: organizationId,
+                slug: organizationSlug,
+                name: organizationName,
+                ...organizationProfile,
+              },
+            }),
+            prisma.organizationSlugReservation.create({
+              data: { slug: organizationSlug, organizationId },
+            }),
+          ]);
+        } else {
+          await prisma.organization.upsert({
+            where: {
+              id: organizationId,
+            },
+            update: {
+              name: organizationName,
+              ...organizationProfile,
+            },
+            create: {
+              id: organizationId,
+              slug: organizationSlug,
+              name: organizationName,
+              ...organizationProfile,
+            },
+          });
+
+          // Newly created fixtures need their slug reserved too.
+          await prisma.organizationSlugReservation.upsert({
+            where: { slug: organizationSlug },
+            update: {},
+            create: { slug: organizationSlug, organizationId },
+          });
+        }
 
         state.organizationIdsByOwnerEmail.set(
           fixtureUser.email,
@@ -714,3 +764,38 @@ function buildOrganizationName(fixtureUser: SeedUserFixture): string {
   const [localPart] = fixtureUser.email.split("@");
   return `${(localPart ?? "owner").trim()} Organization`;
 }
+
+/**
+ * Deterministic, readable slug for a seeded organization.
+ *
+ * Uses the same slugify() the runtime uses so seeded data matches what the
+ * application would generate. The index suffix only kicks in for a reserved
+ * result or a duplicate owner name, keeping the common case clean
+ * (`maya-santos-organization`) for Playwright assertions to rely on.
+ */
+function buildOrganizationSlug(
+  organizationName: string,
+  ownerOrganizationIndex: number,
+): string {
+  // toRouteSafeSlug covers the reserved list, the UUID shape, and the minimum
+  // length, so a fixture can never be seeded with a slug its own public URL
+  // would reject.
+  const base = toRouteSafeSlug(
+    slugify(organizationName, {
+      maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
+      fallback: "organization",
+    }),
+  );
+
+  if (seenOrganizationSlugs.has(base)) {
+    const disambiguated = toRouteSafeSlug(`${base}-${ownerOrganizationIndex}`);
+    seenOrganizationSlugs.add(disambiguated);
+    return disambiguated;
+  }
+
+  seenOrganizationSlugs.add(base);
+  return base;
+}
+
+// Reset per process; the seed module runs once per invocation.
+const seenOrganizationSlugs = new Set<string>();

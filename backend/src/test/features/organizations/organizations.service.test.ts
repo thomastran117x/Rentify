@@ -3,6 +3,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationsService } from "@/features/organizations/organizations.service";
+import { OrganizationSlugTakenError } from "@/features/organizations/organizations.repository";
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
@@ -37,6 +38,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
     role: "primary_manager",
     organization: {
       id: "org-1",
+      slug: "northwind",
       name: "Northwind",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
@@ -63,6 +65,7 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
     },
     organization: {
       id: "org-1",
+      slug: "northwind",
       name: "Northwind",
     },
     ...overrides,
@@ -310,6 +313,7 @@ describe("OrganizationsService", () => {
       {
         membershipId: "membership-1",
         id: "org-1",
+        slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
         joinedAt: "2026-05-01T00:00:00.000Z",
@@ -326,6 +330,7 @@ describe("OrganizationsService", () => {
       memberships,
       activeOrganization: {
         id: "org-1",
+        slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
       },
@@ -340,6 +345,7 @@ describe("OrganizationsService", () => {
     const membership = {
       membershipId: "membership-9",
       id: "org-9",
+      slug: "acme-rentals",
       name: "Acme Rentals",
       role: "primary_manager" as const,
       joinedAt: "2026-06-01T00:00:00.000Z",
@@ -356,8 +362,10 @@ describe("OrganizationsService", () => {
       name: "  Acme Rentals  ",
     });
 
+    // The slug is derived from the trimmed name.
     expect(repository.createOrganizationWithOwner).toHaveBeenCalledWith({
       name: "Acme Rentals",
+      slug: "acme-rentals",
       ownerUserId: "user-1",
     });
     expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
@@ -367,6 +375,7 @@ describe("OrganizationsService", () => {
     expect(result).toEqual({
       organization: {
         id: "org-9",
+        slug: "acme-rentals",
         name: "Acme Rentals",
         role: "primary_manager",
       },
@@ -556,6 +565,7 @@ describe("OrganizationsService", () => {
       accepted: true,
       organization: {
         id: "org-1",
+        slug: "northwind",
         name: "Northwind",
         role: "operator",
       },
@@ -666,6 +676,7 @@ describe("OrganizationsService", () => {
     ).resolves.toEqual({
       activeOrganization: {
         id: "org-1",
+        slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
       },
@@ -1104,6 +1115,7 @@ describe("OrganizationsService", () => {
       accepted: true,
       organization: {
         id: "org-1",
+        slug: "northwind",
         name: "Northwind",
         role: "operator",
       },
@@ -1508,5 +1520,457 @@ describe("OrganizationsService", () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  // --- Organization slug ------------------------------------------------
+
+  function slugTakenError() {
+    return new OrganizationSlugTakenError("harbor-rentals");
+  }
+
+  it("derives the slug from the organization name on create", async () => {
+    const { service, repository } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "Café Rentals",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Café Rentals",
+    });
+
+    // Diacritics are folded rather than dropped.
+    expect(result.organization.slug).toBe("cafe-rentals");
+    expect(repository.createOrganizationWithOwner).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries the next candidate when the slug reservation rejects the insert", async () => {
+    // Two concurrent creates with the same name both observe the slug as free;
+    // the database arbitrates, so the loser must retry rather than 500.
+    const createOrganizationWithOwner = jest
+      .fn()
+      .mockRejectedValueOnce(slugTakenError())
+      .mockImplementation(async (input) => ({
+        membershipId: "membership-9",
+        id: "org-9",
+        slug: (input as { slug: string }).slug,
+        name: "Harbor Rentals",
+        role: "primary_manager" as const,
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      }));
+    const { service } = createService({
+      repository: { createOrganizationWithOwner },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Harbor Rentals",
+    });
+
+    expect(createOrganizationWithOwner).toHaveBeenCalledTimes(2);
+    expect(createOrganizationWithOwner.mock.calls[0]?.[0]?.slug).toBe(
+      "harbor-rentals",
+    );
+    expect(result.organization.slug).toBe("harbor-rentals-2");
+  });
+
+  it("gives two organizations created with the same name distinct slugs", async () => {
+    const claimed = new Set<string>();
+    const createOrganizationWithOwner = jest.fn(async (input) => {
+      const { slug } = input as { slug: string };
+      if (claimed.has(slug)) {
+        throw slugTakenError();
+      }
+      claimed.add(slug);
+      return {
+        membershipId: "membership-9",
+        id: `org-${claimed.size}`,
+        slug,
+        name: "Harbor Rentals",
+        role: "primary_manager" as const,
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      };
+    });
+    const { service } = createService({
+      repository: { createOrganizationWithOwner },
+    });
+
+    const [first, second] = await Promise.all([
+      service.createOrganization({
+        actorUserId: "user-1",
+        name: "Harbor Rentals",
+      }),
+      service.createOrganization({
+        actorUserId: "user-1",
+        name: "Harbor Rentals",
+      }),
+    ]);
+
+    expect(first.organization.slug).not.toBe(second.organization.slug);
+    expect(claimed.size).toBe(2);
+  });
+
+  it("does not swallow an unrelated failure as a slug collision", async () => {
+    const otherConflict = new Error("database exploded");
+    const createOrganizationWithOwner = jest
+      .fn()
+      .mockRejectedValue(otherConflict);
+    const { service } = createService({
+      repository: { createOrganizationWithOwner },
+    });
+
+    await expect(
+      service.createOrganization({
+        actorUserId: "user-1",
+        name: "Harbor Rentals",
+      }),
+    ).rejects.toBe(otherConflict);
+    expect(createOrganizationWithOwner).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips past a retired slug when creating an organization", async () => {
+    // A new organization named Harbor must not take `harbor` back off an
+    // organization that retired it, or that organization's old links would
+    // silently start resolving to the newcomer.
+    const claimed = new Set(["harbor"]);
+    const createOrganizationWithOwner = jest.fn(async (input) => {
+      const { slug } = input as { slug: string };
+      if (claimed.has(slug)) {
+        throw new OrganizationSlugTakenError(slug);
+      }
+      claimed.add(slug);
+      return {
+        membershipId: "membership-9",
+        id: "org-9",
+        slug,
+        name: "Harbor",
+        role: "primary_manager" as const,
+        joinedAt: "2026-06-01T00:00:00.000Z",
+        isActive: true,
+      };
+    });
+    const { service } = createService({
+      repository: { createOrganizationWithOwner },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Harbor",
+    });
+
+    expect(result.organization.slug).toBe("harbor-2");
+  });
+
+  it("generates a resolvable slug for a one-character organization name", async () => {
+    // "A" slugifies to "a", which the slug route rejects as too short, leaving
+    // the organization with a public URL that cannot resolve.
+    const { service, repository } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "A",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "A",
+    });
+
+    expect(result.organization.slug).toBe("a-org");
+    expect(repository.createOrganizationWithOwner).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "a-org" }),
+    );
+  });
+
+  it("generates a slug that cannot be mistaken for an organization id", async () => {
+    const { service } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "uuid-named",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "00000000-0000-0000-1040-000000000001",
+    });
+
+    expect(result.organization.slug).toBe(
+      "org-00000000-0000-0000-1040-000000000001",
+    );
+  });
+
+  it("generates a slug that does not shadow a sibling route", async () => {
+    const { service } = createService({
+      repository: {
+        createOrganizationWithOwner: jest.fn(async (input) => ({
+          membershipId: "membership-9",
+          id: "org-9",
+          slug: (input as { slug: string }).slug,
+          name: "Invitations",
+          role: "primary_manager" as const,
+          joinedAt: "2026-06-01T00:00:00.000Z",
+          isActive: true,
+        })),
+      },
+    });
+
+    const result = await service.createOrganization({
+      actorUserId: "user-1",
+      name: "Invitations",
+    });
+
+    expect(result.organization.slug).toBe("invitations-org");
+  });
+
+  it("resolves an organization by its canonical slug", async () => {
+    const { service } = createService({
+      repository: {
+        resolveBySlug: jest.fn(async () => ({
+          organizationId: "org-1",
+          canonicalSlug: "northwind",
+          name: "Northwind",
+          matchedBy: "canonical-slug" as const,
+        })),
+      },
+    });
+
+    await expect(service.resolveBySlug("northwind")).resolves.toEqual({
+      organizationId: "org-1",
+      canonicalSlug: "northwind",
+      name: "Northwind",
+      matchedBy: "canonical-slug",
+    });
+  });
+
+  it("resolves a retired slug and reports the canonical one", async () => {
+    const { service } = createService({
+      repository: {
+        resolveBySlug: jest.fn(async () => ({
+          organizationId: "org-1",
+          canonicalSlug: "northwind-creative",
+          name: "Northwind",
+          matchedBy: "alias" as const,
+        })),
+      },
+    });
+
+    const resolved = await service.resolveBySlug("northwind");
+
+    expect(resolved.matchedBy).toBe("alias");
+    expect(resolved.canonicalSlug).toBe("northwind-creative");
+  });
+
+  it("throws when a slug matches no organization or alias", async () => {
+    const { service } = createService({
+      repository: { resolveBySlug: jest.fn(async () => null) },
+    });
+
+    await expect(service.resolveBySlug("nope")).rejects.toBeInstanceOf(
+      ResourceNotFoundError,
+    );
+  });
+
+  it("retires the previous slug as an alias when the URL changes", async () => {
+    const changeOrganizationSlug = jest.fn(async () => ({
+      id: "org-1",
+      slug: "northwind-creative",
+      name: "Northwind",
+      role: "operator" as const,
+      ...NULL_ORGANIZATION_PROFILE,
+    }));
+    const { service, auditService } = createService({
+      repository: {
+        resolveBySlug: jest.fn(async () => null),
+        changeOrganizationSlug,
+      },
+    });
+
+    const result = await service.changeSlug({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      slug: "northwind-creative",
+    });
+
+    expect(changeOrganizationSlug).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      nextSlug: "northwind-creative",
+    });
+    expect(result.slug).toBe("northwind-creative");
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "organization.slug_changed",
+        // Restoring would revive a slug another organization may since have
+        // claimed, so the change is audited but not rewindable.
+        restorable: false,
+      }),
+    );
+  });
+
+  it("is a no-op when the slug is unchanged", async () => {
+    const changeOrganizationSlug = jest.fn();
+    const { service, auditService } = createService({
+      repository: { changeOrganizationSlug },
+    });
+
+    const result = await service.changeSlug({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      slug: "northwind",
+    });
+
+    expect(changeOrganizationSlug).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+    expect(result.slug).toBe("northwind");
+  });
+
+  it("rejects a slug held by another organization, including as its alias", async () => {
+    // resolveBySlug follows aliases, so a retired slug can never be reassigned
+    // to a different organization and steal its old links.
+    const resolveBySlug = jest.fn(async () => ({
+      organizationId: "org-other",
+      canonicalSlug: "someone-else",
+      name: "Someone Else",
+      matchedBy: "alias" as const,
+    }));
+    const changeOrganizationSlug = jest.fn();
+    const { service } = createService({
+      repository: { resolveBySlug, changeOrganizationSlug },
+    });
+
+    await expect(
+      service.changeSlug({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        slug: "someone-elses-old-name",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(resolveBySlug).toHaveBeenCalledWith("someone-elses-old-name");
+    expect(changeOrganizationSlug).not.toHaveBeenCalled();
+  });
+
+  it("refuses to re-adopt a slug this same organization already retired", async () => {
+    // Aliases are only safe to serve as permanent (308) redirects because they
+    // are never reused. After A -> B a client may hold a cached A -> B; renaming
+    // back to A would make that cache bounce A -> B -> A indefinitely.
+    const changeOrganizationSlug = jest.fn();
+    const { service } = createService({
+      repository: {
+        resolveBySlug: jest.fn(async () => ({
+          organizationId: "org-1",
+          canonicalSlug: "northwind",
+          name: "Northwind",
+          matchedBy: "alias" as const,
+        })),
+        changeOrganizationSlug,
+      },
+    });
+
+    await expect(
+      service.changeSlug({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        slug: "old-northwind",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(changeOrganizationSlug).not.toHaveBeenCalled();
+  });
+
+  it("translates a losing concurrent slug write into a conflict", async () => {
+    const { service } = createService({
+      repository: {
+        resolveBySlug: jest.fn(async () => null),
+        changeOrganizationSlug: jest.fn(async () => {
+          throw slugTakenError();
+        }),
+      },
+    });
+
+    await expect(
+      service.changeSlug({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        slug: "harbor-rentals",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("forbids a manager from changing the slug", async () => {
+    const changeOrganizationSlug = jest.fn();
+    const { service } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({ role: "manager" }),
+        ),
+        changeOrganizationSlug,
+      },
+    });
+
+    await expect(
+      service.changeSlug({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        slug: "harbor-rentals",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(changeOrganizationSlug).not.toHaveBeenCalled();
+  });
+
+  it("forbids an operator from changing the slug", async () => {
+    const { service } = createService({
+      repository: {
+        findMembershipAccess: jest.fn(async () =>
+          createMembership({ role: "operator" }),
+        ),
+      },
+    });
+
+    await expect(
+      service.changeSlug({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        slug: "harbor-rentals",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("never changes the slug on a routine profile update", async () => {
+    const { service, repository } = createService();
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Renamed",
+    });
+
+    expect(repository.updateOrganization).toHaveBeenCalledWith(
+      "org-1",
+      expect.not.objectContaining({ slug: expect.anything() }),
+    );
   });
 });

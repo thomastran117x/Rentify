@@ -161,7 +161,20 @@ function createApp() {
     })),
     update: jest.fn(async () => ({
       id: organizationId,
+      slug: "northwind",
       name: "Northwind Studios",
+    })),
+    resolveBySlug: jest.fn(async (slug: string) => ({
+      organizationId,
+      canonicalSlug: slug === "old-northwind" ? "northwind" : slug,
+      name: "Northwind",
+      matchedBy: slug === "old-northwind" ? "alias" : "canonical-slug",
+    })),
+    changeSlug: jest.fn(async () => ({
+      id: organizationId,
+      slug: "northwind-creative",
+      name: "Northwind",
+      role: "primary_manager",
     })),
     createInvitation: jest.fn(async () => ({
       invitation: {
@@ -791,5 +804,169 @@ describe("Organizations integration", () => {
     expect(personalAccessTokenService.authenticateToken).toHaveBeenCalledTimes(
       1,
     );
+  });
+
+  it("resolves a canonical slug to an organization id", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/organizations/by-slug/northwind")}`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        organizationId,
+        canonicalSlug: "northwind",
+        matchedBy: "canonical-slug",
+      },
+    });
+    expect(organizationsService.resolveBySlug).toHaveBeenCalledWith(
+      "northwind",
+    );
+  });
+
+  it("reports a retired slug as an alias so callers can redirect", async () => {
+    const { app } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/organizations/by-slug/old-northwind")}`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        canonicalSlug: "northwind",
+        matchedBy: "alias",
+      },
+    });
+  });
+
+  it("rejects a non-canonical slug reference rather than serving it", async () => {
+    // Uppercase is valid-once-normalized, but serving it would mean the same
+    // page answers at two URLs. The caller normalizes and retries.
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/organizations/by-slug/Northwind")}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(organizationsService.resolveBySlug).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reserved slug reference", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/organizations/by-slug/invitations")}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(organizationsService.resolveBySlug).not.toHaveBeenCalled();
+  });
+
+  it("does not let the by-slug route shadow the literal sibling routes", async () => {
+    const { app, organizationsService } = createApp();
+
+    const meResponse = await app.request(
+      `http://rent.test${buildApiPath("/organizations/me")}`,
+      { headers: authHeaders() },
+    );
+
+    expect(meResponse.status).toBe(200);
+    expect(organizationsService.listMine).toHaveBeenCalled();
+    expect(organizationsService.resolveBySlug).not.toHaveBeenCalled();
+  });
+
+  it("changes an organization slug through its own endpoint", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/slug`)}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ slug: "northwind-creative" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { slug: "northwind-creative" },
+    });
+    expect(organizationsService.changeSlug).toHaveBeenCalledWith({
+      organizationId,
+      actorUserId: "owner-1",
+      slug: "northwind-creative",
+    });
+    // The profile update endpoint must not be involved.
+    expect(organizationsService.update).not.toHaveBeenCalled();
+  });
+
+  it("normalizes a slug typed with capitals in the request body", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/slug`)}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ slug: "  Northwind-Creative  " }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(organizationsService.changeSlug).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "northwind-creative" }),
+    );
+  });
+
+  it("rejects an invalid slug in the request body", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/slug`)}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ slug: "Not A Slug" }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(organizationsService.changeSlug).not.toHaveBeenCalled();
+  });
+
+  it("rejects a slug that would look like an organization id", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/slug`)}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ slug: organizationId }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(organizationsService.changeSlug).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication to change a slug", async () => {
+    const { app, organizationsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath(`/organizations/${organizationId}/slug`)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug: "northwind-creative" }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(organizationsService.changeSlug).not.toHaveBeenCalled();
   });
 });

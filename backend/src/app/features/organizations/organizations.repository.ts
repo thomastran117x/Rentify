@@ -18,6 +18,7 @@ import {
   type PublicOrganizationListResult,
   type PublicOrganizationProfileFields,
   type PublicOrganizationSummary,
+  type ResolvedOrganizationReference,
 } from "@/features/organizations/organizations.model";
 import type {
   SearchOutboxLagMetrics,
@@ -113,10 +114,40 @@ type InvitationWithOrganizationPersistence =
     };
   }>;
 
+/**
+ * A slug is already spoken for -- as some organization's current slug, or as one
+ * it has retired.
+ *
+ * Callers generating a slug should move to the next candidate; callers honouring
+ * an explicit choice should surface a conflict to the user.
+ */
+export class OrganizationSlugTakenError extends Error {
+  constructor(readonly slug: string) {
+    super(`Organization slug "${slug}" is already reserved.`);
+    this.name = "OrganizationSlugTakenError";
+  }
+}
+
+/**
+ * Translate a unique-constraint violation on either slug key into the typed
+ * error. Anything else is genuinely unexpected and passes through untouched.
+ */
+function toOrganizationSlugTakenError(error: unknown, slug: string): unknown {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    return new OrganizationSlugTakenError(slug);
+  }
+
+  return error;
+}
+
 export interface OrganizationMembershipAccessRecord {
   membershipId: string;
   organization: {
     id: string;
+    slug: string;
     name: string;
     createdAt: string;
     updatedAt: string;
@@ -128,6 +159,7 @@ export interface OrganizationInviteAccessRecord
   extends OrganizationInvitationRecord {
   organization: {
     id: string;
+    slug: string;
     name: string;
   };
 }
@@ -150,6 +182,7 @@ type OrganizationProfilePersistence = {
 
 type PublicOrganizationRow = {
   id: string;
+  slug: string;
   name: string;
   description: string | null;
   websiteUrl: string | null;
@@ -324,6 +357,7 @@ export class OrganizationsRepository extends BaseRepository {
   ): PublicOrganizationDetailResult["organization"] {
     return {
       id: organization.id,
+      slug: organization.slug,
       name: organization.name,
       createdAt: new Date(organization.createdAt).toISOString(),
       updatedAt: new Date(organization.updatedAt).toISOString(),
@@ -363,6 +397,7 @@ export class OrganizationsRepository extends BaseRepository {
         this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
           SELECT
             o.id AS id,
+            o.slug AS slug,
             o.name AS name,
             o.description AS description,
             o.website_url AS websiteUrl,
@@ -384,6 +419,7 @@ export class OrganizationsRepository extends BaseRepository {
           ${whereSql}
           GROUP BY
             o.id,
+            o.slug,
             o.name,
             o.description,
             o.website_url,
@@ -442,6 +478,7 @@ export class OrganizationsRepository extends BaseRepository {
       this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
         SELECT
           o.id AS id,
+          o.slug AS slug,
           o.name AS name,
           o.description AS description,
           o.website_url AS websiteUrl,
@@ -463,6 +500,7 @@ export class OrganizationsRepository extends BaseRepository {
         WHERE o.id = ${organizationId}
         GROUP BY
           o.id,
+          o.slug,
           o.name,
           o.description,
           o.website_url,
@@ -562,6 +600,7 @@ export class OrganizationsRepository extends BaseRepository {
       membershipId: membership.id,
       organization: {
         id: membership.organization.id,
+        slug: membership.organization.slug,
         name: membership.organization.name,
         createdAt: membership.organization.createdAt.toISOString(),
         updatedAt: membership.organization.updatedAt.toISOString(),
@@ -641,6 +680,7 @@ export class OrganizationsRepository extends BaseRepository {
     return {
       organization: {
         id: organization.id,
+        slug: organization.slug,
         name: organization.name,
         createdAt: organization.createdAt.toISOString(),
         updatedAt: organization.updatedAt.toISOString(),
@@ -653,6 +693,126 @@ export class OrganizationsRepository extends BaseRepository {
       invitations: organization.invitations.map((invitation) =>
         this.mapInvitationRecord(invitation),
       ),
+    };
+  }
+
+  /**
+   * Map a slug onto an organization, following retired slugs.
+   *
+   * The current slug is checked first. Reservations cover every slug an
+   * organization has ever held, so a hit there that is not the current slug is
+   * by definition a retired one.
+   */
+  async resolveBySlug(
+    slug: string,
+  ): Promise<ResolvedOrganizationReference | null> {
+    const organization = await this.executeAsync(() =>
+      this.prisma.organization.findUnique({
+        where: {
+          slug,
+        },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+        },
+      }),
+    );
+
+    if (organization) {
+      return {
+        organizationId: organization.id,
+        canonicalSlug: organization.slug,
+        name: organization.name,
+        matchedBy: "canonical-slug",
+      };
+    }
+
+    const reservation = await this.executeAsync(() =>
+      this.prisma.organizationSlugReservation.findUnique({
+        where: {
+          slug,
+        },
+        select: {
+          organization: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
+          },
+        },
+      }),
+    );
+
+    if (!reservation) {
+      return null;
+    }
+
+    return {
+      organizationId: reservation.organization.id,
+      canonicalSlug: reservation.organization.slug,
+      name: reservation.organization.name,
+      matchedBy: "alias",
+    };
+  }
+
+  /**
+   * Claim a new slug and retire the current one, atomically.
+   *
+   * The reservation is inserted first and deliberately: its primary key is the
+   * authority on who owns a slug, and unlike a preceding read it is evaluated
+   * against current data. The previous slug keeps its own reservation, which is
+   * what makes it resolve as a retired slug forever and never be re-adopted.
+   *
+   * A caller racing us sees an OrganizationSlugTakenError rather than silently
+   * overwriting the other claim.
+   */
+  async changeOrganizationSlug(input: {
+    organizationId: string;
+    nextSlug: string;
+  }): Promise<OrganizationSummary & OrganizationProfileFields> {
+    const organization = await this.executeTransaction(async (transaction) => {
+      try {
+        await transaction.organizationSlugReservation.create({
+          data: {
+            slug: input.nextSlug,
+            organizationId: input.organizationId,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, input.nextSlug);
+      }
+
+      let updated;
+      try {
+        updated = await transaction.organization.update({
+          where: {
+            id: input.organizationId,
+          },
+          data: {
+            slug: input.nextSlug,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, input.nextSlug);
+      }
+
+      await this.enqueueSearchOutbox(
+        transaction,
+        input.organizationId,
+        "upsert",
+      );
+
+      return updated;
+    });
+
+    return {
+      id: organization.id,
+      slug: organization.slug,
+      name: organization.name,
+      role: "operator",
+      ...this.mapOrganizationProfileFields(organization),
     };
   }
 
@@ -694,6 +854,7 @@ export class OrganizationsRepository extends BaseRepository {
 
     return {
       id: organization.id,
+      slug: organization.slug,
       name: organization.name,
       role: "operator",
       ...this.mapOrganizationProfileFields(organization),
@@ -942,6 +1103,7 @@ export class OrganizationsRepository extends BaseRepository {
       ...this.mapInvitationRecord(invitation),
       organization: {
         id: invitation.organization.id,
+        slug: invitation.organization.slug,
         name: invitation.organization.name,
       },
     };
@@ -979,6 +1141,7 @@ export class OrganizationsRepository extends BaseRepository {
       ...this.mapInvitationRecord(invitation),
       organization: {
         id: invitation.organization.id,
+        slug: invitation.organization.slug,
         name: invitation.organization.name,
       },
     };
@@ -1164,20 +1327,38 @@ export class OrganizationsRepository extends BaseRepository {
   async createOrganizationWithOwner(
     input: {
       name: string;
+      slug: string;
       ownerUserId: string;
     } & OrganizationProfileInput,
   ): Promise<OrganizationMembershipSummary> {
-    const { name, ownerUserId, ...profile } = input;
+    const { name, slug, ownerUserId, ...profile } = input;
     return this.executeTransaction(async (transaction) => {
       const organizationData: Prisma.OrganizationUncheckedCreateInput = {
         id: randomUUID(),
+        slug,
         name,
       };
       Object.assign(organizationData, this.buildOrganizationWriteData(profile));
 
-      const organization = await transaction.organization.create({
-        data: organizationData,
-      });
+      let organization;
+      try {
+        organization = await transaction.organization.create({
+          data: organizationData,
+        });
+
+        // Reserving the slug is what stops a new organization from taking one
+        // another organization has retired -- the unique index on
+        // organizations.slug cannot see retired slugs at all, so without this a
+        // newcomer would quietly inherit the original's old links.
+        await transaction.organizationSlugReservation.create({
+          data: {
+            slug,
+            organizationId: organization.id,
+          },
+        });
+      } catch (error) {
+        throw toOrganizationSlugTakenError(error, slug);
+      }
 
       await this.enqueueSearchOutbox(transaction, organization.id, "upsert");
 
@@ -1209,6 +1390,7 @@ export class OrganizationsRepository extends BaseRepository {
     return {
       membershipId: membership.id,
       id: membership.organization.id,
+      slug: membership.organization.slug,
       name: membership.organization.name,
       role: membership.role,
       joinedAt: membership.createdAt.toISOString(),
@@ -1340,6 +1522,7 @@ export class OrganizationsRepository extends BaseRepository {
       this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
         SELECT
           o.id AS id,
+          o.slug AS slug,
           o.name AS name,
           o.description AS description,
           o.website_url AS websiteUrl,
@@ -1361,6 +1544,7 @@ export class OrganizationsRepository extends BaseRepository {
         WHERE o.id IN (${Prisma.join(ids)})
         GROUP BY
           o.id,
+          o.slug,
           o.name,
           o.description,
           o.website_url,

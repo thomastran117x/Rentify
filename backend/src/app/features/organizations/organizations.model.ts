@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+import {
+  ORGANIZATION_SLUG_MAX_LENGTH,
+  ORGANIZATION_SLUG_MIN_LENGTH,
+  ORGANIZATION_SLUG_PATTERN,
+  isReservedOrganizationSlug,
+  looksLikeUuid,
+} from "@/features/organizations/organization-slug";
+
 const resourceIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,6 +33,49 @@ export const organizationResourceIdSchema = z
   .trim()
   .regex(resourceIdPattern, "Invalid organization resource id.");
 export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
+
+// A slug in its canonical form. Deliberately performs no normalization so that
+// callers can distinguish "valid and canonical" from "valid once normalized".
+const canonicalOrganizationSlugSchema = z
+  .string()
+  .min(
+    ORGANIZATION_SLUG_MIN_LENGTH,
+    `URL must be at least ${ORGANIZATION_SLUG_MIN_LENGTH} characters long.`,
+  )
+  .max(
+    ORGANIZATION_SLUG_MAX_LENGTH,
+    `URL must be at most ${ORGANIZATION_SLUG_MAX_LENGTH} characters long.`,
+  )
+  .regex(
+    ORGANIZATION_SLUG_PATTERN,
+    "URL may only contain lowercase letters, numbers, and single hyphens.",
+  )
+  // A 36-character hex-and-dash string satisfies the charset rule, and would
+  // then shadow a real id lookup.
+  .refine((value) => !looksLikeUuid(value), "URL cannot look like an id.")
+  .refine(
+    (value) => !isReservedOrganizationSlug(value),
+    "That URL is reserved. Please choose another.",
+  );
+
+/**
+ * For slugs typed into a form: normalize first, then validate. "Harbor Rentals"
+ * typed with capitals should be accepted and stored lowercase.
+ */
+export const organizationSlugInputSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(canonicalOrganizationSlugSchema);
+
+/**
+ * For slugs arriving in a URL path: validate without normalizing, so that a
+ * non-canonical form (uppercase, trailing hyphen) is rejected rather than
+ * silently served at a non-canonical URL. The caller normalizes and redirects.
+ */
+export const organizationSlugPathSchema = z
+  .string()
+  .pipe(canonicalOrganizationSlugSchema);
 
 // Treat empty/whitespace-only form values as null so blank optional inputs
 // (which arrive as "") don't fail url/email validation.
@@ -85,9 +136,16 @@ export const createOrganizationRequestSchema = z.object({
   ...sharedOrganizationProfileShape,
 });
 
+// `slug` is deliberately absent: changing the public URL retires the old one
+// and has consequences a routine profile save should never trigger. It has its
+// own endpoint and request schema below.
 export const updateOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
   ...sharedOrganizationProfileShape,
+});
+
+export const updateOrganizationSlugRequestSchema = z.object({
+  slug: organizationSlugInputSchema,
 });
 
 export const createOrganizationInviteRequestSchema = z.object({
@@ -127,6 +185,9 @@ export type CreateOrganizationRequestBody = z.infer<
 export type UpdateOrganizationRequestBody = z.infer<
   typeof updateOrganizationRequestSchema
 >;
+export type UpdateOrganizationSlugRequestBody = z.infer<
+  typeof updateOrganizationSlugRequestSchema
+>;
 export type CreateOrganizationInviteRequestBody = z.infer<
   typeof createOrganizationInviteRequestSchema
 >;
@@ -142,8 +203,22 @@ export type ListPublicOrganizationsQuery = z.infer<
 
 export interface OrganizationSummary {
   id: string;
+  slug: string;
   name: string;
   role: OrganizationRole;
+}
+
+/**
+ * Outcome of mapping a public URL reference onto an organization.
+ *
+ * `canonicalSlug` is always the organization's current slug, so callers can
+ * detect that they were reached via a retired alias and redirect.
+ */
+export interface ResolvedOrganizationReference {
+  organizationId: string;
+  canonicalSlug: string;
+  name: string;
+  matchedBy: "canonical-slug" | "alias";
 }
 
 // Editable, self-describing profile fields on an organization. All optional so
@@ -185,6 +260,7 @@ export interface PublicOrganizationStats {
 
 export interface PublicOrganizationSummary extends PublicOrganizationStats {
   id: string;
+  slug: string;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -306,6 +382,7 @@ export interface OrganizationWorkspaceResult {
 export interface OrganizationWorkspaceDetailResult {
   organization: {
     id: string;
+    slug: string;
     name: string;
     createdAt: string;
     updatedAt: string;
@@ -368,6 +445,12 @@ export interface UpdateOrganizationInput extends OrganizationProfileInput {
   organizationId: string;
   actorUserId: string;
   name: string;
+}
+
+export interface ChangeOrganizationSlugInput {
+  organizationId: string;
+  actorUserId: string;
+  slug: string;
 }
 
 export interface SetActiveOrganizationInput {

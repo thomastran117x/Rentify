@@ -33,6 +33,15 @@ export const organizationsRouteModule: RouteModule = {
         "setActive",
       ),
     );
+    // Two literal segments, so this cannot be shadowed by the single-segment
+    // "/organizations/:id" route below.
+    app.get(
+      "/organizations/by-slug/:slug",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "resolveBySlug",
+      ),
+    );
     app.get(
       "/organizations/invitations/:token",
       resolveHandler<OrganizationsController>(
@@ -220,6 +229,15 @@ export const organizationsRouteModule: RouteModule = {
       resolveHandler<OrganizationsController>(
         containerTokens.organizationsController,
         "update",
+      ),
+    );
+    // Separate from the profile update: retiring the public URL has
+    // consequences a routine profile save should never trigger.
+    app.patch(
+      "/organizations/:id/slug",
+      resolveHandler<OrganizationsController>(
+        containerTokens.organizationsController,
+        "updateSlug",
       ),
     );
     app.post(

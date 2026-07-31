@@ -64,6 +64,7 @@ const signupPendingExample = {
 };
 const organizationSummaryExample = {
   id: "org-1",
+  slug: "northwind",
   name: "Northwind",
   role: "primary_manager",
 };
@@ -106,6 +107,7 @@ const organizationWorkspaceExample = {
 const organizationWorkspaceDetailExample = {
   organization: {
     id: "org-1",
+    slug: "northwind",
     name: "Northwind",
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-28T10:00:00.000Z",
@@ -129,6 +131,7 @@ const organizationWorkspaceDetailExample = {
 };
 const publicOrganizationExample = {
   id: "org-1",
+  slug: "northwind",
   name: "Northwind",
   description: "Boutique rental studio for coastal getaways.",
   websiteUrl: "https://northwind.example.com",
@@ -183,6 +186,7 @@ const organizationInviteAcceptedExample = {
   accepted: true,
   organization: {
     id: "org-1",
+    slug: "northwind",
     name: "Northwind",
     role: "operator",
   },
@@ -2544,6 +2548,41 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/organizations/by-slug/:slug",
+      operationId: "resolveOrganizationBySlug",
+      summary: "Resolve a public organization URL slug",
+      description:
+        'Maps a public URL slug onto an organization id. Retired slugs continue to resolve and report `matchedBy: "alias"`, so clients can redirect to `canonicalSlug`. The slug must be in canonical form; a non-canonical reference returns 400 and should be normalized and retried.',
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "slug",
+          "Organization URL slug, current or retired.",
+          "northwind",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ResolvedOrganizationReference",
+          {
+            organizationId: "org-1",
+            canonicalSlug: "northwind",
+            name: "Northwind",
+            matchedBy: "canonical-slug",
+          },
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/organizations/:id",
       operationId: "getPublicOrganizationById",
       summary: "Get public organization detail",
@@ -2595,6 +2634,37 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id/slug",
+      operationId: "updateOrganizationSlug",
+      summary: "Change an organization's public URL",
+      description:
+        "Adopts a new public URL slug and retires the previous one as a permanent alias, so existing links keep resolving. A slug held by another organization, including as one of its retired aliases, is rejected with 409. Only the primary manager can change the URL.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Organization identifier.", "org-1")],
+      requestBody: requestBody("UpdateOrganizationSlugRequest", {
+        slug: "northwind-creative",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Organization URL updated successfully.",
+          "OrganizationSummary",
+          {
+            ...organizationSummaryExample,
+            slug: "northwind-creative",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {
@@ -7562,11 +7632,43 @@ function buildComponents(): Record<string, unknown> {
       },
       OrganizationSummary: {
         type: "object",
-        required: ["id", "name", "role"],
+        required: ["id", "slug", "name", "role"],
         properties: {
           id: { type: "string" },
+          slug: schemaRef("OrganizationSlug"),
           name: { type: "string" },
           role: schemaRef("OrganizationRole"),
+        },
+      },
+      OrganizationSlug: {
+        type: "string",
+        description:
+          "Public URL identifier. Lowercase letters, numbers, and single hyphens.",
+        pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        minLength: 2,
+        maxLength: 160,
+        example: "northwind",
+      },
+      ResolvedOrganizationReference: {
+        type: "object",
+        required: ["organizationId", "canonicalSlug", "name", "matchedBy"],
+        properties: {
+          organizationId: { type: "string" },
+          canonicalSlug: schemaRef("OrganizationSlug"),
+          name: { type: "string" },
+          matchedBy: {
+            type: "string",
+            enum: ["canonical-slug", "alias"],
+            description:
+              "`alias` means the request used a retired slug; clients should redirect to `canonicalSlug`.",
+          },
+        },
+      },
+      UpdateOrganizationSlugRequest: {
+        type: "object",
+        required: ["slug"],
+        properties: {
+          slug: schemaRef("OrganizationSlug"),
         },
       },
       OrganizationMembershipSummary: {
@@ -7719,6 +7821,7 @@ function buildComponents(): Record<string, unknown> {
             type: "object",
             required: [
               "id",
+              "slug",
               "name",
               "createdAt",
               "updatedAt",
@@ -7726,6 +7829,7 @@ function buildComponents(): Record<string, unknown> {
             ],
             properties: {
               id: { type: "string" },
+              slug: schemaRef("OrganizationSlug"),
               name: { type: "string" },
               createdAt: { type: "string", format: "date-time" },
               updatedAt: { type: "string", format: "date-time" },
@@ -7759,9 +7863,10 @@ function buildComponents(): Record<string, unknown> {
         allOf: [
           {
             type: "object",
-            required: ["id", "name", "createdAt", "updatedAt"],
+            required: ["id", "slug", "name", "createdAt", "updatedAt"],
             properties: {
               id: { type: "string" },
+              slug: schemaRef("OrganizationSlug"),
               name: { type: "string" },
               createdAt: { type: "string", format: "date-time" },
               updatedAt: { type: "string", format: "date-time" },
@@ -8150,9 +8255,10 @@ function buildComponents(): Record<string, unknown> {
       },
       OrganizationBlogOrganizationSummary: {
         type: "object",
-        required: ["id", "name"],
+        required: ["id", "slug", "name"],
         properties: {
           id: { type: "string" },
+          slug: { type: "string", maxLength: 160 },
           name: { type: "string" },
           logoUrl: { type: "string", format: "uri" },
         },

@@ -23,6 +23,11 @@ import type {
   OrganizationBlogStatus,
   UpdateOrganizationBlogPostInput,
 } from "@/features/organizations/organization-blog.model";
+import {
+  resolveUniqueSlug,
+  slugify,
+  withSuffix,
+} from "@/features/organizations/organization-slug";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
 import {
   createAuditChanges,
@@ -32,6 +37,8 @@ import {
 
 const ORGANIZATION_BLOB_PREFIX = "organizations/";
 const MAX_SLUG_ATTEMPTS = 50;
+// Matches OrganizationBlogPost.slug in the Prisma schema.
+const BLOG_SLUG_MAX_LENGTH = 200;
 
 export class OrganizationBlogService {
   private readonly logger = loggerFactory.forClass(
@@ -298,35 +305,31 @@ export class OrganizationBlogService {
     source: string,
     excludeBlogPostId?: string,
   ): Promise<string> {
-    const base = this.slugify(source);
+    return resolveUniqueSlug(
+      this.slugify(source),
+      async (candidate) => {
+        const existing = await this.repository.findBySlug(
+          organizationId,
+          candidate,
+        );
 
-    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
-      const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
-      const existing = await this.repository.findBySlug(
-        organizationId,
-        candidate,
-      );
-
-      if (!existing || existing.id === excludeBlogPostId) {
-        return candidate;
-      }
-    }
-
-    // Extremely unlikely; fall back to a suffix that is effectively unique.
-    return `${base}-${Date.now().toString(36)}`;
+        return Boolean(existing) && existing?.id !== excludeBlogPostId;
+      },
+      {
+        maxLength: BLOG_SLUG_MAX_LENGTH,
+        maxAttempts: MAX_SLUG_ATTEMPTS,
+        // Extremely unlikely; fall back to a suffix that is effectively unique.
+        buildFallback: (base) =>
+          withSuffix(base, `-${Date.now().toString(36)}`, BLOG_SLUG_MAX_LENGTH),
+      },
+    );
   }
 
   private slugify(source: string): string {
-    const slug = source
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 200)
-      .replace(/-+$/g, "");
-
-    return slug || "post";
+    return slugify(source, {
+      maxLength: BLOG_SLUG_MAX_LENGTH,
+      fallback: "post",
+    });
   }
 
   private assertBodyNotEmpty(body: string): void {

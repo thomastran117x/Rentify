@@ -2297,6 +2297,7 @@ paths:
                 data:
                   organizations:
                     - id: org-1
+                      slug: northwind
                       name: Northwind
                       description: Boutique rental studio for coastal getaways.
                       websiteUrl: 'https://northwind.example.com'
@@ -2369,11 +2370,13 @@ paths:
                 data:
                   organization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     role: primary_manager
                   membership:
                     membershipId: membership-1
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     role: primary_manager
                     joinedAt: '2026-05-01T00:00:00.000Z'
@@ -2425,12 +2428,14 @@ paths:
                   memberships:
                     - membershipId: membership-1
                       id: org-1
+                      slug: northwind
                       name: Northwind
                       role: primary_manager
                       joinedAt: '2026-05-01T00:00:00.000Z'
                       isActive: true
                   activeOrganization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     role: primary_manager
                 error: null
@@ -2485,6 +2490,7 @@ paths:
                 data:
                   activeOrganization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     role: primary_manager
                 error: null
@@ -2608,6 +2614,7 @@ paths:
                   accepted: true
                   organization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     role: operator
                   membership:
@@ -2675,6 +2682,7 @@ paths:
                 data:
                   organization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     createdAt: '2026-05-01T00:00:00.000Z'
                     updatedAt: '2026-05-28T10:00:00.000Z'
@@ -2724,6 +2732,58 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  '/organizations/by-slug/{slug}':
+    get:
+      operationId: resolveOrganizationBySlug
+      summary: Resolve a public organization URL slug
+      description: 'Maps a public URL slug onto an organization id. Retired slugs continue to resolve and report `matchedBy: "alias"`, so clients can redirect to `canonicalSlug`. The slug must be in canonical form; a non-canonical reference returns 400 and should be normalized and retried.'
+      tags:
+        - organizations
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: 'Organization URL slug, current or retired.'
+          schema:
+            type: string
+          example: northwind
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResolvedOrganizationReference'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  organizationId: org-1
+                  canonicalSlug: northwind
+                  name: Northwind
+                  matchedBy: canonical-slug
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   '/organizations/{id}':
     get:
       operationId: getPublicOrganizationById
@@ -2763,6 +2823,7 @@ paths:
                 data:
                   organization:
                     id: org-1
+                    slug: northwind
                     name: Northwind
                     description: Boutique rental studio for coastal getaways.
                     websiteUrl: 'https://northwind.example.com'
@@ -2838,6 +2899,7 @@ paths:
                 message: Organization updated successfully.
                 data:
                   id: org-1
+                  slug: northwind
                   name: Northwind Creative
                   role: primary_manager
                 error: null
@@ -2851,6 +2913,74 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/slug':
+    patch:
+      operationId: updateOrganizationSlug
+      summary: Change an organization's public URL
+      description: 'Adopts a new public URL slug and retires the previous one as a permanent alias, so existing links keep resolving. A slug held by another organization, including as one of its retired aliases, is rejected with 409. Only the primary manager can change the URL.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationSlugRequest'
+            example:
+              slug: northwind-creative
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationSummary'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Organization URL updated successfully.
+                data:
+                  id: org-1
+                  slug: northwind-creative
+                  name: Northwind
+                  role: primary_manager
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -13909,15 +14039,52 @@ components:
       type: object
       required:
         - id
+        - slug
         - name
         - role
       properties:
         id:
           type: string
+        slug:
+          $ref: '#/components/schemas/OrganizationSlug'
         name:
           type: string
         role:
           $ref: '#/components/schemas/OrganizationRole'
+    OrganizationSlug:
+      type: string
+      description: 'Public URL identifier. Lowercase letters, numbers, and single hyphens.'
+      pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+      minLength: 2
+      maxLength: 160
+      example: northwind
+    ResolvedOrganizationReference:
+      type: object
+      required:
+        - organizationId
+        - canonicalSlug
+        - name
+        - matchedBy
+      properties:
+        organizationId:
+          type: string
+        canonicalSlug:
+          $ref: '#/components/schemas/OrganizationSlug'
+        name:
+          type: string
+        matchedBy:
+          type: string
+          enum:
+            - canonical-slug
+            - alias
+          description: '`alias` means the request used a retired slug; clients should redirect to `canonicalSlug`.'
+    UpdateOrganizationSlugRequest:
+      type: object
+      required:
+        - slug
+      properties:
+        slug:
+          $ref: '#/components/schemas/OrganizationSlug'
     OrganizationMembershipSummary:
       allOf:
         - $ref: '#/components/schemas/OrganizationSummary'
@@ -14111,6 +14278,7 @@ components:
         - type: object
           required:
             - id
+            - slug
             - name
             - createdAt
             - updatedAt
@@ -14118,6 +14286,8 @@ components:
           properties:
             id:
               type: string
+            slug:
+              $ref: '#/components/schemas/OrganizationSlug'
             name:
               type: string
             createdAt:
@@ -14159,12 +14329,15 @@ components:
         - type: object
           required:
             - id
+            - slug
             - name
             - createdAt
             - updatedAt
           properties:
             id:
               type: string
+            slug:
+              $ref: '#/components/schemas/OrganizationSlug'
             name:
               type: string
             createdAt:
@@ -14670,10 +14843,14 @@ components:
       type: object
       required:
         - id
+        - slug
         - name
       properties:
         id:
           type: string
+        slug:
+          type: string
+          maxLength: 160
         name:
           type: string
         logoUrl:
