@@ -31,6 +31,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       buildVersionedIndexName: jest.fn(() => "postings_v2"),
     } as any;
@@ -53,6 +55,92 @@ describe("SearchService", () => {
       id: "run-1",
       targetIndexName: "postings_v2",
     });
+  });
+
+  it("starts a reindex run when the live index mapping is out of date", async () => {
+    const createSearchReindexRun = jest.fn(async (targetIndexName: string) => ({
+      id: "run-1",
+      status: "pending" as const,
+      targetIndexName,
+    }));
+    const postingsRepository = {
+      withSearchReindexStartLock: jest.fn(
+        async (operation: (helpers: unknown) => Promise<unknown>) =>
+          operation({
+            findActiveSearchReindexRun: async () => null,
+            createSearchReindexRun,
+          }),
+      ),
+    } as any;
+    const service = new SearchService(
+      postingsRepository,
+      {
+        isElasticsearchEnabled: () => true,
+        isLiveMappingStale: jest.fn(async () => true),
+        buildVersionedIndexName: jest.fn(() => "postings_v2"),
+      } as any,
+      {} as any,
+    );
+
+    await expect(service.ensureCurrentIndexMapping()).resolves.toBe(true);
+    expect(createSearchReindexRun).toHaveBeenCalledWith("postings_v2");
+  });
+
+  it("does not start a reindex run when the live index mapping is current", async () => {
+    const withSearchReindexStartLock = jest.fn();
+    const service = new SearchService(
+      { withSearchReindexStartLock } as any,
+      {
+        isElasticsearchEnabled: () => true,
+        isLiveMappingStale: jest.fn(async () => false),
+      } as any,
+      {} as any,
+    );
+
+    await expect(service.ensureCurrentIndexMapping()).resolves.toBe(false);
+    expect(withSearchReindexStartLock).not.toHaveBeenCalled();
+  });
+
+  it("leaves an in-flight reindex run to bring the mapping up to date", async () => {
+    const service = new SearchService(
+      {
+        withSearchReindexStartLock: jest.fn(
+          async (operation: (helpers: unknown) => Promise<unknown>) =>
+            operation({
+              findActiveSearchReindexRun: async () => ({
+                id: "run-1",
+                status: "running" as const,
+              }),
+              createSearchReindexRun: jest.fn(),
+            }),
+        ),
+      } as any,
+      {
+        isElasticsearchEnabled: () => true,
+        isLiveMappingStale: jest.fn(async () => true),
+        buildVersionedIndexName: jest.fn(() => "postings_v2"),
+      } as any,
+      {} as any,
+    );
+
+    // The active run already rebuilds with the current mapping, so the
+    // conflict is expected rather than an error worth surfacing.
+    await expect(service.ensureCurrentIndexMapping()).resolves.toBe(false);
+  });
+
+  it("skips mapping drift detection when Elasticsearch is disabled", async () => {
+    const isLiveMappingStale = jest.fn();
+    const service = new SearchService(
+      {} as any,
+      {
+        isElasticsearchEnabled: () => false,
+        isLiveMappingStale,
+      } as any,
+      {} as any,
+    );
+
+    await expect(service.ensureCurrentIndexMapping()).resolves.toBe(false);
+    expect(isLiveMappingStale).not.toHaveBeenCalled();
   });
 
   it("returns a conflict when the start lock cannot be acquired", async () => {
@@ -81,6 +169,8 @@ describe("SearchService", () => {
       } as any,
       {
         ensureLiveIndex: jest.fn(async () => undefined),
+        isElasticsearchEnabled: () => true,
+        isLiveMappingStale: jest.fn(async () => false),
         createVersionedIndex: jest.fn(async () => "postings_v2"),
       } as any,
       {} as any,
@@ -356,6 +446,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -413,6 +505,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -464,6 +558,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -515,6 +611,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -910,6 +1008,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => undefined),
     } as any;
@@ -955,6 +1055,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
     } as any;
     const searchQueueService = {
@@ -1009,6 +1111,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -1063,6 +1167,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
       createVersionedIndex: jest.fn(async () => "postings_v2"),
       bulkUpsertDocuments: jest.fn(async () => {
         throw new Error("amqp broker unavailable");
@@ -1356,6 +1462,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
       swapAliases: jest.fn(async () => ({
         previousReadTargets: ["postings_v_old"],
         previousWriteTargets: ["postings_v3"],
@@ -1402,6 +1510,8 @@ describe("SearchService", () => {
     } as any;
     const postingsSearchService = {
       ensureLiveIndex: jest.fn(async () => undefined),
+      isElasticsearchEnabled: () => true,
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const searchQueueService = {
       ensureTopology: jest.fn(async () => undefined),
@@ -1447,6 +1557,7 @@ describe("SearchService", () => {
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
+      isLiveMappingStale: jest.fn(async () => false),
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),
@@ -1500,6 +1611,7 @@ describe("SearchService", () => {
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
+      isLiveMappingStale: jest.fn(async () => false),
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => {
         throw new Error("bulk upsert failed");
@@ -1534,6 +1646,7 @@ describe("SearchService", () => {
     const postingsSearchService = {
       isElasticsearchEnabled: () => false,
       ensureLiveIndex: jest.fn(async () => undefined),
+      isLiveMappingStale: jest.fn(async () => false),
     } as any;
     const service = new SearchService(
       postingsRepository,
@@ -1555,6 +1668,7 @@ describe("SearchService", () => {
     const postingsSearchService = {
       isElasticsearchEnabled: () => true,
       ensureLiveIndex: jest.fn(async () => undefined),
+      isLiveMappingStale: jest.fn(async () => false),
       getWriteAliasName: () => "postings-write",
       bulkUpsertDocuments: jest.fn(async () => undefined),
       bulkDeleteDocuments: jest.fn(async () => undefined),

@@ -1860,6 +1860,7 @@ describe("PostingsService", () => {
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
+      createOrganizationsRepositoryStub() as unknown as OrganizationsRepository,
     );
 
     await expect(
@@ -2051,6 +2052,7 @@ describe("PostingsService", () => {
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
+      createOrganizationsRepositoryStub() as unknown as OrganizationsRepository,
     );
 
     await expect(

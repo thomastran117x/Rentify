@@ -1,4 +1,7 @@
-import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
+import {
+  POSTINGS_INDEX_MAPPING_VERSION,
+  PostingsSearchIndexService,
+} from "@/features/postings/search/index.service";
 import { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import { PostingsRepository } from "@/features/postings/postings.repository";
@@ -329,6 +332,96 @@ describe("PostingsSearchIndexService", () => {
 
     // An empty string would sort ahead of every real name under organizationAsc.
     expect(body).not.toHaveProperty("organizationName");
+  });
+
+  it("stamps the mapping version so drift can be detected", async () => {
+    const requestJson = jest.fn().mockResolvedValueOnce({});
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await service.createVersionedIndex("postings-test_v1");
+
+    const body = JSON.parse(
+      requestJson.mock.calls[0]?.[1]?.body as string,
+    ) as any;
+
+    expect(body.mappings._meta.mappingVersion).toBe(
+      POSTINGS_INDEX_MAPPING_VERSION,
+    );
+  });
+
+  it("reports a live index built from an older mapping as stale", async () => {
+    const requestJson = jest
+      .fn()
+      // read alias targets, then write alias targets
+      .mockResolvedValueOnce({ postings_v1: {} })
+      .mockResolvedValueOnce({ postings_v1: {} })
+      // mapping lookup
+      .mockResolvedValueOnce({
+        postings_v1: { mappings: { _meta: { mappingVersion: 1 } } },
+      });
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await expect(service.isLiveMappingStale()).resolves.toBe(true);
+  });
+
+  it("treats an unstamped legacy index as stale", async () => {
+    const requestJson = jest
+      .fn()
+      .mockResolvedValueOnce({ postings_v1: {} })
+      .mockResolvedValueOnce({ postings_v1: {} })
+      .mockResolvedValueOnce({ postings_v1: { mappings: {} } });
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await expect(service.isLiveMappingStale()).resolves.toBe(true);
+  });
+
+  it("reports a live index built from the current mapping as current", async () => {
+    const requestJson = jest
+      .fn()
+      .mockResolvedValueOnce({ postings_v2: {} })
+      .mockResolvedValueOnce({ postings_v2: {} })
+      .mockResolvedValueOnce({
+        postings_v2: {
+          mappings: {
+            _meta: { mappingVersion: POSTINGS_INDEX_MAPPING_VERSION },
+          },
+        },
+      });
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await expect(service.isLiveMappingStale()).resolves.toBe(false);
+  });
+
+  it("does not report drift while the aliases still need repair", async () => {
+    // ensureLiveIndex() creates or repairs these from the current mapping, so
+    // treating them as stale would start a redundant rebuild.
+    const requestJson = jest
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await expect(service.isLiveMappingStale()).resolves.toBe(false);
   });
 
   it("maps organizationName with a lowercase-normalized sort subfield", async () => {

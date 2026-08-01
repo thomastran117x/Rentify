@@ -360,7 +360,7 @@ describe("PostingsRepository", () => {
       id: "run-1",
       targetIndexName: "postings_v2",
     }));
-    const createMany = jest.fn(async () => undefined);
+    const createMany = jest.fn(async (_args: { data: unknown[] }) => undefined);
     const transaction = {
       searchReindexRun: { findFirst },
       postingSearchOutbox: { createMany },

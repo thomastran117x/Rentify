@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
-  Building2,
   CalendarRange,
   Compass,
   Search,
@@ -38,6 +37,7 @@ import {
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
+import { OrganizationFilterField } from "@/components/postings/organization-filter-field";
 import { theme } from "@/styles/theme";
 
 export const metadata: Metadata = {
@@ -754,24 +754,19 @@ export default async function PostingsPage({
                   htmlFor="organization"
                   hint="Show only postings owned by a matching organization."
                 >
-                  <div className="relative">
-                    <Building2
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                      aria-hidden="true"
-                    />
-                    <input
-                      id="organization"
-                      type="text"
-                      name="organization"
-                      defaultValue={
-                        result?.organizationFilter?.matches[0]?.name ??
-                        organization ??
-                        ""
-                      }
-                      placeholder="Any organization"
-                      className={`${inputClass} pl-9`}
-                    />
-                  </div>
+                  <OrganizationFilterField
+                    // Name searches keep the visitor's own text so resubmitting
+                    // cannot silently narrow a multi-organization filter to the
+                    // first match. Only an exact-id link labels the field with
+                    // the resolved organization name.
+                    defaultValue={
+                      organizationId
+                        ? (result?.organizationFilter?.matches[0]?.name ?? "")
+                        : (organization ?? "")
+                    }
+                    organizationId={organizationId}
+                    inputClassName={inputClass}
+                  />
                 </Field>
 
                 <Field
