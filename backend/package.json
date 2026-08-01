@@ -86,7 +86,7 @@
     "ts-jest": "^29.4.9",
     "tsup": "^8.5.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^7.0.2"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,
