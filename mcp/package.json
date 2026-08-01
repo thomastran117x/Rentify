@@ -15,7 +15,8 @@
     "test": "jest --config jest.config.cjs --runInBand"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "npm": ">=11.16.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

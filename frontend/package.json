@@ -52,7 +52,8 @@
     "sharp": "^0.35.3"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "npm": ">=11.16.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,

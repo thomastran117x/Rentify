@@ -52,7 +52,7 @@ Consider an unfiltered `npm audit` review each quarter so the low/moderate backl
 
 ## Install-Script Allowlists (`allowScripts`)
 
-npm 11 introduced a per-project allowlist for package install scripts. Each workspace's `package.json` carries an `allowScripts` block keyed by exact `name@version`:
+npm introduced a per-project allowlist for package install scripts. Each workspace's `package.json` carries an `allowScripts` block keyed by exact `name@version`:
 
 ```json
 "allowScripts": {
@@ -62,6 +62,14 @@ npm 11 introduced a per-project allowlist for package install scripts. Each work
 ```
 
 Install scripts are the single most direct path from a compromised package to code execution on a developer machine or a CI runner, so the allowlist is reviewed rather than blanket-approved.
+
+### Required npm Version
+
+**This feature requires npm >= 11.16.0.** All three workspaces declare `engines.npm: ">=11.16.0"` for that reason.
+
+The floor matters more than it looks. `engines.node: ">=24"` alone is not sufficient: Node 24.15.0 satisfies it but bundles npm 11.4.2, where `npm approve-scripts` does not exist as a command and the `allowScripts` field is ignored entirely. On such a toolchain the allowlist is silently inert — installs run every dependency's install script with no warning and no signal that the control is not working.
+
+Check what you have with `npm --version`. Node 24.18.0 and later bundle npm 11.16.0 or newer, which is what CI and all three Docker images run.
 
 To review and approve:
 
@@ -74,7 +82,7 @@ Three things to know:
 
 - **Entries are pinned to exact versions**, so any dependency bump invalidates the matching entry. Refreshing the allowlist is a required step on every dependency PR.
 - **`npm approve-scripts` adds but never prunes.** Obsolete entries must be deleted by hand. For example, sharp 0.35 removed its install script entirely (source builds are now opt-in via `build`), so its allowlist entry was deleted rather than bumped.
-- **In npm 11 this is advisory** — an unreviewed script prints a warning but still runs. It becomes **blocking in npm 12**, at which point a stale entry will break `npm ci` inside the Dockerfiles. Treat the warnings as errors now.
+- **On npm 11.16+ this is advisory** — an unreviewed script prints a warning but still runs. **npm 12 is released and makes it blocking**, so once the `node:24-alpine` images pick up npm 12, any stale or missing entry will fail `npm ci` during the Docker build. Treat the warnings as errors now. All three workspaces currently report no unreviewed install scripts, so the repo is ready for that switch.
 
 Do not run `npm approve-scripts --all`. It approves whatever happens to be pending, which defeats the review.
 
@@ -98,8 +106,10 @@ Socket is **advisory** — a PR comment, not a required status check. The blocki
 
 Two properties of the config matter when editing it:
 
-- **Group order is load-bearing.** Dependabot assigns each dependency to the _first_ group whose criteria it matches. The `*-security` groups are listed first so security fixes never get buried inside a large routine chore PR. In the frontend, the `nextjs` and `react` groups precede the catch-all groups so exact-pinned packages that must move in lockstep (`next` with `eslint-config-next`) always land in one PR.
-- **Majors are excluded from every version-update group** (`update-types: [minor, patch]`), so each major bump arrives as its own reviewable PR rather than riding along with routine updates.
+- **Group order is load-bearing.** Dependabot assigns each dependency to the _first_ group whose criteria it matches, and anything matching no group gets an individual PR. The `*-security` groups are listed first so security fixes never get buried inside a large routine chore PR. In the frontend, the `nextjs` and `react` groups precede the catch-all groups so exact-pinned packages that must move in lockstep (`next` with `eslint-config-next`) always land in one PR.
+- **Majors are excluded from the catch-all groups** (`*-production` and `*-development`, both `update-types: [minor, patch]`), so an ordinary major arrives as its own reviewable PR rather than riding along with routine updates.
+
+  The `nextjs` and `react` groups are the deliberate exception: they list `major` explicitly. Those packages are version-locked to each other, so excluding majors would push a `next` major out of the group and into two separate individual PRs — one for `next`, one for `eslint-config-next` — each of which fails CI on its own. Grouping them is what keeps the major reviewable.
 
 ## Remediation Runbook
 

@@ -1,13 +1,18 @@
 version: 2
 
 # Group ordering is load-bearing: Dependabot assigns each dependency to the
-# FIRST group whose criteria it matches. The `*-security` groups come first so
-# security fixes are never buried inside a large routine version-update PR, and
-# the frontend `nextjs` / `react` groups come before the catch-all
-# `dependency-type` groups so lockstep-pinned packages always move together.
+# FIRST group whose criteria it matches, and anything matching no group gets an
+# individual PR. The `*-security` groups come first so security fixes are never
+# buried inside a large routine version-update PR, and the frontend `nextjs` /
+# `react` groups come before the catch-all `dependency-type` groups so
+# lockstep-pinned packages always move together.
 #
-# Every version-update group is limited to `minor` and `patch`, so each major
-# arrives as its own reviewable PR.
+# The catch-all `*-production` / `*-development` groups are limited to `minor`
+# and `patch`, so an ordinary major arrives as its own reviewable PR.
+#
+# The `nextjs` and `react` groups deliberately include `major` as well. Those
+# packages are version-locked to each other, so splitting a major across
+# separate PRs would produce two PRs that each fail CI on their own.
 
 updates:
   - package-ecosystem: npm
@@ -61,13 +66,21 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
-      # next and eslint-config-next are exact-pinned and must move in lockstep.
+      # next and eslint-config-next are exact-pinned and must move in lockstep,
+      # so `major` is included here on purpose. Dropping it would push a major
+      # out of this group and into two separate individual PRs.
       nextjs:
         applies-to: version-updates
         patterns:
           - next
           - eslint-config-next
           - "@next/*"
+        update-types:
+          - major
+          - minor
+          - patch
+      # Same reasoning: react and react-dom must move together, and the
+      # @types/* packages track them.
       react:
         applies-to: version-updates
         patterns:
@@ -75,6 +88,10 @@ updates:
           - react-dom
           - "@types/react"
           - "@types/react-dom"
+        update-types:
+          - major
+          - minor
+          - patch
       frontend-production:
         applies-to: version-updates
         dependency-type: production
