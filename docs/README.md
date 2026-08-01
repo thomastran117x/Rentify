@@ -13,6 +13,10 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 - [rentify-plan.md](./rentify-plan.md): long-form product vision, system direction, phases, and domain design
 
+## Security
+
+- [dependency-security.md](./dependency-security.md): dependency auditing, the CI severity gate, install-script allowlists, Socket.dev, and the remediation runbook
+
 ## Auth, Booking, and Recommendations Deep Dives
 
 - [auth-session-model.md](./auth-session-model.md): browser versus API/mobile session model and CSRF behavior
@@ -34,3 +38,4 @@ This folder is the working documentation set for the Rentify repository. Use it 
 2. Read [architecture-overview.md](./architecture-overview.md) to understand where features live.
 3. Read [testing-guide.md](./testing-guide.md) before changing behavior.
 4. Use the deep-dive docs when you need specific design context.
+5. Read [dependency-security.md](./dependency-security.md) before adding, upgrading, or removing a dependency.

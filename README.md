@@ -97,6 +97,12 @@ npm run test:unit
 npm run test:e2e
 ```
 
+Dependency audit (from `backend/`, `frontend/`, or `mcp/`):
+
+```bash
+npm run audit:all
+```
+
 ## API Contract
 
 The backend returns a shared JSON envelope:
@@ -122,4 +128,5 @@ The committed API specs live at [backend/openapi/openapi.yaml](./backend/openapi
 - [docs/local-development.md](./docs/local-development.md): setup, envs, services, local workflows
 - [docs/architecture-overview.md](./docs/architecture-overview.md): how the app is organized today
 - [docs/testing-guide.md](./docs/testing-guide.md): unit, integration, and end-to-end validation flow
+- [docs/dependency-security.md](./docs/dependency-security.md): dependency auditing, CI severity gate, and remediation runbook
 - [docs/rentify-plan.md](./docs/rentify-plan.md): long-form product and system plan

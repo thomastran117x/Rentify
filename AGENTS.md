@@ -38,6 +38,7 @@ For every end-to-end feature, follow this process:
 2. Confirm who will perform end-to-end browser validation for user-facing work.
 3. Implement the feature in small, focused changes across all affected layers.
 4. Update contracts, tests, and documentation alongside the code.
+   - If the change touches a `package.json` or `package-lock.json`, run `npm run audit:all` in that workspace and review install-script changes with `npm approve-scripts --allow-scripts-pending`, deleting any obsolete `allowScripts` entries by hand. See [docs/dependency-security.md](./docs/dependency-security.md).
 5. Start the full stack with Docker Compose.
 6. Run the appropriate validation path:
    - Agent-run path: use Playwright MCP, fix issues found, and re-run until the flow works.
