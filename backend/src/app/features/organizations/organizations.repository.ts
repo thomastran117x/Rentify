@@ -223,6 +223,12 @@ interface SearchIdRow {
   id: string;
 }
 
+interface OrganizationNameMatchRow {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface SearchOutboxLagRow {
   unpublishedCount?: bigint | number | null;
   unpublishedOldestCreatedAt?: Date | null;
@@ -382,6 +388,79 @@ export class OrganizationsRepository extends BaseRepository {
       .toLowerCase()
       .replace(/[\\%_]/g, "\\$&");
     return `%${escaped}%`;
+  }
+
+  /**
+   * Resolve an organization name typed by a searcher into concrete ids so that
+   * posting search can filter on ids in both Elasticsearch and the SQL
+   * fallback. Exact matches rank first, then prefix, then substring.
+   *
+   * Fetches one row beyond `limit` so the caller can tell the UI that more
+   * organizations matched than were applied to the filter.
+   */
+  async findOrganizationNameMatches(
+    query: string,
+    limit: number,
+  ): Promise<{ matches: OrganizationNameMatchRow[]; truncated: boolean }> {
+    const normalized = query.trim().toLowerCase();
+
+    if (!normalized || limit < 1) {
+      return { matches: [], truncated: false };
+    }
+
+    const escaped = normalized.replace(/[\\%_]/g, "\\$&");
+    const containsPattern = `%${escaped}%`;
+    const prefixPattern = `${escaped}%`;
+
+    const rows = await this.executeAsync(() =>
+      this.prisma.$queryRaw<OrganizationNameMatchRow[]>(Prisma.sql`
+        SELECT o.id AS id, o.name AS name, o.slug AS slug
+        FROM organizations o
+        WHERE LOWER(o.name) LIKE ${containsPattern} ESCAPE '\\\\'
+        ORDER BY
+          CASE
+            WHEN LOWER(o.name) = ${normalized} THEN 0
+            WHEN LOWER(o.name) LIKE ${prefixPattern} ESCAPE '\\\\' THEN 1
+            ELSE 2
+          END ASC,
+          o.name ASC,
+          o.id ASC
+        LIMIT ${limit + 1}
+      `),
+    );
+
+    return {
+      matches: rows.slice(0, limit),
+      truncated: rows.length > limit,
+    };
+  }
+
+  /**
+   * Minimal id/name/slug lookup for posting search. Deliberately not
+   * batchFindPublicByIds, which carries a published-posting-count aggregation
+   * that would be wasted work on every search request.
+   */
+  async findOrganizationSummariesByIds(
+    ids: string[],
+  ): Promise<OrganizationNameMatchRow[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.executeAsync(() =>
+      this.prisma.organization.findMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      }),
+    );
   }
 
   async listPublicOrganizations(

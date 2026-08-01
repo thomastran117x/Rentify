@@ -288,6 +288,84 @@ describe("PostingsSearchIndexService", () => {
     expect(body).not.toHaveProperty("attributes");
   });
 
+  it("denormalizes the owning organization name into indexed documents", async () => {
+    const requestJson = jest.fn(async () => undefined);
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await service.upsertDocument(
+      createDocument({ organizationName: "Maya Santos Organization" }) as any,
+      "postings-test_v1",
+    );
+
+    const body = JSON.parse(
+      ((requestJson.mock.calls[0] as any[] | undefined)?.[1] as any)
+        ?.body as string,
+    ) as Record<string, unknown>;
+
+    expect(body.organizationName).toBe("Maya Santos Organization");
+  });
+
+  it("omits organizationName rather than indexing an empty keyword", async () => {
+    const requestJson = jest.fn(async () => undefined);
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await service.upsertDocument(
+      createDocument({ organizationName: undefined }) as any,
+      "postings-test_v1",
+    );
+
+    const body = JSON.parse(
+      ((requestJson.mock.calls[0] as any[] | undefined)?.[1] as any)
+        ?.body as string,
+    ) as Record<string, unknown>;
+
+    // An empty string would sort ahead of every real name under organizationAsc.
+    expect(body).not.toHaveProperty("organizationName");
+  });
+
+  it("maps organizationName with a lowercase-normalized sort subfield", async () => {
+    const requestJson = jest
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await service.createVersionedIndex("postings-test_v1");
+
+    const body = JSON.parse(
+      requestJson.mock.calls[0]?.[1]?.body as string,
+    ) as any;
+
+    expect(body.mappings.properties.organizationName).toEqual({
+      type: "text",
+      analyzer: "search_text",
+      fields: {
+        sort: {
+          type: "keyword",
+          normalizer: "lowercase_normalizer",
+        },
+        prefix: {
+          type: "text",
+          analyzer: "autocomplete_index",
+          search_analyzer: "autocomplete_search",
+        },
+      },
+    });
+  });
+
   it("repairs a missing read alias from the write alias target", async () => {
     const requestJson = jest
       .fn()
@@ -404,6 +482,7 @@ describe("PostingsPublicSearchService", () => {
               "name^7",
               "tags.text^5",
               "location.city^4",
+              "organizationName^3",
               "location.region^3",
               "location.country^2",
               "description^2",
@@ -417,6 +496,7 @@ describe("PostingsPublicSearchService", () => {
               "name^5",
               "tags.text^3",
               "location.city^3",
+              "organizationName^2",
               "location.region^2",
               "location.country^2",
               "description",
@@ -434,6 +514,7 @@ describe("PostingsPublicSearchService", () => {
             fields: [
               "name.prefix^4",
               "location.city.prefix^3",
+              "organizationName.prefix^2",
               "location.region.prefix^2",
               "location.country.prefix^2",
             ],
@@ -443,6 +524,112 @@ describe("PostingsPublicSearchService", () => {
         },
       ]),
     );
+  });
+
+  it("filters Elasticsearch results to the resolved organization ids", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      sort: "relevance",
+      organizationIds: ["org-1", "org-2"],
+    });
+
+    expect(readSearchRequest(requestJson).query.bool.filter).toEqual(
+      expect.arrayContaining([
+        {
+          terms: {
+            organizationId: ["org-1", "org-2"],
+          },
+        },
+      ]),
+    );
+  });
+
+  it("sorts by organization name with an unmapped-type guard in both directions", async () => {
+    const ascending = createElasticsearchPublicSearchService();
+    await ascending.service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      sort: "organizationAsc",
+    });
+
+    expect(readSearchRequest(ascending.requestJson).sort[0]).toEqual({
+      "organizationName.sort": {
+        order: "asc",
+        missing: "_last",
+        // Without this the sort is a shard failure against an index built
+        // before organizationName was mapped.
+        unmapped_type: "keyword",
+      },
+    });
+
+    const descending = createElasticsearchPublicSearchService();
+    await descending.service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      sort: "organizationDesc",
+    });
+
+    expect(readSearchRequest(descending.requestJson).sort[0]).toEqual({
+      "organizationName.sort": {
+        order: "desc",
+        missing: "_last",
+        unmapped_type: "keyword",
+      },
+    });
+  });
+
+  it("requests organizationName in _source so org-name hits count as direct matches", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "maya",
+      sort: "relevance",
+    });
+
+    const body = JSON.parse(
+      (requestJson.mock.calls[0] as any)?.[1]?.body as string,
+    ) as { _source: string[] };
+
+    expect(body._source).toContain("organizationName");
+  });
+
+  it("does not retry with typo tolerance when the only direct match is the organization name", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService({
+      hits: {
+        total: { value: 1 },
+        hits: [
+          {
+            _id: "posting-1",
+            _source: {
+              name: "Sunny loft",
+              organizationName: "Maya Santos Organization",
+              tags: [],
+              location: {
+                city: "Toronto",
+                region: "Ontario",
+                country: "Canada",
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      query: "maya",
+      sort: "relevance",
+    });
+
+    // A second call would mean the strict pass was judged a weak match and the
+    // hits got re-ranked by a scorer that ignores the organization name.
+    expect(requestJson).toHaveBeenCalledTimes(1);
   });
 
   it("keeps looser fuzzy and prefix matching for single-term Elasticsearch keyword searches", async () => {
@@ -482,6 +669,7 @@ describe("PostingsPublicSearchService", () => {
               "name^7",
               "tags.text^5",
               "location.city^4",
+              "organizationName^3",
               "location.region^3",
               "location.country^2",
               "description^2",
@@ -1625,9 +1813,69 @@ describe("PostingsRepository.searchPublicFallback", () => {
     expect(idQuery.sql).toContain(
       ") DESC, published_at DESC, created_at DESC, id ASC",
     );
+    // 7 bindings in the WHERE disjunction (6 posting columns + the owning
+    // organization name) and 6 in the relevance CASE expression.
     expect(
       idQuery.values.filter((value) => value === "%100\\%\\_loft%"),
-    ).toHaveLength(12);
+    ).toHaveLength(13);
+  });
+
+  it("filters the fallback query to the resolved organization ids", async () => {
+    const { queries, repository } = createFallbackRepository();
+
+    await repository.searchPublicFallback({
+      page: 1,
+      pageSize: 10,
+      sort: "newest",
+      organizationIds: ["org-1", "org-2"],
+    });
+
+    const idQuery = queries[1]!;
+
+    expect(idQuery.sql).toContain("organization_id IN (?,?)");
+    expect(idQuery.values).toEqual(expect.arrayContaining(["org-1", "org-2"]));
+  });
+
+  it("matches the owning organization name in fallback keyword searches", async () => {
+    const { queries, repository } = createFallbackRepository();
+
+    await repository.searchPublicFallback({
+      page: 1,
+      pageSize: 10,
+      query: "maya",
+      sort: "relevance",
+    });
+
+    expect(queries[1]!.sql).toContain(
+      "FROM organizations o\n            WHERE o.id = postings.organization_id",
+    );
+  });
+
+  it("orders fallback results by organization name in both directions", async () => {
+    const ascending = createFallbackRepository();
+    await ascending.repository.searchPublicFallback({
+      page: 1,
+      pageSize: 10,
+      sort: "organizationAsc",
+    });
+
+    expect(ascending.queries[1]!.sql).toContain(
+      "ORDER BY LOWER((SELECT o.name FROM organizations o WHERE o.id = postings.organization_id)) ASC, published_at DESC, created_at DESC, id ASC",
+    );
+
+    const descending = createFallbackRepository();
+    await descending.repository.searchPublicFallback({
+      page: 1,
+      pageSize: 10,
+      sort: "organizationDesc",
+    });
+
+    expect(descending.queries[1]!.sql).toContain(
+      "ORDER BY LOWER((SELECT o.name FROM organizations o WHERE o.id = postings.organization_id)) DESC, published_at DESC, created_at DESC, id ASC",
+    );
+
+    // The count query has no ORDER BY, so the correlated subquery never runs there.
+    expect(descending.queries[0]!.sql).not.toContain("ORDER BY");
   });
 
   it("supports oldest and alphabetical fallback ordering with stable tie-breakers", async () => {

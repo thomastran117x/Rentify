@@ -266,6 +266,14 @@ export function OrganizationPublicDetailPage({
             Live posting{stats.publishedPostingCount === 1 ? "" : "s"} currently
             tied to this organization.
           </p>
+          {stats.publishedPostingCount > 0 ? (
+            <Link
+              href={`/postings?organizationId=${encodeURIComponent(organization.id)}&sort=newest&page=1&pageSize=20`}
+              className="mt-3 inline-block text-sm font-semibold text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
+            >
+              View all postings from this organization
+            </Link>
+          ) : null}
         </div>
 
         <div className={theme.marketplace.utilityCard}>

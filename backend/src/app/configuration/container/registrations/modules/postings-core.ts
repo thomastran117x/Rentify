@@ -31,6 +31,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.organizationAccessService,
         containerTokens.authRepository,
         containerTokens.organizationAuditService,
+        containerTokens.organizationsRepository,
       ],
       resolve: ({ resolve }) =>
         new PostingsService(
@@ -46,6 +47,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.organizationAccessService),
           resolve(containerTokens.authRepository),
           resolve(containerTokens.organizationAuditService),
+          resolve(containerTokens.organizationsRepository),
         ),
     });
     container.register({

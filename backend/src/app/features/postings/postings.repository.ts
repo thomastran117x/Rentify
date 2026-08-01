@@ -1143,6 +1143,12 @@ export class PostingsRepository extends BaseRepository {
       Prisma.sql`archived_at IS NULL`,
     ];
 
+    if (input.organizationIds && input.organizationIds.length > 0) {
+      whereClauses.push(
+        Prisma.sql`organization_id IN (${Prisma.join(input.organizationIds)})`,
+      );
+    }
+
     if (input.query) {
       const likeValue = this.createFallbackLikePattern(input.query);
       whereClauses.push(
@@ -1153,6 +1159,12 @@ export class PostingsRepository extends BaseRepository {
           OR region LIKE ${likeValue} ESCAPE '\\'
           OR country LIKE ${likeValue} ESCAPE '\\'
           OR CAST(tags AS CHAR) LIKE ${likeValue} ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1
+            FROM organizations o
+            WHERE o.id = postings.organization_id
+              AND o.name LIKE ${likeValue} ESCAPE '\\'
+          )
         )`,
       );
     }
@@ -1431,6 +1443,56 @@ export class PostingsRepository extends BaseRepository {
         : undefined,
       createdAt: new Date(row.createdAt).toISOString(),
     }));
+  }
+
+  /**
+   * Publicly visible posting ids for an organization. Used when an
+   * organization's denormalized projection (name, slug) needs refreshing.
+   */
+  async listPublicPostingIdsForOrganization(
+    organizationId: string,
+  ): Promise<string[]> {
+    const postings = await this.executeAsync(() =>
+      this.prisma.posting.findMany({
+        where: {
+          organizationId,
+          status: "published",
+          archivedAt: null,
+        },
+        orderBy: {
+          id: "asc",
+        },
+        select: {
+          id: true,
+        },
+      }),
+    );
+
+    return postings.map((posting) => posting.id);
+  }
+
+  /**
+   * Queues a search reindex for every publicly visible posting owned by the
+   * organization, in bounded batches so a large organization does not hold a
+   * single long transaction open. Returns the affected posting ids so the
+   * caller can also invalidate their cached public projections.
+   */
+  async enqueueSearchSyncForOrganization(
+    organizationId: string,
+    batchSize = 500,
+  ): Promise<string[]> {
+    const postingIds =
+      await this.listPublicPostingIdsForOrganization(organizationId);
+
+    for (let index = 0; index < postingIds.length; index += batchSize) {
+      const batch = postingIds.slice(index, index + batchSize);
+
+      await this.executeTransaction((transaction) =>
+        this.enqueueOutboxMany(transaction, batch, "upsert"),
+      );
+    }
+
+    return postingIds;
   }
 
   async findByIdsForIndexing(ids: string[]): Promise<PostingSearchDocument[]> {
@@ -2550,6 +2612,13 @@ export class PostingsRepository extends BaseRepository {
         return Prisma.sql`LOWER(name) DESC, published_at DESC, created_at DESC, id ASC`;
       case "highestRated":
         return Prisma.sql`average_rating DESC, review_count DESC, published_at DESC, created_at DESC, id ASC`;
+      // Correlated scalar subquery rather than a JOIN so the surrounding
+      // `FROM postings` query stays un-aliased and `SELECT id` unambiguous.
+      // LOWER() mirrors the Elasticsearch lowercase_normalizer.
+      case "organizationAsc":
+        return Prisma.sql`LOWER((SELECT o.name FROM organizations o WHERE o.id = postings.organization_id)) ASC, published_at DESC, created_at DESC, id ASC`;
+      case "organizationDesc":
+        return Prisma.sql`LOWER((SELECT o.name FROM organizations o WHERE o.id = postings.organization_id)) DESC, published_at DESC, created_at DESC, id ASC`;
       case "nearest":
         if (distanceExpression) {
           return Prisma.sql`${distanceExpression} ASC, published_at DESC, created_at DESC, id ASC`;
@@ -2606,6 +2675,23 @@ export class PostingsRepository extends BaseRepository {
     postingId: string,
     operation: "upsert" | "delete",
   ): Promise<void> {
+    await this.enqueueOutboxMany(transaction, [postingId], operation);
+  }
+
+  /**
+   * Resolves the active reindex run once for the whole batch, so cascading a
+   * rename across an organization's postings does not issue one lookup per
+   * posting.
+   */
+  private async enqueueOutboxMany(
+    transaction: Prisma.TransactionClient,
+    postingIds: string[],
+    operation: "upsert" | "delete",
+  ): Promise<void> {
+    if (postingIds.length === 0) {
+      return;
+    }
+
     const activeRun = await transaction.searchReindexRun.findFirst({
       where: {
         status: {
@@ -2622,26 +2708,28 @@ export class PostingsRepository extends BaseRepository {
         targetIndexName: true,
       },
     });
-    const primaryEventId = randomUUID();
-    const entries: Prisma.PostingSearchOutboxCreateManyInput[] = [
-      {
+    const entries: Prisma.PostingSearchOutboxCreateManyInput[] = [];
+
+    for (const postingId of postingIds) {
+      const primaryEventId = randomUUID();
+      entries.push({
         id: primaryEventId,
         postingId,
         operation,
         dedupeKey: primaryEventId,
-      },
-    ];
-
-    if (activeRun) {
-      const secondaryEventId = randomUUID();
-      entries.push({
-        id: secondaryEventId,
-        postingId,
-        reindexRunId: activeRun.id,
-        operation,
-        dedupeKey: secondaryEventId,
-        targetIndexName: activeRun.targetIndexName,
       });
+
+      if (activeRun) {
+        const secondaryEventId = randomUUID();
+        entries.push({
+          id: secondaryEventId,
+          postingId,
+          reindexRunId: activeRun.id,
+          operation,
+          dedupeKey: secondaryEventId,
+          targetIndexName: activeRun.targetIndexName,
+        });
+      }
     }
 
     await transaction.postingSearchOutbox.createMany({
@@ -2917,6 +3005,7 @@ export class PostingsRepository extends BaseRepository {
       ? {
           id: posting.organization.id,
           name: posting.organization.name,
+          slug: posting.organization.slug,
         }
       : undefined;
 
@@ -2934,6 +3023,7 @@ export class PostingsRepository extends BaseRepository {
     return {
       id: posting.id,
       organizationId: posting.organizationId,
+      organizationName: posting.organization?.name,
       status: posting.status as PostingStatus,
       variant: {
         family: posting.family,

@@ -221,6 +221,42 @@ describe("postings.model", () => {
     );
   });
 
+  it("accepts organization filters and the organization sort values", () => {
+    const result = publicSearchPostingsQuerySchema.safeParse({
+      organization: "  Maya Santos Organization  ",
+      organizationId: "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+      sort: "organizationAsc",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.organization).toBe("Maya Santos Organization");
+    expect(result.data?.organizationId).toBe(
+      "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+    );
+    expect(result.data?.sort).toBe("organizationAsc");
+
+    expect(
+      publicSearchPostingsQuerySchema.safeParse({ sort: "organizationDesc" })
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a malformed organization id and a blank organization name", () => {
+    expect(
+      publicSearchPostingsQuerySchema.safeParse({ organizationId: "org-1" })
+        .success,
+    ).toBe(false);
+    expect(
+      publicSearchPostingsQuerySchema.safeParse({ organization: "   " })
+        .success,
+    ).toBe(false);
+    expect(
+      publicSearchPostingsQuerySchema.safeParse({
+        organization: "a".repeat(161),
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates attribute filters and batch ids", () => {
     const filterResult = searchAttributeFilterSchema.safeParse({
       key: "bedrooms",

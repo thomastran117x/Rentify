@@ -26,6 +26,9 @@ export interface PublicPostingDetail {
   organization?: {
     id: string;
     name: string;
+    // Optional: projections cached before slugs were added to the payload can
+    // still be served, so callers fall back to linking by id.
+    slug?: string;
   };
   status: "published";
   variant: {

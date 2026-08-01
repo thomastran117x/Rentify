@@ -220,6 +220,8 @@ function createService(overrides?: {
   const postingsRepository = {
     restoreFromSnapshot: jest.fn(),
     restoreOwnerAvailabilityBlock: jest.fn(),
+    enqueueSearchSyncForOrganization: jest.fn(async () => [] as string[]),
+    listPublicPostingIdsForOrganization: jest.fn(async () => [] as string[]),
     ...(overrides?.postingsRepository ?? {}),
   };
   const seasonalPricingRepository = {
@@ -278,6 +280,11 @@ function createService(overrides?: {
     delete: jest.fn(),
     ...(overrides?.reviewService ?? {}),
   };
+  const postingsPublicCacheService = {
+    invalidatePublic: jest.fn(async () => 1),
+    ...((overrides as { postingsPublicCacheService?: object } | undefined)
+      ?.postingsPublicCacheService ?? {}),
+  };
 
   return {
     service: new OrganizationsService(
@@ -292,6 +299,7 @@ function createService(overrides?: {
       announcementService as any,
       blogService as any,
       reviewService as any,
+      postingsPublicCacheService as any,
     ),
     repository,
     authRepository,
@@ -304,6 +312,7 @@ function createService(overrides?: {
     announcementService,
     blogService,
     reviewService,
+    postingsPublicCacheService,
   };
 }
 
@@ -802,6 +811,83 @@ describe("OrganizationsService", () => {
         ],
       }),
     );
+  });
+
+  it("reindexes and re-caches the organization's postings when the name changes", async () => {
+    const { service, postingsRepository, postingsPublicCacheService } =
+      createService({
+        postingsRepository: {
+          enqueueSearchSyncForOrganization: jest.fn(async () => [
+            "posting-1",
+            "posting-2",
+          ]),
+        },
+      });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Renamed",
+    });
+
+    expect(
+      postingsRepository.enqueueSearchSyncForOrganization,
+    ).toHaveBeenCalledWith("org-1");
+    // Invalidation is per key: the cache has no namespace-wide bump.
+    expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
+      "posting-1",
+    );
+    expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
+      "posting-2",
+    );
+  });
+
+  it("does not touch posting projections on a profile-only update", async () => {
+    const { service, postingsRepository, postingsPublicCacheService } =
+      createService({
+        repository: {
+          updateOrganization: jest.fn(async () => ({
+            id: "org-1",
+            name: "Northwind",
+            role: "operator",
+            ...NULL_ORGANIZATION_PROFILE,
+            city: "Seattle",
+          })),
+        },
+      });
+
+    await service.update({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      name: "Northwind",
+      city: "Seattle",
+    });
+
+    expect(
+      postingsRepository.enqueueSearchSyncForOrganization,
+    ).not.toHaveBeenCalled();
+    expect(postingsPublicCacheService.invalidatePublic).not.toHaveBeenCalled();
+  });
+
+  it("does not fail a rename when the posting projection cascade throws", async () => {
+    const { service, postingsRepository } = createService({
+      postingsRepository: {
+        enqueueSearchSyncForOrganization: jest.fn(async () => {
+          throw new Error("outbox unavailable");
+        }),
+      },
+    });
+
+    await expect(
+      service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        name: "Renamed",
+      }),
+    ).resolves.toMatchObject({ id: "org-1" });
+    expect(
+      postingsRepository.enqueueSearchSyncForOrganization,
+    ).toHaveBeenCalled();
   });
 
   it("threads profile fields through update and audits changed fields", async () => {
@@ -1830,6 +1916,42 @@ describe("OrganizationsService", () => {
         restorable: false,
       }),
     );
+  });
+
+  it("refreshes cached posting projections on a slug change without reindexing", async () => {
+    const { service, postingsRepository, postingsPublicCacheService } =
+      createService({
+        repository: {
+          resolveBySlug: jest.fn(async () => null),
+          changeOrganizationSlug: jest.fn(async () => ({
+            id: "org-1",
+            slug: "northwind-creative",
+            name: "Northwind",
+            role: "operator" as const,
+            ...NULL_ORGANIZATION_PROFILE,
+          })),
+        },
+        postingsRepository: {
+          listPublicPostingIdsForOrganization: jest.fn(async () => [
+            "posting-1",
+          ]),
+        },
+      });
+
+    await service.changeSlug({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      slug: "northwind-creative",
+    });
+
+    expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
+      "posting-1",
+    );
+    // The slug is not part of the Elasticsearch document, so a reindex would
+    // be pure write amplification here.
+    expect(
+      postingsRepository.enqueueSearchSyncForOrganization,
+    ).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the slug is unchanged", async () => {

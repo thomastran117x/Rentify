@@ -363,6 +363,11 @@ export class PostingsSearchIndexService {
     return {
       id: document.id,
       organizationId: document.organizationId,
+      // Conditional: an empty keyword would sort ahead of every real name and
+      // pollute the head of the organization sort.
+      ...(document.organizationName
+        ? { organizationName: document.organizationName }
+        : {}),
       status: document.status,
       family: document.variant.family,
       subtype: document.variant.subtype,
@@ -527,6 +532,21 @@ export class PostingsSearchIndexService {
         properties: {
           id: { type: "keyword" },
           organizationId: { type: "keyword" },
+          organizationName: {
+            type: "text",
+            analyzer: "search_text",
+            fields: {
+              sort: {
+                type: "keyword",
+                normalizer: "lowercase_normalizer",
+              },
+              prefix: {
+                type: "text",
+                analyzer: "autocomplete_index",
+                search_analyzer: "autocomplete_search",
+              },
+            },
+          },
           status: { type: "keyword" },
           family: { type: "keyword" },
           subtype: { type: "keyword" },

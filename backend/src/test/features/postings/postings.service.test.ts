@@ -31,6 +31,7 @@ import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
 class FakePostingsRepository {
@@ -461,11 +462,42 @@ function createService(
   ).service;
 }
 
+function createEmptySearchResponse() {
+  return {
+    postings: [],
+    pagination: {
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
+    source: "elasticsearch" as const,
+  };
+}
+
+function createOrganizationsRepositoryStub(
+  overrides: {
+    findOrganizationNameMatches?: jest.Mock;
+    findOrganizationSummariesByIds?: jest.Mock;
+  } = {},
+) {
+  return {
+    findOrganizationNameMatches:
+      overrides.findOrganizationNameMatches ??
+      jest.fn(async () => ({ matches: [], truncated: false })),
+    findOrganizationSummariesByIds:
+      overrides.findOrganizationSummariesByIds ?? jest.fn(async () => []),
+  };
+}
+
 function createServiceHarness(
   repository: FakePostingsRepository,
   postingsReviewsRepository = new FakePostingsReviewsRepository(),
   rentingsRepository = new FakeRentingsRepository(),
   searchService = {} as PostingsPublicSearchService,
+  organizationsRepository = createOrganizationsRepositoryStub(),
 ) {
   const blobService = {
     isConfigured: () => true,
@@ -509,11 +541,13 @@ function createServiceHarness(
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
+      organizationsRepository as unknown as OrganizationsRepository,
     ),
     postingThumbnailQueueService,
     postingsPublicCacheService,
     organizationAccessService,
     authRepository,
+    organizationsRepository,
   };
 }
 
@@ -1355,6 +1389,126 @@ describe("PostingsService", () => {
         tags: ["flat", "production"],
       }),
     );
+  });
+
+  it("resolves an organization name to ids before delegating search", async () => {
+    const repository = new FakePostingsRepository();
+    const searchPublic = jest.fn(async () => createEmptySearchResponse());
+    const findOrganizationNameMatches = jest.fn(async () => ({
+      matches: [
+        { id: "org-1", name: "Maya Santos Organization", slug: "maya-santos" },
+        { id: "org-2", name: "Maya Santos Rentals", slug: "maya-santos-2" },
+      ],
+      truncated: true,
+    }));
+    const organizationsRepository = createOrganizationsRepositoryStub({
+      findOrganizationNameMatches,
+    });
+    const { service } = createServiceHarness(
+      repository,
+      undefined,
+      undefined,
+      { searchPublic } as unknown as PostingsPublicSearchService,
+      organizationsRepository,
+    );
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 10,
+      sort: "relevance",
+      organizationQuery: "  Maya Santos  ",
+    });
+
+    expect(findOrganizationNameMatches).toHaveBeenCalledWith("Maya Santos", 25);
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationIds: ["org-1", "org-2"],
+        organizationFilter: expect.objectContaining({
+          query: "Maya Santos",
+          truncated: true,
+        }),
+      }),
+    );
+  });
+
+  it("prefers an explicit organization id over a typed organization name", async () => {
+    const repository = new FakePostingsRepository();
+    const searchPublic = jest.fn(async () => createEmptySearchResponse());
+    const findOrganizationNameMatches = jest.fn(async () => ({
+      matches: [],
+      truncated: false,
+    }));
+    const findOrganizationSummariesByIds = jest.fn(async () => [
+      { id: "org-9", name: "Elliot Chen Organization", slug: "elliot-chen" },
+    ]);
+    const organizationsRepository = createOrganizationsRepositoryStub({
+      findOrganizationNameMatches,
+      findOrganizationSummariesByIds,
+    });
+    const { service } = createServiceHarness(
+      repository,
+      undefined,
+      undefined,
+      { searchPublic } as unknown as PostingsPublicSearchService,
+      organizationsRepository,
+    );
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 10,
+      sort: "relevance",
+      organizationQuery: "Maya Santos",
+      organizationId: "org-9",
+    });
+
+    expect(findOrganizationSummariesByIds).toHaveBeenCalledWith(["org-9"]);
+    expect(findOrganizationNameMatches).not.toHaveBeenCalled();
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationIds: ["org-9"],
+      }),
+    );
+  });
+
+  it("returns an empty page without searching when no organization matches", async () => {
+    const repository = new FakePostingsRepository();
+    const searchPublic = jest.fn(async () => createEmptySearchResponse());
+    const organizationsRepository = createOrganizationsRepositoryStub();
+    const { service } = createServiceHarness(
+      repository,
+      undefined,
+      undefined,
+      { searchPublic } as unknown as PostingsPublicSearchService,
+      organizationsRepository,
+    );
+
+    const result = await service.searchPublic({
+      page: 2,
+      pageSize: 10,
+      sort: "relevance",
+      organizationQuery: "Nonexistent Org",
+    });
+
+    // Querying either engine with an empty id list is wasted work, and an empty
+    // SQL `IN ()` would throw.
+    expect(searchPublic).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      postings: [],
+      pagination: {
+        page: 2,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+      source: "database",
+      organizationFilter: {
+        query: "Nonexistent Org",
+        matches: [],
+        truncated: false,
+      },
+    });
   });
 
   it("normalizes searchable string and string-array filters before search", async () => {

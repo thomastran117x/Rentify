@@ -458,6 +458,7 @@ const postingExample = {
   organization: {
     id: "org-1",
     name: "Owner One Organization",
+    slug: "owner-one-organization",
   },
   status: "published",
   variant: {
@@ -543,6 +544,17 @@ const searchResultExample = {
   },
   source: "elasticsearch",
   query: "loft",
+  organizationFilter: {
+    query: "Owner One Organization",
+    matches: [
+      {
+        id: "org-1",
+        name: "Owner One Organization",
+        slug: "owner-one-organization",
+      },
+    ],
+    truncated: false,
+  },
 };
 const autocompleteExample = {
   query: "lo",
@@ -5732,6 +5744,18 @@ function buildOperations(): OperationDefinition[] {
           "loft",
         ),
         queryParam(
+          "organization",
+          { type: "string", minLength: 1, maxLength: 160 },
+          "Filter by owning organization name. Matched case-insensitively: exact matches rank first, then prefix, then substring, capped at 25 organizations. Ignored when `organizationId` is supplied.",
+          "Maya Santos Organization",
+        ),
+        queryParam(
+          "organizationId",
+          { type: "string", format: "uuid" },
+          "Filter by exact owning organization id. Takes precedence over `organization`.",
+          "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+        ),
+        queryParam(
           "family",
           { type: "string", enum: ["place", "equipment", "vehicle"] },
           "Posting family filter.",
@@ -5814,11 +5838,32 @@ function buildOperations(): OperationDefinition[] {
               "nearest",
               "nameAsc",
               "nameDesc",
+              "highestRated",
+              "organizationAsc",
+              "organizationDesc",
             ],
             default: "relevance",
           },
-          "Sort order.",
+          "Sort order. `organizationAsc`/`organizationDesc` order by owning organization name.",
           "relevance",
+        ),
+        queryParam(
+          "cancellationPolicy",
+          { type: "string", enum: ["flexible", "moderate", "strict"] },
+          "Cancellation policy filter.",
+          "flexible",
+        ),
+        queryParam(
+          "instantBooking",
+          { type: "boolean" },
+          "Restrict to postings that support instant booking.",
+          true,
+        ),
+        queryParam(
+          "maxMinBookingDurationDays",
+          { type: "integer", minimum: 1 },
+          "Only return postings whose minimum booking duration is at most this many days.",
+          3,
         ),
         queryParam(
           "attr.<attributeKey>",
@@ -9171,6 +9216,33 @@ function buildComponents(): Record<string, unknown> {
             enum: ["elasticsearch", "database"],
           },
           query: { type: "string" },
+          organizationFilter: {
+            type: "object",
+            description:
+              "Present when an organization filter was requested. Echoes the request and reports which organizations it resolved to.",
+            properties: {
+              query: { type: "string" },
+              organizationId: { type: "string", format: "uuid" },
+              matches: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["id", "name", "slug"],
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string" },
+                    slug: { type: "string" },
+                  },
+                },
+              },
+              truncated: {
+                type: "boolean",
+                description:
+                  "True when more organizations matched the name than were applied to the filter.",
+              },
+            },
+            required: ["matches", "truncated"],
+          },
         },
         required: ["postings", "pagination", "source"],
       },
