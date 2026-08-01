@@ -1,9 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PublicPostingAutocompleteError,
+  PublicPostingSearchError,
   fetchPublicPostingAutocomplete,
   searchPublicPostings,
 } from "./search";
+
+// Vitest's `.rejects` proxy drops matcher type parameters, so the expected
+// shape is constrained with `satisfies` on the object instead.
+type ExpectedPostingAutocompleteError = {
+  message: string;
+  debug: Partial<PublicPostingAutocompleteError["debug"]>;
+};
+
+type ExpectedPostingSearchError = {
+  message: string;
+  debug: Partial<PublicPostingSearchError["debug"]>;
+};
 
 describe("fetchPublicPostingAutocomplete", () => {
   afterEach(() => {
@@ -151,7 +164,7 @@ describe("fetchPublicPostingAutocomplete", () => {
       fetchPublicPostingAutocomplete({
         q: "t",
       }),
-    ).rejects.toMatchObject<Partial<PublicPostingAutocompleteError>>({
+    ).rejects.toMatchObject({
       message: "Validation failed.",
       debug: {
         status: 400,
@@ -159,7 +172,7 @@ describe("fetchPublicPostingAutocomplete", () => {
           q: "too_short",
         },
       },
-    });
+    } satisfies ExpectedPostingAutocompleteError);
   });
 
   it("preserves network failure details in the domain error debug payload", async () => {
@@ -174,13 +187,13 @@ describe("fetchPublicPostingAutocomplete", () => {
       searchPublicPostings({
         q: "toronto loft",
       }),
-    ).rejects.toMatchObject<Partial<Error & { debug: unknown }>>({
+    ).rejects.toMatchObject({
       message: "Unable to reach the server.",
       debug: {
         requestUrl: "/postings?q=toronto+loft",
         causeMessage: "fetch failed",
       },
-    });
+    } satisfies ExpectedPostingSearchError);
   });
 
   it("rethrows abort errors unchanged", async () => {

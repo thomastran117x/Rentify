@@ -56,11 +56,17 @@ jobs:
         run: npm run lint
 
   frontend-build:
-    name: Frontend build
+    name: Frontend type check and build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8040/api/v1
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
+      NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ""
+      NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID: ""
+      NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT: consumers
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -77,13 +83,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run typecheck
+
       - name: Build
-        env:
-          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8040/api/v1
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
-          NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ""
-          NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID: ""
-          NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT: consumers
         run: npm run build
 
   frontend-unit:
