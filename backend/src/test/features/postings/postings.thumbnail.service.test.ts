@@ -39,8 +39,11 @@ class FakePostingsRepository {
   }
 }
 
+// A valid 1x1 grayscale+alpha PNG. The CRC of every chunk must be correct:
+// libpng rejects a bad IDAT checksum outright, so a corrupt fixture fails the
+// decode inside sharp rather than exercising the thumbnail pipeline.
 const onePixelPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=",
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
   "base64",
 );
 

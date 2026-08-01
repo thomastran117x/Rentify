@@ -28,6 +28,8 @@ Useful supporting checks:
 ```bash
 npm run check:all
 npm run openapi:check
+npm run audit
+npm run audit:signatures
 ```
 
 Backend coverage includes configuration, middleware, route registration, auth, organizations, postings, bookings, payments, rentings, reports, search, recommendations, and seeds.
@@ -40,9 +42,24 @@ Run from `frontend/`:
 npm run lint
 npm run test:unit
 npm run test:unit:watch
+npm run audit
+npm run audit:signatures
 ```
 
 Unit tests live alongside `src/**` files and use `jsdom`.
+
+## MCP Tests
+
+Run from `mcp/`:
+
+```bash
+npm run check
+npm test
+npm run audit
+npm run audit:signatures
+```
+
+Only the audit scripts run in CI for this workspace; the type check, tests, and build are local-only for now.
 
 ## Playwright Tests
 

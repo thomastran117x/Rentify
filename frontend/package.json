@@ -9,6 +9,9 @@
     "format": "npx --yes prettier@3.6.2 --write .",
     "format:diff": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/format-diff.ps1 frontend",
     "lint": "eslint .",
+    "audit": "npm audit --audit-level=high",
+    "audit:signatures": "npm audit signatures",
+    "audit:all": "npm run audit && npm run audit:signatures",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
@@ -21,10 +24,10 @@
     "@tiptap/react": "^2.27.2",
     "@tiptap/starter-kit": "^2.27.2",
     "lucide-react": "^1.8.0",
-    "next": "16.2.3",
+    "next": "16.2.12",
     "qrcode": "^1.5.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
@@ -38,18 +41,22 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "16.2.12",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"
   },
+  "overrides": {
+    "postcss": "^8.5.25",
+    "sharp": "^0.35.3"
+  },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "npm": ">=11.16.0"
   },
   "allowScripts": {
-    "esbuild@0.27.7": true,
-    "sharp@0.34.5": true,
+    "esbuild@0.28.1": true,
     "unrs-resolver@1.11.1": true
   }
 }

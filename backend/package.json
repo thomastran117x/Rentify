@@ -43,6 +43,9 @@
     "check": "tsc --noEmit --project tsconfig.app.json",
     "check:test": "tsc --noEmit --project tsconfig.test.json",
     "check:all": "npm run check && npm run check:test",
+    "audit": "npm audit --audit-level=high",
+    "audit:signatures": "npm audit signatures",
+    "audit:all": "npm run audit && npm run audit:signatures",
     "test": "jest --config jest.config.cjs --runInBand",
     "test:unit": "jest --config jest.unit.config.cjs --runInBand",
     "test:unit:coverage": "jest --config jest.unit.config.cjs --runInBand --coverage",
@@ -55,20 +58,21 @@
     "seed": "tsx src/app/scripts/seed.ts"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "npm": ">=11.16.0"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
-    "@hono/node-server": "^1.19.4",
+    "@hono/node-server": "^2.0.12",
     "@prisma/client": "^6.7.0",
     "amqplib": "^1.0.3",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
-    "hono": "^4.9.8",
+    "hono": "^4.12.33",
     "mysql2": "^3.15.2",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.0.3",
     "redis": "^5.8.2",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "xss": "^1.0.15",
     "zod": "^4.1.12"
   },
@@ -90,7 +94,6 @@
     "bcrypt@6.0.0": true,
     "esbuild@0.27.7": true,
     "prisma@6.19.3": true,
-    "sharp@0.34.5": true,
     "unrs-resolver@1.11.1": true
   }
 }
