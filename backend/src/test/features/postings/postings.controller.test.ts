@@ -192,6 +192,65 @@ describe("PostingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("maps organization search filters into the service input", async () => {
+    const searchPublic = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      source: "elasticsearch" as const,
+    }));
+    const controller = createController(
+      {
+        searchPublic,
+      },
+      {
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
+    );
+    const context = createContext({
+      url: "https://example.test/postings?organization=Maya%20Santos%20Organization&organizationId=6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f&sort=organizationAsc",
+    });
+
+    const response = await controller.search(context);
+
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationQuery: "Maya Santos Organization",
+        organizationId: "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+        sort: "organizationAsc",
+      }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects a malformed organizationId with a validation error", async () => {
+    const searchPublic = jest.fn();
+    const controller = createController(
+      {
+        searchPublic,
+      },
+      {
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
+    );
+    const context = createContext({
+      url: "https://example.test/postings?organizationId=not-a-uuid",
+    });
+
+    await expect(controller.search(context)).rejects.toThrow();
+    expect(searchPublic).not.toHaveBeenCalled();
+  });
+
   it("maps attribute search filters into the service input", async () => {
     const searchPublic = jest.fn(async () => ({
       postings: [],

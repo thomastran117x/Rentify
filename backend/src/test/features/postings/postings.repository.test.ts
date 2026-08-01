@@ -331,6 +331,82 @@ describe("PostingsRepository", () => {
     expect(result.missingIds).toEqual(["posting-3"]);
   });
 
+  it("exposes the owning organization slug on public postings", async () => {
+    const repository = new PostingsRepository({
+      posting: {
+        findMany: jest.fn(async () => [
+          createPostingPersistence({
+            organization: {
+              id: "org-1",
+              name: "North Studio",
+              slug: "north-studio",
+            },
+          }),
+        ]),
+      },
+    } as any);
+
+    const result = await repository.batchFindPublic({ ids: ["posting-1"] });
+
+    expect(result.postings[0]?.organization).toEqual({
+      id: "org-1",
+      name: "North Studio",
+      slug: "north-studio",
+    });
+  });
+
+  it("enqueues an organization-wide reindex resolving the active run once", async () => {
+    const findFirst = jest.fn(async () => ({
+      id: "run-1",
+      targetIndexName: "postings_v2",
+    }));
+    const createMany = jest.fn(async (_args: { data: unknown[] }) => undefined);
+    const transaction = {
+      searchReindexRun: { findFirst },
+      postingSearchOutbox: { createMany },
+    };
+    const repository = new PostingsRepository({
+      posting: {
+        findMany: jest.fn(async () => [
+          { id: "posting-1" },
+          { id: "posting-2" },
+        ]),
+      },
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as any);
+
+    const postingIds =
+      await repository.enqueueSearchSyncForOrganization("org-1");
+
+    expect(postingIds).toEqual(["posting-1", "posting-2"]);
+    // One lookup for the whole batch, not one per posting.
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(createMany).toHaveBeenCalledTimes(1);
+    // Two postings, each mirrored into the active reindex run's target index.
+    expect(createMany.mock.calls[0]?.[0]?.data).toHaveLength(4);
+  });
+
+  it("lists only publicly visible posting ids for an organization", async () => {
+    const findMany = jest.fn(async () => [{ id: "posting-1" }]);
+    const repository = new PostingsRepository({
+      posting: { findMany },
+    } as any);
+
+    await repository.listPublicPostingIdsForOrganization("org-1");
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          status: "published",
+          archivedAt: null,
+        },
+      }),
+    );
+  });
+
   it("creates owner availability blocks and enqueues a search outbox sync", async () => {
     const transaction = {
       postingAvailabilityBlock: {
@@ -1185,6 +1261,8 @@ describe("PostingsRepository", () => {
     ).resolves.toEqual([
       expect.objectContaining({
         id: "posting-1",
+        // Denormalized so Elasticsearch can match and sort on the owner.
+        organizationName: "North Studio",
         searchableAttributes: {
           guest_capacity: 4,
           property_type: "loft",

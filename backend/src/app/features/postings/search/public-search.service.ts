@@ -35,6 +35,7 @@ interface ElasticsearchSearchResponse {
       _score?: number;
       _source?: {
         name?: string;
+        organizationName?: string;
         tags?: string[];
         location?: {
           city?: string;
@@ -102,6 +103,9 @@ export class PostingsPublicSearchService {
       ),
       source: searchIds.source,
       ...(input.query ? { query: input.query } : {}),
+      ...(input.organizationFilter
+        ? { organizationFilter: input.organizationFilter }
+        : {}),
     };
   }
 
@@ -221,6 +225,7 @@ export class PostingsPublicSearchService {
                   "name^7",
                   "tags.text^5",
                   "location.city^4",
+                  "organizationName^3",
                   "location.region^3",
                   "location.country^2",
                   "description^2",
@@ -234,6 +239,7 @@ export class PostingsPublicSearchService {
                   "name^5",
                   "tags.text^3",
                   "location.city^3",
+                  "organizationName^2",
                   "location.region^2",
                   "location.country^2",
                   "description",
@@ -252,6 +258,7 @@ export class PostingsPublicSearchService {
                 fields: [
                   "name.prefix^4",
                   "location.city.prefix^3",
+                  "organizationName.prefix^2",
                   "location.region.prefix^2",
                   "location.country.prefix^2",
                 ],
@@ -261,6 +268,14 @@ export class PostingsPublicSearchService {
             },
           ],
           minimum_should_match: 1,
+        },
+      });
+    }
+
+    if (input.organizationIds && input.organizationIds.length > 0) {
+      filter.push({
+        terms: {
+          organizationId: input.organizationIds,
         },
       });
     }
@@ -398,6 +413,7 @@ export class PostingsPublicSearchService {
       size: input.pageSize,
       _source: [
         "name",
+        "organizationName",
         "tags",
         "location.city",
         "location.region",
@@ -483,6 +499,12 @@ export class PostingsPublicSearchService {
         2,
       ) +
       this.countWeightedTokenMatches(
+        source.organizationName,
+        normalizedQuery,
+        allowedDistance,
+        1,
+      ) +
+      this.countWeightedTokenMatches(
         source.location?.region,
         normalizedQuery,
         allowedDistance,
@@ -531,6 +553,7 @@ export class PostingsPublicSearchService {
   private collectSearchableTerms(hit: ElasticsearchSearchHit): string[] {
     return [
       hit._source?.name,
+      hit._source?.organizationName,
       ...(hit._source?.tags ?? []),
       hit._source?.location?.city,
       hit._source?.location?.region,
@@ -646,6 +669,31 @@ export class PostingsPublicSearchService {
           {
             "name.sort": {
               order: "desc",
+            },
+          },
+          ...this.buildStableRecencySort("desc"),
+        ];
+      // `unmapped_type` matters: mappings are `dynamic: false`, so against an
+      // index built before organizationName existed the field is unmapped and
+      // sorting on it would be a shard failure rather than a missing value.
+      case "organizationAsc":
+        return [
+          {
+            "organizationName.sort": {
+              order: "asc",
+              missing: "_last",
+              unmapped_type: "keyword",
+            },
+          },
+          ...this.buildStableRecencySort("desc"),
+        ];
+      case "organizationDesc":
+        return [
+          {
+            "organizationName.sort": {
+              order: "desc",
+              missing: "_last",
+              unmapped_type: "keyword",
             },
           },
           ...this.buildStableRecencySort("desc"),

@@ -60,6 +60,65 @@ describe("fetchPublicPostingAutocomplete", () => {
     expect(requestUrl.searchParams.get("limit")).toBe("6");
   });
 
+  it("sends organization filters on the posting search request", async () => {
+    let lastRequestUrl = "";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        lastRequestUrl = String(input);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              postings: [],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                total: 0,
+                totalPages: 1,
+                hasNextPage: false,
+                hasPreviousPage: false,
+              },
+              source: "database",
+              organizationFilter: {
+                query: "Maya Santos Organization",
+                matches: [],
+                truncated: false,
+              },
+            },
+            error: null,
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }),
+    );
+
+    const result = await searchPublicPostings({
+      organization: "Maya Santos Organization",
+      organizationId: "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+      sort: "organizationAsc",
+      page: 1,
+      pageSize: 20,
+    });
+
+    const requestUrl = new URL(lastRequestUrl);
+    expect(requestUrl.pathname).toBe("/api/v1/postings");
+    expect(requestUrl.searchParams.get("organization")).toBe(
+      "Maya Santos Organization",
+    );
+    expect(requestUrl.searchParams.get("organizationId")).toBe(
+      "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
+    );
+    expect(requestUrl.searchParams.get("sort")).toBe("organizationAsc");
+    expect(result.organizationFilter?.matches).toEqual([]);
+  });
+
   it("throws a typed error for API validation failures", async () => {
     vi.stubGlobal(
       "fetch",

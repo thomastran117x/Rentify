@@ -10,12 +10,18 @@ export type PostingSort =
   | "nearest"
   | "nameAsc"
   | "nameDesc"
-  | "highestRated";
+  | "highestRated"
+  | "organizationAsc"
+  | "organizationDesc";
 
 export interface PublicPostingSearchParams {
   page?: number;
   pageSize?: number;
   q?: string;
+  /** Free-text owning-organization name. */
+  organization?: string;
+  /** Exact owning-organization id. Takes precedence over `organization`. */
+  organizationId?: string;
   sort?: PostingSort;
   family?: string;
   subtype?: string;
@@ -45,6 +51,21 @@ export interface PublicPostingSearchResult {
   };
   source: "elasticsearch" | "database";
   query?: string;
+  organizationFilter?: PublicPostingOrganizationFilter;
+}
+
+export interface PublicPostingOrganizationMatch {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface PublicPostingOrganizationFilter {
+  query?: string;
+  organizationId?: string;
+  matches: PublicPostingOrganizationMatch[];
+  /** True when more organizations matched than were applied to the filter. */
+  truncated: boolean;
 }
 
 export interface PublicPostingAutocompleteParams {
@@ -90,6 +111,13 @@ export interface PublicPostingSummary {
   availabilityStatus: "available" | "limited" | "unavailable";
   instantBooking?: boolean;
   publishedAt?: string;
+  organization?: {
+    id: string;
+    name: string;
+    // Optional: projections cached before slugs were added to the payload can
+    // still be served, so callers fall back to linking by id.
+    slug?: string;
+  };
 }
 
 export class PublicPostingSearchError extends Error {

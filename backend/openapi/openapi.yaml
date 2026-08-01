@@ -6913,6 +6913,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: published
                   variant:
                     family: place
@@ -7009,6 +7010,23 @@ paths:
             type: string
             maxLength: 120
           example: loft
+        - name: organization
+          in: query
+          required: false
+          description: 'Filter by owning organization name. Matched case-insensitively: exact matches rank first, then prefix, then substring, capped at 25 organizations. Ignored when `organizationId` is supplied.'
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 160
+          example: Maya Santos Organization
+        - name: organizationId
+          in: query
+          required: false
+          description: Filter by exact owning organization id. Takes precedence over `organization`.
+          schema:
+            type: string
+            format: uuid
+          example: 6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f
         - name: family
           in: query
           required: false
@@ -7110,7 +7128,7 @@ paths:
         - name: sort
           in: query
           required: false
-          description: Sort order.
+          description: Sort order. `organizationAsc`/`organizationDesc` order by owning organization name.
           schema:
             type: string
             enum:
@@ -7121,8 +7139,37 @@ paths:
               - nearest
               - nameAsc
               - nameDesc
+              - highestRated
+              - organizationAsc
+              - organizationDesc
             default: relevance
           example: relevance
+        - name: cancellationPolicy
+          in: query
+          required: false
+          description: Cancellation policy filter.
+          schema:
+            type: string
+            enum:
+              - flexible
+              - moderate
+              - strict
+          example: flexible
+        - name: instantBooking
+          in: query
+          required: false
+          description: Restrict to postings that support instant booking.
+          schema:
+            type: boolean
+          example: true
+        - name: maxMinBookingDurationDays
+          in: query
+          required: false
+          description: Only return postings whose minimum booking duration is at most this many days.
+          schema:
+            type: integer
+            minimum: 1
+          example: 3
         - name: attr.<attributeKey>
           in: query
           required: false
@@ -7157,6 +7204,7 @@ paths:
                       organization:
                         id: org-1
                         name: Owner One Organization
+                        slug: owner-one-organization
                       status: published
                       variant:
                         family: place
@@ -7224,6 +7272,13 @@ paths:
                     hasPreviousPage: false
                   source: elasticsearch
                   query: loft
+                  organizationFilter:
+                    query: Owner One Organization
+                    matches:
+                      - id: org-1
+                        name: Owner One Organization
+                        slug: owner-one-organization
+                    truncated: false
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -7305,6 +7360,7 @@ paths:
                       organization:
                         id: org-1
                         name: Owner One Organization
+                        slug: owner-one-organization
                       status: published
                       variant:
                         family: place
@@ -7490,6 +7546,7 @@ paths:
                       organization:
                         id: org-1
                         name: Owner One Organization
+                        slug: owner-one-organization
                       status: published
                       variant:
                         family: place
@@ -7650,6 +7707,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: published
                   variant:
                     family: place
@@ -7772,6 +7830,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: published
                   variant:
                     family: place
@@ -7888,6 +7947,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: draft
                   variant:
                     family: place
@@ -8006,6 +8066,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: published
                   variant:
                     family: place
@@ -8124,6 +8185,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: paused
                   variant:
                     family: place
@@ -8243,6 +8305,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: published
                   variant:
                     family: place
@@ -8361,6 +8424,7 @@ paths:
                   organization:
                     id: org-1
                     name: Owner One Organization
+                    slug: owner-one-organization
                   status: archived
                   variant:
                     family: place
@@ -10605,6 +10669,7 @@ paths:
                         organization:
                           id: org-1
                           name: Owner One Organization
+                          slug: owner-one-organization
                         status: published
                         variant:
                           family: place
@@ -10748,6 +10813,7 @@ paths:
                       organization:
                         id: org-1
                         name: Owner One Organization
+                        slug: owner-one-organization
                       status: published
                       variant:
                         family: place
@@ -16029,6 +16095,37 @@ components:
             - database
         query:
           type: string
+        organizationFilter:
+          type: object
+          description: Present when an organization filter was requested. Echoes the request and reports which organizations it resolved to.
+          properties:
+            query:
+              type: string
+            organizationId:
+              type: string
+              format: uuid
+            matches:
+              type: array
+              items:
+                type: object
+                required:
+                  - id
+                  - name
+                  - slug
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  slug:
+                    type: string
+            truncated:
+              type: boolean
+              description: True when more organizations matched the name than were applied to the filter.
+          required:
+            - matches
+            - truncated
       required:
         - postings
         - pagination

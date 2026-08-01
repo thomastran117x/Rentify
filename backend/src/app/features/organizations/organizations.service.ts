@@ -54,6 +54,8 @@ import {
   type RestoreOrganizationVersionResult,
 } from "@/features/organizations/organization-audit.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
+import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import {
   normalizeOrganizationInvitationEmail,
@@ -124,6 +126,7 @@ export class OrganizationsService {
     private readonly organizationAnnouncementService: OrganizationAnnouncementService,
     private readonly organizationBlogService: OrganizationBlogService,
     private readonly organizationReviewService: OrganizationReviewService,
+    private readonly postingsPublicCacheService: PostingsPublicCacheService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
@@ -373,6 +376,9 @@ export class OrganizationsService {
         );
         action = "organization.restored";
         summary = `Organization restored to ${name}.`;
+        await this.cascadePostingProjections(input.organizationId, {
+          reindex: true,
+        });
         break;
       }
       case "member": {
@@ -668,6 +674,12 @@ export class OrganizationsService {
       afterSnapshot,
     });
 
+    if (nameChanged) {
+      await this.cascadePostingProjections(input.organizationId, {
+        reindex: true,
+      });
+    }
+
     return {
       id: updated.id,
       slug: updated.slug,
@@ -759,6 +771,11 @@ export class OrganizationsService {
       // Restoring would revive a slug that may since have been claimed, so slug
       // changes are audited but not rewindable.
       restorable: false,
+    });
+
+    // Slug is not indexed, so this only needs the cached projection refreshed.
+    await this.cascadePostingProjections(input.organizationId, {
+      reindex: false,
     });
 
     return {
@@ -1352,6 +1369,46 @@ export class OrganizationsService {
     }
 
     this.assertCanInvite(actorMembership.role, restoredRole);
+  }
+
+  /**
+   * Postings carry a denormalized copy of their organization's name (in the
+   * search index) and slug (in the cached public projection), so a rename has
+   * to refresh both. Runs after the rename has committed and never fails it --
+   * a stale projection is recoverable, a failed rename is not.
+   *
+   * `reindex` is only needed for name changes: the slug is not part of the
+   * Elasticsearch document, so a slug change is cache-only.
+   */
+  private async cascadePostingProjections(
+    organizationId: string,
+    options: { reindex: boolean },
+  ): Promise<void> {
+    try {
+      const postingIds = options.reindex
+        ? await this.postingsRepository.enqueueSearchSyncForOrganization(
+            organizationId,
+          )
+        : await this.postingsRepository.listPublicPostingIdsForOrganization(
+            organizationId,
+          );
+
+      for (const postingId of postingIds) {
+        await invalidatePublicPostingProjection(
+          this.postingsPublicCacheService,
+          postingId,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        "Failed to refresh posting projections after an organization change.",
+        {
+          organizationId,
+          reindex: options.reindex,
+          error,
+        },
+      );
+    }
   }
 
   private async recordAuditSafely(

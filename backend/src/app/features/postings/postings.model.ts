@@ -13,6 +13,11 @@ export const MAX_BATCH_IDS = 50;
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 50;
 export const MAX_SEARCH_RESULT_WINDOW = 10_000;
+/**
+ * Upper bound on how many organizations a typed organization name may resolve
+ * to. Keeps the id filter bounded; callers surface `truncated` to the UI.
+ */
+export const MAX_SEARCH_ORGANIZATION_MATCHES = 25;
 export const DEFAULT_MAX_BOOKING_DURATION_DAYS = 30;
 export const MAX_BOOKING_DURATION_DAYS_LIMIT = 365;
 export const MIN_BOOKING_DURATION_DAYS_LIMIT = 365;
@@ -52,6 +57,8 @@ export const postingSortSchema = z.enum([
   "nameAsc",
   "nameDesc",
   "highestRated",
+  "organizationAsc",
+  "organizationDesc",
 ]);
 
 const trimmedStringSchema = z.string().trim().min(1);
@@ -433,6 +440,8 @@ export const publicSearchPostingsQuerySchema = z
       .max(MAX_PAGE_SIZE)
       .default(DEFAULT_PAGE_SIZE),
     q: z.string().trim().min(1).max(120).optional(),
+    organization: z.string().trim().min(1).max(160).optional(),
+    organizationId: z.string().uuid().optional(),
     family: postingFamilySchema.optional(),
     subtype: postingSubtypeSchema.optional(),
     tags: z.array(postingTagSchema).max(20).optional(),
@@ -683,6 +692,7 @@ export interface PostingViewerReviewState {
 export interface PublicPostingOrganizationSummary {
   id: string;
   name: string;
+  slug: string;
 }
 
 export interface PostingRecord {
@@ -746,11 +756,28 @@ export interface BatchPostingsResult<TRecord> {
   missingIds: string[];
 }
 
+export interface SearchPostingsOrganizationMatch {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface SearchPostingsOrganizationFilter {
+  /** The raw `organization` name query, echoed back for the UI. */
+  query?: string;
+  /** The raw `organizationId`, echoed back for the UI. */
+  organizationId?: string;
+  matches: SearchPostingsOrganizationMatch[];
+  /** True when more organizations matched the name than the resolution cap. */
+  truncated: boolean;
+}
+
 export interface SearchPostingsResult {
   postings: PublicPostingRecord[];
   pagination: PostingPagination;
   source: PostingSearchSource;
   query?: string;
+  organizationFilter?: SearchPostingsOrganizationFilter;
 }
 
 export interface PostingAutocompleteSuggestion {
@@ -833,6 +860,21 @@ export interface SearchPostingsInput {
   page: number;
   pageSize: number;
   query?: string;
+  /**
+   * Raw organization name typed by the caller. Resolved to `organizationIds`
+   * by the service layer before the search engines see it.
+   */
+  organizationQuery?: string;
+  /**
+   * Exact organization id. Takes precedence over `organizationQuery`.
+   */
+  organizationId?: string;
+  /**
+   * Resolved organization ids. Both Elasticsearch and the SQL fallback filter
+   * on this same list, which is what keeps the two engines in parity.
+   */
+  organizationIds?: string[];
+  organizationFilter?: SearchPostingsOrganizationFilter;
   family?: PostingFamily;
   subtype?: PostingSubtype;
   /**
@@ -861,6 +903,7 @@ export interface SearchPostingsInput {
 export interface PostingSearchDocument {
   id: string;
   organizationId: string;
+  organizationName?: string;
   status: PostingStatus;
   variant: PostingVariant;
   name: string;

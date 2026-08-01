@@ -5,7 +5,10 @@ import type {
   PostingSearchOutboxRecord,
 } from "@/features/postings/postings.model";
 import { isPostingSearchIndexable } from "@/features/postings/postings.model";
-import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
+import {
+  POSTINGS_INDEX_MAPPING_VERSION,
+  PostingsSearchIndexService,
+} from "@/features/postings/search/index.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type {
   CleanupRetainedSearchIndicesResult,
@@ -534,8 +537,52 @@ export class SearchService {
     }
   }
 
+  /**
+   * Rebuild the index when it is live but was built from an older mapping.
+   *
+   * `ensureLiveIndex()` deliberately leaves a healthy index alone, and mappings
+   * are `dynamic: false`, so a field added to the mapping is silently dropped
+   * from every document until the index is rebuilt. Without this, an existing
+   * deployment would keep serving queries that can never match the new field
+   * and sorts that treat every document as missing.
+   *
+   * Returns true when a rebuild was started. Safe to call repeatedly: a run is
+   * only started when none is active, and the rebuilt index carries the current
+   * version, so detection stops once the swap lands.
+   */
+  async ensureCurrentIndexMapping(): Promise<boolean> {
+    if (!this.postingsSearchIndexService.isElasticsearchEnabled()) {
+      return false;
+    }
+
+    if (!(await this.postingsSearchIndexService.isLiveMappingStale())) {
+      return false;
+    }
+
+    try {
+      const run = await this.startReindex();
+      this.logger.warn(
+        "Started an automatic search reindex because the live index mapping is out of date.",
+        {
+          reindexRunId: run.id,
+          targetIndexName: run.targetIndexName,
+          mappingVersion: POSTINGS_INDEX_MAPPING_VERSION,
+        },
+      );
+      return true;
+    } catch (error) {
+      // A run is already in flight; it will bring the mapping up to date.
+      if (error instanceof ConflictError) {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
   async processReindexRuns(batchSize: number): Promise<number> {
     await this.postingsSearchIndexService.ensureLiveIndex();
+    await this.ensureCurrentIndexMapping();
     await this.searchQueueService.ensureTopology();
 
     const run = await this.postingsRepository.claimNextSearchReindexRun();

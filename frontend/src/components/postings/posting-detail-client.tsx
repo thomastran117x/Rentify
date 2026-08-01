@@ -33,6 +33,7 @@ import {
   formatPublishedDate,
   humanizePostingValue,
 } from "@/lib/postings/public-format";
+import { organizationHref } from "@/lib/organizations/urls";
 import { theme } from "@/styles/theme";
 
 function formatReviewDate(value: string): string {
@@ -424,8 +425,23 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               >
                 <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-4">
                   <p className="text-lg font-semibold text-slate-950 dark:text-white">
-                    {posting.organization.name}
+                    <Link
+                      href={
+                        posting.organization.slug
+                          ? organizationHref(posting.organization.slug)
+                          : `/organizations/${posting.organization.id}`
+                      }
+                      className="transition duration-200 hover:text-violet-700 dark:hover:text-violet-300"
+                    >
+                      {posting.organization.name}
+                    </Link>
                   </p>
+                  <Link
+                    href={`/postings?organizationId=${encodeURIComponent(posting.organization.id)}&sort=newest&page=1&pageSize=20`}
+                    className="mt-1 inline-block text-sm font-medium text-violet-700 dark:text-violet-300 transition duration-200 hover:text-violet-800 dark:hover:text-violet-200"
+                  >
+                    See all postings from {posting.organization.name}
+                  </Link>
                   <div className="mt-4">
                     <ReportDialog
                       subjectType="posting"

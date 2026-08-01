@@ -14,9 +14,20 @@ import {
   PublicPostingSearchError,
   searchPublicPostings,
   type PostingSort,
+  type PublicPostingOrganizationFilter,
   type PublicPostingSearchParams,
   type PublicPostingSearchResult,
+  type PublicPostingSummary,
 } from "@/lib/postings/search";
+import { buildSearchHref } from "@/lib/postings/search-href";
+import {
+  groupPostingsByOrganization,
+  isOrganizationSort,
+} from "@/lib/postings/group-by-organization";
+import {
+  ORGANIZATION_UUID_PATTERN,
+  organizationHref,
+} from "@/lib/organizations/urls";
 import {
   formatPostingPrice,
   formatPublishedDate,
@@ -26,6 +37,7 @@ import {
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
+import { OrganizationFilterField } from "@/components/postings/organization-filter-field";
 import { theme } from "@/styles/theme";
 
 export const metadata: Metadata = {
@@ -41,6 +53,9 @@ const sortOptions: Array<{ value: PostingSort; label: string }> = [
   { value: "nearest", label: "Nearest (requires location)" },
   { value: "nameAsc", label: "Name A-Z" },
   { value: "nameDesc", label: "Name Z-A" },
+  { value: "highestRated", label: "Highest rated" },
+  { value: "organizationAsc", label: "Organization A-Z" },
+  { value: "organizationDesc", label: "Organization Z-A" },
 ];
 
 const pageSizeOptions = [10, 20, 50] as const;
@@ -76,6 +91,8 @@ const availabilityStatusOptions = [
 interface PostingsPageProps {
   searchParams?: Promise<{
     q?: string | string[];
+    organization?: string | string[];
+    organizationId?: string | string[];
     sort?: string | string[];
     page?: string | string[];
     pageSize?: string | string[];
@@ -132,46 +149,6 @@ function parseOptionalNumber(value: string | undefined): number | undefined {
 
 function isPostingSort(value: string | undefined): value is PostingSort {
   return sortOptions.some((option) => option.value === value);
-}
-
-function buildSearchHref(
-  input: PublicPostingSearchParams & {
-    page: number;
-    pageSize: number;
-    sort: PostingSort;
-  },
-): string {
-  const searchParams = new URLSearchParams();
-
-  if (input.q) searchParams.set("q", input.q);
-  searchParams.set("sort", input.sort);
-  searchParams.set("page", String(input.page));
-  searchParams.set("pageSize", String(input.pageSize));
-  if (input.family) searchParams.set("family", input.family);
-  if (input.subtype) searchParams.set("subtype", input.subtype);
-  if (input.tags && input.tags.length > 0) {
-    for (const tag of input.tags) {
-      searchParams.append("tags", tag);
-    }
-  }
-  if (input.availabilityStatus)
-    searchParams.set("availabilityStatus", input.availabilityStatus);
-  if (input.minDailyPrice !== undefined) {
-    searchParams.set("minDailyPrice", String(input.minDailyPrice));
-  }
-  if (input.maxDailyPrice !== undefined) {
-    searchParams.set("maxDailyPrice", String(input.maxDailyPrice));
-  }
-  if (input.latitude !== undefined)
-    searchParams.set("latitude", String(input.latitude));
-  if (input.longitude !== undefined)
-    searchParams.set("longitude", String(input.longitude));
-  if (input.radiusKm !== undefined)
-    searchParams.set("radiusKm", String(input.radiusKm));
-  if (input.startAt) searchParams.set("startAt", input.startAt);
-  if (input.endAt) searchParams.set("endAt", input.endAt);
-
-  return `/postings?${searchParams.toString()}`;
 }
 
 function resolveErrorDetails(
@@ -265,8 +242,29 @@ function FilterPanel({
   );
 }
 
+function describeOrganizationFilter(
+  organization: string | undefined,
+  organizationFilter: PublicPostingOrganizationFilter | undefined,
+): string | null {
+  const matches = organizationFilter?.matches ?? [];
+
+  if (matches.length > 0) {
+    const [first] = matches;
+    const extra = matches.length > 1 ? ` +${matches.length - 1} more` : "";
+    return `Organization: ${first!.name}${extra}`;
+  }
+
+  if (organizationFilter?.organizationId) {
+    return "Organization: selected organization";
+  }
+
+  return organization ? `Organization: ${organization}` : null;
+}
+
 function ActiveFilters({
   q,
+  organization,
+  organizationFilter,
   family,
   subtype,
   tags,
@@ -280,6 +278,8 @@ function ActiveFilters({
   endAt,
 }: {
   q: string;
+  organization?: string;
+  organizationFilter?: PublicPostingOrganizationFilter;
   family?: string;
   subtype?: string;
   tags?: string[];
@@ -295,6 +295,11 @@ function ActiveFilters({
   const filters: string[] = [];
 
   if (q) filters.push(`Search: ${q}`);
+  const organizationLabel = describeOrganizationFilter(
+    organization,
+    organizationFilter,
+  );
+  if (organizationLabel) filters.push(organizationLabel);
   if (family) filters.push(humanizePostingValue(family));
   if (subtype) filters.push(humanizePostingValue(subtype));
   if (availabilityStatus)
@@ -432,6 +437,17 @@ export default async function PostingsPage({
   const startAt = readSingleParam(resolvedSearchParams?.startAt) || undefined;
   const endAt = readSingleParam(resolvedSearchParams?.endAt) || undefined;
 
+  const organization =
+    readSingleParam(resolvedSearchParams?.organization)?.trim() || undefined;
+  // Only forward a well-formed id; anything else would just earn a 400.
+  const organizationIdRaw = readSingleParam(
+    resolvedSearchParams?.organizationId,
+  )?.trim();
+  const organizationId =
+    organizationIdRaw && ORGANIZATION_UUID_PATTERN.test(organizationIdRaw)
+      ? organizationIdRaw
+      : undefined;
+
   let result: PublicPostingSearchResult | null = null;
   let errorMessage: string | null = null;
   let debugState: SearchDebugState | null = null;
@@ -439,6 +455,8 @@ export default async function PostingsPage({
   try {
     result = await searchPublicPostings({
       q: q || undefined,
+      organization,
+      organizationId,
       sort,
       page,
       pageSize,
@@ -468,6 +486,8 @@ export default async function PostingsPage({
 
   const paginationProps = {
     q: q || undefined,
+    organization,
+    organizationId,
     sort,
     pageSize,
     family,
@@ -674,6 +694,8 @@ export default async function PostingsPage({
 
               <ActiveFilters
                 q={q}
+                organization={organization}
+                organizationFilter={result?.organizationFilter}
                 family={family}
                 subtype={subtype}
                 tags={tags}
@@ -687,7 +709,7 @@ export default async function PostingsPage({
                 endAt={endAt}
               />
 
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Field
                   label="Sort results"
                   htmlFor="sort"
@@ -725,6 +747,26 @@ export default async function PostingsPage({
                       </option>
                     ))}
                   </select>
+                </Field>
+
+                <Field
+                  label="Organization"
+                  htmlFor="organization"
+                  hint="Show only postings owned by a matching organization."
+                >
+                  <OrganizationFilterField
+                    // Name searches keep the visitor's own text so resubmitting
+                    // cannot silently narrow a multi-organization filter to the
+                    // first match. Only an exact-id link labels the field with
+                    // the resolved organization name.
+                    defaultValue={
+                      organizationId
+                        ? (result?.organizationFilter?.matches[0]?.name ?? "")
+                        : (organization ?? "")
+                    }
+                    organizationId={organizationId}
+                    inputClassName={inputClass}
+                  />
                 </Field>
 
                 <Field
@@ -947,6 +989,7 @@ export default async function PostingsPage({
           ) : result ? (
             <SearchResults
               result={result}
+              sort={sort}
               pageSize={pageSize}
               paginationProps={paginationProps}
             />
@@ -1040,16 +1083,57 @@ function SearchError({
   );
 }
 
+type PaginationProps = Omit<Parameters<typeof buildSearchHref>[0], "page">;
+
+function OrganizationSectionHeading({
+  organization,
+  count,
+}: {
+  organization: PublicPostingSummary["organization"];
+  count: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-200 dark:border-slate-800 pb-2">
+      <h3 className="text-sm font-semibold tracking-[-0.01em] text-slate-950 dark:text-white">
+        {organization ? (
+          <Link
+            href={
+              organization.slug
+                ? organizationHref(organization.slug)
+                : `/organizations/${organization.id}`
+            }
+            className="transition duration-200 hover:text-violet-700 dark:hover:text-violet-300"
+          >
+            {organization.name}
+          </Link>
+        ) : (
+          "Unknown organization"
+        )}
+      </h3>
+      <span className="text-xs text-slate-500 dark:text-slate-400">
+        {count} on this page
+      </span>
+    </div>
+  );
+}
+
 function SearchResults({
   result,
+  sort,
   pageSize,
   paginationProps,
 }: {
   result: PublicPostingSearchResult;
+  sort: PostingSort;
   pageSize: number;
-  paginationProps: Omit<Parameters<typeof buildSearchHref>[0], "page">;
+  paginationProps: PaginationProps;
 }) {
   const { pagination, postings } = result;
+  const organizationFilter = result.organizationFilter;
+  const hasUnmatchedOrganization =
+    organizationFilter !== undefined && organizationFilter.matches.length === 0;
+  const grouped = isOrganizationSort(sort);
+  const groups = grouped ? groupPostingsByOrganization(postings) : [];
   const rangeStart = (pagination.page - 1) * pagination.pageSize + 1;
   const rangeEnd = Math.min(
     pagination.page * pagination.pageSize,
@@ -1073,126 +1157,66 @@ function SearchResults({
         </span>
       </div>
 
-      {postings.length === 0 ? (
+      {organizationFilter?.truncated ? (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Many organizations matched that name. Showing postings from the first{" "}
+          {organizationFilter.matches.length}; refine the organization name to
+          narrow this down.
+        </p>
+      ) : null}
+
+      {hasUnmatchedOrganization ? (
+        <div className={theme.marketplace.resultsEmpty}>
+          <p>
+            No organization matches
+            {organizationFilter.query ? ` "${organizationFilter.query}"` : ""}.
+          </p>
+          <Link
+            href={buildSearchHref({
+              ...paginationProps,
+              organization: undefined,
+              organizationId: undefined,
+              page: 1,
+              pageSize,
+            })}
+            className="mt-2 inline-block text-sm font-semibold text-violet-700 dark:text-violet-300 transition duration-200 hover:text-violet-800 dark:hover:text-violet-200"
+          >
+            Clear the organization filter
+          </Link>
+        </div>
+      ) : postings.length === 0 ? (
         <p className={theme.marketplace.resultsEmpty}>
           No postings matched your search. Try broadening your filters.
         </p>
+      ) : grouped ? (
+        <div className="mt-5 space-y-8">
+          {groups.map((group) => (
+            <section key={group.key} className="space-y-4">
+              <OrganizationSectionHeading
+                organization={group.organization}
+                count={group.postings.length}
+              />
+              {group.postings.map((posting) => (
+                <ResultCard
+                  key={posting.id}
+                  posting={posting}
+                  pageSize={pageSize}
+                  paginationProps={paginationProps}
+                />
+              ))}
+            </section>
+          ))}
+        </div>
       ) : (
         <div className="mt-5 space-y-4">
-          {postings.map((posting) => {
-            const publishedDate = formatPublishedDate(posting.publishedAt);
-            const previewImageUrl = [
-              posting.primaryThumbnailUrl,
-              posting.primaryPhotoUrl,
-            ].find(isRenderablePreviewImageUrl);
-
-            return (
-              <article
-                key={posting.id}
-                className={theme.marketplace.resultCard}
-              >
-                <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
-                  <div className="relative min-h-48 border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 md:min-h-full md:border-b-0 md:border-r">
-                    {previewImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={previewImageUrl}
-                        alt={posting.name}
-                        loading="lazy"
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className={theme.marketplace.resultFallback}>
-                        No Image
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={theme.marketplace.metaBadge}>
-                            {humanizePostingValue(posting.variant.family)}
-                          </span>
-                          <span className={theme.marketplace.metaBadge}>
-                            {humanizePostingValue(posting.variant.subtype)}
-                          </span>
-                        </div>
-
-                        <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
-                          {posting.name}
-                        </h2>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AvailabilityBadge
-                          status={posting.availabilityStatus}
-                        />
-                        <InstantBookBadge
-                          instantBooking={posting.instantBooking}
-                        />
-                        <span className="text-lg font-semibold text-slate-950 dark:text-white">
-                          {formatPostingPrice(
-                            posting.pricing.daily.amount,
-                            posting.pricing.currency,
-                          )}
-                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                            {" "}
-                            / day
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                      {posting.description}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span className={theme.marketplace.metaBadge}>
-                        {posting.location.city}, {posting.location.region},{" "}
-                        {posting.location.country}
-                      </span>
-                      {publishedDate ? (
-                        <span className={theme.marketplace.metaBadge}>
-                          Published {publishedDate}
-                        </span>
-                      ) : null}
-                      <span className={theme.marketplace.metaBadge}>
-                        ID: {posting.id}
-                      </span>
-                    </div>
-
-                    {posting.tags.length > 0 ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {posting.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className={theme.marketplace.summaryPill}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Review pricing, availability, and listing details.
-                      </p>
-                      <Link
-                        href={`/postings/${posting.id}`}
-                        className={theme.marketplace.paginationButton}
-                      >
-                        View details
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+          {postings.map((posting) => (
+            <ResultCard
+              key={posting.id}
+              posting={posting}
+              pageSize={pageSize}
+              paginationProps={paginationProps}
+            />
+          ))}
         </div>
       )}
 
@@ -1232,5 +1256,146 @@ function SearchResults({
         )}
       </div>
     </>
+  );
+}
+
+function ResultCard({
+  posting,
+  pageSize,
+  paginationProps,
+}: {
+  posting: PublicPostingSummary;
+  pageSize: number;
+  paginationProps: PaginationProps;
+}) {
+  const publishedDate = formatPublishedDate(posting.publishedAt);
+  const previewImageUrl = [
+    posting.primaryThumbnailUrl,
+    posting.primaryPhotoUrl,
+  ].find(isRenderablePreviewImageUrl);
+  const organization = posting.organization;
+
+  return (
+    <article className={theme.marketplace.resultCard}>
+      <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="relative min-h-48 border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 md:min-h-full md:border-b-0 md:border-r">
+          {previewImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewImageUrl}
+              alt={posting.name}
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className={theme.marketplace.resultFallback}>No Image</div>
+          )}
+        </div>
+
+        <div className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <span className={theme.marketplace.metaBadge}>
+                  {humanizePostingValue(posting.variant.family)}
+                </span>
+                <span className={theme.marketplace.metaBadge}>
+                  {humanizePostingValue(posting.variant.subtype)}
+                </span>
+              </div>
+
+              <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
+                {posting.name}
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <AvailabilityBadge status={posting.availabilityStatus} />
+              <InstantBookBadge instantBooking={posting.instantBooking} />
+              <span className="text-lg font-semibold text-slate-950 dark:text-white">
+                {formatPostingPrice(
+                  posting.pricing.daily.amount,
+                  posting.pricing.currency,
+                )}
+                <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                  {" "}
+                  / day
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
+            {posting.description}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+            <span className={theme.marketplace.metaBadge}>
+              {posting.location.city}, {posting.location.region},{" "}
+              {posting.location.country}
+            </span>
+            {publishedDate ? (
+              <span className={theme.marketplace.metaBadge}>
+                Published {publishedDate}
+              </span>
+            ) : null}
+            <span className={theme.marketplace.metaBadge}>
+              ID: {posting.id}
+            </span>
+          </div>
+
+          {organization ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+              <span className="text-slate-500 dark:text-slate-400">
+                Offered by{" "}
+                <Link
+                  href={
+                    organization.slug
+                      ? organizationHref(organization.slug)
+                      : `/organizations/${organization.id}`
+                  }
+                  className="font-semibold text-slate-700 dark:text-slate-200 transition duration-200 hover:text-violet-700 dark:hover:text-violet-300"
+                >
+                  {organization.name}
+                </Link>
+              </span>
+              <FilterChip
+                href={buildSearchHref({
+                  ...paginationProps,
+                  organization: undefined,
+                  organizationId: organization.id,
+                  page: 1,
+                  pageSize,
+                })}
+              >
+                Only this organization
+              </FilterChip>
+            </div>
+          ) : null}
+
+          {posting.tags.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {posting.tags.map((tag) => (
+                <span key={tag} className={theme.marketplace.summaryPill}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Review pricing, availability, and listing details.
+            </p>
+            <Link
+              href={`/postings/${posting.id}`}
+              className={theme.marketplace.paginationButton}
+            >
+              View details
+            </Link>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }

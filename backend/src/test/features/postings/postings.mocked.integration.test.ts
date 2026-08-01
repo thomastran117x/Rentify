@@ -567,6 +567,59 @@ describe("Postings integration", () => {
     expect(detailResponse.status).toBe(200);
   });
 
+  it("passes organization filters through the route layer and echoes the resolved matches", async () => {
+    const { app, postingsService } = createApp();
+    postingsService.searchPublic.mockResolvedValueOnce(
+      createPublicSearchResult({
+        organizationFilter: {
+          query: "Maya Santos Organization",
+          matches: [
+            {
+              id: "org-1",
+              name: "Maya Santos Organization",
+              slug: "maya-santos-organization",
+            },
+          ],
+          truncated: false,
+        },
+      }),
+    );
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/postings?organization=Maya%20Santos%20Organization&sort=organizationAsc")}`,
+    );
+
+    expect(postingsService.searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationQuery: "Maya Santos Organization",
+        sort: "organizationAsc",
+      }),
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        organizationFilter: {
+          query: "Maya Santos Organization",
+          matches: [
+            expect.objectContaining({ slug: "maya-santos-organization" }),
+          ],
+          truncated: false,
+        },
+      },
+    });
+  });
+
+  it("rejects a malformed organizationId at the route boundary", async () => {
+    const { app, postingsService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/postings?organizationId=not-a-uuid")}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(postingsService.searchPublic).not.toHaveBeenCalled();
+  });
+
   it("preserves relevance-ranked public search results and metadata through the route layer", async () => {
     const { app, postingsService, postingsAnalyticsService } = createApp();
     postingsService.searchPublic.mockResolvedValueOnce(

@@ -645,6 +645,14 @@ export class PostingsController {
         page: this.readOptionalQueryParam(url.searchParams, "page"),
         pageSize: this.readOptionalQueryParam(url.searchParams, "pageSize"),
         q: this.readOptionalQueryParam(url.searchParams, "q"),
+        organization: this.readOptionalQueryParam(
+          url.searchParams,
+          "organization",
+        ),
+        organizationId: this.readOptionalQueryParam(
+          url.searchParams,
+          "organizationId",
+        ),
         family: this.readOptionalQueryParam(url.searchParams, "family"),
         subtype: this.readOptionalQueryParam(url.searchParams, "subtype"),
         tags: this.readArrayQuery(url.searchParams, "tags"),
@@ -789,6 +797,8 @@ export class PostingsController {
       page: query.page,
       pageSize: query.pageSize,
       query: query.q,
+      organizationQuery: query.organization,
+      organizationId: query.organizationId,
       family: query.family,
       subtype: query.subtype,
       tags: query.tags && query.tags.length > 0 ? query.tags : undefined,

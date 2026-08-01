@@ -10,6 +10,7 @@ import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { createAuditChanges } from "@/features/organizations/organization-audit.model";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
@@ -18,6 +19,7 @@ import {
   MIN_BOOKING_DURATION_DAYS_LIMIT,
   MAX_ADVANCE_NOTICE_DAYS_LIMIT,
   MAX_POSTING_PHOTOS,
+  MAX_SEARCH_ORGANIZATION_MATCHES,
   MAX_SEARCH_RESULT_WINDOW,
   type ActiveBookingRequestRange,
   type AvailabilityBlockRange,
@@ -42,6 +44,7 @@ import {
   type SearchAttributeFilterInput,
   type PostingSubtype,
   type SearchPostingsInput,
+  type SearchPostingsOrganizationFilter,
   type SearchPostingsResult,
   toPostingAttributes,
   type UpsertPostingInput,
@@ -84,6 +87,7 @@ export class PostingsService {
     private readonly organizationAccessService: OrganizationAccessService,
     private readonly authRepository: AuthRepository,
     private readonly organizationAuditService: OrganizationAuditService,
+    private readonly organizationsRepository: OrganizationsRepository,
   ) {
     this.logger = loggerFactory.forClass(PostingsService, "service");
   }
@@ -816,7 +820,7 @@ export class PostingsService {
     input: SearchPostingsInput,
   ): Promise<SearchPostingsResult> {
     this.assertValidSearchInput(input);
-    return this.postingsPublicSearchService.searchPublic({
+    const normalized: SearchPostingsInput = {
       ...input,
       query: input.query?.trim() || undefined,
       tags: input.tags?.map((tag) => tag.trim().toLowerCase()).filter(Boolean),
@@ -825,7 +829,78 @@ export class PostingsService {
         input.family,
         input.subtype,
       ),
-    });
+    };
+
+    if (input.organizationId || input.organizationQuery?.trim()) {
+      const organizationFilter = await this.resolveOrganizationFilter(input);
+
+      // Nothing matched, so there is nothing either engine could return.
+      // Short-circuiting also avoids an empty `IN ()`, which Prisma rejects.
+      if (organizationFilter.matches.length === 0) {
+        return this.createEmptySearchResult(normalized, organizationFilter);
+      }
+
+      normalized.organizationIds = organizationFilter.matches.map(
+        (match) => match.id,
+      );
+      normalized.organizationFilter = organizationFilter;
+    }
+
+    return this.postingsPublicSearchService.searchPublic(normalized);
+  }
+
+  private async resolveOrganizationFilter(
+    input: SearchPostingsInput,
+  ): Promise<SearchPostingsOrganizationFilter> {
+    const organizationQuery = input.organizationQuery?.trim() || undefined;
+
+    // An explicit id wins over a typed name: the caller already knows exactly
+    // which organization they want (org profile links, result-card chips).
+    if (input.organizationId) {
+      const matches =
+        await this.organizationsRepository.findOrganizationSummariesByIds([
+          input.organizationId,
+        ]);
+
+      return {
+        ...(organizationQuery ? { query: organizationQuery } : {}),
+        organizationId: input.organizationId,
+        matches,
+        truncated: false,
+      };
+    }
+
+    const { matches, truncated } =
+      await this.organizationsRepository.findOrganizationNameMatches(
+        organizationQuery ?? "",
+        MAX_SEARCH_ORGANIZATION_MATCHES,
+      );
+
+    return {
+      ...(organizationQuery ? { query: organizationQuery } : {}),
+      matches,
+      truncated,
+    };
+  }
+
+  private createEmptySearchResult(
+    input: SearchPostingsInput,
+    organizationFilter: SearchPostingsOrganizationFilter,
+  ): SearchPostingsResult {
+    return {
+      postings: [],
+      pagination: {
+        page: input.page,
+        pageSize: input.pageSize,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: input.page > 1,
+      },
+      source: "database",
+      ...(input.query ? { query: input.query } : {}),
+      organizationFilter,
+    };
   }
 
   private normalizeUpsertInput(input: UpsertPostingInput): UpsertPostingInput {

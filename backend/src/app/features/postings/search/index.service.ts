@@ -36,6 +36,30 @@ interface ElasticsearchBulkResponse {
 
 type ElasticsearchAliasResponse = Record<string, unknown>;
 
+type ElasticsearchMappingResponse = Record<
+  string,
+  {
+    mappings?: {
+      _meta?: {
+        mappingVersion?: number;
+      };
+    };
+  }
+>;
+
+/**
+ * Bump whenever `buildIndexConfiguration()` changes in a way that existing
+ * documents cannot satisfy without being re-indexed.
+ *
+ * Mappings are `dynamic: false`, so an index created under an older version
+ * silently discards any field added later. Stamping the version into the index
+ * `_meta` lets the search maintainer detect that drift and rebuild, instead of
+ * quietly serving queries that can never match.
+ *
+ * 2: added `organizationName` (organization-name matching and sorting).
+ */
+export const POSTINGS_INDEX_MAPPING_VERSION = 2;
+
 class ElasticsearchAliasStateError extends ElasticsearchUnavailableError {
   constructor(message: string) {
     super(message);
@@ -337,6 +361,62 @@ export class PostingsSearchIndexService {
     return this.elasticsearch.isEnabled();
   }
 
+  /**
+   * Mapping version stamped on the index currently serving reads, or null when
+   * Elasticsearch is disabled, no index is live, or the index predates version
+   * stamping (which is itself stale).
+   */
+  async readLiveMappingVersion(): Promise<number | null> {
+    if (!this.isElasticsearchEnabled()) {
+      return null;
+    }
+
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchMappingResponse>(
+        `/${encodeURIComponent(this.getReadAliasName())}/_mapping`,
+        {
+          method: "GET",
+        },
+        {
+          allowNotFound: true,
+        },
+      );
+
+    const versions = Object.values(response)
+      .map((index) => index?.mappings?._meta?.mappingVersion)
+      .filter((version): version is number => typeof version === "number");
+
+    if (versions.length === 0) {
+      return null;
+    }
+
+    // The oldest target decides: any index behind the current version is
+    // serving documents that are missing newly mapped fields.
+    return Math.min(...versions);
+  }
+
+  /**
+   * Whether the live index was built from an older mapping and therefore needs
+   * rebuilding before newly mapped fields can be queried.
+   */
+  async isLiveMappingStale(): Promise<boolean> {
+    if (!this.isElasticsearchEnabled()) {
+      return false;
+    }
+
+    const aliasStatus = await this.getAliasStatus();
+
+    // Only a healthy, live index can be stale; every other state is either
+    // repaired or created from the current mapping by ensureLiveIndex().
+    if (aliasStatus.state !== "ready") {
+      return false;
+    }
+
+    const liveVersion = await this.readLiveMappingVersion();
+
+    return liveVersion === null || liveVersion < POSTINGS_INDEX_MAPPING_VERSION;
+  }
+
   getCircuitBreakerState(): ElasticsearchCircuitBreakerState {
     return this.elasticsearch.getCircuitBreakerState();
   }
@@ -363,6 +443,11 @@ export class PostingsSearchIndexService {
     return {
       id: document.id,
       organizationId: document.organizationId,
+      // Conditional: an empty keyword would sort ahead of every real name and
+      // pollute the head of the organization sort.
+      ...(document.organizationName
+        ? { organizationName: document.organizationName }
+        : {}),
       status: document.status,
       family: document.variant.family,
       subtype: document.variant.subtype,
@@ -524,9 +609,27 @@ export class PostingsSearchIndexService {
       },
       mappings: {
         dynamic: false,
+        _meta: {
+          mappingVersion: POSTINGS_INDEX_MAPPING_VERSION,
+        },
         properties: {
           id: { type: "keyword" },
           organizationId: { type: "keyword" },
+          organizationName: {
+            type: "text",
+            analyzer: "search_text",
+            fields: {
+              sort: {
+                type: "keyword",
+                normalizer: "lowercase_normalizer",
+              },
+              prefix: {
+                type: "text",
+                analyzer: "autocomplete_index",
+                search_analyzer: "autocomplete_search",
+              },
+            },
+          },
           status: { type: "keyword" },
           family: { type: "keyword" },
           subtype: { type: "keyword" },
