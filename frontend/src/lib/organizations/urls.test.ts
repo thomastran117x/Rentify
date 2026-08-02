@@ -9,14 +9,36 @@ import {
 } from "@/lib/organizations/urls";
 
 function mockFetchOnce(status: number, body: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({
-      ok: status >= 200 && status < 300,
-      status,
-      json: async () => body,
-    })),
-  );
+  vi.stubGlobal("fetch", createFetchMock(status, body));
+}
+
+// Typing the mock as fetch-shaped keeps `mock.calls[n]` a populated tuple; a
+// bare `vi.fn(async () => ...)` infers zero parameters, so indexing the
+// recorded arguments is a type error.
+type FetchMockFn = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+function createFetchMock(status: number, body: unknown) {
+  return vi.fn<FetchMockFn>(async () => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  }));
+}
+
+function stubResolvedOrganizationFetch() {
+  const fetchMock = createFetchMock(200, {
+    data: {
+      organizationId: "org-1",
+      canonicalSlug: "harbor-rentals",
+      name: "Harbor Rentals",
+      matchedBy: "canonical-slug",
+    },
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 afterEach(() => {
@@ -190,19 +212,7 @@ describe("resolveOrganizationReference", () => {
   });
 
   it("normalizes the reference before calling the API", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: {
-          organizationId: "org-1",
-          canonicalSlug: "harbor-rentals",
-          name: "Harbor Rentals",
-          matchedBy: "canonical-slug",
-        },
-      }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubResolvedOrganizationFetch();
 
     await resolveOrganizationReference("Harbor-Rentals/");
 
@@ -212,19 +222,7 @@ describe("resolveOrganizationReference", () => {
   });
 
   it("does not cache resolutions, because slugs are mutable", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: {
-          organizationId: "org-1",
-          canonicalSlug: "harbor-rentals",
-          name: "Harbor Rentals",
-          matchedBy: "canonical-slug",
-        },
-      }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubResolvedOrganizationFetch();
 
     await resolveOrganizationReference("harbor-rentals");
 

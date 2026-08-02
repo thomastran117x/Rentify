@@ -5,6 +5,13 @@ import {
   formatPostingAttributeValue,
 } from "./public-format";
 
+// Vitest's `.rejects` proxy drops matcher type parameters, so the expected
+// shape is constrained with `satisfies` on the object instead.
+type ExpectedPostingDetailError = {
+  message: string;
+  debug: Partial<PublicPostingDetailError["debug"]>;
+};
+
 describe("fetchPublicPostingDetail", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -117,12 +124,12 @@ describe("fetchPublicPostingDetail", () => {
 
     await expect(
       fetchPublicPostingDetail("missing-posting"),
-    ).rejects.toMatchObject<Partial<PublicPostingDetailError>>({
+    ).rejects.toMatchObject({
       message: "Posting could not be found.",
       debug: {
         status: 404,
       },
-    });
+    } satisfies ExpectedPostingDetailError);
   });
 
   it("throws a typed server error", async () => {
@@ -153,14 +160,12 @@ describe("fetchPublicPostingDetail", () => {
       ),
     );
 
-    await expect(fetchPublicPostingDetail("posting-2")).rejects.toMatchObject<
-      Partial<PublicPostingDetailError>
-    >({
+    await expect(fetchPublicPostingDetail("posting-2")).rejects.toMatchObject({
       message: "Server exploded.",
       debug: {
         status: 500,
       },
-    });
+    } satisfies ExpectedPostingDetailError);
   });
 
   it("preserves network failure details in the domain error debug payload", async () => {
@@ -171,15 +176,13 @@ describe("fetchPublicPostingDetail", () => {
       }),
     );
 
-    await expect(fetchPublicPostingDetail("posting-9")).rejects.toMatchObject<
-      Partial<PublicPostingDetailError>
-    >({
+    await expect(fetchPublicPostingDetail("posting-9")).rejects.toMatchObject({
       message: "Unable to reach the server.",
       debug: {
         requestUrl: "/postings/posting-9",
         causeMessage: "fetch failed",
       },
-    });
+    } satisfies ExpectedPostingDetailError);
   });
 
   it("loads posting detail safely during server rendering", async () => {
