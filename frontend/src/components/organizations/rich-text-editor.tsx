@@ -233,7 +233,8 @@ export function RichTextEditor({
     const current = editor.getHTML();
     const next = value || "";
     if (next !== current && !(next === "" && current === "<p></p>")) {
-      editor.commands.setContent(next, false);
+      // Tiptap v3 moved the emitUpdate flag into an options object.
+      editor.commands.setContent(next, { emitUpdate: false });
     }
   }, [value, editor]);
 
