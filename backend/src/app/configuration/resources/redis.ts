@@ -2,7 +2,10 @@ import { createClient } from "redis";
 import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 
-type RedisClient = ReturnType<typeof createClient>;
+// Derived from the factory rather than `typeof createClient` directly: an
+// options-less `createClient` resolves to the generic defaults, which no
+// longer match the narrower type an actual configured call produces.
+type RedisClient = ReturnType<typeof createRedisClient>;
 const redisLogger = loggerFactory.forComponent("redis", "resource");
 
 function buildRedisUrl(): string {
@@ -23,7 +26,7 @@ function buildRedisUrl(): string {
 
 let redis: RedisClient | null = null;
 
-function createRedisClient(): RedisClient {
+function createRedisClient() {
   const config = environment.getRedisConfig();
 
   const client = createClient({
