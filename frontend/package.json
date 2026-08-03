@@ -20,7 +20,7 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@tiptap/extension-image": "^2.27.2",
+    "@tiptap/extension-image": "^3.29.2",
     "@tiptap/extension-link": "^2.27.2",
     "@tiptap/react": "^2.27.2",
     "@tiptap/starter-kit": "^2.27.2",
