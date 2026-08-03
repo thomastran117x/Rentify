@@ -64,7 +64,7 @@
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
     "@hono/node-server": "^2.0.12",
-    "@prisma/client": "^6.7.0",
+    "@prisma/client": "^7.9.1",
     "amqplib": "^1.0.3",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
