@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -63,6 +63,29 @@ function ToolbarButton({
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
+  // Tiptap v3 no longer re-renders the component on every transaction
+  // (`shouldRerenderOnTransaction` defaults to false, and the legacy flag is
+  // slated for removal), so reading `editor.isActive(...)` during render would
+  // leave these buttons frozen at their initial state. `useEditorState`
+  // subscribes to just the flags the toolbar draws.
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: instance }) => ({
+      bold: instance.isActive("bold"),
+      italic: instance.isActive("italic"),
+      strike: instance.isActive("strike"),
+      heading2: instance.isActive("heading", { level: 2 }),
+      heading3: instance.isActive("heading", { level: 3 }),
+      bulletList: instance.isActive("bulletList"),
+      orderedList: instance.isActive("orderedList"),
+      blockquote: instance.isActive("blockquote"),
+      codeBlock: instance.isActive("codeBlock"),
+      link: instance.isActive("link"),
+      canUndo: instance.can().undo(),
+      canRedo: instance.can().redo(),
+    }),
+  });
+
   const addLink = () => {
     const previous = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("Link URL", previous ?? "https://");
@@ -99,21 +122,21 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton
         label="Bold"
         onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editor.isActive("bold")}
+        active={state.bold}
       >
         <Bold className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Italic"
         onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editor.isActive("italic")}
+        active={state.italic}
       >
         <Italic className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Strikethrough"
         onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editor.isActive("strike")}
+        active={state.strike}
       >
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
@@ -121,51 +144,47 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton
         label="Heading 2"
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editor.isActive("heading", { level: 2 })}
+        active={state.heading2}
       >
         <Heading2 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Heading 3"
         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        active={editor.isActive("heading", { level: 3 })}
+        active={state.heading3}
       >
         <Heading3 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Bullet list"
         onClick={() => editor.chain().focus().toggleBulletList().run()}
-        active={editor.isActive("bulletList")}
+        active={state.bulletList}
       >
         <List className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Numbered list"
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editor.isActive("orderedList")}
+        active={state.orderedList}
       >
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Quote"
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        active={editor.isActive("blockquote")}
+        active={state.blockquote}
       >
         <Quote className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Code block"
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        active={editor.isActive("codeBlock")}
+        active={state.codeBlock}
       >
         <Code className="h-4 w-4" />
       </ToolbarButton>
       <span className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-700" />
-      <ToolbarButton
-        label="Add link"
-        onClick={addLink}
-        active={editor.isActive("link")}
-      >
+      <ToolbarButton label="Add link" onClick={addLink} active={state.link}>
         <Link2 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton label="Add image" onClick={addImage}>
@@ -175,14 +194,14 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton
         label="Undo"
         onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().undo()}
+        disabled={!state.canUndo}
       >
         <Undo2 className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         label="Redo"
         onClick={() => editor.chain().focus().redo().run()}
-        disabled={!editor.can().redo()}
+        disabled={!state.canRedo}
       >
         <Redo2 className="h-4 w-4" />
       </ToolbarButton>
