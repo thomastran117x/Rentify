@@ -12,6 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { Pagination } from "@/components/common/pagination";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -26,7 +27,8 @@ import {
 } from "@/components/organizations/organization-public-visuals";
 import { theme } from "@/styles/theme";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 function formatLocation(
   organization: PublicOrganizationSummary,
@@ -38,7 +40,11 @@ function formatLocation(
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-function buildSearchParams(query: string, page: number): URLSearchParams {
+function buildSearchParams(
+  query: string,
+  page: number,
+  pageSize: number,
+): URLSearchParams {
   const params = new URLSearchParams();
   const trimmed = query.trim();
 
@@ -47,6 +53,10 @@ function buildSearchParams(query: string, page: number): URLSearchParams {
   }
   if (page > 1) {
     params.set("page", String(page));
+  }
+  // Left out at the default so the common URL stays clean.
+  if (pageSize !== DEFAULT_PAGE_SIZE) {
+    params.set("pageSize", String(pageSize));
   }
 
   return params;
@@ -146,6 +156,15 @@ export function OrganizationDirectoryPage() {
 
   const query = searchParams.get("q") ?? "";
   const page = readPositiveInt(searchParams.get("page"), 1);
+  const requestedPageSize = readPositiveInt(
+    searchParams.get("pageSize"),
+    DEFAULT_PAGE_SIZE,
+  );
+  const pageSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(
+    requestedPageSize,
+  )
+    ? requestedPageSize
+    : DEFAULT_PAGE_SIZE;
 
   useEffect(() => {
     setQueryInput(query);
@@ -161,7 +180,7 @@ export function OrganizationDirectoryPage() {
       try {
         const nextResult = await organizationsApi.listPublic({
           page,
-          pageSize: PAGE_SIZE,
+          pageSize,
           query: query || undefined,
         });
 
@@ -194,10 +213,14 @@ export function OrganizationDirectoryPage() {
     return () => {
       active = false;
     };
-  }, [page, query]);
+  }, [page, pageSize, query]);
 
-  function updateRoute(nextQuery: string, nextPage: number) {
-    const nextParams = buildSearchParams(nextQuery, nextPage);
+  function updateRoute(
+    nextQuery: string,
+    nextPage: number,
+    nextPageSize: number,
+  ) {
+    const nextParams = buildSearchParams(nextQuery, nextPage, nextPageSize);
     const href = nextParams.toString()
       ? `${pathname}?${nextParams.toString()}`
       : pathname;
@@ -206,19 +229,17 @@ export function OrganizationDirectoryPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    updateRoute(queryInput, 1);
+    updateRoute(queryInput, 1, pageSize);
   }
 
   function clearSearch() {
     setQueryInput("");
-    updateRoute("", 1);
+    updateRoute("", 1, pageSize);
   }
 
   const organizations = result?.organizations ?? [];
   const pagination = result?.pagination;
   const total = pagination?.total ?? 0;
-  const rangeStart = organizations.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
-  const rangeEnd = (page - 1) * PAGE_SIZE + organizations.length;
 
   return (
     <main className={theme.marketplace.page}>
@@ -321,10 +342,8 @@ export function OrganizationDirectoryPage() {
             ) : total === 0 ? (
               <span>No public organizations found</span>
             ) : (
-              <span>
-                Showing {rangeStart}-{rangeEnd} of {total}{" "}
-                {total === 1 ? "organization" : "organizations"}
-              </span>
+              // The result range is rendered by the pagination control below.
+              <span />
             )}
             <Link
               href="/dashboard/organizations"
@@ -389,40 +408,20 @@ export function OrganizationDirectoryPage() {
             </p>
           )}
 
-          {!loading && pagination && organizations.length > 0 ? (
-            <div className="mt-6 flex items-center gap-2">
-              {pagination.hasPreviousPage ? (
-                <button
-                  type="button"
-                  onClick={() => updateRoute(query, pagination.page - 1)}
-                  className={theme.marketplace.paginationButton}
-                >
-                  Previous
-                </button>
-              ) : (
-                <span className={theme.marketplace.paginationButtonDisabled}>
-                  Previous
-                </span>
-              )}
-
-              <span className="px-2 text-sm text-slate-500 dark:text-slate-400">
-                Page {pagination.page} of {pagination.totalPages || 1}
-              </span>
-
-              {pagination.hasNextPage ? (
-                <button
-                  type="button"
-                  onClick={() => updateRoute(query, pagination.page + 1)}
-                  className={theme.marketplace.paginationButton}
-                >
-                  Next
-                </button>
-              ) : (
-                <span className={theme.marketplace.paginationButtonDisabled}>
-                  Next
-                </span>
-              )}
-            </div>
+          {!loading && pagination ? (
+            <Pagination
+              pagination={pagination}
+              itemLabel={{ one: "organization", other: "organizations" }}
+              ariaLabel="Organization directory pagination"
+              showGoToPage
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={(nextPage) =>
+                updateRoute(query, nextPage, pageSize)
+              }
+              onPageSizeChange={(nextPageSize) =>
+                updateRoute(query, 1, nextPageSize)
+              }
+            />
           ) : null}
         </section>
       </div>

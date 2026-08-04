@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { MessageSquare, Star } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Pagination } from "@/components/common/pagination";
+import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -33,8 +35,7 @@ export function OrganizationReviewsSection({
   const [reviews, setReviews] = useState<OrganizationReviewRecord[]>([]);
   const [summary, setSummary] =
     useState<OrganizationReviewSummary>(EMPTY_SUMMARY);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,8 +61,7 @@ export function OrganizationReviewsSection({
         );
         setReviews(result.reviews);
         setSummary(result.summary);
-        setTotalPages(result.pagination.totalPages);
-        setPage(result.pagination.page);
+        setPagination(result.pagination);
       } catch (nextError) {
         setError(
           getApiErrorMessage(nextError, {
@@ -352,28 +352,16 @@ export function OrganizationReviewsSection({
         )}
       </div>
 
-      {totalPages > 1 ? (
-        <div className="mt-5 flex items-center justify-between">
-          <button
-            type="button"
-            disabled={page <= 1 || loading}
-            onClick={() => void loadReviews(page - 1)}
-            className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages || loading}
-            onClick={() => void loadReviews(page + 1)}
-            className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            Next
-          </button>
-        </div>
+      {/* Fixed page size: this is an embedded widget, so no size selector
+          and no page jump. */}
+      {pagination ? (
+        <Pagination
+          pagination={pagination}
+          itemLabel={{ one: "review", other: "reviews" }}
+          ariaLabel="Reviews pagination"
+          disabled={loading}
+          onPageChange={(nextPage) => void loadReviews(nextPage)}
+        />
       ) : null}
     </section>
   );

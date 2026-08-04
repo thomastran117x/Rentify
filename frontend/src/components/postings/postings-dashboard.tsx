@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useState, type ReactNode } from "react";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Pagination } from "@/components/common/pagination";
 import { useErrorToast } from "@/components/errors";
+import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   canManageOrganizationPostings,
@@ -25,7 +33,8 @@ type StatusFilter = "all" | PostingStatus;
 
 type LifecycleAction = "publish" | "pause" | "unpause" | "archive";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
 
 const EMPTY_SUMMARY: OwnerPostingsStatusSummary = {
   total: 0,
@@ -189,8 +198,9 @@ export function PostingsDashboard() {
   const [summary, setSummary] =
     useState<OwnerPostingsStatusSummary>(EMPTY_SUMMARY);
   const [postings, setPostings] = useState<PostingRecord[]>([]);
-  const [pageInfo, setPageInfo] = useState({
+  const [pageInfo, setPageInfo] = useState<PaginationMeta>({
     page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
     totalPages: 1,
     hasNextPage: false,
     hasPreviousPage: false,
@@ -198,12 +208,14 @@ export function PostingsDashboard() {
   });
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const searchDebounceArmed = useRef(false);
 
   const activeOrganization = session?.user.activeOrganization;
   const canRead = canReadOrganizationPostings(activeOrganization);
@@ -216,7 +228,16 @@ export function PostingsDashboard() {
   }, [router, status]);
 
   // Debounce the search box into the query used for fetching.
+  //
+  // The first run is skipped: on mount it would fire 350ms in with an unchanged
+  // query and reset the page, snapping the list back to page 1 if the visitor
+  // paged immediately after load.
   useEffect(() => {
+    if (!searchDebounceArmed.current) {
+      searchDebounceArmed.current = true;
+      return;
+    }
+
     const id = window.setTimeout(() => {
       setQuery(searchInput.trim());
       setPage(1);
@@ -255,7 +276,7 @@ export function PostingsDashboard() {
       try {
         const result = await postingsApi.listMine({
           page,
-          pageSize: PAGE_SIZE,
+          pageSize,
           status: statusFilter === "all" ? undefined : statusFilter,
           q: query || undefined,
         });
@@ -266,13 +287,7 @@ export function PostingsDashboard() {
 
         startTransition(() => {
           setPostings(result.postings);
-          setPageInfo({
-            page: result.pagination.page,
-            totalPages: result.pagination.totalPages,
-            hasNextPage: result.pagination.hasNextPage,
-            hasPreviousPage: result.pagination.hasPreviousPage,
-            total: result.pagination.total,
-          });
+          setPageInfo(result.pagination);
         });
       } catch (nextError) {
         if (active) {
@@ -296,24 +311,18 @@ export function PostingsDashboard() {
     return () => {
       active = false;
     };
-  }, [status, canRead, statusFilter, query, page]);
+  }, [status, canRead, statusFilter, query, page, pageSize]);
 
   async function reloadList() {
     const result = await postingsApi.listMine({
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
       status: statusFilter === "all" ? undefined : statusFilter,
       q: query || undefined,
     });
     startTransition(() => {
       setPostings(result.postings);
-      setPageInfo({
-        page: result.pagination.page,
-        totalPages: result.pagination.totalPages,
-        hasNextPage: result.pagination.hasNextPage,
-        hasPreviousPage: result.pagination.hasPreviousPage,
-        total: result.pagination.total,
-      });
+      setPageInfo(result.pagination);
     });
   }
 
@@ -608,31 +617,18 @@ export function PostingsDashboard() {
               </article>
             ))}
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Page {pageInfo.page} of {Math.max(pageInfo.totalPages, 1)} ·{" "}
-                {pageInfo.total} total
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={!pageInfo.hasPreviousPage || loading}
-                  className={rowActionMutedClass}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage((current) => current + 1)}
-                  disabled={!pageInfo.hasNextPage || loading}
-                  className={rowActionMutedClass}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <Pagination
+              pagination={pageInfo}
+              itemLabel={{ one: "posting", other: "postings" }}
+              showGoToPage
+              disabled={loading}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
           </div>
         )}
       </section>

@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  PAGE_SIZE_TEMPLATE_TOKEN,
+  PAGE_TEMPLATE_TOKEN,
+} from "@/components/common/pagination/href-template";
 import { buildSearchHref } from "./search-href";
 
 describe("buildSearchHref", () => {
@@ -70,5 +74,42 @@ describe("buildSearchHref", () => {
     expect(params.get("family")).toBe("place");
     expect(params.get("radiusKm")).toBe("10");
     expect(params.get("endAt")).toBe("2026-06-17T11:00:00.000Z");
+  });
+
+  it("emits the page token unescaped so it can be substituted", () => {
+    const template = buildSearchHref({
+      q: "loft",
+      family: "place",
+      tags: ["wifi"],
+      sort: "newest",
+      page: PAGE_TEMPLATE_TOKEN,
+      pageSize: 20,
+    });
+
+    expect(template).toContain(`page=${PAGE_TEMPLATE_TOKEN}`);
+
+    const href = template.replaceAll(PAGE_TEMPLATE_TOKEN, "8");
+    const params = new URL(href, "https://rentify.local").searchParams;
+    expect(params.get("page")).toBe("8");
+    expect(params.get("q")).toBe("loft");
+    expect(params.get("family")).toBe("place");
+    expect(params.getAll("tags")).toEqual(["wifi"]);
+  });
+
+  it("pins the page size template to the first page", () => {
+    const template = buildSearchHref({
+      q: "loft",
+      sort: "newest",
+      page: 1,
+      pageSize: PAGE_SIZE_TEMPLATE_TOKEN,
+    });
+
+    expect(template).toContain(`pageSize=${PAGE_SIZE_TEMPLATE_TOKEN}`);
+
+    const href = template.replaceAll(PAGE_SIZE_TEMPLATE_TOKEN, "50");
+    const params = new URL(href, "https://rentify.local").searchParams;
+    expect(params.get("pageSize")).toBe("50");
+    expect(params.get("page")).toBe("1");
+    expect(params.get("q")).toBe("loft");
   });
 });

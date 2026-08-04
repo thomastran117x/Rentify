@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Pagination } from "@/components/common/pagination";
 import { canReadOrganizationPostings } from "@/lib/auth/roles";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -37,13 +38,15 @@ import {
   type PostingAnalyticsWindow,
 } from "@/lib/postings/analytics";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 export function OwnerDashboard() {
   const router = useRouter();
   const { status, session } = useAuth();
   const [windowValue, setWindowValue] = useState<PostingAnalyticsWindow>("7d");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [metricKey, setMetricKey] = useState<BucketMetricKey>("views");
   const [granularity, setGranularity] = useState<"hour" | "day">("day");
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(
@@ -100,7 +103,7 @@ export function OwnerDashboard() {
           postingsAnalyticsApi.listOwnerPostings({
             window: windowValue,
             page,
-            pageSize: PAGE_SIZE,
+            pageSize,
           }),
         ]);
 
@@ -162,6 +165,7 @@ export function OwnerDashboard() {
   }, [
     canReadDashboard,
     page,
+    pageSize,
     router,
     selectedPostingId,
     session,
@@ -616,38 +620,17 @@ export function OwnerDashboard() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Page {listing.pagination.page} of{" "}
-                    {listing.pagination.totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPage((current) => Math.max(1, current - 1))
-                      }
-                      disabled={!listing.pagination.hasPreviousPage}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPage((current) =>
-                          listing.pagination.hasNextPage
-                            ? current + 1
-                            : current,
-                        )
-                      }
-                      disabled={!listing.pagination.hasNextPage}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
+                <Pagination
+                  pagination={listing.pagination}
+                  itemLabel={{ one: "posting", other: "postings" }}
+                  showGoToPage
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={setPage}
+                  onPageSizeChange={(nextPageSize) => {
+                    setPageSize(nextPageSize);
+                    setPage(1);
+                  }}
+                />
               </AnalyticsCard>
             </section>
           </>

@@ -392,4 +392,65 @@ export const theme = {
     paginationButtonDisabled:
       "rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600",
   },
+
+  // Shared pagination control (src/components/common/pagination). Top-level
+  // rather than nested under `marketplace` because most call sites are
+  // dashboards. Note the `marketplace.paginationButton` tokens above are a
+  // generic secondary-button style used at several non-pagination call sites,
+  // so they are deliberately not reused here.
+  pagination: {
+    container:
+      "mt-6 flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800",
+
+    containerBare:
+      "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+
+    summary: "text-sm text-slate-500 dark:text-slate-400",
+
+    nav: "flex flex-col items-center gap-2 sm:flex-row",
+
+    list: "flex items-center gap-1",
+
+    numbersOnly: "hidden sm:flex",
+
+    compactStatus: "text-sm text-slate-500 sm:hidden dark:text-slate-400",
+
+    extras: "flex flex-wrap items-center justify-center gap-3 sm:justify-end",
+
+    // The disabled variants are complete standalone strings, not modifiers
+    // appended to the enabled ones. There is no clsx/tailwind-merge here and
+    // Tailwind precedence follows stylesheet order, not class order.
+    page: "inline-flex h-9 min-w-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition duration-200 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-violet-800 dark:hover:bg-violet-950/40 dark:hover:text-violet-300",
+
+    pageActive:
+      "inline-flex h-9 min-w-9 items-center justify-center rounded-xl border border-violet-600 bg-violet-600 px-3 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 dark:border-violet-500 dark:bg-violet-600 dark:text-white",
+
+    pageDisabled:
+      "inline-flex h-9 min-w-9 cursor-not-allowed items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600",
+
+    iconButton:
+      "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition duration-200 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-violet-800 dark:hover:bg-violet-950/40 dark:hover:text-violet-300",
+
+    iconButtonDisabled:
+      "inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600",
+
+    ellipsis:
+      "inline-flex h-9 min-w-9 select-none items-center justify-center px-1 text-sm text-slate-400 dark:text-slate-500",
+
+    jumpForm: "flex items-center gap-2",
+
+    jumpLabel:
+      "sr-only text-xs font-medium text-slate-500 sm:not-sr-only dark:text-slate-400",
+
+    jumpInput:
+      "h-9 w-16 rounded-xl border border-slate-200 bg-white px-2 text-center text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400 dark:focus:ring-violet-500/20",
+
+    jumpButton:
+      "inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition duration-200 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-violet-800 dark:hover:bg-violet-950/40 dark:hover:text-violet-300",
+
+    sizeLabel: "text-xs font-medium text-slate-500 dark:text-slate-400",
+
+    sizeSelect:
+      "h-9 rounded-xl border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none transition duration-200 focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-violet-400 dark:focus:ring-violet-500/20",
+  },
 } as const;

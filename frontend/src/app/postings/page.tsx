@@ -9,6 +9,13 @@ import {
   Sparkles,
   Tags,
 } from "lucide-react";
+import { PaginationLinks } from "@/components/common/pagination";
+// This page is a server component, so the tokens must come from the non-client
+// module; importing them from a "use client" file yields a client reference.
+import {
+  PAGE_SIZE_TEMPLATE_TOKEN,
+  PAGE_TEMPLATE_TOKEN,
+} from "@/components/common/pagination/href-template";
 import { PostingSearchForm } from "@/components/postings/posting-search-form";
 import {
   PublicPostingSearchError,
@@ -1134,26 +1141,14 @@ function SearchResults({
     organizationFilter !== undefined && organizationFilter.matches.length === 0;
   const grouped = isOrganizationSort(sort);
   const groups = grouped ? groupPostingsByOrganization(postings) : [];
-  const rangeStart = (pagination.page - 1) * pagination.pageSize + 1;
-  const rangeEnd = Math.min(
-    pagination.page * pagination.pageSize,
-    pagination.total,
-  );
 
   return (
     <>
+      {/* The result counts and page position now live in the pagination
+          control below; only the search backend is reported here. */}
       <div className={theme.marketplace.resultsMeta}>
-        {pagination.total === 0 ? (
-          <span>No results</span>
-        ) : (
-          <span>
-            Showing {rangeStart}-{rangeEnd} of {pagination.total}{" "}
-            {pagination.total === 1 ? "posting" : "postings"}
-          </span>
-        )}
         <span className="text-xs text-slate-400 dark:text-slate-500">
-          via {result.source} - page {pagination.page} of{" "}
-          {pagination.totalPages || 1}
+          via {result.source}
         </span>
       </div>
 
@@ -1220,41 +1215,22 @@ function SearchResults({
         </div>
       )}
 
-      <div className="mt-6 flex items-center gap-2">
-        {pagination.hasPreviousPage ? (
-          <Link
-            href={buildSearchHref({
-              ...paginationProps,
-              page: pagination.page - 1,
-              pageSize,
-            })}
-            className={theme.marketplace.paginationButton}
-          >
-            Previous
-          </Link>
-        ) : (
-          <span className={theme.marketplace.paginationButtonDisabled}>
-            Previous
-          </span>
-        )}
-
-        {pagination.hasNextPage ? (
-          <Link
-            href={buildSearchHref({
-              ...paginationProps,
-              page: pagination.page + 1,
-              pageSize,
-            })}
-            className={theme.marketplace.paginationButton}
-          >
-            Next
-          </Link>
-        ) : (
-          <span className={theme.marketplace.paginationButtonDisabled}>
-            Next
-          </span>
-        )}
-      </div>
+      <PaginationLinks
+        pagination={pagination}
+        itemLabel={{ one: "posting", other: "postings" }}
+        showGoToPage
+        pageSizeOptions={pageSizeOptions}
+        pageHrefTemplate={buildSearchHref({
+          ...paginationProps,
+          page: PAGE_TEMPLATE_TOKEN,
+          pageSize,
+        })}
+        pageSizeHrefTemplate={buildSearchHref({
+          ...paginationProps,
+          page: 1,
+          pageSize: PAGE_SIZE_TEMPLATE_TOKEN,
+        })}
+      />
     </>
   );
 }

@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Pagination } from "@/components/common/pagination";
 import { PostingReviewForm } from "@/components/reviews/posting-review-form";
 import {
   canManageOrganizationPostings,
@@ -49,6 +50,8 @@ interface DashboardBanner {
   tone: BannerTone;
   text: string;
 }
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 const STATUS_OPTIONS: Array<{ label: string; value?: BookingRequestStatus }> = [
   { label: "All statuses" },
@@ -1250,10 +1253,38 @@ export function BookingsDashboard() {
     );
   }
 
-  const activeDashboard =
-    activeView === "owner" && showOwnerView ? ownerDashboard : renterDashboard;
+  const isOwnerScope = activeView === "owner" && showOwnerView;
+  const activeDashboard = isOwnerScope ? ownerDashboard : renterDashboard;
   const items = activeDashboard?.items ?? [];
   const pagination = activeDashboard?.pagination;
+
+  // Owner and renter each keep their own filter object, including their own
+  // page, so switching views deliberately preserves where each one was.
+  function changeDashboardPage(nextPage: number) {
+    if (isOwnerScope) {
+      setOwnerFilters((current) => ({ ...current, page: nextPage }));
+      return;
+    }
+
+    setRenterFilters((current) => ({ ...current, page: nextPage }));
+  }
+
+  function changeDashboardPageSize(nextPageSize: number) {
+    if (isOwnerScope) {
+      setOwnerFilters((current) => ({
+        ...current,
+        page: 1,
+        pageSize: nextPageSize,
+      }));
+      return;
+    }
+
+    setRenterFilters((current) => ({
+      ...current,
+      page: 1,
+      pageSize: nextPageSize,
+    }));
+  }
 
   return (
     <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
@@ -1652,58 +1683,18 @@ export function BookingsDashboard() {
         </section>
 
         {pagination ? (
-          <section className="mt-6 flex items-center justify-between gap-3 rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Page {pagination.page} of {pagination.totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeView === "owner" && showOwnerView) {
-                    setOwnerFilters((current) => ({
-                      ...current,
-                      page: Math.max(1, current.page - 1),
-                    }));
-                    return;
-                  }
-
-                  setRenterFilters((current) => ({
-                    ...current,
-                    page: Math.max(1, current.page - 1),
-                  }));
-                }}
-                disabled={!pagination.hasPreviousPage}
-                className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeView === "owner" && showOwnerView) {
-                    setOwnerFilters((current) => ({
-                      ...current,
-                      page: pagination.hasNextPage
-                        ? current.page + 1
-                        : current.page,
-                    }));
-                    return;
-                  }
-
-                  setRenterFilters((current) => ({
-                    ...current,
-                    page: pagination.hasNextPage
-                      ? current.page + 1
-                      : current.page,
-                  }));
-                }}
-                disabled={!pagination.hasNextPage}
-                className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+          <section className="mt-6 rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+            {/* bordered={false}: this card already provides the separation. */}
+            <Pagination
+              pagination={pagination}
+              itemLabel={{ one: "booking", other: "bookings" }}
+              showGoToPage
+              bordered={false}
+              disabled={loading}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={changeDashboardPage}
+              onPageSizeChange={changeDashboardPageSize}
+            />
           </section>
         ) : null}
       </div>

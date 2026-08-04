@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  ArrowRight,
   ArrowUpRight,
   CalendarDays,
   Clock,
@@ -12,6 +11,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { Pagination } from "@/components/common/pagination";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -33,6 +33,10 @@ const SORT_OPTIONS: { value: OrganizationBlogSort; label: string }[] = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
 ];
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+// Matches the backend default so paging behaviour is unchanged by default.
+const DEFAULT_PAGE_SIZE = 20;
 
 function PageChrome({ children }: { children: React.ReactNode }) {
   return (
@@ -202,6 +206,7 @@ function FeedCard({ post }: { post: OrganizationBlogPostRecord }) {
 export function BlogSearchPage() {
   const [result, setResult] = useState<OrganizationBlogResult | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeQuery, setActiveQuery] = useState<string | null>(null);
   const [sort, setSort] = useState<OrganizationBlogSort>("relevance");
@@ -218,6 +223,7 @@ export function BlogSearchPage() {
       try {
         const nextResult = await organizationsApi.searchBlogFeed({
           page,
+          pageSize,
           sort,
           ...(activeQuery ? { q: activeQuery } : {}),
         });
@@ -250,7 +256,7 @@ export function BlogSearchPage() {
     return () => {
       active = false;
     };
-  }, [page, activeQuery, sort]);
+  }, [page, pageSize, activeQuery, sort]);
 
   const posts = result?.posts ?? [];
   const total = result?.pagination.total ?? 0;
@@ -409,38 +415,19 @@ export function BlogSearchPage() {
             </div>
           ) : null}
 
-          {result && result.pagination.totalPages > 1 ? (
-            <div className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={!result.pagination.hasPreviousPage}
-                className={
-                  result.pagination.hasPreviousPage
-                    ? theme.marketplace.paginationButton
-                    : theme.marketplace.paginationButtonDisabled
-                }
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Previous
-              </button>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                Page {result.pagination.page} of {result.pagination.totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((current) => current + 1)}
-                disabled={!result.pagination.hasNextPage}
-                className={
-                  result.pagination.hasNextPage
-                    ? theme.marketplace.paginationButton
-                    : theme.marketplace.paginationButtonDisabled
-                }
-              >
-                Next
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
+          {result ? (
+            <Pagination
+              pagination={result.pagination}
+              itemLabel={{ one: "post", other: "posts" }}
+              showGoToPage
+              disabled={loading}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
           ) : null}
         </>
       )}
