@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SavedPostingsWorkspace } from "./saved-postings-workspace";
 
-const { useAuthMock, listMock, savedIdsMock, toggleSavedMock } = vi.hoisted(
-  () => ({
+const { useAuthMock, listMock, savedIdsMock, toggleSavedMock, markSavedMock } =
+  vi.hoisted(() => ({
     useAuthMock: vi.fn(),
     listMock: vi.fn(),
     savedIdsMock: { current: new Set<string>() },
     toggleSavedMock: vi.fn(),
-  }),
-);
+    markSavedMock: vi.fn(),
+  }));
 
 vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
@@ -23,6 +23,7 @@ vi.mock("@/components/postings/saved-postings-context", () => ({
     isSaved: (postingId: string) => savedIdsMock.current.has(postingId),
     isPending: () => false,
     toggleSaved: toggleSavedMock,
+    markSaved: markSavedMock,
     refresh: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
   }),
@@ -72,6 +73,7 @@ describe("SavedPostingsWorkspace", () => {
   beforeEach(() => {
     listMock.mockReset();
     toggleSavedMock.mockReset();
+    markSavedMock.mockReset();
     savedIdsMock.current = new Set(["posting-1", "posting-2"]);
     useAuthMock.mockReturnValue({ status: "authenticated", session: {} });
   });
@@ -158,7 +160,9 @@ describe("SavedPostingsWorkspace", () => {
     );
   });
 
-  it("hides a posting as soon as it is unhearted", async () => {
+  // Reviewer feedback on #212: unhearting must be undoable, so the card stays
+  // listed until the visitor leaves the page rather than vanishing instantly.
+  it("keeps an unhearted posting listed so the change can be undone", async () => {
     listMock.mockResolvedValue(
       paginated([
         makePosting(),
@@ -172,9 +176,34 @@ describe("SavedPostingsWorkspace", () => {
     savedIdsMock.current = new Set(["posting-2"]);
     rerender(<SavedPostingsWorkspace />);
 
-    await waitFor(() =>
-      expect(screen.queryByText("Sunny loft")).not.toBeInTheDocument(),
-    );
+    expect(screen.getByText("Sunny loft")).toBeInTheDocument();
     expect(screen.getByText("Canal studio")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "1 posting is no longer saved. It stays listed until you leave this page, so you can undo it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not refetch the list when a posting is unhearted", async () => {
+    listMock.mockResolvedValue(paginated([makePosting()]));
+
+    const { rerender } = render(<SavedPostingsWorkspace />);
+    await screen.findByText("Sunny loft");
+    expect(listMock).toHaveBeenCalledTimes(1);
+
+    savedIdsMock.current = new Set();
+    rerender(<SavedPostingsWorkspace />);
+
+    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("seeds the shared saved set so hearts do not flash unsaved", async () => {
+    listMock.mockResolvedValue(paginated([makePosting()]));
+
+    render(<SavedPostingsWorkspace />);
+    await screen.findByText("Sunny loft");
+
+    expect(markSavedMock).toHaveBeenCalledWith(["posting-1"]);
   });
 });

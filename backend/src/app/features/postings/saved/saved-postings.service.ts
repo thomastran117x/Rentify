@@ -78,7 +78,8 @@ export class SavedPostingsService {
     return {
       postings: batch.postings.map((posting) => ({
         ...posting,
-        savedAt: savedAtByPostingId.get(posting.id) ?? new Date(0).toISOString(),
+        savedAt:
+          savedAtByPostingId.get(posting.id) ?? new Date(0).toISOString(),
       })),
       pagination,
       unavailablePostingIds: batch.missingIds,

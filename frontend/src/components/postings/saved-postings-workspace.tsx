@@ -51,7 +51,7 @@ function PageHeading() {
 
 export function SavedPostingsWorkspace() {
   const { status: authStatus } = useAuth();
-  const { isSaved } = useSavedPostings();
+  const { isSaved, markSaved } = useSavedPostings();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
@@ -60,7 +60,6 @@ export function SavedPostingsWorkspace() {
   const [unavailableCount, setUnavailableCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (authStatus !== "authenticated") {
@@ -82,6 +81,10 @@ export function SavedPostingsWorkspace() {
         setPostings(result.postings);
         setPagination(result.pagination);
         setUnavailableCount(result.unavailablePostingIds.length);
+        // Everything on this page is saved by definition. Seeding the shared
+        // set keeps the hearts filled even if the identifier request has not
+        // come back yet.
+        markSaved(result.postings.map((posting) => posting.id));
       } catch (nextError) {
         if (active) {
           setError(
@@ -104,7 +107,7 @@ export function SavedPostingsWorkspace() {
     return () => {
       active = false;
     };
-  }, [authStatus, page, pageSize, reloadToken]);
+  }, [authStatus, markSaved, page, pageSize]);
 
   const handlePageChange = useCallback((nextPage: number) => {
     setPage(nextPage);
@@ -116,23 +119,13 @@ export function SavedPostingsWorkspace() {
     setPage(1);
   }, []);
 
-  // Unhearting removes the card immediately; the refetch below then corrects
-  // the totals, which is this repo's equivalent of cache invalidation.
-  const visiblePostings = postings.filter((posting) => isSaved(posting.id));
-  const removedFromPage = postings.length - visiblePostings.length;
-
-  useEffect(() => {
-    if (removedFromPage === 0) {
-      return;
-    }
-
-    if (visiblePostings.length === 0 && page > 1) {
-      setPage((current) => Math.max(1, current - 1));
-      return;
-    }
-
-    setReloadToken((current) => current + 1);
-  }, [page, removedFromPage, visiblePostings.length]);
+  // Unhearting deliberately leaves the card on screen with an outline heart so
+  // the change can be undone. The list is only re-read when the page, the page
+  // size, or the visit changes, which is when unsaved entries drop out.
+  const unheartedCount = postings.reduce(
+    (total, posting) => (isSaved(posting.id) ? total : total + 1),
+    0,
+  );
 
   if (authStatus === "loading") {
     return (
@@ -186,7 +179,7 @@ export function SavedPostingsWorkspace() {
         <div className="rounded-[1.5rem] border border-dashed border-rose-300 px-4 py-6 text-center text-sm text-rose-600 dark:border-rose-800 dark:text-rose-300">
           {error}
         </div>
-      ) : visiblePostings.length === 0 ? (
+      ) : postings.length === 0 ? (
         <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white px-4 py-12 text-center dark:border-slate-700 dark:bg-slate-900">
           <Heart
             className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600"
@@ -215,7 +208,18 @@ export function SavedPostingsWorkspace() {
             </p>
           ) : null}
 
-          {visiblePostings.map((posting) => (
+          {unheartedCount > 0 ? (
+            <p
+              role="status"
+              className="text-xs text-slate-500 dark:text-slate-400"
+            >
+              {unheartedCount === 1
+                ? "1 posting is no longer saved. It stays listed until you leave this page, so you can undo it."
+                : `${unheartedCount} postings are no longer saved. They stay listed until you leave this page, so you can undo them.`}
+            </p>
+          ) : null}
+
+          {postings.map((posting) => (
             <PostingResultCard
               key={posting.id}
               posting={posting}

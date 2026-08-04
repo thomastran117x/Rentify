@@ -177,17 +177,38 @@ test.describe("saved postings", () => {
       page.getByRole("heading", { name: POSTING_NAME }),
     ).toBeVisible();
 
-    // Unhearting from /saved removes the card immediately.
+    // Unhearting from /saved keeps the card listed so the change can be undone;
+    // only leaving and returning to the page drops it.
     await savedHeart.click();
+    await expect(unsavedHeart).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: POSTING_NAME }),
+    ).toBeVisible();
+    await expect(page.getByText(/no longer saved.*undo it/i)).toBeVisible();
+
+    // Undo works while still on the page.
+    await unsavedHeart.click();
+    await expect(savedHeart).toBeVisible();
+
+    // Unheart again, then leave and come back: now it is gone.
+    await savedHeart.click();
+    await expect(unsavedHeart).toBeVisible();
+    await page.goto("/postings");
+    await page.goto("/saved");
     await expect(page.getByRole("heading", { name: POSTING_NAME })).toHaveCount(
       0,
     );
 
-    // The only tolerated entry is the request this test aborted on purpose.
-    expect(
-      consoleErrors.filter(
-        (entry) => !entry.includes("Failed to load resource: net::ERR_FAILED"),
-      ),
-    ).toEqual([]);
+    // Two entries are expected and unrelated to saved postings: the request
+    // this test aborted on purpose, and the session-restore probe against
+    // /auth/refresh that the client handles on a cold page load.
+    const unexpectedConsoleErrors = consoleErrors.filter(
+      (entry) =>
+        !entry.includes("Failed to load resource: net::ERR_FAILED") &&
+        !entry.includes(
+          "Failed to load resource: the server responded with a status of 401",
+        ),
+    );
+    expect(unexpectedConsoleErrors).toEqual([]);
   });
 });

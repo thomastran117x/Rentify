@@ -30,6 +30,11 @@ interface SavedPostingsContextValue {
    * the login page instead.
    */
   toggleSaved: (postingId: string) => Promise<void>;
+  /**
+   * Seeds identifiers a caller already knows are saved, so a list that
+   * arrives before the identifier request does not render its hearts unsaved.
+   */
+  markSaved: (postingIds: string[]) => void;
   refresh: () => void;
   subscribe: () => () => void;
 }
@@ -196,6 +201,24 @@ export function SavedPostingsProvider({
     [applySaved, authStatus, markPending, pathname, router, showError],
   );
 
+  const markSaved = useCallback((postingIds: string[]) => {
+    setSavedIds((current) => {
+      const missing = postingIds.filter((postingId) => !current.has(postingId));
+
+      if (missing.length === 0) {
+        return current;
+      }
+
+      const next = new Set(current);
+
+      for (const postingId of missing) {
+        next.add(postingId);
+      }
+
+      return next;
+    });
+  }, []);
+
   const refresh = useCallback(() => {
     setRefreshToken((current) => current + 1);
   }, []);
@@ -207,10 +230,20 @@ export function SavedPostingsProvider({
       isSaved: (postingId: string) => savedIds.has(postingId),
       isPending: (postingId: string) => pendingIds.has(postingId),
       toggleSaved,
+      markSaved,
       refresh,
       subscribe,
     }),
-    [pendingIds, refresh, savedIds, status, subscribe, toggleSaved, truncated],
+    [
+      markSaved,
+      pendingIds,
+      refresh,
+      savedIds,
+      status,
+      subscribe,
+      toggleSaved,
+      truncated,
+    ],
   );
 
   return (

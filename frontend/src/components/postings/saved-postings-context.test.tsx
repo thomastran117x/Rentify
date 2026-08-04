@@ -274,4 +274,34 @@ describe("SavedPostingsProvider", () => {
     );
     expect(screen.getByTestId("posting-1")).toHaveAttribute("data-saved", "no");
   });
+
+  it("marks identifiers as saved without a request", async () => {
+    function Seeder() {
+      const { markSaved } = useSavedPostings();
+
+      return (
+        <button type="button" onClick={() => markSaved(["posting-1"])}>
+          seed
+        </button>
+      );
+    }
+
+    const user = userEvent.setup();
+    renderProvider(
+      <>
+        <Seeder />
+        <Consumer />
+      </>,
+    );
+    await waitFor(() => expect(listIdsMock).toHaveBeenCalled());
+    expect(screen.getByTestId("posting-1")).toHaveAttribute("data-saved", "no");
+
+    await user.click(screen.getByRole("button", { name: "seed" }));
+
+    expect(screen.getByTestId("posting-1")).toHaveAttribute(
+      "data-saved",
+      "yes",
+    );
+    expect(saveMock).not.toHaveBeenCalled();
+  });
 });
