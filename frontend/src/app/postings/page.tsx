@@ -775,26 +775,13 @@ export default async function PostingsPage({
                     inputClassName={inputClass}
                   />
                 </Field>
-
-                <Field
-                  label="Results per page"
-                  htmlFor="pageSize"
-                  hint="Controls how many listings appear."
-                >
-                  <select
-                    id="pageSize"
-                    name="pageSize"
-                    defaultValue={String(pageSize)}
-                    className={inputClass}
-                  >
-                    {pageSizeOptions.map((count) => (
-                      <option key={count} value={count}>
-                        {count} results
-                      </option>
-                    ))}
-                  </select>
-                </Field>
               </div>
+
+              {/* Page size is chosen from the pagination control under the
+                  results, which applies immediately. It rides along here as a
+                  hidden field so applying filters preserves the current choice
+                  instead of silently resetting it to the default. */}
+              <input type="hidden" name="pageSize" value={String(pageSize)} />
 
               <details className={theme.marketplace.advancedShell}>
                 <summary className={theme.marketplace.advancedSummary}>
