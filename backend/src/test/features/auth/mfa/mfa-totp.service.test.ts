@@ -1,5 +1,5 @@
 import { createCipheriv, randomBytes } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 
 function createReviewPersistence(overrides: Record<string, unknown> = {}) {

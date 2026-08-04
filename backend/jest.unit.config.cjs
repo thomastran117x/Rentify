@@ -31,6 +31,7 @@ module.exports = {
   ],
   collectCoverageFrom: [
     "src/app/**/*.ts",
+    "!src/app/generated/**",
     "!src/app/server.ts",
     "!src/app/scripts/**",
     "!src/app/seeds/**",

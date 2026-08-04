@@ -1,10 +1,16 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/app/generated/prisma"
+  // The default ESM output relies on module metadata the CommonJS Jest
+  // transform cannot parse; tsup still bundles the CJS-flavoured source into
+  // the ESM build output.
+  moduleFormat = "cjs"
 }
 
+// Prisma 7 moved the connection URL out of the schema; it now lives in
+// prisma.config.ts, and the runtime client gets it via a driver adapter.
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 model User {

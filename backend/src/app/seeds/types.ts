@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@/generated/prisma/client";
 
 export type FixtureRole = "owner" | "user" | "moderator" | "admin";
 export type SeedSource = "startup" | "script" | "test";

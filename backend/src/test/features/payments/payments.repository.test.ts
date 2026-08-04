@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 
 const FUTURE_HOLD_EXPIRES_AT = new Date("2099-04-21T00:00:00.000Z");
