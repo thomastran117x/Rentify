@@ -205,20 +205,42 @@ describe("mountRoutes", () => {
           },
           status: 200,
         }),
+      listSaved: async () =>
+        new Response(JSON.stringify({ route: "listSaved" }), {
+          headers: {
+            "content-type": "application/json; charset=UTF-8",
+          },
+          status: 200,
+        }),
+      listSavedIds: async () =>
+        new Response(JSON.stringify({ route: "listSavedIds" }), {
+          headers: {
+            "content-type": "application/json; charset=UTF-8",
+          },
+          status: 200,
+        }),
     };
     const app = createApp(
       new Map([[containerTokens.postingsController, postingsController]]),
     );
 
-    const [batchResponse, mineResponse, analyticsResponse, itemResponse] =
-      await Promise.all([
-        app.request(`http://rent.test${buildApiPath("/postings/batch")}`),
-        app.request(`http://rent.test${buildApiPath("/postings/me")}`),
-        app.request(
-          `http://rent.test${buildApiPath("/postings/analytics/summary")}`,
-        ),
-        app.request(`http://rent.test${buildApiPath("/postings/posting-123")}`),
-      ]);
+    const [
+      batchResponse,
+      mineResponse,
+      analyticsResponse,
+      savedResponse,
+      savedIdsResponse,
+      itemResponse,
+    ] = await Promise.all([
+      app.request(`http://rent.test${buildApiPath("/postings/batch")}`),
+      app.request(`http://rent.test${buildApiPath("/postings/me")}`),
+      app.request(
+        `http://rent.test${buildApiPath("/postings/analytics/summary")}`,
+      ),
+      app.request(`http://rent.test${buildApiPath("/postings/saved")}`),
+      app.request(`http://rent.test${buildApiPath("/postings/saved/ids")}`),
+      app.request(`http://rent.test${buildApiPath("/postings/posting-123")}`),
+    ]);
 
     await expect(batchResponse.json()).resolves.toEqual({
       route: "batchPublic",
@@ -226,6 +248,12 @@ describe("mountRoutes", () => {
     await expect(mineResponse.json()).resolves.toEqual({ route: "listMine" });
     await expect(analyticsResponse.json()).resolves.toEqual({
       route: "analyticsSummary",
+    });
+    // `saved` would satisfy the posting-id pattern, so these two assertions are
+    // what catch a registry reordering that lets /postings/:id bind first.
+    await expect(savedResponse.json()).resolves.toEqual({ route: "listSaved" });
+    await expect(savedIdsResponse.json()).resolves.toEqual({
+      route: "listSavedIds",
     });
     await expect(itemResponse.json()).resolves.toEqual({
       id: "posting-123",

@@ -9203,6 +9203,295 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /postings/saved:
+    get:
+      operationId: listSavedPostings
+      summary: List the caller's saved postings
+      description: 'Returns the authenticated caller''s saved postings as public posting snapshots, newest save first. Postings that stopped being publicly visible after they were saved are reported in `unavailablePostingIds` instead of `postings`, so a page can contain fewer entries than `pageSize`. PAT bearer authentication with `mcp:read` is allowed.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt-or-pat
+        minimumRole: user
+        patAllowed: true
+        patScope: 'mcp:read'
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ListSavedPostingsResult'
+                      meta:
+                        $ref: '#/components/schemas/ExtendedRequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  postings:
+                    - id: posting-1
+                      organizationId: org-1
+                      organization:
+                        id: org-1
+                        name: Owner One Organization
+                        slug: owner-one-organization
+                      status: published
+                      variant:
+                        family: place
+                        subtype: workspace
+                      name: Sunny loft workspace
+                      description: Bright downtown loft with desks and meeting space.
+                      pricing:
+                        currency: CAD
+                        daily:
+                          amount: 150
+                        hourly:
+                          amount: 25
+                      pricingCurrency: CAD
+                      photos:
+                        - id: photo-1
+                          blobUrl: 'https://cdn.rentify.local/postings/posting-1/photo-1.jpg'
+                          blobName: postings/posting-1/photo-1.jpg
+                          thumbnailBlobUrl: 'https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg'
+                          thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          position: 0
+                          createdAt: '2026-05-01T10:00:00.000Z'
+                          updatedAt: '2026-05-01T10:00:00.000Z'
+                      tags:
+                        - workspace
+                        - wifi
+                      details:
+                        guest_capacity: 4
+                        property_type: loft
+                        amenities:
+                          - wifi
+                          - coffee
+                        parking: true
+                      availabilityStatus: available
+                      availabilityNotes: Best for weekday bookings.
+                      maxBookingDurationDays: 30
+                      effectiveMaxBookingDurationDays: 30
+                      availabilityBlocks:
+                        - id: block-1
+                          startAt: '2026-06-10T00:00:00.000Z'
+                          endAt: '2026-06-12T00:00:00.000Z'
+                          note: Owner maintenance
+                          createdAt: '2026-05-10T10:00:00.000Z'
+                          updatedAt: '2026-05-10T10:00:00.000Z'
+                      location:
+                        city: Toronto
+                        region: Ontario
+                        country: Canada
+                        postalCode: M5V 1A1
+                        latitude: 43.65
+                        longitude: -79.38
+                      primaryPhotoUrl: 'https://cdn.rentify.local/postings/posting-1/photo-1.jpg'
+                      primaryThumbnailUrl: 'https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg'
+                      viewerReviewState:
+                        eligible: true
+                        hasOwnReview: false
+                      publishedAt: '2026-05-01T10:00:00.000Z'
+                      createdAt: '2026-05-01T09:00:00.000Z'
+                      updatedAt: '2026-05-20T09:00:00.000Z'
+                      savedAt: '2026-08-01T12:00:00.000Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                  unavailablePostingIds: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /postings/saved/ids:
+    get:
+      operationId: listSavedPostingIds
+      summary: List the caller's saved posting identifiers
+      description: 'Returns only the identifiers of the authenticated caller''s saved postings so a client can render saved state across a list of postings with a single request. The set is capped; when `truncated` is true the caller has more saved postings than the response carries. PAT bearer authentication with `mcp:read` is allowed.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt-or-pat
+        minimumRole: user
+        patAllowed: true
+        patScope: 'mcp:read'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ListSavedPostingIdsResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  postingIds:
+                    - posting-1
+                    - posting-2
+                  truncated: false
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/postings/{id}/save':
+    post:
+      operationId: savePosting
+      summary: Save a posting
+      description: 'Adds a publicly visible posting to the authenticated caller''s saved postings. The operation is idempotent: saving an already saved posting succeeds and preserves the original save time.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedPostingState'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Posting saved successfully.
+                data:
+                  postingId: posting-1
+                  saved: true
+                  savedAt: '2026-08-01T12:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: unsavePosting
+      summary: Remove a posting from saved postings
+      description: 'Removes a posting from the authenticated caller''s saved postings. The operation is idempotent and succeeds even when the posting was never saved, or is no longer publicly visible, so bookmarks cannot become stuck.'
+      tags:
+        - postings
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: jwt
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Posting identifier.
+          schema:
+            type: string
+          example: posting-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedPostingState'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Posting removed from saved postings.
+                data:
+                  postingId: posting-1
+                  saved: false
+                  savedAt: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /feedback:
     post:
       operationId: createAppFeedback
@@ -16335,6 +16624,64 @@ components:
         - reviews
         - summary
         - pagination
+    SavedPostingState:
+      type: object
+      required:
+        - postingId
+        - saved
+        - savedAt
+      properties:
+        postingId:
+          type: string
+        saved:
+          type: boolean
+          description: Whether the posting is saved by the caller after this operation.
+        savedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 'When the posting was saved, or null once removed.'
+    SavedPostingRecord:
+      allOf:
+        - $ref: '#/components/schemas/PublicPostingRecord'
+        - type: object
+          required:
+            - savedAt
+          properties:
+            savedAt:
+              type: string
+              format: date-time
+    ListSavedPostingsResult:
+      type: object
+      required:
+        - postings
+        - pagination
+        - unavailablePostingIds
+      properties:
+        postings:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedPostingRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        unavailablePostingIds:
+          type: array
+          items:
+            type: string
+          description: Identifiers of saved postings on this page that are no longer publicly visible.
+    ListSavedPostingIdsResult:
+      type: object
+      required:
+        - postingIds
+        - truncated
+      properties:
+        postingIds:
+          type: array
+          items:
+            type: string
+        truncated:
+          type: boolean
+          description: Whether the caller has more saved postings than this response carries.
     CreateReportRequest:
       type: object
       required:

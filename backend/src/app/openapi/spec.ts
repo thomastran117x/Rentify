@@ -596,6 +596,25 @@ const reviewExample = {
   createdAt: "2026-05-18T10:00:00.000Z",
   updatedAt: "2026-05-18T10:00:00.000Z",
 };
+const savedPostingStateExample = {
+  postingId: "posting-1",
+  saved: true,
+  savedAt: "2026-08-01T12:00:00.000Z",
+};
+const savedPostingsResultExample = {
+  postings: [
+    {
+      ...postingExample,
+      savedAt: "2026-08-01T12:00:00.000Z",
+    },
+  ],
+  pagination: searchResultExample.pagination,
+  unavailablePostingIds: [],
+};
+const savedPostingIdsResultExample = {
+  postingIds: ["posting-1", "posting-2"],
+  truncated: false,
+};
 const reportExample = {
   id: "report-1",
   reporterId: "user-1",
@@ -5125,6 +5144,117 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/postings/saved",
+      operationId: "listSavedPostings",
+      summary: "List the caller's saved postings",
+      description:
+        "Returns the authenticated caller's saved postings as public posting snapshots, newest save first. Postings that stopped being publicly visible after they were saved are reported in `unavailablePostingIds` instead of `postings`, so a page can contain fewer entries than `pageSize`. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [parameterRef("Page"), parameterRef("PageSize")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ListSavedPostingsResult",
+          savedPostingsResultExample,
+          "Successful response.",
+          {
+            requestId: requestIdExample,
+            pagination: searchResultExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/saved/ids",
+      operationId: "listSavedPostingIds",
+      summary: "List the caller's saved posting identifiers",
+      description:
+        "Returns only the identifiers of the authenticated caller's saved postings so a client can render saved state across a list of postings with a single request. The set is capped; when `truncated` is true the caller has more saved postings than the response carries. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ListSavedPostingIdsResult",
+          savedPostingIdsResultExample,
+          "Successful response.",
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/postings/:id/save",
+      operationId: "savePosting",
+      summary: "Save a posting",
+      description:
+        "Adds a publicly visible posting to the authenticated caller's saved postings. The operation is idempotent: saving an already saved posting succeeds and preserves the original save time.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Posting identifier.", "posting-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Posting saved successfully.",
+          "SavedPostingState",
+          savedPostingStateExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/postings/:id/save",
+      operationId: "unsavePosting",
+      summary: "Remove a posting from saved postings",
+      description:
+        "Removes a posting from the authenticated caller's saved postings. The operation is idempotent and succeeds even when the posting was never saved, or is no longer publicly visible, so bookmarks cannot become stuck.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Posting identifier.", "posting-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Posting removed from saved postings.",
+          "SavedPostingState",
+          {
+            ...savedPostingStateExample,
+            saved: false,
+            savedAt: null,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/feedback",
       operationId: "createAppFeedback",
@@ -9425,6 +9555,68 @@ function buildComponents(): Record<string, unknown> {
           pagination: schemaRef("Pagination"),
         },
         required: ["reviews", "summary", "pagination"],
+      },
+      SavedPostingState: {
+        type: "object",
+        required: ["postingId", "saved", "savedAt"],
+        properties: {
+          postingId: { type: "string" },
+          saved: {
+            type: "boolean",
+            description:
+              "Whether the posting is saved by the caller after this operation.",
+          },
+          savedAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            description: "When the posting was saved, or null once removed.",
+          },
+        },
+      },
+      SavedPostingRecord: {
+        allOf: [
+          schemaRef("PublicPostingRecord"),
+          {
+            type: "object",
+            required: ["savedAt"],
+            properties: {
+              savedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      ListSavedPostingsResult: {
+        type: "object",
+        required: ["postings", "pagination", "unavailablePostingIds"],
+        properties: {
+          postings: {
+            type: "array",
+            items: schemaRef("SavedPostingRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+          unavailablePostingIds: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Identifiers of saved postings on this page that are no longer publicly visible.",
+          },
+        },
+      },
+      ListSavedPostingIdsResult: {
+        type: "object",
+        required: ["postingIds", "truncated"],
+        properties: {
+          postingIds: {
+            type: "array",
+            items: { type: "string" },
+          },
+          truncated: {
+            type: "boolean",
+            description:
+              "Whether the caller has more saved postings than this response carries.",
+          },
+        },
       },
       CreateReportRequest: {
         type: "object",

@@ -41,6 +41,11 @@ import {
 } from "@/features/postings/reviews/reviews.model";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import {
+  listSavedPostingsQuerySchema,
+  type ListSavedPostingsQuery,
+} from "@/features/postings/saved/saved-postings.model";
+import { SavedPostingsService } from "@/features/postings/saved/saved-postings.service";
+import {
   upsertSeasonalPricingSchema,
   type UpsertSeasonalPricingBody,
 } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
@@ -90,6 +95,7 @@ export class PostingsController {
     private readonly postingsReviewsService: PostingsReviewsService,
     private readonly seasonalPricingService: SeasonalPricingService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
+    private readonly savedPostingsService: SavedPostingsService,
   ) {
     this.logger = loggerFactory.forClass(PostingsController, "controller");
   }
@@ -511,6 +517,47 @@ export class PostingsController {
     });
   };
 
+  listSaved = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const query = this.parseListSavedPostingsQuery(context);
+    const result = await this.savedPostingsService.list(
+      auth.sub,
+      query.page,
+      query.pageSize,
+    );
+    return ok(context, result, {
+      meta: paginationMeta(result),
+    });
+  };
+
+  listSavedIds = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.savedPostingsService.listIds(auth.sub);
+    return ok(context, result);
+  };
+
+  save = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.savedPostingsService.save(
+      this.requireRouteId(context),
+      auth.sub,
+    );
+    return ok(context, result, {
+      message: "Posting saved successfully.",
+    });
+  };
+
+  unsave = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await this.requireAuth(context);
+    const result = await this.savedPostingsService.unsave(
+      this.requireRouteId(context),
+      auth.sub,
+    );
+    return ok(context, result, {
+      message: "Posting removed from saved postings.",
+    });
+  };
+
   listSeasonalPricing = async (
     context: Context<AppBindings>,
   ): Promise<Response> => {
@@ -702,6 +749,21 @@ export class PostingsController {
 
     try {
       return listPostingReviewsQuerySchema.parse({
+        page: url.searchParams.get("page") ?? undefined,
+        pageSize: url.searchParams.get("pageSize") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseListSavedPostingsQuery(
+    context: Context<AppBindings>,
+  ): ListSavedPostingsQuery {
+    const url = new URL(context.req.url);
+
+    try {
+      return listSavedPostingsQuerySchema.parse({
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
       });

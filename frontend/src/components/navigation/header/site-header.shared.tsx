@@ -101,6 +101,11 @@ export function getAccountLinks(
         ]
       : []),
     {
+      href: "/saved",
+      label: "Saved postings",
+      description: "Postings you hearted while browsing",
+    },
+    {
       href: "/bookings",
       label: "Bookings",
       description: isOwnerRole(role)
