@@ -1,5 +1,21 @@
 import { RecommendationPrecomputeService } from "@/features/recommendations/recommendation-precompute.service";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// `processBatch` filters activity and candidates against a rolling lookback
+// window off the real clock (90 days personalized, 30 days popular), so these
+// fixtures are anchored to now rather than pinned to absolute dates. The
+// previous literals (activity on 2026-05-06, candidate published 2026-05-07)
+// aged out of the 90-day window on 2026-08-04 and turned the suite red
+// mid-morning without a single source change.
+//
+// The candidate stays published after the activity, preserving the original
+// ordering between the two.
+const ACTIVITY_LAST_OCCURRED_AT = new Date(
+  Date.now() - 2 * DAY_MS,
+).toISOString();
+const CANDIDATE_PUBLISHED_AT = new Date(Date.now() - DAY_MS).toISOString();
+
 describe("RecommendationPrecomputeService", () => {
   it("marks users with insufficient activity as unqualified and omits the personalized snapshot", async () => {
     const repository = createRepositoryMock({
@@ -545,7 +561,7 @@ function createActivity(input: {
   return {
     ...input,
     count: 1,
-    lastOccurredAt: "2026-05-06T12:00:00.000Z",
+    lastOccurredAt: ACTIVITY_LAST_OCCURRED_AT,
   };
 }
 
@@ -559,6 +575,6 @@ function createCandidate(input: {
     ...input,
     ownerId: `owner-${input.id}`,
     availabilityStatus: "available" as const,
-    publishedAt: "2026-05-07T10:00:00.000Z",
+    publishedAt: CANDIDATE_PUBLISHED_AT,
   };
 }
