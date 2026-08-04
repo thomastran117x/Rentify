@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { OrganizationReviewRepository } from "@/features/organizations/organization-review.repository";
 
 function buildRow(overrides: Record<string, unknown> = {}) {

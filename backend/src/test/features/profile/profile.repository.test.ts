@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { ReportsRepository } from "@/features/reports/reports.repository";
 
 function createUserPersistence(overrides: Record<string, unknown> = {}) {

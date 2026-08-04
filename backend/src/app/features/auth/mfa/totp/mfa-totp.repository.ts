@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { UserMfaTotp } from "@prisma/client";
+import type { UserMfaTotp } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 
 export type { UserMfaTotp };

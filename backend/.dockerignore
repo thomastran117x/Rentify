@@ -4,3 +4,4 @@ dist
 .git
 npm-debug.log
 Dockerfile
+src/app/generated

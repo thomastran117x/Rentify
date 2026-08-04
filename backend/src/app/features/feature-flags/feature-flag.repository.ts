@@ -1,4 +1,7 @@
-import type { FeatureFlag, FeatureFlagAuditLog } from "@prisma/client";
+import type {
+  FeatureFlag,
+  FeatureFlagAuditLog,
+} from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   CreateAuditLogInput,

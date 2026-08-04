@@ -1,11 +1,20 @@
 const mockPrismaClient = jest.fn();
+const mockPrismaMariaDb = jest.fn();
 const mockGetDatabaseConfig = jest.fn();
 const mockLoggerInfo = jest.fn();
 const mockLoggerWarn = jest.fn();
 
-jest.mock("@prisma/client", () => ({
+jest.mock("@/generated/prisma/client", () => ({
   PrismaClient: function PrismaClient(...args: unknown[]) {
     return mockPrismaClient(...args);
+  },
+}));
+
+// Prisma 7 connects through a driver adapter. Stubbed at the boundary so these
+// stay unit tests -- the real adapter validates the connection string eagerly.
+jest.mock("@prisma/adapter-mariadb", () => ({
+  PrismaMariaDb: function PrismaMariaDb(...args: unknown[]) {
+    return mockPrismaMariaDb(...args);
   },
 }));
 
@@ -60,6 +69,7 @@ describe("database resource", () => {
     jest.resetModules();
     jest.clearAllMocks();
     mockGetDatabaseConfig.mockReturnValue({
+      url: "mysql://rent:rent@localhost:3306/rent",
       queryLoggingEnabled: false,
       slowQueryThresholdMs: 250,
     });
@@ -75,6 +85,10 @@ describe("database resource", () => {
     const connectedAgain = await databaseModule.connectDatabase();
 
     expect(mockPrismaClient).toHaveBeenCalledTimes(1);
+    expect(mockPrismaMariaDb).toHaveBeenCalledTimes(1);
+    expect(mockPrismaMariaDb).toHaveBeenCalledWith(
+      "mysql://rent:rent@localhost:3306/rent",
+    );
     expect(firstClient.client.$connect).toHaveBeenCalledTimes(2);
     expect(connectedAgain).toBe(connected);
     expect(databaseModule.getDatabaseClient()).toBe(firstClient.client);

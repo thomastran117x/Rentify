@@ -8,6 +8,7 @@
   "main": "./dist/server.js",
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
+    "postinstall": "prisma generate",
     "seed": "tsx src/app/scripts/seed.ts",
     "seed:dev": "tsx src/app/scripts/seed.ts",
     "seed:refresh": "tsx src/app/scripts/seed.ts --refresh",
@@ -64,13 +65,15 @@
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
     "@hono/node-server": "^2.0.12",
-    "@prisma/client": "^6.7.0",
+    "@prisma/adapter-mariadb": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "amqplib": "^2.0.1",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
     "hono": "^4.12.33",
     "mysql2": "^3.15.2",
     "nodemailer": "^9.0.3",
+    "prisma": "^7.9.1",
     "redis": "^6.1.0",
     "sharp": "^0.35.3",
     "xss": "^1.0.15",
@@ -82,18 +85,16 @@
     "@types/node": "^25.6.0",
     "@types/nodemailer": "^8.0.0",
     "jest": "^30.3.0",
-    "prisma": "^6.7.0",
     "ts-jest": "^29.4.9",
     "tsup": "^8.5.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
   "allowScripts": {
-    "@prisma/client@6.19.3": true,
-    "@prisma/engines@6.19.3": true,
+    "@prisma/engines@7.9.1": true,
     "bcrypt@6.0.0": true,
     "esbuild@0.27.7": true,
-    "prisma@6.19.3": true,
+    "prisma@7.9.1": true,
     "unrs-resolver@1.11.1": true
   }
 }

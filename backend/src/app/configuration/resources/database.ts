@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaClient } from "@/generated/prisma/client";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 
@@ -7,7 +8,10 @@ const databaseLogger = loggerFactory.forComponent("database", "resource");
 
 function createDatabaseClient(): PrismaClient {
   const config = environment.getDatabaseConfig();
+  // Prisma 7 connects through a driver adapter rather than reading the URL
+  // from schema.prisma, so the connection string is supplied here.
   const client = new PrismaClient({
+    adapter: new PrismaMariaDb(config.url),
     log: [
       {
         emit: "event",

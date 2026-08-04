@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Feedback } from "@prisma/client";
+import type { Feedback } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   AppFeedbackRecord,
