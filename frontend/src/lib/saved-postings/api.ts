@@ -16,15 +16,30 @@ export interface SavedPostingSummary extends PublicPostingSummary {
   savedAt: string;
 }
 
+/**
+ * `paused` can be reversed by the owner, so the visitor is offered the choice
+ * of waiting rather than being nudged to remove the save; `unavailable` covers
+ * archived, unpublished, and removed postings.
+ */
+export type SavedPostingUnavailableReason = "paused" | "unavailable";
+
+export interface UnavailableSavedPosting {
+  postingId: string;
+  /** Null once the posting record itself is gone. */
+  name: string | null;
+  reason: SavedPostingUnavailableReason;
+  savedAt: string;
+}
+
 export interface ListSavedPostingsResult {
   postings: SavedPostingSummary[];
   pagination: Pagination;
   /**
-   * Saved postings on this page that are no longer publicly visible. They are
+   * Saved postings on this page that are no longer publicly viewable. They are
    * still counted by `pagination.total`, so a page can render fewer cards than
    * its page size.
    */
-  unavailablePostingIds: string[];
+  unavailablePostings: UnavailableSavedPosting[];
 }
 
 export interface ListSavedPostingIdsResult {

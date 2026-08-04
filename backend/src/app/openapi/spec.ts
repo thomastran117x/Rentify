@@ -609,7 +609,14 @@ const savedPostingsResultExample = {
     },
   ],
   pagination: searchResultExample.pagination,
-  unavailablePostingIds: [],
+  unavailablePostings: [
+    {
+      postingId: "posting-9",
+      name: "Harbourside Studio",
+      reason: "paused",
+      savedAt: "2026-07-20T09:30:00.000Z",
+    },
+  ],
 };
 const savedPostingIdsResultExample = {
   postingIds: ["posting-1", "posting-2"],
@@ -5149,7 +5156,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "listSavedPostings",
       summary: "List the caller's saved postings",
       description:
-        "Returns the authenticated caller's saved postings as public posting snapshots, newest save first. Postings that stopped being publicly visible after they were saved are reported in `unavailablePostingIds` instead of `postings`, so a page can contain fewer entries than `pageSize`. PAT bearer authentication with `mcp:read` is allowed.",
+        "Returns the authenticated caller's saved postings as public posting snapshots, newest save first. Postings that stopped being publicly viewable after they were saved are reported in `unavailablePostings`, with the name and the reason, instead of `postings`, so a page can contain fewer entries than `pageSize`. PAT bearer authentication with `mcp:read` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -9586,20 +9593,40 @@ function buildComponents(): Record<string, unknown> {
           },
         ],
       },
+      UnavailableSavedPosting: {
+        type: "object",
+        required: ["postingId", "name", "reason", "savedAt"],
+        properties: {
+          postingId: { type: "string" },
+          name: {
+            type: "string",
+            nullable: true,
+            description:
+              "Name the posting had when it was last readable, or null once the posting record is gone.",
+          },
+          reason: {
+            type: "string",
+            enum: ["paused", "unavailable"],
+            description:
+              "`paused` can be reversed by the owner; `unavailable` covers archived, unpublished, and removed postings.",
+          },
+          savedAt: { type: "string", format: "date-time" },
+        },
+      },
       ListSavedPostingsResult: {
         type: "object",
-        required: ["postings", "pagination", "unavailablePostingIds"],
+        required: ["postings", "pagination", "unavailablePostings"],
         properties: {
           postings: {
             type: "array",
             items: schemaRef("SavedPostingRecord"),
           },
           pagination: schemaRef("Pagination"),
-          unavailablePostingIds: {
+          unavailablePostings: {
             type: "array",
-            items: { type: "string" },
+            items: schemaRef("UnavailableSavedPosting"),
             description:
-              "Identifiers of saved postings on this page that are no longer publicly visible.",
+              "Saved postings on this page that are no longer publicly viewable. They still count towards the pagination total.",
           },
         },
       },

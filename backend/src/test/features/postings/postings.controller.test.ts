@@ -1485,7 +1485,7 @@ describe("PostingsController", () => {
       const list = jest.fn(async () => ({
         postings: [],
         pagination,
-        unavailablePostingIds: [],
+        unavailablePostings: [],
       }));
       const controller = createController({}, { savedPostings: { list } });
       const context = createContext({
@@ -1514,7 +1514,7 @@ describe("PostingsController", () => {
           hasNextPage: false,
           hasPreviousPage: false,
         },
-        unavailablePostingIds: [],
+        unavailablePostings: [],
       }));
       const controller = createController({}, { savedPostings: { list } });
 

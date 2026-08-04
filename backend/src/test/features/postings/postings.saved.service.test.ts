@@ -17,6 +17,7 @@ function createDependencies(
     savedPostings?: Record<string, unknown>;
     postings?: Record<string, unknown>;
     publicCache?: Record<string, unknown>;
+    cache?: Record<string, unknown>;
   } = {},
 ) {
   const savedPostingsRepository = {
@@ -40,21 +41,30 @@ function createDependencies(
   };
   const postingsRepository = {
     findPublicReadMetadataById: jest.fn(async () => createMetadata()),
+    findLifecycleSummariesByIds: jest.fn(async () => []),
     ...overrides.postings,
   };
   const postingsPublicCacheService = {
     getPublicByIds: jest.fn(async () => ({ postings: [], missingIds: [] })),
     ...overrides.publicCache,
   };
+  const cacheService = {
+    getJson: jest.fn(async () => null),
+    setJson: jest.fn(async () => undefined),
+    delete: jest.fn(async () => undefined),
+    ...overrides.cache,
+  };
 
   return {
     savedPostingsRepository,
     postingsRepository,
     postingsPublicCacheService,
+    cacheService,
     service: new SavedPostingsService(
       savedPostingsRepository as any,
       postingsRepository as any,
       postingsPublicCacheService as any,
+      cacheService as any,
     ),
   };
 }
@@ -181,7 +191,7 @@ describe("SavedPostingsService", () => {
       const result = await service.list("user-1", 1, 20);
 
       expect(result.postings).toEqual([]);
-      expect(result.unavailablePostingIds).toEqual([]);
+      expect(result.unavailablePostings).toEqual([]);
       expect(postingsPublicCacheService.getPublicByIds).not.toHaveBeenCalled();
     });
 
@@ -240,7 +250,7 @@ describe("SavedPostingsService", () => {
       ]);
     });
 
-    it("reports postings that are no longer visible without changing the total", async () => {
+    it("describes postings that are no longer viewable without changing the total", async () => {
       const { service } = createDependencies({
         savedPostings: {
           listPage: jest.fn(async () => ({
@@ -264,6 +274,15 @@ describe("SavedPostingsService", () => {
             },
           })),
         },
+        postings: {
+          findLifecycleSummariesByIds: jest.fn(async () => [
+            {
+              id: "posting-2",
+              name: "Paused loft",
+              status: "paused",
+            },
+          ]),
+        },
         publicCache: {
           getPublicByIds: jest.fn(async () => ({
             postings: [{ id: "posting-1", name: "First" }],
@@ -275,8 +294,112 @@ describe("SavedPostingsService", () => {
       const result = await service.list("user-1", 1, 20);
 
       expect(result.postings).toHaveLength(1);
-      expect(result.unavailablePostingIds).toEqual(["posting-2"]);
+      expect(result.unavailablePostings).toEqual([
+        {
+          postingId: "posting-2",
+          name: "Paused loft",
+          reason: "paused",
+          savedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ]);
       expect(result.pagination.total).toBe(2);
+    });
+
+    // An archived or unpublished posting is not coming back on its own, so it
+    // is reported differently from a paused one.
+    it("separates archived postings from paused ones", async () => {
+      const { service } = createDependencies({
+        savedPostings: {
+          listPage: jest.fn(async () => ({
+            entries: [
+              {
+                postingId: "posting-2",
+                createdAt: new Date("2026-07-01T00:00:00.000Z"),
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          })),
+        },
+        postings: {
+          findLifecycleSummariesByIds: jest.fn(async () => [
+            {
+              id: "posting-2",
+              name: "Archived loft",
+              status: "published",
+              archivedAt: "2026-07-15T00:00:00.000Z",
+            },
+          ]),
+        },
+        publicCache: {
+          getPublicByIds: jest.fn(async () => ({
+            postings: [],
+            missingIds: ["posting-2"],
+          })),
+        },
+      });
+
+      const result = await service.list("user-1", 1, 20);
+
+      expect(result.unavailablePostings).toEqual([
+        {
+          postingId: "posting-2",
+          name: "Archived loft",
+          reason: "unavailable",
+          savedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ]);
+    });
+
+    // The posting row can disappear between the saved-row read and the
+    // hydrate. The entry still has to be reported so the count stays honest.
+    it("reports a vanished posting with a null name", async () => {
+      const { service } = createDependencies({
+        savedPostings: {
+          listPage: jest.fn(async () => ({
+            entries: [
+              {
+                postingId: "posting-2",
+                createdAt: new Date("2026-07-01T00:00:00.000Z"),
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          })),
+        },
+        postings: {
+          findLifecycleSummariesByIds: jest.fn(async () => []),
+        },
+        publicCache: {
+          getPublicByIds: jest.fn(async () => ({
+            postings: [],
+            missingIds: ["posting-2"],
+          })),
+        },
+      });
+
+      const result = await service.list("user-1", 1, 20);
+
+      expect(result.unavailablePostings).toEqual([
+        {
+          postingId: "posting-2",
+          name: null,
+          reason: "unavailable",
+          savedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ]);
     });
   });
 
@@ -317,6 +440,88 @@ describe("SavedPostingsService", () => {
 
       expect(result.postingIds).toHaveLength(SAVED_POSTING_IDS_LIMIT);
       expect(result.truncated).toBe(true);
+    });
+  });
+
+  describe("identifier caching", () => {
+    it("serves a cached set without touching the database", async () => {
+      const cached = { postingIds: ["posting-1"], truncated: false };
+      const { service, savedPostingsRepository } = createDependencies({
+        cache: {
+          getJson: jest.fn(async () => cached),
+        },
+      });
+
+      await expect(service.listIds("user-1")).resolves.toEqual(cached);
+      expect(savedPostingsRepository.listIds).not.toHaveBeenCalled();
+    });
+
+    it("caches the set it reads with a bounded lifetime", async () => {
+      const { service, cacheService } = createDependencies({
+        savedPostings: {
+          listIds: jest.fn(async () => ["posting-1"]),
+        },
+      });
+
+      await service.listIds("user-1");
+
+      expect(cacheService.setJson).toHaveBeenCalledWith(
+        "postings:saved:ids:user-1",
+        { postingIds: ["posting-1"], truncated: false },
+        expect.any(Number),
+      );
+      const [, , ttl] = (cacheService.setJson as jest.Mock).mock.calls[0]!;
+      expect(ttl).toBeGreaterThan(0);
+    });
+
+    it.each([
+      ["save", (service: any) => service.save("posting-1", "user-1")],
+      ["unsave", (service: any) => service.unsave("posting-1", "user-1")],
+    ])("invalidates the cached set on %s", async (_label, act) => {
+      const { service, cacheService } = createDependencies();
+
+      await act(service);
+
+      expect(cacheService.delete).toHaveBeenCalledWith(
+        "postings:saved:ids:user-1",
+      );
+    });
+
+    // A Redis outage must degrade to a database read, never a failed request.
+    it("falls back to the database when the cache read throws", async () => {
+      const { service, savedPostingsRepository } = createDependencies({
+        savedPostings: {
+          listIds: jest.fn(async () => ["posting-1"]),
+        },
+        cache: {
+          getJson: jest.fn(async () => {
+            throw new Error("redis down");
+          }),
+        },
+      });
+
+      await expect(service.listIds("user-1")).resolves.toEqual({
+        postingIds: ["posting-1"],
+        truncated: false,
+      });
+      expect(savedPostingsRepository.listIds).toHaveBeenCalled();
+    });
+
+    it("still saves when the cache write throws", async () => {
+      const { service } = createDependencies({
+        cache: {
+          setJson: jest.fn(async () => {
+            throw new Error("redis down");
+          }),
+          delete: jest.fn(async () => {
+            throw new Error("redis down");
+          }),
+        },
+      });
+
+      await expect(service.save("posting-1", "user-1")).resolves.toEqual(
+        expect.objectContaining({ saved: true }),
+      );
     });
   });
 });

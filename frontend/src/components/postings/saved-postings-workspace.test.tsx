@@ -73,7 +73,7 @@ function paginated(
       hasPreviousPage: false,
       ...overrides,
     },
-    unavailablePostingIds: [],
+    unavailablePostings: [],
   };
 }
 
@@ -139,17 +139,76 @@ describe("SavedPostingsWorkspace", () => {
     ).toBeInTheDocument();
   });
 
-  it("notes saved postings that are no longer available", async () => {
+  it("names a paused posting and says it may come back", async () => {
     listMock.mockResolvedValue({
       ...paginated([makePosting()]),
-      unavailablePostingIds: ["posting-9"],
+      unavailablePostings: [
+        {
+          postingId: "posting-9",
+          name: "Harbourside Studio",
+          reason: "paused",
+          savedAt: "2026-07-20T09:30:00.000Z",
+        },
+      ],
     });
 
     render(<SavedPostingsWorkspace />);
 
     expect(
       await screen.findByText(
-        "1 saved posting is no longer available and cannot be shown.",
+        "Harbourside Studio is unavailable to view right now. The host has paused it, so it may come back.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("names a removed posting and says it is gone", async () => {
+    listMock.mockResolvedValue({
+      ...paginated([makePosting()]),
+      unavailablePostings: [
+        {
+          postingId: "posting-9",
+          name: "Harbourside Studio",
+          reason: "unavailable",
+          savedAt: "2026-07-20T09:30:00.000Z",
+        },
+      ],
+    });
+
+    render(<SavedPostingsWorkspace />);
+
+    expect(
+      await screen.findByText(
+        "Harbourside Studio is no longer available to view. It has been removed from the marketplace.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to generic wording when the posting record is gone", async () => {
+    listMock.mockResolvedValue({
+      ...paginated([]),
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      unavailablePostings: [
+        {
+          postingId: "posting-9",
+          name: null,
+          reason: "unavailable",
+          savedAt: "2026-07-20T09:30:00.000Z",
+        },
+      ],
+    });
+
+    render(<SavedPostingsWorkspace />);
+
+    expect(
+      await screen.findByText(
+        "This posting is no longer available to view. It has been removed from the marketplace.",
       ),
     ).toBeInTheDocument();
   });
@@ -236,7 +295,20 @@ describe("SavedPostingsWorkspace", () => {
           hasNextPage: false,
           hasPreviousPage: false,
         },
-        unavailablePostingIds: ["posting-8", "posting-9"],
+        unavailablePostings: [
+          {
+            postingId: "posting-8",
+            name: "Harbourside Studio",
+            reason: "paused" as const,
+            savedAt: "2026-07-20T09:30:00.000Z",
+          },
+          {
+            postingId: "posting-9",
+            name: "Old Mill Loft",
+            reason: "unavailable" as const,
+            savedAt: "2026-07-21T09:30:00.000Z",
+          },
+        ],
       };
     }
 
@@ -245,29 +317,27 @@ describe("SavedPostingsWorkspace", () => {
 
       render(<SavedPostingsWorkspace />);
 
-      expect(
-        await screen.findByText(
-          "2 saved postings are no longer available and cannot be shown.",
-        ),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/Harbourside Studio/)).toBeInTheDocument();
+      expect(screen.getByText(/Old Mill Loft/)).toBeInTheDocument();
       expect(
         screen.queryByText("You haven't saved any postings yet"),
       ).not.toBeInTheDocument();
     });
 
-    it("lets the visitor clear the unavailable rows", async () => {
+    it("removes a single unavailable posting on request", async () => {
       listMock.mockResolvedValue(unavailableOnlyPage());
       const user = userEvent.setup();
 
       render(<SavedPostingsWorkspace />);
-      await screen.findByRole("button", { name: "Remove them" });
+      const removeButton = await screen.findByRole("button", {
+        name: "Remove Harbourside Studio from saved postings",
+      });
 
-      await user.click(screen.getByRole("button", { name: "Remove them" }));
+      await user.click(removeButton);
 
-      await waitFor(() => expect(unsaveMock).toHaveBeenCalledTimes(2));
-      expect(unsaveMock).toHaveBeenCalledWith("posting-8");
-      expect(unsaveMock).toHaveBeenCalledWith("posting-9");
-      // The list is re-read so the totals settle.
+      await waitFor(() => expect(unsaveMock).toHaveBeenCalledWith("posting-8"));
+      // The other one is left alone: removal is per posting, never a sweep.
+      expect(unsaveMock).toHaveBeenCalledTimes(1);
       await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
     });
 

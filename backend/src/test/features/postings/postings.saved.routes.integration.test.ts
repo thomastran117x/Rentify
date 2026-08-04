@@ -22,7 +22,7 @@ function createApp() {
         hasNextPage: false,
         hasPreviousPage: false,
       },
-      unavailablePostingIds: [],
+      unavailablePostings: [],
     })),
     listIds: jest.fn(async () => ({
       postingIds: ["posting-1"],

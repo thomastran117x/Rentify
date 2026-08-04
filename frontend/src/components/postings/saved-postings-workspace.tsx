@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Heart } from "lucide-react";
+import { EyeOff, Heart } from "lucide-react";
 import { Pagination } from "@/components/common/pagination";
 import { useAuth } from "@/components/auth/auth-context";
 import { PostingResultCard } from "@/components/postings/posting-result-card";
@@ -13,6 +13,7 @@ import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import {
   savedPostingsApi,
   type SavedPostingSummary,
+  type UnavailableSavedPosting,
 } from "@/lib/saved-postings/api";
 import { theme } from "@/styles/theme";
 
@@ -49,6 +50,62 @@ function PageHeading() {
   );
 }
 
+/**
+ * A saved posting that can no longer be viewed. It is rendered rather than
+ * dropped so the visitor can see which of their saves went away, and decide:
+ * a paused posting may well come back, so removing it is never the default.
+ */
+function UnavailableSavedPostingRow({
+  entry,
+  removing,
+  onRemove,
+}: {
+  entry: UnavailableSavedPosting;
+  removing: boolean;
+  onRemove: () => void;
+}) {
+  const label = entry.name ?? "This posting";
+  const message =
+    entry.reason === "paused"
+      ? `${label} is unavailable to view right now. The host has paused it, so it may come back.`
+      : `${label} is no longer available to view. It has been removed from the marketplace.`;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/60">
+      <div className="flex items-start gap-3">
+        <EyeOff
+          className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500"
+          aria-hidden="true"
+        />
+        <div>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {message}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {entry.reason === "paused"
+              ? "It stays in your saved postings until you remove it."
+              : "You can clear it from your saved postings."}
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={removing}
+        aria-label={`Remove ${label} from saved postings`}
+        className={
+          removing
+            ? theme.marketplace.saveButtonLabelledDisabled
+            : theme.marketplace.saveButtonLabelled
+        }
+      >
+        {removing ? "Removing..." : "Remove"}
+      </button>
+    </div>
+  );
+}
+
 export function SavedPostingsWorkspace() {
   const { status: authStatus } = useAuth();
   const { isSaved, markSaved } = useSavedPostings();
@@ -57,8 +114,8 @@ export function SavedPostingsWorkspace() {
   const [pageSize, setPageSize] = useState<number>(20);
   const [postings, setPostings] = useState<SavedPostingSummary[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
-  const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
-  const [clearingUnavailable, setClearingUnavailable] = useState(false);
+  const [unavailable, setUnavailable] = useState<UnavailableSavedPosting[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +139,7 @@ export function SavedPostingsWorkspace() {
 
         setPostings(result.postings);
         setPagination(result.pagination);
-        setUnavailableIds(result.unavailablePostingIds);
+        setUnavailable(result.unavailablePostings);
         // Everything on this page is saved by definition. Seeding the shared
         // set keeps the hearts filled even if the identifier request has not
         // come back yet.
@@ -129,39 +186,34 @@ export function SavedPostingsWorkspace() {
     0,
   );
 
-  const unavailableCount = unavailableIds.length;
   // A page can be free of renderable cards while the account still holds saved
-  // rows, either because every row on it became unavailable or because the
-  // visitor is past the last page. Only a zero total means an empty wishlist.
+  // rows, either because every row on it is unavailable or because the visitor
+  // is past the last page. Only a zero total means an empty wishlist.
   const hasNoSavedPostings = (pagination?.total ?? 0) === 0;
 
-  const handleClearUnavailable = useCallback(async () => {
-    if (unavailableIds.length === 0) {
-      return;
-    }
-
-    setClearingUnavailable(true);
+  const handleRemoveUnavailable = useCallback(async (postingId: string) => {
+    setRemovingId(postingId);
 
     try {
-      // Unsave is idempotent and is deliberately not gated on visibility, so
-      // these rows can be cleared even though they can no longer be rendered.
-      await Promise.all(
-        unavailableIds.map((postingId) => savedPostingsApi.unsave(postingId)),
+      // Unsave is idempotent and deliberately not gated on visibility, so a
+      // posting that can no longer be rendered can still be cleared.
+      await savedPostingsApi.unsave(postingId);
+      setUnavailable((current) =>
+        current.filter((entry) => entry.postingId !== postingId),
       );
-      setUnavailableIds([]);
       setReloadToken((current) => current + 1);
     } catch (nextError) {
       setError(
         getApiErrorMessage(nextError, {
-          action: "remove those saved postings",
+          action: "remove that saved posting",
           fallback:
-            "We couldn't remove those saved postings right now. Please try again.",
+            "We couldn't remove that saved posting right now. Please try again.",
         }),
       );
     } finally {
-      setClearingUnavailable(false);
+      setRemovingId(null);
     }
-  }, [unavailableIds]);
+  }, []);
 
   if (authStatus === "loading") {
     return (
@@ -236,33 +288,16 @@ export function SavedPostingsWorkspace() {
         </div>
       ) : (
         <div className="space-y-4">
-          {unavailableCount > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-dashed border-slate-300 px-4 py-3 dark:border-slate-700">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {unavailableCount === 1
-                  ? "1 saved posting is no longer available and cannot be shown."
-                  : `${unavailableCount} saved postings are no longer available and cannot be shown.`}
-              </p>
-              <button
-                type="button"
-                onClick={() => void handleClearUnavailable()}
-                disabled={clearingUnavailable}
-                className={
-                  clearingUnavailable
-                    ? theme.marketplace.saveButtonLabelledDisabled
-                    : theme.marketplace.saveButtonLabelled
-                }
-              >
-                {clearingUnavailable
-                  ? "Removing..."
-                  : unavailableCount === 1
-                    ? "Remove it"
-                    : "Remove them"}
-              </button>
-            </div>
-          ) : null}
+          {unavailable.map((entry) => (
+            <UnavailableSavedPostingRow
+              key={entry.postingId}
+              entry={entry}
+              removing={removingId === entry.postingId}
+              onRemove={() => void handleRemoveUnavailable(entry.postingId)}
+            />
+          ))}
 
-          {postings.length === 0 ? (
+          {postings.length === 0 && unavailable.length === 0 ? (
             <p className={theme.marketplace.resultsEmpty}>
               Nothing on this page can be shown right now. Try another page.
             </p>

@@ -42,15 +42,31 @@ export interface SavedPostingsPagination {
   hasPreviousPage: boolean;
 }
 
+/**
+ * Why a saved posting cannot be rendered. `paused` is reversible by the owner,
+ * so the UI should let the visitor keep waiting on it rather than nudge them
+ * to remove it; `unavailable` covers archived, unpublished, and removed.
+ */
+export type SavedPostingUnavailableReason = "paused" | "unavailable";
+
+export interface UnavailableSavedPosting {
+  postingId: string;
+  /** Null when the posting record itself has gone. */
+  name: string | null;
+  reason: SavedPostingUnavailableReason;
+  savedAt: string;
+}
+
 export interface ListSavedPostingsResult {
   postings: SavedPostingRecord[];
   pagination: SavedPostingsPagination;
   /**
    * Saved rows on this page whose posting is no longer publicly visible
-   * because it was paused or archived after being saved. `pagination.total`
-   * still counts them, so a page can render fewer cards than `pageSize`.
+   * because it was paused, archived, or removed after being saved.
+   * `pagination.total` still counts them, so a page can render fewer cards
+   * than `pageSize`.
    */
-  unavailablePostingIds: string[];
+  unavailablePostings: UnavailableSavedPosting[];
 }
 
 /**

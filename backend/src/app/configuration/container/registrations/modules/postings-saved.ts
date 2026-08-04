@@ -19,12 +19,14 @@ export const postingsSavedRegistrationModule: ContainerRegistrationModule = {
         containerTokens.savedPostingsRepository,
         containerTokens.postingsRepository,
         containerTokens.postingsPublicCacheService,
+        containerTokens.cacheService,
       ],
       resolve: ({ resolve }) =>
         new SavedPostingsService(
           resolve(containerTokens.savedPostingsRepository),
           resolve(containerTokens.postingsRepository),
           resolve(containerTokens.postingsPublicCacheService),
+          resolve(containerTokens.cacheService),
         ),
     });
   },
