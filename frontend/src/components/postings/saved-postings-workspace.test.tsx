@@ -3,14 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SavedPostingsWorkspace } from "./saved-postings-workspace";
 
-const { useAuthMock, listMock, savedIdsMock, toggleSavedMock, markSavedMock } =
-  vi.hoisted(() => ({
-    useAuthMock: vi.fn(),
-    listMock: vi.fn(),
-    savedIdsMock: { current: new Set<string>() },
-    toggleSavedMock: vi.fn(),
-    markSavedMock: vi.fn(),
-  }));
+const {
+  useAuthMock,
+  listMock,
+  savedIdsMock,
+  toggleSavedMock,
+  markSavedMock,
+  unsaveMock,
+} = vi.hoisted(() => ({
+  useAuthMock: vi.fn(),
+  listMock: vi.fn(),
+  savedIdsMock: { current: new Set<string>() },
+  toggleSavedMock: vi.fn(),
+  markSavedMock: vi.fn(),
+  unsaveMock: vi.fn(),
+}));
 
 vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
@@ -32,6 +39,7 @@ vi.mock("@/components/postings/saved-postings-context", () => ({
 vi.mock("@/lib/saved-postings/api", () => ({
   savedPostingsApi: {
     list: listMock,
+    unsave: unsaveMock,
   },
 }));
 
@@ -74,6 +82,12 @@ describe("SavedPostingsWorkspace", () => {
     listMock.mockReset();
     toggleSavedMock.mockReset();
     markSavedMock.mockReset();
+    unsaveMock.mockReset();
+    unsaveMock.mockResolvedValue({
+      postingId: "posting-9",
+      saved: false,
+      savedAt: null,
+    });
     savedIdsMock.current = new Set(["posting-1", "posting-2"]);
     useAuthMock.mockReturnValue({ status: "authenticated", session: {} });
   });
@@ -135,7 +149,7 @@ describe("SavedPostingsWorkspace", () => {
 
     expect(
       await screen.findByText(
-        "1 saved posting is no longer available and is not shown.",
+        "1 saved posting is no longer available and cannot be shown.",
       ),
     ).toBeInTheDocument();
   });
@@ -205,5 +219,66 @@ describe("SavedPostingsWorkspace", () => {
     await screen.findByText("Sunny loft");
 
     expect(markSavedMock).toHaveBeenCalledWith(["posting-1"]);
+  });
+
+  // Codex review on #212: a page whose saved rows have all become unavailable
+  // returns no postings but a positive total, and must not be mistaken for an
+  // empty wishlist.
+  describe("when every saved row on the page is unavailable", () => {
+    function unavailableOnlyPage() {
+      return {
+        postings: [],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 2,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        unavailablePostingIds: ["posting-8", "posting-9"],
+      };
+    }
+
+    it("does not claim the wishlist is empty", async () => {
+      listMock.mockResolvedValue(unavailableOnlyPage());
+
+      render(<SavedPostingsWorkspace />);
+
+      expect(
+        await screen.findByText(
+          "2 saved postings are no longer available and cannot be shown.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("You haven't saved any postings yet"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("lets the visitor clear the unavailable rows", async () => {
+      listMock.mockResolvedValue(unavailableOnlyPage());
+      const user = userEvent.setup();
+
+      render(<SavedPostingsWorkspace />);
+      await screen.findByRole("button", { name: "Remove them" });
+
+      await user.click(screen.getByRole("button", { name: "Remove them" }));
+
+      await waitFor(() => expect(unsaveMock).toHaveBeenCalledTimes(2));
+      expect(unsaveMock).toHaveBeenCalledWith("posting-8");
+      expect(unsaveMock).toHaveBeenCalledWith("posting-9");
+      // The list is re-read so the totals settle.
+      await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+    });
+
+    it("still shows the empty state when nothing is saved at all", async () => {
+      listMock.mockResolvedValue(paginated([]));
+
+      render(<SavedPostingsWorkspace />);
+
+      expect(
+        await screen.findByText("You haven't saved any postings yet"),
+      ).toBeInTheDocument();
+    });
   });
 });

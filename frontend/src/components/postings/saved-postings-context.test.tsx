@@ -304,4 +304,41 @@ describe("SavedPostingsProvider", () => {
     );
     expect(saveMock).not.toHaveBeenCalled();
   });
+
+  // The identifier request is a snapshot taken when it was issued. A toggle
+  // that lands while it is in flight must survive its arrival, or the heart
+  // silently reverts and stays wrong until the next page load.
+  it("does not let a late identifier snapshot clobber a toggle", async () => {
+    const pendingIds = deferred<{ postingIds: string[]; truncated: boolean }>();
+    listIdsMock.mockReturnValue(pendingIds.promise);
+    saveMock.mockResolvedValue({
+      postingId: "posting-1",
+      saved: true,
+      savedAt: "2026-08-01T12:00:00.000Z",
+    });
+    const user = userEvent.setup();
+
+    renderProvider(<Consumer />);
+    await waitFor(() => expect(listIdsMock).toHaveBeenCalled());
+
+    // Saved before the snapshot resolves.
+    await user.click(screen.getByTestId("posting-1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("posting-1")).toHaveAttribute(
+        "data-saved",
+        "yes",
+      ),
+    );
+
+    // The snapshot predates the save and does not contain the posting.
+    pendingIds.resolve({ postingIds: [], truncated: false });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("status")).toHaveTextContent("ready"),
+    );
+    expect(screen.getByTestId("posting-1")).toHaveAttribute(
+      "data-saved",
+      "yes",
+    );
+  });
 });

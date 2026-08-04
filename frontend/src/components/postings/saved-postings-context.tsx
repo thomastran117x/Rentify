@@ -73,6 +73,12 @@ export function SavedPostingsProvider({
   const savedIdsRef = useRef<ReadonlySet<string>>(savedIds);
   savedIdsRef.current = savedIds;
 
+  // The most recent state this session established for a posting, whether by
+  // an explicit toggle or by seeding. The identifier request is a snapshot
+  // taken at request time, so without this a toggle that lands while that
+  // request is in flight would be wiped when the stale snapshot arrives.
+  const localStateRef = useRef(new Map<string, boolean>());
+
   const subscribe = useCallback(() => {
     setSubscriberCount((current) => current + 1);
 
@@ -82,6 +88,7 @@ export function SavedPostingsProvider({
   }, []);
 
   const applySaved = useCallback((postingId: string, saved: boolean) => {
+    localStateRef.current.set(postingId, saved);
     setSavedIds((current) => {
       if (current.has(postingId) === saved) {
         return current;
@@ -119,6 +126,7 @@ export function SavedPostingsProvider({
 
   useEffect(() => {
     if (authStatus === "anonymous") {
+      localStateRef.current.clear();
       setSavedIds(new Set<string>());
       setTruncated(false);
       setStatus("anonymous");
@@ -141,7 +149,17 @@ export function SavedPostingsProvider({
           return;
         }
 
-        setSavedIds(new Set(result.postingIds));
+        const snapshot = new Set(result.postingIds);
+
+        for (const [postingId, saved] of localStateRef.current) {
+          if (saved) {
+            snapshot.add(postingId);
+          } else {
+            snapshot.delete(postingId);
+          }
+        }
+
+        setSavedIds(snapshot);
         setTruncated(result.truncated);
         setStatus("ready");
       } catch {
@@ -202,6 +220,10 @@ export function SavedPostingsProvider({
   );
 
   const markSaved = useCallback((postingIds: string[]) => {
+    for (const postingId of postingIds) {
+      localStateRef.current.set(postingId, true);
+    }
+
     setSavedIds((current) => {
       const missing = postingIds.filter((postingId) => !current.has(postingId));
 

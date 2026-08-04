@@ -57,7 +57,9 @@ export function SavedPostingsWorkspace() {
   const [pageSize, setPageSize] = useState<number>(20);
   const [postings, setPostings] = useState<SavedPostingSummary[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
-  const [unavailableCount, setUnavailableCount] = useState(0);
+  const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
+  const [clearingUnavailable, setClearingUnavailable] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +82,7 @@ export function SavedPostingsWorkspace() {
 
         setPostings(result.postings);
         setPagination(result.pagination);
-        setUnavailableCount(result.unavailablePostingIds.length);
+        setUnavailableIds(result.unavailablePostingIds);
         // Everything on this page is saved by definition. Seeding the shared
         // set keeps the hearts filled even if the identifier request has not
         // come back yet.
@@ -107,7 +109,7 @@ export function SavedPostingsWorkspace() {
     return () => {
       active = false;
     };
-  }, [authStatus, markSaved, page, pageSize]);
+  }, [authStatus, markSaved, page, pageSize, reloadToken]);
 
   const handlePageChange = useCallback((nextPage: number) => {
     setPage(nextPage);
@@ -126,6 +128,40 @@ export function SavedPostingsWorkspace() {
     (total, posting) => (isSaved(posting.id) ? total : total + 1),
     0,
   );
+
+  const unavailableCount = unavailableIds.length;
+  // A page can be free of renderable cards while the account still holds saved
+  // rows, either because every row on it became unavailable or because the
+  // visitor is past the last page. Only a zero total means an empty wishlist.
+  const hasNoSavedPostings = (pagination?.total ?? 0) === 0;
+
+  const handleClearUnavailable = useCallback(async () => {
+    if (unavailableIds.length === 0) {
+      return;
+    }
+
+    setClearingUnavailable(true);
+
+    try {
+      // Unsave is idempotent and is deliberately not gated on visibility, so
+      // these rows can be cleared even though they can no longer be rendered.
+      await Promise.all(
+        unavailableIds.map((postingId) => savedPostingsApi.unsave(postingId)),
+      );
+      setUnavailableIds([]);
+      setReloadToken((current) => current + 1);
+    } catch (nextError) {
+      setError(
+        getApiErrorMessage(nextError, {
+          action: "remove those saved postings",
+          fallback:
+            "We couldn't remove those saved postings right now. Please try again.",
+        }),
+      );
+    } finally {
+      setClearingUnavailable(false);
+    }
+  }, [unavailableIds]);
 
   if (authStatus === "loading") {
     return (
@@ -179,7 +215,7 @@ export function SavedPostingsWorkspace() {
         <div className="rounded-[1.5rem] border border-dashed border-rose-300 px-4 py-6 text-center text-sm text-rose-600 dark:border-rose-800 dark:text-rose-300">
           {error}
         </div>
-      ) : postings.length === 0 ? (
+      ) : hasNoSavedPostings ? (
         <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white px-4 py-12 text-center dark:border-slate-700 dark:bg-slate-900">
           <Heart
             className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600"
@@ -201,10 +237,34 @@ export function SavedPostingsWorkspace() {
       ) : (
         <div className="space-y-4">
           {unavailableCount > 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {unavailableCount === 1
-                ? "1 saved posting is no longer available and is not shown."
-                : `${unavailableCount} saved postings are no longer available and are not shown.`}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-dashed border-slate-300 px-4 py-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {unavailableCount === 1
+                  ? "1 saved posting is no longer available and cannot be shown."
+                  : `${unavailableCount} saved postings are no longer available and cannot be shown.`}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleClearUnavailable()}
+                disabled={clearingUnavailable}
+                className={
+                  clearingUnavailable
+                    ? theme.marketplace.saveButtonLabelledDisabled
+                    : theme.marketplace.saveButtonLabelled
+                }
+              >
+                {clearingUnavailable
+                  ? "Removing..."
+                  : unavailableCount === 1
+                    ? "Remove it"
+                    : "Remove them"}
+              </button>
+            </div>
+          ) : null}
+
+          {postings.length === 0 ? (
+            <p className={theme.marketplace.resultsEmpty}>
+              Nothing on this page can be shown right now. Try another page.
             </p>
           ) : null}
 
