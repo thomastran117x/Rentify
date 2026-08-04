@@ -522,4 +522,96 @@ describe("BookingsDashboard", () => {
       screen.queryByRole("button", { name: "Leave a review" }),
     ).not.toBeInTheDocument();
   });
+
+  it("pages the renter dashboard while the renter view is active", async () => {
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [buildDashboardItem({ id: "renter-item" })],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 45,
+          totalPages: 3,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await screen.findByRole("button", { name: "Next page" });
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() => {
+      expect(getMyDashboardMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+    expect(getOwnerDashboardMock).not.toHaveBeenCalled();
+  });
+
+  it("pages the owner dashboard while the owner view is active", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner"),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [buildDashboardItem({ id: "owner-item" })],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 45,
+          totalPages: 3,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    await screen.findByRole("button", { name: "Next page" });
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() => {
+      expect(getOwnerDashboardMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+  });
+
+  it("resets the owner page and records the size when it changes", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner"),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [buildDashboardItem({ id: "owner-item" })],
+        pagination: {
+          page: 3,
+          pageSize: 20,
+          total: 45,
+          totalPages: 3,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    const sizeSelect = await screen.findByRole("combobox", {
+      name: "Per page",
+    });
+    fireEvent.change(sizeSelect, { target: { value: "50" } });
+
+    await waitFor(() => {
+      expect(getOwnerDashboardMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, pageSize: 50 }),
+      );
+    });
+  });
 });

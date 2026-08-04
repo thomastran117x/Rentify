@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PostingsDashboard } from "./postings-dashboard";
@@ -181,6 +181,84 @@ describe("PostingsDashboard", () => {
 
     await waitFor(() => {
       expect(publishMock).toHaveBeenCalledWith("posting-1");
+    });
+  });
+
+  it("requests the next page of postings", async () => {
+    const user = userEvent.setup();
+    listMineMock.mockResolvedValue(
+      paginated([makePosting()], {
+        totalPages: 3,
+        total: 25,
+        hasNextPage: true,
+      }),
+    );
+
+    render(<PostingsDashboard />);
+
+    await screen.findByText("Downtown studio");
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() => {
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, pageSize: 10 }),
+      );
+    });
+  });
+
+  it("keeps the selected page when the search debounce settles on mount", async () => {
+    listMineMock.mockResolvedValue(
+      paginated([makePosting()], {
+        totalPages: 3,
+        total: 25,
+        hasNextPage: true,
+      }),
+    );
+
+    render(<PostingsDashboard />);
+    await screen.findByText("Downtown studio");
+
+    // fireEvent, not userEvent: this must land inside the 350ms mount-debounce
+    // window, and userEvent's timer advancement would close that window first.
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() => {
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+
+    // Let the debounce window elapse; it must not reset the page to 1.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(listMineMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+    );
+  });
+
+  it("returns to the first page when the page size changes", async () => {
+    const user = userEvent.setup();
+    listMineMock.mockResolvedValue(
+      paginated([makePosting()], {
+        page: 3,
+        totalPages: 3,
+        total: 25,
+        hasPreviousPage: true,
+      }),
+    );
+
+    render(<PostingsDashboard />);
+
+    await screen.findByText("Downtown studio");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Per page" }),
+      "50",
+    );
+
+    await waitFor(() => {
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, pageSize: 50 }),
+      );
     });
   });
 });

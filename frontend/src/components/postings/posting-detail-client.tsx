@@ -14,6 +14,7 @@ import {
   Building2,
   Tags,
 } from "lucide-react";
+import { Pagination } from "@/components/common/pagination";
 import { ReportDialog } from "@/components/reports/report-dialog";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
@@ -366,40 +367,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                     </article>
                   ))}
 
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Page {reviewsResult.pagination.page} of{" "}
-                      {reviewsResult.pagination.totalPages}
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNextReviewsPage((current) =>
-                            Math.max(1, current - 1),
-                          )
-                        }
-                        disabled={!reviewsResult.pagination.hasPreviousPage}
-                        className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNextReviewsPage((current) =>
-                            reviewsResult.pagination.hasNextPage
-                              ? current + 1
-                              : current,
-                          )
-                        }
-                        disabled={!reviewsResult.pagination.hasNextPage}
-                        className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
+                  {/* Fixed page size: no size selector, no page jump. */}
+                  <Pagination
+                    pagination={reviewsResult.pagination}
+                    itemLabel={{ one: "review", other: "reviews" }}
+                    ariaLabel="Reviews pagination"
+                    disabled={reviewsLoading}
+                    onPageChange={setNextReviewsPage}
+                  />
                 </div>
               ) : (
                 <p className="text-sm text-slate-500 dark:text-slate-400">

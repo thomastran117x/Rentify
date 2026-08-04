@@ -1,11 +1,31 @@
+// Imported from the token module directly, not the package barrel: this file
+// is reached from a server component, and the barrel also re-exports the
+// "use client" pagination components.
+import {
+  PAGE_SIZE_TEMPLATE_TOKEN,
+  PAGE_TEMPLATE_TOKEN,
+} from "@/components/common/pagination/href-template";
 import type {
   PostingSort,
   PublicPostingSearchParams,
 } from "@/lib/postings/search";
 
-export type SearchHrefInput = PublicPostingSearchParams & {
-  page: number;
-  pageSize: number;
+/**
+ * `page` and `pageSize` accept a placeholder token so the pagination control
+ * can be handed one href template instead of a callback, which a server
+ * component cannot pass across the client boundary. Both tokens survive
+ * `URLSearchParams.toString()` unescaped.
+ *
+ * They are `Omit`ed from `PublicPostingSearchParams` rather than intersected,
+ * because intersecting the token union with the optional `number` there
+ * would collapse straight back to `number`.
+ */
+export type SearchHrefInput = Omit<
+  PublicPostingSearchParams,
+  "page" | "pageSize"
+> & {
+  page: number | typeof PAGE_TEMPLATE_TOKEN;
+  pageSize: number | typeof PAGE_SIZE_TEMPLATE_TOKEN;
   sort: PostingSort;
 };
 
