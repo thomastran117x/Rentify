@@ -10,6 +10,7 @@ const {
   toggleSavedMock,
   markSavedMock,
   unsaveMock,
+  showErrorMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   listMock: vi.fn(),
@@ -17,10 +18,15 @@ const {
   toggleSavedMock: vi.fn(),
   markSavedMock: vi.fn(),
   unsaveMock: vi.fn(),
+  showErrorMock: vi.fn(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
+}));
+
+vi.mock("@/components/errors", () => ({
+  useErrorToast: () => ({ showError: showErrorMock }),
 }));
 
 vi.mock("@/components/postings/saved-postings-context", () => ({
@@ -83,6 +89,7 @@ describe("SavedPostingsWorkspace", () => {
     toggleSavedMock.mockReset();
     markSavedMock.mockReset();
     unsaveMock.mockReset();
+    showErrorMock.mockReset();
     unsaveMock.mockResolvedValue({
       postingId: "posting-9",
       saved: false,
@@ -350,5 +357,42 @@ describe("SavedPostingsWorkspace", () => {
         await screen.findByText("You haven't saved any postings yet"),
       ).toBeInTheDocument();
     });
+  });
+
+  // Review finding: routing a failed removal through the page-level error
+  // state unmounted the list and the pagination control, leaving no way to
+  // reload and stranding the page until a hard refresh.
+  it("keeps the page usable when removing an unavailable posting fails", async () => {
+    listMock.mockResolvedValue({
+      ...paginated([makePosting()]),
+      unavailablePostings: [
+        {
+          postingId: "posting-9",
+          name: "Harbourside Studio",
+          reason: "unavailable" as const,
+          savedAt: "2026-07-20T09:30:00.000Z",
+        },
+      ],
+    });
+    unsaveMock.mockRejectedValue(new Error("network down"));
+    const user = userEvent.setup();
+
+    render(<SavedPostingsWorkspace />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Remove Harbourside Studio from saved postings",
+      }),
+    );
+
+    await waitFor(() => expect(showErrorMock).toHaveBeenCalledTimes(1));
+
+    // The list, the failed row, and the pagination control all survive.
+    expect(screen.getByText("Sunny loft")).toBeInTheDocument();
+    expect(screen.getByText(/Harbourside Studio/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Remove Harbourside Studio from saved postings",
+      }),
+    ).toBeEnabled();
   });
 });

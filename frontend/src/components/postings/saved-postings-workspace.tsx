@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { EyeOff, Heart } from "lucide-react";
 import { Pagination } from "@/components/common/pagination";
 import { useAuth } from "@/components/auth/auth-context";
+import { useErrorToast } from "@/components/errors";
 import { PostingResultCard } from "@/components/postings/posting-result-card";
 import { SavePostingButton } from "@/components/postings/save-posting-button";
 import { useSavedPostings } from "@/components/postings/saved-postings-context";
@@ -109,6 +110,7 @@ function UnavailableSavedPostingRow({
 export function SavedPostingsWorkspace() {
   const { status: authStatus } = useAuth();
   const { isSaved, markSaved } = useSavedPostings();
+  const { showError } = useErrorToast();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
@@ -191,29 +193,37 @@ export function SavedPostingsWorkspace() {
   // is past the last page. Only a zero total means an empty wishlist.
   const hasNoSavedPostings = (pagination?.total ?? 0) === 0;
 
-  const handleRemoveUnavailable = useCallback(async (postingId: string) => {
-    setRemovingId(postingId);
+  const handleRemoveUnavailable = useCallback(
+    async (postingId: string) => {
+      setRemovingId(postingId);
 
-    try {
-      // Unsave is idempotent and deliberately not gated on visibility, so a
-      // posting that can no longer be rendered can still be cleared.
-      await savedPostingsApi.unsave(postingId);
-      setUnavailable((current) =>
-        current.filter((entry) => entry.postingId !== postingId),
-      );
-      setReloadToken((current) => current + 1);
-    } catch (nextError) {
-      setError(
-        getApiErrorMessage(nextError, {
-          action: "remove that saved posting",
-          fallback:
-            "We couldn't remove that saved posting right now. Please try again.",
-        }),
-      );
-    } finally {
-      setRemovingId(null);
-    }
-  }, []);
+      try {
+        // Unsave is idempotent and deliberately not gated on visibility, so a
+        // posting that can no longer be rendered can still be cleared.
+        await savedPostingsApi.unsave(postingId);
+        setUnavailable((current) =>
+          current.filter((entry) => entry.postingId !== postingId),
+        );
+        setReloadToken((current) => current + 1);
+      } catch (nextError) {
+        // A failed removal is reported as a toast, never through the page-level
+        // error state: that state replaces the whole list, including the
+        // pagination control, leaving nothing that can trigger a reload.
+        showError({
+          title: "Couldn't remove saved posting",
+          message: getApiErrorMessage(nextError, {
+            action: "remove that saved posting",
+            fallback:
+              "We couldn't remove that saved posting right now. Please try again.",
+          }),
+          tone: "error",
+        });
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [showError],
+  );
 
   if (authStatus === "loading") {
     return (

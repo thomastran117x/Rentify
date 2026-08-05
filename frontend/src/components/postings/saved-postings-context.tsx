@@ -67,6 +67,11 @@ export function SavedPostingsProvider({
   // Consumers register themselves so the id set is only fetched on pages that
   // actually render saved state, not on every page under the root layout.
   const [subscriberCount, setSubscriberCount] = useState(0);
+  // Deliberately a boolean rather than the count: consumers mount in more than
+  // one commit (the saved page renders its cards only after the list arrives),
+  // and depending on the count would abort the in-flight request and re-issue
+  // it every time another heart appeared.
+  const hasSubscribers = subscriberCount > 0;
 
   // Mirror of the set so `toggleSaved` can read current state without being
   // rebuilt (and re-rendering every heart) each time the set changes.
@@ -78,6 +83,9 @@ export function SavedPostingsProvider({
   // taken at request time, so without this a toggle that lands while that
   // request is in flight would be wiped when the stale snapshot arrives.
   const localStateRef = useRef(new Map<string, boolean>());
+
+  /** A toggle clicked before the auth status was known. */
+  const pendingAuthToggleRef = useRef<string | null>(null);
 
   const subscribe = useCallback(() => {
     setSubscriberCount((current) => current + 1);
@@ -133,7 +141,7 @@ export function SavedPostingsProvider({
       return;
     }
 
-    if (authStatus !== "authenticated" || subscriberCount === 0) {
+    if (authStatus !== "authenticated" || !hasSubscribers) {
       return;
     }
 
@@ -177,12 +185,33 @@ export function SavedPostingsProvider({
       active = false;
       controller.abort();
     };
-  }, [authStatus, refreshToken, subscriberCount]);
+  }, [authStatus, hasSubscribers, refreshToken]);
+
+  const redirectToLogin = useCallback(() => {
+    // usePathname drops the query string, and losing it would drop the
+    // visitor's search on the way back from signing in. The handler runs in
+    // the browser, so the live location is authoritative and, unlike
+    // useSearchParams, costs no render-time subscription.
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const next = `${pathname || "/"}${search}`;
+
+    router.push(`/login?next=${encodeURIComponent(next)}`);
+  }, [pathname, router]);
 
   const toggleSaved = useCallback(
     async (postingId: string) => {
+      // A returning visitor is "loading" until the refresh round trip settles,
+      // and the cards are already on screen by then. Treating that as
+      // anonymous would bounce a signed-in user to the login page, so the
+      // intent is held and replayed once the status is known.
+      if (authStatus === "loading") {
+        pendingAuthToggleRef.current = postingId;
+        markPending(postingId, true);
+        return;
+      }
+
       if (authStatus !== "authenticated") {
-        router.push(`/login?next=${encodeURIComponent(pathname || "/")}`);
+        redirectToLogin();
         return;
       }
 
@@ -216,8 +245,23 @@ export function SavedPostingsProvider({
         markPending(postingId, false);
       }
     },
-    [applySaved, authStatus, markPending, pathname, router, showError],
+    [applySaved, authStatus, markPending, redirectToLogin, showError],
   );
+
+  // Replays a toggle that was clicked while the auth status was still
+  // settling, so the click either performs the save or reaches the login page
+  // rather than being silently dropped.
+  useEffect(() => {
+    const postingId = pendingAuthToggleRef.current;
+
+    if (!postingId || authStatus === "loading") {
+      return;
+    }
+
+    pendingAuthToggleRef.current = null;
+    markPending(postingId, false);
+    void toggleSaved(postingId);
+  }, [authStatus, markPending, toggleSaved]);
 
   const markSaved = useCallback((postingIds: string[]) => {
     for (const postingId of postingIds) {

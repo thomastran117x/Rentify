@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SavedPostingsProvider,
@@ -340,5 +341,100 @@ describe("SavedPostingsProvider", () => {
       "data-saved",
       "yes",
     );
+  });
+
+  // Review finding: a returning visitor is "loading" until the refresh round
+  // trip settles, but the server-rendered cards are already clickable.
+  describe("while the auth status is still settling", () => {
+    it("does not bounce a signed-in visitor to the login page", async () => {
+      useAuthMock.mockReturnValue({ status: "loading", session: null });
+      const user = userEvent.setup();
+
+      const { rerender } = renderProvider(<Consumer />);
+      await user.click(screen.getByTestId("posting-1"));
+
+      expect(pushMock).not.toHaveBeenCalled();
+
+      // The click is replayed as a save once the session is known.
+      saveMock.mockResolvedValue({
+        postingId: "posting-1",
+        saved: true,
+        savedAt: "2026-08-01T12:00:00.000Z",
+      });
+      useAuthMock.mockReturnValue({ status: "authenticated", session: {} });
+      rerender(
+        <SavedPostingsProvider>
+          <Consumer />
+        </SavedPostingsProvider>,
+      );
+
+      await waitFor(() => expect(saveMock).toHaveBeenCalledWith("posting-1"));
+      expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it("replays the click to the login page once the visitor is known to be anonymous", async () => {
+      useAuthMock.mockReturnValue({ status: "loading", session: null });
+      const user = userEvent.setup();
+
+      const { rerender } = renderProvider(<Consumer />);
+      await user.click(screen.getByTestId("posting-1"));
+      expect(pushMock).not.toHaveBeenCalled();
+
+      useAuthMock.mockReturnValue({ status: "anonymous", session: null });
+      rerender(
+        <SavedPostingsProvider>
+          <Consumer />
+        </SavedPostingsProvider>,
+      );
+
+      await waitFor(() => expect(pushMock).toHaveBeenCalled());
+      expect(saveMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // Review finding: usePathname drops the query string, which would lose the
+  // visitor's search on the way back from signing in.
+  it("keeps the query string when sending an anonymous visitor to log in", async () => {
+    useAuthMock.mockReturnValue({ status: "anonymous", session: null });
+    window.history.replaceState({}, "", "/postings?q=loft&family=place");
+    const user = userEvent.setup();
+
+    renderProvider(<Consumer />);
+    await user.click(screen.getByTestId("posting-1"));
+
+    expect(pushMock).toHaveBeenCalledWith(
+      `/login?next=${encodeURIComponent("/postings?q=loft&family=place")}`,
+    );
+
+    window.history.replaceState({}, "", "/");
+  });
+
+  // Review finding: the saved page mounts its hearts only after the list
+  // arrives, so a count-based dependency aborted and re-issued the request.
+  it("does not re-issue the identifier request when more hearts mount later", async () => {
+    function LateConsumer() {
+      const [mounted, setMounted] = useState(false);
+
+      return (
+        <>
+          <Consumer />
+          <button type="button" onClick={() => setMounted(true)}>
+            mount more
+          </button>
+          {mounted ? <Consumer postingIds={["posting-2"]} /> : null}
+        </>
+      );
+    }
+
+    const user = userEvent.setup();
+    renderProvider(<LateConsumer />);
+    await waitFor(() => expect(listIdsMock).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "mount more" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("posting-2")).toBeInTheDocument(),
+    );
+    expect(listIdsMock).toHaveBeenCalledTimes(1);
   });
 });

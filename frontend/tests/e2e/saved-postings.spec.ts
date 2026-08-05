@@ -166,6 +166,16 @@ test.describe("saved postings", () => {
     await expect(page.getByText("Couldn't remove saved posting")).toBeVisible();
     await page.unroute("**/postings/*/save");
 
+    // The saved page mounts its hearts only after the list arrives, so a
+    // count-based subscriber dependency used to abort and re-issue this.
+    savedIdsRequests.length = 0;
+    await page.goto("/saved");
+    await expect(
+      page.getByRole("heading", { name: POSTING_NAME }),
+    ).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    expect(savedIdsRequests).toHaveLength(1);
+
     // The saved page lists it, and the state survives a reload.
     await page.goto("/saved");
     await expect(
