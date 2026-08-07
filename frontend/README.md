@@ -77,7 +77,7 @@ npm run test:e2e:ui
 
 ## Testing
 
-Unit tests live alongside `src/**` files and run with Vitest. `npm run test:unit:coverage` enforces a 90% global threshold for statements, branches, functions, and lines across executable `src/app`, `src/components`, and `src/lib` code. HTML and LCOV reports are written to `coverage/`.
+Unit tests live alongside `src/**` files and run with Vitest. `npm run test:unit:coverage` enforces an 80% global threshold for statements, branches, functions, and lines across executable `src/app`, `src/components`, and `src/lib` code. HTML and LCOV reports are written to `coverage/`.
 
 Browser tests live in `tests/e2e`. By default, Playwright starts the frontend dev server on `http://127.0.0.1:3040` automatically. If you want Playwright to reuse an already running app, set `PLAYWRIGHT_EXTERNAL_SERVER=1`.
 
