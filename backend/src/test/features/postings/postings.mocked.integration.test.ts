@@ -383,6 +383,7 @@ function createApp() {
     postingsReviewsService as any,
     seasonalPricingService as any,
     recommendationActivityPublisher as any,
+    {} as any,
   );
   const tokenService = {
     verifyAccessToken: jest.fn(async (token: string) => {

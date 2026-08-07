@@ -8,6 +8,7 @@ import {
   type SeedPostingAnalyticsOutboxFixture,
   type SeedPostingReviewFixture,
   type SeedPostingViewEventFixture,
+  type SeedSavedPostingFixture,
 } from "@/seeds/types";
 
 const BASE_SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
@@ -506,6 +507,43 @@ export const SEED_ORGANIZATION_REVIEWS: SeedOrganizationReviewFixture[] = [
     comment:
       "Handoffs are dependable and the listings match reality. Would rent again.",
     createdAt: "2026-06-22T16:45:00.000Z",
+  },
+];
+
+// Wishlist entries so /saved is browsable on a fresh stack. These reference
+// postings owned by organizations the saver is not a member of, which is the
+// ordinary renter case, and are ordered oldest-first here so the newest save
+// lands at the top of the list.
+export const SEED_SAVED_POSTINGS: SeedSavedPostingFixture[] = [
+  {
+    id: createFixtureId(4300, 1),
+    postingId: createFixtureId(2000, 11),
+    userEmail: "user1@rentify.local",
+    createdAt: "2026-07-28T10:15:00.000Z",
+  },
+  {
+    id: createFixtureId(4300, 2),
+    postingId: createFixtureId(2000, 16),
+    userEmail: "user1@rentify.local",
+    createdAt: "2026-07-30T14:40:00.000Z",
+  },
+  {
+    id: createFixtureId(4300, 3),
+    postingId: createFixtureId(2000, 21),
+    userEmail: "user1@rentify.local",
+    createdAt: "2026-08-01T09:05:00.000Z",
+  },
+  {
+    id: createFixtureId(4300, 4),
+    postingId: createFixtureId(2000, 16),
+    userEmail: "user2@rentify.local",
+    createdAt: "2026-07-31T17:20:00.000Z",
+  },
+  {
+    id: createFixtureId(4300, 5),
+    postingId: createFixtureId(2000, 29),
+    userEmail: "user2@rentify.local",
+    createdAt: "2026-08-02T11:50:00.000Z",
   },
 ];
 

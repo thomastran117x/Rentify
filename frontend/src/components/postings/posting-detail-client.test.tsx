@@ -33,6 +33,18 @@ vi.mock("@/components/auth/auth-context", () => ({
   }),
 }));
 
+vi.mock("@/components/postings/saved-postings-context", () => ({
+  useSavedPostings: () => ({
+    status: "ready",
+    truncated: false,
+    isSaved: () => false,
+    isPending: () => false,
+    toggleSaved: vi.fn(),
+    refresh: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+  }),
+}));
+
 vi.mock("@/lib/postings/api", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/postings/api")>(

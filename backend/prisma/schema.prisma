@@ -29,6 +29,7 @@ model User {
   oauthIdentities OAuthIdentity[]
   profile       Profile?
   postingReviews PostingReview[] @relation("PostingReviewAuthor")
+  savedPostings SavedPosting[] @relation("SavedPostingUser")
   bookingRequestsAsRenter BookingRequest[] @relation("BookingRequestRenter")
   rentingsAsRenter Renting[] @relation("RentingRenter")
   rentingDisputesOpened RentingDispute[] @relation("RentingDisputeOpenedBy")
@@ -392,6 +393,7 @@ model Posting {
   dailyAnalytics    PostingAnalyticsDaily[]
   analyticsOutboxEntries PostingAnalyticsOutbox[]
   reviews           PostingReview[]
+  savedBy           SavedPosting[]
   seasonalPricing   PostingSeasonalPricing[]
   bookingRequests   BookingRequest[]
   rentings          Renting[]
@@ -981,6 +983,20 @@ model PostingReview {
   @@index([postingId, createdAt])
   @@index([reviewerId])
   @@map("posting_reviews")
+}
+
+model SavedPosting {
+  id        String   @id @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  postingId String   @map("posting_id") @db.VarChar(36)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  user      User     @relation("SavedPostingUser", fields: [userId], references: [id], onDelete: Cascade)
+  posting   Posting  @relation(fields: [postingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postingId])
+  @@index([userId, createdAt])
+  @@index([postingId])
+  @@map("saved_postings")
 }
 
 model Feedback {

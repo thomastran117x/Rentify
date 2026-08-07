@@ -18,6 +18,7 @@ import { Pagination } from "@/components/common/pagination";
 import { ReportDialog } from "@/components/reports/report-dialog";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
+import { SavePostingButton } from "@/components/postings/save-posting-button";
 import { BookingRequestPanel } from "@/components/bookings/booking-request-panel";
 import { PostingDetailGallery } from "@/components/postings/posting-detail-gallery";
 import { PostingReviewForm } from "@/components/reviews/posting-review-form";
@@ -155,12 +156,19 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   </span>
                 </div>
 
-                <ReportDialog
-                  subjectType="posting"
-                  subjectId={posting.id}
-                  subjectLabel="Posting"
-                  triggerLabel="Report posting"
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <SavePostingButton
+                    postingId={posting.id}
+                    postingName={posting.name}
+                    variant="labelled"
+                  />
+                  <ReportDialog
+                    subjectType="posting"
+                    subjectId={posting.id}
+                    subjectLabel="Posting"
+                    triggerLabel="Report posting"
+                  />
+                </div>
               </div>
 
               <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em] text-slate-950 dark:text-white sm:text-[2.8rem]">

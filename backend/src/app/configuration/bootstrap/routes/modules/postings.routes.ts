@@ -238,6 +238,43 @@ export const postingsActivityRouteModule: RouteModule = {
   },
 };
 
+export const postingsSavedRouteModule: RouteModule = {
+  id: "postings-saved",
+  register(app, { resolveHandler }) {
+    // This module is registered before `postings-public` on purpose: `saved`
+    // is a syntactically valid posting identifier, so `GET /postings/:id`
+    // would otherwise swallow the two static routes below and 404.
+    app.get(
+      "/postings/saved",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listSaved",
+      ),
+    );
+    app.get(
+      "/postings/saved/ids",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listSavedIds",
+      ),
+    );
+    app.post(
+      "/postings/:id/save",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "save",
+      ),
+    );
+    app.delete(
+      "/postings/:id/save",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "unsave",
+      ),
+    );
+  },
+};
+
 export const postingsPublicRouteModule: RouteModule = {
   id: "postings-public",
   register(app, { resolveHandler }) {
