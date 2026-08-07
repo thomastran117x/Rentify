@@ -505,6 +505,7 @@ describe("Security integration", () => {
           email: "user@example.com",
           username: "test-user",
           role: "user",
+          organizationMembershipCount: 0,
         },
       },
       error: null,

@@ -262,6 +262,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run mocked HTTP route integration tests
+        run: npm run test:integration:mocked
+
       - name: Verify controller HTTP integration coverage
         run: npm run check:controller-integration-coverage
 
