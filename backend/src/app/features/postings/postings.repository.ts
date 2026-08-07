@@ -1133,6 +1133,47 @@ export class PostingsRepository extends BaseRepository {
     return this.orderBatchResult(input.ids, mapped);
   }
 
+  /**
+   * Name and lifecycle state for postings that are deliberately not publicly
+   * visible. Callers use this to describe a saved posting that can no longer
+   * be rendered; it is not a public read path, so it applies no status filter.
+   */
+  async findLifecycleSummariesByIds(ids: string[]): Promise<
+    Array<{
+      id: string;
+      name: string;
+      status: PostingStatus;
+      archivedAt?: string;
+    }>
+  > {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const postings = await this.executeAsync(() =>
+      this.prisma.posting.findMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          archivedAt: true,
+        },
+      }),
+    );
+
+    return postings.map((posting) => ({
+      id: posting.id,
+      name: posting.name,
+      status: posting.status as PostingStatus,
+      archivedAt: posting.archivedAt?.toISOString(),
+    }));
+  }
+
   async searchPublicFallback(input: SearchPostingsInput): Promise<{
     ids: string[];
     total: number;

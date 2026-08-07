@@ -80,6 +80,8 @@ import { PostingsAnalyticsService } from "@/features/postings/analytics/analytic
 import { PostingsController } from "@/features/postings/postings.controller";
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
+import { SavedPostingsRepository } from "@/features/postings/saved/saved-postings.repository";
+import { SavedPostingsService } from "@/features/postings/saved/saved-postings.service";
 import { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 import { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -314,6 +316,12 @@ export const containerTokens = {
   ),
   postingsReviewsService: createServiceToken<PostingsReviewsService>(
     "PostingsReviewsService",
+  ),
+  savedPostingsRepository: createServiceToken<SavedPostingsRepository>(
+    "SavedPostingsRepository",
+  ),
+  savedPostingsService: createServiceToken<SavedPostingsService>(
+    "SavedPostingsService",
   ),
   seasonalPricingRepository: createServiceToken<SeasonalPricingRepository>(
     "SeasonalPricingRepository",

@@ -4,6 +4,7 @@ import {
   SEED_ORGANIZATION_REVIEWS,
   SEED_POSTING_REVIEWS,
   SEED_POSTING_VIEW_EVENTS,
+  SEED_SAVED_POSTINGS,
 } from "@/seeds/fixtures/activity";
 import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
@@ -41,6 +42,13 @@ export const activitySeedModule: SeedModule = {
     const postingIds = SEED_POSTINGS.map((posting) => posting.id);
 
     await prisma.postingReview.deleteMany({
+      where: {
+        postingId: {
+          in: postingIds,
+        },
+      },
+    });
+    await prisma.savedPosting.deleteMany({
       where: {
         postingId: {
           in: postingIds,
@@ -106,6 +114,23 @@ export const activitySeedModule: SeedModule = {
           title: review.title ?? null,
           comment: review.comment ?? null,
           createdAt: new Date(review.createdAt),
+        },
+      });
+    }
+
+    for (const saved of SEED_SAVED_POSTINGS) {
+      const userId = state.userIdsByEmail.get(saved.userEmail);
+
+      if (!userId) {
+        throw new Error(`Missing seeded user for saved posting ${saved.id}.`);
+      }
+
+      await prisma.savedPosting.create({
+        data: {
+          id: saved.id,
+          postingId: saved.postingId,
+          userId,
+          createdAt: new Date(saved.createdAt),
         },
       });
     }

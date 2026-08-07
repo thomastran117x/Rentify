@@ -77,6 +77,15 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
     pattern: /^\/postings\/analytics\/postings$/,
     requiredScope: "mcp:read",
   },
+  // Listed explicitly ahead of the /postings/:id catch-all below. The
+  // catch-all would already match /postings/saved by accident; being explicit
+  // documents the intent and survives any future narrowing of that pattern.
+  { method: "GET", pattern: /^\/postings\/saved$/, requiredScope: "mcp:read" },
+  {
+    method: "GET",
+    pattern: /^\/postings\/saved\/ids$/,
+    requiredScope: "mcp:read",
+  },
   { method: "GET", pattern: /^\/postings\/[^/]+$/, requiredScope: "mcp:read" },
   {
     method: "GET",

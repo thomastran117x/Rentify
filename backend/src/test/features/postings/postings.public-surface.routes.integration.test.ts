@@ -89,6 +89,7 @@ function createApp() {
         postingsReviewsService as any,
         {} as any,
         recommendationActivityPublisher as any,
+        {} as any,
       ),
     ],
     [

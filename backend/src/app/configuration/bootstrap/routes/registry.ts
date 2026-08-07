@@ -32,6 +32,7 @@ import {
   postingsOwnerRouteModule,
   postingsPublicRouteModule,
   postingsReviewsRouteModule,
+  postingsSavedRouteModule,
   postingsSeasonalPricingRouteModule,
 } from "@/configuration/bootstrap/routes/modules/postings.routes";
 import {
@@ -72,6 +73,9 @@ export const routeModuleRegistry: RouteModule[] = [
   postingsAvailabilityRouteModule,
   postingsSeasonalPricingRouteModule,
   postingsActivityRouteModule,
+  // Must stay ahead of postingsPublicRouteModule: it owns the static
+  // /postings/saved paths that /postings/:id would otherwise match.
+  postingsSavedRouteModule,
   bookingsRouteModule,
   smsRouteModule,
   paymentsRouteModule,

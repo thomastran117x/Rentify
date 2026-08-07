@@ -83,6 +83,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsReviewsService,
         containerTokens.seasonalPricingService,
         containerTokens.recommendationActivityPublisher,
+        containerTokens.savedPostingsService,
       ],
       resolve: ({ resolve }) =>
         new PostingsController(
@@ -92,6 +93,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsReviewsService),
           resolve(containerTokens.seasonalPricingService),
           resolve(containerTokens.recommendationActivityPublisher),
+          resolve(containerTokens.savedPostingsService),
         ),
     });
   },

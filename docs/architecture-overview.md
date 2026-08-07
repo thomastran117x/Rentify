@@ -73,6 +73,7 @@ The route registry currently groups the API into these main areas:
 - search admin
 - owner posting management
 - posting analytics, reviews, availability, and activity
+- saved postings (renter wishlist)
 - booking requests
 - payments
 - rentings
@@ -111,4 +112,3 @@ Browser sessions use cookie-backed refresh tokens plus CSRF protection, while no
 - booking concurrency: [booking-locking-tradeoffs.md](./booking-locking-tradeoffs.md)
 - recommendation rollout: [recommendations-phase-1-activity-capture.md](./recommendations-phase-1-activity-capture.md), [recommendations-phase-2-precompute-worker.md](./recommendations-phase-2-precompute-worker.md), [recommendations-phase-3-query-api.md](./recommendations-phase-3-query-api.md)
 - product and system direction: [rentify-plan.md](./rentify-plan.md)
-

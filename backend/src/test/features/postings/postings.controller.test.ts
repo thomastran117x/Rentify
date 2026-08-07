@@ -133,6 +133,7 @@ function createController(
     reviews?: Record<string, unknown>;
     seasonalPricing?: Record<string, unknown>;
     recommendationActivityPublisher?: Record<string, unknown>;
+    savedPostings?: Record<string, unknown>;
   },
 ) {
   return new PostingsController(
@@ -142,6 +143,7 @@ function createController(
     (overrides?.reviews ?? {}) as any,
     (overrides?.seasonalPricing ?? {}) as any,
     (overrides?.recommendationActivityPublisher ?? {}) as any,
+    (overrides?.savedPostings ?? {}) as any,
   );
 }
 
@@ -1463,6 +1465,130 @@ describe("PostingsController", () => {
 
       expect(del).toHaveBeenCalledWith("posting-1", "rule-1", "owner-1");
       expect(response.status).toBe(204);
+    });
+  });
+
+  describe("saved postings", () => {
+    beforeEach(() => {
+      mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
+    });
+
+    it("listSaved — forwards the parsed page and exposes pagination meta", async () => {
+      const pagination = {
+        page: 2,
+        pageSize: 5,
+        total: 7,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      };
+      const list = jest.fn(async () => ({
+        postings: [],
+        pagination,
+        unavailablePostings: [],
+      }));
+      const controller = createController({}, { savedPostings: { list } });
+      const context = createContext({
+        url: "https://example.test/postings/saved?page=2&pageSize=5",
+      });
+
+      const response = await controller.listSaved(context);
+
+      expect(list).toHaveBeenCalledWith("user-1", 2, 5);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual(
+        expect.objectContaining({
+          meta: expect.objectContaining({ pagination }),
+        }),
+      );
+    });
+
+    it("listSaved — defaults page and pageSize when absent", async () => {
+      const list = jest.fn(async () => ({
+        postings: [],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 0,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        unavailablePostings: [],
+      }));
+      const controller = createController({}, { savedPostings: { list } });
+
+      await controller.listSaved(
+        createContext({ url: "https://example.test/postings/saved" }),
+      );
+
+      expect(list).toHaveBeenCalledWith("user-1", 1, 20);
+    });
+
+    it.each([
+      ["page=0", "https://example.test/postings/saved?page=0"],
+      ["pageSize=999", "https://example.test/postings/saved?pageSize=999"],
+    ])("listSaved — rejects %s", async (_label, url) => {
+      const list = jest.fn();
+      const controller = createController({}, { savedPostings: { list } });
+
+      await expect(
+        controller.listSaved(createContext({ url })),
+      ).rejects.toBeInstanceOf(RequestValidationError);
+      expect(list).not.toHaveBeenCalled();
+    });
+
+    it("listSavedIds — forwards the caller identifier", async () => {
+      const listIds = jest.fn(async () => ({
+        postingIds: ["posting-1"],
+        truncated: false,
+      }));
+      const controller = createController({}, { savedPostings: { listIds } });
+
+      const response = await controller.listSavedIds(createContext());
+
+      expect(listIds).toHaveBeenCalledWith("user-1");
+      expect(response.status).toBe(200);
+    });
+
+    it("save — returns 200 with the saved state", async () => {
+      const save = jest.fn(async () => ({
+        postingId: "posting-1",
+        saved: true,
+        savedAt: "2026-08-01T12:00:00.000Z",
+      }));
+      const controller = createController({}, { savedPostings: { save } });
+      const context = createContext({ params: { id: "posting-1" } });
+
+      const response = await controller.save(context);
+
+      expect(save).toHaveBeenCalledWith("posting-1", "user-1");
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual(
+        expect.objectContaining({
+          data: expect.objectContaining({ saved: true }),
+        }),
+      );
+    });
+
+    it("unsave — returns 200 with the cleared state", async () => {
+      const unsave = jest.fn(async () => ({
+        postingId: "posting-1",
+        saved: false,
+        savedAt: null,
+      }));
+      const controller = createController({}, { savedPostings: { unsave } });
+      const context = createContext({ params: { id: "posting-1" } });
+
+      const response = await controller.unsave(context);
+
+      expect(unsave).toHaveBeenCalledWith("posting-1", "user-1");
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual(
+        expect.objectContaining({
+          data: expect.objectContaining({ saved: false, savedAt: null }),
+        }),
+      );
     });
   });
 });
