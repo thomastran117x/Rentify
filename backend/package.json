@@ -44,6 +44,7 @@
     "check": "tsc --noEmit --project tsconfig.app.json",
     "check:test": "tsc --noEmit --project tsconfig.test.json",
     "check:all": "npm run check && npm run check:test",
+    "check:controller-integration-coverage": "tsx src/app/scripts/run-controller-integration-coverage-check.ts",
     "audit": "npm audit --audit-level=high",
     "audit:signatures": "npm audit signatures",
     "audit:all": "npm run audit && npm run audit:signatures",
