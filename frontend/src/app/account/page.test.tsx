@@ -1,0 +1,420 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import AccountPage, {
+  deviceLabel,
+  formatDateTime,
+  formatLinkedAt,
+} from "./page";
+
+const {
+  useAuthMock,
+  linkedProvidersMock,
+  listTokensMock,
+  getMineMock,
+  updateMineMock,
+  getOptionsMock,
+  listDevicesMock,
+  createTokenMock,
+  unlinkProviderMock,
+  removeDeviceMock,
+  revokeTokenMock,
+} = vi.hoisted(() => ({
+  useAuthMock: vi.fn(),
+  linkedProvidersMock: vi.fn(),
+  listTokensMock: vi.fn(),
+  getMineMock: vi.fn(),
+  updateMineMock: vi.fn(),
+  getOptionsMock: vi.fn(),
+  listDevicesMock: vi.fn(),
+  createTokenMock: vi.fn(),
+  unlinkProviderMock: vi.fn(),
+  removeDeviceMock: vi.fn(),
+  revokeTokenMock: vi.fn(),
+}));
+
+vi.mock("@/components/auth/auth-context", () => ({ useAuth: useAuthMock }));
+vi.mock("@/components/auth/oauth-buttons", () => ({
+  AuthOAuthButtons: () => <div>OAuth buttons</div>,
+}));
+vi.mock("@/components/auth/mfa-verification-dialog", () => ({
+  MfaVerificationDialog: ({
+    onVerified,
+    onCancel,
+  }: {
+    onVerified: () => void;
+    onCancel: () => void;
+  }) => (
+    <div>
+      <button type="button" onClick={onVerified}>
+        Approve account verification
+      </button>
+      <button type="button" onClick={onCancel}>
+        Cancel account verification
+      </button>
+    </div>
+  ),
+}));
+vi.mock("@/components/home/home-mfa-totp-panel", () => ({
+  HomeMfaTotpPanel: () => <div>MFA panel</div>,
+}));
+vi.mock("@/components/home/home-password-panel", () => ({
+  HomePasswordPanel: () => <div>Password panel</div>,
+}));
+vi.mock("@/lib/auth/api", () => ({
+  authApi: {
+    linkedOAuthProviders: linkedProvidersMock,
+    listPersonalAccessTokens: listTokensMock,
+    listKnownDevices: listDevicesMock,
+    createPersonalAccessToken: createTokenMock,
+    unlinkOAuthProvider: unlinkProviderMock,
+    removeKnownDevice: removeDeviceMock,
+    revokePersonalAccessToken: revokeTokenMock,
+  },
+}));
+vi.mock("@/lib/profiles/api", () => ({
+  profilesApi: { getMine: getMineMock, updateMine: updateMineMock },
+}));
+vi.mock("@/lib/auth/mfa-verification-api", () => ({
+  mfaVerificationApi: { getOptions: getOptionsMock },
+}));
+
+const profile = {
+  username: "renter-one",
+  phoneNumber: null,
+  isPrivate: false,
+  recommendationPersonalizationEnabled: true,
+};
+
+function authenticated(): void {
+  useAuthMock.mockReturnValue({
+    status: "authenticated",
+    session: { user: { email: "renter@example.com", role: "user" } },
+  });
+}
+
+describe("AccountPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authenticated();
+    linkedProvidersMock.mockResolvedValue({ hasPassword: true, providers: [] });
+    listTokensMock.mockResolvedValue({ tokens: [] });
+    getMineMock.mockResolvedValue(profile);
+    updateMineMock.mockResolvedValue(profile);
+    getOptionsMock.mockResolvedValue({ verified: true, methods: [] });
+    listDevicesMock.mockResolvedValue({ devices: [] });
+    createTokenMock.mockResolvedValue({
+      id: "pat-1",
+      name: "Rentify MCP",
+      token: "secret-token",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: null,
+      revokedAt: null,
+      scopes: ["mcp:read"],
+    });
+  });
+
+  it("renders loading and anonymous account states", () => {
+    useAuthMock.mockReturnValue({ status: "loading", session: null });
+    const { rerender } = render(<AccountPage />);
+    expect(screen.getByText("Loading account...")).toBeInTheDocument();
+
+    useAuthMock.mockReturnValue({ status: "anonymous", session: null });
+    rerender(<AccountPage />);
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+  });
+
+  it("loads and saves profile settings", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+
+    const username = await screen.findByPlaceholderText("renter-one");
+    expect(username).toHaveValue("renter-one");
+    await user.clear(username);
+    await user.type(username, "new-name");
+    await user.click(screen.getByRole("button", { name: "Advanced settings" }));
+    await user.click(screen.getByRole("checkbox", { name: /Private account/ }));
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() =>
+      expect(updateMineMock).toHaveBeenCalledWith({
+        username: "new-name",
+        isPrivate: true,
+        recommendationPersonalizationEnabled: true,
+      }),
+    );
+    expect(await screen.findByText("Profile saved.")).toBeInTheDocument();
+  });
+
+  it("unlocks security settings after a verified MFA check", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+
+    await user.click(screen.getByRole("button", { name: "Security" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Password" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Password panel")).toBeInTheDocument();
+    expect(getOptionsMock).toHaveBeenCalledWith("mfa-management");
+    expect(listDevicesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a personal access token from the developer tab", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    const name = await screen.findByRole("textbox", { name: /Token name/ });
+    await user.clear(name);
+    await user.type(name, "CLI token");
+    await user.click(screen.getByRole("button", { name: /Create token/ }));
+
+    await waitFor(() =>
+      expect(createTokenMock).toHaveBeenCalledWith({
+        name: "CLI token",
+        expiresInDays: 30,
+        scopes: ["mcp:read"],
+      }),
+    );
+    expect(await screen.findByText("secret-token")).toBeInTheDocument();
+  });
+
+  it("updates an editable phone number and deactivation confirmation", async () => {
+    const user = userEvent.setup();
+    updateMineMock.mockResolvedValue({
+      ...profile,
+      phoneNumber: "+15550000000",
+    });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    const phone = await screen.findByPlaceholderText("e.g. +1 555 000 0000");
+    await user.type(phone, " +15550000000 ");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(updateMineMock).toHaveBeenCalledWith({
+        username: "renter-one",
+        phoneNumber: "+15550000000",
+      }),
+    );
+    expect(await screen.findByText("Phone number saved.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disable account" }));
+    await user.click(
+      screen.getByRole("button", { name: "Yes, disable account" }),
+    );
+    expect(
+      await screen.findByText(/Account deactivation is not yet available/),
+    ).toBeInTheDocument();
+  });
+
+  it("unlinks providers, removes a non-current device, and revokes a token", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({
+      hasPassword: true,
+      providers: [
+        {
+          id: "provider-1",
+          provider: "google",
+          linkedAt: "2026-01-01",
+          providerEmail: "person@example.com",
+        },
+      ],
+    });
+    unlinkProviderMock.mockResolvedValue({ hasPassword: true, providers: [] });
+    listDevicesMock.mockResolvedValue({
+      devices: [
+        {
+          id: "device-1",
+          deviceId: "device-1",
+          platform: "web",
+          lastSeenAt: "2026-01-01",
+          current: false,
+        },
+      ],
+    });
+    listTokensMock.mockResolvedValue({
+      tokens: [
+        {
+          id: "token-1",
+          name: "CLI",
+          tokenPrefix: "rnt_",
+          scopes: ["mcp:read"],
+          createdAt: "2026-01-01",
+          lastUsedAt: null,
+          expiresAt: null,
+          revokedAt: null,
+        },
+      ],
+    });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await screen.findByText("Google");
+    await user.click(screen.getByRole("button", { name: "Unlink" }));
+    await waitFor(() =>
+      expect(unlinkProviderMock).toHaveBeenCalledWith("google"),
+    );
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(removeDeviceMock).toHaveBeenCalledWith("device-1"),
+    );
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    await screen.findByText("CLI");
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() =>
+      expect(revokeTokenMock).toHaveBeenCalledWith("token-1"),
+    );
+  });
+
+  it("formats account dates and device labels", () => {
+    expect(formatLinkedAt("2026-01-02T12:00:00.000Z")).toMatch(/2026/);
+    expect(formatDateTime()).toBe("Never");
+    expect(formatDateTime("2026-01-02T12:00:00.000Z")).toMatch(/2026/);
+    expect(deviceLabel({ label: "Work laptop" } as never)).toBe("Work laptop");
+    expect(
+      deviceLabel({ type: "desktop", platform: "Windows" } as never),
+    ).toContain("desktop");
+    expect(deviceLabel({} as never)).toBe("Unknown device");
+  });
+
+  it("renders independent initial-load errors", async () => {
+    linkedProvidersMock.mockRejectedValue(new Error("providers offline"));
+    listTokensMock.mockRejectedValue(new Error("tokens offline"));
+    getMineMock.mockRejectedValue(new Error("profile offline"));
+    render(<AccountPage />);
+
+    expect(
+      await screen.findByText(/couldn't load your profile/i),
+    ).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Security" }));
+    expect(
+      await screen.findByText(/couldn't load your connected providers/i),
+    ).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Developer" }));
+    expect(
+      await screen.findByText(/couldn't load your personal access tokens/i),
+    ).toBeInTheDocument();
+  });
+
+  it("supports cancelling and approving the security verification gate", async () => {
+    const user = userEvent.setup();
+    getOptionsMock.mockResolvedValue({
+      scope: "mfa-management",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Verify to continue" }),
+    );
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Cancel account verification",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Verify to continue" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Verify to continue" }),
+    );
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Approve account verification",
+      }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Password" }),
+    ).toBeInTheDocument();
+  });
+
+  it("validates empty profile and token names and creates a write token", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(screen.getByText("Username is required.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    const name = await screen.findByRole("textbox", { name: /Token name/ });
+    await user.clear(name);
+    await user.click(screen.getByRole("button", { name: /Create token/ }));
+    expect(screen.getByText("Token name is required.")).toBeInTheDocument();
+
+    await user.type(name, "Automation");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Access" }),
+      "write",
+    );
+    await user.click(screen.getByRole("button", { name: /Create token/ }));
+    await waitFor(() =>
+      expect(createTokenMock).toHaveBeenCalledWith({
+        name: "Automation",
+        expiresInDays: 30,
+        scopes: ["mcp:read", "mcp:write"],
+      }),
+    );
+  });
+
+  it("shows device, profile, phone, unlink, and token action failures", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({
+      hasPassword: true,
+      providers: [
+        {
+          id: "provider-1",
+          provider: "google",
+          linkedAt: "2026-01-01",
+          providerEmail: null,
+        },
+      ],
+    });
+    updateMineMock.mockRejectedValue(new Error("save failed"));
+    unlinkProviderMock.mockRejectedValue(new Error("unlink failed"));
+    listDevicesMock.mockRejectedValue(new Error("devices failed"));
+    createTokenMock.mockRejectedValue(new Error("create failed"));
+    getOptionsMock.mockResolvedValue({ verified: true, methods: [] });
+    render(<AccountPage />);
+
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.type(username, "changed");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(
+      await screen.findByText(/couldn't save your profile/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    expect(
+      await screen.findByText(/couldn't load your registered devices/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Unlink" }));
+    expect(
+      await screen.findByText(/couldn't unlink that provider/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(/couldn't save your phone number/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    await user.click(
+      await screen.findByRole("button", { name: /Create token/ }),
+    );
+    expect(
+      await screen.findByText(/couldn't create that personal access token/i),
+    ).toBeInTheDocument();
+  });
+});

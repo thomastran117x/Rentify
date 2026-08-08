@@ -1,0 +1,57 @@
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OrganizationBlogPostPage } from "./organization-blog-post-page";
+const getMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/organizations/api", () => ({
+  organizationsApi: { getPublicBlogPost: getMock },
+}));
+vi.mock("@/lib/api/user-messages", () => ({
+  getApiErrorMessage: () => "Post API unavailable",
+}));
+vi.mock("@/lib/organizations/urls", () => ({
+  organizationHref: (...parts: string[]) => `/organizations/${parts.join("/")}`,
+}));
+vi.mock("@/components/organizations/organization-public-visuals", () => ({
+  formatOrganizationDate: () => "Today",
+}));
+vi.mock("@/components/organizations/blog-visuals", () => ({
+  AuthorAvatar: () => <span>Avatar</span>,
+  authorName: () => "Author",
+  readingTimeMinutes: () => 3,
+}));
+const post = {
+  id: "post-1",
+  organizationId: "org-1",
+  slug: "opening",
+  title: "Opening day",
+  body: "<p>Welcome</p>",
+  excerpt: "Welcome to our studio",
+  tags: ["news"],
+  createdAt: "2026-01-01",
+  coverImageUrl: "https://img.test/cover.jpg",
+};
+describe("OrganizationBlogPostPage", () => {
+  afterEach(() => vi.clearAllMocks());
+  it("loads and renders a post with metadata and body HTML", async () => {
+    getMock.mockResolvedValue(post);
+    render(
+      <OrganizationBlogPostPage
+        id="org-1"
+        slug="opening"
+        organizationSlug="studio"
+      />,
+    );
+    expect(await screen.findByText("Opening day")).toBeInTheDocument();
+    expect(screen.getByText("Welcome")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to blog" })).toHaveAttribute(
+      "href",
+      "/organizations/studio/blog",
+    );
+  });
+  it("renders the unavailable state after a failed read", async () => {
+    getMock.mockRejectedValue(new Error("offline"));
+    render(<OrganizationBlogPostPage id="org-1" slug="opening" />);
+    expect(await screen.findByText("Post unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Post API unavailable")).toBeInTheDocument();
+  });
+});

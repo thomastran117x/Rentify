@@ -1,0 +1,97 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ReviewsPanel } from "./reviews-panel";
+const { listMock, replyMock, removeMock, deleteMock } = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  replyMock: vi.fn(),
+  removeMock: vi.fn(),
+  deleteMock: vi.fn(),
+}));
+vi.mock("@/lib/organizations/api", () => ({
+  organizationsApi: {
+    listPublicReviews: listMock,
+    replyToReview: replyMock,
+    removeReviewReply: removeMock,
+    deleteReview: deleteMock,
+  },
+}));
+vi.mock("@/lib/api/user-messages", () => ({
+  getApiErrorMessage: () => "Review action unavailable",
+}));
+vi.mock("@/components/reviews/star-rating", () => ({
+  StarRating: () => <span>Stars</span>,
+}));
+vi.mock("@/components/organizations/shared/primitives", () => ({
+  SectionCard: ({
+    title,
+    children,
+  }: {
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  ),
+}));
+vi.mock("@/components/organizations/shared/format", () => ({
+  formatDateTime: () => "Today",
+}));
+const review = {
+  id: "review-1",
+  organizationId: "org-1",
+  reviewerId: "user-1",
+  rating: 5,
+  title: "Excellent",
+  comment: "Great",
+  reviewer: { username: "Renter" },
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-01",
+};
+const result = (reviews = [review]) => ({
+  reviews,
+  summary: { averageRating: 5, reviewCount: reviews.length },
+  pagination: {},
+});
+describe("ReviewsPanel", () => {
+  afterEach(() => vi.clearAllMocks());
+  it("renders read-only empty and error states", async () => {
+    listMock.mockResolvedValueOnce(result([]));
+    const { unmount } = render(
+      <ReviewsPanel organizationId="org-1" canManage={false} />,
+    );
+    expect(await screen.findByText("No reviews yet.")).toBeInTheDocument();
+    unmount();
+    listMock.mockRejectedValueOnce(new Error("offline"));
+    render(<ReviewsPanel organizationId="org-1" canManage={false} />);
+    expect(
+      await screen.findByText("Review action unavailable"),
+    ).toBeInTheDocument();
+  });
+  it("replies, removes replies, and deletes a managed review", async () => {
+    listMock.mockResolvedValue(result([review]));
+    replyMock.mockResolvedValue({ ...review, response: { body: "Thanks" } });
+    removeMock.mockResolvedValue(review);
+    deleteMock.mockResolvedValue({ deleted: true });
+    render(<ReviewsPanel organizationId="org-1" canManage />);
+    await screen.findByText("Excellent");
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    fireEvent.change(screen.getByPlaceholderText("Write a public response…"), {
+      target: { value: " Thanks " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save reply" }));
+    await waitFor(() =>
+      expect(replyMock).toHaveBeenCalledWith("org-1", "review-1", "Thanks"),
+    );
+    await screen.findByRole("button", { name: "Remove reply" });
+    fireEvent.click(screen.getByRole("button", { name: "Remove reply" }));
+    await waitFor(() =>
+      expect(removeMock).toHaveBeenCalledWith("org-1", "review-1"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(deleteMock).toHaveBeenCalledWith("org-1", "review-1"),
+    );
+  });
+});

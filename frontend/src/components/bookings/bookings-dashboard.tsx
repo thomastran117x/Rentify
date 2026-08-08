@@ -97,7 +97,7 @@ const OWNER_ACTION_OPTIONS: Array<{
   { label: "Convert to renting", value: "conversion" },
 ];
 
-function humanizeActionNeeded(value?: string): string | null {
+export function humanizeActionNeeded(value?: string): string | null {
   if (!value) {
     return null;
   }
@@ -108,7 +108,7 @@ function humanizeActionNeeded(value?: string): string | null {
     .join(" ");
 }
 
-function canReviewCancellation(item: BookingDashboardItem): boolean {
+export function canReviewCancellation(item: BookingDashboardItem): boolean {
   return (
     item.kind === "booking_request" &&
     !["declined", "expired", "cancelled", "refunded"].includes(
@@ -117,13 +117,13 @@ function canReviewCancellation(item: BookingDashboardItem): boolean {
   );
 }
 
-function bannerClasses(tone: BannerTone): string {
+export function bannerClasses(tone: BannerTone): string {
   return tone === "error"
     ? "border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200"
     : "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200";
 }
 
-function urgencyClasses(
+export function urgencyClasses(
   level: BookingDashboardItem["urgency"]["level"],
 ): string {
   if (level === "high") {
@@ -141,7 +141,7 @@ function urgencyClasses(
   return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
-function canOpenDispute(item: BookingDashboardItem): boolean {
+export function canOpenDispute(item: BookingDashboardItem): boolean {
   if (item.kind !== "renting") {
     return false;
   }
@@ -158,7 +158,7 @@ function canOpenDispute(item: BookingDashboardItem): boolean {
  * Renters review the posting they rented. Owners are organization members and
  * are rejected by the API, so the affordance is renter-only.
  */
-function canLeaveReview(
+export function canLeaveReview(
   item: BookingDashboardItem,
   view: DashboardView,
 ): boolean {
@@ -212,7 +212,7 @@ interface BookingItemCardProps {
   onCreateDispute: (rentingId: string) => Promise<void>;
 }
 
-function BookingItemCard({
+export function BookingItemCard({
   item,
   view,
   reviewFormOpenRentingId,

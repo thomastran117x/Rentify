@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiClientError } from "@/lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { HomeMfaTotpPanel } from "./home-mfa-totp-panel";
+import { formatSecret, HomeMfaTotpPanel } from "./home-mfa-totp-panel";
 
 const {
   useAuthMock,
@@ -12,6 +12,7 @@ const {
   cancelEnrollmentMock,
   disableMock,
   getOptionsMock,
+  qrCodeMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getStatusMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   cancelEnrollmentMock: vi.fn(),
   disableMock: vi.fn(),
   getOptionsMock: vi.fn(),
+  qrCodeMock: vi.fn(async () => "data:image/png;base64,test"),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -63,9 +65,9 @@ vi.mock("@/components/auth/mfa-verification-dialog", () => ({
 
 vi.mock("qrcode", () => ({
   default: {
-    toDataURL: vi.fn(async () => "data:image/png;base64,test"),
+    toDataURL: qrCodeMock,
   },
-  toDataURL: vi.fn(async () => "data:image/png;base64,test"),
+  toDataURL: qrCodeMock,
 }));
 
 describe("HomeMfaTotpPanel", () => {
@@ -107,6 +109,7 @@ describe("HomeMfaTotpPanel", () => {
       availableFactors: ["email"],
       recommendedFactor: "email",
     });
+    qrCodeMock.mockResolvedValue("data:image/png;base64,test");
   });
 
   it("starts enrollment after the user completes MFA verification", async () => {
@@ -180,5 +183,141 @@ describe("HomeMfaTotpPanel", () => {
       expect(beginEnrollmentMock).toHaveBeenCalledTimes(2);
     });
     expect(getOptionsMock).not.toHaveBeenCalled();
+  });
+
+  it("formats secrets and hides the panel from unauthenticated users", () => {
+    expect(formatSecret("ABCDEFGHIJKLMNOP")).toBe("ABCD EFGH IJKL MNOP");
+    expect(formatSecret("")).toBe("");
+    useAuthMock.mockReturnValue({ status: "anonymous", session: null });
+    const { container } = render(<HomeMfaTotpPanel />);
+    expect(container).toBeEmptyDOMElement();
+    expect(getStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("shows status-loading failures and direct enrollment failures", async () => {
+    getStatusMock.mockRejectedValueOnce(new Error("offline"));
+    const { rerender } = render(<HomeMfaTotpPanel />);
+    expect(
+      await screen.findByText(/couldn't load your MFA status/i),
+    ).toBeInTheDocument();
+
+    getStatusMock.mockResolvedValueOnce({ enabled: false });
+    rerender(<HomeMfaTotpPanel />);
+  });
+
+  it("starts, confirms, and resets a direct enrollment", async () => {
+    const user = userEvent.setup();
+    beginEnrollmentMock.mockResolvedValue({
+      secret: "ABCDEFGHIJKLMNOP",
+      uri: "otpauth://totp/Test",
+    });
+    confirmEnrollmentMock.mockResolvedValue({ enabled: true });
+
+    render(<HomeMfaTotpPanel />);
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    expect(await screen.findByText("ABCD EFGH IJKL MNOP")).toBeInTheDocument();
+    const input = screen.getByPlaceholderText("000000");
+    await user.type(input, "ab12-3456");
+    expect(input).toHaveValue("123456");
+    await user.click(screen.getByRole("button", { name: "Verify and enable" }));
+
+    expect(await screen.findByText("Enabled")).toBeInTheDocument();
+    expect(screen.getByText(/account is now protected/i)).toBeInTheDocument();
+  });
+
+  it("cancels enrollment even when server cleanup fails", async () => {
+    const user = userEvent.setup();
+    beginEnrollmentMock.mockResolvedValue({
+      secret: "ABCD",
+      uri: "otpauth://totp/Test",
+    });
+    cancelEnrollmentMock.mockRejectedValue(new Error("cleanup failed"));
+    render(<HomeMfaTotpPanel />);
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Not enabled")).toBeInTheDocument();
+    expect(cancelEnrollmentMock).toHaveBeenCalled();
+  });
+
+  it("disables an enabled authenticator and reports disable failures", async () => {
+    const user = userEvent.setup();
+    getStatusMock.mockResolvedValue({ enabled: true });
+    disableMock
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ enabled: false });
+    render(<HomeMfaTotpPanel />);
+
+    await user.click(await screen.findByRole("button", { name: "Disable" }));
+    expect(
+      await screen.findByText(/couldn't disable your authenticator app/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    expect(
+      await screen.findByText("Authenticator app disabled."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not enabled")).toBeInTheDocument();
+  });
+
+  it("uses fetched options when verification-required details are absent", async () => {
+    const user = userEvent.setup();
+    const error = new ApiClientError("Verification required", {
+      code: "MFA_VERIFICATION_REQUIRED",
+      request: {
+        method: "POST",
+        path: "/auth/mfa/totp/begin",
+        requestUrl: "http://localhost/begin",
+      },
+      status: 401,
+    });
+    beginEnrollmentMock
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ secret: "ABCD", uri: "otpauth://totp/Test" });
+    getOptionsMock.mockResolvedValue({
+      scope: "mfa-management",
+      verified: true,
+      verifiedUntil: "2026-08-08T12:00:00.000Z",
+      availableFactors: ["totp"],
+      recommendedFactor: "totp",
+    });
+    render(<HomeMfaTotpPanel />);
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    expect(await screen.findByText(/Scan this QR code/i)).toBeInTheDocument();
+    expect(getOptionsMock).toHaveBeenCalledWith("mfa-management");
+  });
+
+  it("does not retry a protected action when verification is cancelled", async () => {
+    const user = userEvent.setup();
+    beginEnrollmentMock.mockRejectedValueOnce(
+      createVerificationRequiredError(),
+    );
+    render(<HomeMfaTotpPanel />);
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    await user.click(
+      screen.getByRole("button", { name: "Cancel verification" }),
+    );
+    await waitFor(() => expect(beginEnrollmentMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Not enabled")).toBeInTheDocument();
+  });
+
+  it("shows enrollment and confirmation errors", async () => {
+    const user = userEvent.setup();
+    beginEnrollmentMock.mockRejectedValueOnce(new Error("offline"));
+    render(<HomeMfaTotpPanel />);
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    expect(
+      await screen.findByText(/couldn't start MFA setup/i),
+    ).toBeInTheDocument();
+
+    beginEnrollmentMock.mockResolvedValueOnce({
+      secret: "ABCD",
+      uri: "otpauth://totp/Test",
+    });
+    confirmEnrollmentMock.mockRejectedValueOnce(new Error("bad code"));
+    await user.click(screen.getByRole("button", { name: "Set up" }));
+    await user.type(await screen.findByPlaceholderText("000000"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify and enable" }));
+    expect(
+      await screen.findByText(/couldn't verify that code/i),
+    ).toBeInTheDocument();
   });
 });

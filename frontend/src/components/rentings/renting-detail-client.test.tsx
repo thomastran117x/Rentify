@@ -15,12 +15,18 @@ const {
   getByIdMock,
   updateInstructionsMock,
   markCheckInReadyMock,
+  markCheckInCompleteMock,
+  markReturnCompleteMock,
+  createDisputeMock,
   getPaymentMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateInstructionsMock: vi.fn(),
   markCheckInReadyMock: vi.fn(),
+  markCheckInCompleteMock: vi.fn(),
+  markReturnCompleteMock: vi.fn(),
+  createDisputeMock: vi.fn(),
   getPaymentMock: vi.fn(),
 }));
 
@@ -51,6 +57,9 @@ vi.mock("@/lib/rentings/api", () => ({
     getById: getByIdMock,
     updateInstructions: updateInstructionsMock,
     markCheckInReady: markCheckInReadyMock,
+    markCheckInComplete: markCheckInCompleteMock,
+    markReturnComplete: markReturnCompleteMock,
+    createDispute: createDisputeMock,
   },
 }));
 
@@ -153,6 +162,9 @@ describe("RentingDetailClient", () => {
     getPaymentMock.mockResolvedValue(buildPayment());
     updateInstructionsMock.mockResolvedValue(buildRenting());
     markCheckInReadyMock.mockResolvedValue(buildRenting());
+    markCheckInCompleteMock.mockResolvedValue(buildRenting());
+    markReturnCompleteMock.mockResolvedValue(buildRenting());
+    createDisputeMock.mockResolvedValue(buildRenting());
   });
 
   it("redirects anonymous users to the login page", async () => {
@@ -163,6 +175,40 @@ describe("RentingDetailClient", () => {
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/login");
     });
+  });
+
+  it("shows the auth loading state without loading a renting", () => {
+    useAuthMock.mockReturnValue({ status: "loading", session: null });
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(screen.getByText("Loading renting details...")).toBeInTheDocument();
+    expect(getByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("renders dedicated not-found and load-error states", async () => {
+    getByIdMock.mockRejectedValueOnce(
+      new ApiClientError("Missing", {
+        status: 404,
+        code: "RESOURCE_NOT_FOUND",
+        request: {
+          method: "GET",
+          path: "/rentings/1",
+          requestUrl: "/rentings/1",
+        },
+      }),
+    );
+    const { unmount } = render(<RentingDetailClient rentingId="missing" />);
+    expect(
+      await screen.findByText("We couldn't find this renting."),
+    ).toBeInTheDocument();
+    unmount();
+
+    getByIdMock.mockRejectedValueOnce(new Error("offline"));
+    render(<RentingDetailClient rentingId="broken" />);
+    expect(
+      await screen.findByText("We couldn't load this renting right now."),
+    ).toBeInTheDocument();
   });
 
   it("renders the record with a read-only instructions view and receipt for the renter", async () => {
@@ -204,6 +250,162 @@ describe("RentingDetailClient", () => {
       });
     });
     expect(await screen.findByText("Instructions saved.")).toBeInTheDocument();
+  });
+
+  it("shows mutation errors while retaining owner controls", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("admin", "admin-1"),
+    });
+    updateInstructionsMock.mockRejectedValue(new Error("offline"));
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save instructions" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "We couldn't complete that action. Please try again.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows fallback copy when renter instructions are blank", async () => {
+    getByIdMock.mockResolvedValue(
+      buildRenting({ pickupInstructions: " ", returnInstructions: undefined }),
+    );
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(
+      await screen.findByText(
+        "The owner has not shared pickup instructions yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The owner has not shared return instructions yet."),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "confirmed",
+      "Mark check-in ready",
+      markCheckInReadyMock,
+      "Marked check-in ready.",
+    ],
+    [
+      "check_in_ready",
+      "Confirm check-in",
+      markCheckInCompleteMock,
+      "Check-in confirmed.",
+    ],
+    [
+      "return_due",
+      "Confirm return",
+      markReturnCompleteMock,
+      "Return confirmed.",
+    ],
+  ] as const)(
+    "runs the %s lifecycle action",
+    async (rentingStatus, buttonName, actionMock, successMessage) => {
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        session: buildSession("user", "manager-9", {
+          id: "org-1",
+          name: "Org One",
+          role: "manager",
+        }),
+      });
+      getByIdMock.mockResolvedValue(buildRenting({ status: rentingStatus }));
+
+      render(<RentingDetailClient rentingId="renting-1" />);
+      fireEvent.click(await screen.findByRole("button", { name: buttonName }));
+
+      await waitFor(() => expect(actionMock).toHaveBeenCalledWith("renting-1"));
+      expect(await screen.findByText(successMessage)).toBeInTheDocument();
+    },
+  );
+
+  it("disables check-in readiness until both instructions exist", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("user", "manager-9", {
+        id: "org-1",
+        name: "Org One",
+        role: "manager",
+      }),
+    });
+    getByIdMock.mockResolvedValue(
+      buildRenting({ status: "confirmed", pickupInstructions: "" }),
+    );
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Mark check-in ready" }),
+    ).toBeDisabled();
+  });
+
+  it("opens a dispute with optional details", async () => {
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    const button = await screen.findByRole("button", { name: "Open dispute" });
+    expect(button).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("Reason"), {
+      target: { value: "Item was damaged" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Add any details (optional)"),
+      {
+        target: { value: "Photos attached" },
+      },
+    );
+    fireEvent.click(button);
+
+    await waitFor(() =>
+      expect(createDisputeMock).toHaveBeenCalledWith("renting-1", {
+        reason: "Item was damaged",
+        details: "Photos attached",
+      }),
+    );
+    expect(await screen.findByText("Dispute opened.")).toBeInTheDocument();
+  });
+
+  it("renders an existing dispute, cancellation, photo, and singular labels", async () => {
+    getByIdMock.mockResolvedValue(
+      buildRenting({
+        durationDays: 1,
+        guestCount: 1,
+        cancelledAt: "2026-08-02T12:00:00.000Z",
+        disputedAt: "2026-08-02T11:00:00.000Z",
+        posting: {
+          id: "posting-1",
+          name: "Lake House Retreat",
+          primaryPhotoUrl: "https://example.com/photo.jpg",
+        },
+        dispute: {
+          id: "dispute-1",
+          rentingId: "renting-1",
+          openedByUserId: "renter-1",
+          reason: "Damaged",
+          details: "A detailed report",
+          createdAt: "2026-08-02T11:00:00.000Z",
+          updatedAt: "2026-08-02T11:00:00.000Z",
+        },
+      }),
+    );
+
+    render(<RentingDetailClient rentingId="renting-1" />);
+
+    expect(
+      await screen.findByAltText("Lake House Retreat"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 day")).toBeInTheDocument();
+    expect(screen.getByText("1 guest")).toBeInTheDocument();
+    expect(screen.getByText("A detailed report")).toBeInTheDocument();
+    expect(screen.getByText(/Cancelled/)).toBeInTheDocument();
   });
 
   it("hides owner controls from a global owner role without managing membership", async () => {

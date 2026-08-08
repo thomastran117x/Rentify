@@ -10,6 +10,10 @@ const {
   getPostingMock,
   createPostingMock,
   createUploadUrlMock,
+  listSeasonalMock,
+  createSeasonalMock,
+  updateSeasonalMock,
+  deleteSeasonalMock,
   useAuthMock,
   showErrorModalMock,
 } = vi.hoisted(() => ({
@@ -18,6 +22,10 @@ const {
   getPostingMock: vi.fn(),
   createPostingMock: vi.fn(),
   createUploadUrlMock: vi.fn(),
+  listSeasonalMock: vi.fn(),
+  createSeasonalMock: vi.fn(),
+  updateSeasonalMock: vi.fn(),
+  deleteSeasonalMock: vi.fn(),
   useAuthMock: vi.fn(),
   showErrorModalMock: vi.fn(),
 }));
@@ -49,7 +57,10 @@ vi.mock("@/lib/postings/api", () => ({
   postingsApi: {
     listMine: listMineMock,
     getPosting: getPostingMock,
-    listSeasonalPricing: vi.fn(async () => []),
+    listSeasonalPricing: listSeasonalMock,
+    createSeasonalPricingRule: createSeasonalMock,
+    updateSeasonalPricingRule: updateSeasonalMock,
+    deleteSeasonalPricingRule: deleteSeasonalMock,
     create: createPostingMock,
     update: vi.fn(),
     publish: vi.fn(),
@@ -169,6 +180,14 @@ describe("PostingManagementWorkspace", () => {
       },
     });
     getPostingMock.mockResolvedValue(samplePosting);
+    listSeasonalMock.mockResolvedValue([]);
+    createSeasonalMock.mockResolvedValue({
+      id: "rule-1",
+      name: "Summer Peak",
+      startDate: "2026-07-01",
+      endDate: "2026-08-01",
+      dailyAmount: 175,
+    });
     createUploadUrlMock.mockResolvedValue({
       method: "PUT",
       uploadUrl: "https://blob.example/upload",
@@ -466,5 +485,59 @@ describe("PostingManagementWorkspace", () => {
     // The modal message is a node listing every field-level detail.
     const { getByText } = render(<>{call.message}</>);
     expect(getByText(/Number must be greater than 0/)).toBeInTheDocument();
+  });
+
+  it("creates, edits, and deletes seasonal pricing rules", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    window.history.replaceState({}, "", "/postings/create?posting=posting-1");
+    render(<PostingManagementWorkspace />);
+    await waitFor(() =>
+      expect(getPostingMock).toHaveBeenCalledWith("posting-1"),
+    );
+    await user.click(await screen.findByRole("button", { name: "Pricing" }));
+    await user.type(
+      screen.getByPlaceholderText("Name (e.g. Summer Peak)"),
+      "Summer Peak",
+    );
+    const dates = screen.getAllByDisplayValue("");
+    const dateInputs = dates.filter(
+      (element) => element.getAttribute("type") === "date",
+    );
+    await user.type(dateInputs[0], "2026-07-01");
+    await user.type(dateInputs[1], "2026-08-01");
+    await user.type(screen.getByPlaceholderText("Daily amount"), "175");
+    await user.click(screen.getByRole("button", { name: "Add rule" }));
+    await waitFor(() =>
+      expect(createSeasonalMock).toHaveBeenCalledWith("posting-1", {
+        name: "Summer Peak",
+        startDate: "2026-07-01",
+        endDate: "2026-08-01",
+        dailyAmount: 175,
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    updateSeasonalMock.mockResolvedValue({
+      id: "rule-1",
+      name: "Summer Peak",
+      startDate: "2026-07-01",
+      endDate: "2026-08-01",
+      dailyAmount: 200,
+    });
+    const amount = screen.getByPlaceholderText("Daily amount");
+    await user.clear(amount);
+    await user.type(amount, "200");
+    await user.click(screen.getByRole("button", { name: "Update rule" }));
+    await waitFor(() =>
+      expect(updateSeasonalMock).toHaveBeenCalledWith(
+        "posting-1",
+        "rule-1",
+        expect.objectContaining({ dailyAmount: 200 }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(deleteSeasonalMock).toHaveBeenCalledWith("posting-1", "rule-1"),
+    );
   });
 });

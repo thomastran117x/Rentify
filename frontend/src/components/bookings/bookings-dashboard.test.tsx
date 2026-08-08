@@ -21,6 +21,11 @@ const {
   getCancellationQuoteMock,
   cancelMock,
   getOwnReviewMock,
+  updateInstructionsMock,
+  markReadyMock,
+  markCompleteMock,
+  completeReturnMock,
+  createDisputeMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMyDashboardMock: vi.fn(),
@@ -28,6 +33,11 @@ const {
   getCancellationQuoteMock: vi.fn(),
   cancelMock: vi.fn(),
   getOwnReviewMock: vi.fn(),
+  updateInstructionsMock: vi.fn(),
+  markReadyMock: vi.fn(),
+  markCompleteMock: vi.fn(),
+  completeReturnMock: vi.fn(),
+  createDisputeMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -58,6 +68,11 @@ vi.mock("@/lib/bookings/api", () => ({
     getOwnerDashboard: getOwnerDashboardMock,
     getCancellationQuote: getCancellationQuoteMock,
     cancel: cancelMock,
+    updateRentingInstructions: updateInstructionsMock,
+    markRentingCheckInReady: markReadyMock,
+    markRentingCheckInComplete: markCompleteMock,
+    completeRentingReturn: completeReturnMock,
+    createRentingDispute: createDisputeMock,
   },
 }));
 
@@ -232,6 +247,11 @@ describe("BookingsDashboard", () => {
       id: "booking-1",
       status: "cancelled",
     });
+    updateInstructionsMock.mockResolvedValue(undefined);
+    markReadyMock.mockResolvedValue(undefined);
+    markCompleteMock.mockResolvedValue(undefined);
+    completeReturnMock.mockResolvedValue(undefined);
+    createDisputeMock.mockResolvedValue(undefined);
   });
 
   it("redirects anonymous users to the login page", async () => {
@@ -613,5 +633,83 @@ describe("BookingsDashboard", () => {
         expect.objectContaining({ page: 1, pageSize: 50 }),
       );
     });
+  });
+
+  it("saves owner instructions and advances confirmed check-in actions", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner"),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            id: "renting-item",
+            kind: "renting",
+            rentingId: "renting-1",
+            status: "confirmed",
+            sourceStatus: "confirmed",
+          }),
+        ],
+      }),
+    );
+    render(<BookingsDashboard />);
+    const pickup = await screen.findByPlaceholderText(
+      "Share where and how pickup or check-in works.",
+    );
+    const returns = screen.getByPlaceholderText(
+      "Share where and how return or check-out works.",
+    );
+    await user.type(pickup, "  Front desk  ");
+    await user.type(returns, "  Key box  ");
+    await user.click(screen.getByRole("button", { name: "Save instructions" }));
+    await waitFor(() =>
+      expect(updateInstructionsMock).toHaveBeenCalledWith("renting-1", {
+        pickupInstructions: "Front desk",
+        returnInstructions: "Key box",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Mark check-in ready" }),
+    );
+    await waitFor(() =>
+      expect(markReadyMock).toHaveBeenCalledWith("renting-1"),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm check-in" }));
+    await waitFor(() =>
+      expect(markCompleteMock).toHaveBeenCalledWith("renting-1"),
+    );
+  });
+
+  it("confirms the return of an active renting", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner"),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            id: "active-renting",
+            kind: "renting",
+            rentingId: "renting-2",
+            status: "active",
+            sourceStatus: "active",
+          }),
+        ],
+      }),
+    );
+    render(<BookingsDashboard />);
+    await user.click(
+      await screen.findByRole("button", { name: "Confirm return" }),
+    );
+    await waitFor(() =>
+      expect(completeReturnMock).toHaveBeenCalledWith("renting-2"),
+    );
+    expect(
+      await screen.findByText("Renting return confirmed."),
+    ).toBeInTheDocument();
   });
 });
