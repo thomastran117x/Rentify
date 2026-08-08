@@ -69,7 +69,7 @@ const rowActionMutedClass =
 const rowActionPrimaryClass =
   "inline-flex h-9 items-center justify-center rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50";
 
-function lifecycleActions(
+export function lifecycleActions(
   status: PostingStatus,
 ): Array<{ id: LifecycleAction; label: string; tone: "primary" | "muted" }> {
   if (status === "draft") {
@@ -93,14 +93,14 @@ function lifecycleActions(
   return [];
 }
 
-function formatVariant(posting: PostingRecord): string {
+export function formatVariant(posting: PostingRecord): string {
   return `${posting.variant.family} / ${posting.variant.subtype}`.replaceAll(
     "_",
     " ",
   );
 }
 
-function primaryPhotoUrl(posting: PostingRecord): string | null {
+export function primaryPhotoUrl(posting: PostingRecord): string | null {
   const photos = posting.photos ?? [];
   const primary =
     photos.find((photo) => photo.position === 0) ?? photos[0] ?? null;
@@ -108,7 +108,7 @@ function primaryPhotoUrl(posting: PostingRecord): string | null {
   return isRenderablePreviewImageUrl(url) ? url : null;
 }
 
-function PostingThumb({ posting }: { posting: PostingRecord }) {
+export function PostingThumb({ posting }: { posting: PostingRecord }) {
   const url = primaryPhotoUrl(posting);
 
   if (url) {
@@ -132,7 +132,7 @@ function PostingThumb({ posting }: { posting: PostingRecord }) {
   );
 }
 
-function formatDate(value: string): string {
+export function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "—";
@@ -144,7 +144,7 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-function safePrice(posting: PostingRecord): string {
+export function safePrice(posting: PostingRecord): string {
   const amount = posting.pricing.daily.amount;
   const currency = posting.pricing.currency;
   try {

@@ -114,7 +114,7 @@ const WIZARD_STEPS = [
 
 const REVIEW_STEP = WIZARD_STEPS.length - 1;
 
-function createDefaultDetails(
+export function createDefaultDetails(
   family: PostingFamily,
   subtype: string,
 ): Record<string, PostingDetailValue> {
@@ -146,7 +146,7 @@ function createDefaultDetails(
   };
 }
 
-function createDefaultFormState(): PostingFormState {
+export function createDefaultFormState(): PostingFormState {
   return {
     postingId: null,
     family: "place",
@@ -189,7 +189,7 @@ function formatVariantLabel(family: PostingFamily, subtype: string): string {
   return `${family} / ${subtype}`.replaceAll("_", " ");
 }
 
-function toFormState(posting: PostingRecord): PostingFormState {
+export function toFormState(posting: PostingRecord): PostingFormState {
   return {
     postingId: posting.id,
     family: posting.variant.family,
@@ -225,7 +225,7 @@ function toFormState(posting: PostingRecord): PostingFormState {
   };
 }
 
-function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
+export function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
   return [...posting.photos]
     .sort((a, b) => a.position - b.position)
     .map((photo, index) => ({
@@ -236,7 +236,7 @@ function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
     }));
 }
 
-function buildPayload(
+export function buildPayload(
   form: PostingFormState,
   photos: PostingPhotoInput[],
 ): UpsertPostingInput {
@@ -286,7 +286,7 @@ function buildPayload(
   };
 }
 
-async function uploadManagedPhoto(file: File): Promise<PostingPhotoInput> {
+export async function uploadManagedPhoto(file: File): Promise<PostingPhotoInput> {
   const uploadTarget = await blobApi.createUploadUrl({
     filename: file.name,
     contentType: file.type || "application/octet-stream",
@@ -309,7 +309,7 @@ async function uploadManagedPhoto(file: File): Promise<PostingPhotoInput> {
   };
 }
 
-function getCompletenessItems(
+export function getCompletenessItems(
   form: PostingFormState,
   photoCount: number,
 ): Array<{ label: string; done: boolean }> {
@@ -339,7 +339,7 @@ function getCompletenessItems(
   ];
 }
 
-function buildLifecycleActions(status: PostingStatus): Array<{
+export function buildLifecycleActions(status: PostingStatus): Array<{
   id: "publish" | "pause" | "unpause" | "archive";
   label: string;
 }> {
@@ -369,7 +369,7 @@ function buildLifecycleActions(status: PostingStatus): Array<{
 
 type StepId = (typeof WIZARD_STEPS)[number]["id"];
 
-function validateStep(
+export function validateStep(
   stepId: StepId,
   form: PostingFormState,
   photoCount: number,
@@ -442,7 +442,7 @@ function validateStep(
   return errors;
 }
 
-function readValidationDetails(
+export function readValidationDetails(
   error: unknown,
 ): Array<{ path: string; message: string }> {
   if (!(error instanceof ApiClientError) || !Array.isArray(error.details)) {
@@ -516,7 +516,7 @@ function PostingStatusBadge({ status }: { status: PostingStatus }) {
 const inputErrorClass =
   "border-rose-300 focus:border-rose-400 focus:ring-rose-100 dark:border-rose-700 dark:focus:border-rose-500 dark:focus:ring-rose-500/20";
 
-function FieldError({ message }: { message?: string }) {
+export function FieldError({ message }: { message?: string }) {
   if (!message) {
     return null;
   }
@@ -543,7 +543,7 @@ function LockIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-function TextField({
+export function TextField({
   label,
   value,
   onChange,
@@ -585,7 +585,7 @@ function TextField({
   );
 }
 
-function SelectField({
+export function SelectField({
   label,
   value,
   onChange,
@@ -619,7 +619,7 @@ function humanizeKey(key: string): string {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function TagInput({
+export function TagInput({
   values,
   onChange,
   disabled,
@@ -696,7 +696,7 @@ function TagInput({
   );
 }
 
-function DetailsEditor({
+export function DetailsEditor({
   details,
   onChange,
   disabled,
@@ -821,7 +821,7 @@ function DetailsEditor({
   );
 }
 
-function PhotoUploader({
+export function PhotoUploader({
   photos,
   primaryKey,
   onAddFiles,
@@ -921,7 +921,7 @@ function PhotoUploader({
   );
 }
 
-function safeFormatPrice(amountRaw: string, currencyRaw: string): string {
+export function safeFormatPrice(amountRaw: string, currencyRaw: string): string {
   const amount = Number(amountRaw);
   const currency = currencyRaw.trim().toUpperCase();
   if (!Number.isFinite(amount) || currency.length !== 3) {
@@ -934,7 +934,7 @@ function safeFormatPrice(amountRaw: string, currencyRaw: string): string {
   }
 }
 
-function ListingPreview({
+export function ListingPreview({
   form,
   photos,
   primaryKey,

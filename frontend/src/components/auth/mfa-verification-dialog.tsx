@@ -49,7 +49,7 @@ function FactorIcon({
   return <Smartphone className={className} aria-hidden="true" />;
 }
 
-function normalizeCode(value: string): string {
+export function normalizeCode(value: string): string {
   return value.replace(/\D/g, "").slice(0, 6);
 }
 
@@ -61,13 +61,13 @@ function getFocusableElements(root: HTMLElement) {
   ).filter((element) => !element.hasAttribute("hidden"));
 }
 
-function isChallengeFactor(
+export function isChallengeFactor(
   factor: MfaVerificationFactor | null | undefined,
 ): factor is MfaVerificationChallengeFactor {
   return factor === "email" || factor === "totp" || factor === "sms";
 }
 
-function selectInitialFactor(
+export function selectInitialFactor(
   options: MfaVerificationOptionsResult,
   preferredFactor?: MfaVerificationFactor | null,
 ): MfaVerificationChallengeFactor | null {

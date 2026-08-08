@@ -10,6 +10,9 @@ const {
   listMineMock,
   getStatusSummaryMock,
   publishMock,
+  pauseMock,
+  unpauseMock,
+  archiveMock,
 } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
   useAuthMock: vi.fn(),
@@ -17,6 +20,9 @@ const {
   listMineMock: vi.fn(),
   getStatusSummaryMock: vi.fn(),
   publishMock: vi.fn(),
+  pauseMock: vi.fn(),
+  unpauseMock: vi.fn(),
+  archiveMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -36,9 +42,9 @@ vi.mock("@/lib/postings/api", () => ({
     listMine: listMineMock,
     getStatusSummary: getStatusSummaryMock,
     publish: publishMock,
-    pausePosting: vi.fn(),
-    unpausePosting: vi.fn(),
-    archive: vi.fn(),
+    pausePosting: pauseMock,
+    unpausePosting: unpauseMock,
+    archive: archiveMock,
   },
 }));
 
@@ -105,6 +111,10 @@ describe("PostingsDashboard", () => {
       byStatus: { draft: 1, published: 1, paused: 0, archived: 0 },
     });
     listMineMock.mockResolvedValue(paginated([makePosting()]));
+    publishMock.mockResolvedValue(undefined);
+    pauseMock.mockResolvedValue(undefined);
+    unpauseMock.mockResolvedValue(undefined);
+    archiveMock.mockResolvedValue(undefined);
   });
 
   it("renders postings with status counts", async () => {
@@ -260,5 +270,81 @@ describe("PostingsDashboard", () => {
         expect.objectContaining({ page: 1, pageSize: 50 }),
       );
     });
+  });
+
+  it("renders loading, anonymous, no-organization, and read-only states", async () => {
+    useAuthMock.mockReturnValue({ status: "loading", session: null });
+    const { rerender } = render(<PostingsDashboard />);
+    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
+
+    useAuthMock.mockReturnValue({ status: "anonymous", session: null });
+    rerender(<PostingsDashboard />);
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/login?next=/postings/manage"));
+
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: { user: { role: "owner" } },
+    });
+    rerender(<PostingsDashboard />);
+    expect(screen.getByText("Select an organization first")).toBeInTheDocument();
+
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: {
+        user: {
+          role: "user",
+          activeOrganization: { id: "org-1", name: "Org 1", role: "operator" },
+        },
+      },
+    });
+    rerender(<PostingsDashboard />);
+    expect(await screen.findByText(/Read-only access/)).toBeInTheDocument();
+    expect(screen.queryByText("New posting")).not.toBeInTheDocument();
+  });
+
+  it("shows empty and failed list states", async () => {
+    listMineMock.mockResolvedValueOnce(paginated([]));
+    const { unmount } = render(<PostingsDashboard />);
+    expect(await screen.findByText("No postings yet")).toBeInTheDocument();
+    unmount();
+
+    listMineMock.mockRejectedValueOnce(new Error("offline"));
+    render(<PostingsDashboard />);
+    expect(
+      await screen.findByText(/couldn't load your postings/i),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["published", "Pause", pauseMock],
+    ["paused", "Unpause", unpauseMock],
+    ["archived", null, null],
+  ] as const)("renders and runs lifecycle controls for %s", async (status, label, actionMock) => {
+    const user = userEvent.setup();
+    listMineMock.mockResolvedValue(
+      paginated([makePosting({ status, name: `${status} posting` })]),
+    );
+    render(<PostingsDashboard />);
+    await screen.findByText(`${status} posting`);
+    if (!label || !actionMock) {
+      expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
+      return;
+    }
+    await user.click(screen.getByRole("button", { name: label }));
+    await waitFor(() => expect(actionMock).toHaveBeenCalledWith("posting-1"));
+  });
+
+  it("surfaces lifecycle failures through inline and toast errors", async () => {
+    const user = userEvent.setup();
+    publishMock.mockRejectedValue(new Error("offline"));
+    render(<PostingsDashboard />);
+    await user.click(await screen.findByRole("button", { name: "Publish" }));
+    expect(
+      await screen.findByText(/couldn't update that posting/i),
+    ).toBeInTheDocument();
+    expect(showErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Couldn't update posting", tone: "error" }),
+    );
   });
 });

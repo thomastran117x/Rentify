@@ -9,7 +9,7 @@ import {
   routerPushMock,
   routerRefreshMock,
 } from "@/test/mocks/next-navigation";
-import { OrganizationWorkspaceProvider } from "@/components/organizations/workspace/workspace-provider";
+import { OrganizationWorkspaceProvider, useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
 import { WorkspaceChrome } from "@/components/organizations/workspace/workspace-chrome";
 import { TeamPanel } from "@/components/organizations/workspace/panels/team-panel";
 import { PostingsPanel } from "@/components/organizations/workspace/panels/postings-panel";
@@ -26,6 +26,7 @@ const {
   setActiveMock,
   createMock,
   updateMock,
+  updateSlugMock,
   createInviteMock,
   listAuditMock,
   restoreAuditEntryMock,
@@ -34,6 +35,9 @@ const {
   updateAnnouncementMock,
   deleteAnnouncementMock,
   listBlogPostsMock,
+  createBlogPostMock,
+  updateBlogPostMock,
+  deleteBlogPostMock,
   refreshMock,
   listMinePostingsMock,
   publishPostingMock,
@@ -56,6 +60,7 @@ const {
   setActiveMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
+  updateSlugMock: vi.fn(),
   createInviteMock: vi.fn(),
   listAuditMock: vi.fn(),
   restoreAuditEntryMock: vi.fn(),
@@ -64,6 +69,9 @@ const {
   updateAnnouncementMock: vi.fn(),
   deleteAnnouncementMock: vi.fn(),
   listBlogPostsMock: vi.fn(),
+  createBlogPostMock: vi.fn(),
+  updateBlogPostMock: vi.fn(),
+  deleteBlogPostMock: vi.fn(),
   refreshMock: vi.fn(),
   listMinePostingsMock: vi.fn(),
   publishPostingMock: vi.fn(),
@@ -142,6 +150,7 @@ vi.mock("@/lib/organizations/api", () => ({
     create: createMock,
     rename: vi.fn(),
     update: updateMock,
+    updateSlug: updateSlugMock,
     createInvite: createInviteMock,
     listAudit: listAuditMock,
     restoreAuditEntry: restoreAuditEntryMock,
@@ -150,9 +159,9 @@ vi.mock("@/lib/organizations/api", () => ({
     updateAnnouncement: updateAnnouncementMock,
     deleteAnnouncement: deleteAnnouncementMock,
     listBlogPosts: listBlogPostsMock,
-    createBlogPost: vi.fn(),
-    updateBlogPost: vi.fn(),
-    deleteBlogPost: vi.fn(),
+    createBlogPost: createBlogPostMock,
+    updateBlogPost: updateBlogPostMock,
+    deleteBlogPost: deleteBlogPostMock,
     revokeInvite: revokeInviteMock,
     updateMemberRole: updateMemberRoleMock,
     removeMember: removeMemberMock,
@@ -162,6 +171,25 @@ vi.mock("@/lib/organizations/api", () => ({
 function renderInWorkspace(ui: ReactNode) {
   return render(
     <OrganizationWorkspaceProvider>{ui}</OrganizationWorkspaceProvider>,
+  );
+}
+
+function BlogActionsHarness() {
+  const workspace = useOrganizationWorkspace();
+  const post = workspace.blogPosts[0];
+  if (!workspace.detail) return <div>Loading harness</div>;
+  return (
+    <div>
+      <button onClick={() => workspace.setBlogForm({ title: "Launch", slug: "", excerpt: "Summary", body: "<p>Body</p>", tags: ["news"], coverImageUrl: "", coverImageBlobName: "", status: "draft" })}>Prepare blog</button>
+      <button onClick={() => void workspace.handleSubmitBlogPost()}>Submit blog</button>
+      <button onClick={() => post && workspace.handleEditBlogPost(post)}>Edit blog</button>
+      <button onClick={() => post && void workspace.handleToggleBlogStatus(post)}>Toggle blog</button>
+      <button onClick={() => post && void workspace.handleDeleteBlogPost(post.id)}>Delete blog</button>
+      <button onClick={() => workspace.setNewOrganizationName("  Acme Rentals  ")}>Prepare organization</button>
+      <button onClick={() => void workspace.handleCreate()}>Create organization</button>
+      <button onClick={() => void workspace.handleSelectOrganization("org-2")}>Select organization</button>
+      <span>{workspace.message}</span>
+    </div>
   );
 }
 
@@ -331,6 +359,12 @@ describe("Organization workspace", () => {
       name: "Northwind",
       role: "primary_manager",
     });
+    updateSlugMock.mockResolvedValue({
+      id: "org-1",
+      name: "Northwind",
+      slug: "northwind",
+      role: "primary_manager",
+    });
     refreshMock.mockResolvedValue(null);
     listMinePostingsMock.mockResolvedValue({ postings: [] });
     createInviteMock.mockResolvedValue({ invitation: { id: "invite-1" } });
@@ -347,6 +381,9 @@ describe("Organization workspace", () => {
       announcementId: "announcement-1",
     });
     listBlogPostsMock.mockResolvedValue({ posts: [] });
+    createBlogPostMock.mockResolvedValue({ id: "blog-1" });
+    updateBlogPostMock.mockResolvedValue({ id: "blog-1" });
+    deleteBlogPostMock.mockResolvedValue({ deleted: true, blogPostId: "blog-1" });
     createUploadUrlMock.mockResolvedValue(
       buildBlobTarget("organizations/user-1/logo-default.png"),
     );
@@ -437,6 +474,18 @@ describe("Organization workspace", () => {
     });
   });
 
+  it("revokes invitations and updates/removes eligible team members", async () => {
+    const user = userEvent.setup();
+    renderInWorkspace(<TeamPanel />);
+    await user.click(await screen.findByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(revokeInviteMock).toHaveBeenCalledWith("org-1", "invite-1"));
+    const role = await screen.findByLabelText("Role for ops-two");
+    await user.selectOptions(role, "manager");
+    await waitFor(() => expect(updateMemberRoleMock).toHaveBeenCalledWith("org-1", "membership-2", "manager"));
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(removeMemberMock).toHaveBeenCalledWith("org-1", "membership-2"));
+  });
+
   it("publishes a posting from the Postings panel", async () => {
     const user = userEvent.setup();
     listMinePostingsMock.mockResolvedValue({
@@ -460,6 +509,37 @@ describe("Organization workspace", () => {
       expect(publishPostingMock).toHaveBeenCalledWith("posting-1");
     });
   });
+
+  it.each([
+    ["published", "Pause", pausePostingMock, "pause"],
+    ["paused", "Unpause", unpausePostingMock, "unpause"],
+    ["draft", "Archive", archivePostingMock, "archive"],
+  ] as const)(
+    "runs the %s posting lifecycle action",
+    async (status, label, apiMock, action) => {
+      const user = userEvent.setup();
+      listMinePostingsMock.mockResolvedValue({
+        postings: [
+          {
+            id: `posting-${status}`,
+            organizationId: "org-1",
+            status,
+            name: `${status} listing`,
+            variant: { family: "place", subtype: "workspace" },
+            location: { city: "Toronto", region: "Ontario" },
+          },
+        ],
+      });
+
+      renderInWorkspace(<PostingsPanel />);
+      await user.click(await screen.findByRole("button", { name: label }));
+      await waitFor(() => {
+        expect(apiMock).toHaveBeenCalledWith(`posting-${status}`);
+      });
+      expect(apiMock).toHaveBeenCalledTimes(1);
+      expect(action).toBeTruthy();
+    },
+  );
 
   it("restores a restorable audit entry from the Activity panel", async () => {
     const user = userEvent.setup();
@@ -521,6 +601,43 @@ describe("Organization workspace", () => {
         status: "draft",
       });
     });
+  });
+
+  it("creates, edits, toggles, and deletes blog posts through the provider", async () => {
+    const user = userEvent.setup();
+    const post = {
+      id: "blog-1", organizationId: "org-1", title: "Existing", slug: "existing", excerpt: "Summary", body: "<p>Existing body</p>", tags: ["news"], status: "draft" as const, createdAt: "2026-05-12T00:00:00.000Z", updatedAt: "2026-05-12T00:00:00.000Z",
+    };
+    listBlogPostsMock.mockResolvedValue({ posts: [post] });
+    renderInWorkspace(<BlogActionsHarness />);
+    await screen.findByRole("button", { name: "Prepare blog" });
+    await user.click(screen.getByRole("button", { name: "Submit blog" }));
+    expect(showErrorMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't save blog post" }));
+    await user.click(screen.getByRole("button", { name: "Prepare blog" }));
+    await user.click(screen.getByRole("button", { name: "Submit blog" }));
+    await waitFor(() => expect(createBlogPostMock).toHaveBeenCalledWith("org-1", expect.objectContaining({ title: "Launch", body: "<p>Body</p>", tags: ["news"] })));
+    await user.click(screen.getByRole("button", { name: "Edit blog" }));
+    await user.click(screen.getByRole("button", { name: "Submit blog" }));
+    await waitFor(() => expect(updateBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1", expect.objectContaining({ title: "Existing" })));
+    await user.click(screen.getByRole("button", { name: "Toggle blog" }));
+    await waitFor(() => expect(updateBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1", { status: "published" }));
+    await user.click(screen.getByRole("button", { name: "Delete blog" }));
+    await waitFor(() => expect(deleteBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1"));
+  });
+
+  it("creates and switches the active organization through the provider", async () => {
+    const user = userEvent.setup();
+    refreshMock.mockResolvedValue(buildSession());
+    renderInWorkspace(<BlogActionsHarness />);
+    await screen.findByRole("button", { name: "Prepare organization" });
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    expect(createMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Prepare organization" }));
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ name: "Acme Rentals" })));
+    expect(setSessionMock).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Select organization" }));
+    await waitFor(() => expect(setActiveMock).toHaveBeenCalledWith({ organizationId: "org-2" }));
   });
 
   it("deletes an announcement from the Content panel", async () => {
@@ -724,6 +841,22 @@ describe("Organization workspace", () => {
           description: "Boutique rentals.",
         }),
       );
+    });
+  });
+
+  it("validates and saves the public organization URL slug", async () => {
+    const user = userEvent.setup();
+    renderInWorkspace(<SettingsPanel />);
+    const slug = await screen.findByLabelText("Organization URL slug");
+    await user.clear(slug);
+    await user.type(slug, "Bad Slug!");
+    expect(screen.getByText(/lowercase letters/)).toBeInTheDocument();
+    await user.clear(slug);
+    await user.type(slug, "northwind-rentals");
+    await user.click(screen.getByRole("button", { name: "Change URL" }));
+    await user.click(screen.getByRole("button", { name: "Confirm new URL" }));
+    await waitFor(() => {
+      expect(updateSlugMock).toHaveBeenCalledWith("org-1", "northwind-rentals");
     });
   });
 

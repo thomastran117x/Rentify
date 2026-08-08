@@ -611,6 +611,159 @@ describe("api client", () => {
         configurable: true,
         value: originalNavigator,
       });
+      vi.doMock("@/lib/auth/device", () => ({
+        getDeviceId: getDeviceIdMock,
+        getDevicePlatform: getDevicePlatformMock,
+      }));
+      vi.doMock("@/lib/auth/storage", () => ({
+        readStoredSession: readStoredSessionMock,
+        writeStoredSession: writeStoredSessionMock,
+        clearStoredSession: clearStoredSessionMock,
+      }));
     }
+  });
+
+  it("handles empty, scalar, and nullable query values", async () => {
+    const { buildPathWithQuery, buildQuery } = await import("./client");
+    expect(
+      buildQuery({
+        active: false,
+        count: 0,
+        values: ["one", null, undefined, 2, false],
+        absent: null,
+      }),
+    ).toBe("active=false&count=0&values=one&values=2&values=false");
+    expect(buildPathWithQuery("/postings", { absent: undefined })).toBe(
+      "/postings",
+    );
+  });
+
+  it("returns null for non-json and missing content types", async () => {
+    const { readJson } = await import("./client");
+    await expect(readJson(new Response("plain text"))).resolves.toBeNull();
+    await expect(
+      readJson(
+        new Response("plain text", {
+          headers: { "content-type": "text/plain" },
+        }),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it.each([
+    [400, null, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [500, "not an envelope", "ApiServerError", "INVALID_SERVER_RESPONSE"],
+    [400, { success: true, message: "bad", error: { code: "BAD" } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [400, { success: false, message: 42, error: { code: "BAD" } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [400, { success: false, message: "bad", error: null }, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [400, { success: false, message: "bad", error: { code: 42 } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
+  ])("maps malformed error payload %#", async (status, payload, name, code) => {
+    const { toApiError } = await import("./client");
+    expect(toApiError(new Response(null, { status }), payload)).toMatchObject({
+      name,
+      code,
+      status,
+    });
+  });
+
+  it.each([
+    [400, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [500, "ApiServerError", "INVALID_SERVER_RESPONSE"],
+  ])("maps unreadable JSON at status %i", async (status, name, code) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{broken", {
+            status,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const { publicJson } = await import("./client");
+    await expect(publicJson("GET", "/broken")).rejects.toMatchObject({
+      name,
+      code,
+    });
+  });
+
+  it("returns the original 401 when session refresh is rejected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ success: false, message: "Unauthorized", error: { code: "UNAUTHORIZED" } }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 401 })),
+    );
+    const { authenticatedJson } = await import("./client");
+    await expect(authenticatedJson("GET", "/account")).rejects.toMatchObject({
+      name: "ApiClientError",
+      status: 401,
+    });
+    expect(clearStoredSessionMock).toHaveBeenCalled();
+  });
+
+  it("refreshes without optional browser and session headers", async () => {
+    document.cookie = "csrf_token=; Max-Age=0";
+    getDeviceIdMock.mockReturnValue(undefined);
+    getDevicePlatformMock.mockReturnValue(undefined);
+    readStoredSessionMock.mockReturnValue(null);
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          message: "ok",
+          data: { accessToken: "new", refreshToken: "next", user: { id: "u" } },
+          error: null,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { hasRefreshCookieHint, refreshStoredSession } = await import("./client");
+    expect(hasRefreshCookieHint()).toBe(false);
+    await expect(refreshStoredSession()).resolves.toMatchObject({ accessToken: "new" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8040/api/v1/auth/refresh",
+      expect.objectContaining({
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+    expect(writeStoredSessionMock).toHaveBeenCalled();
+  });
+
+  it("maps refresh and text network failures while preserving aborts", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    const { refreshStoredSession, textRequest } = await import("./client");
+    await expect(refreshStoredSession()).rejects.toMatchObject({ name: "ApiNetworkError" });
+    await expect(textRequest("/openapi.yaml")).rejects.toMatchObject({ name: "ApiNetworkError" });
+
+    vi.stubGlobal("fetch", vi.fn(async () => { throw abortError; }));
+    await expect(refreshStoredSession()).rejects.toBe(abortError);
+    await expect(textRequest("/openapi.yaml")).rejects.toBe(abortError);
+  });
+
+  it("maps unsuccessful text responses through the API error envelope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ success: false, message: "Missing", error: { code: "NOT_FOUND" } }),
+          { status: 404, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const { textRequest } = await import("./client");
+    await expect(textRequest("/missing.yaml")).rejects.toMatchObject({
+      name: "ApiClientError",
+      code: "NOT_FOUND",
+    });
   });
 });

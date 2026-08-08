@@ -6,7 +6,9 @@ const { searchMock } = vi.hoisted(() => ({ searchMock: vi.fn() }));
 
 vi.mock("@/lib/postings/search", () => ({
   searchPublicPostings: searchMock,
-  PublicPostingSearchError: class PublicPostingSearchError extends Error {},
+  PublicPostingSearchError: class PublicPostingSearchError extends Error {
+    constructor(message: string, readonly debug: Record<string, unknown>) { super(message); }
+  },
 }));
 vi.mock("@/components/common/pagination", () => ({ PaginationLinks: () => <div>Pagination</div> }));
 vi.mock("@/components/postings/posting-search-form", () => ({ PostingSearchForm: () => <div>Search form</div> }));
@@ -73,5 +75,32 @@ describe("PostingsPage", () => {
 
     expect(screen.getByText(/No organization matches/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Clear the organization filter" })).toHaveAttribute("href", "/postings?sort=relevance&page=1&pageSize=20");
+  });
+
+  it("normalizes arrays, empty tags, unsupported filters, and invalid numbers", async () => {
+    searchMock.mockResolvedValue({ postings: [], source: "database", pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+    render(await PostingsPage({ searchParams: Promise.resolve({
+      q: [" first ", "ignored"], sort: ["oldest"], page: ["NaN"], pageSize: ["-2"],
+      family: "unknown", subtype: "unknown", tags: [" , ", "one,,two"], availabilityStatus: "unknown",
+      minDailyPrice: "wat", maxDailyPrice: "", latitude: "x", longitude: "-79.4", radiusKm: "0",
+      organization: [" studio "], organizationId: "not-a-uuid", startAt: "", endAt: "",
+    }) }));
+    expect(searchMock).toHaveBeenCalledWith(expect.objectContaining({
+      q: "first", sort: "oldest", page: 1, pageSize: 20, tags: ["one", "two"],
+      longitude: -79.4, radiusKm: 0, organization: "studio",
+    }));
+  });
+
+  it.each([
+    [{ causeMessage: "fetch failed" }, "Search is temporarily unavailable", /couldn't reach Rentify search/],
+    [{ status: 400 }, "Invalid search request", /filter values were rejected/],
+    [{ status: 503 }, "Search is temporarily unavailable", /having trouble/],
+    [{ status: 403 }, "Search results could not be loaded", /Denied/],
+  ])("renders categorized search failures", async (debug, title, description) => {
+    const { PublicPostingSearchError } = await import("@/lib/postings/search");
+    searchMock.mockRejectedValue(new PublicPostingSearchError("Denied", { requestUrl: "/postings", params: {}, ...debug }));
+    render(await PostingsPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(description)).toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AccountPage from "./page";
+import AccountPage, { deviceLabel, formatDateTime, formatLinkedAt } from "./page";
 
 const {
   useAuthMock,
@@ -31,7 +31,14 @@ const {
 
 vi.mock("@/components/auth/auth-context", () => ({ useAuth: useAuthMock }));
 vi.mock("@/components/auth/oauth-buttons", () => ({ AuthOAuthButtons: () => <div>OAuth buttons</div> }));
-vi.mock("@/components/auth/mfa-verification-dialog", () => ({ MfaVerificationDialog: () => null }));
+vi.mock("@/components/auth/mfa-verification-dialog", () => ({
+  MfaVerificationDialog: ({ onVerified, onCancel }: { onVerified: () => void; onCancel: () => void }) => (
+    <div>
+      <button type="button" onClick={onVerified}>Approve account verification</button>
+      <button type="button" onClick={onCancel}>Cancel account verification</button>
+    </div>
+  ),
+}));
 vi.mock("@/components/home/home-mfa-totp-panel", () => ({ HomeMfaTotpPanel: () => <div>MFA panel</div> }));
 vi.mock("@/components/home/home-password-panel", () => ({ HomePasswordPanel: () => <div>Password panel</div> }));
 vi.mock("@/lib/auth/api", () => ({
@@ -175,5 +182,102 @@ describe("AccountPage", () => {
     await screen.findByText("CLI");
     await user.click(screen.getByRole("button", { name: "Revoke" }));
     await waitFor(() => expect(revokeTokenMock).toHaveBeenCalledWith("token-1"));
+  });
+
+  it("formats account dates and device labels", () => {
+    expect(formatLinkedAt("2026-01-02T12:00:00.000Z")).toMatch(/2026/);
+    expect(formatDateTime()).toBe("Never");
+    expect(formatDateTime("2026-01-02T12:00:00.000Z")).toMatch(/2026/);
+    expect(deviceLabel({ label: "Work laptop" } as never)).toBe("Work laptop");
+    expect(deviceLabel({ type: "desktop", platform: "Windows" } as never)).toContain("desktop");
+    expect(deviceLabel({} as never)).toBe("Unknown device");
+  });
+
+  it("renders independent initial-load errors", async () => {
+    linkedProvidersMock.mockRejectedValue(new Error("providers offline"));
+    listTokensMock.mockRejectedValue(new Error("tokens offline"));
+    getMineMock.mockRejectedValue(new Error("profile offline"));
+    render(<AccountPage />);
+
+    expect(await screen.findByText(/couldn't load your profile/i)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Security" }));
+    expect(await screen.findByText(/couldn't load your connected providers/i)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Developer" }));
+    expect(await screen.findByText(/couldn't load your personal access tokens/i)).toBeInTheDocument();
+  });
+
+  it("supports cancelling and approving the security verification gate", async () => {
+    const user = userEvent.setup();
+    getOptionsMock.mockResolvedValue({
+      scope: "mfa-management",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await user.click(await screen.findByRole("button", { name: "Verify to continue" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel account verification" }));
+    expect(screen.getByRole("button", { name: "Verify to continue" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Verify to continue" }));
+    await user.click(await screen.findByRole("button", { name: "Approve account verification" }));
+    expect(await screen.findByRole("heading", { name: "Password" })).toBeInTheDocument();
+  });
+
+  it("validates empty profile and token names and creates a write token", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(screen.getByText("Username is required.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    const name = await screen.findByRole("textbox", { name: /Token name/ });
+    await user.clear(name);
+    await user.click(screen.getByRole("button", { name: /Create token/ }));
+    expect(screen.getByText("Token name is required.")).toBeInTheDocument();
+
+    await user.type(name, "Automation");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Access" }), "write");
+    await user.click(screen.getByRole("button", { name: /Create token/ }));
+    await waitFor(() => expect(createTokenMock).toHaveBeenCalledWith({
+      name: "Automation",
+      expiresInDays: 30,
+      scopes: ["mcp:read", "mcp:write"],
+    }));
+  });
+
+  it("shows device, profile, phone, unlink, and token action failures", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({
+      hasPassword: true,
+      providers: [{ id: "provider-1", provider: "google", linkedAt: "2026-01-01", providerEmail: null }],
+    });
+    updateMineMock.mockRejectedValue(new Error("save failed"));
+    unlinkProviderMock.mockRejectedValue(new Error("unlink failed"));
+    listDevicesMock.mockRejectedValue(new Error("devices failed"));
+    createTokenMock.mockRejectedValue(new Error("create failed"));
+    getOptionsMock.mockResolvedValue({ verified: true, methods: [] });
+    render(<AccountPage />);
+
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.type(username, "changed");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(await screen.findByText(/couldn't save your profile/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    expect(await screen.findByText(/couldn't load your registered devices/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Unlink" }));
+    expect(await screen.findByText(/couldn't unlink that provider/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(/couldn't save your phone number/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    await user.click(await screen.findByRole("button", { name: /Create token/ }));
+    expect(await screen.findByText(/couldn't create that personal access token/i)).toBeInTheDocument();
   });
 });

@@ -41,7 +41,7 @@ const providerLabels: Record<LinkedOAuthProvider, string> = {
   apple: "Apple",
 };
 
-function formatLinkedAt(value: string): string {
+export function formatLinkedAt(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
@@ -49,7 +49,7 @@ function formatLinkedAt(value: string): string {
   }).format(new Date(value));
 }
 
-function formatDateTime(value?: string): string {
+export function formatDateTime(value?: string): string {
   if (!value) {
     return "Never";
   }
@@ -63,7 +63,7 @@ function formatDateTime(value?: string): string {
   }).format(new Date(value));
 }
 
-function deviceLabel(device: KnownDeviceRecord): string {
+export function deviceLabel(device: KnownDeviceRecord): string {
   if (device.label) return device.label;
   const parts = [device.type, device.platform].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Unknown device";

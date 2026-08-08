@@ -1,8 +1,13 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiClientError } from "@/lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MfaVerificationDialog } from "./mfa-verification-dialog";
+import {
+  isChallengeFactor,
+  MfaVerificationDialog,
+  normalizeCode,
+  selectInitialFactor,
+} from "./mfa-verification-dialog";
 import type { MfaVerificationFactor } from "@/lib/auth/mfa-verification-api";
 
 const { issueChallengeMock, confirmChallengeMock, getOptionsMock } = vi.hoisted(
@@ -179,5 +184,190 @@ describe("MfaVerificationDialog", () => {
     expect(
       screen.getByText(/No verification methods are available/i),
     ).toBeInTheDocument();
+  });
+
+  it("normalizes pasted codes, validates length, and supports SMS", async () => {
+    const user = userEvent.setup();
+    const smsOptions = { ...baseOptions, availableFactors: ["sms"] as MfaVerificationFactor[], recommendedFactor: "sms" as const };
+    issueChallengeMock.mockResolvedValue({ scope: "mfa-management", factor: "sms", challengeId: null, cooldownUntil: new Date(Date.now() + 60_000).toISOString() });
+    confirmChallengeMock.mockResolvedValue({ verified: true, scope: "mfa-management", factor: "sms", verifiedUntil: "2026-08-08T12:00:00.000Z" });
+    render(<MfaVerificationDialog open initialOptions={smsOptions} scope="mfa-management" onCancel={vi.fn()} onVerified={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+    const input = screen.getByPlaceholderText("000000");
+    await user.type(input, "12");
+    expect(screen.getByRole("button", { name: /^verify$/i })).toBeDisabled();
+    await user.clear(input);
+    await user.paste("ab12-34 56xyz");
+    expect(input).toHaveValue("123456");
+    await user.click(screen.getByRole("button", { name: /^verify$/i }));
+    await waitFor(() => expect(confirmChallengeMock).toHaveBeenCalledWith("mfa-management", "sms", "123456"));
+  });
+
+  it("cancels with Escape and renders nothing while closed", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const { rerender } = render(<MfaVerificationDialog open initialOptions={baseOptions} scope="mfa-management" onCancel={onCancel} onVerified={vi.fn()} />);
+    await user.keyboard("{Escape}");
+    expect(onCancel).toHaveBeenCalled();
+    rerender(<MfaVerificationDialog open={false} initialOptions={baseOptions} scope="mfa-management" onCancel={onCancel} onVerified={vi.fn()} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("selects preferred, recommended, fallback, and unavailable factors", () => {
+    expect(normalizeCode("a12-345678")).toBe("123456");
+    expect(isChallengeFactor("sms")).toBe(true);
+    expect(isChallengeFactor("recovery-code")).toBe(false);
+    expect(isChallengeFactor(null)).toBe(false);
+
+    expect(selectInitialFactor(baseOptions, "totp")).toBe("totp");
+    expect(selectInitialFactor(baseOptions, "sms")).toBe("email");
+    expect(
+      selectInitialFactor(
+        { ...baseOptions, recommendedFactor: null },
+        "recovery-code",
+      ),
+    ).toBe("email");
+    expect(
+      selectInitialFactor(
+        {
+          ...baseOptions,
+          availableFactors: ["recovery-code"],
+          recommendedFactor: "recovery-code",
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it("reports code-entry state for an initially issued challenge", async () => {
+    const onCodeEntryStateChange = vi.fn();
+    const { rerender } = render(
+      <MfaVerificationDialog
+        open
+        initialChallengeSent
+        initialOptions={{
+          ...baseOptions,
+          availableFactors: ["email"],
+        }}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onCodeEntryStateChange={onCodeEntryStateChange}
+        onVerified={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onCodeEntryStateChange).toHaveBeenLastCalledWith({
+        challengeSent: true,
+        selectedFactor: "email",
+      }),
+    );
+
+    rerender(
+      <MfaVerificationDialog
+        open={false}
+        initialChallengeSent
+        initialOptions={baseOptions}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onCodeEntryStateChange={onCodeEntryStateChange}
+        onVerified={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(onCodeEntryStateChange).toHaveBeenLastCalledWith(null),
+    );
+  });
+
+  it("refreshes options when issuing an unavailable factor fails", async () => {
+    const user = userEvent.setup();
+    issueChallengeMock.mockRejectedValue(
+      new ApiClientError("Email verification is unavailable.", {
+        code: "MFA_FACTOR_UNAVAILABLE",
+        request: {
+          method: "POST",
+          path: "/auth/mfa/verify/challenge",
+          requestUrl: "http://localhost/auth/mfa/verify/challenge",
+        },
+        status: 400,
+      }),
+    );
+    getOptionsMock.mockResolvedValue({
+      ...baseOptions,
+      availableFactors: ["totp"],
+      recommendedFactor: "totp",
+    });
+
+    render(
+      <MfaVerificationDialog
+        open
+        initialOptions={{ ...baseOptions, availableFactors: ["email"] }}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onVerified={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+
+    await waitFor(() => expect(getOptionsMock).toHaveBeenCalled());
+    expect(screen.getByText(/authenticator app/i)).toBeInTheDocument();
+    expect(screen.getByText("Email verification is unavailable.")).toBeInTheDocument();
+  });
+
+  it("shows fallback errors for challenge and confirmation failures", async () => {
+    const user = userEvent.setup();
+    issueChallengeMock.mockRejectedValueOnce(new Error("network down"));
+    const { rerender } = render(
+      <MfaVerificationDialog
+        open
+        initialOptions={{ ...baseOptions, availableFactors: ["email"] }}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onVerified={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+    expect(await screen.findByText(/couldn't complete MFA verification/i)).toBeInTheDocument();
+
+    confirmChallengeMock.mockRejectedValueOnce(new Error("network down"));
+    rerender(
+      <MfaVerificationDialog
+        open
+        initialOptions={{
+          ...baseOptions,
+          availableFactors: ["totp"],
+          recommendedFactor: "totp",
+        }}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onVerified={vi.fn()}
+      />,
+    );
+    const input = screen.getByPlaceholderText("000000");
+    await user.type(input, "123456");
+    await user.click(screen.getByRole("button", { name: /^verify$/i }));
+    expect(await screen.findByText(/couldn't complete MFA verification/i)).toBeInTheDocument();
+  });
+
+  it("cycles focus at both ends of the dialog", () => {
+    render(
+      <MfaVerificationDialog
+        open
+        initialOptions={baseOptions}
+        scope="mfa-management"
+        onCancel={vi.fn()}
+        onVerified={vi.fn()}
+      />,
+    );
+    const buttons = screen.getAllByRole("button");
+    const first = buttons[0]!;
+    const last = buttons[buttons.length - 1]!;
+
+    first.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(document, { key: "ArrowDown" });
   });
 });

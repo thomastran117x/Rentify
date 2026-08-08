@@ -157,6 +157,42 @@ vi.mock("@/components/auth/mfa-verification-dialog", () => ({
 }));
 
 describe("LoginForm", () => {
+  function clientError(
+    status: number,
+    code: string,
+    message = "Request failed",
+    details?: unknown,
+  ) {
+    return new ApiClientError(message, {
+      code,
+      status,
+      details,
+      request: {
+        method: "POST",
+        path: "/auth/local/login",
+        requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+      },
+    });
+  }
+
+  function loginSession(
+    device: { known: boolean; knownByIp: boolean } = {
+      known: true,
+      knownByIp: false,
+    },
+  ) {
+    return {
+      accessToken: "access-token",
+      device,
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person",
+        role: "user" as const,
+      },
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
@@ -217,6 +253,26 @@ describe("LoginForm", () => {
     expect(screen.getByText("Password is required.")).toBeInTheDocument();
     expect(
       screen.getByText("Complete the captcha before signing in."),
+    ).toBeInTheDocument();
+    expect(loginMock).not.toHaveBeenCalled();
+  });
+
+  it("validates malformed usernames and toggles password visibility", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.type(screen.getByLabelText("Username"), "bad username!");
+    await user.type(screen.getByLabelText("Password"), "secret");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
+    await user.click(screen.getByRole("button", { name: "Show password" }));
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      screen.getByText(
+        "Use 3-50 letters, numbers, periods, underscores, or hyphens.",
+      ),
     ).toBeInTheDocument();
     expect(loginMock).not.toHaveBeenCalled();
   });
@@ -419,6 +475,145 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    [
+      clientError(400, "CAPTCHA_REQUIRED"),
+      "Please complete the security check before signing in.",
+      "Complete the verification to continue.",
+    ],
+    [
+      clientError(400, "VALIDATION_ERROR", "Correct the highlighted fields"),
+      "Correct the highlighted fields",
+      null,
+    ],
+    [
+      clientError(400, "OTHER_BAD_REQUEST", "Malformed login"),
+      "Malformed login",
+      null,
+    ],
+    [
+      clientError(409, "EMAIL_NOT_VERIFIED", "Verify first"),
+      "Your account has not been verified yet. Please verify your email before signing in.",
+      null,
+    ],
+    [
+      clientError(409, "AUTH_PROVIDER_MISMATCH", "Use Google"),
+      "This account uses a different sign-in method. Use the original provider you signed up with.",
+      null,
+    ],
+    [
+      clientError(409, "ACCOUNT_DISABLED", "Account disabled"),
+      "This account is currently unavailable. Please contact support if you believe this is a mistake.",
+      null,
+    ],
+    [
+      clientError(423, "LOGIN_LOCKED", "Temporarily locked"),
+      "Temporarily locked",
+      null,
+    ],
+  ])("maps login failure %#", async (error, general, field) => {
+    const user = userEvent.setup();
+    loginMock.mockRejectedValue(error);
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText(general)).toBeInTheDocument();
+    if (field) expect(screen.getByText(field)).toBeInTheDocument();
+    expect(clearCaptchaTokenMock).toHaveBeenCalled();
+  });
+
+  it("verifies MFA for a new device before completing login", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn();
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+      clearSession: vi.fn(),
+    });
+    loginMock.mockResolvedValue(loginSession({ known: false, knownByIp: false }));
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["sms"],
+      recommendedFactor: "sms",
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByText("MFA dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Verify device MFA" }));
+
+    await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+    expect(setSession).toHaveBeenCalled();
+  });
+
+  it("cancels MFA for a new device and logs the provisional session out", async () => {
+    const user = userEvent.setup();
+    loginMock.mockResolvedValue(loginSession({ known: false, knownByIp: false }));
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel device MFA" }));
+
+    expect(await screen.findByText("Sign-in was cancelled. Please try again.")).toBeInTheDocument();
+    expect(logoutMock).toHaveBeenCalled();
+  });
+
+  it("accepts already-verified MFA options and verifies IP-known devices", async () => {
+    const user = userEvent.setup();
+    loginMock.mockResolvedValueOnce(loginSession({ known: false, knownByIp: false }));
+    getOptionsMock.mockResolvedValueOnce({
+      scope: "device-login",
+      verified: true,
+      verifiedUntil: "2026-08-09T00:00:00.000Z",
+      availableFactors: ["totp"],
+      recommendedFactor: "totp",
+    });
+    const { unmount } = render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+    unmount();
+
+    vi.clearAllMocks();
+    useAuthMock.mockReturnValue({ status: "anonymous", setSession: vi.fn(), clearSession: vi.fn() });
+    useAuthCaptchaTokenMock.mockReturnValue(["captcha-token", vi.fn(), clearCaptchaTokenMock]);
+    loginMock.mockResolvedValue(loginSession({ known: false, knownByIp: true }));
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+    expect(getOptionsMock).not.toHaveBeenCalled();
+  });
+
+  it("continues login when MFA option discovery fails", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn();
+    useAuthMock.mockReturnValue({ status: "anonymous", setSession, clearSession: vi.fn() });
+    loginMock.mockResolvedValue(loginSession({ known: false, knownByIp: false }));
+    getOptionsMock.mockRejectedValue(new Error("MFA unavailable"));
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(setSession).toHaveBeenCalled());
+    expect(screen.queryByText("MFA dialog")).not.toBeInTheDocument();
+  });
+
   it("switches to unlock mode for locked-account responses with a resolved email", async () => {
     const user = userEvent.setup();
     loginMock.mockRejectedValue(
@@ -510,6 +705,58 @@ describe("LoginForm", () => {
     });
     expect(readPersistedAuthPendingFlow()).toBeNull();
     expect(clearSession).not.toHaveBeenCalled();
+  });
+
+  it("handles restored MFA cancellation and post-verification failure", async () => {
+    const user = userEvent.setup();
+    const clearSession = vi.fn();
+    useAuthMock.mockReturnValue({ status: "authenticated", setSession: vi.fn(), clearSession });
+    writePersistedAuthPendingFlow({
+      flow: "device-login-mfa",
+      nextPath: "/dashboard",
+      selectedFactor: "email",
+      challengeSent: false,
+    });
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    const { unmount, rerender } = render(<LoginForm nextPath="/dashboard" />);
+    await user.click(await screen.findByRole("button", { name: "Cancel device MFA" }));
+    await waitFor(() => expect(clearSession).toHaveBeenCalled());
+    useAuthMock.mockReturnValue({ status: "anonymous", setSession: vi.fn(), clearSession });
+    rerender(<LoginForm nextPath="/dashboard" />);
+    expect(screen.getByText("Sign-in was cancelled. Please try again.")).toBeInTheDocument();
+    unmount();
+
+    clearPersistedAuthPendingFlow();
+    writePersistedAuthPendingFlow({
+      flow: "device-login-mfa",
+      nextPath: "/dashboard",
+      selectedFactor: "email",
+      challengeSent: true,
+    });
+    clearSession.mockClear();
+    verifyDeviceMock.mockRejectedValue(new Error("verify failed"));
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+      clearSession,
+    });
+    const second = render(<LoginForm nextPath="/dashboard" />);
+    await user.click(await screen.findByRole("button", { name: "Verify device MFA" }));
+    await waitFor(() => expect(clearSession).toHaveBeenCalled());
+    useAuthMock.mockReturnValue({ status: "anonymous", setSession: vi.fn(), clearSession });
+    second.rerender(<LoginForm nextPath="/dashboard" />);
+    expect(
+      await screen.findByText(
+        "We verified your code, but couldn't finish this sign-in. Please try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(clearSession).toHaveBeenCalled();
   });
 
   it("does not rewrite identical restored device-login MFA state", async () => {

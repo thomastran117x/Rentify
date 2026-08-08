@@ -20,7 +20,7 @@ interface BookingRequestPanelProps {
   posting: PublicPostingDetail;
 }
 
-interface BookingFormValues {
+export interface BookingFormValues {
   startAt: string;
   endAt: string;
   guestCount: string;
@@ -63,12 +63,12 @@ const FAILURE_REASON_MESSAGES: Record<
     "You already have the maximum number of active requests for this posting.",
 };
 
-function toIsoDate(dateValue: string): string {
+export function toIsoDate(dateValue: string): string {
   // Date inputs yield YYYY-MM-DD; the API expects an ISO datetime.
   return `${dateValue}T00:00:00.000Z`;
 }
 
-function describeFailure(reason: BookingQuoteFailureReason): string {
+export function describeFailure(reason: BookingQuoteFailureReason): string {
   return (
     FAILURE_REASON_MESSAGES[reason.code] ??
     reason.message ??
@@ -76,7 +76,7 @@ function describeFailure(reason: BookingQuoteFailureReason): string {
   );
 }
 
-function getFieldClassName(hasError: boolean): string {
+export function getFieldClassName(hasError: boolean): string {
   return [
     "rounded-2xl border bg-white/90 dark:bg-slate-900/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition",
     hasError
@@ -85,7 +85,7 @@ function getFieldClassName(hasError: boolean): string {
   ].join(" ");
 }
 
-function validate(values: BookingFormValues): BookingFormErrors {
+export function validate(values: BookingFormValues): BookingFormErrors {
   const errors: BookingFormErrors = {};
 
   if (!values.startAt) {

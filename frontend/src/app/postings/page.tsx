@@ -121,11 +121,11 @@ interface SearchDebugState {
   causeMessage?: string;
 }
 
-function readSingleParam(value?: string | string[]): string | undefined {
+export function readSingleParam(value?: string | string[]): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function readArrayParam(value?: string | string[]): string[] {
+export function readArrayParam(value?: string | string[]): string[] {
   const values = Array.isArray(value) ? value : value ? [value] : [];
 
   return values
@@ -134,7 +134,7 @@ function readArrayParam(value?: string | string[]): string[] {
     .filter(Boolean);
 }
 
-function readPositiveNumber(
+export function readPositiveNumber(
   value: string | undefined,
   fallback: number,
 ): number {
@@ -143,17 +143,17 @@ function readPositiveNumber(
   return parsed;
 }
 
-function parseOptionalNumber(value: string | undefined): number | undefined {
+export function parseOptionalNumber(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function isPostingSort(value: string | undefined): value is PostingSort {
+export function isPostingSort(value: string | undefined): value is PostingSort {
   return sortOptions.some((option) => option.value === value);
 }
 
-function resolveErrorDetails(
+export function resolveErrorDetails(
   message: string,
   debug: SearchDebugState | null,
 ): { title: string; description: string } {
@@ -200,7 +200,7 @@ function resolveErrorDetails(
 
 const inputClass = theme.marketplace.input;
 
-function FilterChip({
+export function FilterChip({
   href,
   active,
   children,
@@ -219,7 +219,7 @@ function FilterChip({
   );
 }
 
-function FilterPanel({
+export function FilterPanel({
   title,
   description,
   children,
@@ -244,7 +244,7 @@ function FilterPanel({
   );
 }
 
-function describeOrganizationFilter(
+export function describeOrganizationFilter(
   organization: string | undefined,
   organizationFilter: PublicPostingOrganizationFilter | undefined,
 ): string | null {
@@ -263,7 +263,7 @@ function describeOrganizationFilter(
   return organization ? `Organization: ${organization}` : null;
 }
 
-function ActiveFilters({
+export function ActiveFilters({
   q,
   organization,
   organizationFilter,
@@ -349,7 +349,7 @@ function ActiveFilters({
   );
 }
 
-function Field({
+export function Field({
   label,
   htmlFor,
   hint,

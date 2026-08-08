@@ -24,7 +24,7 @@ interface VerificationDialogState {
 
 const MFA_SCOPE: MfaVerificationScope = "mfa-management";
 
-function formatSecret(secret: string) {
+export function formatSecret(secret: string) {
   return secret.match(/.{1,4}/g)?.join(" ") ?? secret;
 }
 
