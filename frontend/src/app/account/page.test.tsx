@@ -12,6 +12,9 @@ const {
   getOptionsMock,
   listDevicesMock,
   createTokenMock,
+  unlinkProviderMock,
+  removeDeviceMock,
+  revokeTokenMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   linkedProvidersMock: vi.fn(),
@@ -21,6 +24,9 @@ const {
   getOptionsMock: vi.fn(),
   listDevicesMock: vi.fn(),
   createTokenMock: vi.fn(),
+  unlinkProviderMock: vi.fn(),
+  removeDeviceMock: vi.fn(),
+  revokeTokenMock: vi.fn(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({ useAuth: useAuthMock }));
@@ -34,9 +40,9 @@ vi.mock("@/lib/auth/api", () => ({
     listPersonalAccessTokens: listTokensMock,
     listKnownDevices: listDevicesMock,
     createPersonalAccessToken: createTokenMock,
-    unlinkOAuthProvider: vi.fn(),
-    removeKnownDevice: vi.fn(),
-    revokePersonalAccessToken: vi.fn(),
+    unlinkOAuthProvider: unlinkProviderMock,
+    removeKnownDevice: removeDeviceMock,
+    revokePersonalAccessToken: revokeTokenMock,
   },
 }));
 vi.mock("@/lib/profiles/api", () => ({
@@ -129,5 +135,45 @@ describe("AccountPage", () => {
       name: "CLI token", expiresInDays: 30, scopes: ["mcp:read"],
     }));
     expect(await screen.findByText("secret-token")).toBeInTheDocument();
+  });
+
+  it("updates an editable phone number and deactivation confirmation", async () => {
+    const user = userEvent.setup();
+    updateMineMock.mockResolvedValue({ ...profile, phoneNumber: "+15550000000" });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    const phone = await screen.findByPlaceholderText("e.g. +1 555 000 0000");
+    await user.type(phone, " +15550000000 ");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateMineMock).toHaveBeenCalledWith({
+      username: "renter-one", phoneNumber: "+15550000000",
+    }));
+    expect(await screen.findByText("Phone number saved.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disable account" }));
+    await user.click(screen.getByRole("button", { name: "Yes, disable account" }));
+    expect(await screen.findByText(/Account deactivation is not yet available/)).toBeInTheDocument();
+  });
+
+  it("unlinks providers, removes a non-current device, and revokes a token", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({
+      hasPassword: true,
+      providers: [{ id: "provider-1", provider: "google", linkedAt: "2026-01-01", providerEmail: "person@example.com" }],
+    });
+    unlinkProviderMock.mockResolvedValue({ hasPassword: true, providers: [] });
+    listDevicesMock.mockResolvedValue({ devices: [{ id: "device-1", deviceId: "device-1", platform: "web", lastSeenAt: "2026-01-01", current: false }] });
+    listTokensMock.mockResolvedValue({ tokens: [{ id: "token-1", name: "CLI", tokenPrefix: "rnt_", scopes: ["mcp:read"], createdAt: "2026-01-01", lastUsedAt: null, expiresAt: null, revokedAt: null }] });
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await screen.findByText("Google");
+    await user.click(screen.getByRole("button", { name: "Unlink" }));
+    await waitFor(() => expect(unlinkProviderMock).toHaveBeenCalledWith("google"));
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(removeDeviceMock).toHaveBeenCalledWith("device-1"));
+    await user.click(screen.getByRole("button", { name: "Developer" }));
+    await screen.findByText("CLI");
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(revokeTokenMock).toHaveBeenCalledWith("token-1"));
   });
 });
