@@ -29,13 +29,19 @@ vi.mock("@/components/postings/saved-postings-workspace", () => ({
   SavedPostingsWorkspace: () => <div>Saved postings</div>,
 }));
 vi.mock("@/components/rentings/renting-detail-client", () => ({
-  RentingDetailClient: ({ rentingId }: { rentingId: string }) => <div>Renting {rentingId}</div>,
+  RentingDetailClient: ({ rentingId }: { rentingId: string }) => (
+    <div>Renting {rentingId}</div>
+  ),
 }));
 vi.mock("@/components/dashboard/posting-dashboard-detail", () => ({
-  PostingDashboardDetail: ({ postingId }: { postingId: string }) => <div>Posting {postingId}</div>,
+  PostingDashboardDetail: ({ postingId }: { postingId: string }) => (
+    <div>Posting {postingId}</div>
+  ),
 }));
 vi.mock("@/components/organizations/organization-invite-page", () => ({
-  OrganizationInvitePage: ({ token }: { token: string }) => <div>Invite {token}</div>,
+  OrganizationInvitePage: ({ token }: { token: string }) => (
+    <div>Invite {token}</div>
+  ),
 }));
 
 describe("app route wrappers", () => {
@@ -56,13 +62,23 @@ describe("app route wrappers", () => {
   });
 
   it("passes dynamic route parameters to renting, posting, and invitation views", async () => {
-    render(await RentingDetailPage({ params: Promise.resolve({ id: "renting-1" }) }));
+    render(
+      await RentingDetailPage({ params: Promise.resolve({ id: "renting-1" }) }),
+    );
     expect(screen.getByText("Renting renting-1")).toBeInTheDocument();
 
-    render(await DashboardPostingDetailPage({ params: Promise.resolve({ id: "posting-1" }) }));
+    render(
+      await DashboardPostingDetailPage({
+        params: Promise.resolve({ id: "posting-1" }),
+      }),
+    );
     expect(screen.getByText("Posting posting-1")).toBeInTheDocument();
 
-    render(await OrganizationInviteRoute({ params: Promise.resolve({ token: "invite-token" }) }));
+    render(
+      await OrganizationInviteRoute({
+        params: Promise.resolve({ token: "invite-token" }),
+      }),
+    );
     expect(screen.getByText("Invite invite-token")).toBeInTheDocument();
   });
 });

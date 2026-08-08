@@ -249,7 +249,10 @@ describe("SignupVerificationPanel", () => {
       }),
       "A verification code was sent recently. Try again in 30 seconds.",
     ],
-    [new Error("offline"), "We couldn't verify your email right now. Please try again."],
+    [
+      new Error("offline"),
+      "We couldn't verify your email right now. Please try again.",
+    ],
   ])("maps verification failure %#", async (error, expectedMessage) => {
     const user = userEvent.setup();
     verifyEmailMock.mockRejectedValue(error);
@@ -271,7 +274,11 @@ describe("SignupVerificationPanel", () => {
 
   it("requires captcha before resending", async () => {
     const user = userEvent.setup();
-    useAuthCaptchaTokenMock.mockReturnValue(["", vi.fn(), clearCaptchaTokenMock]);
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
 
     render(
       <SignupVerificationPanel

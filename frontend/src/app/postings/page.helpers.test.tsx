@@ -87,7 +87,9 @@ describe("postings page helpers", () => {
         params: {},
         status: 403,
       }),
-    ).toMatchObject({ description: "Please review your filters and try again." });
+    ).toMatchObject({
+      description: "Please review your filters and try again.",
+    });
     expect(resolveErrorDetails("Offline", null)).toMatchObject({
       description: "Offline",
     });

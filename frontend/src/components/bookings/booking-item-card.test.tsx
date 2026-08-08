@@ -34,7 +34,9 @@ vi.mock("@/components/reviews/posting-review-form", () => ({
   ),
 }));
 
-function item(overrides: Partial<BookingDashboardItem> = {}): BookingDashboardItem {
+function item(
+  overrides: Partial<BookingDashboardItem> = {},
+): BookingDashboardItem {
   return {
     id: "item-1",
     kind: "booking_request",
@@ -59,7 +61,7 @@ function item(overrides: Partial<BookingDashboardItem> = {}): BookingDashboardIt
       effectiveMaxBookingDurationDays: 14,
     },
     isExpiringHold: false,
-    nextAction: { code: "monitor", label: "Monitor stay" },
+    nextAction: { code: "monitor_upcoming", label: "Monitor stay" },
     urgency: { level: "none", rank: 4, isActionable: false, label: "Routine" },
     ...overrides,
   };
@@ -120,7 +122,12 @@ describe("BookingItemCard", () => {
     expect(humanizeActionNeeded()).toBeNull();
     expect(humanizeActionNeeded("payment_failure")).toBe("Payment Failure");
     expect(canReviewCancellation(item())).toBe(true);
-    for (const sourceStatus of ["declined", "expired", "cancelled", "refunded"] as const) {
+    for (const sourceStatus of [
+      "declined",
+      "expired",
+      "cancelled",
+      "refunded",
+    ] as const) {
       expect(canReviewCancellation(item({ sourceStatus }))).toBe(false);
     }
     expect(canReviewCancellation(item({ kind: "renting" }))).toBe(false);
@@ -151,7 +158,12 @@ describe("BookingItemCard", () => {
         primaryPhotoUrl: "https://img/house.jpg",
         effectiveMaxBookingDurationDays: 14,
       },
-      urgency: { level: "high", rank: 1, isActionable: true, label: "High urgency" },
+      urgency: {
+        level: "high",
+        rank: 1,
+        isActionable: true,
+        label: "High urgency",
+      },
     });
     render(
       <BookingItemCard
@@ -171,7 +183,9 @@ describe("BookingItemCard", () => {
     const { unmount } = render(
       <BookingItemCard {...cardProps(bookingItem, { onReviewCancellation })} />,
     );
-    await user.click(screen.getAllByRole("button", { name: "Review cancellation" })[0]);
+    await user.click(
+      screen.getAllByRole("button", { name: "Review cancellation" })[0],
+    );
     expect(onReviewCancellation).toHaveBeenCalledWith("booking-1");
     unmount();
   });
@@ -181,24 +195,28 @@ describe("BookingItemCard", () => {
     ["partial", "Partial refund"],
     ["full", "Full refund"],
     ["unsupported", "Unsupported"],
-  ] as const)("renders the %s cancellation refund outcome", (refundType, label) => {
-    const bookingItem = item();
-    const result = quote({ refundType: refundType as never });
-    render(
-      <BookingItemCard
-        {...cardProps(bookingItem, {
-          quoteByBookingId: { "booking-1": result },
-          cancelPendingId: refundType === "partial" ? "booking-1" : null,
-        })}
-      />,
-    );
-    expect(screen.getByText(label)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: refundType === "partial" ? "Cancelling..." : "Confirm cancellation",
-      }),
-    ).toBeInTheDocument();
-  });
+  ] as const)(
+    "renders the %s cancellation refund outcome",
+    (refundType, label) => {
+      const bookingItem = item();
+      const result = quote({ refundType: refundType as never });
+      render(
+        <BookingItemCard
+          {...cardProps(bookingItem, {
+            quoteByBookingId: { "booking-1": result },
+            cancelPendingId: refundType === "partial" ? "booking-1" : null,
+          })}
+        />,
+      );
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name:
+            refundType === "partial" ? "Cancelling..." : "Confirm cancellation",
+        }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("edits a required cancellation reason and confirms", async () => {
     const user = userEvent.setup();
@@ -215,10 +233,17 @@ describe("BookingItemCard", () => {
         })}
       />,
     );
-    const textarea = screen.getByRole("textbox", { name: "Owner cancellation reason" });
+    const textarea = screen.getByRole("textbox", {
+      name: "Owner cancellation reason",
+    });
     await user.type(textarea, " updated");
-    expect(onReasonChange).toHaveBeenCalledWith("booking-1", expect.any(String));
-    await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    expect(onReasonChange).toHaveBeenCalledWith(
+      "booking-1",
+      expect.any(String),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Confirm cancellation" }),
+    );
     expect(onCancelBooking).toHaveBeenCalledWith("booking-1");
   });
 
@@ -248,7 +273,9 @@ describe("BookingItemCard", () => {
         })}
       />,
     );
-    expect(screen.getByText("This booking cannot be cancelled.")).toBeInTheDocument();
+    expect(
+      screen.getByText("This booking cannot be cancelled."),
+    ).toBeInTheDocument();
   });
 
   it.each(["cancelled", "refunded"] as const)(
@@ -260,13 +287,18 @@ describe("BookingItemCard", () => {
             item({
               sourceStatus,
               status: sourceStatus,
-              updatedAt: sourceStatus === "cancelled" ? "2026-07-05T10:00:00.000Z" : "",
+              updatedAt:
+                sourceStatus === "cancelled" ? "2026-07-05T10:00:00.000Z" : "",
             }),
           )}
         />,
       );
       expect(
-        screen.getByText(sourceStatus === "refunded" ? "Refunded booking" : /Cancelled booking/),
+        screen.getByText(
+          sourceStatus === "refunded"
+            ? "Refunded booking"
+            : /Cancelled booking/,
+        ),
       ).toBeInTheDocument();
     },
   );
@@ -279,7 +311,9 @@ describe("BookingItemCard", () => {
       sourceStatus: "confirmed",
     });
     const { rerender } = render(<BookingItemCard {...cardProps(waiting)} />);
-    expect(screen.getByText(/instructions will appear here/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/instructions will appear here/),
+    ).toBeInTheDocument();
 
     rerender(
       <BookingItemCard
@@ -317,7 +351,10 @@ describe("BookingItemCard", () => {
         {...cardProps(renting, {
           view: "owner",
           instructionDraftByRentingId: {
-            "renting-1": { pickupInstructions: "Pickup", returnInstructions: "Return" },
+            "renting-1": {
+              pickupInstructions: "Pickup",
+              returnInstructions: "Return",
+            },
           },
           onInstructionChange,
           onSaveInstructions,
@@ -335,7 +372,9 @@ describe("BookingItemCard", () => {
       "New pickup",
     );
     await user.click(screen.getByRole("button", { name: "Save instructions" }));
-    await user.click(screen.getByRole("button", { name: "Mark check-in ready" }));
+    await user.click(
+      screen.getByRole("button", { name: "Mark check-in ready" }),
+    );
     await user.click(screen.getByRole("button", { name: "Confirm check-in" }));
     expect(onSaveInstructions).toHaveBeenCalledWith("renting-1");
     expect(onMarkCheckInReady).toHaveBeenCalledWith("renting-1");
@@ -400,7 +439,11 @@ describe("BookingItemCard", () => {
     fireEvent.change(screen.getByPlaceholderText("Summarize the issue."), {
       target: { value: "Changed" },
     });
-    expect(onDisputeChange).toHaveBeenCalledWith("renting-2", "reason", "Changed");
+    expect(onDisputeChange).toHaveBeenCalledWith(
+      "renting-2",
+      "reason",
+      "Changed",
+    );
     await user.click(screen.getByRole("button", { name: "Open dispute" }));
     expect(onCreateDispute).toHaveBeenCalledWith("renting-2");
 

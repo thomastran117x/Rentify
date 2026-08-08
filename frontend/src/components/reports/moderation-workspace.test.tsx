@@ -163,7 +163,9 @@ describe("ModerationWorkspace", () => {
   it("shows loading and denies non-moderator roles", () => {
     useAuthMock.mockReturnValue({ status: "loading", session: null });
     const { rerender } = render(<ModerationWorkspace />);
-    expect(screen.getByText("Loading moderation workspace...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading moderation workspace..."),
+    ).toBeInTheDocument();
 
     useAuthMock.mockReturnValue({
       status: "authenticated",
@@ -194,7 +196,9 @@ describe("ModerationWorkspace", () => {
       await screen.findByText("No reports match these filters."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Pick a report from the queue to inspect the full record."),
+      screen.getByText(
+        "Pick a report from the queue to inspect the full record.",
+      ),
     ).toBeInTheDocument();
     unmount();
 
@@ -249,9 +253,12 @@ describe("ModerationWorkspace", () => {
     });
     render(<ModerationWorkspace />);
     await screen.findByText("First report");
-    fireEvent.change(screen.getByPlaceholderText("Title, description, or user"), {
-      target: { value: "second" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Title, description, or user"),
+      {
+        target: { value: "second" },
+      },
+    );
     const selects = screen.getAllByRole("combobox");
     fireEvent.change(selects[0], { target: { value: "under_review" } });
     fireEvent.change(selects[1], { target: { value: "user" } });
@@ -270,14 +277,18 @@ describe("ModerationWorkspace", () => {
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: /Second report/ }));
-    await waitFor(() => expect(getModerationReportMock).toHaveBeenCalledWith("report-2"));
+    await waitFor(() =>
+      expect(getModerationReportMock).toHaveBeenCalledWith("report-2"),
+    );
   });
 
   it("assigns, unassigns, and moves reports through nonterminal statuses", async () => {
     render(<ModerationWorkspace />);
     await screen.findByRole("button", { name: "Assign to me" });
     fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
-    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("report-1", {}));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith("report-1", {}),
+    );
     expect(await screen.findByText("Report assigned.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Unassign" }));
@@ -289,7 +300,9 @@ describe("ModerationWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Internal note"), {
       target: { value: "  Needs a closer look  " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Move to under review" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Move to under review" }),
+    );
     await waitFor(() =>
       expect(updateStatusMock).toHaveBeenCalledWith("report-1", {
         status: "under_review",
@@ -315,14 +328,29 @@ describe("ModerationWorkspace", () => {
       reviewedAt: "2026-05-22T12:00:00.000Z",
       createdAt: "2026-05-20T12:00:00.000Z",
       updatedAt: "2026-05-22T12:00:00.000Z",
-      reporter: { id: "user-1", email: "user@example.com", username: "reporter", role: "user" },
-      assignedModerator: { id: "mod-1", email: "mod@example.com", username: "moderator", role: "moderator" },
+      reporter: {
+        id: "user-1",
+        email: "user@example.com",
+        username: "reporter",
+        role: "user",
+      },
+      assignedModerator: {
+        id: "mod-1",
+        email: "mod@example.com",
+        username: "moderator",
+        role: "moderator",
+      },
       subjectSnapshot: { subjectType: "posting", summaryText: "Snapshot" },
       events: [
         {
           id: "event-1",
           eventType: "note_added",
-          actor: { id: "mod-1", email: "mod@example.com", username: "moderator", role: "moderator" },
+          actor: {
+            id: "mod-1",
+            email: "mod@example.com",
+            username: "moderator",
+            role: "moderator",
+          },
           note: "Investigated",
           createdAt: "2026-05-22T12:00:00.000Z",
         },

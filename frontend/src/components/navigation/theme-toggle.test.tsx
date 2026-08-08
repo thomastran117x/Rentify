@@ -28,6 +28,8 @@ describe("ThemeToggle", () => {
 
     render(<ThemeToggle />);
 
-    expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Switch to dark mode" }),
+    ).toBeInTheDocument();
   });
 });

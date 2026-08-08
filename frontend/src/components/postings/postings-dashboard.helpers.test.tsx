@@ -19,7 +19,13 @@ function posting(overrides: Partial<PostingRecord> = {}): PostingRecord {
     variant: { family: "place", subtype: "private_room" },
     pricing: { currency: "CAD", daily: { amount: 100 } },
     pricingCurrency: "CAD",
-    location: { city: "Toronto", region: "Ontario", country: "Canada", latitude: 1, longitude: 2 },
+    location: {
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      latitude: 1,
+      longitude: 2,
+    },
     tags: [],
     photos: [],
     details: {},
@@ -34,9 +40,18 @@ function posting(overrides: Partial<PostingRecord> = {}): PostingRecord {
 
 describe("postings dashboard helpers", () => {
   it("maps every lifecycle status", () => {
-    expect(lifecycleActions("draft").map((action) => action.id)).toEqual(["publish", "archive"]);
-    expect(lifecycleActions("published").map((action) => action.id)).toEqual(["pause", "archive"]);
-    expect(lifecycleActions("paused").map((action) => action.id)).toEqual(["unpause", "archive"]);
+    expect(lifecycleActions("draft").map((action) => action.id)).toEqual([
+      "publish",
+      "archive",
+    ]);
+    expect(lifecycleActions("published").map((action) => action.id)).toEqual([
+      "pause",
+      "archive",
+    ]);
+    expect(lifecycleActions("paused").map((action) => action.id)).toEqual([
+      "unpause",
+      "archive",
+    ]);
     expect(lifecycleActions("archived")).toEqual([]);
   });
 
@@ -58,12 +73,22 @@ describe("postings dashboard helpers", () => {
       primaryPhotoUrl(
         posting({
           photos: [
-            { blobUrl: "https://img/first.jpg", blobName: "first", position: 2 },
             {
+              id: "photo-1",
+              blobUrl: "https://img/first.jpg",
+              blobName: "first",
+              position: 2,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
+            },
+            {
+              id: "photo-2",
               blobUrl: "https://img/primary.jpg",
               thumbnailBlobUrl: "https://img/thumb.jpg",
               blobName: "primary",
               position: 0,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
             },
           ],
         }),
@@ -73,7 +98,14 @@ describe("postings dashboard helpers", () => {
       primaryPhotoUrl(
         posting({
           photos: [
-            { blobUrl: "https://img/first.jpg", blobName: "first", position: 3 },
+            {
+              id: "photo-1",
+              blobUrl: "https://img/first.jpg",
+              blobName: "first",
+              position: 3,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
+            },
           ],
         }),
       ),
@@ -82,7 +114,14 @@ describe("postings dashboard helpers", () => {
       primaryPhotoUrl(
         posting({
           photos: [
-            { blobUrl: "https://example.com/bad.jpg", blobName: "bad", position: 0 },
+            {
+              id: "photo-1",
+              blobUrl: "https://example.com/bad.jpg",
+              blobName: "bad",
+              position: 0,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
+            },
           ],
         }),
       ),
@@ -97,9 +136,12 @@ describe("postings dashboard helpers", () => {
         posting={posting({
           photos: [
             {
+              id: "photo-1",
               blobUrl: "https://img/studio.jpg",
               blobName: "studio",
               position: 0,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
             },
           ],
         })}

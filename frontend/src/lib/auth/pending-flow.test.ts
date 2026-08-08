@@ -139,14 +139,44 @@ describe("pending auth flow storage", () => {
     "signup-verification",
     {},
     { flow: "unknown" },
-    { flow: "signup-verification", email: "", nextPath: "/", alreadyPending: false },
-    { flow: "signup-verification", email: "a@b.test", nextPath: "", alreadyPending: false },
-    { flow: "signup-verification", email: "a@b.test", nextPath: "/", alreadyPending: "no" },
+    {
+      flow: "signup-verification",
+      email: "",
+      nextPath: "/",
+      alreadyPending: false,
+    },
+    {
+      flow: "signup-verification",
+      email: "a@b.test",
+      nextPath: "",
+      alreadyPending: false,
+    },
+    {
+      flow: "signup-verification",
+      email: "a@b.test",
+      nextPath: "/",
+      alreadyPending: "no",
+    },
     { flow: "forgot-password-reset", username: " " },
     { flow: "login-unlock", email: 42 },
-    { flow: "device-login-mfa", nextPath: "", selectedFactor: "email", challengeSent: true },
-    { flow: "device-login-mfa", nextPath: "/", selectedFactor: "sms", challengeSent: true },
-    { flow: "device-login-mfa", nextPath: "/", selectedFactor: "email", challengeSent: "yes" },
+    {
+      flow: "device-login-mfa",
+      nextPath: "",
+      selectedFactor: "email",
+      challengeSent: true,
+    },
+    {
+      flow: "device-login-mfa",
+      nextPath: "/",
+      selectedFactor: "sms",
+      challengeSent: true,
+    },
+    {
+      flow: "device-login-mfa",
+      nextPath: "/",
+      selectedFactor: "email",
+      challengeSent: "yes",
+    },
   ])("rejects malformed flow %#", (value) => {
     expect(parsePendingFlow(value)).toBeNull();
   });

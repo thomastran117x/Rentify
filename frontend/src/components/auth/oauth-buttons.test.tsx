@@ -14,7 +14,11 @@ const {
 }));
 
 vi.mock("@/lib/env", () => ({
-  publicEnv: { googleOAuthClientId: "google-client", microsoftOAuthClientId: "microsoft-client", microsoftOAuthTenant: "tenant" },
+  publicEnv: {
+    googleOAuthClientId: "google-client",
+    microsoftOAuthClientId: "microsoft-client",
+    microsoftOAuthTenant: "tenant",
+  },
 }));
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
@@ -60,9 +64,15 @@ describe("AuthOAuthButtons", () => {
     vi.spyOn(window, "open").mockReturnValue(null);
     render(<AuthOAuthButtons onError={onError} />);
 
-    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
 
-    await waitFor(() => expect(onError).toHaveBeenLastCalledWith("Your browser blocked the sign-in popup. Please allow popups and try again."));
+    await waitFor(() =>
+      expect(onError).toHaveBeenLastCalledWith(
+        "Your browser blocked the sign-in popup. Please allow popups and try again.",
+      ),
+    );
   });
 
   it("exchanges a verified Google popup code for an authenticated session", async () => {
@@ -74,29 +84,49 @@ describe("AuthOAuthButtons", () => {
     authenticateGoogleMock.mockResolvedValue({ accessToken: "access" });
     render(<AuthOAuthButtons onError={onError} onSuccess={onSuccess} />);
 
-    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
     await waitFor(() => expect(openMock).toHaveBeenCalled());
     const url = new URL(String(openMock.mock.calls[0]![0]));
-    window.dispatchEvent(new MessageEvent("message", {
-      origin: "https://attacker.example",
-      data: { source: "rentify-oauth-popup", payload: "#code=ignored" },
-    }));
-    window.dispatchEvent(new MessageEvent("message", {
-      origin: window.location.origin,
-      data: { source: "another-app", payload: "#code=ignored" },
-    }));
-    window.dispatchEvent(new MessageEvent("message", {
-      origin: window.location.origin,
-      data: { source: "rentify-oauth-popup", payload: `#code=code-1&state=${url.searchParams.get("state")}` },
-    }));
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "https://attacker.example",
+        data: { source: "rentify-oauth-popup", payload: "#code=ignored" },
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: window.location.origin,
+        data: { source: "another-app", payload: "#code=ignored" },
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: window.location.origin,
+        data: {
+          source: "rentify-oauth-popup",
+          payload: `#code=code-1&state=${url.searchParams.get("state")}`,
+        },
+      }),
+    );
 
-    await waitFor(() => expect(authenticateGoogleMock).toHaveBeenCalledWith(expect.objectContaining({ code: "code-1" })));
+    await waitFor(() =>
+      expect(authenticateGoogleMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "code-1" }),
+      ),
+    );
     expect(onSuccess).toHaveBeenCalledWith({ accessToken: "access" });
     expect(popup.close).toHaveBeenCalledOnce();
   });
 
   it("hides providers disabled by configuration", () => {
-    render(<AuthOAuthButtons onError={vi.fn()} disabledProviders={["google", "microsoft"]} />);
+    render(
+      <AuthOAuthButtons
+        onError={vi.fn()}
+        disabledProviders={["google", "microsoft"]}
+      />,
+    );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -209,7 +239,12 @@ describe("AuthOAuthButtons", () => {
 
   it.each([
     [
-      { ok: false, json: vi.fn().mockResolvedValue({ error_description: "Token+exchange+failed" }) },
+      {
+        ok: false,
+        json: vi
+          .fn()
+          .mockResolvedValue({ error_description: "Token+exchange+failed" }),
+      },
       "Token exchange failed",
     ],
     [

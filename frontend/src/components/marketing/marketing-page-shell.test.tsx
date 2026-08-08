@@ -20,10 +20,16 @@ describe("MarketingPageShell", () => {
     );
 
     expect(screen.getByText("Rentify")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Find your next rental" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Find your next rental" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("hero-search")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Talk to our team" })).toHaveAttribute("href", "/contact");
-    expect(screen.getByRole("link", { name: "Browse rentals" })).toHaveAttribute("href", "/postings");
+    expect(
+      screen.getByRole("link", { name: "Talk to our team" }),
+    ).toHaveAttribute("href", "/contact");
+    expect(
+      screen.getByRole("link", { name: "Browse rentals" }),
+    ).toHaveAttribute("href", "/postings");
     expect(screen.queryByText("Quick links:")).not.toBeInTheDocument();
   });
 
@@ -46,9 +52,16 @@ describe("MarketingPageShell", () => {
       </MarketingPageShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Create a posting" })).toHaveAttribute("href", "/postings/create");
-    expect(screen.getByRole("link", { name: "Explore help" })).toHaveAttribute("href", "/faq");
-    expect(screen.getByRole("link", { name: "Contact support" })).toHaveAttribute("href", "/contact");
+    expect(
+      screen.getByRole("link", { name: "Create a posting" }),
+    ).toHaveAttribute("href", "/postings/create");
+    expect(screen.getByRole("link", { name: "Explore help" })).toHaveAttribute(
+      "href",
+      "/faq",
+    );
+    expect(
+      screen.getByRole("link", { name: "Contact support" }),
+    ).toHaveAttribute("href", "/contact");
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("Support days")).toBeInTheDocument();
     expect(screen.getByText("Useful context")).toBeInTheDocument();

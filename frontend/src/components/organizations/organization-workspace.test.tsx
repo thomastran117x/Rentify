@@ -9,7 +9,10 @@ import {
   routerPushMock,
   routerRefreshMock,
 } from "@/test/mocks/next-navigation";
-import { OrganizationWorkspaceProvider, useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
+import {
+  OrganizationWorkspaceProvider,
+  useOrganizationWorkspace,
+} from "@/components/organizations/workspace/workspace-provider";
 import { WorkspaceChrome } from "@/components/organizations/workspace/workspace-chrome";
 import { TeamPanel } from "@/components/organizations/workspace/panels/team-panel";
 import { PostingsPanel } from "@/components/organizations/workspace/panels/postings-panel";
@@ -180,14 +183,49 @@ function BlogActionsHarness() {
   if (!workspace.detail) return <div>Loading harness</div>;
   return (
     <div>
-      <button onClick={() => workspace.setBlogForm({ title: "Launch", slug: "", excerpt: "Summary", body: "<p>Body</p>", tags: ["news"], coverImageUrl: "", coverImageBlobName: "", status: "draft" })}>Prepare blog</button>
-      <button onClick={() => void workspace.handleSubmitBlogPost()}>Submit blog</button>
-      <button onClick={() => post && workspace.handleEditBlogPost(post)}>Edit blog</button>
-      <button onClick={() => post && void workspace.handleToggleBlogStatus(post)}>Toggle blog</button>
-      <button onClick={() => post && void workspace.handleDeleteBlogPost(post.id)}>Delete blog</button>
-      <button onClick={() => workspace.setNewOrganizationName("  Acme Rentals  ")}>Prepare organization</button>
-      <button onClick={() => void workspace.handleCreate()}>Create organization</button>
-      <button onClick={() => void workspace.handleSelectOrganization("org-2")}>Select organization</button>
+      <button
+        onClick={() =>
+          workspace.setBlogForm({
+            title: "Launch",
+            slug: "",
+            excerpt: "Summary",
+            body: "<p>Body</p>",
+            tags: ["news"],
+            coverImageUrl: "",
+            coverImageBlobName: "",
+            status: "draft",
+          })
+        }
+      >
+        Prepare blog
+      </button>
+      <button onClick={() => void workspace.handleSubmitBlogPost()}>
+        Submit blog
+      </button>
+      <button onClick={() => post && workspace.handleEditBlogPost(post)}>
+        Edit blog
+      </button>
+      <button
+        onClick={() => post && void workspace.handleToggleBlogStatus(post)}
+      >
+        Toggle blog
+      </button>
+      <button
+        onClick={() => post && void workspace.handleDeleteBlogPost(post.id)}
+      >
+        Delete blog
+      </button>
+      <button
+        onClick={() => workspace.setNewOrganizationName("  Acme Rentals  ")}
+      >
+        Prepare organization
+      </button>
+      <button onClick={() => void workspace.handleCreate()}>
+        Create organization
+      </button>
+      <button onClick={() => void workspace.handleSelectOrganization("org-2")}>
+        Select organization
+      </button>
       <span>{workspace.message}</span>
     </div>
   );
@@ -383,7 +421,10 @@ describe("Organization workspace", () => {
     listBlogPostsMock.mockResolvedValue({ posts: [] });
     createBlogPostMock.mockResolvedValue({ id: "blog-1" });
     updateBlogPostMock.mockResolvedValue({ id: "blog-1" });
-    deleteBlogPostMock.mockResolvedValue({ deleted: true, blogPostId: "blog-1" });
+    deleteBlogPostMock.mockResolvedValue({
+      deleted: true,
+      blogPostId: "blog-1",
+    });
     createUploadUrlMock.mockResolvedValue(
       buildBlobTarget("organizations/user-1/logo-default.png"),
     );
@@ -478,12 +519,22 @@ describe("Organization workspace", () => {
     const user = userEvent.setup();
     renderInWorkspace(<TeamPanel />);
     await user.click(await screen.findByRole("button", { name: "Revoke" }));
-    await waitFor(() => expect(revokeInviteMock).toHaveBeenCalledWith("org-1", "invite-1"));
+    await waitFor(() =>
+      expect(revokeInviteMock).toHaveBeenCalledWith("org-1", "invite-1"),
+    );
     const role = await screen.findByLabelText("Role for ops-two");
     await user.selectOptions(role, "manager");
-    await waitFor(() => expect(updateMemberRoleMock).toHaveBeenCalledWith("org-1", "membership-2", "manager"));
+    await waitFor(() =>
+      expect(updateMemberRoleMock).toHaveBeenCalledWith(
+        "org-1",
+        "membership-2",
+        "manager",
+      ),
+    );
     await user.click(screen.getByRole("button", { name: "Remove" }));
-    await waitFor(() => expect(removeMemberMock).toHaveBeenCalledWith("org-1", "membership-2"));
+    await waitFor(() =>
+      expect(removeMemberMock).toHaveBeenCalledWith("org-1", "membership-2"),
+    );
   });
 
   it("publishes a posting from the Postings panel", async () => {
@@ -606,23 +657,55 @@ describe("Organization workspace", () => {
   it("creates, edits, toggles, and deletes blog posts through the provider", async () => {
     const user = userEvent.setup();
     const post = {
-      id: "blog-1", organizationId: "org-1", title: "Existing", slug: "existing", excerpt: "Summary", body: "<p>Existing body</p>", tags: ["news"], status: "draft" as const, createdAt: "2026-05-12T00:00:00.000Z", updatedAt: "2026-05-12T00:00:00.000Z",
+      id: "blog-1",
+      organizationId: "org-1",
+      title: "Existing",
+      slug: "existing",
+      excerpt: "Summary",
+      body: "<p>Existing body</p>",
+      tags: ["news"],
+      status: "draft" as const,
+      createdAt: "2026-05-12T00:00:00.000Z",
+      updatedAt: "2026-05-12T00:00:00.000Z",
     };
     listBlogPostsMock.mockResolvedValue({ posts: [post] });
     renderInWorkspace(<BlogActionsHarness />);
     await screen.findByRole("button", { name: "Prepare blog" });
     await user.click(screen.getByRole("button", { name: "Submit blog" }));
-    expect(showErrorMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't save blog post" }));
+    expect(showErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Couldn't save blog post" }),
+    );
     await user.click(screen.getByRole("button", { name: "Prepare blog" }));
     await user.click(screen.getByRole("button", { name: "Submit blog" }));
-    await waitFor(() => expect(createBlogPostMock).toHaveBeenCalledWith("org-1", expect.objectContaining({ title: "Launch", body: "<p>Body</p>", tags: ["news"] })));
+    await waitFor(() =>
+      expect(createBlogPostMock).toHaveBeenCalledWith(
+        "org-1",
+        expect.objectContaining({
+          title: "Launch",
+          body: "<p>Body</p>",
+          tags: ["news"],
+        }),
+      ),
+    );
     await user.click(screen.getByRole("button", { name: "Edit blog" }));
     await user.click(screen.getByRole("button", { name: "Submit blog" }));
-    await waitFor(() => expect(updateBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1", expect.objectContaining({ title: "Existing" })));
+    await waitFor(() =>
+      expect(updateBlogPostMock).toHaveBeenCalledWith(
+        "org-1",
+        "blog-1",
+        expect.objectContaining({ title: "Existing" }),
+      ),
+    );
     await user.click(screen.getByRole("button", { name: "Toggle blog" }));
-    await waitFor(() => expect(updateBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1", { status: "published" }));
+    await waitFor(() =>
+      expect(updateBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1", {
+        status: "published",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Delete blog" }));
-    await waitFor(() => expect(deleteBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1"));
+    await waitFor(() =>
+      expect(deleteBlogPostMock).toHaveBeenCalledWith("org-1", "blog-1"),
+    );
   });
 
   it("creates and switches the active organization through the provider", async () => {
@@ -630,14 +713,28 @@ describe("Organization workspace", () => {
     refreshMock.mockResolvedValue(buildSession());
     renderInWorkspace(<BlogActionsHarness />);
     await screen.findByRole("button", { name: "Prepare organization" });
-    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create organization" }),
+    );
     expect(createMock).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Prepare organization" }));
-    await user.click(screen.getByRole("button", { name: "Create organization" }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ name: "Acme Rentals" })));
+    await user.click(
+      screen.getByRole("button", { name: "Prepare organization" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create organization" }),
+    );
+    await waitFor(() =>
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Acme Rentals" }),
+      ),
+    );
     expect(setSessionMock).toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Select organization" }));
-    await waitFor(() => expect(setActiveMock).toHaveBeenCalledWith({ organizationId: "org-2" }));
+    await user.click(
+      screen.getByRole("button", { name: "Select organization" }),
+    );
+    await waitFor(() =>
+      expect(setActiveMock).toHaveBeenCalledWith({ organizationId: "org-2" }),
+    );
   });
 
   it("deletes an announcement from the Content panel", async () => {

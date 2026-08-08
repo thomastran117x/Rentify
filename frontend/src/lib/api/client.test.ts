@@ -653,10 +653,30 @@ describe("api client", () => {
   it.each([
     [400, null, "ApiProtocolError", "INVALID_API_RESPONSE"],
     [500, "not an envelope", "ApiServerError", "INVALID_SERVER_RESPONSE"],
-    [400, { success: true, message: "bad", error: { code: "BAD" } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
-    [400, { success: false, message: 42, error: { code: "BAD" } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
-    [400, { success: false, message: "bad", error: null }, "ApiProtocolError", "INVALID_API_RESPONSE"],
-    [400, { success: false, message: "bad", error: { code: 42 } }, "ApiProtocolError", "INVALID_API_RESPONSE"],
+    [
+      400,
+      { success: true, message: "bad", error: { code: "BAD" } },
+      "ApiProtocolError",
+      "INVALID_API_RESPONSE",
+    ],
+    [
+      400,
+      { success: false, message: 42, error: { code: "BAD" } },
+      "ApiProtocolError",
+      "INVALID_API_RESPONSE",
+    ],
+    [
+      400,
+      { success: false, message: "bad", error: null },
+      "ApiProtocolError",
+      "INVALID_API_RESPONSE",
+    ],
+    [
+      400,
+      { success: false, message: "bad", error: { code: 42 } },
+      "ApiProtocolError",
+      "INVALID_API_RESPONSE",
+    ],
   ])("maps malformed error payload %#", async (status, payload, name, code) => {
     const { toApiError } = await import("./client");
     expect(toApiError(new Response(null, { status }), payload)).toMatchObject({
@@ -693,10 +713,17 @@ describe("api client", () => {
       vi
         .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ success: false, message: "Unauthorized", error: { code: "UNAUTHORIZED" } }), {
-            status: 401,
-            headers: { "content-type": "application/json" },
-          }),
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Unauthorized",
+              error: { code: "UNAUTHORIZED" },
+            }),
+            {
+              status: 401,
+              headers: { "content-type": "application/json" },
+            },
+          ),
         )
         .mockResolvedValueOnce(new Response(null, { status: 401 })),
     );
@@ -713,25 +740,37 @@ describe("api client", () => {
     getDeviceIdMock.mockReturnValue(undefined);
     getDevicePlatformMock.mockReturnValue(undefined);
     readStoredSessionMock.mockReturnValue(null);
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          success: true,
-          message: "ok",
-          data: { accessToken: "new", refreshToken: "next", user: { id: "u" } },
-          error: null,
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: {
+              accessToken: "new",
+              refreshToken: "next",
+              user: { id: "u" },
+            },
+            error: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { hasRefreshCookieHint, refreshStoredSession } = await import("./client");
+    const { hasRefreshCookieHint, refreshStoredSession } = await import(
+      "./client"
+    );
     expect(hasRefreshCookieHint()).toBe(false);
-    await expect(refreshStoredSession()).resolves.toMatchObject({ accessToken: "new" });
+    await expect(refreshStoredSession()).resolves.toMatchObject({
+      accessToken: "new",
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8040/api/v1/auth/refresh",
       expect.objectContaining({
-        headers: { accept: "application/json", "content-type": "application/json" },
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
         body: "{}",
       }),
     );
@@ -740,12 +779,26 @@ describe("api client", () => {
 
   it("maps refresh and text network failures while preserving aborts", async () => {
     const abortError = new DOMException("aborted", "AbortError");
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     const { refreshStoredSession, textRequest } = await import("./client");
-    await expect(refreshStoredSession()).rejects.toMatchObject({ name: "ApiNetworkError" });
-    await expect(textRequest("/openapi.yaml")).rejects.toMatchObject({ name: "ApiNetworkError" });
+    await expect(refreshStoredSession()).rejects.toMatchObject({
+      name: "ApiNetworkError",
+    });
+    await expect(textRequest("/openapi.yaml")).rejects.toMatchObject({
+      name: "ApiNetworkError",
+    });
 
-    vi.stubGlobal("fetch", vi.fn(async () => { throw abortError; }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw abortError;
+      }),
+    );
     await expect(refreshStoredSession()).rejects.toBe(abortError);
     await expect(textRequest("/openapi.yaml")).rejects.toBe(abortError);
   });
@@ -753,11 +806,16 @@ describe("api client", () => {
   it("maps unsuccessful text responses through the API error envelope", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({ success: false, message: "Missing", error: { code: "NOT_FOUND" } }),
-          { status: 404, headers: { "content-type": "application/json" } },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Missing",
+              error: { code: "NOT_FOUND" },
+            }),
+            { status: 404, headers: { "content-type": "application/json" } },
+          ),
       ),
     );
     const { textRequest } = await import("./client");

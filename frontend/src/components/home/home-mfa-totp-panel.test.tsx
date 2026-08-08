@@ -197,7 +197,9 @@ describe("HomeMfaTotpPanel", () => {
   it("shows status-loading failures and direct enrollment failures", async () => {
     getStatusMock.mockRejectedValueOnce(new Error("offline"));
     const { rerender } = render(<HomeMfaTotpPanel />);
-    expect(await screen.findByText(/couldn't load your MFA status/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't load your MFA status/i),
+    ).toBeInTheDocument();
 
     getStatusMock.mockResolvedValueOnce({ enabled: false });
     rerender(<HomeMfaTotpPanel />);
@@ -225,7 +227,10 @@ describe("HomeMfaTotpPanel", () => {
 
   it("cancels enrollment even when server cleanup fails", async () => {
     const user = userEvent.setup();
-    beginEnrollmentMock.mockResolvedValue({ secret: "ABCD", uri: "otpauth://totp/Test" });
+    beginEnrollmentMock.mockResolvedValue({
+      secret: "ABCD",
+      uri: "otpauth://totp/Test",
+    });
     cancelEnrollmentMock.mockRejectedValue(new Error("cleanup failed"));
     render(<HomeMfaTotpPanel />);
     await user.click(await screen.findByRole("button", { name: "Set up" }));
@@ -237,13 +242,19 @@ describe("HomeMfaTotpPanel", () => {
   it("disables an enabled authenticator and reports disable failures", async () => {
     const user = userEvent.setup();
     getStatusMock.mockResolvedValue({ enabled: true });
-    disableMock.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ enabled: false });
+    disableMock
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ enabled: false });
     render(<HomeMfaTotpPanel />);
 
     await user.click(await screen.findByRole("button", { name: "Disable" }));
-    expect(await screen.findByText(/couldn't disable your authenticator app/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't disable your authenticator app/i),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Disable" }));
-    expect(await screen.findByText("Authenticator app disabled.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Authenticator app disabled."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Not enabled")).toBeInTheDocument();
   });
 
@@ -251,7 +262,11 @@ describe("HomeMfaTotpPanel", () => {
     const user = userEvent.setup();
     const error = new ApiClientError("Verification required", {
       code: "MFA_VERIFICATION_REQUIRED",
-      request: { method: "POST", path: "/auth/mfa/totp/begin", requestUrl: "http://localhost/begin" },
+      request: {
+        method: "POST",
+        path: "/auth/mfa/totp/begin",
+        requestUrl: "http://localhost/begin",
+      },
       status: 401,
     });
     beginEnrollmentMock
@@ -272,10 +287,14 @@ describe("HomeMfaTotpPanel", () => {
 
   it("does not retry a protected action when verification is cancelled", async () => {
     const user = userEvent.setup();
-    beginEnrollmentMock.mockRejectedValueOnce(createVerificationRequiredError());
+    beginEnrollmentMock.mockRejectedValueOnce(
+      createVerificationRequiredError(),
+    );
     render(<HomeMfaTotpPanel />);
     await user.click(await screen.findByRole("button", { name: "Set up" }));
-    await user.click(screen.getByRole("button", { name: "Cancel verification" }));
+    await user.click(
+      screen.getByRole("button", { name: "Cancel verification" }),
+    );
     await waitFor(() => expect(beginEnrollmentMock).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Not enabled")).toBeInTheDocument();
   });
@@ -285,13 +304,20 @@ describe("HomeMfaTotpPanel", () => {
     beginEnrollmentMock.mockRejectedValueOnce(new Error("offline"));
     render(<HomeMfaTotpPanel />);
     await user.click(await screen.findByRole("button", { name: "Set up" }));
-    expect(await screen.findByText(/couldn't start MFA setup/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't start MFA setup/i),
+    ).toBeInTheDocument();
 
-    beginEnrollmentMock.mockResolvedValueOnce({ secret: "ABCD", uri: "otpauth://totp/Test" });
+    beginEnrollmentMock.mockResolvedValueOnce({
+      secret: "ABCD",
+      uri: "otpauth://totp/Test",
+    });
     confirmEnrollmentMock.mockRejectedValueOnce(new Error("bad code"));
     await user.click(screen.getByRole("button", { name: "Set up" }));
     await user.type(await screen.findByPlaceholderText("000000"), "123456");
     await user.click(screen.getByRole("button", { name: "Verify and enable" }));
-    expect(await screen.findByText(/couldn't verify that code/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't verify that code/i),
+    ).toBeInTheDocument();
   });
 });

@@ -279,14 +279,18 @@ describe("PostingsDashboard", () => {
 
     useAuthMock.mockReturnValue({ status: "anonymous", session: null });
     rerender(<PostingsDashboard />);
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/login?next=/postings/manage"));
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith("/login?next=/postings/manage"),
+    );
 
     useAuthMock.mockReturnValue({
       status: "authenticated",
       session: { user: { role: "owner" } },
     });
     rerender(<PostingsDashboard />);
-    expect(screen.getByText("Select an organization first")).toBeInTheDocument();
+    expect(
+      screen.getByText("Select an organization first"),
+    ).toBeInTheDocument();
 
     useAuthMock.mockReturnValue({
       status: "authenticated",
@@ -319,21 +323,28 @@ describe("PostingsDashboard", () => {
     ["published", "Pause", pauseMock],
     ["paused", "Unpause", unpauseMock],
     ["archived", null, null],
-  ] as const)("renders and runs lifecycle controls for %s", async (status, label, actionMock) => {
-    const user = userEvent.setup();
-    listMineMock.mockResolvedValue(
-      paginated([makePosting({ status, name: `${status} posting` })]),
-    );
-    render(<PostingsDashboard />);
-    await screen.findByText(`${status} posting`);
-    if (!label || !actionMock) {
-      expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
-      return;
-    }
-    await user.click(screen.getByRole("button", { name: label }));
-    await waitFor(() => expect(actionMock).toHaveBeenCalledWith("posting-1"));
-  });
+  ] as const)(
+    "renders and runs lifecycle controls for %s",
+    async (status, label, actionMock) => {
+      const user = userEvent.setup();
+      listMineMock.mockResolvedValue(
+        paginated([makePosting({ status, name: `${status} posting` })]),
+      );
+      render(<PostingsDashboard />);
+      await screen.findByText(`${status} posting`);
+      if (!label || !actionMock) {
+        expect(
+          screen.queryByRole("button", { name: "Publish" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Pause" }),
+        ).not.toBeInTheDocument();
+        return;
+      }
+      await user.click(screen.getByRole("button", { name: label }));
+      await waitFor(() => expect(actionMock).toHaveBeenCalledWith("posting-1"));
+    },
+  );
 
   it("surfaces lifecycle failures through inline and toast errors", async () => {
     const user = userEvent.setup();
@@ -344,7 +355,10 @@ describe("PostingsDashboard", () => {
       await screen.findByText(/couldn't update that posting/i),
     ).toBeInTheDocument();
     expect(showErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Couldn't update posting", tone: "error" }),
+      expect.objectContaining({
+        title: "Couldn't update posting",
+        tone: "error",
+      }),
     );
   });
 });

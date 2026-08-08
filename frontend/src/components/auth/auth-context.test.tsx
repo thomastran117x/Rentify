@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./auth-context";
 
 const { snapshotMock, writeMock, clearMock } = vi.hoisted(() => ({
-  snapshotMock: vi.fn(), writeMock: vi.fn(), clearMock: vi.fn(),
+  snapshotMock: vi.fn(),
+  writeMock: vi.fn(),
+  clearMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/storage", () => ({
@@ -14,25 +16,51 @@ vi.mock("@/lib/auth/storage", () => ({
   clearStoredSession: clearMock,
 }));
 vi.mock("@/components/auth/session-manager", () => ({
-  SessionManager: ({ onComplete }: { onComplete: () => void }) => <button type="button" onClick={onComplete}>Finish restore</button>,
+  SessionManager: ({ onComplete }: { onComplete: () => void }) => (
+    <button type="button" onClick={onComplete}>
+      Finish restore
+    </button>
+  ),
 }));
 
 function Consumer() {
   const { status, session, setSession, clearSession } = useAuth();
-  return <>
-    <p>Status: {status}</p><p>Email: {session?.user.email ?? "none"}</p>
-    <button type="button" onClick={() => setSession({ accessToken: "a", refreshToken: "r", user: { email: "new@example.com" } } as never)}>Set</button>
-    <button type="button" onClick={clearSession}>Clear</button>
-  </>;
+  return (
+    <>
+      <p>Status: {status}</p>
+      <p>Email: {session?.user.email ?? "none"}</p>
+      <button
+        type="button"
+        onClick={() =>
+          setSession({
+            accessToken: "a",
+            refreshToken: "r",
+            user: { email: "new@example.com" },
+          } as never)
+        }
+      >
+        Set
+      </button>
+      <button type="button" onClick={clearSession}>
+        Clear
+      </button>
+    </>
+  );
 }
 
 describe("AuthProvider", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("starts loading and then exposes an anonymous session", async () => {
     snapshotMock.mockReturnValue(null);
     const user = userEvent.setup();
-    render(<AuthProvider><Consumer /></AuthProvider>);
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
     expect(screen.getByText("Status: loading")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Finish restore" }));
     expect(screen.getByText("Status: anonymous")).toBeInTheDocument();
@@ -41,7 +69,11 @@ describe("AuthProvider", () => {
   it("exposes authenticated sessions and persists context actions", async () => {
     snapshotMock.mockReturnValue({ user: { email: "person@example.com" } });
     const user = userEvent.setup();
-    render(<AuthProvider><Consumer /></AuthProvider>);
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
     await user.click(screen.getByRole("button", { name: "Finish restore" }));
     expect(screen.getByText("Status: authenticated")).toBeInTheDocument();
     expect(screen.getByText("Email: person@example.com")).toBeInTheDocument();
@@ -52,6 +84,8 @@ describe("AuthProvider", () => {
   });
 
   it("rejects useAuth outside its provider", () => {
-    expect(() => render(<Consumer />)).toThrow("useAuth must be used within an AuthProvider.");
+    expect(() => render(<Consumer />)).toThrow(
+      "useAuth must be used within an AuthProvider.",
+    );
   });
 });

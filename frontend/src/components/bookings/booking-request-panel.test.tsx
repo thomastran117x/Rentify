@@ -291,21 +291,42 @@ describe("BookingRequestPanel", () => {
   });
 
   it("describes known, server-provided, and fallback quote failures", () => {
-    expect(describeFailure({ code: "own_posting", message: "ignored" })).toMatch(/own organization/i);
-    expect(describeFailure({ code: "renting_overlap", message: "ignored" })).toMatch(/existing booking/i);
-    expect(describeFailure({ code: "future_reason", message: "Server reason" } as never)).toBe("Server reason");
-    expect(describeFailure({ code: "future_reason", message: null } as never)).toBe("These dates can't be booked.");
+    expect(
+      describeFailure({ code: "own_posting", message: "ignored" }),
+    ).toMatch(/own organization/i);
+    expect(
+      describeFailure({ code: "renting_overlap", message: "ignored" }),
+    ).toMatch(/existing booking/i);
+    expect(
+      describeFailure({
+        code: "future_reason",
+        message: "Server reason",
+      } as never),
+    ).toBe("Server reason");
+    expect(
+      describeFailure({ code: "future_reason", message: null } as never),
+    ).toBe("These dates can't be booked.");
   });
 
   it("shows quote errors and sends optional quote fields", async () => {
     quoteMock.mockRejectedValueOnce(new Error("offline"));
     render(<BookingRequestPanel posting={buildPosting()} />);
-    fireEvent.change(screen.getByLabelText("Guests"), { target: { value: "bad" } });
-    fireEvent.change(screen.getByPlaceholderText(/Share anything/i), { target: { value: "  owner note  " } });
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-08-01" } });
-    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-08-05" } });
+    fireEvent.change(screen.getByLabelText("Guests"), {
+      target: { value: "bad" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Share anything/i), {
+      target: { value: "  owner note  " },
+    });
+    fireEvent.change(screen.getByLabelText("Start date"), {
+      target: { value: "2026-08-01" },
+    });
+    fireEvent.change(screen.getByLabelText("End date"), {
+      target: { value: "2026-08-05" },
+    });
 
-    expect(await screen.findByText(/couldn't check availability/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't check availability/i),
+    ).toBeInTheDocument();
     expect(quoteMock).toHaveBeenCalledWith(
       "posting-1",
       expect.objectContaining({ guestCount: undefined, note: "owner note" }),
@@ -328,7 +349,9 @@ describe("BookingRequestPanel", () => {
       cancellationPolicyNotes: null,
       failureReasons: [],
     });
-    render(<BookingRequestPanel posting={buildPosting({ instantBooking: true })} />);
+    render(
+      <BookingRequestPanel posting={buildPosting({ instantBooking: true })} />,
+    );
     await fillValidDates();
     expect(await screen.findByText("1 day")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
@@ -344,14 +367,20 @@ describe("BookingRequestPanel", () => {
           contactEmail: ["Email is blocked."],
           note: 42,
         },
-        request: { method: "POST", path: "/bookings", requestUrl: "http://localhost/bookings" },
+        request: {
+          method: "POST",
+          path: "/bookings",
+          requestUrl: "http://localhost/bookings",
+        },
         status: 400,
       }),
     );
     render(<BookingRequestPanel posting={buildPosting()} />);
     await fillValidDates();
     fireEvent.click(screen.getByRole("button", { name: "Request to book" }));
-    expect(await screen.findByText("Start is unavailable.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Start is unavailable."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Email is blocked.")).toBeInTheDocument();
   });
 
@@ -361,7 +390,9 @@ describe("BookingRequestPanel", () => {
     await fillValidDates();
     fireEvent.click(screen.getByRole("button", { name: "Request to book" }));
     await screen.findByText("Your request is pending approval");
-    fireEvent.click(screen.getByRole("button", { name: "Book different dates" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Book different dates" }),
+    );
     expect(screen.getByLabelText("Start date")).toHaveValue("");
     expect(screen.getByLabelText("End date")).toHaveValue("");
   });

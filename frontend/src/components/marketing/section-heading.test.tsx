@@ -15,16 +15,26 @@ describe("SectionHeading", () => {
     );
 
     expect(screen.getByText("Insights")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "A clearer rental experience" })).toBeInTheDocument();
-    expect(screen.getByText("Useful details before a booking.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Read more" })).toBeInTheDocument();
-    expect(screen.getByRole("heading").parentElement).toHaveClass("text-center");
+    expect(
+      screen.getByRole("heading", { name: "A clearer rental experience" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Useful details before a booking."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Read more" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading").parentElement).toHaveClass(
+      "text-center",
+    );
   });
 
   it("omits optional elements and uses the left layout by default", () => {
     render(<SectionHeading title="Only a title" />);
 
-    expect(screen.getByRole("heading", { name: "Only a title" }).parentElement).not.toHaveClass("text-center");
+    expect(
+      screen.getByRole("heading", { name: "Only a title" }).parentElement,
+    ).not.toHaveClass("text-center");
     expect(screen.queryByText("Insights")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });

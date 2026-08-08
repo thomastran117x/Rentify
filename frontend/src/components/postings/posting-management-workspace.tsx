@@ -286,7 +286,9 @@ export function buildPayload(
   };
 }
 
-export async function uploadManagedPhoto(file: File): Promise<PostingPhotoInput> {
+export async function uploadManagedPhoto(
+  file: File,
+): Promise<PostingPhotoInput> {
   const uploadTarget = await blobApi.createUploadUrl({
     filename: file.name,
     contentType: file.type || "application/octet-stream",
@@ -921,7 +923,10 @@ export function PhotoUploader({
   );
 }
 
-export function safeFormatPrice(amountRaw: string, currencyRaw: string): string {
+export function safeFormatPrice(
+  amountRaw: string,
+  currencyRaw: string,
+): string {
   const amount = Number(amountRaw);
   const currency = currencyRaw.trim().toUpperCase();
   if (!Number.isFinite(amount) || currency.length !== 3) {

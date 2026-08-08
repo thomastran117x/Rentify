@@ -124,11 +124,17 @@ describe("posting management form components", () => {
     expect(onChange).toHaveBeenCalledWith({ ...details, floor_area: "" });
     await user.type(newName, "brand");
     await user.click(screen.getByRole("button", { name: "Add attribute" }));
-    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ brand_2: "" }));
+    expect(onChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({ brand_2: "" }),
+    );
 
     rerender(<DetailsEditor details={{}} onChange={onChange} disabled />);
-    expect(screen.getByText("No attributes yet. Add one below.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("New attribute name")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No attributes yet. Add one below."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("New attribute name"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders empty and populated photo upload states and invokes controls", async () => {
@@ -137,8 +143,18 @@ describe("posting management form components", () => {
     const onRemove = vi.fn();
     const onSetPrimary = vi.fn();
     const photos = [
-      { key: "one", previewUrl: "https://img/one.jpg", blobUrl: "one", blobName: "one" },
-      { key: "two", previewUrl: "https://img/two.jpg", blobUrl: "two", blobName: "two" },
+      {
+        key: "one",
+        previewUrl: "https://img/one.jpg",
+        blobUrl: "one",
+        blobName: "one",
+      },
+      {
+        key: "two",
+        previewUrl: "https://img/two.jpg",
+        blobUrl: "two",
+        blobName: "two",
+      },
     ];
     const { rerender } = render(
       <PhotoUploader
@@ -170,7 +186,9 @@ describe("posting management form components", () => {
     expect(screen.getByText("Primary")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Set primary" }));
     expect(onSetPrimary).toHaveBeenCalledWith("two");
-    await user.click(screen.getAllByRole("button", { name: "Remove photo" })[0]);
+    await user.click(
+      screen.getAllByRole("button", { name: "Remove photo" })[0],
+    );
     expect(onRemove).toHaveBeenCalledWith("one");
 
     rerender(
@@ -212,8 +230,18 @@ describe("posting management form components", () => {
     full.instantBooking = true;
     full.details = { parking: true, capacity: 4, amenities: ["wifi"] };
     const photos = [
-      { key: "one", previewUrl: "https://img/one.jpg", blobUrl: "one", blobName: "one" },
-      { key: "two", previewUrl: "https://img/two.jpg", blobUrl: "two", blobName: "two" },
+      {
+        key: "one",
+        previewUrl: "https://img/one.jpg",
+        blobUrl: "one",
+        blobName: "one",
+      },
+      {
+        key: "two",
+        previewUrl: "https://img/two.jpg",
+        blobUrl: "two",
+        blobName: "two",
+      },
     ];
     rerender(<ListingPreview form={full} photos={photos} primaryKey="two" />);
     expect(screen.getByAltText("Primary photo preview")).toHaveAttribute(

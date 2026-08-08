@@ -126,15 +126,21 @@ describe("posting management helpers", () => {
       posting({
         photos: [
           {
+            id: "photo-2",
             blobName: "second.jpg",
             blobUrl: "https://blob/second.jpg",
             position: 2,
+            createdAt: "2026-01-01",
+            updatedAt: "2026-01-01",
           },
           {
+            id: "photo-1",
             blobName: "first.jpg",
             blobUrl: "https://blob/first.jpg",
             thumbnailBlobUrl: "https://blob/thumb.jpg",
             position: 0,
+            createdAt: "2026-01-01",
+            updatedAt: "2026-01-01",
           },
         ],
       }),
@@ -233,7 +239,9 @@ describe("posting management helpers", () => {
     form.minBookingDurationDays = "";
     form.maxBookingDurationDays = "";
     form.advanceNoticeDays = "";
-    expect(getCompletenessItems(form, 0).every((item) => !item.done)).toBe(true);
+    expect(getCompletenessItems(form, 0).every((item) => !item.done)).toBe(
+      true,
+    );
 
     form.description = "x".repeat(100);
     form.tags = ["one", "two"];
@@ -250,10 +258,9 @@ describe("posting management helpers", () => {
       "publish",
       "archive",
     ]);
-    expect(buildLifecycleActions("published").map((action) => action.id)).toEqual([
-      "pause",
-      "archive",
-    ]);
+    expect(
+      buildLifecycleActions("published").map((action) => action.id),
+    ).toEqual(["pause", "archive"]);
     expect(buildLifecycleActions("paused").map((action) => action.id)).toEqual([
       "unpause",
       "archive",
@@ -275,14 +282,40 @@ describe("posting management helpers", () => {
 
     for (const values of [
       { city: "", region: "", country: "", latitude: "", longitude: "" },
-      { city: "T", region: "O", country: "C", latitude: "bad", longitude: "bad" },
-      { city: "T", region: "O", country: "C", latitude: "91", longitude: "181" },
-      { city: "T", region: "O", country: "C", latitude: "-91", longitude: "-181" },
+      {
+        city: "T",
+        region: "O",
+        country: "C",
+        latitude: "bad",
+        longitude: "bad",
+      },
+      {
+        city: "T",
+        region: "O",
+        country: "C",
+        latitude: "91",
+        longitude: "181",
+      },
+      {
+        city: "T",
+        region: "O",
+        country: "C",
+        latitude: "-91",
+        longitude: "-181",
+      },
     ]) {
       Object.assign(form, values);
-      expect(Object.keys(validateStep("location", form, 0)).length).toBeGreaterThan(0);
+      expect(
+        Object.keys(validateStep("location", form, 0)).length,
+      ).toBeGreaterThan(0);
     }
-    Object.assign(form, { city: "T", region: "O", country: "C", latitude: "45", longitude: "-75" });
+    Object.assign(form, {
+      city: "T",
+      region: "O",
+      country: "C",
+      latitude: "45",
+      longitude: "-75",
+    });
     expect(validateStep("location", form, 0)).toEqual({});
 
     for (const amount of ["", "bad", "0", "-1"]) {
@@ -301,7 +334,9 @@ describe("posting management helpers", () => {
       form.maxBookingDurationDays = value;
       form.minBookingDurationDays = value;
       form.advanceNoticeDays = value;
-      expect(Object.keys(validateStep("availability", form, 0))).toHaveLength(3);
+      expect(Object.keys(validateStep("availability", form, 0))).toHaveLength(
+        3,
+      );
     }
     form.maxBookingDurationDays = "";
     form.minBookingDurationDays = "";

@@ -191,7 +191,11 @@ describe("RentingDetailClient", () => {
       new ApiClientError("Missing", {
         status: 404,
         code: "RESOURCE_NOT_FOUND",
-        request: { method: "GET", path: "/rentings/1", requestUrl: "/rentings/1" },
+        request: {
+          method: "GET",
+          path: "/rentings/1",
+          requestUrl: "/rentings/1",
+        },
       }),
     );
     const { unmount } = render(<RentingDetailClient rentingId="missing" />);
@@ -261,7 +265,9 @@ describe("RentingDetailClient", () => {
     );
 
     expect(
-      await screen.findByText("We couldn't complete that action. Please try again."),
+      await screen.findByText(
+        "We couldn't complete that action. Please try again.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -283,9 +289,24 @@ describe("RentingDetailClient", () => {
   });
 
   it.each([
-    ["confirmed", "Mark check-in ready", markCheckInReadyMock, "Marked check-in ready."],
-    ["check_in_ready", "Confirm check-in", markCheckInCompleteMock, "Check-in confirmed."],
-    ["return_due", "Confirm return", markReturnCompleteMock, "Return confirmed."],
+    [
+      "confirmed",
+      "Mark check-in ready",
+      markCheckInReadyMock,
+      "Marked check-in ready.",
+    ],
+    [
+      "check_in_ready",
+      "Confirm check-in",
+      markCheckInCompleteMock,
+      "Check-in confirmed.",
+    ],
+    [
+      "return_due",
+      "Confirm return",
+      markReturnCompleteMock,
+      "Return confirmed.",
+    ],
   ] as const)(
     "runs the %s lifecycle action",
     async (rentingStatus, buttonName, actionMock, successMessage) => {
@@ -335,9 +356,12 @@ describe("RentingDetailClient", () => {
     fireEvent.change(screen.getByPlaceholderText("Reason"), {
       target: { value: "Item was damaged" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Add any details (optional)"), {
-      target: { value: "Photos attached" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Add any details (optional)"),
+      {
+        target: { value: "Photos attached" },
+      },
+    );
     fireEvent.click(button);
 
     await waitFor(() =>
@@ -375,7 +399,9 @@ describe("RentingDetailClient", () => {
 
     render(<RentingDetailClient rentingId="renting-1" />);
 
-    expect(await screen.findByAltText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      await screen.findByAltText("Lake House Retreat"),
+    ).toBeInTheDocument();
     expect(screen.getByText("1 day")).toBeInTheDocument();
     expect(screen.getByText("1 guest")).toBeInTheDocument();
     expect(screen.getByText("A detailed report")).toBeInTheDocument();
