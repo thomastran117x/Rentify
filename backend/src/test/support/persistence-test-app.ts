@@ -39,12 +39,15 @@ import {
   type LiveElasticsearchConfig,
 } from "./live-elasticsearch";
 import {
+  assertRabbitMqEndpointsShareBroker,
   assertRabbitMqManagementAvailable,
   assertSafeRabbitMqTarget,
   createLiveRabbitMqConfig,
   createRabbitMqTestVhost,
   deleteRabbitMqTestVhost,
   purgeRabbitMqQueues,
+  sweepStaleRabbitMqTestVhosts,
+  RABBITMQ_TEST_VHOST_PREFIX,
   type LiveRabbitMqConfig,
 } from "./live-rabbitmq";
 
@@ -287,10 +290,26 @@ export async function teardownPersistenceTestApp(): Promise<void> {
   ]);
 
   if (infra) {
-    await Promise.allSettled([
+    const cleanupResults = await Promise.allSettled([
       deleteRabbitMqTestVhost(infra.rabbitMq),
       deleteElasticsearchIndicesByPrefix(infra.elasticsearch),
     ]);
+
+    // Cleanup failures leak a vhost or index prefix into the next run. They are
+    // not worth failing a passing suite over, but they must not be silent.
+    const cleanupTargets = [
+      `RabbitMQ vhost '${infra.rabbitMq.vhost}'`,
+      `Elasticsearch index prefix '${infra.elasticsearch.indexPrefix}'`,
+    ];
+
+    cleanupResults.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.warn(
+          `[persistence-test-app] Failed to clean up ${cleanupTargets[index]}: ` +
+            `${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+        );
+      }
+    });
   }
 }
 
@@ -531,13 +550,63 @@ async function initializePersistenceInfrastructure(): Promise<PersistenceTestInf
     return infrastructure;
   }
 
-  await assertElasticsearchAvailable(infrastructure.elasticsearch);
-  await deleteElasticsearchIndicesByPrefix(infrastructure.elasticsearch);
-  await assertRabbitMqManagementAvailable(infrastructure.rabbitMq);
-  await createRabbitMqTestVhost(infrastructure.rabbitMq);
+  const { elasticsearch, rabbitMq } = infrastructure;
+
+  await runInfrastructurePhase(
+    "elasticsearch:available",
+    `url ${elasticsearch.url}`,
+    () => assertElasticsearchAvailable(elasticsearch),
+  );
+  await runInfrastructurePhase(
+    "elasticsearch:clean-indices",
+    `index prefix '${elasticsearch.indexPrefix}'`,
+    () => deleteElasticsearchIndicesByPrefix(elasticsearch),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:management-available",
+    `management ${rabbitMq.managementUrl}`,
+    () => assertRabbitMqManagementAvailable(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:sweep-stale-vhosts",
+    `prefix '${RABBITMQ_TEST_VHOST_PREFIX}'`,
+    () => sweepStaleRabbitMqTestVhosts(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:create-vhost",
+    `vhost '${rabbitMq.vhost}'`,
+    () => createRabbitMqTestVhost(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:verify-broker-identity",
+    `vhost '${rabbitMq.vhost}'`,
+    () => assertRabbitMqEndpointsShareBroker(rabbitMq),
+  );
 
   activePersistenceInfrastructureReady = true;
   return infrastructure;
+}
+
+/**
+ * Annotates a setup failure with the lifecycle phase and the safe target it was
+ * acting on. Without this, an infrastructure misconfiguration surfaces as a bare
+ * driver error (for example `Expected ConnectionOpenOk; got <ConnectionClose>`)
+ * with no indication of which step or which resource failed.
+ */
+async function runInfrastructurePhase<TResult>(
+  phase: string,
+  target: string,
+  operation: () => Promise<TResult>,
+): Promise<TResult> {
+  try {
+    return await operation();
+  } catch (error) {
+    throw new Error(
+      `Persistence test infrastructure setup failed during '${phase}' (${target}): ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
 }
 
 export function requirePersistenceApp(): PersistenceTestApp {

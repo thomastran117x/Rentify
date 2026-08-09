@@ -33,8 +33,13 @@ This boots:
 - MySQL: `localhost:3307`
 - Redis: `localhost:6380`
 - Elasticsearch: `http://localhost:9201`
-- RabbitMQ AMQP: `amqp://localhost:5672`
-- RabbitMQ management: `http://localhost:15672`
+- RabbitMQ AMQP: `amqp://localhost:5673`
+- RabbitMQ management: `http://localhost:15673`
+
+Backing services are published on non-default host ports so the stack does not
+collide with services you already run locally. Override them with
+`MYSQL_HOST_PORT`, `REDIS_HOST_PORT`, `ELASTICSEARCH_HOST_PORT`,
+`RABBITMQ_HOST_PORT`, and `RABBITMQ_MANAGEMENT_HOST_PORT` in `.env`.
 
 ## Environment Model
 

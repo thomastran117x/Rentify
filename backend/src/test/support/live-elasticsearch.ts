@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 const SAFE_ELASTICSEARCH_HOSTS = new Set(["127.0.0.1", "localhost"]);
 export const ELASTICSEARCH_TEST_PREFIX = "rent-test-";
 
+/** Matches the host port published by the Compose stack. */
+const DEFAULT_ELASTICSEARCH_PORT = "9201";
+
 export interface LiveElasticsearchConfig {
   url: string;
   indexPrefix: string;
@@ -11,7 +14,7 @@ export interface LiveElasticsearchConfig {
 }
 
 export function createLiveElasticsearchConfig(
-  sessionId = randomUUID(),
+  sessionId: string = randomUUID(),
 ): LiveElasticsearchConfig {
   const normalizedSessionId = sessionId
     .replace(/[^a-z0-9-]/gi, "")
@@ -21,7 +24,10 @@ export function createLiveElasticsearchConfig(
   const postingsIndexName = `${indexPrefix}-postings`;
 
   return {
-    url: "http://127.0.0.1:9201",
+    url: (
+      process.env.ELASTICSEARCH_TEST_URL ??
+      `http://127.0.0.1:${DEFAULT_ELASTICSEARCH_PORT}`
+    ).replace(/\/+$/, ""),
     indexPrefix,
     postingsIndexName,
     reportsIndexName: `${postingsIndexName}-reports`,
@@ -39,9 +45,15 @@ export function assertSafeElasticsearchTarget(
     );
   }
 
-  if (parsedUrl.port && parsedUrl.port !== "9201") {
+  const expectedPort = process.env.ELASTICSEARCH_TEST_URL
+    ? new URL(process.env.ELASTICSEARCH_TEST_URL).port ||
+      DEFAULT_ELASTICSEARCH_PORT
+    : DEFAULT_ELASTICSEARCH_PORT;
+
+  if (parsedUrl.port && parsedUrl.port !== expectedPort) {
     throw new Error(
-      `Refusing to manage Elasticsearch on unexpected port '${parsedUrl.port}'.`,
+      `Refusing to manage Elasticsearch on unexpected port '${parsedUrl.port}'. ` +
+        `Expected '${expectedPort}'. Set ELASTICSEARCH_TEST_URL to target a different cluster.`,
     );
   }
 

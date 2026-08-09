@@ -10,7 +10,7 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/src/app/$1",
   },
   transform: {
-    "^.+\.ts$": [
+    "^.+\\.ts$": [
       "ts-jest",
       {
         useESM: true,
@@ -22,7 +22,11 @@ module.exports = {
     "/node_modules/",
     "/dist/",
     "/src/test/db/",
-    "\.mocked\.integration\.test\.ts$",
-    "\.routes\.integration\.test\.ts$",
+    "\\.mocked\\.integration\\.test\\.ts$",
+    "\\.routes\\.integration\\.test\\.ts$",
   ],
+  // These suites share one `rent_test` schema and one Redis database, and each
+  // `beforeEach` truncates and reseeds both. They must not run concurrently,
+  // regardless of how Jest is invoked.
+  maxWorkers: 1,
 };

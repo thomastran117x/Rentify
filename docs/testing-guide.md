@@ -23,6 +23,65 @@ npm run test:integration
 npm run test:db-seeds
 ```
 
+The backend has two integration suites with different infrastructure needs:
+
+| Command | Suite | Infrastructure |
+| --- | --- | --- |
+| `npm run test:integration:mocked` | `*.routes.integration.test.ts` — route contracts against production route composition with stubbed services | none |
+| `npm run test:integration` | `*.integration.test.ts` — real persistence against production application composition | full Compose stack |
+
+### Running the persistence integration suite
+
+These tests use live MySQL, Redis, Elasticsearch, and RabbitMQ. Start the stack first:
+
+```bash
+docker compose up --build -d
+```
+
+They run against an isolated `rent_test` schema, which the Compose stack does not
+create for you. Create and migrate it once:
+
+```bash
+docker compose exec mysql mysql -uroot -proot -e \
+  "CREATE DATABASE IF NOT EXISTS rent_test; GRANT ALL PRIVILEGES ON rent_test.* TO 'rent'@'%'; FLUSH PRIVILEGES;"
+npm --prefix backend run prisma:migrate:deploy
+```
+
+The suite then owns its own namespaces: a `rent-test-<uuid>` RabbitMQ vhost and
+Elasticsearch index prefix per test file, Redis database 15, and the `rent_test`
+schema, which is truncated and reseeded before every test. Safety guards refuse
+to run against a non-local host, a database whose name does not look like a test
+database, Redis database 0, or a vhost/index prefix outside `rent-test-`.
+
+### Port conflicts
+
+The Compose stack publishes every backing service on a non-default host port
+(MySQL `3307`, Redis `6380`, Elasticsearch `9201`, RabbitMQ `5673`/`15673`) so it
+cannot collide with a service you already run locally.
+
+If those ports are taken, override the published ports and point the test harness
+at the same broker:
+
+```bash
+# .env
+RABBITMQ_HOST_PORT=5674
+RABBITMQ_MANAGEMENT_HOST_PORT=15674
+ELASTICSEARCH_HOST_PORT=9202
+```
+
+```bash
+RABBITMQ_TEST_AMQP_URL=amqp://guest:guest@127.0.0.1:5674 \
+RABBITMQ_TEST_MANAGEMENT_URL=http://127.0.0.1:15674/api \
+ELASTICSEARCH_TEST_URL=http://127.0.0.1:9202 \
+  npm --prefix backend run test:integration
+```
+
+Both RabbitMQ variables must point at the same broker. The harness creates its
+test vhost through the management API and then connects over AMQP, so if the two
+URLs resolve to different brokers the vhost is created on one and connected to on
+the other. Setup verifies this and fails with an explicit message naming both
+endpoints rather than an opaque `ConnectionClose`.
+
 Useful supporting checks:
 
 ```bash
