@@ -87,9 +87,52 @@ Useful supporting checks:
 ```bash
 npm run check:all
 npm run openapi:check
+npm run check:openapi-operation-coverage
 npm run audit
 npm run audit:signatures
 ```
+
+### Endpoint coverage reporting
+
+`check:openapi-operation-coverage` reports how many of the OpenAPI operations
+have an integration test. It reads the test sources statically, so it needs no
+running services and does not depend on a test run having happened.
+
+It reports three levels, and they are not equivalent:
+
+- **route-contract** — requested by a `*.routes.integration.test.ts` suite with
+  stubbed services. Proves routing, validation, and authorization wiring.
+- **persistence** — requested by a `*.integration.test.ts` suite against live
+  backing services. Proves the behaviour actually persists.
+- **smoke-only** — requested solely by the generic controller reachability
+  matrix, which asserts only that a route is not 404 and not 5xx. This is
+  **never counted as covered**.
+
+The gate is configured in `backend/openapi-coverage.config.json`. It currently
+runs in `warn` mode: the report prints and CI stays green. Preview the enforcing
+outcome locally without changing the committed config:
+
+```bash
+npm run check:openapi-operation-coverage -- --enforce
+npm run check:openapi-operation-coverage -- --json
+```
+
+When an operation genuinely cannot be integration tested, record it in the
+`exceptions` array with a reason rather than leaving it uncovered:
+
+```json
+{
+  "operationId": "receiveTelnyxWebhook",
+  "reason": "Requires a live Telnyx signature; covered by the manual runbook.",
+  "addedOn": "2026-08-09",
+  "expiresOn": "2026-12-31"
+}
+```
+
+Exceptions are keyed on `operationId`, so a renamed path surfaces as stale
+instead of silently continuing to suppress. An exception that expires, names an
+unknown operation, or covers an operation that now has a test is reported as a
+stale exception.
 
 Backend coverage includes configuration, middleware, route registration, auth, organizations, postings, bookings, payments, rentings, reports, search, recommendations, and seeds.
 

@@ -7,7 +7,9 @@ dist
 *.tgz
 
 # code coverage
-coverage
+# Anchored so it only ignores Jest output at the workspace root, not any
+# directory that happens to be named `coverage` (such as source directories).
+/coverage
 *.lcov
 
 # logs

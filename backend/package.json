@@ -45,6 +45,8 @@
     "check:test": "tsc --noEmit --project tsconfig.test.json",
     "check:all": "npm run check && npm run check:test",
     "check:controller-integration-coverage": "tsx src/app/scripts/run-controller-integration-coverage-check.ts",
+    "check:openapi-operation-coverage": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts",
+    "check:openapi-operation-coverage:json": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts --json",
     "audit": "npm audit --audit-level=high",
     "audit:signatures": "npm audit signatures",
     "audit:all": "npm run audit && npm run audit:signatures",

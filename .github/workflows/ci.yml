@@ -205,6 +205,9 @@ jobs:
       - name: Type check app and test code
         run: npm run check:all
 
+      - name: Report OpenAPI operation integration coverage
+        run: npm run check:openapi-operation-coverage | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Build
         run: npm run build
 
