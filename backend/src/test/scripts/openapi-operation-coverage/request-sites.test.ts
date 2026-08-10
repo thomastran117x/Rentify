@@ -110,6 +110,68 @@ describe("extractRequestSites", () => {
     ]);
   });
 
+  describe("local request helpers", () => {
+    it("resolves a helper's path parameter from its call sites", () => {
+      const requests = requestsOf(
+        "function send(path, init) {\n" +
+          "  return app.request(`http://rent.test${buildApiPath(path)}`, init);\n" +
+          "}\n" +
+          'send("/organizations/me");\n' +
+          'send("/organizations/me/active", { method: "POST" });',
+      );
+
+      expect(requests).toEqual([
+        "GET /organizations/me",
+        "POST /organizations/me/active",
+      ]);
+    });
+
+    it("treats an omitted init argument as GET", () => {
+      expect(
+        requestsOf(
+          "const send = (path, init = {}) =>\n" +
+            "  app.request(`http://rent.test${buildApiPath(path)}`, init);\n" +
+            'send("/blog");',
+        ),
+      ).toEqual(["GET /blog"]);
+    });
+
+    it("keeps each call site's path and method correlated", () => {
+      const requests = requestsOf(
+        "function send(path, init) {\n" +
+          "  return app.request(`http://rent.test${buildApiPath(path)}`, init);\n" +
+          "}\n" +
+          'send("/a", { method: "DELETE" });\n' +
+          'send("/b", { method: "PATCH" });',
+      );
+
+      expect(requests).toEqual(["DELETE /a", "PATCH /b"]);
+      expect(requests).not.toContain("DELETE /b");
+      expect(requests).not.toContain("PATCH /a");
+    });
+
+    it("resolves interpolated paths passed through a helper", () => {
+      expect(
+        requestsOf(
+          "function send(path) {\n" +
+            "  return app.request(`http://rent.test${buildApiPath(path)}`);\n" +
+            "}\n" +
+            "send(`/organizations/${orgId}/workspace`);",
+        ),
+      ).toEqual(["GET /organizations/*/workspace"]);
+    });
+
+    it("leaves a never-called helper unresolved", () => {
+      const sites = sitesOf(
+        "function send(path) {\n" +
+          "  return app.request(`http://rent.test${buildApiPath(path)}`);\n" +
+          "}",
+      );
+
+      expect(sites[0]!.resolution).toBe("unresolved");
+    });
+  });
+
   it("strips a hand-written API prefix", () => {
     expect(requestsOf('app.request("http://rent.test/api/v1/health");')).toEqual(
       ["GET /health"],

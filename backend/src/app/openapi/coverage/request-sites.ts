@@ -203,6 +203,67 @@ function collectConstants(
 }
 
 /**
+ * Finds a local helper function that encloses a request site, along with the
+ * argument lists it is called with in the same file.
+ *
+ * Tests commonly wrap `app.request(...)` in a small per-file helper that takes
+ * the path as a parameter. Without this, every call through such a helper would
+ * be unresolvable and the endpoints it exercises would report as uncovered.
+ */
+function findEnclosingHelperCalls(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+): { parameters: string[]; rows: ts.Expression[][] } | null {
+  let current: ts.Node | undefined = node;
+
+  while (current) {
+    let helperName: string | undefined;
+    let parameters: ts.NodeArray<ts.ParameterDeclaration> | undefined;
+
+    if (ts.isFunctionDeclaration(current) && current.name) {
+      helperName = current.name.text;
+      parameters = current.parameters;
+    } else if (
+      (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) &&
+      current.parent &&
+      ts.isVariableDeclaration(current.parent) &&
+      ts.isIdentifier(current.parent.name)
+    ) {
+      helperName = current.parent.name.text;
+      parameters = current.parameters;
+    }
+
+    if (helperName && parameters) {
+      const parameterNames = parameters.map((parameter) =>
+        ts.isIdentifier(parameter.name) ? parameter.name.text : "",
+      );
+
+      const rows: ts.Expression[][] = [];
+      walk(sourceFile, (candidate) => {
+        if (
+          ts.isCallExpression(candidate) &&
+          ts.isIdentifier(candidate.expression) &&
+          candidate.expression.text === helperName
+        ) {
+          rows.push([...candidate.arguments]);
+        }
+      });
+
+      if (rows.length > 0) {
+        return { parameters: parameterNames, rows };
+      }
+
+      // A helper that is never called contributes nothing; keep walking out in
+      // case it is nested inside another resolvable construct.
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
+/**
  * Builds the `it.each` / `test.each` tuple bindings in scope for a request site,
  * keeping columns correlated by row.
  */
@@ -373,6 +434,29 @@ function resolveMethods(
     return { methods: ["GET"] };
   }
 
+  // The init object may arrive through a helper parameter or an `it.each`
+  // column, in which case it resolves per row.
+  if (ts.isIdentifier(initArgument)) {
+    const bound = scope.each.get(initArgument.text);
+
+    if (bound) {
+      const value = scope.rowIndex === null ? undefined : bound[scope.rowIndex];
+
+      // A call site that omitted the argument entirely is a GET, which is the
+      // whole point of the parameter having a default.
+      return value
+        ? resolveMethods(value, sourceFile, scope)
+        : { methods: ["GET"] };
+    }
+
+    const constant = scope.constants.get(initArgument.text);
+    if (constant) {
+      return resolveMethods(constant, sourceFile, scope);
+    }
+
+    return { unresolvedReason: "unresolvable-method" };
+  }
+
   if (!ts.isObjectLiteralExpression(initArgument)) {
     return { unresolvedReason: "unresolvable-method" };
   }
@@ -523,8 +607,12 @@ export function extractRequestSites(
           .line + 1;
       const rawUrlText = urlArgument.getText(sourceFile).replace(/\s+/g, " ");
 
-      const eachTable = findEachTable(node);
-      const rowCount = eachTable && eachTable.rows.length > 0 ? eachTable.rows.length : 1;
+      // An `it.each` table binds the arrow's parameters; otherwise the site may
+      // sit inside a local helper whose parameters are bound by its call sites.
+      const eachTable =
+        findEachTable(node) ?? findEnclosingHelperCalls(node, sourceFile);
+      const rowCount =
+        eachTable && eachTable.rows.length > 0 ? eachTable.rows.length : 1;
 
       const requests = new Map<string, ResolvedRequest>();
       let unresolvedReason: UnresolvedReason | undefined;
