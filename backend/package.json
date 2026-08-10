@@ -52,9 +52,7 @@
     "test": "jest --config jest.config.cjs --runInBand",
     "test:unit": "jest --config jest.unit.config.cjs --runInBand",
     "test:unit:coverage": "jest --config jest.unit.config.cjs --runInBand --coverage",
-    "test:integration": "npm run test:integration:routes && npm run test:integration:persistence",
-    "test:integration:routes": "jest --config jest.integration.routes.config.cjs --runInBand",
-    "test:integration:persistence": "jest --config jest.integration.persistence.config.cjs --runInBand",
+    "test:integration": "jest --config jest.integration.config.cjs --runInBand",
     "test:db-seeds": "jest --config jest.db-seeds.config.cjs --runInBand"
   },
   "prisma": {

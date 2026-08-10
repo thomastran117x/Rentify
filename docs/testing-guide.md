@@ -23,17 +23,20 @@ npm run test:integration
 npm run test:db-seeds
 ```
 
-The backend has two integration suites with different infrastructure needs:
+There is one kind of backend integration test. Every `*.integration.test.ts`
+suite runs the production application composition against real MySQL, Redis,
+Elasticsearch, and RabbitMQ, so `npm run test:integration` requires the Docker
+Compose stack.
 
-| Command | Suite | Infrastructure |
-| --- | --- | --- |
-| `npm run test:integration:routes` | `*.routes.integration.test.ts` — route contracts against production route composition with stubbed services | none |
-| `npm run test:integration:persistence` | every other `*.integration.test.ts` — real persistence against production application composition | full Compose stack |
-| `npm run test:integration` | both, routes first | full Compose stack |
+Third-party providers are still stubbed — payments, OAuth, captcha, blob
+storage, and SMS all call out to services we do not run — but everything the
+application owns is real. There is deliberately no mocked-infrastructure
+variant: a second suite type meant every endpoint had two possible homes and
+the weaker one was usually chosen.
 
-### Running the persistence integration suite
+### Running the integration suite
 
-These tests use live MySQL, Redis, Elasticsearch, and RabbitMQ. Start the stack first:
+Start the stack first:
 
 ```bash
 docker compose up --build -d
@@ -99,16 +102,6 @@ npm run audit:signatures
 have an integration test. It reads the test sources statically, so it needs no
 running services and does not depend on a test run having happened.
 
-It reports three levels, and they are not equivalent:
-
-- **route-contract** — requested by a `*.routes.integration.test.ts` suite with
-  stubbed services. Proves routing, validation, and authorization wiring.
-- **persistence** — requested by a `*.integration.test.ts` suite against live
-  backing services. Proves the behaviour actually persists.
-- **smoke-only** — requested solely by the generic controller reachability
-  matrix, which asserts only that a route is not 404 and not 5xx. This is
-  **never counted as covered**.
-
 The gate is configured in `backend/openapi-coverage.config.json` and runs in
 `enforce` mode: every operation is covered today, so adding an endpoint without
 an integration test fails the build. Preview or soften the outcome locally
@@ -131,11 +124,11 @@ await app.request(`http://rent.test${buildApiPath("/postings/saved")}`, {
 ```
 
 A per-file helper that takes the path as a parameter is fine — the checker
-resolves it from that file's call sites. A shared helper in `src/test/support/`
-is not: it would hide which endpoint each test exercises. `failOnUnresolvedSites`
-is enabled, so a request the checker cannot resolve fails the build rather than
-silently under-reporting. `src/test/support/route-request.ts` provides typed
-header and response helpers for everything around the call.
+resolves it from that file's call sites — but only one level deep. Nesting a
+per-file helper inside another parameterised helper, or a shared wrapper in
+`src/test/support/`, hides which endpoint each test exercises.
+`failOnUnresolvedSites` is enabled, so a request the checker cannot resolve
+fails the build rather than silently under-reporting.
 
 When an operation genuinely cannot be integration tested, record it in the
 `exceptions` array with a reason rather than leaving it uncovered:

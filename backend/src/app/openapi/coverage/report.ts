@@ -333,8 +333,7 @@ export function formatCoverageReport(
   lines.push("Inventory");
   lines.push(`  OpenAPI operations ...................... ${totals.operations}`);
   lines.push(
-    `  Integration test files analysed ......... ${report.analysedFiles}   ` +
-      `(${report.routeContractFiles} route-contract, ${report.persistenceFiles} persistence)`,
+    `  Integration test files analysed ......... ${report.analysedFiles}`,
   );
   lines.push(
     `  Unresolved request sites ................ ${report.unresolvedSites.length}`,
@@ -347,38 +346,28 @@ export function formatCoverageReport(
   lines.push(
     `  Covered ................................. ${totals.covered}  (${percentage}%)`,
   );
-  lines.push(
-    `      route-contract only ................. ${countByStatus(report, "covered-route-contract")}`,
-  );
-  lines.push(
-    `      persistence only .................... ${countByStatus(report, "covered-persistence")}`,
-  );
-  lines.push(`      both ................................ ${totals.both}`);
-  lines.push(
-    `  Smoke-only (NOT counted as covered) ..... ${totals.smokeOnly}`,
-  );
+  if (totals.smokeOnly > 0) {
+    lines.push(
+      `  Smoke-only (NOT counted as covered) ..... ${totals.smokeOnly}`,
+    );
+  }
   lines.push(`  Uncovered ............................... ${totals.uncovered}`);
   lines.push(`  Exempted (manifest) ..................... ${totals.exempt}`);
   lines.push("");
 
   lines.push("By tag");
   lines.push(
-    `  ${padEnd("tag", 26)}${padStart("total", 6)}${padStart("covered", 9)}` +
-      `${padStart("route", 7)}${padStart("persist", 9)}${padStart("smoke", 7)}${padStart("uncovered", 11)}`,
+    `  ${padEnd("tag", 26)}${padStart("total", 6)}${padStart("covered", 9)}${padStart("uncovered", 11)}`,
   );
   for (const tag of report.byTag) {
     lines.push(
       `  ${padEnd(tag.tag, 26)}${padStart(String(tag.operations), 6)}` +
-        `${padStart(String(tag.covered), 9)}${padStart(String(tag.routeContract), 7)}` +
-        `${padStart(String(tag.persistence), 9)}${padStart(String(tag.smokeOnly), 7)}` +
-        `${padStart(String(tag.uncovered), 11)}`,
+        `${padStart(String(tag.covered), 9)}${padStart(String(tag.uncovered), 11)}`,
     );
   }
   lines.push(
     `  ${padEnd("TOTAL", 26)}${padStart(String(totals.operations), 6)}` +
-      `${padStart(String(totals.covered), 9)}${padStart(String(totals.routeContract), 7)}` +
-      `${padStart(String(totals.persistence), 9)}${padStart(String(totals.smokeOnly), 7)}` +
-      `${padStart(String(totals.uncovered), 11)}`,
+      `${padStart(String(totals.covered), 9)}${padStart(String(totals.uncovered), 11)}`,
   );
   lines.push("");
 
@@ -458,10 +447,3 @@ export function formatCoverageReport(
   return `${lines.join("\n")}\n`;
 }
 
-function countByStatus(
-  report: CoverageReport,
-  status: OperationStatus,
-): number {
-  return report.operations.filter((coverage) => coverage.status === status)
-    .length;
-}

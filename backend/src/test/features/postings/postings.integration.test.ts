@@ -1106,6 +1106,83 @@ describe("Postings persistence integration", () => {
     expect(forbiddenResponse.status).toBeGreaterThanOrEqual(400);
   });
 
+  it("saves and unsaves a posting for the signed-in renter", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+
+    const saveResponse = await request(`/postings/${postingId}/save`, {
+      method: "POST",
+      headers: renter.headers(),
+    });
+    expect(saveResponse.status).toBe(200);
+    await expect(saveResponse.json()).resolves.toMatchObject({
+      data: { postingId, saved: true },
+    });
+
+    const savedList = await readData<{ postings: Array<{ id: string }> }>(
+      await request("/postings/saved?page=1&pageSize=10", {
+        headers: renter.headers(),
+      }),
+    );
+    expect(savedList.postings.map((posting) => posting.id)).toContain(
+      postingId,
+    );
+
+    const savedIds = await readData<{ postingIds: string[] }>(
+      await request("/postings/saved/ids", { headers: renter.headers() }),
+    );
+    expect(savedIds.postingIds).toContain(postingId);
+
+    const unsaveResponse = await request(`/postings/${postingId}/save`, {
+      method: "DELETE",
+      headers: renter.headers(),
+    });
+    expect(unsaveResponse.status).toBe(200);
+
+    const afterUnsave = await readData<{ postingIds: string[] }>(
+      await request("/postings/saved/ids", { headers: renter.headers() }),
+    );
+    expect(afterUnsave.postingIds).not.toContain(postingId);
+  });
+
+  it("requires authentication for every saved-posting route", async () => {
+    const postingId = SEED_POSTINGS[0]!.id;
+    const beforeCount = await persistenceApp.prisma.savedPosting.count();
+
+    expect((await request("/postings/saved")).status).toBe(401);
+    expect((await request("/postings/saved/ids")).status).toBe(401);
+    expect(
+      (await request(`/postings/${postingId}/save`, { method: "POST" })).status,
+    ).toBe(401);
+    expect(
+      (await request(`/postings/${postingId}/save`, { method: "DELETE" }))
+        .status,
+    ).toBe(401);
+
+    expect(await persistenceApp.prisma.savedPosting.count()).toBe(beforeCount);
+  });
+
+  it("serves the public autocomplete and recommendation surfaces", async () => {
+    const autocompleteResponse = await request(
+      "/postings/autocomplete?q=lo&limit=5",
+    );
+    expect(autocompleteResponse.status).toBe(200);
+    expect(
+      persistenceApp.stubs.postingsPublicAutocompleteService.autocompletePublic,
+    ).toHaveBeenCalledWith(expect.objectContaining({ query: "lo" }));
+
+    const recommendationsResponse = await request(
+      "/postings/recommendations?page=1&pageSize=5",
+    );
+    expect(recommendationsResponse.status).toBe(200);
+    const recommendations = await readData<Record<string, unknown>>(
+      recommendationsResponse,
+    );
+    expect(recommendations).toBeTruthy();
+  });
+
   it("accepts a search-click activity event and queues it for the recommender", async () => {
     const renter = await createAuthenticatedRequestContext({
       email: "user5@rentify.local",

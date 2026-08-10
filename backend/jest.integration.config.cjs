@@ -1,10 +1,11 @@
 /**
- * Live-persistence integration tests.
+ * Integration tests.
  *
- * These run the production application composition against real MySQL, Redis,
- * Elasticsearch, and RabbitMQ, so they require the Docker Compose stack and a
- * migrated `rent_test` schema. Route-contract suites, which need no
- * infrastructure, live in jest.integration.routes.config.cjs.
+ * Every integration suite runs the production application composition against
+ * real MySQL, Redis, Elasticsearch, and RabbitMQ, so they require the Docker
+ * Compose stack and a migrated `rent_test` schema. There is no mocked-
+ * infrastructure variant: third-party providers (payments, OAuth, captcha,
+ * blob storage, SMS) are stubbed, but everything the application owns is real.
  *
  * @type {import("jest").Config}
  */
@@ -31,7 +32,6 @@ module.exports = {
     "/node_modules/",
     "/dist/",
     "/src/test/db/",
-    "\\.routes\\.integration\\.test\\.ts$",
   ],
   // These suites share one `rent_test` schema and one Redis database, and each
   // `beforeEach` truncates and reseeds both. They must not run concurrently,

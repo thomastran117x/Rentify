@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -100,6 +101,15 @@ export interface PersistenceTestStubs {
   blobService: {
     isConfigured: jest.Mock<boolean, []>;
     isManagedBlobUrl: jest.Mock<boolean, [string, string]>;
+    createUploadUrl: jest.Mock<Record<string, unknown>, [BlobUploadInput]>;
+    uploadLocalBlob: jest.Mock<Promise<void>, [BlobUploadPayload]>;
+    readLocalBlob: jest.Mock<
+      Promise<{ contentType: string; body: Buffer }>,
+      [string]
+    >;
+    deleteBlobForUser: jest.Mock<Promise<void>, [string, string]>;
+    /** In-memory contents, so a stored upload can be read back over HTTP. */
+    storage: Map<string, { contentType: string; body: Buffer }>;
   };
   postingsPublicAutocompleteService: {
     autocompletePublic: jest.Mock<
@@ -619,7 +629,24 @@ export function requirePersistenceApp(): PersistenceTestApp {
   return activePersistenceApp;
 }
 
+interface BlobUploadInput {
+  filename: string;
+  contentType: string;
+  scope?: string;
+}
+
+interface BlobUploadPayload {
+  blobName: string;
+  contentType: string;
+  body: Buffer | Uint8Array;
+}
+
 function createPersistenceTestStubs(): PersistenceTestStubs {
+  const blobStorage = new Map<
+    string,
+    { contentType: string; body: Buffer }
+  >();
+
   return {
     captchaService: {
       verify: jest.fn(async ({ token }) => {
@@ -677,6 +704,42 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       })),
     },
     blobService: {
+      // Blob storage is a third-party SDK, and the production service's
+      // local-disk fallback is deliberately development-only. The endpoints are
+      // still exercised end to end over HTTP; only the bytes live in memory.
+      storage: blobStorage,
+      createUploadUrl: jest.fn((input: BlobUploadInput) => {
+        const blobName = `${input.scope ?? "uploads"}/${input.filename}`;
+        return {
+          method: "PUT" as const,
+          uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=test-upload-token`,
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          blobName,
+          blobUrl: `http://rent.test/api/v1/blob/file?blobName=${encodeURIComponent(blobName)}`,
+          container: "rent-test",
+          headers: {
+            "x-ms-blob-type": "BlockBlob" as const,
+            "content-type": input.contentType,
+          },
+          scope: input.scope,
+        };
+      }),
+      uploadLocalBlob: jest.fn(async (input: BlobUploadPayload) => {
+        blobStorage.set(input.blobName, {
+          contentType: input.contentType,
+          body: Buffer.from(input.body),
+        });
+      }),
+      readLocalBlob: jest.fn(async (blobName: string) => {
+        const stored = blobStorage.get(blobName);
+        if (!stored) {
+          throw new ResourceNotFoundError("Blob could not be found.");
+        }
+        return stored;
+      }),
+      deleteBlobForUser: jest.fn(async (_userId: string, blobName: string) => {
+        blobStorage.delete(blobName);
+      }),
       isConfigured: jest.fn(() => true),
       isManagedBlobUrl: jest.fn((blobUrl, blobName) => {
         try {

@@ -619,6 +619,210 @@ describe("Auth persistence integration", () => {
     expect((await login({ username, password })).status).toBe(200);
   }, 120_000);
 
+  it("authenticates through the Google and Apple OAuth providers", async () => {
+    for (const [provider, email] of [
+      ["google", "google-user@rentify.local"],
+      ["apple", "apple-user@rentify.local"],
+    ] as const) {
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/auth/oauth/${provider}`)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            idToken: `${provider}-id-token`,
+            nonce: "nonce-value",
+            deviceId: `${provider}-device`,
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(
+        await persistenceApp.prisma.user.findUnique({ where: { email } }),
+      ).toMatchObject({ email, emailVerified: true });
+    }
+  });
+
+  it("links and unlinks an OAuth provider for a signed-in user", async () => {
+    const session = await login({
+      username: "renter-one",
+      password: "Rentify123!",
+    });
+    expect(session.status).toBe(200);
+
+    const providersResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/providers")}`,
+      { headers: sessionHeaders(session) },
+    );
+    expect(providersResponse.status).toBe(200);
+
+    const linkResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/google/link")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({
+          idToken: "google-id-token",
+          nonce: "link-nonce",
+          deviceId: "link-device",
+        }),
+      },
+    );
+    expect(linkResponse.status).toBe(200);
+
+    const unlinkResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+      { method: "DELETE", headers: sessionHeaders(session) },
+    );
+    expect(unlinkResponse.status).toBe(200);
+  });
+
+  it("verifies, lists, and removes known devices", async () => {
+    const session = await login({
+      username: "renter-one",
+      password: "Rentify123!",
+    });
+    expect(session.status).toBe(200);
+
+    const verifyResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/device/verify")}`,
+      { method: "POST", headers: sessionHeaders(session) },
+    );
+    expect(verifyResponse.status).toBe(200);
+
+    const devicesResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/devices")}`,
+      { headers: sessionHeaders(session) },
+    );
+    expect(devicesResponse.status).toBe(200);
+    const devices = (await devicesResponse.json()) as {
+      data: { devices: Array<{ deviceId: string }> };
+    };
+    expect(devices.data.devices.length).toBeGreaterThan(0);
+
+    const removeResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/devices/remove")}`,
+      {
+        method: "DELETE",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({
+          deviceId: devices.data.devices[0]!.deviceId,
+        }),
+      },
+    );
+    expect(removeResponse.status).toBe(200);
+  });
+
+  it("lists personal access tokens for the signed-in user", async () => {
+    const session = await login({
+      username: "renter-one",
+      password: "Rentify123!",
+    });
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/personal-access-tokens")}`,
+      { headers: sessionHeaders(session) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: expect.anything(),
+    });
+  });
+
+  it("recovers a forgotten username and resends recovery codes", async () => {
+    const email = "user1@rentify.local";
+
+    const forgotUsernameResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/username/forgot")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({ email, captchaToken: "captcha-ok-username" }),
+      },
+    );
+    expect(forgotUsernameResponse.status).toBe(202);
+
+    const resendForgotResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/password/forgot/resend")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          username: "renter-one",
+          captchaToken: "captcha-ok-resend",
+        }),
+      },
+    );
+    expect(resendForgotResponse.status).toBe(202);
+
+    const resendVerificationResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/email/resend")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          email: "unverified-resend@rentify.local",
+          captchaToken: "captcha-ok-verify",
+        }),
+      },
+    );
+    expect(resendVerificationResponse.status).toBe(202);
+  });
+
+  it("locks a local login after repeated failures and unlocks it with an emailed code", async () => {
+    const email = "user1@rentify.local";
+    const username = "renter-one";
+
+    // An unlock code is only issued for an account that is actually locked, so
+    // the lock is driven through real failed sign-in attempts. The fifth
+    // failure is the one that locks and emails the code.
+    const failures: number[] = [];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      failures.push(
+        (await login({ username, password: "WrongPassword1!" })).status,
+      );
+    }
+
+    expect(failures.slice(0, 4)).toEqual([401, 401, 401, 401]);
+    expect(failures[4]).toBe(423);
+
+    // While locked, a further wrong password keeps reporting locked rather
+    // than a plain rejection.
+    expect(
+      (await login({ username, password: "StillWrong1!" })).status,
+    ).toBe(423);
+
+    const resendUnlockResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/unlock/resend")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({ email, captchaToken: "captcha-ok-unlock" }),
+      },
+    );
+    expect(resendUnlockResponse.status).toBe(202);
+
+    const unlockResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/unlock")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          email,
+          code: await readOtpCode("local-login-unlock", email),
+        }),
+      },
+    );
+    expect(unlockResponse.status).toBe(200);
+
+    // The unlock must restore access, not merely return success.
+    expect((await login({ username, password: "Rentify123!" })).status).toBe(
+      200,
+    );
+  });
+
   it("authenticates through the Microsoft OAuth provider", async () => {
     const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/oauth/microsoft")}`,

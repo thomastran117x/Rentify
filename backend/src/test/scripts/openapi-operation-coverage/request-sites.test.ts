@@ -3,7 +3,7 @@ import {
   type SourceDocument,
 } from "@/openapi/coverage/request-sites";
 
-const COMPOSITION = `const app = createRouteTestApp(new Map());`;
+const COMPOSITION = `const app = await createPersistenceTestApp();`;
 
 function document(
   body: string,
