@@ -70,6 +70,8 @@ describe("database resource", () => {
     jest.clearAllMocks();
     mockGetDatabaseConfig.mockReturnValue({
       url: "mysql://rent:rent@localhost:3306/rent",
+      poolConnectionLimit: 10,
+      poolMinimumIdle: 1,
       queryLoggingEnabled: false,
       slowQueryThresholdMs: 250,
     });
@@ -87,7 +89,7 @@ describe("database resource", () => {
     expect(mockPrismaClient).toHaveBeenCalledTimes(1);
     expect(mockPrismaMariaDb).toHaveBeenCalledTimes(1);
     expect(mockPrismaMariaDb).toHaveBeenCalledWith(
-      "mysql://rent:rent@localhost:3306/rent",
+      "mysql://rent:rent@localhost:3306/rent?connectionLimit=10&minimumIdle=1",
     );
     expect(firstClient.client.$connect).toHaveBeenCalledTimes(2);
     expect(connectedAgain).toBe(connected);
@@ -98,9 +100,57 @@ describe("database resource", () => {
     });
   });
 
+  it("keeps existing connection string parameters and overrides embedded pool sizing", async () => {
+    const mockClient = createMockDatabaseClient();
+    mockPrismaClient.mockReturnValue(mockClient.client);
+    mockGetDatabaseConfig.mockReturnValue({
+      url: "mysql://rent:rent@localhost:3306/rent?ssl=true&connectionLimit=99",
+      poolConnectionLimit: 5,
+      poolMinimumIdle: 2,
+      queryLoggingEnabled: false,
+      slowQueryThresholdMs: 250,
+    });
+
+    const databaseModule = await import("@/configuration/resources/database");
+    await databaseModule.connectDatabase();
+
+    const connectionString = mockPrismaMariaDb.mock.calls[0][0] as string;
+
+    expect(connectionString).toContain("ssl=true");
+    expect(connectionString).toContain("connectionLimit=5");
+    expect(connectionString).toContain("minimumIdle=2");
+    expect(connectionString).not.toContain("99");
+  });
+
+  it("falls back to the raw connection string without leaking credentials when it cannot be parsed", async () => {
+    const mockClient = createMockDatabaseClient();
+    mockPrismaClient.mockReturnValue(mockClient.client);
+    mockGetDatabaseConfig.mockReturnValue({
+      url: "not-a-valid-url",
+      poolConnectionLimit: 10,
+      poolMinimumIdle: 1,
+      queryLoggingEnabled: false,
+      slowQueryThresholdMs: 250,
+    });
+
+    const databaseModule = await import("@/configuration/resources/database");
+    await databaseModule.connectDatabase();
+
+    expect(mockPrismaMariaDb).toHaveBeenCalledWith("not-a-valid-url");
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "Database URL could not be parsed, so connection pool sizing was not applied.",
+    );
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
+      "not-a-valid-url",
+    );
+  });
+
   it("logs slow queries as warnings and regular query logging as info", async () => {
     const queryLoggingClient = createMockDatabaseClient();
     mockGetDatabaseConfig.mockReturnValueOnce({
+      url: "mysql://rent:rent@localhost:3306/rent",
+      poolConnectionLimit: 10,
+      poolMinimumIdle: 1,
       queryLoggingEnabled: true,
       slowQueryThresholdMs: 250,
     });
@@ -125,6 +175,9 @@ describe("database resource", () => {
 
     const slowQueryClient = createMockDatabaseClient();
     mockGetDatabaseConfig.mockReturnValueOnce({
+      url: "mysql://rent:rent@localhost:3306/rent",
+      poolConnectionLimit: 10,
+      poolMinimumIdle: 1,
       queryLoggingEnabled: false,
       slowQueryThresholdMs: 100,
     });

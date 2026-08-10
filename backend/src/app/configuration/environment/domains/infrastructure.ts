@@ -43,6 +43,38 @@ export function buildDatabaseConfig(
   errors: string[],
   databaseUrl: string,
 ): AppEnvironment["database"] {
+  // Every process that connects owns its own pool, so these are per-process
+  // costs. minimumIdle must stay at or above 1: the driver only grows a pool to
+  // satisfy minimumIdle and never to satisfy a queued request, so a value of 0
+  // stalls every acquire until it times out.
+  const poolConnectionLimit = parseNumber(
+    raw,
+    "DATABASE_POOL_CONNECTION_LIMIT",
+    10,
+    errors,
+    {
+      integer: true,
+      min: 1,
+    },
+  );
+  const poolMinimumIdle = parseNumber(
+    raw,
+    "DATABASE_POOL_MINIMUM_IDLE",
+    1,
+    errors,
+    {
+      integer: true,
+      min: 1,
+    },
+  );
+
+  // The driver clamps a too-large minimumIdle silently, so surface it instead.
+  if (poolMinimumIdle > poolConnectionLimit) {
+    errors.push(
+      "DATABASE_POOL_MINIMUM_IDLE must be less than or equal to DATABASE_POOL_CONNECTION_LIMIT.",
+    );
+  }
+
   return {
     url: databaseUrl,
     autoSeedEnabled: parseBoolean(
@@ -54,6 +86,8 @@ export function buildDatabaseConfig(
       raw.DATABASE_OPERATION_LOGGING_ENABLED,
       false,
     ),
+    poolConnectionLimit,
+    poolMinimumIdle,
     queryLoggingEnabled: parseBoolean(
       raw.DATABASE_QUERY_LOGGING_ENABLED,
       false,

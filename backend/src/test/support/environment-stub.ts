@@ -152,6 +152,11 @@ function readDatabaseConfig() {
       process.env.DATABASE_OPERATION_LOGGING_ENABLED,
       false,
     ),
+    poolConnectionLimit: readNumber(
+      process.env.DATABASE_POOL_CONNECTION_LIMIT,
+      10,
+    ),
+    poolMinimumIdle: readNumber(process.env.DATABASE_POOL_MINIMUM_IDLE, 1),
     queryLoggingEnabled: readBoolean(
       process.env.DATABASE_QUERY_LOGGING_ENABLED,
       false,
