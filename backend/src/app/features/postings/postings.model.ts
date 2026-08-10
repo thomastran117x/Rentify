@@ -441,7 +441,12 @@ export const publicSearchPostingsQuerySchema = z
       .default(DEFAULT_PAGE_SIZE),
     q: z.string().trim().min(1).max(120).optional(),
     organization: z.string().trim().min(1).max(160).optional(),
-    organizationId: z.string().uuid().optional(),
+    // `guid`, not `uuid`: identifiers are stored as VarChar(36) and are not
+    // required to be RFC 4122 compliant. Zod's `uuid()` additionally asserts
+    // the version and variant bits, which rejects every deterministic seeded
+    // id (`00000000-0000-0000-1040-000000000016` and friends) and made the
+    // organization filter unusable against seeded data.
+    organizationId: z.guid().optional(),
     family: postingFamilySchema.optional(),
     subtype: postingSubtypeSchema.optional(),
     tags: z.array(postingTagSchema).max(20).optional(),
