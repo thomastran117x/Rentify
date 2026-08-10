@@ -291,6 +291,18 @@ export async function teardownPersistenceTestApp(): Promise<void> {
   activePersistenceApp = null;
   activePersistenceInfrastructure = null;
   activePersistenceInfrastructureReady = false;
+
+  // Drop the seed snapshot before disconnecting so a schema change in a later
+  // run can never be restored from a stale copy.
+  if (seedSnapshotReady) {
+    try {
+      await dropSeedSnapshot(getDatabaseClient());
+    } catch {
+      // A failed cleanup only costs the next run a fresh capture.
+    }
+    seedSnapshotReady = false;
+  }
+
   await disposeContainer();
   await Promise.allSettled([
     disconnectRabbitMq(),
@@ -341,39 +353,122 @@ export async function resetPersistenceState(): Promise<void> {
   await purgeRabbitMqQueues(infra.rabbitMq);
   await deleteElasticsearchIndicesByPrefix(infra.elasticsearch);
 
-  const currentDatabase = await prisma.$queryRawUnsafe<
-    Array<{ name: string | null }>
-  >("SELECT DATABASE() AS name");
-  const databaseName = currentDatabase[0]?.name;
+  const tables = await listSeededTables(prisma);
 
-  if (!databaseName) {
-    throw new Error("Could not determine the active database name.");
+  await clearSeededTables(prisma, tables);
+
+  if (seedSnapshotReady) {
+    await restoreSeedSnapshot(prisma, tables);
+  } else {
+    await runSeedOrchestrator({
+      refresh: false,
+      source: "test",
+    });
+    await captureSeedSnapshot(prisma, tables);
+    seedSnapshotReady = true;
   }
 
+  await redis.flushDb();
+}
+
+/**
+ * Rebuilding the seed data through the orchestrator costs about 17 seconds
+ * because it upserts every fixture row by row. Truncating costs about 0.2
+ * seconds, so the reset is dominated entirely by reseeding.
+ *
+ * The orchestrator therefore runs once per test file, and every later reset
+ * restores that result from snapshot tables held in the same schema. Copying
+ * server side with `INSERT ... SELECT` keeps every column type exact and needs
+ * no round trip through the client.
+ */
+const SNAPSHOT_TABLE_PREFIX = "zz_seed_snapshot__";
+
+let seedSnapshotReady = false;
+
+async function listSeededTables(
+  prisma: ReturnType<typeof getDatabaseClient>,
+): Promise<string[]> {
   const tables = await prisma.$queryRawUnsafe<Array<{ TABLE_NAME: string }>>(
-    `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${databaseName}' AND TABLE_TYPE = 'BASE TABLE'`,
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'`,
   );
 
+  return tables
+    .map((table) => table.TABLE_NAME)
+    .filter(
+      (name) =>
+        name !== "_prisma_migrations" &&
+        !name.startsWith(SNAPSHOT_TABLE_PREFIX),
+    );
+}
+
+async function clearSeededTables(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
     try {
       for (const table of tables) {
-        if (table.TABLE_NAME === "_prisma_migrations") {
-          continue;
-        }
-
-        await tx.$executeRawUnsafe(`DELETE FROM \`${table.TABLE_NAME}\``);
+        await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``);
       }
     } finally {
       await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
     }
   });
+}
 
-  await runSeedOrchestrator({
-    refresh: false,
-    source: "test",
+async function captureSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
+  for (const table of tables) {
+    const snapshot = `${SNAPSHOT_TABLE_PREFIX}${table}`;
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS \`${snapshot}\``);
+    // LIKE copies columns and indexes but not foreign keys, which is what a
+    // detached copy wants.
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE \`${snapshot}\` LIKE \`${table}\``,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO \`${snapshot}\` SELECT * FROM \`${table}\``,
+    );
+  }
+}
+
+async function restoreSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const table of tables) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO \`${table}\` SELECT * FROM \`${SNAPSHOT_TABLE_PREFIX}${table}\``,
+        );
+      }
+    } finally {
+      await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
+    }
   });
-  await redis.flushDb();
+}
+
+async function dropSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+): Promise<void> {
+  const snapshots = await prisma.$queryRawUnsafe<
+    Array<{ TABLE_NAME: string }>
+  >(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '${SNAPSHOT_TABLE_PREFIX}%'`,
+  );
+
+  for (const snapshot of snapshots) {
+    await prisma.$executeRawUnsafe(
+      `DROP TABLE IF EXISTS \`${snapshot.TABLE_NAME}\``,
+    );
+  }
 }
 
 export async function createAuthenticatedRequestContext(input: {
