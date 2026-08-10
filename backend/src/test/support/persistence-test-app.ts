@@ -457,9 +457,7 @@ async function restoreSeedSnapshot(
 async function dropSeedSnapshot(
   prisma: ReturnType<typeof getDatabaseClient>,
 ): Promise<void> {
-  const snapshots = await prisma.$queryRawUnsafe<
-    Array<{ TABLE_NAME: string }>
-  >(
+  const snapshots = await prisma.$queryRawUnsafe<Array<{ TABLE_NAME: string }>>(
     `SELECT TABLE_NAME FROM information_schema.TABLES
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '${SNAPSHOT_TABLE_PREFIX}%'`,
   );
