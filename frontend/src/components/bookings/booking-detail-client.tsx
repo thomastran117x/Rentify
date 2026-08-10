@@ -7,6 +7,7 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { BookingMessagesPanel } from "@/components/bookings/booking-messages-panel";
 import { ApiError } from "@/lib/api/types";
+import { canManageOrganizationPostings } from "@/lib/auth/roles";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { bookingsApi } from "@/lib/bookings/api";
 import type { BookingRequestRecord } from "@/lib/bookings/types";
@@ -175,6 +176,15 @@ export function BookingDetailClient({
     );
   }
 
+  // Mirrors the backend bar exactly: the renter always writes, and on the
+  // organization side only managers do. An `operator` can read the thread but
+  // gets a 403 on send and mark-read, so the composer must not be offered.
+  const activeOrganization = session.user.activeOrganization;
+  const canWriteMessages =
+    booking.renterId === session.user.id ||
+    (canManageOrganizationPostings(activeOrganization) &&
+      activeOrganization?.id === booking.organizationId);
+
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <Link
@@ -211,6 +221,7 @@ export function BookingDetailClient({
         <BookingMessagesPanel
           bookingRequestId={booking.id}
           currentUserId={session.user.id}
+          canWrite={canWriteMessages}
         />
       </div>
     </div>

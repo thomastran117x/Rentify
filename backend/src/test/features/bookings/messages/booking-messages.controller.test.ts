@@ -330,6 +330,30 @@ describe("BookingMessagesController", () => {
       expect(release).toHaveBeenCalledTimes(1);
     });
 
+    it("releases a subscription that resolves after the client disconnected", async () => {
+      const release = jest.fn(async () => undefined);
+      let resolveSubscribe: (value: () => Promise<void>) => void = () => {};
+      const hub = createHub({
+        subscribe: jest.fn(
+          () =>
+            new Promise<() => Promise<void>>((resolve) => {
+              resolveSubscribe = resolve;
+            }),
+        ),
+      });
+
+      const response = await mountStream(createService(), hub).request(
+        "http://rent.test/booking-requests/booking-1/messages/stream",
+      );
+
+      // Disconnect while subscribe() is still pending, then let it resolve.
+      await response.body!.cancel();
+      resolveSubscribe(release);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+
     it("propagates an authorization failure instead of opening a stream", async () => {
       const forbidden = Object.assign(new Error("forbidden"), { status: 403 });
       const service = createService({

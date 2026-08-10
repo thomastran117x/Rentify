@@ -99,6 +99,7 @@ export function openBookingMessageStream(options: {
   let failures = 0;
   let controller: AbortController | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let suspended = false;
 
   function buildHeaders(): Record<string, string> {
     const session = readStoredSession();
@@ -123,7 +124,11 @@ export function openBookingMessageStream(options: {
   }
 
   function scheduleReconnect(delayMs?: number): void {
-    if (closed) {
+    // `suspended` matters as much as `closed`: aborting a live fetch because
+    // the tab went hidden lands in the read-failure path, which would
+    // otherwise schedule a reconnect that outlives the abort and race the
+    // connection opened when the tab becomes visible again.
+    if (closed || suspended) {
       return;
     }
 
@@ -199,10 +204,20 @@ export function openBookingMessageStream(options: {
     }
   }
 
+  /** Aborts the in-flight connection, if any, without ending the handle. */
+  function abortCurrentConnection(): void {
+    controller?.abort();
+    controller = null;
+  }
+
   async function connect(attemptedRefresh = false): Promise<void> {
-    if (closed) {
+    if (closed || suspended) {
       return;
     }
+
+    // Never run two readers at once: a caller-initiated reconnect must replace
+    // the current connection rather than sit alongside it.
+    abortCurrentConnection();
 
     onStatus("connecting");
     controller = new AbortController();
@@ -271,12 +286,20 @@ export function openBookingMessageStream(options: {
     }
 
     if (document.visibilityState === "hidden") {
-      controller?.abort();
-      controller = null;
+      // Set `suspended` before aborting: the abort resolves the pending read
+      // synchronously enough that scheduleReconnect would otherwise fire after
+      // clearRetryTimer and leave a timer running in a hidden tab.
+      suspended = true;
+      abortCurrentConnection();
       clearRetryTimer();
       return;
     }
 
+    if (!suspended) {
+      return;
+    }
+
+    suspended = false;
     failures = 0;
     void connect();
   }
@@ -295,8 +318,7 @@ export function openBookingMessageStream(options: {
 
       closed = true;
       clearRetryTimer();
-      controller?.abort();
-      controller = null;
+      abortCurrentConnection();
 
       if (typeof document !== "undefined") {
         document.removeEventListener(

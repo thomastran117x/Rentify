@@ -27,6 +27,12 @@ interface PanelBanner {
 interface BookingMessagesPanelProps {
   bookingRequestId: string;
   currentUserId: string;
+  /**
+   * Whether this viewer may send and mark read. Organization `operator`s can
+   * read the thread but are rejected on both writes, so they get a read-only
+   * view rather than controls that can only fail.
+   */
+  canWrite: boolean;
 }
 
 function bannerClasses(tone: PanelBanner["tone"]): string {
@@ -140,6 +146,7 @@ export function MessageComposer({
 export function BookingMessagesPanel({
   bookingRequestId,
   currentUserId,
+  canWrite,
 }: BookingMessagesPanelProps) {
   const [messages, setMessages] = useState<BookingMessageRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
@@ -194,6 +201,12 @@ export function BookingMessagesPanel({
   }, [loadMessages, page]);
 
   const markRead = useCallback(async () => {
+    // Mark-read requires the same permission as sending, so a read-only viewer
+    // must not fire it at all.
+    if (!canWrite) {
+      return;
+    }
+
     try {
       const result = await bookingMessagesApi.markRead(bookingRequestId);
 
@@ -203,7 +216,7 @@ export function BookingMessagesPanel({
     } catch {
       // Read receipts are advisory; a failure must not disrupt the thread.
     }
-  }, [bookingRequestId]);
+  }, [bookingRequestId, canWrite]);
 
   useEffect(() => {
     void markRead();
@@ -369,7 +382,14 @@ export function BookingMessagesPanel({
         </div>
       ) : null}
 
-      <MessageComposer onSend={handleSend} disabled={sending} />
+      {canWrite ? (
+        <MessageComposer onSend={handleSend} disabled={sending} />
+      ) : (
+        <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          You have read-only access to this conversation. Ask an organization
+          manager to reply.
+        </p>
+      )}
     </section>
   );
 }

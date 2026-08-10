@@ -424,4 +424,81 @@ describe("openBookingMessageStream", () => {
 
     handle.close();
   });
+
+  it("does not reconnect while hidden", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => streamingResponse([READY_FRAME]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handle = openBookingMessageStream({
+      bookingRequestId: "booking-1",
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    setVisibilityState("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    // Aborting the live fetch lands in the read-failure path; a hidden tab must
+    // not turn that into a reconnect.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    handle.close();
+  });
+
+  it("keeps a single reader across repeated tab switches", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => streamingResponse([READY_FRAME]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handle = openBookingMessageStream({
+      bookingRequestId: "booking-1",
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      setVisibilityState("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      setVisibilityState("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(20_000);
+    }
+
+    // One connect on open plus exactly one per visible transition — no
+    // accumulating parallel readers.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    handle.close();
+  });
+
+  it("ignores repeated visible events while already connected", async () => {
+    const fetchMock = vi.fn(async () => streamingResponse([READY_FRAME]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handle = openBookingMessageStream({
+      bookingRequestId: "booking-1",
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await flush();
+
+    setVisibilityState("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    handle.close();
+  });
 });

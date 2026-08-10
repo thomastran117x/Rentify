@@ -66,11 +66,12 @@ function captureStreamHandlers() {
   };
 }
 
-function renderPanel() {
+function renderPanel(overrides: { canWrite?: boolean } = {}) {
   return render(
     <BookingMessagesPanel
       bookingRequestId="booking-1"
       currentUserId={CURRENT_USER_ID}
+      canWrite={overrides.canWrite ?? true}
     />,
   );
 }
@@ -307,6 +308,28 @@ describe("BookingMessagesPanel", () => {
     unmount();
 
     expect(closeMock).toHaveBeenCalled();
+  });
+
+  it("renders a read-only notice instead of the composer for viewers who cannot write", async () => {
+    renderPanel({ canWrite: false });
+
+    await screen.findByText("Is an early pickup possible?");
+
+    expect(screen.getByText(/read-only access/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Message")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /send/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("never calls mark-read for a read-only viewer", async () => {
+    renderPanel({ canWrite: false });
+
+    await screen.findByText("Is an early pickup possible?");
+    window.dispatchEvent(new Event("focus"));
+
+    // Mark-read requires the same permission as sending; firing it would 403.
+    expect(markReadMock).not.toHaveBeenCalled();
   });
 
   it("surfaces a load failure", async () => {

@@ -132,19 +132,32 @@ export class BookingMessagesController {
         context.req.raw.signal.addEventListener("abort", teardown);
 
         try {
-          release = await hub.subscribe(bookingRequestId, (event) => {
-            if (closed || stream.aborted) {
-              return;
-            }
+          const subscription = await hub.subscribe(
+            bookingRequestId,
+            (event) => {
+              if (closed || stream.aborted) {
+                return;
+              }
 
-            void stream.writeSSE({
-              event: event.type,
-              data: JSON.stringify(event),
-              ...(event.type === "message.created"
-                ? { id: event.message.id }
-                : {}),
-            });
-          });
+              void stream.writeSSE({
+                event: event.type,
+                data: JSON.stringify(event),
+                ...(event.type === "message.created"
+                  ? { id: event.message.id }
+                  : {}),
+              });
+            },
+          );
+
+          // The client can disconnect while subscribe() is still pending, in
+          // which case teardown already ran with `release` still null. Release
+          // here or the listener and its Redis channel are retained forever.
+          if (closed) {
+            await subscription();
+            return;
+          }
+
+          release = subscription;
         } catch (error) {
           logger.error(
             "Failed to subscribe to the booking message channel.",

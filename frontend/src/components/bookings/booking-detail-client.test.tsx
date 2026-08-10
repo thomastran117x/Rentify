@@ -48,13 +48,21 @@ const { BookingDetailClient } = await import(
   "@/components/bookings/booking-detail-client"
 );
 
-function buildSession() {
+function buildSession(
+  overrides: {
+    id?: string;
+    activeOrganization?: { id: string; role: string };
+  } = {},
+) {
   return {
     user: {
-      id: "renter-1",
+      id: overrides.id ?? "renter-1",
       email: "user1@rentify.local",
       username: "renter-one",
       role: "user" as const,
+      ...(overrides.activeOrganization
+        ? { activeOrganization: overrides.activeOrganization }
+        : {}),
     },
   };
 }
@@ -63,6 +71,7 @@ function buildBooking() {
   return {
     id: "booking-1",
     renterId: "renter-1",
+    organizationId: "org-1",
     status: "pending",
     startAt: "2027-03-10T16:00:00.000Z",
     endAt: "2027-03-12T16:00:00.000Z",
@@ -130,7 +139,59 @@ describe("BookingDetailClient", () => {
       expect.objectContaining({
         bookingRequestId: "booking-1",
         currentUserId: "renter-1",
+        canWrite: true,
       }),
+    );
+  });
+
+  it("grants write access to a manager of the owning organization", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession({
+        id: "manager-1",
+        activeOrganization: { id: "org-1", role: "manager" },
+      }),
+    });
+
+    renderClient();
+
+    await screen.findByText("Sunny loft workspace");
+    expect(panelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ canWrite: true }),
+    );
+  });
+
+  it("withholds write access from an operator", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession({
+        id: "operator-1",
+        activeOrganization: { id: "org-1", role: "operator" },
+      }),
+    });
+
+    renderClient();
+
+    await screen.findByText("Sunny loft workspace");
+    expect(panelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ canWrite: false }),
+    );
+  });
+
+  it("withholds write access from a manager of a different organization", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession({
+        id: "manager-2",
+        activeOrganization: { id: "org-9", role: "manager" },
+      }),
+    });
+
+    renderClient();
+
+    await screen.findByText("Sunny loft workspace");
+    expect(panelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ canWrite: false }),
     );
   });
 
