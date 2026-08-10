@@ -86,9 +86,7 @@ test.describe("booking messages", () => {
     await messagesLink.click();
 
     await expect(page).toHaveURL(/\/bookings\/[0-9a-f-]+$/i);
-    await expect(
-      page.getByRole("heading", { name: "Messages" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Messages" })).toBeVisible();
 
     const composer = page.getByLabel("Message");
     const sendButton = page.getByRole("button", { name: /send/i });

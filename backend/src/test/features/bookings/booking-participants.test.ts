@@ -51,9 +51,11 @@ describe("resolveBookingParticipant", () => {
   });
 
   it("resolves any organization member as the owner side for read access", async () => {
-    const { service, requireMembership, assertCanManage } = createAccessService({
-      role: "operator",
-    });
+    const { service, requireMembership, assertCanManage } = createAccessService(
+      {
+        role: "operator",
+      },
+    );
 
     await expect(
       resolveBookingParticipant(service, bookingRequest, "operator-1", "read"),
@@ -89,7 +91,12 @@ describe("resolveBookingParticipant", () => {
     const { service } = createAccessService({ role: "operator", manageError });
 
     await expect(
-      resolveBookingParticipant(service, bookingRequest, "operator-1", "manage"),
+      resolveBookingParticipant(
+        service,
+        bookingRequest,
+        "operator-1",
+        "manage",
+      ),
     ).rejects.toBe(manageError);
   });
 

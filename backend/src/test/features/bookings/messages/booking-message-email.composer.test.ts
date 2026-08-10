@@ -27,10 +27,12 @@ function createMessageContext(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
-function createComposer(options: {
-  message?: unknown;
-  recipient?: unknown;
-} = {}) {
+function createComposer(
+  options: {
+    message?: unknown;
+    recipient?: unknown;
+  } = {},
+) {
   const bookingMessagesRepository = {
     findByIdWithContext: jest.fn(async () =>
       options.message === undefined ? createMessageContext() : options.message,

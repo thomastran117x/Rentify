@@ -80,6 +80,9 @@ describe("requestTimeoutMiddleware with streaming responses", () => {
     const response = await app.request("http://rent.test/slow");
 
     expect(response.status).toBe(504);
-    expect(captured).toMatchObject({ status: 504, message: "Request timed out." });
+    expect(captured).toMatchObject({
+      status: 504,
+      message: "Request timed out.",
+    });
   }, 10_000);
 });

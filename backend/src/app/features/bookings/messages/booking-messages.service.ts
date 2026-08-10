@@ -174,9 +174,7 @@ export class BookingMessagesService {
     });
   }
 
-  private async publishEvent(
-    event: BookingMessageStreamEvent,
-  ): Promise<void> {
+  private async publishEvent(event: BookingMessageStreamEvent): Promise<void> {
     try {
       await this.cacheService.publish(
         bookingMessageChannel(event.bookingRequestId),

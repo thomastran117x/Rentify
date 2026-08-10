@@ -125,9 +125,7 @@ describe("BookingMessagesPanel", () => {
 
     renderPanel();
 
-    expect(
-      await screen.findByText(/no messages yet/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/no messages yet/i)).toBeInTheDocument();
   });
 
   it("shows the unread badge", async () => {

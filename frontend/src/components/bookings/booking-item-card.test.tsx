@@ -144,7 +144,9 @@ describe("BookingItemCard", () => {
 
   it("links to the message thread for both item kinds", () => {
     const { rerender } = render(
-      <BookingItemCard {...cardProps(item({ bookingRequestId: "booking-7" }))} />,
+      <BookingItemCard
+        {...cardProps(item({ bookingRequestId: "booking-7" }))}
+      />,
     );
 
     expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(

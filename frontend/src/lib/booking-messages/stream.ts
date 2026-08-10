@@ -44,8 +44,7 @@ export function parseSseFrame(raw: string): ParsedSseFrame | null {
     }
 
     const separatorIndex = line.indexOf(":");
-    const field =
-      separatorIndex === -1 ? line : line.slice(0, separatorIndex);
+    const field = separatorIndex === -1 ? line : line.slice(0, separatorIndex);
     const rawValue =
       separatorIndex === -1 ? "" : line.slice(separatorIndex + 1);
     const value = rawValue.startsWith(" ") ? rawValue.slice(1) : rawValue;
@@ -137,10 +136,13 @@ export function openBookingMessageStream(options: {
 
     onStatus("reconnecting");
     clearRetryTimer();
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      void connect();
-    }, delayMs ?? computeBackoffMs(failures - 1));
+    retryTimer = setTimeout(
+      () => {
+        retryTimer = null;
+        void connect();
+      },
+      delayMs ?? computeBackoffMs(failures - 1),
+    );
   }
 
   function dispatch(frame: ParsedSseFrame): void {

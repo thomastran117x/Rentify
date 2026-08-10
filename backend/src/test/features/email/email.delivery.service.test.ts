@@ -481,7 +481,9 @@ describe("EmailDeliveryService", () => {
       const message = transporter.sendMail.mock.calls[0][0];
       expect(message.to).toBe("owner@example.com");
       expect(message.subject).toBe("New message about Cargo van");
-      expect(message.html).toContain("https://app.example.com/bookings/booking-1");
+      expect(message.html).toContain(
+        "https://app.example.com/bookings/booking-1",
+      );
       expect(message.html).toContain("Jordan Lee");
       expect(message.text).toContain("Is the van available early?");
     });

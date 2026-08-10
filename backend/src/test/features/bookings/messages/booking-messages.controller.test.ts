@@ -32,7 +32,8 @@ function createContext(options?: { body?: unknown; url?: string }) {
     req: {
       json: async () => options?.body ?? {},
       url:
-        options?.url ?? "https://example.test/booking-requests/booking-1/messages",
+        options?.url ??
+        "https://example.test/booking-requests/booking-1/messages",
       param: (name?: string) =>
         name ? { id: "booking-1" }[name] : { id: "booking-1" },
     },

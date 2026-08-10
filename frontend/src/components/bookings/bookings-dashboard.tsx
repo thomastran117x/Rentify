@@ -363,96 +363,100 @@ export function BookingItemCard({
               ) : null}
               {item.kind === "renting" && item.rentingId ? (
                 <>
-                <Link
-                  href={`/rentings/${item.rentingId}`}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100"
-                >
-                  View details
-                </Link>
-                {canEditInstructions && (
-                  <button
-                    type="button"
-                    onClick={() => void onSaveInstructions(item.rentingId!)}
-                    disabled={isRentingActionPending("save-instructions")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  <Link
+                    href={`/rentings/${item.rentingId}`}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100"
                   >
-                    {isRentingActionPending("save-instructions")
-                      ? "Saving..."
-                      : "Save instructions"}
-                  </button>
-                )}
-                {view === "owner" &&
-                canManageOwnerActions &&
-                item.sourceStatus === "confirmed" ? (
-                  <button
-                    type="button"
-                    onClick={() => void onMarkCheckInReady(item.rentingId!)}
-                    disabled={isRentingActionPending("check-in-ready")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isRentingActionPending("check-in-ready")
-                      ? "Updating..."
-                      : "Mark check-in ready"}
-                  </button>
-                ) : null}
-                {view === "owner" &&
-                canManageOwnerActions &&
-                ["confirmed", "check_in_ready"].includes(item.sourceStatus) ? (
-                  <button
-                    type="button"
-                    onClick={() => void onMarkCheckInComplete(item.rentingId!)}
-                    disabled={isRentingActionPending("check-in-complete")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isRentingActionPending("check-in-complete")
-                      ? "Updating..."
-                      : "Confirm check-in"}
-                  </button>
-                ) : null}
-                {view === "owner" &&
-                canManageOwnerActions &&
-                ["active", "return_due"].includes(item.sourceStatus) ? (
-                  <button
-                    type="button"
-                    onClick={() => void onCompleteReturn(item.rentingId!)}
-                    disabled={isRentingActionPending("complete-return")}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isRentingActionPending("complete-return")
-                      ? "Updating..."
-                      : "Confirm return"}
-                  </button>
-                ) : null}
-                {showReviewAction ? (
-                  <button
-                    type="button"
-                    onClick={() => onToggleReviewForm(item.rentingId!)}
-                    aria-expanded={reviewFormOpen}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    <Star className="h-4 w-4" aria-hidden="true" />
-                    {reviewFormOpen ? "Hide review form" : "Leave a review"}
-                  </button>
-                ) : null}
+                    View details
+                  </Link>
+                  {canEditInstructions && (
+                    <button
+                      type="button"
+                      onClick={() => void onSaveInstructions(item.rentingId!)}
+                      disabled={isRentingActionPending("save-instructions")}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRentingActionPending("save-instructions")
+                        ? "Saving..."
+                        : "Save instructions"}
+                    </button>
+                  )}
+                  {view === "owner" &&
+                  canManageOwnerActions &&
+                  item.sourceStatus === "confirmed" ? (
+                    <button
+                      type="button"
+                      onClick={() => void onMarkCheckInReady(item.rentingId!)}
+                      disabled={isRentingActionPending("check-in-ready")}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRentingActionPending("check-in-ready")
+                        ? "Updating..."
+                        : "Mark check-in ready"}
+                    </button>
+                  ) : null}
+                  {view === "owner" &&
+                  canManageOwnerActions &&
+                  ["confirmed", "check_in_ready"].includes(
+                    item.sourceStatus,
+                  ) ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void onMarkCheckInComplete(item.rentingId!)
+                      }
+                      disabled={isRentingActionPending("check-in-complete")}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRentingActionPending("check-in-complete")
+                        ? "Updating..."
+                        : "Confirm check-in"}
+                    </button>
+                  ) : null}
+                  {view === "owner" &&
+                  canManageOwnerActions &&
+                  ["active", "return_due"].includes(item.sourceStatus) ? (
+                    <button
+                      type="button"
+                      onClick={() => void onCompleteReturn(item.rentingId!)}
+                      disabled={isRentingActionPending("complete-return")}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRentingActionPending("complete-return")
+                        ? "Updating..."
+                        : "Confirm return"}
+                    </button>
+                  ) : null}
+                  {showReviewAction ? (
+                    <button
+                      type="button"
+                      onClick={() => onToggleReviewForm(item.rentingId!)}
+                      aria-expanded={reviewFormOpen}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <Star className="h-4 w-4" aria-hidden="true" />
+                      {reviewFormOpen ? "Hide review form" : "Leave a review"}
+                    </button>
+                  ) : null}
                 </>
               ) : canManageCurrentView &&
-              canReviewCancellation(item) &&
-              item.bookingRequestId ? (
-              <button
-                type="button"
-                onClick={() =>
-                  void onReviewCancellation(item.bookingRequestId!)
-                }
-                disabled={
-                  quotePendingId === item.bookingRequestId ||
-                  cancelPendingId === item.bookingRequestId
-                }
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {quotePendingId === item.bookingRequestId
-                  ? "Checking..."
-                  : "Review cancellation"}
-              </button>
+                canReviewCancellation(item) &&
+                item.bookingRequestId ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void onReviewCancellation(item.bookingRequestId!)
+                  }
+                  disabled={
+                    quotePendingId === item.bookingRequestId ||
+                    cancelPendingId === item.bookingRequestId
+                  }
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {quotePendingId === item.bookingRequestId
+                    ? "Checking..."
+                    : "Review cancellation"}
+                </button>
               ) : null}
             </div>
           </div>

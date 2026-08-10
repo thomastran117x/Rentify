@@ -345,13 +345,13 @@ describe("BookingMessagesService", () => {
         }),
       ).resolves.toMatchObject({ unreadCount: 3 });
 
-      expect(
-        bookingMessagesRepository.countUnreadForSide,
-      ).toHaveBeenCalledWith({
-        bookingRequestId: BOOKING_ID,
-        renterId: RENTER_ID,
-        side: "renter",
-      });
+      expect(bookingMessagesRepository.countUnreadForSide).toHaveBeenCalledWith(
+        {
+          bookingRequestId: BOOKING_ID,
+          renterId: RENTER_ID,
+          side: "renter",
+        },
+      );
       expect(
         bookingMessagesRepository.listByBookingRequest,
       ).toHaveBeenCalledWith({
@@ -377,9 +377,9 @@ describe("BookingMessagesService", () => {
 
       // Read access must not require a manager role.
       expect(organizationAccessService.assertCanManage).not.toHaveBeenCalled();
-      expect(
-        bookingMessagesRepository.countUnreadForSide,
-      ).toHaveBeenCalledWith(expect.objectContaining({ side: "owner" }));
+      expect(bookingMessagesRepository.countUnreadForSide).toHaveBeenCalledWith(
+        expect.objectContaining({ side: "owner" }),
+      );
     });
 
     it("rejects a non-party", async () => {

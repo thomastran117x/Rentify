@@ -1,6 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { routerReplaceMock, resetRouterMocks } from "@/test/mocks/next-navigation";
+import {
+  routerReplaceMock,
+  resetRouterMocks,
+} from "@/test/mocks/next-navigation";
 
 const { useAuthMock, getBookingByIdMock, panelMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
@@ -119,9 +122,7 @@ describe("BookingDetailClient", () => {
   it("renders the booking summary and wires the messages panel", async () => {
     renderClient();
 
-    expect(
-      await screen.findByText("Sunny loft workspace"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Sunny loft workspace")).toBeInTheDocument();
     expect(screen.getByText("Quiet work trip.")).toBeInTheDocument();
     expect(screen.getByTestId("messages-panel")).toBeInTheDocument();
 

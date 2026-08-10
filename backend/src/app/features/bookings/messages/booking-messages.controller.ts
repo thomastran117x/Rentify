@@ -31,7 +31,10 @@ export class BookingMessagesController {
     private readonly bookingMessagesService: BookingMessagesService,
     private readonly streamHub: BookingMessageStreamHub,
   ) {
-    this.logger = loggerFactory.forClass(BookingMessagesController, "controller");
+    this.logger = loggerFactory.forClass(
+      BookingMessagesController,
+      "controller",
+    );
   }
 
   send = async (context: Context<AppBindings>): Promise<Response> => {
