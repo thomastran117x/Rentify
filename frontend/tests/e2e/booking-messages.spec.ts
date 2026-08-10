@@ -95,16 +95,22 @@ test.describe("booking messages", () => {
     await expect(sendButton).toBeDisabled();
 
     const body = `Playwright check ${Date.now()}`;
+    // Scoped to the thread: the composer still holds the same text until the
+    // send resolves, so an unscoped text match is ambiguous.
+    const sentMessage = page
+      .getByTestId("booking-message")
+      .filter({ hasText: body });
+
     await composer.fill(body);
     await expect(sendButton).toBeEnabled();
     await sendButton.click();
 
-    await expect(page.getByText(body)).toBeVisible();
+    await expect(sentMessage).toBeVisible();
     await expect(composer).toHaveValue("");
 
     // The thread must survive a reload — messages are durably persisted.
     await page.reload();
-    await expect(page.getByText(body)).toBeVisible();
+    await expect(sentMessage).toBeVisible();
 
     expect(consoleErrors).toEqual([]);
   });
