@@ -51,6 +51,16 @@ x-backend-environment: &backend-environment
   AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
   AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME}
 
+# Every process that connects to MySQL owns its own connection pool, so pool
+# size is a per-process cost paid against the server's max_connections budget.
+# Workers are queue- or poll-driven and mostly idle, so they get a smaller pool
+# than the API. minimumIdle must stay at or above 1 -- the driver only grows a
+# pool to satisfy minimumIdle, so 0 stalls every acquire.
+x-worker-environment: &worker-environment
+  <<: *backend-environment
+  DATABASE_POOL_CONNECTION_LIMIT: ${WORKER_DATABASE_POOL_CONNECTION_LIMIT:-5}
+  DATABASE_POOL_MINIMUM_IDLE: ${WORKER_DATABASE_POOL_MINIMUM_IDLE:-1}
+
 x-frontend-public-environment: &frontend-public-environment
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8040/api/v1}
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
@@ -112,6 +122,10 @@ services:
     image: mysql:8.4
     container_name: rent-mysql
     restart: unless-stopped
+    # Headroom above the 151 default so a newly added service cannot exhaust the
+    # budget locally. This is a cushion, not a substitute for pool sizing -- it
+    # does nothing for the per-process cost on a managed instance.
+    command: ["--max-connections=250"]
     environment:
       MYSQL_DATABASE: rent
       MYSQL_USER: rent
@@ -189,6 +203,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    # Runs the Prisma CLI, which uses its own engine connection rather than the
+    # application's driver adapter, so the pool settings do not apply.
     environment: *backend-environment
     volumes: *backend-log-volume
     command: ["npx", "prisma", "migrate", "deploy"]
@@ -202,6 +218,8 @@ services:
     environment:
       <<: *backend-environment
       PORT: 8040
+      DATABASE_POOL_CONNECTION_LIMIT: ${DATABASE_POOL_CONNECTION_LIMIT:-10}
+      DATABASE_POOL_MINIMUM_IDLE: ${DATABASE_POOL_MINIMUM_IDLE:-2}
     volumes: *backend-log-volume
     command: ["node", "dist/server.js"]
     ports:
@@ -213,7 +231,7 @@ services:
     container_name: rent-analytics-worker
     restart: unless-stopped
     depends_on: *db-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/analytics/postings-analytics.worker.js"]
 
@@ -223,7 +241,7 @@ services:
     container_name: rent-booking-expiry-worker
     restart: unless-stopped
     depends_on: *db-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/bookings/booking-expiry.worker.js"]
 
@@ -233,7 +251,7 @@ services:
     container_name: rent-posting-thumbnail-worker
     restart: unless-stopped
     depends_on: *recommendation-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/postings/posting-thumbnail.worker.js"]
 
@@ -243,7 +261,7 @@ services:
     container_name: rent-email-worker
     restart: unless-stopped
     depends_on: *rabbitmq-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/email/email-delivery.worker.js"]
 
@@ -253,7 +271,7 @@ services:
     container_name: rent-sms-worker
     restart: unless-stopped
     depends_on: *rabbitmq-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/sms/sms-delivery.worker.js"]
 
@@ -263,7 +281,7 @@ services:
     container_name: rent-log-consumer-worker
     restart: unless-stopped
     depends_on: *rabbitmq-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/logging/log-consumer.worker.js"]
 
@@ -273,7 +291,7 @@ services:
     container_name: rent-recommendation-activity-worker
     restart: unless-stopped
     depends_on: *recommendation-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/recommendations/recommendation-activity.worker.js"]
 
@@ -283,7 +301,7 @@ services:
     container_name: rent-payment-retry-worker
     restart: unless-stopped
     depends_on: *db-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/payments/payment-retry.worker.js"]
 
@@ -293,7 +311,7 @@ services:
     container_name: rent-payment-repair-worker
     restart: unless-stopped
     depends_on: *db-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/payments/payment-repair.worker.js"]
 
@@ -303,7 +321,7 @@ services:
     container_name: rent-payout-release-worker
     restart: unless-stopped
     depends_on: *db-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/payments/payout-release.worker.js"]
 
@@ -313,7 +331,7 @@ services:
     container_name: rent-search-maintainer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/search/search-maintainer.worker.js"]
 
@@ -323,7 +341,7 @@ services:
     container_name: rent-search-indexer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/search/search-indexer.worker.js"]
 
@@ -333,7 +351,7 @@ services:
     container_name: rent-report-search-indexer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/reports/report-search-indexer.worker.js"]
 
@@ -343,7 +361,7 @@ services:
     container_name: rent-organization-search-maintainer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command:
       [
@@ -357,7 +375,7 @@ services:
     container_name: rent-organization-search-indexer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command:
       [
@@ -371,7 +389,7 @@ services:
     container_name: rent-organization-blog-search-maintainer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command:
       [
@@ -385,7 +403,7 @@ services:
     container_name: rent-organization-blog-search-indexer-worker
     restart: unless-stopped
     depends_on: *search-worker-depends-on
-    environment: *backend-environment
+    environment: *worker-environment
     volumes: *backend-log-volume
     command:
       [

@@ -52,6 +52,23 @@ Important behaviors:
 - `INTERNAL_API_BASE_URL` is used by the frontend server runtime inside Docker
 - explicit shell or Docker-provided variables override local file defaults
 - SMS defaults to the local `noop` adapter unless you intentionally configure real Telnyx credentials
+- `DATABASE_POOL_CONNECTION_LIMIT` and `DATABASE_POOL_MINIMUM_IDLE` size the
+  connection pool each process opens; the API defaults to `10` and `2`, and
+  Compose gives workers `5` and `1` through `WORKER_DATABASE_POOL_CONNECTION_LIMIT`
+  and `WORKER_DATABASE_POOL_MINIMUM_IDLE`
+- both pool values must be at least `1`, and minimum idle must not exceed the
+  connection limit; startup fails with a validation error otherwise
+
+Pool size is a per-process cost paid against the database server's connection
+limit, so read the connection budget in
+[architecture-overview.md](./architecture-overview.md) before adding a service
+that connects to MySQL. If you hit `ERROR 1040 (08004): Too many connections`,
+check how many connections the stack actually holds:
+
+```bash
+docker compose exec mysql mysql -uroot -proot -e \
+  "SELECT @@max_connections; SELECT COUNT(*) FROM information_schema.PROCESSLIST;"
+```
 
 Optional local overrides outside Docker:
 

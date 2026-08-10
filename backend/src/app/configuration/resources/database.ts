@@ -6,12 +6,38 @@ import { loggerFactory } from "@/configuration/logging";
 let database: PrismaClient | null = null;
 const databaseLogger = loggerFactory.forComponent("database", "resource");
 
+// The adapter exposes no pool option surface -- its options argument only
+// carries `database`, `useTextProtocol`, and `onConnectionError` -- but it
+// forwards the connection string to mariadb.createPool(), which reads pool
+// options from the query string. So pool sizing rides on the URL.
+//
+// Configured values always win over anything embedded in DATABASE_URL, so the
+// documented knob is the effective one.
+function buildAdapterConnectionString(
+  config: ReturnType<typeof environment.getDatabaseConfig>,
+): string {
+  try {
+    const url = new URL(config.url);
+    url.searchParams.set("connectionLimit", String(config.poolConnectionLimit));
+    url.searchParams.set("minimumIdle", String(config.poolMinimumIdle));
+    return url.toString();
+  } catch {
+    // Never log the URL itself here -- it carries the database password. The
+    // adapter applies the same fallback internally, so behavior is unchanged
+    // beyond losing the pool sizing.
+    databaseLogger.warn(
+      "Database URL could not be parsed, so connection pool sizing was not applied.",
+    );
+    return config.url;
+  }
+}
+
 function createDatabaseClient(): PrismaClient {
   const config = environment.getDatabaseConfig();
   // Prisma 7 connects through a driver adapter rather than reading the URL
   // from schema.prisma, so the connection string is supplied here.
   const client = new PrismaClient({
-    adapter: new PrismaMariaDb(config.url),
+    adapter: new PrismaMariaDb(buildAdapterConnectionString(config)),
     log: [
       {
         emit: "event",

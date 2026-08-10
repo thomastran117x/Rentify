@@ -23,6 +23,8 @@ export type RawEnvironmentValues = {
   DATABASE_QUERY_LOGGING_ENABLED?: string;
   DATABASE_AUTO_SEED_ENABLED?: string;
   DATABASE_AUTO_SEED_REFRESH?: string;
+  DATABASE_POOL_CONNECTION_LIMIT?: string;
+  DATABASE_POOL_MINIMUM_IDLE?: string;
   DATABASE_SLOW_OPERATION_THRESHOLD_MS?: string;
   DATABASE_SLOW_QUERY_THRESHOLD_MS?: string;
   DATABASE_URL?: string;
@@ -142,6 +144,8 @@ export interface AppEnvironment {
     autoSeedEnabled: boolean;
     autoSeedRefresh: boolean;
     operationLoggingEnabled: boolean;
+    poolConnectionLimit: number;
+    poolMinimumIdle: number;
     queryLoggingEnabled: boolean;
     slowOperationThresholdMs: number;
     slowQueryThresholdMs: number;

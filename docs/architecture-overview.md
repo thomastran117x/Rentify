@@ -103,6 +103,30 @@ This keeps the API focused on request-response work while heavier or asynchronou
 - Elasticsearch: search indexes and query acceleration
 - RabbitMQ: queue backbone for worker-driven async jobs
 
+### Database Connection Budget
+
+Connection pool size is a per-process cost, not a per-request one. The API and
+every worker that touches the database run as separate processes, and each owns
+its own pool. Fifteen processes in the Compose stack connect: the API plus
+fourteen workers. The email, SMS, and log-consumer workers are queue-only and
+never open a database connection.
+
+That makes the arithmetic worth checking before adding a service. The pool holds
+`DATABASE_POOL_MINIMUM_IDLE` connections at rest and grows to
+`DATABASE_POOL_CONNECTION_LIMIT` under load, so the stack costs roughly sixteen
+connections idle and eighty at its ceiling, against the 250 the local MySQL
+container allows. A managed instance is usually stricter — connection caps there
+derive from instance size, and a small instance may allow only around 150 — so
+adding replicas of the API multiplies this cost rather than sharing it.
+
+Two consequences to keep in mind:
+
+- minimum idle must stay at or above 1; the driver only grows a pool to satisfy
+  its minimum-idle target and never to satisfy a queued request, so a value of 0
+  leaves every query waiting for the acquire timeout
+- connections above the minimum are reaped only after the driver's 30-minute
+  idle timeout, so a traffic burst holds its peak for a while before decaying
+
 ## Auth Model
 
 Browser sessions use cookie-backed refresh tokens plus CSRF protection, while non-browser clients use refresh tokens in JSON bodies and bearer access tokens. For the full details, read [auth-session-model.md](./auth-session-model.md).
