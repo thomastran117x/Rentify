@@ -28,6 +28,21 @@ describe("Bookings persistence integration", () => {
     await teardownPersistenceTestApp();
   }, 180_000);
 
+  async function request(
+    path: string,
+    init: RequestInit & { headers?: Record<string, string> } = {},
+  ): Promise<Response> {
+    return persistenceApp.app.request(
+      `http://rent.test${buildApiPath(path)}`,
+      init,
+    );
+  }
+
+  async function readData<TData>(response: Response): Promise<TData> {
+    const body = (await response.json()) as { data: TData };
+    return body.data;
+  }
+
   async function createBookingRequest(input: {
     renterHeaders: HeadersInit;
     postingId: string;
@@ -293,5 +308,147 @@ describe("Bookings persistence integration", () => {
     expect(await persistenceApp.prisma.bookingRequest.count()).toBe(
       beforeCount,
     );
+  });
+
+  it("quotes a booking before it is requested", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+
+    const quoteResponse = await request(
+      `/postings/${MUTABLE_POSTING_ID}/booking-quote`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          startAt: "2027-02-10T16:00:00.000Z",
+          endAt: "2027-02-13T16:00:00.000Z",
+          guestCount: 2,
+          note: "Need reliable Wi-Fi for a client workshop.",
+        }),
+      },
+    );
+
+    expect(quoteResponse.status).toBe(200);
+    const quote = await readData<{
+      postingId: string;
+      bookable: boolean;
+      durationDays: number;
+      estimatedTotal: number;
+    }>(quoteResponse);
+
+    expect(quote.postingId).toBe(MUTABLE_POSTING_ID);
+    expect(quote.durationDays).toBe(3);
+    expect(quote.estimatedTotal).toBeGreaterThan(0);
+
+    // Quoting must not create anything.
+    expect(
+      await persistenceApp.prisma.bookingRequest.count({
+        where: { renterId: renter.userId, postingId: MUTABLE_POSTING_ID },
+      }),
+    ).toBe(0);
+  });
+
+  it("serves renter and owner booking lists, dashboards, and detail reads", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+
+    const createResponse = await createBookingRequest({
+      renterHeaders: renter.headers(),
+      postingId: MUTABLE_POSTING_ID,
+      startAt: "2027-03-10T16:00:00.000Z",
+      endAt: "2027-03-12T16:00:00.000Z",
+      guestCount: 1,
+      note: "Reading week stay.",
+      contactName: "Viewer One",
+      contactEmail: "viewer1@rentify.local",
+    });
+    expect(createResponse.status).toBe(201);
+    const created = (await createResponse.json()) as { data: { id: string } };
+    const bookingRequestId = created.data.id;
+
+    const renterList = await readData<{
+      bookingRequests: Array<{ id: string }>;
+    }>(await request("/booking-requests/me", { headers: renter.headers() }));
+    expect(renterList.bookingRequests.map((entry) => entry.id)).toContain(
+      bookingRequestId,
+    );
+
+    const ownerList = await readData<{
+      bookingRequests: Array<{ id: string }>;
+    }>(await request("/booking-requests/owner", { headers: owner.headers() }));
+    expect(ownerList.bookingRequests.map((entry) => entry.id)).toContain(
+      bookingRequestId,
+    );
+
+    const postingList = await readData<{
+      bookingRequests: Array<{ id: string }>;
+    }>(
+      await request(`/postings/${MUTABLE_POSTING_ID}/booking-requests`, {
+        headers: owner.headers(),
+      }),
+    );
+    expect(postingList.bookingRequests.map((entry) => entry.id)).toContain(
+      bookingRequestId,
+    );
+
+    const renterDashboardResponse = await request(
+      "/booking-requests/me/dashboard",
+      { headers: renter.headers() },
+    );
+    expect(renterDashboardResponse.status).toBe(200);
+    await expect(renterDashboardResponse.json()).resolves.toMatchObject({
+      data: { summary: expect.any(Object), items: expect.any(Array) },
+    });
+
+    const ownerDashboardResponse = await request(
+      "/booking-requests/owner/dashboard",
+      { headers: owner.headers() },
+    );
+    expect(ownerDashboardResponse.status).toBe(200);
+    await expect(ownerDashboardResponse.json()).resolves.toMatchObject({
+      data: { summary: expect.any(Object) },
+    });
+
+    const detailResponse = await request(
+      `/booking-requests/${bookingRequestId}`,
+      { headers: renter.headers() },
+    );
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      data: { id: bookingRequestId, postingId: MUTABLE_POSTING_ID },
+    });
+
+    const cancellationQuoteResponse = await request(
+      `/booking-requests/${bookingRequestId}/cancellation-quote`,
+      { headers: renter.headers() },
+    );
+    expect(cancellationQuoteResponse.status).toBe(200);
+    await expect(cancellationQuoteResponse.json()).resolves.toMatchObject({
+      data: { bookingRequestId, cancellable: expect.any(Boolean) },
+    });
+
+    // An unrelated user must not be able to read the booking or its quote.
+    expect(
+      (
+        await request(`/booking-requests/${bookingRequestId}`, {
+          headers: stranger.headers(),
+        })
+      ).status,
+    ).toBeGreaterThanOrEqual(400);
+    expect(
+      (
+        await request(`/booking-requests/${bookingRequestId}/cancellation-quote`, {
+          headers: stranger.headers(),
+        })
+      ).status,
+    ).toBeGreaterThanOrEqual(400);
   });
 });

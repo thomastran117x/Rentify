@@ -409,4 +409,46 @@ describe("Payments persistence integration", () => {
       status: beforeRepairStatus,
     });
   });
+
+  it("serves payment detail and owner payout listings with authorization limits", async () => {
+    const paidBooking = SEED_BOOKINGS[16]!;
+    const payment = await getPaymentForBooking(persistenceApp, paidBooking.id);
+    expect(payment).not.toBeNull();
+
+    const renter = await createAuthenticatedRequestContext({
+      email: paidBooking.renterEmail,
+    });
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+
+    const detailResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment!.id}`)}`,
+      { headers: renter.headers() },
+    );
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      data: { id: payment!.id, bookingRequestId: paidBooking.id },
+    });
+
+    // A payment belongs to its renter and the owning organization only.
+    const forbiddenDetailResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment!.id}`)}`,
+      { headers: stranger.headers() },
+    );
+    expect(forbiddenDetailResponse.status).toBeGreaterThanOrEqual(400);
+
+    const payoutsResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/payouts/me")}`,
+      { headers: owner.headers() },
+    );
+    expect(payoutsResponse.status).toBe(200);
+    const payouts = (await payoutsResponse.json()) as {
+      data: { payouts: Array<{ id: string; organizationId: string }> };
+    };
+    expect(Array.isArray(payouts.data.payouts)).toBe(true);
+  });
 });

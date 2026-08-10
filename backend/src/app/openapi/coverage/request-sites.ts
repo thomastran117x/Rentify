@@ -8,7 +8,12 @@ import {
 const HTTP_METHODS = new Set<HttpMethod>(SUPPORTED_METHODS);
 
 const API_ROUTE_PREFIX = "/api/v1";
-const MAX_IDENTIFIER_RESOLUTION_DEPTH = 3;
+/**
+ * Guards against cyclic bindings rather than capping legitimate nesting. A
+ * single request can already consume four levels: outer template, buildApiPath
+ * call, nested template, then the identifier that template interpolates.
+ */
+const MAX_IDENTIFIER_RESOLUTION_DEPTH = 8;
 
 export interface SourceDocument {
   readonly path: string;
@@ -391,8 +396,10 @@ function resolveTemplate(
   const originMatch = /^https?:\/\/[^/]+/.exec(head);
   if (originMatch) {
     head = head.slice(originMatch[0].length);
-  } else if (head.length === 0) {
-    // The template opens with a hole, so the origin itself is dynamic.
+  } else if (isOrigin && head.length === 0) {
+    // The URL argument itself opens with a hole, so the origin is dynamic.
+    // A nested template may legitimately start with an interpolation, such as
+    // buildApiPath(`${basePath}/status`).
     return { unresolvedReason: "dynamic-origin" };
   }
 

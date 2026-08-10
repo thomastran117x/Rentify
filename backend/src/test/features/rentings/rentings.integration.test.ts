@@ -355,4 +355,42 @@ describe("Rentings persistence integration", () => {
       }),
     ).toBe(beforeCount);
   });
+
+  it("serves renting detail and the renter's own renting list", async () => {
+    const renting = await persistenceApp.prisma.renting.findFirstOrThrow({
+      include: { renter: true },
+    });
+    const renter = await createAuthenticatedRequestContext({
+      email: renting.renter.email,
+    });
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user8@rentify.local",
+    });
+
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/rentings/me")}`,
+      { headers: renter.headers() },
+    );
+    expect(listResponse.status).toBe(200);
+    const list = (await listResponse.json()) as {
+      data: { rentings: Array<{ id: string }> };
+    };
+    expect(list.data.rentings.map((entry) => entry.id)).toContain(renting.id);
+
+    const detailResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${renting.id}`)}`,
+      { headers: renter.headers() },
+    );
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      data: { id: renting.id, postingId: renting.postingId },
+    });
+
+    // An unrelated user must not be able to read someone else's renting.
+    const forbiddenResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/rentings/${renting.id}`)}`,
+      { headers: stranger.headers() },
+    );
+    expect(forbiddenResponse.status).toBeGreaterThanOrEqual(400);
+  });
 });

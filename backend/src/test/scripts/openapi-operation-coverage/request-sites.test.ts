@@ -161,6 +161,17 @@ describe("extractRequestSites", () => {
       ).toEqual(["GET /organizations/*/workspace"]);
     });
 
+    it("resolves a nested path that opens with an interpolation", () => {
+      const requests = requestsOf(
+        "function suite(basePath) {\n" +
+          "  return app.request(`http://rent.test${buildApiPath(`${basePath}/status`)}`);\n" +
+          "}\n" +
+          'suite("/admin/organizations/search");',
+      );
+
+      expect(requests).toEqual(["GET /admin/organizations/search/status"]);
+    });
+
     it("leaves a never-called helper unresolved", () => {
       const sites = sitesOf(
         "function send(path) {\n" +
