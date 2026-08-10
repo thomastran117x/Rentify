@@ -302,11 +302,15 @@ export function evaluateGate(
 }
 
 function padEnd(value: string, width: number): string {
-  return value.length >= width ? value : value + " ".repeat(width - value.length);
+  return value.length >= width
+    ? value
+    : value + " ".repeat(width - value.length);
 }
 
 function padStart(value: string, width: number): string {
-  return value.length >= width ? value : " ".repeat(width - value.length) + value;
+  return value.length >= width
+    ? value
+    : " ".repeat(width - value.length) + value;
 }
 
 function formatOperationLine(coverage: OperationCoverage): string {
@@ -331,7 +335,9 @@ export function formatCoverageReport(
   lines.push(`OpenAPI operation integration coverage  (mode: ${config.mode})`);
   lines.push("");
   lines.push("Inventory");
-  lines.push(`  OpenAPI operations ...................... ${totals.operations}`);
+  lines.push(
+    `  OpenAPI operations ...................... ${totals.operations}`,
+  );
   lines.push(
     `  Integration test files analysed ......... ${report.analysedFiles}`,
   );
@@ -412,7 +418,9 @@ export function formatCoverageReport(
     `Wildcard-fallback sites (${report.wildcardFallbackSites.length})`,
   );
   report.wildcardFallbackSites.forEach((match) =>
-    lines.push(`  ${match.site.file}:${match.site.line}  ${match.site.rawUrlText}`),
+    lines.push(
+      `  ${match.site.file}:${match.site.line}  ${match.site.rawUrlText}`,
+    ),
   );
 
   lines.push(`Ambiguous sites (${report.ambiguousSites.length})`);
@@ -446,4 +454,3 @@ export function formatCoverageReport(
 
   return `${lines.join("\n")}\n`;
 }
-

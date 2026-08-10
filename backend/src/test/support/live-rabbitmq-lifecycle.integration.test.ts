@@ -35,84 +35,72 @@ describe("Live RabbitMQ test vhost lifecycle", () => {
     return config;
   }
 
-  it(
-    "creates a vhost, publishes and reads a message, then deletes it",
-    async () => {
-      const config = trackVhost(createLiveRabbitMqConfig(randomUUID()));
-      const queueName = "lifecycle-probe";
+  it("creates a vhost, publishes and reads a message, then deletes it", async () => {
+    const config = trackVhost(createLiveRabbitMqConfig(randomUUID()));
+    const queueName = "lifecycle-probe";
 
-      await assertRabbitMqManagementAvailable(config);
-      await createRabbitMqTestVhost(config);
+    await assertRabbitMqManagementAvailable(config);
+    await createRabbitMqTestVhost(config);
 
-      expect(await listRabbitMqTestVhosts(config)).toContain(config.vhost);
+    expect(await listRabbitMqTestVhosts(config)).toContain(config.vhost);
 
-      const connection = await connect(config.amqpUrl);
-      const channel = await connection.createChannel();
-      await channel.assertQueue(queueName, { durable: false });
-      channel.sendToQueue(
-        queueName,
-        Buffer.from(JSON.stringify({ probe: "lifecycle" })),
-        { contentType: "application/json" },
-      );
-      await channel.close();
-      await connection.close();
+    const connection = await connect(config.amqpUrl);
+    const channel = await connection.createChannel();
+    await channel.assertQueue(queueName, { durable: false });
+    channel.sendToQueue(
+      queueName,
+      Buffer.from(JSON.stringify({ probe: "lifecycle" })),
+      { contentType: "application/json" },
+    );
+    await channel.close();
+    await connection.close();
 
-      const messages = await peekRabbitMqMessages<{ probe: string }>(
-        config,
-        queueName,
-      );
-      expect(messages).toHaveLength(1);
-      expect(messages[0]?.payload).toEqual({ probe: "lifecycle" });
+    const messages = await peekRabbitMqMessages<{ probe: string }>(
+      config,
+      queueName,
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.payload).toEqual({ probe: "lifecycle" });
 
-      await purgeRabbitMqQueues(config);
+    await purgeRabbitMqQueues(config);
 
-      const queues = await listRabbitMqQueues(config);
-      expect(queues.find((queue) => queue.name === queueName)?.ready ?? 0).toBe(
-        0,
-      );
+    const queues = await listRabbitMqQueues(config);
+    expect(queues.find((queue) => queue.name === queueName)?.ready ?? 0).toBe(
+      0,
+    );
 
-      await deleteRabbitMqTestVhost(config);
+    await deleteRabbitMqTestVhost(config);
 
-      expect(await listRabbitMqTestVhosts(config)).not.toContain(config.vhost);
-    },
-    120_000,
-  );
+    expect(await listRabbitMqTestVhosts(config)).not.toContain(config.vhost);
+  }, 120_000);
 
-  it(
-    "confirms the management API and AMQP endpoint are the same broker",
-    async () => {
-      const config = trackVhost(createLiveRabbitMqConfig(randomUUID()));
+  it("confirms the management API and AMQP endpoint are the same broker", async () => {
+    const config = trackVhost(createLiveRabbitMqConfig(randomUUID()));
 
-      await createRabbitMqTestVhost(config);
-      await expect(
-        assertRabbitMqEndpointsShareBroker(config),
-      ).resolves.toBeUndefined();
+    await createRabbitMqTestVhost(config);
+    await expect(
+      assertRabbitMqEndpointsShareBroker(config),
+    ).resolves.toBeUndefined();
 
-      await deleteRabbitMqTestVhost(config);
-    },
-    120_000,
-  );
+    await deleteRabbitMqTestVhost(config);
+  }, 120_000);
 
-  it(
-    "sweeps leaked test vhosts while preserving the current session",
-    async () => {
-      const activeConfig = trackVhost(createLiveRabbitMqConfig(randomUUID()));
-      const leakedConfig = trackVhost(createLiveRabbitMqConfig(randomUUID()));
+  it("sweeps leaked test vhosts while preserving the current session", async () => {
+    const activeConfig = trackVhost(createLiveRabbitMqConfig(randomUUID()));
+    const leakedConfig = trackVhost(createLiveRabbitMqConfig(randomUUID()));
 
-      await createRabbitMqTestVhost(activeConfig);
-      await createRabbitMqTestVhost(leakedConfig);
+    await createRabbitMqTestVhost(activeConfig);
+    await createRabbitMqTestVhost(leakedConfig);
 
-      const swept = await sweepStaleRabbitMqTestVhosts(activeConfig);
+    const swept = await sweepStaleRabbitMqTestVhosts(activeConfig);
 
-      expect(swept).toContain(leakedConfig.vhost);
-      expect(swept).not.toContain(activeConfig.vhost);
+    expect(swept).toContain(leakedConfig.vhost);
+    expect(swept).not.toContain(activeConfig.vhost);
 
-      const remaining = await listRabbitMqTestVhosts(activeConfig);
-      expect(remaining).toContain(activeConfig.vhost);
-      expect(remaining).not.toContain(leakedConfig.vhost);
+    const remaining = await listRabbitMqTestVhosts(activeConfig);
+    expect(remaining).toContain(activeConfig.vhost);
+    expect(remaining).not.toContain(leakedConfig.vhost);
 
-      await deleteRabbitMqTestVhost(activeConfig);
-    },
-    120_000,
-  );
+    await deleteRabbitMqTestVhost(activeConfig);
+  }, 120_000);
 });

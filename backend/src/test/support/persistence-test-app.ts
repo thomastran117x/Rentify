@@ -642,10 +642,7 @@ interface BlobUploadPayload {
 }
 
 function createPersistenceTestStubs(): PersistenceTestStubs {
-  const blobStorage = new Map<
-    string,
-    { contentType: string; body: Buffer }
-  >();
+  const blobStorage = new Map<string, { contentType: string; body: Buffer }>();
 
   return {
     captchaService: {

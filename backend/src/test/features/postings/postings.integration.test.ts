@@ -1212,10 +1212,11 @@ describe("Postings persistence integration", () => {
       data: { accepted: true },
     });
 
-    const payloads = await readQueuePayloads<RecommendationActivityEventPayload>(
-      persistenceApp,
-      RECOMMENDATION_ACTIVITY_QUEUE_NAME,
-    );
+    const payloads =
+      await readQueuePayloads<RecommendationActivityEventPayload>(
+        persistenceApp,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+      );
     expect(
       payloads.some(
         (payload) =>

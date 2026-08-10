@@ -345,14 +345,26 @@ function resolveUrlExpression(
       if (!value) {
         return { unresolvedReason: "non-literal-each-table" };
       }
-      return resolveUrlExpression(value, sourceFile, scope, depth + 1, isOrigin);
+      return resolveUrlExpression(
+        value,
+        sourceFile,
+        scope,
+        depth + 1,
+        isOrigin,
+      );
     }
 
     const binding = scope.constants.get(node.text);
     if (!binding) {
       return { unresolvedReason: "unresolvable-identifier" };
     }
-    return resolveUrlExpression(binding, sourceFile, scope, depth + 1, isOrigin);
+    return resolveUrlExpression(
+      binding,
+      sourceFile,
+      scope,
+      depth + 1,
+      isOrigin,
+    );
   }
 
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
@@ -532,7 +544,9 @@ function resolveMethodExpression(
       return { unresolvedReason: "unresolvable-method" };
     }
 
-    return { methods: [...new Set([...whenTrue.methods, ...whenFalse.methods])] };
+    return {
+      methods: [...new Set([...whenTrue.methods, ...whenFalse.methods])],
+    };
   }
 
   if (ts.isIdentifier(node)) {
@@ -661,7 +675,8 @@ export function extractRequestSites(
         );
 
         if (!resolvedPaths.patterns) {
-          unresolvedReason = resolvedPaths.unresolvedReason ?? "non-literal-url";
+          unresolvedReason =
+            resolvedPaths.unresolvedReason ?? "non-literal-url";
           break;
         }
         if (!resolvedMethods.methods) {

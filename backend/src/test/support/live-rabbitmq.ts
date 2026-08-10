@@ -76,8 +76,10 @@ export function createLiveRabbitMqConfig(
     `http://127.0.0.1:${DEFAULT_MANAGEMENT_PORT}/api`;
 
   const parsedAmqpUrl = parseUrl(baseAmqpUrl, "RabbitMQ AMQP URL");
-  const username = decodeURIComponent(parsedAmqpUrl.username) || DEFAULT_USERNAME;
-  const password = decodeURIComponent(parsedAmqpUrl.password) || DEFAULT_PASSWORD;
+  const username =
+    decodeURIComponent(parsedAmqpUrl.username) || DEFAULT_USERNAME;
+  const password =
+    decodeURIComponent(parsedAmqpUrl.password) || DEFAULT_PASSWORD;
 
   parsedAmqpUrl.pathname = `/${vhost}`;
 

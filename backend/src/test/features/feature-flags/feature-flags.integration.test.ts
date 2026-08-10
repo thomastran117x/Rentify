@@ -74,7 +74,11 @@ describe("Feature flag admin persistence integration", () => {
     });
     expect(deleteResponse.status).toBe(200);
     await expect(deleteResponse.json()).resolves.toMatchObject({
-      data: { name: FLAG_NAME, deletedOverride: true, effectiveSource: "default" },
+      data: {
+        name: FLAG_NAME,
+        deletedOverride: true,
+        effectiveSource: "default",
+      },
     });
 
     // The override is gone, so the flag falls back to its built-in default.

@@ -29,10 +29,7 @@ function readTestDocuments(
 
     if (entry.isDirectory()) {
       documents.push(...readTestDocuments(filePath, projectRoot));
-    } else if (
-      entry.isFile() &&
-      filePath.endsWith(".integration.test.ts")
-    ) {
+    } else if (entry.isFile() && filePath.endsWith(".integration.test.ts")) {
       documents.push({
         path: relative(projectRoot, filePath),
         source: readFileSync(filePath, "utf8"),
@@ -55,7 +52,10 @@ export async function main(
   await validateOpenApiRouteCoverage(document);
 
   const catalog = buildOperationCatalog(document);
-  const documents = readTestDocuments(join(projectRoot, "src/test"), projectRoot);
+  const documents = readTestDocuments(
+    join(projectRoot, "src/test"),
+    projectRoot,
+  );
   const extraction = extractRequestSites(documents, {
     smokeOnlyTestFiles: config.smokeOnlyTestFiles,
   });

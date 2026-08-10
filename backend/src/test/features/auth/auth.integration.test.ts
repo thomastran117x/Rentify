@@ -790,9 +790,9 @@ describe("Auth persistence integration", () => {
 
     // While locked, a further wrong password keeps reporting locked rather
     // than a plain rejection.
-    expect(
-      (await login({ username, password: "StillWrong1!" })).status,
-    ).toBe(423);
+    expect((await login({ username, password: "StillWrong1!" })).status).toBe(
+      423,
+    );
 
     const resendUnlockResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/local/unlock/resend")}`,
@@ -839,7 +839,9 @@ describe("Auth persistence integration", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(persistenceApp.stubs.microsoftOAuthService.verify).toHaveBeenCalled();
+    expect(
+      persistenceApp.stubs.microsoftOAuthService.verify,
+    ).toHaveBeenCalled();
 
     const persistedUser = await persistenceApp.prisma.user.findUnique({
       where: { email: "microsoft-user@rentify.local" },

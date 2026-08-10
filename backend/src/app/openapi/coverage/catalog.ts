@@ -5,13 +5,7 @@ import {
   type PathSegment,
 } from "@/openapi/coverage/shared";
 
-const OPENAPI_HTTP_METHODS = new Set([
-  "get",
-  "post",
-  "put",
-  "delete",
-  "patch",
-]);
+const OPENAPI_HTTP_METHODS = new Set(["get", "post", "put", "delete", "patch"]);
 
 export interface OperationCatalogEntry {
   /** Stable identity used across the report, for example `POST /postings/{id}/reviews`. */

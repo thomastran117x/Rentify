@@ -28,11 +28,7 @@ module.exports = {
       },
     ],
   },
-  testPathIgnorePatterns: [
-    "/node_modules/",
-    "/dist/",
-    "/src/test/db/",
-  ],
+  testPathIgnorePatterns: ["/node_modules/", "/dist/", "/src/test/db/"],
   // These suites share one `rent_test` schema and one Redis database, and each
   // `beforeEach` truncates and reseeds both. They must not run concurrently,
   // regardless of how Jest is invoked.

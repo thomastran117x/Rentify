@@ -445,9 +445,12 @@ describe("Bookings persistence integration", () => {
     ).toBeGreaterThanOrEqual(400);
     expect(
       (
-        await request(`/booking-requests/${bookingRequestId}/cancellation-quote`, {
-          headers: stranger.headers(),
-        })
+        await request(
+          `/booking-requests/${bookingRequestId}/cancellation-quote`,
+          {
+            headers: stranger.headers(),
+          },
+        )
       ).status,
     ).toBeGreaterThanOrEqual(400);
   });

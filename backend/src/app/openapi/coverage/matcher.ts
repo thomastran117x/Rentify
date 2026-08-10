@@ -89,7 +89,9 @@ function matchOne(
   // Mirrors Hono dispatch: a static segment beats a parameter, so
   // `/postings/saved` credits the literal route rather than `/postings/{id}`.
   const bestScore = Math.max(
-    ...candidates.map((operation) => scoreCandidate(requestSegments, operation)),
+    ...candidates.map((operation) =>
+      scoreCandidate(requestSegments, operation),
+    ),
   );
   const winners = candidates.filter(
     (operation) => scoreCandidate(requestSegments, operation) === bestScore,

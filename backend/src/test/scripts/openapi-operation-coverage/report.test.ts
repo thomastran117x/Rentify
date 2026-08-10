@@ -22,7 +22,9 @@ const catalog = buildOperationCatalog({
     "/postings/{id}": {
       get: { operationId: "getPostingById", tags: ["postings"] },
     },
-    "/feedback": { post: { operationId: "createFeedback", tags: ["feedback"] } },
+    "/feedback": {
+      post: { operationId: "createFeedback", tags: ["feedback"] },
+    },
   },
 });
 
@@ -97,12 +99,14 @@ describe("buildCoverageReport", () => {
     ]);
 
     expect(
-      result.operations.find((entry) => entry.operation.key === "GET /postings")!
-        .status,
+      result.operations.find(
+        (entry) => entry.operation.key === "GET /postings",
+      )!.status,
     ).toBe("covered-route-contract");
     expect(
-      result.operations.find((entry) => entry.operation.key === "POST /feedback")!
-        .status,
+      result.operations.find(
+        (entry) => entry.operation.key === "POST /feedback",
+      )!.status,
     ).toBe("covered-persistence");
   });
 
@@ -112,8 +116,9 @@ describe("buildCoverageReport", () => {
     ]);
 
     expect(
-      result.operations.find((entry) => entry.operation.key === "GET /postings")!
-        .status,
+      result.operations.find(
+        (entry) => entry.operation.key === "GET /postings",
+      )!.status,
     ).toBe("smoke-only");
     expect(result.totals.covered).toBe(0);
     expect(result.totals.smokeOnly).toBe(1);
@@ -131,9 +136,9 @@ describe("buildCoverageReport", () => {
     const postings = result.byTag.find((tag) => tag.tag === "postings");
 
     expect(postings).toMatchObject({ operations: 2, covered: 1, uncovered: 1 });
-    expect(
-      result.byTag.reduce((sum, tag) => sum + tag.operations, 0),
-    ).toBe(result.totals.operations);
+    expect(result.byTag.reduce((sum, tag) => sum + tag.operations, 0)).toBe(
+      result.totals.operations,
+    );
   });
 
   describe("exceptions", () => {

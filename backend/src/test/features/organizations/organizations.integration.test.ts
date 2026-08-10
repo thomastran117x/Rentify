@@ -368,7 +368,10 @@ describe("Organizations persistence integration", () => {
     );
     expect(bySlugResponse.status).toBe(200);
     await expect(bySlugResponse.json()).resolves.toMatchObject({
-      data: { organizationId: ORGANIZATION_ID, canonicalSlug: organization.slug },
+      data: {
+        organizationId: ORGANIZATION_ID,
+        canonicalSlug: organization.slug,
+      },
     });
 
     const myOrganizationsResponse = await request("/organizations/me", {
@@ -470,7 +473,10 @@ describe("Organizations persistence integration", () => {
     );
     expect(inviteResponse.status).toBe(201);
 
-    const invite = await readOrganizationInviteJob(persistenceApp, invitedEmail);
+    const invite = await readOrganizationInviteJob(
+      persistenceApp,
+      invitedEmail,
+    );
 
     const previewResponse = await request(
       `/organizations/invitations/${invite.input.token}`,

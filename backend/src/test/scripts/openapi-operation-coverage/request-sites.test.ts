@@ -41,7 +41,9 @@ describe("extractRequestSites", () => {
 
   it("defaults to GET when there is no init object or no method key", () => {
     expect(
-      requestsOf('app.request(`http://rent.test${buildApiPath("/postings")}`);'),
+      requestsOf(
+        'app.request(`http://rent.test${buildApiPath("/postings")}`);',
+      ),
     ).toEqual(["GET /postings"]);
 
     expect(
@@ -62,7 +64,7 @@ describe("extractRequestSites", () => {
   it("collapses a partially literal segment into a wildcard", () => {
     expect(
       requestsOf(
-        'app.request(`http://rent.test${buildApiPath(`/postings/id-${suffix}`)}`);',
+        "app.request(`http://rent.test${buildApiPath(`/postings/id-${suffix}`)}`);",
       ),
     ).toEqual(["GET /postings/*"]);
   });
@@ -82,7 +84,7 @@ describe("extractRequestSites", () => {
         '  ["GET", "/postings/saved"],\n' +
         '  ["POST", "/postings/p1/save"],\n' +
         '  ["DELETE", "/postings/p1/save"],\n' +
-        "])(\"%s %s\", async (method, path) => {\n" +
+        '])("%s %s", async (method, path) => {\n' +
         "  await app.request(`http://rent.test${buildApiPath(path)}`, { method });\n" +
         "});",
     );
@@ -99,7 +101,7 @@ describe("extractRequestSites", () => {
       "it.each([\n" +
         '  ["Bookings", token, new BookingsController(stub), "/booking-requests/me", "GET"],\n' +
         '  ["Sms", token, new SmsController(stub), "/sms/webhooks/telnyx", "POST"],\n' +
-        "])(\"%s\", async (_, token, controller, path, method) => {\n" +
+        '])("%s", async (_, token, controller, path, method) => {\n' +
         "  await app.request(`http://rent.test${buildApiPath(path)}`, { method });\n" +
         "});",
     );
@@ -184,9 +186,9 @@ describe("extractRequestSites", () => {
   });
 
   it("strips a hand-written API prefix", () => {
-    expect(requestsOf('app.request("http://rent.test/api/v1/health");')).toEqual(
-      ["GET /health"],
-    );
+    expect(
+      requestsOf('app.request("http://rent.test/api/v1/health");'),
+    ).toEqual(["GET /health"]);
   });
 
   it.each([
@@ -194,10 +196,7 @@ describe("extractRequestSites", () => {
       "dynamic-origin",
       "app.request(`${baseUrl}${buildApiPath('/postings')}`);",
     ],
-    [
-      "unresolvable-identifier",
-      "app.request(`http://rent.test${somePath}`);",
-    ],
+    ["unresolvable-identifier", "app.request(`http://rent.test${somePath}`);"],
     [
       "unresolvable-method",
       'app.request(`http://rent.test${buildApiPath("/postings")}`, { ...init });',
@@ -254,7 +253,8 @@ describe("extractRequestSites", () => {
   });
 
   it("marks configured smoke files as smoke level", () => {
-    const path = "src/test/features/controller-coverage/registered.routes.integration.test.ts";
+    const path =
+      "src/test/features/controller-coverage/registered.routes.integration.test.ts";
     const result = extractRequestSites(
       [
         document(
