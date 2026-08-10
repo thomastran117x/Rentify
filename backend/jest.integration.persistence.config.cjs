@@ -1,4 +1,13 @@
-/** @type {import("jest").Config} */
+/**
+ * Live-persistence integration tests.
+ *
+ * These run the production application composition against real MySQL, Redis,
+ * Elasticsearch, and RabbitMQ, so they require the Docker Compose stack and a
+ * migrated `rent_test` schema. Route-contract suites, which need no
+ * infrastructure, live in jest.integration.routes.config.cjs.
+ *
+ * @type {import("jest").Config}
+ */
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
@@ -22,7 +31,6 @@ module.exports = {
     "/node_modules/",
     "/dist/",
     "/src/test/db/",
-    "\\.mocked\\.integration\\.test\\.ts$",
     "\\.routes\\.integration\\.test\\.ts$",
   ],
   // These suites share one `rent_test` schema and one Redis database, and each

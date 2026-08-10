@@ -205,8 +205,13 @@ jobs:
       - name: Type check app and test code
         run: npm run check:all
 
-      - name: Report OpenAPI operation integration coverage
-        run: npm run check:openapi-operation-coverage | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Verify OpenAPI operation integration coverage
+        shell: bash
+        run: |
+          # pipefail matters here: without it the pipeline reports tee's exit
+          # code and the enforcing coverage gate could never fail the build.
+          set -o pipefail
+          npm run check:openapi-operation-coverage | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Build
         run: npm run build
@@ -254,8 +259,8 @@ jobs:
       - name: Run unit tests with coverage thresholds
         run: npm run test:unit:coverage
 
-  backend-controller-integration-coverage:
-    name: Backend controller integration coverage
+  backend-route-integration:
+    name: Backend route-contract integration tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -274,11 +279,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run mocked HTTP route integration tests
-        run: npm run test:integration:mocked
-
-      - name: Verify controller HTTP integration coverage
-        run: npm run check:controller-integration-coverage
+      - name: Run route-contract integration tests
+        run: npm run test:integration:routes
 
   backend-integration:
     name: Backend persistence integration and database tests
@@ -388,8 +390,8 @@ jobs:
       - name: Apply database migrations
         run: npm run prisma:migrate:deploy
 
-      - name: Run HTTP integration tests
-        run: npm run test:integration
+      - name: Run live-persistence integration tests
+        run: npm run test:integration:persistence
 
       - name: Run database seed tests
         run: npm run test:db-seeds

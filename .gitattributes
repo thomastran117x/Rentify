@@ -1,0 +1,7 @@
+# The committed OpenAPI artifacts are byte-compared against freshly generated
+# output by `openapi:check` and by src/test/openapi/openapi.test.ts. The
+# generator always writes LF, so checking these out with CRLF (the default on
+# Windows with core.autocrlf=true) makes both report the files as stale even
+# when their content is identical.
+backend/openapi/openapi.yaml eol=lf
+backend/openapi/openapi.json eol=lf

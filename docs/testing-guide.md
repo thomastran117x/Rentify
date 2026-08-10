@@ -27,8 +27,9 @@ The backend has two integration suites with different infrastructure needs:
 
 | Command | Suite | Infrastructure |
 | --- | --- | --- |
-| `npm run test:integration:mocked` | `*.routes.integration.test.ts` — route contracts against production route composition with stubbed services | none |
-| `npm run test:integration` | `*.integration.test.ts` — real persistence against production application composition | full Compose stack |
+| `npm run test:integration:routes` | `*.routes.integration.test.ts` — route contracts against production route composition with stubbed services | none |
+| `npm run test:integration:persistence` | every other `*.integration.test.ts` — real persistence against production application composition | full Compose stack |
+| `npm run test:integration` | both, routes first | full Compose stack |
 
 ### Running the persistence integration suite
 
@@ -108,14 +109,33 @@ It reports three levels, and they are not equivalent:
   matrix, which asserts only that a route is not 404 and not 5xx. This is
   **never counted as covered**.
 
-The gate is configured in `backend/openapi-coverage.config.json`. It currently
-runs in `warn` mode: the report prints and CI stays green. Preview the enforcing
-outcome locally without changing the committed config:
+The gate is configured in `backend/openapi-coverage.config.json` and runs in
+`enforce` mode: every operation is covered today, so adding an endpoint without
+an integration test fails the build. Preview or soften the outcome locally
+without changing the committed config:
 
 ```bash
-npm run check:openapi-operation-coverage -- --enforce
+npm run check:openapi-operation-coverage -- --warn
 npm run check:openapi-operation-coverage -- --json
 ```
+
+**Write request calls inline.** The checker resolves each request's path
+statically and only follows helpers declared in the same file, so keep the
+call in this shape rather than routing it through a shared cross-file wrapper:
+
+```ts
+await app.request(`http://rent.test${buildApiPath("/postings/saved")}`, {
+  method: "POST",
+  headers: bearerHeaders("user-token"),
+});
+```
+
+A per-file helper that takes the path as a parameter is fine — the checker
+resolves it from that file's call sites. A shared helper in `src/test/support/`
+is not: it would hide which endpoint each test exercises. `failOnUnresolvedSites`
+is enabled, so a request the checker cannot resolve fails the build rather than
+silently under-reporting. `src/test/support/route-request.ts` provides typed
+header and response helpers for everything around the call.
 
 When an operation genuinely cannot be integration tested, record it in the
 `exceptions` array with a reason rather than leaving it uncovered:

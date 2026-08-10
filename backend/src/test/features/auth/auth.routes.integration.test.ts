@@ -235,10 +235,10 @@ function jsonHeaders(token?: string) {
 }
 
 describe("Auth routes integration", () => {
-  it("covers recovery, verification, unlock, password change, and refresh endpoints", async () => {
+  it("normalizes the username on a forgot-password request", async () => {
     const { app, authService, captchaService } = createApp();
 
-    const forgotResponse = await app.request(
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/forgot")}`,
       {
         method: "POST",
@@ -249,7 +249,18 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const resendForgotResponse = await app.request(
+
+    expect(response.status).toBe(202);
+    expect(captchaService.verify).toHaveBeenCalled();
+    expect(authService.forgotPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "owner-one" }),
+    );
+  });
+
+  it("resends a forgot-password code", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/forgot/resend")}`,
       {
         method: "POST",
@@ -260,7 +271,17 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const forgotUsernameResponse = await app.request(
+
+    expect(response.status).toBe(202);
+    expect(authService.resendForgotPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "owner-one" }),
+    );
+  });
+
+  it("normalizes the email on a forgot-username request", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/username/forgot")}`,
       {
         method: "POST",
@@ -271,7 +292,17 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const resetResponse = await app.request(
+
+    expect(response.status).toBe(202);
+    expect(authService.forgotUsername).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "owner1@rentify.local" }),
+    );
+  });
+
+  it("resets a password with a recovery code", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/reset")}`,
       {
         method: "POST",
@@ -284,7 +315,21 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const verifyEmailResponse = await app.request(
+
+    expect(response.status).toBe(200);
+    expect(authService.resetPassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "owner-one",
+        code: "123456",
+        deviceId: "reset-device",
+      }),
+    );
+  });
+
+  it("verifies an email address with a verification code", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/email/verify")}`,
       {
         method: "POST",
@@ -296,7 +341,21 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const resendVerifyResponse = await app.request(
+
+    expect(response.status).toBe(200);
+    expect(authService.verifyEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "user@example.com",
+        code: "123456",
+        deviceId: "verify-device",
+      }),
+    );
+  });
+
+  it("resends an email verification code", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/email/resend")}`,
       {
         method: "POST",
@@ -307,18 +366,36 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const unlockResponse = await app.request(
+
+    expect(response.status).toBe(202);
+    expect(authService.resendVerificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "user@example.com" }),
+    );
+  });
+
+  it("unlocks a locked local login", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/unlock")}`,
       {
         method: "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify({
-          email: "USER@example.com",
-          code: "654321",
-        }),
+        body: JSON.stringify({ email: "USER@example.com", code: "654321" }),
       },
     );
-    const resendUnlockResponse = await app.request(
+
+    expect(response.status).toBe(200);
+    expect(authService.unlockLocalLogin).toHaveBeenCalledWith({
+      email: "user@example.com",
+      code: "654321",
+    });
+  });
+
+  it("resends an unlock code", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/unlock/resend")}`,
       {
         method: "POST",
@@ -329,7 +406,17 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const changePasswordResponse = await app.request(
+
+    expect(response.status).toBe(202);
+    expect(authService.resendUnlockLocalLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "user@example.com" }),
+    );
+  });
+
+  it("changes a password for the signed-in user", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/password/change")}`,
       {
         method: "POST",
@@ -340,72 +427,8 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const refreshResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/refresh")}`,
-      {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify({
-          refreshToken: "refresh-body-token",
-        }),
-      },
-    );
 
-    expect(forgotResponse.status).toBe(202);
-    expect(resendForgotResponse.status).toBe(202);
-    expect(forgotUsernameResponse.status).toBe(202);
-    expect(resetResponse.status).toBe(200);
-    expect(verifyEmailResponse.status).toBe(200);
-    expect(resendVerifyResponse.status).toBe(202);
-    expect(unlockResponse.status).toBe(200);
-    expect(resendUnlockResponse.status).toBe(202);
-    expect(changePasswordResponse.status).toBe(200);
-    expect(refreshResponse.status).toBe(200);
-
-    expect(captchaService.verify).toHaveBeenCalledTimes(5);
-    expect(authService.forgotPassword).toHaveBeenCalledWith(
-      expect.objectContaining({
-        username: "owner-one",
-      }),
-    );
-    expect(authService.forgotUsername).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "owner1@rentify.local",
-      }),
-    );
-    expect(authService.resendForgotPassword).toHaveBeenCalledWith(
-      expect.objectContaining({
-        username: "owner-one",
-      }),
-    );
-    expect(authService.resetPassword).toHaveBeenCalledWith(
-      expect.objectContaining({
-        username: "owner-one",
-        code: "123456",
-        deviceId: "reset-device",
-      }),
-    );
-    expect(authService.verifyEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "user@example.com",
-        code: "123456",
-        deviceId: "verify-device",
-      }),
-    );
-    expect(authService.resendVerificationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "user@example.com",
-      }),
-    );
-    expect(authService.unlockLocalLogin).toHaveBeenCalledWith({
-      email: "user@example.com",
-      code: "654321",
-    });
-    expect(authService.resendUnlockLocalLogin).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "user@example.com",
-      }),
-    );
+    expect(response.status).toBe(200);
     expect(authService.changePassword).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
@@ -413,17 +436,30 @@ describe("Auth routes integration", () => {
         newPassword: "NewPassword1!",
       }),
     );
+  });
+
+  it("refreshes a session from a refresh token in the body", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/refresh")}`,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ refreshToken: "refresh-body-token" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
     expect(authService.refresh).toHaveBeenCalledWith(
-      expect.objectContaining({
-        refreshToken: "refresh-body-token",
-      }),
+      expect.objectContaining({ refreshToken: "refresh-body-token" }),
     );
   });
 
-  it("covers apple oauth, provider linking, provider listing, device, and logout-adjacent auth endpoints", async () => {
+  it("authenticates through the Apple OAuth provider", async () => {
     const { app, authService } = createApp();
 
-    const appleResponse = await app.request(
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/oauth/apple")}`,
       {
         method: "POST",
@@ -434,13 +470,34 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const linkedProvidersResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/oauth/providers")}`,
-      {
-        headers: jsonHeaders("user-token"),
-      },
+
+    expect(response.status).toBe(200);
+    expect(authService.appleAuthenticate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idToken: "apple-id-token",
+        nonce: "apple-nonce",
+      }),
     );
-    const linkProviderResponse = await app.request(
+  });
+
+  it("lists the signed-in user's linked OAuth providers", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/providers")}`,
+      { headers: jsonHeaders("user-token") },
+    );
+
+    expect(response.status).toBe(200);
+    expect(authService.linkedOAuthProviders).toHaveBeenCalledWith({
+      userId: "user-1",
+    });
+  });
+
+  it("links an OAuth provider to the signed-in user", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/oauth/google/link")}`,
       {
         method: "POST",
@@ -456,54 +513,8 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const unlinkProviderResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/oauth/google")}`,
-      {
-        method: "DELETE",
-        headers: jsonHeaders("user-token"),
-      },
-    );
-    const deviceVerifyResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/device/verify")}`,
-      {
-        method: "POST",
-        headers: jsonHeaders("user-token"),
-      },
-    );
-    const devicesResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/devices")}`,
-      {
-        headers: jsonHeaders("user-token"),
-      },
-    );
-    const removeDeviceResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/devices/remove")}`,
-      {
-        method: "DELETE",
-        headers: jsonHeaders("user-token"),
-        body: JSON.stringify({
-          deviceId: "device-2",
-        }),
-      },
-    );
 
-    expect(appleResponse.status).toBe(200);
-    expect(linkedProvidersResponse.status).toBe(200);
-    expect(linkProviderResponse.status).toBe(200);
-    expect(unlinkProviderResponse.status).toBe(200);
-    expect(deviceVerifyResponse.status).toBe(200);
-    expect(devicesResponse.status).toBe(200);
-    expect(removeDeviceResponse.status).toBe(200);
-
-    expect(authService.appleAuthenticate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        idToken: "apple-id-token",
-        nonce: "apple-nonce",
-      }),
-    );
-    expect(authService.linkedOAuthProviders).toHaveBeenCalledWith({
-      userId: "user-1",
-    });
+    expect(response.status).toBe(200);
     expect(authService.linkOAuthProvider).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
@@ -511,40 +522,92 @@ describe("Auth routes integration", () => {
         code: "oauth-code",
       }),
     );
+  });
+
+  it("unlinks an OAuth provider from the signed-in user", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+      { method: "DELETE", headers: jsonHeaders("user-token") },
+    );
+
+    expect(response.status).toBe(200);
     expect(authService.unlinkOAuthProvider).toHaveBeenCalledWith({
       userId: "user-1",
       provider: "google",
     });
+  });
+
+  it("verifies the current device", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/device/verify")}`,
+      { method: "POST", headers: jsonHeaders("user-token") },
+    );
+
+    expect(response.status).toBe(200);
     expect(authService.deviceVerify).toHaveBeenCalledWith(
       expect.objectContaining({
-        auth: expect.objectContaining({
-          sub: "user-1",
-        }),
+        auth: expect.objectContaining({ sub: "user-1" }),
       }),
     );
+  });
+
+  it("lists the signed-in user's known devices", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/devices")}`,
+      { headers: jsonHeaders("user-token") },
+    );
+
+    expect(response.status).toBe(200);
     expect(authService.devices).toHaveBeenCalledWith(
       expect.objectContaining({
-        auth: expect.objectContaining({
-          sub: "user-1",
-        }),
+        auth: expect.objectContaining({ sub: "user-1" }),
       }),
     );
+  });
+
+  it("removes a known device", async () => {
+    const { app, authService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/devices/remove")}`,
+      {
+        method: "DELETE",
+        headers: jsonHeaders("user-token"),
+        body: JSON.stringify({ deviceId: "device-2" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
     expect(authService.removeKnownDevice).toHaveBeenCalledWith({
       userId: "user-1",
       deviceId: "device-2",
     });
   });
 
-  it("covers personal access token list, create, and revoke endpoints", async () => {
+  it("lists the signed-in user's personal access tokens", async () => {
     const { app, personalAccessTokenService } = createApp();
 
-    const listResponse = await app.request(
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/personal-access-tokens")}`,
-      {
-        headers: jsonHeaders("user-token"),
-      },
+      { headers: jsonHeaders("user-token") },
     );
-    const createResponse = await app.request(
+
+    expect(response.status).toBe(200);
+    expect(personalAccessTokenService.listForUser).toHaveBeenCalledWith(
+      "user-1",
+    );
+  });
+
+  it("creates a personal access token with scopes and an expiry", async () => {
+    const { app, personalAccessTokenService } = createApp();
+
+    const response = await app.request(
       `http://rent.test${buildApiPath("/auth/personal-access-tokens")}`,
       {
         method: "POST",
@@ -556,20 +619,8 @@ describe("Auth routes integration", () => {
         }),
       },
     );
-    const revokeResponse = await app.request(
-      `http://rent.test${buildApiPath("/auth/personal-access-tokens/pat-1")}`,
-      {
-        method: "DELETE",
-        headers: jsonHeaders("user-token"),
-      },
-    );
 
-    expect(listResponse.status).toBe(200);
-    expect(createResponse.status).toBe(201);
-    expect(revokeResponse.status).toBe(200);
-    expect(personalAccessTokenService.listForUser).toHaveBeenCalledWith(
-      "user-1",
-    );
+    expect(response.status).toBe(201);
     expect(personalAccessTokenService.create).toHaveBeenCalledWith({
       userId: "user-1",
       name: "Rentify MCP",
@@ -577,6 +628,17 @@ describe("Auth routes integration", () => {
       expiresAt: undefined,
       expiresInDays: 30,
     });
+  });
+
+  it("revokes a personal access token by id", async () => {
+    const { app, personalAccessTokenService } = createApp();
+
+    const response = await app.request(
+      `http://rent.test${buildApiPath("/auth/personal-access-tokens/pat-1")}`,
+      { method: "DELETE", headers: jsonHeaders("user-token") },
+    );
+
+    expect(response.status).toBe(200);
     expect(personalAccessTokenService.revoke).toHaveBeenCalledWith({
       userId: "user-1",
       tokenId: "pat-1",

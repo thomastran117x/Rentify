@@ -6,11 +6,9 @@
     "an uncovered or smoke-only operation. Exceptions are keyed on operationId so a path",
     "rename surfaces as stale rather than silently continuing to suppress."
   ],
-  "mode": "warn",
-  "failOnUnresolvedSites": false,
-  "failOnStaleExceptions": false,
-  "smokeOnlyTestFiles": [
-    "src/test/features/controller-coverage/registered-controllers.routes.integration.test.ts"
-  ],
+  "mode": "enforce",
+  "failOnUnresolvedSites": true,
+  "failOnStaleExceptions": true,
+  "smokeOnlyTestFiles": [],
   "exceptions": []
 }
