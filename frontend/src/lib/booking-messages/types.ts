@@ -21,6 +21,13 @@ export interface BookingMessagesListResult {
   pagination: Pagination;
   /** Unread messages addressed to the requesting side, across the whole thread. */
   unreadCount: number;
+  /**
+   * Whether this viewer may send and mark read, resolved by the API against
+   * the booking's organization. Authoritative — do not re-derive it from the
+   * session's active organization, which is wrong for a manager who belongs to
+   * several organizations.
+   */
+  canWrite: boolean;
 }
 
 export interface MarkBookingMessagesReadResult {

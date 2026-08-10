@@ -12626,6 +12626,7 @@ paths:
                     hasNextPage: false
                     hasPreviousPage: false
                   unreadCount: 1
+                  canWrite: true
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -17414,6 +17415,7 @@ components:
         - messages
         - pagination
         - unreadCount
+        - canWrite
       properties:
         messages:
           type: array
@@ -17425,6 +17427,9 @@ components:
           type: integer
           minimum: 0
           description: Unread messages addressed to the requesting side across the whole thread.
+        canWrite:
+          type: boolean
+          description: 'Whether the requesting user may send messages and mark the thread read. Resolved against the booking''s organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.'
     MarkBookingMessagesReadResult:
       type: object
       required:

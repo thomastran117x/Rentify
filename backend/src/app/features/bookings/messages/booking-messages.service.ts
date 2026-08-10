@@ -2,7 +2,10 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import type { BookingParticipantSide } from "@/features/bookings/booking-participants";
-import { resolveBookingParticipant } from "@/features/bookings/booking-participants";
+import {
+  resolveBookingParticipant,
+  resolveBookingParticipantAccess,
+} from "@/features/bookings/booking-participants";
 import type { BookingRequestRecord } from "@/features/bookings/bookings.model";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
 import type {
@@ -71,11 +74,13 @@ export class BookingMessagesService {
     const bookingRequest = await this.requireBookingRequest(
       input.bookingRequestId,
     );
-    const side = await resolveBookingParticipant(
+    // Resolved rather than asserted: a read-only member is allowed here, and
+    // the resulting capability is what the client uses to decide whether to
+    // offer a composer.
+    const { side, canManage } = await resolveBookingParticipantAccess(
       this.organizationAccessService,
       bookingRequest,
       input.actorUserId,
-      "read",
     );
 
     const [page, unreadCount] = await Promise.all([
@@ -96,6 +101,7 @@ export class BookingMessagesService {
       messages: page.messages,
       pagination: page.pagination,
       unreadCount,
+      canWrite: canManage,
     };
   }
 

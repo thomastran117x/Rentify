@@ -27,12 +27,6 @@ interface PanelBanner {
 interface BookingMessagesPanelProps {
   bookingRequestId: string;
   currentUserId: string;
-  /**
-   * Whether this viewer may send and mark read. Organization `operator`s can
-   * read the thread but are rejected on both writes, so they get a read-only
-   * view rather than controls that can only fail.
-   */
-  canWrite: boolean;
 }
 
 function bannerClasses(tone: PanelBanner["tone"]): string {
@@ -146,11 +140,14 @@ export function MessageComposer({
 export function BookingMessagesPanel({
   bookingRequestId,
   currentUserId,
-  canWrite,
 }: BookingMessagesPanelProps) {
   const [messages, setMessages] = useState<BookingMessageRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Comes from the API rather than the session: only the server knows the
+  // viewer's membership in this booking's organization. Defaults to false so
+  // no composer is offered before the first load resolves.
+  const [canWrite, setCanWrite] = useState(false);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -178,6 +175,7 @@ export function BookingMessagesPanel({
           setMessages(result.messages);
           setPagination(result.pagination);
           setUnreadCount(result.unreadCount);
+          setCanWrite(result.canWrite);
         });
       } catch (error) {
         setBanner({
@@ -259,9 +257,12 @@ export function BookingMessagesPanel({
           return;
         }
 
+        // A read event marks the messages the *other* side authored. Keying
+        // off the current user instead would flag your own messages as seen
+        // when you, or anyone else on your side, opened the thread.
         setMessages((previous) =>
           previous.map((message) =>
-            message.authorId === currentUserId && !message.readAt
+            message.authorSide !== event.readerSide && !message.readAt
               ? { ...message, readAt: event.readAt }
               : message,
           ),

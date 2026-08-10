@@ -77,6 +77,12 @@ export interface BookingMessagesListResult {
   pagination: BookingMessagesPagination;
   /** Unread messages addressed to the requesting side, across the whole thread. */
   unreadCount: number;
+  /**
+   * Whether the requesting user may send and mark read. Authoritative: it is
+   * resolved against the booking's organization, so a manager of several
+   * organizations keeps write access on a booking owned by any of them.
+   */
+  canWrite: boolean;
 }
 
 export interface MarkBookingMessagesReadResult {

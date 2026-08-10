@@ -6960,6 +6960,7 @@ function buildOperations(): OperationDefinition[] {
               hasPreviousPage: false,
             },
             unreadCount: 1,
+            canWrite: true,
           },
           "Successful response.",
           {
@@ -10170,7 +10171,7 @@ function buildComponents(): Record<string, unknown> {
       },
       BookingMessagesListResult: {
         type: "object",
-        required: ["messages", "pagination", "unreadCount"],
+        required: ["messages", "pagination", "unreadCount", "canWrite"],
         properties: {
           messages: {
             type: "array",
@@ -10182,6 +10183,11 @@ function buildComponents(): Record<string, unknown> {
             minimum: 0,
             description:
               "Unread messages addressed to the requesting side across the whole thread.",
+          },
+          canWrite: {
+            type: "boolean",
+            description:
+              "Whether the requesting user may send messages and mark the thread read. Resolved against the booking's organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.",
           },
         },
       },

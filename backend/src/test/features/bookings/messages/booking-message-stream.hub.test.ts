@@ -88,6 +88,68 @@ describe("BookingMessageStreamHub", () => {
     await hub.dispose();
   });
 
+  it("makes every concurrent subscriber wait for the shared SUBSCRIBE", async () => {
+    const { hub, subscriber } = createHub();
+    let completeSubscribe: () => void = () => {};
+    subscriber.subscribe.mockImplementationOnce(
+      async (channel: string, handler: (message: string) => void) =>
+        new Promise<void>((resolve) => {
+          completeSubscribe = () => {
+            subscriber.handlers.set(channel, handler);
+            resolve();
+          };
+        }),
+    );
+
+    let firstSettled = false;
+    let secondSettled = false;
+    const first = hub.subscribe(BOOKING_ID, jest.fn()).then(() => {
+      firstSettled = true;
+    });
+    const second = hub.subscribe(BOOKING_ID, jest.fn()).then(() => {
+      secondSettled = true;
+    });
+
+    // Wait for the shared SUBSCRIBE to be in flight, then let the microtask
+    // queue drain so an early-resolving caller would have settled by now.
+    while (subscriber.subscribe.mock.calls.length === 0) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // The second caller must not resolve early: its handler would emit `ready`
+    // before Redis is subscribed and lose anything published in that window.
+    expect(firstSettled).toBe(false);
+    expect(secondSettled).toBe(false);
+
+    completeSubscribe();
+    await Promise.all([first, second]);
+
+    expect(firstSettled).toBe(true);
+    expect(secondSettled).toBe(true);
+    expect(subscriber.subscribe).toHaveBeenCalledTimes(1);
+
+    await hub.dispose();
+  });
+
+  it("resubscribes after every listener released the channel", async () => {
+    const { hub, subscriber } = createHub();
+
+    const release = await hub.subscribe(BOOKING_ID, jest.fn());
+    await release();
+    expect(subscriber.unsubscribe).toHaveBeenCalledWith(CHANNEL);
+
+    const listener = jest.fn();
+    await hub.subscribe(BOOKING_ID, listener);
+
+    // The settled subscription promise must not be reused after teardown.
+    expect(subscriber.subscribe).toHaveBeenCalledTimes(2);
+    subscriber.emit(CHANNEL, JSON.stringify(createdEvent));
+    expect(listener).toHaveBeenCalledWith(createdEvent);
+
+    await hub.dispose();
+  });
+
   it("creates a single connection when first subscribes race", async () => {
     const { hub, duplicate } = createHub();
 

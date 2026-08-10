@@ -87,6 +87,12 @@ function createService(
         throw options.manageError;
       }
     }),
+    canManage: jest.fn((role: string) => {
+      if (options.manageError) {
+        return false;
+      }
+      return role === "primary_manager" || role === "manager";
+    }),
   } as unknown as OrganizationAccessService;
 
   const organizationsRepository = {
@@ -169,10 +175,7 @@ describe("BookingMessagesService", () => {
     });
 
     it("rejects an operator on the organization side", async () => {
-      const manageError = new ForbiddenError(
-        "You do not have permission to manage this booking request.",
-      );
-      const { service } = createService({ role: "operator", manageError });
+      const { service } = createService({ role: "operator" });
 
       await expect(
         service.send({
@@ -180,7 +183,10 @@ describe("BookingMessagesService", () => {
           authorId: "operator-1",
           body: "hello",
         }),
-      ).rejects.toBe(manageError);
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "You do not have permission to manage this booking request.",
+      });
     });
 
     it("still resolves when the stream publish fails", async () => {
@@ -382,6 +388,38 @@ describe("BookingMessagesService", () => {
       );
     });
 
+    it("reports the write capability so the client can mirror the API", async () => {
+      const renter = createService();
+      await expect(
+        renter.service.list({
+          bookingRequestId: BOOKING_ID,
+          actorUserId: RENTER_ID,
+          page: 1,
+          pageSize: 20,
+        }),
+      ).resolves.toMatchObject({ canWrite: true });
+
+      const manager = createService({ role: "manager" });
+      await expect(
+        manager.service.list({
+          bookingRequestId: BOOKING_ID,
+          actorUserId: "manager-2",
+          page: 1,
+          pageSize: 20,
+        }),
+      ).resolves.toMatchObject({ canWrite: true });
+
+      const operator = createService({ role: "operator" });
+      await expect(
+        operator.service.list({
+          bookingRequestId: BOOKING_ID,
+          actorUserId: "operator-1",
+          page: 1,
+          pageSize: 20,
+        }),
+      ).resolves.toMatchObject({ canWrite: false });
+    });
+
     it("rejects a non-party", async () => {
       const membershipError = new ForbiddenError(
         "You do not have access to this booking request.",
@@ -453,14 +491,14 @@ describe("BookingMessagesService", () => {
     });
 
     it("requires a manager role on the organization side", async () => {
-      const manageError = new ForbiddenError(
-        "You do not have permission to manage this booking request.",
-      );
-      const { service } = createService({ role: "operator", manageError });
+      const { service } = createService({ role: "operator" });
 
-      await expect(service.markRead(BOOKING_ID, "operator-1")).rejects.toBe(
-        manageError,
-      );
+      await expect(
+        service.markRead(BOOKING_ID, "operator-1"),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "You do not have permission to manage this booking request.",
+      });
     });
   });
 

@@ -1,5 +1,8 @@
 import ForbiddenError from "@/errors/http/forbidden.error";
-import { resolveBookingParticipant } from "@/features/bookings/booking-participants";
+import {
+  resolveBookingParticipant,
+  resolveBookingParticipantAccess,
+} from "@/features/bookings/booking-participants";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 const bookingRequest = {
@@ -25,13 +28,19 @@ function createAccessService(options?: {
     }
   });
 
+  const canManage = jest.fn(
+    (role: string) => role === "primary_manager" || role === "manager",
+  );
+
   return {
     service: {
       requireMembership,
       assertCanManage,
+      canManage,
     } as unknown as OrganizationAccessService,
     requireMembership,
     assertCanManage,
+    canManage,
   };
 }
 
@@ -70,7 +79,7 @@ describe("resolveBookingParticipant", () => {
   });
 
   it("requires a manager role for manage access", async () => {
-    const { service, assertCanManage } = createAccessService({
+    const { service, canManage } = createAccessService({
       role: "manager",
     });
 
@@ -78,17 +87,11 @@ describe("resolveBookingParticipant", () => {
       resolveBookingParticipant(service, bookingRequest, "manager-1", "manage"),
     ).resolves.toBe("owner");
 
-    expect(assertCanManage).toHaveBeenCalledWith(
-      { organizationId: "org-1", role: "manager" },
-      "You do not have permission to manage this booking request.",
-    );
+    expect(canManage).toHaveBeenCalledWith("manager");
   });
 
-  it("propagates the forbidden error when the member cannot manage", async () => {
-    const manageError = new ForbiddenError(
-      "You do not have permission to manage this booking request.",
-    );
-    const { service } = createAccessService({ role: "operator", manageError });
+  it("rejects a member who cannot manage", async () => {
+    const { service } = createAccessService({ role: "operator" });
 
     await expect(
       resolveBookingParticipant(
@@ -97,7 +100,59 @@ describe("resolveBookingParticipant", () => {
         "operator-1",
         "manage",
       ),
-    ).rejects.toBe(manageError);
+    ).rejects.toMatchObject({
+      status: 403,
+      message: "You do not have permission to manage this booking request.",
+    });
+  });
+
+  it("reports manage capability without throwing for a read-only member", async () => {
+    const { service, assertCanManage } = createAccessService({
+      role: "operator",
+    });
+
+    await expect(
+      resolveBookingParticipantAccess(service, bookingRequest, "operator-1"),
+    ).resolves.toEqual({ side: "owner", canManage: false });
+
+    // The capability query must never throw; only the asserting wrapper does.
+    expect(assertCanManage).not.toHaveBeenCalled();
+  });
+
+  it("reports manage capability for a manager and for the renter", async () => {
+    const manager = createAccessService({ role: "manager" });
+    await expect(
+      resolveBookingParticipantAccess(
+        manager.service,
+        bookingRequest,
+        "manager-1",
+      ),
+    ).resolves.toEqual({ side: "owner", canManage: true });
+
+    const renter = createAccessService();
+    await expect(
+      resolveBookingParticipantAccess(
+        renter.service,
+        bookingRequest,
+        "renter-1",
+      ),
+    ).resolves.toEqual({ side: "renter", canManage: true });
+  });
+
+  it("resolves membership against the booking organization, not an active one", async () => {
+    // A manager of several organizations keeps write access on a booking owned
+    // by any of them, so the lookup is keyed by the booking's organization.
+    const { service, requireMembership } = createAccessService({
+      role: "manager",
+    });
+
+    await resolveBookingParticipantAccess(service, bookingRequest, "manager-1");
+
+    expect(requireMembership).toHaveBeenCalledWith(
+      "manager-1",
+      "org-1",
+      "You do not have access to this booking request.",
+    );
   });
 
   it("propagates the forbidden error for a non-member", async () => {

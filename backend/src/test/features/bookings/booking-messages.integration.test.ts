@@ -111,10 +111,12 @@ describe("Booking messages persistence integration", () => {
     const ownerList = await readData<{
       messages: Array<Record<string, unknown>>;
       unreadCount: number;
+      canWrite: boolean;
     }>(ownerListResponse);
     expect(ownerList.messages).toHaveLength(1);
     expect(ownerList.messages[0]).toMatchObject({ authorSide: "renter" });
     expect(ownerList.unreadCount).toBe(1);
+    expect(ownerList.canWrite).toBe(true);
 
     const replyResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
@@ -199,6 +201,10 @@ describe("Booking messages persistence integration", () => {
       { headers: operator.headers() },
     );
     expect(listResponse.status).toBe(200);
+    // The capability the client renders from must match what the API enforces.
+    expect(await readData<{ canWrite: boolean }>(listResponse)).toMatchObject({
+      canWrite: false,
+    });
 
     const sendResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,

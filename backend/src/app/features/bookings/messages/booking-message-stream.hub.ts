@@ -36,6 +36,9 @@ export class BookingMessageStreamHub {
     Set<BookingMessageStreamListener>
   >();
 
+  /** In-flight or settled SUBSCRIBE per channel, awaited by every subscriber. */
+  private readonly channelSubscriptions = new Map<string, Promise<void>>();
+
   private subscriber: SubscriberClient | null = null;
   private connecting: Promise<SubscriberClient> | null = null;
   private readonly client?: RedisClient;
@@ -58,7 +61,6 @@ export class BookingMessageStreamHub {
     const client = await this.ensureSubscriber();
 
     let channelListeners = this.listeners.get(channel);
-    const isFirstListener = !channelListeners;
 
     if (!channelListeners) {
       channelListeners = new Set();
@@ -67,20 +69,33 @@ export class BookingMessageStreamHub {
 
     channelListeners.add(listener);
 
-    if (isFirstListener) {
-      try {
-        await client.subscribe(channel, (message: string) => {
+    // Every caller awaits the same in-flight SUBSCRIBE, not just the one that
+    // started it. Otherwise a second subscriber for a channel already being
+    // subscribed returns immediately, its handler emits `ready`, and anything
+    // published before Redis finishes subscribing is lost to both the stream
+    // and the re-sync that `ready` triggers.
+    let pending = this.channelSubscriptions.get(channel);
+
+    if (!pending) {
+      pending = client
+        .subscribe(channel, (message: string) => {
           this.dispatch(channel, message);
-        });
-      } catch (error) {
-        channelListeners.delete(listener);
+        })
+        .then(() => undefined);
+      this.channelSubscriptions.set(channel, pending);
+    }
 
-        if (channelListeners.size === 0) {
-          this.listeners.delete(channel);
-        }
+    try {
+      await pending;
+    } catch (error) {
+      channelListeners.delete(listener);
 
-        throw error;
+      if (channelListeners.size === 0) {
+        this.listeners.delete(channel);
+        this.channelSubscriptions.delete(channel);
       }
+
+      throw error;
     }
 
     let released = false;
@@ -102,6 +117,7 @@ export class BookingMessageStreamHub {
 
   async dispose(): Promise<void> {
     this.listeners.clear();
+    this.channelSubscriptions.clear();
 
     const client = this.subscriber;
     this.subscriber = null;
@@ -148,6 +164,7 @@ export class BookingMessageStreamHub {
     }
 
     this.listeners.delete(channel);
+    this.channelSubscriptions.delete(channel);
 
     try {
       await this.subscriber?.unsubscribe(channel);

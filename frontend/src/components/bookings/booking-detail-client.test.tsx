@@ -139,59 +139,7 @@ describe("BookingDetailClient", () => {
       expect.objectContaining({
         bookingRequestId: "booking-1",
         currentUserId: "renter-1",
-        canWrite: true,
       }),
-    );
-  });
-
-  it("grants write access to a manager of the owning organization", async () => {
-    useAuthMock.mockReturnValue({
-      status: "authenticated",
-      session: buildSession({
-        id: "manager-1",
-        activeOrganization: { id: "org-1", role: "manager" },
-      }),
-    });
-
-    renderClient();
-
-    await screen.findByText("Sunny loft workspace");
-    expect(panelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canWrite: true }),
-    );
-  });
-
-  it("withholds write access from an operator", async () => {
-    useAuthMock.mockReturnValue({
-      status: "authenticated",
-      session: buildSession({
-        id: "operator-1",
-        activeOrganization: { id: "org-1", role: "operator" },
-      }),
-    });
-
-    renderClient();
-
-    await screen.findByText("Sunny loft workspace");
-    expect(panelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canWrite: false }),
-    );
-  });
-
-  it("withholds write access from a manager of a different organization", async () => {
-    useAuthMock.mockReturnValue({
-      status: "authenticated",
-      session: buildSession({
-        id: "manager-2",
-        activeOrganization: { id: "org-9", role: "manager" },
-      }),
-    });
-
-    renderClient();
-
-    await screen.findByText("Sunny loft workspace");
-    expect(panelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canWrite: false }),
     );
   });
 

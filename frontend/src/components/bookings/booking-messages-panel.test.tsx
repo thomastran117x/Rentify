@@ -54,6 +54,7 @@ function buildList(overrides: Record<string, unknown> = {}) {
       hasPreviousPage: false,
     },
     unreadCount: 0,
+    canWrite: true,
     ...overrides,
   };
 }
@@ -66,12 +67,11 @@ function captureStreamHandlers() {
   };
 }
 
-function renderPanel(overrides: { canWrite?: boolean } = {}) {
+function renderPanel() {
   return render(
     <BookingMessagesPanel
       bookingRequestId="booking-1"
       currentUserId={CURRENT_USER_ID}
-      canWrite={overrides.canWrite ?? true}
     />,
   );
 }
@@ -258,6 +258,24 @@ describe("BookingMessagesPanel", () => {
     expect(screen.getAllByText("Streamed reply")).toHaveLength(1);
   });
 
+  it("ignores a read event from the message author's own side", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    // The current user is the renter, so a renter-side read event marks the
+    // owner's messages — never the renter's own.
+    captureStreamHandlers().onEvent({
+      type: "messages.read",
+      bookingRequestId: "booking-1",
+      readerSide: "renter",
+      readAt: "2026-08-10T12:10:00.000Z",
+      markedCount: 1,
+    });
+
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    expect(screen.queryByText("Seen")).not.toBeInTheDocument();
+  });
+
   it("flips the seen indicator on a read event", async () => {
     renderPanel();
     await screen.findByText("Is an early pickup possible?");
@@ -311,7 +329,8 @@ describe("BookingMessagesPanel", () => {
   });
 
   it("renders a read-only notice instead of the composer for viewers who cannot write", async () => {
-    renderPanel({ canWrite: false });
+    listMock.mockResolvedValue(buildList({ canWrite: false }));
+    renderPanel();
 
     await screen.findByText("Is an early pickup possible?");
 
@@ -323,7 +342,8 @@ describe("BookingMessagesPanel", () => {
   });
 
   it("never calls mark-read for a read-only viewer", async () => {
-    renderPanel({ canWrite: false });
+    listMock.mockResolvedValue(buildList({ canWrite: false }));
+    renderPanel();
 
     await screen.findByText("Is an early pickup possible?");
     window.dispatchEvent(new Event("focus"));
