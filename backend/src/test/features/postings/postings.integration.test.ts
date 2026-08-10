@@ -965,6 +965,31 @@ describe("Postings persistence integration", () => {
       expect.objectContaining({ query: "loft", family: "place" }),
     );
 
+    // Seeded organization ids are well-formed 8-4-4-4-12 identifiers with
+    // zeroed RFC 4122 version and variant bits. An RFC-strict check rejected
+    // them at the route, which made the organization filter unusable against
+    // seeded data.
+    const seededOrganization =
+      await persistenceApp.prisma.organization.findFirstOrThrow();
+
+    const organizationFilterResponse = await request(
+      `/postings?organizationId=${seededOrganization.id}&sort=newest&page=1&pageSize=20`,
+    );
+    expect(organizationFilterResponse.status).toBe(200);
+    expect(
+      persistenceApp.stubs.postingsPublicSearchService.searchPublic,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: seededOrganization.id,
+        sort: "newest",
+      }),
+    );
+
+    const malformedOrganizationFilterResponse = await request(
+      "/postings?organizationId=org-1",
+    );
+    expect(malformedOrganizationFilterResponse.status).toBe(400);
+
     const detailResponse = await request(`/postings/${publishedPosting.id}`);
     expect(detailResponse.status).toBe(200);
     await expect(detailResponse.json()).resolves.toMatchObject({
