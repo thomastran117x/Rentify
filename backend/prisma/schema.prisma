@@ -31,6 +31,7 @@ model User {
   postingReviews PostingReview[] @relation("PostingReviewAuthor")
   savedPostings SavedPosting[] @relation("SavedPostingUser")
   bookingRequestsAsRenter BookingRequest[] @relation("BookingRequestRenter")
+  bookingMessages BookingMessage[] @relation("BookingMessageAuthor")
   rentingsAsRenter Renting[] @relation("RentingRenter")
   rentingDisputesOpened RentingDispute[] @relation("RentingDisputeOpenedBy")
   paymentsAsRenter Payment[] @relation("PaymentRenter")
@@ -501,6 +502,7 @@ model BookingRequest {
   holdBlock       PostingAvailabilityBlock? @relation("BookingRequestHold", fields: [holdBlockId], references: [id], onDelete: SetNull)
   renting         Renting?
   payment         Payment?
+  messages        BookingMessage[]
 
   @@index([postingId, status, startAt])
   @@index([postingId, holdExpiresAt])
@@ -509,6 +511,25 @@ model BookingRequest {
   @@index([renterId, status, createdAt])
   @@index([status, holdExpiresAt])
   @@map("booking_requests")
+}
+
+model BookingMessage {
+  id               String         @id @db.VarChar(36)
+  bookingRequestId String         @map("booking_request_id") @db.VarChar(36)
+  authorId         String         @map("author_id") @db.VarChar(36)
+  body             String         @db.VarChar(2000)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(6)
+  readAt           DateTime?      @map("read_at") @db.DateTime(6)
+  bookingRequest   BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  author           User           @relation("BookingMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  // History pagination: WHERE booking_request_id = ? ORDER BY created_at DESC.
+  @@index([bookingRequestId, createdAt])
+  // Unread count and mark-read share this predicate; read_at leads because
+  // `read_at IS NULL` is the more selective term in a healthy thread.
+  @@index([bookingRequestId, readAt, authorId])
+  @@index([authorId])
+  @@map("booking_messages")
 }
 
 model Renting {

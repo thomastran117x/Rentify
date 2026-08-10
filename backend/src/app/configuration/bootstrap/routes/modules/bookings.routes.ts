@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BookingsController } from "@/features/bookings/bookings.controller";
+import type { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const bookingsRouteModule: RouteModule = {
@@ -94,6 +95,34 @@ export const bookingsRouteModule: RouteModule = {
       resolveHandler<BookingsController>(
         containerTokens.bookingsController,
         "cancel",
+      ),
+    );
+    app.get(
+      "/booking-requests/:id/messages",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "list",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/messages",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "send",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/messages/read",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "markRead",
+      ),
+    );
+    app.get(
+      "/booking-requests/:id/messages/stream",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "stream",
       ),
     );
   },

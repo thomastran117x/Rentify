@@ -216,6 +216,26 @@ function isPaymentMutationRoute(request: Request, pathname: string): boolean {
   );
 }
 
+function isBookingMessageWriteRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return (
+    request.method === "POST" &&
+    /^\/booking-requests\/[^/]+\/messages(?:\/read)?$/.test(pathname)
+  );
+}
+
+function isBookingMessageStreamRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return (
+    request.method === "GET" &&
+    /^\/booking-requests\/[^/]+\/messages\/stream$/.test(pathname)
+  );
+}
+
 function isPaymentWebhookRoute(request: Request, pathname: string): boolean {
   return request.method === "POST" && pathname === "/payments/webhooks/square";
 }
@@ -272,6 +292,35 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
       windowSeconds: 60,
       bucketCapacity: 12,
       refillTokensPerSecond: 12 / 60,
+    });
+  }
+
+  if (isBookingMessageStreamRoute(request, pathname)) {
+    // Sized for the client's reconnect ladder (1/2/4/8/15s then holding at
+    // 15s): a healthy client uses well under 20 attempts across five minutes
+    // even during a full outage, while a reconnect storm trips this.
+    return createPolicy(request, {
+      id: "booking-messages-stream",
+      bucketKey: `${request.method}:booking-messages-stream`,
+      strategy: "sliding-window",
+      limit: 20,
+      windowSeconds: 300,
+      bucketCapacity: 20,
+      refillTokensPerSecond: 20 / 300,
+    });
+  }
+
+  if (isBookingMessageWriteRoute(request, pathname)) {
+    // Sends and focus-triggered mark-reads share this bucket. Far above a
+    // human chat rate, and tighter than the 60/min default it replaces.
+    return createPolicy(request, {
+      id: "booking-messages-write",
+      bucketKey: `${request.method}:booking-messages-write`,
+      strategy: "sliding-window",
+      limit: 40,
+      windowSeconds: 60,
+      bucketCapacity: 40,
+      refillTokensPerSecond: 40 / 60,
     });
   }
 

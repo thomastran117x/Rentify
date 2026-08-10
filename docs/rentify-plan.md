@@ -382,6 +382,11 @@ Messaging and booking updates will benefit from realtime support. Recommendation
 
 - Start with REST + polling for MVP if speed is critical.
 - Add WebSocket or SSE for chat, booking status changes, and notifications once the core flows are stable.
+  - Done for booking request messages: `GET /booking-requests/{id}/messages/stream` is a
+    Server-Sent Events endpoint fanned out over Redis pub/sub. Because the API authenticates
+    from the `authorization` header, clients read it with `fetch` rather than `EventSource`,
+    and fall back to polling after repeated connect failures. Booking status changes and
+    notifications still poll.
 
 ## 10. Payment Strategy
 

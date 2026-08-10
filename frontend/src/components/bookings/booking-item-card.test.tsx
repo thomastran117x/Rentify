@@ -142,6 +142,48 @@ describe("BookingItemCard", () => {
     expect(canLeaveReview(item({ kind: "renting" }), "owner")).toBe(false);
   });
 
+  it("links to the message thread for both item kinds", () => {
+    const { rerender } = render(
+      <BookingItemCard {...cardProps(item({ bookingRequestId: "booking-7" }))} />,
+    );
+
+    expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      "href",
+      "/bookings/booking-7",
+    );
+
+    // A renting keeps the thread of the booking request it came from.
+    rerender(
+      <BookingItemCard
+        {...cardProps(
+          item({
+            kind: "renting",
+            rentingId: "renting-1",
+            bookingRequestId: "booking-8",
+          }),
+        )}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      "href",
+      "/bookings/booking-8",
+    );
+  });
+
+  it("falls back to the item id when no booking request id is present", () => {
+    render(
+      <BookingItemCard
+        {...cardProps(item({ id: "booking-9", bookingRequestId: undefined }))}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      "href",
+      "/bookings/booking-9",
+    );
+  });
+
   it("renders booking metadata, photo, hold urgency, and pending cancellation", async () => {
     const user = userEvent.setup();
     const onReviewCancellation = vi.fn().mockResolvedValue(undefined);

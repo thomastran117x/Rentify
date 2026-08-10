@@ -246,6 +246,11 @@ export function BookingItemCard({
       : undefined,
   );
   const actionNeededLabel = humanizeActionNeeded(item.actionNeededCategory);
+  // A renting keeps the thread of the booking request it was converted from,
+  // so both item kinds resolve to a booking request id.
+  const messagesBookingRequestId =
+    item.bookingRequestId ??
+    (item.kind === "booking_request" ? item.id : undefined);
   const holdExpiresAt = formatDateTime(item.holdExpiresAt);
   const confirmedAt = formatDateTime(item.confirmedAt);
   const checkInReadyAt = formatDateTime(item.checkInReadyAt);
@@ -347,8 +352,17 @@ export function BookingItemCard({
               </div>
             </div>
 
-            {item.kind === "renting" && item.rentingId ? (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
+              {messagesBookingRequestId ? (
+                <Link
+                  href={`/bookings/${messagesBookingRequestId}`}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Messages
+                </Link>
+              ) : null}
+              {item.kind === "renting" && item.rentingId ? (
+                <>
                 <Link
                   href={`/rentings/${item.rentingId}`}
                   className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100"
@@ -420,8 +434,8 @@ export function BookingItemCard({
                     {reviewFormOpen ? "Hide review form" : "Leave a review"}
                   </button>
                 ) : null}
-              </div>
-            ) : canManageCurrentView &&
+                </>
+              ) : canManageCurrentView &&
               canReviewCancellation(item) &&
               item.bookingRequestId ? (
               <button
@@ -439,7 +453,8 @@ export function BookingItemCard({
                   ? "Checking..."
                   : "Review cancellation"}
               </button>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">

@@ -40,6 +40,7 @@ import {
   PARTIAL_REFUND_CUTOFF_HOURS,
   PENDING_BOOKING_HOLD_HOURS,
 } from "@/features/bookings/bookings.model";
+import { resolveBookingParticipant } from "@/features/bookings/booking-participants";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
 import type { CacheService } from "@/features/cache/cache.service";
 import { flowLockKeys, withFlowLocks } from "@/features/cache/cache-locks";
@@ -1625,21 +1626,12 @@ export class BookingsService {
     bookingRequest: BookingRequestRecord,
     userId: string,
   ): Promise<BookingCancellationActor> {
-    if (bookingRequest.renterId === userId) {
-      return "renter";
-    }
-
-    const membership = await this.organizationAccessService.requireMembership(
+    return resolveBookingParticipant(
+      this.organizationAccessService,
+      bookingRequest,
       userId,
-      bookingRequest.organizationId,
-      "You do not have access to this booking request.",
+      "manage",
     );
-    this.organizationAccessService.assertCanManage(
-      membership,
-      "You do not have permission to manage this booking request.",
-    );
-
-    return "owner";
   }
 
   private normalizeCancellationReason(

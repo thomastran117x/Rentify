@@ -28,6 +28,11 @@ import { BlobService } from "@/features/blob/blob.service";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
 import { BookingsService } from "@/features/bookings/bookings.service";
+import { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
+import { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
+import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
+import { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
+import { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import { CacheService } from "@/features/cache/cache.service";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 import { EmailQueueService } from "@/features/email/email.queue.service";
@@ -248,6 +253,21 @@ export const containerTokens = {
   bookingsService: createServiceToken<BookingsService>("BookingsService"),
   bookingsController:
     createServiceToken<BookingsController>("BookingsController"),
+  bookingMessagesRepository: createServiceToken<BookingMessagesRepository>(
+    "BookingMessagesRepository",
+  ),
+  bookingMessagesService: createServiceToken<BookingMessagesService>(
+    "BookingMessagesService",
+  ),
+  bookingMessagesController: createServiceToken<BookingMessagesController>(
+    "BookingMessagesController",
+  ),
+  bookingMessageStreamHub: createServiceToken<BookingMessageStreamHub>(
+    "BookingMessageStreamHub",
+  ),
+  bookingMessageEmailComposer: createServiceToken<BookingMessageEmailComposer>(
+    "BookingMessageEmailComposer",
+  ),
   paymentsRepository:
     createServiceToken<PaymentsRepository>("PaymentsRepository"),
   paymentProvider:

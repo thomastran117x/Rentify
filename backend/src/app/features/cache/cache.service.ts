@@ -119,6 +119,18 @@ export class CacheService {
     return this.getClient().ttl(key);
   }
 
+  /**
+   * Publishes to a Redis pub/sub channel and returns the number of subscribers
+   * that received the message.
+   *
+   * Fan-out only — pub/sub is fire-and-forget, so a message published while no
+   * subscriber is connected is dropped. Callers must not rely on this for
+   * durability.
+   */
+  async publish(channel: string, message: string): Promise<number> {
+    return this.getClient().publish(channel, message);
+  }
+
   async increment(key: string, amount = 1): Promise<number> {
     return this.getClient().incrBy(key, amount);
   }

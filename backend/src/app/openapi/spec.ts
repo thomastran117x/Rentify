@@ -781,6 +781,16 @@ const analyticsDetailExample = {
   dataAvailability: analyticsSummaryExample.dataAvailability,
   range: analyticsSummaryExample.range,
 };
+const bookingMessageExample = {
+  id: "booking-message-1",
+  bookingRequestId: "booking-1",
+  authorId: "user-1",
+  authorSide: "renter",
+  body: "Is an early pickup possible on the first day?",
+  createdAt: "2026-05-26T08:00:00.000Z",
+  readAt: null,
+};
+
 const bookingRequestExample = {
   id: "booking-1",
   postingId: "posting-1",
@@ -6906,6 +6916,166 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/booking-requests/:id/messages",
+      operationId: "listBookingMessages",
+      summary: "List booking request messages",
+      description:
+        "Returns the paginated message thread for a booking request, newest first, plus the unread count for the requesting side. Readable by the renter and by any member of the owning organization. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Messages per page.",
+          20,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "BookingMessagesListResult",
+          {
+            messages: [bookingMessageExample],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+            unreadCount: 1,
+          },
+          "Successful response.",
+          {
+            requestId: requestIdExample,
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/booking-requests/:id/messages",
+      operationId: "sendBookingMessage",
+      summary: "Send a booking request message",
+      description:
+        "Sends a message on a booking request thread. Allowed for the renter and for organization managers; organization operators are read-only. Queues a notification email to the other party, throttled per thread. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+      ],
+      requestBody: requestBody("SendBookingMessageRequest", {
+        body: "The keys will be in the lockbox by the front door.",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Message sent successfully.",
+          "BookingMessageRecord",
+          bookingMessageExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/booking-requests/:id/messages/read",
+      operationId: "markBookingMessagesRead",
+      summary: "Mark booking request messages as read",
+      description:
+        "Marks every unread message addressed to the authenticated user's side of the thread as read. Read state is tracked per side, not per user, so an organization manager clears it for the whole organization. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Messages marked as read.",
+          "MarkBookingMessagesReadResult",
+          {
+            bookingRequestId: "booking-1",
+            markedCount: 2,
+            readAt: "2026-05-26T08:05:00.000Z",
+          },
+        ),
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/booking-requests/:id/messages/stream",
+      operationId: "streamBookingMessages",
+      summary: "Stream booking request messages",
+      description:
+        "Opens a Server-Sent Events stream of live thread activity, emitting `ready`, `message.created`, `messages.read`, and `heartbeat` events. Session bearer authentication is required in the `authorization` header, so browser `EventSource` cannot be used — clients must read the stream with `fetch`. The stream is not a durable log: on connect and on every reconnect, refetch `GET /booking-requests/{id}/messages` and merge by message id. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+      ],
+      responses: {
+        "200": {
+          description: "Server-Sent Events stream opened.",
+          content: {
+            "text/event-stream": {
+              schema: {
+                type: "string",
+                description:
+                  "A Server-Sent Events frame sequence terminated by a blank line.",
+              },
+              example:
+                'event: ready\ndata: {"bookingRequestId":"booking-1"}\n\n' +
+                'event: message.created\nid: booking-message-1\ndata: {"type":"message.created","bookingRequestId":"booking-1","message":{"id":"booking-message-1"}}\n\n' +
+                "event: heartbeat\ndata: 1780000000000\n\n",
+            },
+          },
+        },
+        ...commonErrors([401, 403, 404, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/booking-requests/:id/payment-session",
       operationId: "createPaymentSession",
@@ -9953,6 +10123,76 @@ function buildComponents(): Record<string, unknown> {
       BookingRequestRecord: {
         type: "object",
         additionalProperties: true,
+      },
+      SendBookingMessageRequest: {
+        type: "object",
+        required: ["body"],
+        properties: {
+          body: {
+            type: "string",
+            minLength: 1,
+            maxLength: 2000,
+            description:
+              "Message text. Trimmed before validation, so whitespace-only bodies are rejected.",
+          },
+        },
+      },
+      BookingMessageRecord: {
+        type: "object",
+        required: [
+          "id",
+          "bookingRequestId",
+          "authorId",
+          "authorSide",
+          "body",
+          "createdAt",
+          "readAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          bookingRequestId: { type: "string" },
+          authorId: { type: "string" },
+          authorSide: {
+            type: "string",
+            enum: ["renter", "owner"],
+            description:
+              "Which side of the booking authored the message, derived from the booking's renter.",
+          },
+          body: { type: "string", maxLength: 2000 },
+          createdAt: { type: "string", format: "date-time" },
+          readAt: {
+            type: ["string", "null"],
+            format: "date-time",
+            description:
+              "When the recipient side read this message, or null while unread.",
+          },
+        },
+      },
+      BookingMessagesListResult: {
+        type: "object",
+        required: ["messages", "pagination", "unreadCount"],
+        properties: {
+          messages: {
+            type: "array",
+            items: schemaRef("BookingMessageRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+          unreadCount: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Unread messages addressed to the requesting side across the whole thread.",
+          },
+        },
+      },
+      MarkBookingMessagesReadResult: {
+        type: "object",
+        required: ["bookingRequestId", "markedCount", "readAt"],
+        properties: {
+          bookingRequestId: { type: "string" },
+          markedCount: { type: "integer", minimum: 0 },
+          readAt: { type: "string", format: "date-time" },
+        },
       },
       BookingRequestsListResult: {
         type: "object",

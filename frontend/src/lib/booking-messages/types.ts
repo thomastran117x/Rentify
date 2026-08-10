@@ -1,0 +1,50 @@
+import type { Pagination } from "@/lib/api/types";
+
+/** Which side of the booking authored a message. */
+export type BookingMessageAuthorSide = "renter" | "owner";
+
+export const MAX_BOOKING_MESSAGE_LENGTH = 2000;
+
+export interface BookingMessageRecord {
+  id: string;
+  bookingRequestId: string;
+  authorId: string;
+  authorSide: BookingMessageAuthorSide;
+  body: string;
+  createdAt: string;
+  /** When the recipient side read this message, or null while unread. */
+  readAt: string | null;
+}
+
+export interface BookingMessagesListResult {
+  messages: BookingMessageRecord[];
+  pagination: Pagination;
+  /** Unread messages addressed to the requesting side, across the whole thread. */
+  unreadCount: number;
+}
+
+export interface MarkBookingMessagesReadResult {
+  bookingRequestId: string;
+  markedCount: number;
+  readAt: string;
+}
+
+export type BookingMessageStreamEvent =
+  | {
+      type: "message.created";
+      bookingRequestId: string;
+      message: BookingMessageRecord;
+    }
+  | {
+      type: "messages.read";
+      bookingRequestId: string;
+      readerSide: BookingMessageAuthorSide;
+      readAt: string;
+      markedCount: number;
+    };
+
+export type BookingMessageStreamStatus =
+  | "connecting"
+  | "open"
+  | "reconnecting"
+  | "failed";
