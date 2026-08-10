@@ -294,4 +294,73 @@ describe("Reports persistence integration", () => {
       0,
     );
   }, 180_000);
+
+  it("serves the moderation report queue and detail to moderators only", async () => {
+    const moderator = await createAuthenticatedRequestContext({
+      email: "moderator1@rentify.local",
+    });
+    const reporter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+
+    // Nothing is seeded into the moderation queue, so the report the moderator
+    // reads back is the one filed here.
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/reports")}`,
+      {
+        method: "POST",
+        headers: reporter.headers(),
+        body: JSON.stringify({
+          subjectType: "posting",
+          subjectId: SEED_POSTINGS[0]!.id,
+          reasonCode: "spam",
+          title: "Queued for moderation",
+          description: "This listing asks for payment outside the platform.",
+        }),
+      },
+    );
+    expect(createResponse.status).toBe(201);
+
+    const report = await persistenceApp.prisma.contentReport.findFirstOrThrow({
+      where: { reporterId: reporter.userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/moderation/reports?page=1&pageSize=10")}`,
+      { headers: moderator.headers() },
+    );
+    expect(listResponse.status).toBe(200);
+    const list = (await listResponse.json()) as {
+      data: { reports: Array<{ id: string }> };
+    };
+    expect(Array.isArray(list.data.reports)).toBe(true);
+
+    const detailResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/moderation/reports/${report.id}`)}`,
+      { headers: moderator.headers() },
+    );
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      data: { id: report.id },
+    });
+
+    // The moderation queue is not readable by an ordinary reporter.
+    expect(
+      (
+        await persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/moderation/reports")}`,
+          { headers: reporter.headers() },
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await persistenceApp.app.request(
+          `http://rent.test${buildApiPath(`/moderation/reports/${report.id}`)}`,
+          { headers: reporter.headers() },
+        )
+      ).status,
+    ).toBe(403);
+  }, 180_000);
 });

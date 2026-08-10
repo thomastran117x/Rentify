@@ -44,7 +44,8 @@
     "check": "tsc --noEmit --project tsconfig.app.json",
     "check:test": "tsc --noEmit --project tsconfig.test.json",
     "check:all": "npm run check && npm run check:test",
-    "check:controller-integration-coverage": "tsx src/app/scripts/run-controller-integration-coverage-check.ts",
+    "check:openapi-operation-coverage": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts",
+    "check:openapi-operation-coverage:json": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts --json",
     "audit": "npm audit --audit-level=high",
     "audit:signatures": "npm audit signatures",
     "audit:all": "npm run audit && npm run audit:signatures",
@@ -52,8 +53,6 @@
     "test:unit": "jest --config jest.unit.config.cjs --runInBand",
     "test:unit:coverage": "jest --config jest.unit.config.cjs --runInBand --coverage",
     "test:integration": "jest --config jest.integration.config.cjs --runInBand",
-    "test:integration:mocked": "jest --config jest.mocked.integration.config.cjs --runInBand",
-    "test:integration:routes": "jest --config jest.mocked.integration.config.cjs --runInBand",
     "test:db-seeds": "jest --config jest.db-seeds.config.cjs --runInBand"
   },
   "prisma": {

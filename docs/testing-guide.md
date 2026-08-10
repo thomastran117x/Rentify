@@ -23,14 +23,129 @@ npm run test:integration
 npm run test:db-seeds
 ```
 
+There is one kind of backend integration test. Every `*.integration.test.ts`
+suite runs the production application composition against real MySQL, Redis,
+Elasticsearch, and RabbitMQ, so `npm run test:integration` requires the Docker
+Compose stack.
+
+Third-party providers are still stubbed — payments, OAuth, captcha, blob
+storage, and SMS all call out to services we do not run — but everything the
+application owns is real. There is deliberately no mocked-infrastructure
+variant: a second suite type meant every endpoint had two possible homes and
+the weaker one was usually chosen.
+
+### Running the integration suite
+
+Start the stack first:
+
+```bash
+docker compose up --build -d
+```
+
+They run against an isolated `rent_test` schema, which the Compose stack does not
+create for you. Create and migrate it once:
+
+```bash
+docker compose exec mysql mysql -uroot -proot -e \
+  "CREATE DATABASE IF NOT EXISTS rent_test; GRANT ALL PRIVILEGES ON rent_test.* TO 'rent'@'%'; FLUSH PRIVILEGES;"
+npm --prefix backend run prisma:migrate:deploy
+```
+
+The suite then owns its own namespaces: a `rent-test-<uuid>` RabbitMQ vhost and
+Elasticsearch index prefix per test file, Redis database 15, and the `rent_test`
+schema, which is truncated and reseeded before every test. Safety guards refuse
+to run against a non-local host, a database whose name does not look like a test
+database, Redis database 0, or a vhost/index prefix outside `rent-test-`.
+
+### Port conflicts
+
+The Compose stack publishes every backing service on a non-default host port
+(MySQL `3307`, Redis `6380`, Elasticsearch `9201`, RabbitMQ `5673`/`15673`) so it
+cannot collide with a service you already run locally.
+
+If those ports are taken, override the published ports and point the test harness
+at the same broker:
+
+```bash
+# .env
+RABBITMQ_HOST_PORT=5674
+RABBITMQ_MANAGEMENT_HOST_PORT=15674
+ELASTICSEARCH_HOST_PORT=9202
+```
+
+```bash
+RABBITMQ_TEST_AMQP_URL=amqp://guest:guest@127.0.0.1:5674 \
+RABBITMQ_TEST_MANAGEMENT_URL=http://127.0.0.1:15674/api \
+ELASTICSEARCH_TEST_URL=http://127.0.0.1:9202 \
+  npm --prefix backend run test:integration
+```
+
+Both RabbitMQ variables must point at the same broker. The harness creates its
+test vhost through the management API and then connects over AMQP, so if the two
+URLs resolve to different brokers the vhost is created on one and connected to on
+the other. Setup verifies this and fails with an explicit message naming both
+endpoints rather than an opaque `ConnectionClose`.
+
 Useful supporting checks:
 
 ```bash
 npm run check:all
 npm run openapi:check
+npm run check:openapi-operation-coverage
 npm run audit
 npm run audit:signatures
 ```
+
+### Endpoint coverage reporting
+
+`check:openapi-operation-coverage` reports how many of the OpenAPI operations
+have an integration test. It reads the test sources statically, so it needs no
+running services and does not depend on a test run having happened.
+
+The gate is configured in `backend/openapi-coverage.config.json` and runs in
+`enforce` mode: every operation is covered today, so adding an endpoint without
+an integration test fails the build. Preview or soften the outcome locally
+without changing the committed config:
+
+```bash
+npm run check:openapi-operation-coverage -- --warn
+npm run check:openapi-operation-coverage -- --json
+```
+
+**Write request calls inline.** The checker resolves each request's path
+statically and only follows helpers declared in the same file, so keep the
+call in this shape rather than routing it through a shared cross-file wrapper:
+
+```ts
+await app.request(`http://rent.test${buildApiPath("/postings/saved")}`, {
+  method: "POST",
+  headers: bearerHeaders("user-token"),
+});
+```
+
+A per-file helper that takes the path as a parameter is fine — the checker
+resolves it from that file's call sites — but only one level deep. Nesting a
+per-file helper inside another parameterised helper, or a shared wrapper in
+`src/test/support/`, hides which endpoint each test exercises.
+`failOnUnresolvedSites` is enabled, so a request the checker cannot resolve
+fails the build rather than silently under-reporting.
+
+When an operation genuinely cannot be integration tested, record it in the
+`exceptions` array with a reason rather than leaving it uncovered:
+
+```json
+{
+  "operationId": "receiveTelnyxWebhook",
+  "reason": "Requires a live Telnyx signature; covered by the manual runbook.",
+  "addedOn": "2026-08-09",
+  "expiresOn": "2026-12-31"
+}
+```
+
+Exceptions are keyed on `operationId`, so a renamed path surfaces as stale
+instead of silently continuing to suppress. An exception that expires, names an
+unknown operation, or covers an operation that now has a test is reported as a
+stale exception.
 
 Backend coverage includes configuration, middleware, route registration, auth, organizations, postings, bookings, payments, rentings, reports, search, recommendations, and seeds.
 

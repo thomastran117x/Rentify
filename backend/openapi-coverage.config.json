@@ -1,0 +1,14 @@
+{
+  "$comment": [
+    "Gate for OpenAPI operation-level integration coverage.",
+    "Set \"mode\" to \"enforce\" to fail the build on uncovered operations.",
+    "Each exception entry is { operationId, reason, addedOn, expiresOn } and suppresses",
+    "an uncovered or smoke-only operation. Exceptions are keyed on operationId so a path",
+    "rename surfaces as stale rather than silently continuing to suppress."
+  ],
+  "mode": "enforce",
+  "failOnUnresolvedSites": true,
+  "failOnStaleExceptions": true,
+  "smokeOnlyTestFiles": [],
+  "exceptions": []
+}

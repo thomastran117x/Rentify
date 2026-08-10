@@ -1,4 +1,10 @@
-/** @type {import('jest').Config} */
+/**
+ * Default suite: unit tests plus the OpenAPI document checks, excluding every
+ * integration suite. `npm run test:unit` is the same set with coverage
+ * thresholds applied.
+ *
+ * @type {import('jest').Config}
+ */
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
@@ -25,6 +31,6 @@ module.exports = {
     "/node_modules/",
     "/dist/",
     "/src/test/db/",
-    "\.integration\.test\.ts$",
+    "\\.integration\\.test\\.ts$",
   ],
 };

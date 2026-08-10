@@ -205,6 +205,14 @@ jobs:
       - name: Type check app and test code
         run: npm run check:all
 
+      - name: Verify OpenAPI operation integration coverage
+        shell: bash
+        run: |
+          # pipefail matters here: without it the pipeline reports tee's exit
+          # code and the enforcing coverage gate could never fail the build.
+          set -o pipefail
+          npm run check:openapi-operation-coverage | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Build
         run: npm run build
 
@@ -250,32 +258,6 @@ jobs:
 
       - name: Run unit tests with coverage thresholds
         run: npm run test:unit:coverage
-
-  backend-controller-integration-coverage:
-    name: Backend controller integration coverage
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run mocked HTTP route integration tests
-        run: npm run test:integration:mocked
-
-      - name: Verify controller HTTP integration coverage
-        run: npm run check:controller-integration-coverage
 
   backend-integration:
     name: Backend persistence integration and database tests
@@ -323,8 +305,8 @@ jobs:
       rabbitmq:
         image: rabbitmq:3.13-management-alpine
         ports:
-          - 5672:5672
-          - 15672:15672
+          - 5673:5672
+          - 15673:15672
         options: >-
           --health-cmd="rabbitmq-diagnostics -q ping"
           --health-interval=15s
@@ -343,7 +325,7 @@ jobs:
       REDIS_DB: "15"
       ELASTICSEARCH_ENABLED: "true"
       ELASTICSEARCH_URL: http://127.0.0.1:9201
-      RABBITMQ_URL: amqp://guest:guest@127.0.0.1:5672
+      RABBITMQ_URL: amqp://guest:guest@127.0.0.1:5673
       FRONTEND_URL: http://localhost:3040
       APP_BASE_URL: http://localhost:3040
       GMAIL_USER: ci@example.com
@@ -374,7 +356,7 @@ jobs:
       - name: Wait for Elasticsearch and RabbitMQ management
         run: |
           for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:9201 >/dev/null && curl -fsS -u guest:guest http://127.0.0.1:15672/api/overview >/dev/null; then
+            if curl -fsS http://127.0.0.1:9201 >/dev/null && curl -fsS -u guest:guest http://127.0.0.1:15673/api/overview >/dev/null; then
               exit 0
             fi
             sleep 2
@@ -385,7 +367,7 @@ jobs:
       - name: Apply database migrations
         run: npm run prisma:migrate:deploy
 
-      - name: Run HTTP integration tests
+      - name: Run integration tests
         run: npm run test:integration
 
       - name: Run database seed tests

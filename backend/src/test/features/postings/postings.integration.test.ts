@@ -272,6 +272,21 @@ async function findEligibleReviewScenario(persistenceApp: PersistenceTestApp) {
 describe("Postings persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
 
+  async function request(
+    path: string,
+    init: RequestInit & { headers?: Record<string, string> } = {},
+  ): Promise<Response> {
+    return persistenceApp.app.request(
+      `http://rent.test${buildApiPath(path)}`,
+      init,
+    );
+  }
+
+  async function readData<TData>(response: Response): Promise<TData> {
+    const body = (await response.json()) as { data: TData };
+    return body.data;
+  }
+
   beforeAll(async () => {
     persistenceApp = await createPersistenceTestApp();
   }, 180_000);
@@ -848,5 +863,366 @@ describe("Postings persistence integration", () => {
 
     expect(forbiddenCreateResponse.status).toBe(403);
     expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
+  });
+
+  it("serves owner posting lists, summaries, and batch reads", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const ownedPostingId = SEED_POSTINGS[0]!.id;
+
+    const listResponse = await request("/postings/me?page=1&pageSize=10", {
+      headers: owner.headers(),
+    });
+    expect(listResponse.status).toBe(200);
+    const list = await readData<{ postings: Array<{ id: string }> }>(
+      listResponse,
+    );
+    expect(list.postings.length).toBeGreaterThan(0);
+
+    // Postings belong to an organization, so "own postings" means postings of
+    // the organizations the caller is a member of.
+    const memberships =
+      await persistenceApp.prisma.organizationMembership.findMany({
+        where: { userId: owner.userId },
+        select: { organizationId: true },
+      });
+    const ownedIds = new Set(
+      (
+        await persistenceApp.prisma.posting.findMany({
+          where: {
+            organizationId: {
+              in: memberships.map((membership) => membership.organizationId),
+            },
+          },
+          select: { id: true },
+        })
+      ).map((posting) => posting.id),
+    );
+    // Every returned posting must belong to the caller.
+    for (const posting of list.postings) {
+      expect(ownedIds.has(posting.id)).toBe(true);
+    }
+
+    const summaryResponse = await request("/postings/me/summary", {
+      headers: owner.headers(),
+    });
+    expect(summaryResponse.status).toBe(200);
+    const summary = await readData<{
+      total: number;
+      byStatus: Record<string, number>;
+    }>(summaryResponse);
+    expect(summary.total).toBe(ownedIds.size);
+    expect(
+      Object.values(summary.byStatus).reduce((sum, count) => sum + count, 0),
+    ).toBe(summary.total);
+
+    const batchResponse = await request(
+      `/postings/me/batch?ids=${ownedPostingId}`,
+      { headers: owner.headers() },
+    );
+    expect(batchResponse.status).toBe(200);
+    const batch = await readData<{ postings: Array<{ id: string }> }>(
+      batchResponse,
+    );
+    expect(batch.postings.map((posting) => posting.id)).toEqual([
+      ownedPostingId,
+    ]);
+
+    // Another user's owner batch must not leak this posting.
+    const strangerResponse = await request(
+      `/postings/me/batch?ids=${ownedPostingId}`,
+      { headers: stranger.headers() },
+    );
+    if (strangerResponse.status === 200) {
+      const strangerBatch = await readData<{
+        postings: Array<{ id: string }>;
+      }>(strangerResponse);
+      expect(strangerBatch.postings.map((posting) => posting.id)).not.toContain(
+        ownedPostingId,
+      );
+    } else {
+      expect(strangerResponse.status).toBeGreaterThanOrEqual(400);
+    }
+  });
+
+  it("serves public posting search, detail, and batch reads", async () => {
+    const publishedPosting =
+      await persistenceApp.prisma.posting.findFirstOrThrow({
+        where: { status: "published" },
+      });
+
+    const searchResponse = await request(
+      "/postings?q=loft&family=place&page=1&pageSize=10",
+    );
+    expect(searchResponse.status).toBe(200);
+    expect(
+      persistenceApp.stubs.postingsPublicSearchService.searchPublic,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "loft", family: "place" }),
+    );
+
+    const detailResponse = await request(`/postings/${publishedPosting.id}`);
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      data: { id: publishedPosting.id, status: "published" },
+    });
+
+    const batchResponse = await request(
+      `/postings/batch?ids=${publishedPosting.id}`,
+    );
+    expect(batchResponse.status).toBe(200);
+    const batch = await readData<{ postings: Array<{ id: string }> }>(
+      batchResponse,
+    );
+    expect(batch.postings.map((posting) => posting.id)).toEqual([
+      publishedPosting.id,
+    ]);
+
+    const missingResponse = await request(
+      `/postings/${"00000000-0000-0000-0000-0000000000ff"}`,
+    );
+    expect(missingResponse.status).toBe(404);
+  });
+
+  it("serves posting reviews, availability, and seasonal pricing reads", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+
+    const reviewsResponse = await request(
+      `/postings/${postingId}/reviews?page=1&pageSize=10`,
+    );
+    expect(reviewsResponse.status).toBe(200);
+    const reviews = await readData<{ reviews: unknown[] }>(reviewsResponse);
+    expect(Array.isArray(reviews.reviews)).toBe(true);
+
+    const calendarResponse = await request(
+      `/postings/${postingId}/availability-calendar?year=2027&month=3`,
+    );
+    expect(calendarResponse.status).toBe(200);
+
+    const blockBody = {
+      startAt: "2027-03-01T15:00:00.000Z",
+      endAt: "2027-03-05T15:00:00.000Z",
+      note: "Owner maintenance",
+    };
+    const createBlockResponse = await request(
+      `/postings/${postingId}/availability-blocks`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify(blockBody),
+      },
+    );
+    expect(createBlockResponse.status).toBe(201);
+
+    const blocksResponse = await request(
+      `/postings/${postingId}/availability-blocks`,
+      { headers: owner.headers() },
+    );
+    expect(blocksResponse.status).toBe(200);
+    const blocks = await readData<{
+      availabilityBlocks: Array<{ note?: string }>;
+    }>(blocksResponse);
+    expect(
+      blocks.availabilityBlocks.some(
+        (block) => block.note === "Owner maintenance",
+      ),
+    ).toBe(true);
+
+    const createRuleResponse = await request(
+      `/postings/${postingId}/seasonal-pricing`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          name: "Spring premium",
+          startDate: "2027-04-01",
+          endDate: "2027-04-30",
+          dailyAmount: 210,
+        }),
+      },
+    );
+    expect(createRuleResponse.status).toBe(201);
+
+    const rulesResponse = await request(
+      `/postings/${postingId}/seasonal-pricing`,
+      { headers: owner.headers() },
+    );
+    expect(rulesResponse.status).toBe(200);
+    // Seasonal pricing returns a bare array rather than a wrapper object.
+    const rules = await readData<Array<{ name: string }>>(rulesResponse);
+    expect(rules.map((rule) => rule.name)).toContain("Spring premium");
+  });
+
+  it("serves owner analytics summaries, listings, detail, and CSV export", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const stranger = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+
+    const summaryResponse = await request(
+      "/postings/analytics/summary?window=7d",
+      { headers: owner.headers() },
+    );
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toMatchObject({
+      data: { window: "7d", totals: expect.any(Object) },
+    });
+
+    const listResponse = await request(
+      "/postings/analytics/postings?window=7d&page=1&pageSize=10",
+      { headers: owner.headers() },
+    );
+    expect(listResponse.status).toBe(200);
+
+    const detailResponse = await request(
+      `/postings/${postingId}/analytics?window=7d`,
+      { headers: owner.headers() },
+    );
+    expect(detailResponse.status).toBe(200);
+
+    const exportResponse = await request(
+      "/postings/analytics/export?window=7d",
+      { headers: owner.headers() },
+    );
+    expect(exportResponse.status).toBe(200);
+    expect(exportResponse.headers.get("content-type")).toContain("csv");
+    expect(await exportResponse.text()).not.toHaveLength(0);
+
+    // Analytics for a posting the caller does not own must not be readable.
+    const forbiddenResponse = await request(
+      `/postings/${postingId}/analytics?window=7d`,
+      { headers: stranger.headers() },
+    );
+    expect(forbiddenResponse.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("saves and unsaves a posting for the signed-in renter", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+
+    const saveResponse = await request(`/postings/${postingId}/save`, {
+      method: "POST",
+      headers: renter.headers(),
+    });
+    expect(saveResponse.status).toBe(200);
+    await expect(saveResponse.json()).resolves.toMatchObject({
+      data: { postingId, saved: true },
+    });
+
+    const savedList = await readData<{ postings: Array<{ id: string }> }>(
+      await request("/postings/saved?page=1&pageSize=10", {
+        headers: renter.headers(),
+      }),
+    );
+    expect(savedList.postings.map((posting) => posting.id)).toContain(
+      postingId,
+    );
+
+    const savedIds = await readData<{ postingIds: string[] }>(
+      await request("/postings/saved/ids", { headers: renter.headers() }),
+    );
+    expect(savedIds.postingIds).toContain(postingId);
+
+    const unsaveResponse = await request(`/postings/${postingId}/save`, {
+      method: "DELETE",
+      headers: renter.headers(),
+    });
+    expect(unsaveResponse.status).toBe(200);
+
+    const afterUnsave = await readData<{ postingIds: string[] }>(
+      await request("/postings/saved/ids", { headers: renter.headers() }),
+    );
+    expect(afterUnsave.postingIds).not.toContain(postingId);
+  });
+
+  it("requires authentication for every saved-posting route", async () => {
+    const postingId = SEED_POSTINGS[0]!.id;
+    const beforeCount = await persistenceApp.prisma.savedPosting.count();
+
+    expect((await request("/postings/saved")).status).toBe(401);
+    expect((await request("/postings/saved/ids")).status).toBe(401);
+    expect(
+      (await request(`/postings/${postingId}/save`, { method: "POST" })).status,
+    ).toBe(401);
+    expect(
+      (await request(`/postings/${postingId}/save`, { method: "DELETE" }))
+        .status,
+    ).toBe(401);
+
+    expect(await persistenceApp.prisma.savedPosting.count()).toBe(beforeCount);
+  });
+
+  it("serves the public autocomplete and recommendation surfaces", async () => {
+    const autocompleteResponse = await request(
+      "/postings/autocomplete?q=lo&limit=5",
+    );
+    expect(autocompleteResponse.status).toBe(200);
+    expect(
+      persistenceApp.stubs.postingsPublicAutocompleteService.autocompletePublic,
+    ).toHaveBeenCalledWith(expect.objectContaining({ query: "lo" }));
+
+    const recommendationsResponse = await request(
+      "/postings/recommendations?page=1&pageSize=5",
+    );
+    expect(recommendationsResponse.status).toBe(200);
+    const recommendations = await readData<Record<string, unknown>>(
+      recommendationsResponse,
+    );
+    expect(recommendations).toBeTruthy();
+  });
+
+  it("accepts a search-click activity event and queues it for the recommender", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const postingId = SEED_POSTINGS[0]!.id;
+    const searchSessionId = randomUUID();
+
+    const response = await request(
+      `/postings/${postingId}/activity/search-click`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          searchSessionId,
+          query: "loft",
+          family: "place",
+          page: 1,
+          position: 0,
+          hasGeoFilter: true,
+          hasAvailabilityFilter: false,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { accepted: true },
+    });
+
+    const payloads =
+      await readQueuePayloads<RecommendationActivityEventPayload>(
+        persistenceApp,
+        RECOMMENDATION_ACTIVITY_QUEUE_NAME,
+      );
+    expect(
+      payloads.some(
+        (payload) =>
+          payload.postingId === postingId &&
+          payload.eventType === "search_click",
+      ),
+    ).toBe(true);
   });
 });

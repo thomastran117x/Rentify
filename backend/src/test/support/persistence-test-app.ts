@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -39,12 +40,15 @@ import {
   type LiveElasticsearchConfig,
 } from "./live-elasticsearch";
 import {
+  assertRabbitMqEndpointsShareBroker,
   assertRabbitMqManagementAvailable,
   assertSafeRabbitMqTarget,
   createLiveRabbitMqConfig,
   createRabbitMqTestVhost,
   deleteRabbitMqTestVhost,
   purgeRabbitMqQueues,
+  sweepStaleRabbitMqTestVhosts,
+  RABBITMQ_TEST_VHOST_PREFIX,
   type LiveRabbitMqConfig,
 } from "./live-rabbitmq";
 
@@ -97,6 +101,15 @@ export interface PersistenceTestStubs {
   blobService: {
     isConfigured: jest.Mock<boolean, []>;
     isManagedBlobUrl: jest.Mock<boolean, [string, string]>;
+    createUploadUrl: jest.Mock<Record<string, unknown>, [BlobUploadInput]>;
+    uploadLocalBlob: jest.Mock<Promise<void>, [BlobUploadPayload]>;
+    readLocalBlob: jest.Mock<
+      Promise<{ contentType: string; body: Buffer }>,
+      [string]
+    >;
+    deleteBlobForUser: jest.Mock<Promise<void>, [string, string]>;
+    /** In-memory contents, so a stored upload can be read back over HTTP. */
+    storage: Map<string, { contentType: string; body: Buffer }>;
   };
   postingsPublicAutocompleteService: {
     autocompletePublic: jest.Mock<
@@ -278,6 +291,18 @@ export async function teardownPersistenceTestApp(): Promise<void> {
   activePersistenceApp = null;
   activePersistenceInfrastructure = null;
   activePersistenceInfrastructureReady = false;
+
+  // Drop the seed snapshot before disconnecting so a schema change in a later
+  // run can never be restored from a stale copy.
+  if (seedSnapshotReady) {
+    try {
+      await dropSeedSnapshot(getDatabaseClient());
+    } catch {
+      // A failed cleanup only costs the next run a fresh capture.
+    }
+    seedSnapshotReady = false;
+  }
+
   await disposeContainer();
   await Promise.allSettled([
     disconnectRabbitMq(),
@@ -287,10 +312,26 @@ export async function teardownPersistenceTestApp(): Promise<void> {
   ]);
 
   if (infra) {
-    await Promise.allSettled([
+    const cleanupResults = await Promise.allSettled([
       deleteRabbitMqTestVhost(infra.rabbitMq),
       deleteElasticsearchIndicesByPrefix(infra.elasticsearch),
     ]);
+
+    // Cleanup failures leak a vhost or index prefix into the next run. They are
+    // not worth failing a passing suite over, but they must not be silent.
+    const cleanupTargets = [
+      `RabbitMQ vhost '${infra.rabbitMq.vhost}'`,
+      `Elasticsearch index prefix '${infra.elasticsearch.indexPrefix}'`,
+    ];
+
+    cleanupResults.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.warn(
+          `[persistence-test-app] Failed to clean up ${cleanupTargets[index]}: ` +
+            `${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+        );
+      }
+    });
   }
 }
 
@@ -312,39 +353,120 @@ export async function resetPersistenceState(): Promise<void> {
   await purgeRabbitMqQueues(infra.rabbitMq);
   await deleteElasticsearchIndicesByPrefix(infra.elasticsearch);
 
-  const currentDatabase = await prisma.$queryRawUnsafe<
-    Array<{ name: string | null }>
-  >("SELECT DATABASE() AS name");
-  const databaseName = currentDatabase[0]?.name;
+  const tables = await listSeededTables(prisma);
 
-  if (!databaseName) {
-    throw new Error("Could not determine the active database name.");
+  await clearSeededTables(prisma, tables);
+
+  if (seedSnapshotReady) {
+    await restoreSeedSnapshot(prisma, tables);
+  } else {
+    await runSeedOrchestrator({
+      refresh: false,
+      source: "test",
+    });
+    await captureSeedSnapshot(prisma, tables);
+    seedSnapshotReady = true;
   }
 
+  await redis.flushDb();
+}
+
+/**
+ * Rebuilding the seed data through the orchestrator costs about 17 seconds
+ * because it upserts every fixture row by row. Truncating costs about 0.2
+ * seconds, so the reset is dominated entirely by reseeding.
+ *
+ * The orchestrator therefore runs once per test file, and every later reset
+ * restores that result from snapshot tables held in the same schema. Copying
+ * server side with `INSERT ... SELECT` keeps every column type exact and needs
+ * no round trip through the client.
+ */
+const SNAPSHOT_TABLE_PREFIX = "zz_seed_snapshot__";
+
+let seedSnapshotReady = false;
+
+async function listSeededTables(
+  prisma: ReturnType<typeof getDatabaseClient>,
+): Promise<string[]> {
   const tables = await prisma.$queryRawUnsafe<Array<{ TABLE_NAME: string }>>(
-    `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${databaseName}' AND TABLE_TYPE = 'BASE TABLE'`,
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'`,
   );
 
+  return tables
+    .map((table) => table.TABLE_NAME)
+    .filter(
+      (name) =>
+        name !== "_prisma_migrations" &&
+        !name.startsWith(SNAPSHOT_TABLE_PREFIX),
+    );
+}
+
+async function clearSeededTables(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
     try {
       for (const table of tables) {
-        if (table.TABLE_NAME === "_prisma_migrations") {
-          continue;
-        }
-
-        await tx.$executeRawUnsafe(`DELETE FROM \`${table.TABLE_NAME}\``);
+        await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``);
       }
     } finally {
       await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
     }
   });
+}
 
-  await runSeedOrchestrator({
-    refresh: false,
-    source: "test",
+async function captureSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
+  for (const table of tables) {
+    const snapshot = `${SNAPSHOT_TABLE_PREFIX}${table}`;
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS \`${snapshot}\``);
+    // LIKE copies columns and indexes but not foreign keys, which is what a
+    // detached copy wants.
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE \`${snapshot}\` LIKE \`${table}\``,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO \`${snapshot}\` SELECT * FROM \`${table}\``,
+    );
+  }
+}
+
+async function restoreSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+  tables: string[],
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const table of tables) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO \`${table}\` SELECT * FROM \`${SNAPSHOT_TABLE_PREFIX}${table}\``,
+        );
+      }
+    } finally {
+      await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
+    }
   });
-  await redis.flushDb();
+}
+
+async function dropSeedSnapshot(
+  prisma: ReturnType<typeof getDatabaseClient>,
+): Promise<void> {
+  const snapshots = await prisma.$queryRawUnsafe<Array<{ TABLE_NAME: string }>>(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '${SNAPSHOT_TABLE_PREFIX}%'`,
+  );
+
+  for (const snapshot of snapshots) {
+    await prisma.$executeRawUnsafe(
+      `DROP TABLE IF EXISTS \`${snapshot.TABLE_NAME}\``,
+    );
+  }
 }
 
 export async function createAuthenticatedRequestContext(input: {
@@ -531,13 +653,63 @@ async function initializePersistenceInfrastructure(): Promise<PersistenceTestInf
     return infrastructure;
   }
 
-  await assertElasticsearchAvailable(infrastructure.elasticsearch);
-  await deleteElasticsearchIndicesByPrefix(infrastructure.elasticsearch);
-  await assertRabbitMqManagementAvailable(infrastructure.rabbitMq);
-  await createRabbitMqTestVhost(infrastructure.rabbitMq);
+  const { elasticsearch, rabbitMq } = infrastructure;
+
+  await runInfrastructurePhase(
+    "elasticsearch:available",
+    `url ${elasticsearch.url}`,
+    () => assertElasticsearchAvailable(elasticsearch),
+  );
+  await runInfrastructurePhase(
+    "elasticsearch:clean-indices",
+    `index prefix '${elasticsearch.indexPrefix}'`,
+    () => deleteElasticsearchIndicesByPrefix(elasticsearch),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:management-available",
+    `management ${rabbitMq.managementUrl}`,
+    () => assertRabbitMqManagementAvailable(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:sweep-stale-vhosts",
+    `prefix '${RABBITMQ_TEST_VHOST_PREFIX}'`,
+    () => sweepStaleRabbitMqTestVhosts(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:create-vhost",
+    `vhost '${rabbitMq.vhost}'`,
+    () => createRabbitMqTestVhost(rabbitMq),
+  );
+  await runInfrastructurePhase(
+    "rabbitmq:verify-broker-identity",
+    `vhost '${rabbitMq.vhost}'`,
+    () => assertRabbitMqEndpointsShareBroker(rabbitMq),
+  );
 
   activePersistenceInfrastructureReady = true;
   return infrastructure;
+}
+
+/**
+ * Annotates a setup failure with the lifecycle phase and the safe target it was
+ * acting on. Without this, an infrastructure misconfiguration surfaces as a bare
+ * driver error (for example `Expected ConnectionOpenOk; got <ConnectionClose>`)
+ * with no indication of which step or which resource failed.
+ */
+async function runInfrastructurePhase<TResult>(
+  phase: string,
+  target: string,
+  operation: () => Promise<TResult>,
+): Promise<TResult> {
+  try {
+    return await operation();
+  } catch (error) {
+    throw new Error(
+      `Persistence test infrastructure setup failed during '${phase}' (${target}): ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
 }
 
 export function requirePersistenceApp(): PersistenceTestApp {
@@ -550,7 +722,21 @@ export function requirePersistenceApp(): PersistenceTestApp {
   return activePersistenceApp;
 }
 
+interface BlobUploadInput {
+  filename: string;
+  contentType: string;
+  scope?: string;
+}
+
+interface BlobUploadPayload {
+  blobName: string;
+  contentType: string;
+  body: Buffer | Uint8Array;
+}
+
 function createPersistenceTestStubs(): PersistenceTestStubs {
+  const blobStorage = new Map<string, { contentType: string; body: Buffer }>();
+
   return {
     captchaService: {
       verify: jest.fn(async ({ token }) => {
@@ -608,6 +794,42 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       })),
     },
     blobService: {
+      // Blob storage is a third-party SDK, and the production service's
+      // local-disk fallback is deliberately development-only. The endpoints are
+      // still exercised end to end over HTTP; only the bytes live in memory.
+      storage: blobStorage,
+      createUploadUrl: jest.fn((input: BlobUploadInput) => {
+        const blobName = `${input.scope ?? "uploads"}/${input.filename}`;
+        return {
+          method: "PUT" as const,
+          uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=test-upload-token`,
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          blobName,
+          blobUrl: `http://rent.test/api/v1/blob/file?blobName=${encodeURIComponent(blobName)}`,
+          container: "rent-test",
+          headers: {
+            "x-ms-blob-type": "BlockBlob" as const,
+            "content-type": input.contentType,
+          },
+          scope: input.scope,
+        };
+      }),
+      uploadLocalBlob: jest.fn(async (input: BlobUploadPayload) => {
+        blobStorage.set(input.blobName, {
+          contentType: input.contentType,
+          body: Buffer.from(input.body),
+        });
+      }),
+      readLocalBlob: jest.fn(async (blobName: string) => {
+        const stored = blobStorage.get(blobName);
+        if (!stored) {
+          throw new ResourceNotFoundError("Blob could not be found.");
+        }
+        return stored;
+      }),
+      deleteBlobForUser: jest.fn(async (_userId: string, blobName: string) => {
+        blobStorage.delete(blobName);
+      }),
       isConfigured: jest.fn(() => true),
       isManagedBlobUrl: jest.fn((blobUrl, blobName) => {
         try {
