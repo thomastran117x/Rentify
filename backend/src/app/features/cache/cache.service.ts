@@ -43,6 +43,27 @@ export class CacheService {
     }
   }
 
+  /**
+   * Reads a key and removes it in one round trip, so exactly one caller can
+   * ever observe the value. A `get` followed by a `delete` is not equivalent:
+   * two callers can both complete the read before either deletes, and both then
+   * act on it. That difference is the whole point for single-use tokens.
+   */
+  async getDeleteJson<T>(key: string): Promise<T | null> {
+    const value = await this.getClient().getDel(key);
+
+    if (value === null) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      // The key is already gone, so there is nothing to clean up here.
+      return null;
+    }
+  }
+
   async set(key: string, value: string, ttlInSeconds?: number): Promise<void> {
     if (ttlInSeconds === undefined) {
       await this.getClient().set(key, value);

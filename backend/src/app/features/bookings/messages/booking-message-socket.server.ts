@@ -9,6 +9,7 @@ import {
   BOOKING_MESSAGE_SOCKET_COOKIE_NAME,
   BOOKING_MESSAGE_SOCKET_PATH,
   type BookingMessageClientFrame,
+  type BookingMessageSocketIdentity,
   type BookingMessageStreamEvent,
 } from "@/features/bookings/messages/booking-messages.model";
 
@@ -19,6 +20,14 @@ const HEARTBEAT_INTERVAL_MS = 20_000;
 
 /** How often an open socket re-checks membership and session validity. */
 const REAUTHORIZE_INTERVAL_MS = 60_000;
+
+/**
+ * How often presence keys are pushed out. Must stay comfortably under
+ * `BOOKING_MESSAGE_PRESENCE_TTL_SECONDS`: refreshing on the slower
+ * reauthorization interval let the key lapse for fifteen seconds out of every
+ * sixty, and a disconnect inside that window left the counterpart's dot lit.
+ */
+const PRESENCE_REFRESH_INTERVAL_MS = 20_000;
 
 /** A client may not push typing frames faster than this. */
 const TYPING_THROTTLE_MS = 2_000;
@@ -55,7 +64,8 @@ function readTicketCookie(header?: string): string {
 interface SocketState {
   bookingRequestId: string;
   userId: string;
-  accessToken: string;
+  /** The redeemed ticket, kept so the session can be rechecked periodically. */
+  session: BookingMessageSocketIdentity;
   alive: boolean;
   lastTypingAt: number;
   release: (() => Promise<void>) | null;
@@ -75,6 +85,7 @@ export class BookingMessageSocketServer {
   private readonly states = new Map<WebSocket, SocketState>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
+  private presenceRefresh: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.logger = loggerFactory.forClass(BookingMessageSocketServer, "service");
@@ -94,6 +105,10 @@ export class BookingMessageSocketServer {
       () => void this.reauthorizeAll(),
       REAUTHORIZE_INTERVAL_MS,
     );
+    this.presenceRefresh = setInterval(
+      () => void this.refreshPresenceAll(),
+      PRESENCE_REFRESH_INTERVAL_MS,
+    );
   }
 
   async close(): Promise<void> {
@@ -105,6 +120,11 @@ export class BookingMessageSocketServer {
     if (this.reauthorize) {
       clearInterval(this.reauthorize);
       this.reauthorize = null;
+    }
+
+    if (this.presenceRefresh) {
+      clearInterval(this.presenceRefresh);
+      this.presenceRefresh = null;
     }
 
     const clients = [...this.states.keys()];
@@ -174,7 +194,7 @@ export class BookingMessageSocketServer {
       }
 
       this.wss.handleUpgrade(request, socket, head, (client) => {
-        void this.register(client, identity.bookingRequestId, identity.userId);
+        void this.register(client, identity);
       });
     } catch (error) {
       this.logger.error(
@@ -195,9 +215,10 @@ export class BookingMessageSocketServer {
 
   private async register(
     client: WebSocket,
-    bookingRequestId: string,
-    userId: string,
+    identity: BookingMessageSocketIdentity,
   ): Promise<void> {
+    const { bookingRequestId, userId } = identity;
+
     // Resolved per connection and held for its lifetime: the hub is a
     // singleton, so it outlives any request scope.
     const hub = getContainer().resolve(containerTokens.bookingMessageStreamHub);
@@ -205,7 +226,7 @@ export class BookingMessageSocketServer {
     const state: SocketState = {
       bookingRequestId,
       userId,
-      accessToken: "",
+      session: identity,
       alive: true,
       lastTypingAt: 0,
       release: null,
@@ -260,15 +281,31 @@ export class BookingMessageSocketServer {
     state: SocketState,
     raw: string,
   ): Promise<void> {
-    let frame: BookingMessageClientFrame;
+    let decoded: unknown;
 
     try {
-      frame = JSON.parse(raw) as BookingMessageClientFrame;
+      decoded = JSON.parse(raw);
     } catch {
       // A malformed frame is the client's problem, not grounds to drop a
       // healthy connection.
       return;
     }
+
+    // Parsing succeeding does not mean the result is a frame. `JSON.parse`
+    // accepts the bare literal `null`, and reading `.type` off it throws a
+    // TypeError out here, outside the catch above — in an async handler whose
+    // promise is discarded by the caller, which under Node's default
+    // unhandled-rejection policy takes the process down. Any authenticated
+    // client could send it.
+    if (
+      typeof decoded !== "object" ||
+      decoded === null ||
+      Array.isArray(decoded)
+    ) {
+      return;
+    }
+
+    const frame = decoded as BookingMessageClientFrame;
 
     if (frame.type === "ping") {
       state.alive = true;
@@ -339,15 +376,16 @@ export class BookingMessageSocketServer {
     for (const [client, state] of this.states) {
       await this.withScope(async (scope) => {
         const service = scope.resolve(containerTokens.bookingMessagesService);
-        const presence = scope.resolve(
-          containerTokens.bookingMessagePresenceService,
-        );
 
         try {
           // Membership can be revoked while a socket is held open, and every
           // REST call that user made would already be rejected.
           await service.authorizeStream(state.bookingRequestId, state.userId);
-          await presence.markOnline(state.bookingRequestId, state.userId);
+          // The session behind the ticket can be revoked too — a logout, a
+          // password change, a token-version bump. Checking membership alone
+          // let a signed-out user keep receiving message bodies indefinitely
+          // while every REST call they made returned 401.
+          await service.assertSocketSessionValid(state.session);
         } catch (error) {
           this.logger.info(
             "Closing a booking message socket after access was revoked.",
@@ -361,6 +399,29 @@ export class BookingMessageSocketServer {
         }
       });
     }
+  }
+
+  /**
+   * Pushes out the presence TTL for every open socket. Separate from
+   * reauthorization because it has to run more often than the key expires, and
+   * it is pure Redis work — no database, no authorization.
+   */
+  private async refreshPresenceAll(): Promise<void> {
+    if (this.states.size === 0) {
+      return;
+    }
+
+    await this.withScope(async (scope) => {
+      const presence = scope.resolve(
+        containerTokens.bookingMessagePresenceService,
+      );
+
+      // One scope for the whole sweep: these are cache writes, and a scope per
+      // socket would be pure overhead on a tick that runs every 20 seconds.
+      for (const state of this.states.values()) {
+        await presence.markOnline(state.bookingRequestId, state.userId);
+      }
+    });
   }
 
   private send(client: WebSocket, event: BookingMessageStreamEvent): void {

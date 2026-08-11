@@ -242,9 +242,12 @@ describe("BookingMessagesController", () => {
       const payload = await response.json();
 
       expect(response.status).toBe(201);
+      // The session travels with the ticket so the socket it opens can be
+      // rechecked against a logout or a token-version bump later.
       expect(service.createSocketTicket).toHaveBeenCalledWith(
         "booking-1",
         "user-1",
+        { sessionId: null, tokenVersion: 0 },
       );
       // Delivered as a scoped HttpOnly cookie, never echoed in the body.
       expect(payload.data).toEqual({ expiresInSeconds: 30 });
@@ -252,6 +255,30 @@ describe("BookingMessagesController", () => {
         "rentify_ws_ticket=ticket-1",
       );
       expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+      expect(response.headers.get("set-cookie")).toContain(
+        "Path=/ws/booking-messages",
+      );
+    });
+
+    it("forwards a real session id and token version", async () => {
+      mockRequireSessionAuth.mockResolvedValue({
+        ...createClaims(),
+        sessionId: "session-9",
+        tokenVersion: 4,
+      });
+      const service = createService();
+      const controller = new BookingMessagesController(
+        service,
+        createTokenService(),
+      );
+
+      await controller.socketTicket(createContext());
+
+      expect(service.createSocketTicket).toHaveBeenCalledWith(
+        "booking-1",
+        "user-1",
+        { sessionId: "session-9", tokenVersion: 4 },
+      );
     });
 
     it("rejects a personal access token", async () => {

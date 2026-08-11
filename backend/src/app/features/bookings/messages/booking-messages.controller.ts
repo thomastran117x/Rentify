@@ -98,6 +98,14 @@ export class BookingMessagesController {
     const result = await this.bookingMessagesService.createSocketTicket(
       this.requireBookingRequestId(context),
       auth.sub,
+      // Recorded so the socket can be re-checked against this session later.
+      // The claim bag is loosely typed, so both fields are narrowed rather than
+      // asserted.
+      {
+        sessionId: typeof auth.sessionId === "string" ? auth.sessionId : null,
+        tokenVersion:
+          typeof auth.tokenVersion === "number" ? auth.tokenVersion : null,
+      },
     );
 
     // The ticket rides in an HttpOnly cookie rather than the response body or a

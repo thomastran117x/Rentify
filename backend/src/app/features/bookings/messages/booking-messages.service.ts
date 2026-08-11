@@ -14,6 +14,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import type {
   BookingMessageRecord,
   BookingMessageSocketIdentity,
+  BookingMessageSocketSession,
   BookingMessageSocketTicket,
   DeleteBookingMessageInput,
   EditBookingMessageInput,
@@ -35,6 +36,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { TokenService } from "@/features/auth/token/token.service";
 
 export class BookingMessagesService {
   private readonly logger: Logger;
@@ -46,6 +48,7 @@ export class BookingMessagesService {
     private readonly organizationsRepository: OrganizationsRepository,
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
+    private readonly tokenService: TokenService,
   ) {
     this.logger = loggerFactory.forClass(BookingMessagesService, "service");
   }
@@ -284,15 +287,27 @@ export class BookingMessagesService {
   async createSocketTicket(
     bookingRequestId: string,
     actorUserId: string,
+    session: BookingMessageSocketSession = {},
   ): Promise<BookingMessageSocketTicket> {
     // Same bar as reading the thread: a ticket must never widen access.
     await this.authorizeStream(bookingRequestId, actorUserId);
 
     const ticket = randomBytes(32).toString("base64url");
 
+    // The session that minted the ticket rides along so the socket can be
+    // re-checked against it later. Without this the connection outlives its own
+    // session: membership is revalidated, but a signed-out user keeps
+    // receiving messages.
+    const identity: BookingMessageSocketIdentity = {
+      bookingRequestId,
+      userId: actorUserId,
+      sessionId: session.sessionId ?? null,
+      tokenVersion: session.tokenVersion ?? null,
+    };
+
     await this.cacheService.setJson(
       this.socketTicketKey(ticket),
-      { bookingRequestId, userId: actorUserId },
+      identity,
       BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
     );
 
@@ -300,6 +315,20 @@ export class BookingMessagesService {
       ticket,
       expiresInSeconds: BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
     };
+  }
+
+  /**
+   * Confirms the session behind an open socket is still usable. Called on the
+   * reauthorization sweep, alongside the membership check.
+   */
+  async assertSocketSessionValid(
+    identity: BookingMessageSocketIdentity,
+  ): Promise<void> {
+    await this.tokenService.assertSessionIsUsable(
+      identity.userId,
+      identity.sessionId,
+      identity.tokenVersion,
+    );
   }
 
   /**
@@ -313,15 +342,18 @@ export class BookingMessagesService {
       return null;
     }
 
-    const key = this.socketTicketKey(ticket);
+    // Read and removed in one operation. Reading then deleting let two
+    // concurrent upgrades both observe the ticket before either deleted it, so
+    // both were admitted and the single-use guarantee held only when nothing
+    // raced.
     const identity =
-      await this.cacheService.getJson<BookingMessageSocketIdentity>(key);
+      await this.cacheService.getDeleteJson<BookingMessageSocketIdentity>(
+        this.socketTicketKey(ticket),
+      );
 
     if (!identity) {
       return null;
     }
-
-    await this.cacheService.delete(key);
 
     // Re-authorized rather than trusted: membership can change between minting
     // the ticket and the upgrade landing.

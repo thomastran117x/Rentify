@@ -156,13 +156,21 @@ describe("BookingMessagePresenceService", () => {
       });
     });
 
-    it("stays silent when the key was already gone", async () => {
+    it("announces going offline even when the key had already expired", async () => {
       const { service, cacheService } = createService({ removed: false });
 
       await service.markOffline(BOOKING_ID, RENTER_ID);
 
-      // A second tab closing must not announce the user offline.
-      expect(cacheService.publish).not.toHaveBeenCalled();
+      // Keying the announcement off the delete result meant that a key which
+      // lapsed between refreshes swallowed the offline event, leaving the
+      // counterpart's dot lit for good. Not announcing for a second tab is the
+      // socket server's job — it only calls this once the user's last socket on
+      // the thread has gone — so Redis is not consulted about a transition the
+      // caller already knows about.
+      expect(publishedEvent(cacheService).event).toMatchObject({
+        type: "presence",
+        state: "offline",
+      });
     });
   });
 });

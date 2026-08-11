@@ -6,6 +6,7 @@ import type { BookingMessagesRepository } from "@/features/bookings/messages/boo
 import { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
+import type { TokenService } from "@/features/auth/token/token.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 
@@ -50,6 +51,7 @@ function createService(
     unreadCount?: number;
     ticketIdentity?: unknown;
     deliveredIds?: string[];
+    sessionError?: Error;
   } = {},
 ) {
   const bookingsRepository = {
@@ -128,6 +130,7 @@ function createService(
     delete: jest.fn(async () => true),
     setJson: jest.fn(async () => undefined),
     getJson: jest.fn(async () => options.ticketIdentity ?? null),
+    getDeleteJson: jest.fn(async () => options.ticketIdentity ?? null),
   } as unknown as CacheService;
 
   const emailService = {
@@ -138,6 +141,14 @@ function createService(
     }),
   } as unknown as EmailService;
 
+  const tokenService = {
+    assertSessionIsUsable: jest.fn(async () => {
+      if (options.sessionError) {
+        throw options.sessionError;
+      }
+    }),
+  } as unknown as TokenService;
+
   const service = new BookingMessagesService(
     bookingMessagesRepository,
     bookingsRepository,
@@ -145,6 +156,7 @@ function createService(
     organizationsRepository,
     cacheService,
     emailService,
+    tokenService,
   );
 
   return {
@@ -155,6 +167,7 @@ function createService(
     organizationsRepository,
     cacheService,
     emailService,
+    tokenService,
   };
 }
 
@@ -672,7 +685,32 @@ describe("BookingMessagesService", () => {
       expect(issued.expiresInSeconds).toBeGreaterThan(0);
       expect(cacheService.setJson).toHaveBeenCalledWith(
         `booking-messages:ws-ticket:${issued.ticket}`,
-        { bookingRequestId: BOOKING_ID, userId: RENTER_ID },
+        {
+          bookingRequestId: BOOKING_ID,
+          userId: RENTER_ID,
+          sessionId: null,
+          tokenVersion: null,
+        },
+        expect.any(Number),
+      );
+    });
+
+    it("records the minting session so the socket can be rechecked", async () => {
+      const { service, cacheService } = createService();
+
+      const issued = await service.createSocketTicket(BOOKING_ID, RENTER_ID, {
+        sessionId: "session-9",
+        tokenVersion: 3,
+      });
+
+      expect(cacheService.setJson).toHaveBeenCalledWith(
+        `booking-messages:ws-ticket:${issued.ticket}`,
+        {
+          bookingRequestId: BOOKING_ID,
+          userId: RENTER_ID,
+          sessionId: "session-9",
+          tokenVersion: 3,
+        },
         expect.any(Number),
       );
     });
@@ -697,10 +735,15 @@ describe("BookingMessagesService", () => {
         bookingRequestId: BOOKING_ID,
         userId: RENTER_ID,
       });
-      // Deleted before use, so a leaked ticket cannot be replayed.
-      expect(cacheService.delete).toHaveBeenCalledWith(
+
+      // Read and removed in one operation. A read followed by a separate delete
+      // let two concurrent upgrades both observe the ticket before either
+      // removed it, so both were admitted.
+      expect(cacheService.getDeleteJson).toHaveBeenCalledWith(
         "booking-messages:ws-ticket:abc",
       );
+      expect(cacheService.getJson).not.toHaveBeenCalled();
+      expect(cacheService.delete).not.toHaveBeenCalled();
     });
 
     it("rejects an unknown or empty ticket", async () => {
@@ -717,6 +760,39 @@ describe("BookingMessagesService", () => {
       });
 
       await expect(service.redeemSocketTicket("abc")).resolves.toBeNull();
+    });
+
+    it("passes the recorded session to the token service on recheck", async () => {
+      const { service, tokenService } = createService();
+
+      await service.assertSocketSessionValid({
+        bookingRequestId: BOOKING_ID,
+        userId: RENTER_ID,
+        sessionId: "session-9",
+        tokenVersion: 3,
+      });
+
+      expect(tokenService.assertSessionIsUsable).toHaveBeenCalledWith(
+        RENTER_ID,
+        "session-9",
+        3,
+      );
+    });
+
+    it("surfaces a revoked session so the socket can be closed", async () => {
+      const sessionError = new Error("Session is no longer valid.");
+      const { service } = createService({ sessionError });
+
+      // Membership can still be perfectly valid here: this is the signed-out
+      // user whose REST calls are all failing while the socket streams on.
+      await expect(
+        service.assertSocketSessionValid({
+          bookingRequestId: BOOKING_ID,
+          userId: RENTER_ID,
+          sessionId: "session-9",
+          tokenVersion: 3,
+        }),
+      ).rejects.toBe(sessionError);
     });
   });
 

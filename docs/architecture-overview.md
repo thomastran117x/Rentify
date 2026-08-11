@@ -105,8 +105,18 @@ Three things about it are worth knowing before extending it:
   piece of work creates and disposes its own. A socket that pinned a scope would
   hold a database connection for its entire lifetime.
 
-Authorization is checked at connect and re-checked every 60 seconds, so a
-revoked membership closes the socket rather than waiting for it to drop.
+Access is checked at connect and re-checked every 60 seconds, on two axes that
+are easy to conflate. **Membership** answers whether this user may still read
+this thread. **The session** answers whether they are still signed in at all — a
+logout, a password change, a token-version bump. Checking only the first leaves
+a signed-out user receiving message bodies over a connection that outlives their
+session while every REST call they make returns 401, so the ticket records the
+session that minted it and the sweep validates both.
+
+Presence keys are refreshed on a separate, faster interval. A refresh slower
+than the key's own TTL leaves windows where the key has lapsed, and a disconnect
+inside one of those goes unannounced — the counterpart is left looking at a
+contact who appears permanently online.
 
 ## Background Workers
 

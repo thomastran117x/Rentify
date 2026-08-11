@@ -17,6 +17,7 @@ const USER_ID = "user-1";
 interface Fakes {
   redeemSocketTicket: jest.Mock;
   authorizeStream: jest.Mock;
+  assertSocketSessionValid: jest.Mock;
   markDelivered: jest.Mock;
   publishTyping: jest.Mock;
   markOnline: jest.Mock;
@@ -47,6 +48,8 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
     authorizeStream:
       overrides.authorizeStream ??
       jest.fn(async () => ({ bookingRequestId: BOOKING_ID, side: "renter" })),
+    assertSocketSessionValid:
+      overrides.assertSocketSessionValid ?? jest.fn(async () => undefined),
     markDelivered: overrides.markDelivered ?? jest.fn(async () => ["m1"]),
     publishTyping: overrides.publishTyping ?? jest.fn(async () => undefined),
     markOnline: overrides.markOnline ?? jest.fn(async () => undefined),
@@ -71,6 +74,7 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
       ({
         redeemSocketTicket: fakes.redeemSocketTicket,
         authorizeStream: fakes.authorizeStream,
+        assertSocketSessionValid: fakes.assertSocketSessionValid,
         markDelivered: fakes.markDelivered,
       }) as never,
   });
@@ -298,6 +302,44 @@ describe("BookingMessageSocketServer", () => {
     expect(fakes.markDelivered).not.toHaveBeenCalled();
 
     socket.close();
+  }, 20_000);
+
+  it("survives frames that parse to something that is not an object", async () => {
+    const fakes = installFakeContainer();
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    const unhandled: unknown[] = [];
+    const captureRejection = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", captureRejection);
+
+    try {
+      // `null` is the dangerous one: JSON.parse accepts it, so reading `.type`
+      // off the result throws outside the parse guard, inside an async handler
+      // whose promise nobody awaits. Node's default policy turns that into a
+      // process exit — a one-line denial of service available to any
+      // authenticated client. The rest are here so the guard cannot be written
+      // narrowly enough to pass while still letting one of them through.
+      socket.send("null");
+      socket.send("42");
+      socket.send('"a string"');
+      socket.send("[1,2,3]");
+      socket.send("true");
+      await settle(20);
+
+      expect(unhandled).toEqual([]);
+      expect(socket.readyState).toBe(WebSocket.OPEN);
+      expect(fakes.markDelivered).not.toHaveBeenCalled();
+      expect(fakes.publishTyping).not.toHaveBeenCalled();
+
+      // Proves the connection is still usable, not merely un-crashed.
+      socket.send(JSON.stringify({ type: "delivered", messageIds: ["m1"] }));
+      await settle();
+      expect(fakes.markDelivered).toHaveBeenCalledTimes(1);
+    } finally {
+      process.off("unhandledRejection", captureRejection);
+      socket.close();
+    }
   }, 20_000);
 
   it("releases the hub subscription and clears presence on close", async () => {

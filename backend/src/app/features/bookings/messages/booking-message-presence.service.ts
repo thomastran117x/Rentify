@@ -71,14 +71,13 @@ export class BookingMessagePresenceService {
   }
 
   async markOffline(bookingRequestId: string, userId: string): Promise<void> {
-    const removed = await this.cacheService.delete(
-      this.presenceKey(bookingRequestId, userId),
-    );
+    await this.cacheService.delete(this.presenceKey(bookingRequestId, userId));
 
-    if (!removed) {
-      return;
-    }
-
+    // Published whether or not the key was still there. Keying the announcement
+    // off the delete result meant that a key which had expired between refreshes
+    // swallowed the offline event, and the counterpart's dot stayed lit forever.
+    // The caller only reaches here when the user's last socket on this thread
+    // has gone, so it is the authority on the transition, not Redis.
     await this.publishPresence(bookingRequestId, userId, "offline");
   }
 

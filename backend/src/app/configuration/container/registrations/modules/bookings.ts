@@ -101,6 +101,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.organizationsRepository,
         containerTokens.cacheService,
         containerTokens.emailService,
+        containerTokens.tokenService,
       ],
       resolve: ({ resolve }) =>
         new BookingMessagesService(
@@ -110,6 +111,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.organizationsRepository),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.emailService),
+          resolve(containerTokens.tokenService),
         ),
     });
     container.register({

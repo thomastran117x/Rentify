@@ -119,6 +119,43 @@ describe("openBookingMessageSocket", () => {
     handle.close();
   });
 
+  it("drops a socket that was handed another booking's ticket", async () => {
+    vi.useFakeTimers();
+    const onEvent = vi.fn();
+
+    const handle = openBookingMessageSocket({
+      bookingRequestId: "booking-1",
+      onEvent,
+      onStatus: vi.fn(),
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    // The ticket cookie is shared by every tab on this origin, so two tabs
+    // opening different threads at once can each end up upgrading with the
+    // other's ticket. The server stays self-consistent — it subscribed to the
+    // booking whose ticket it redeemed — but this tab would render someone
+    // else's conversation.
+    socket.emit({ type: "ready", bookingRequestId: "booking-2" });
+    socket.emit({
+      type: "message.created",
+      bookingRequestId: "booking-2",
+      message: { id: "m1" },
+    });
+
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
+
+    // It reconnects rather than giving up: the collision is a race, so the next
+    // attempt normally gets a ticket of its own.
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
+
+    handle.close();
+  });
+
   it("ignores a malformed frame", async () => {
     const onEvent = vi.fn();
     const handle = openBookingMessageSocket({

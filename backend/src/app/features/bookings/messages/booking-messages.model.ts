@@ -173,9 +173,25 @@ export interface BookingMessageSocketTicket {
   expiresInSeconds: number;
 }
 
+/**
+ * Who a redeemed ticket belongs to, and which session minted it.
+ *
+ * The session fields are what let a long-lived socket be re-checked against
+ * logout and token-version bumps. They are not a credential — they identify a
+ * session so it can be looked up, and the ticket they travel in is single-use
+ * and short-lived.
+ */
+/** The session details a ticket carries, taken from the minting request. */
+export interface BookingMessageSocketSession {
+  sessionId?: string | null;
+  tokenVersion?: number | null;
+}
+
 export interface BookingMessageSocketIdentity {
   bookingRequestId: string;
   userId: string;
+  sessionId: string | null;
+  tokenVersion: number | null;
 }
 
 /** Frames the client may send once connected. */

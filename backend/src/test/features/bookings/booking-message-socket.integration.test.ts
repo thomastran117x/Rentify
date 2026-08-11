@@ -203,6 +203,39 @@ describe("Booking message socket integration", () => {
     socket.terminate();
   }, 30_000);
 
+  it("refuses a ticket whose session has been revoked", async () => {
+    const { renter, bookingRequestId } = await createThread();
+    const ticket = await mintTicket(bookingRequestId, renter.headers());
+
+    const scope = persistenceApp.container.createScope();
+    const service = scope.resolve(containerTokens.bookingMessagesService);
+    const identity = await service.redeemSocketTicket(ticket);
+
+    if (!identity) {
+      throw new Error("Expected the ticket to redeem.");
+    }
+
+    // Healthy first: this is the same check the reauthorization sweep runs, and
+    // it has to pass before its failure means anything.
+    await expect(
+      service.assertSocketSessionValid(identity),
+    ).resolves.toBeUndefined();
+
+    // Bumping the token version is what a logout or password change does. The
+    // membership is untouched, so a socket checking only membership would sail
+    // straight past this and keep streaming to a signed-out user.
+    await persistenceApp.prisma.user.update({
+      where: { id: renter.userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    await expect(service.assertSocketSessionValid(identity)).rejects.toThrow(
+      /no longer valid/i,
+    );
+
+    await scope.dispose();
+  }, 60_000);
+
   it("delivers a message published while the socket is open", async () => {
     const { renter, bookingRequestId } = await createThread();
     const owner = await createAuthenticatedRequestContext({

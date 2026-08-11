@@ -534,6 +534,25 @@ export class TokenService {
     }
   }
 
+  /**
+   * Re-runs the session checks `verifyAccessToken` performs, without a token.
+   *
+   * A WebSocket outlives the access token that opened it, so it cannot keep
+   * re-verifying that token: it would start failing on expiry while the session
+   * behind it is perfectly healthy. This asks the question that actually
+   * matters for a long-lived connection — is this session still active, and is
+   * its token version still current — so a logout, a password change or a
+   * revoked session closes the socket instead of leaving it streaming.
+   */
+  async assertSessionIsUsable(
+    userId: string,
+    sessionId?: string | null,
+    tokenVersion?: number | null,
+  ): Promise<void> {
+    await this.getCurrentSessionValidation(userId, tokenVersion);
+    await this.assertSessionIsActive(userId, sessionId);
+  }
+
   private async getCurrentSessionValidation(
     userId: string,
     tokenVersion?: string | number | boolean | null,

@@ -568,9 +568,14 @@ describe("Booking messages persistence integration", () => {
       .createScope()
       .resolve(containerTokens.bookingMessagesService);
 
+    // The session that minted the ticket comes back with it, which is what lets
+    // an open socket be rechecked against a logout rather than living on until
+    // the client happens to disconnect.
     await expect(service.redeemSocketTicket(ticket)).resolves.toEqual({
       bookingRequestId,
       userId: renter.userId,
+      sessionId: expect.any(String),
+      tokenVersion: expect.any(Number),
     });
 
     // Single use: the same ticket cannot be redeemed twice, so a leaked one is

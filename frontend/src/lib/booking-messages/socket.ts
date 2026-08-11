@@ -163,7 +163,19 @@ export function openBookingMessageSocket(options: {
       try {
         const frame = JSON.parse(String(message.data)) as
           | BookingMessageStreamEvent
-          | { type: "ready" };
+          | { type: "ready"; bookingRequestId: string };
+
+        // The ticket cookie is shared by every tab on this origin, so two tabs
+        // opening different threads at once can each end up holding the other's
+        // ticket and subscribing to the wrong booking. The server is consistent
+        // either way — the subscription matches the ticket it redeemed — but
+        // this tab would render another conversation. Dropping the socket sends
+        // it back through the exchange for a ticket of its own.
+        if (frame.bookingRequestId !== bookingRequestId) {
+          closeCurrentSocket();
+          scheduleReconnect();
+          return;
+        }
 
         // `ready` only confirms the subscription; the panel re-syncs off the
         // `open` status instead.
