@@ -111,6 +111,20 @@ export const bookingsRouteModule: RouteModule = {
         "send",
       ),
     );
+    app.patch(
+      "/booking-requests/:id/messages/:messageId",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "edit",
+      ),
+    );
+    app.delete(
+      "/booking-requests/:id/messages/:messageId",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "remove",
+      ),
+    );
     app.post(
       "/booking-requests/:id/messages/read",
       resolveHandler<BookingMessagesController>(

@@ -16,6 +16,7 @@ import {
 import type { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
 import type { ListBookingMessagesQuery } from "@/features/bookings/messages/booking-messages.model";
 import {
+  editBookingMessageSchema,
   listBookingMessagesQuerySchema,
   sendBookingMessageSchema,
 } from "@/features/bookings/messages/booking-messages.model";
@@ -74,6 +75,30 @@ export class BookingMessagesController {
     return ok(context, result, {
       meta: paginationMeta(result),
     });
+  };
+
+  edit = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await requireJwtAuth(context);
+    const body = await parseRequestBody(context, editBookingMessageSchema);
+    const result = await this.bookingMessagesService.edit({
+      bookingRequestId: this.requireBookingRequestId(context),
+      messageId: this.requireMessageId(context),
+      actorUserId: auth.sub,
+      body: body.body,
+    });
+
+    return ok(context, result, { message: "Message updated successfully." });
+  };
+
+  remove = async (context: Context<AppBindings>): Promise<Response> => {
+    const auth = await requireJwtAuth(context);
+    const result = await this.bookingMessagesService.remove({
+      bookingRequestId: this.requireBookingRequestId(context),
+      messageId: this.requireMessageId(context),
+      actorUserId: auth.sub,
+    });
+
+    return ok(context, result, { message: "Message deleted successfully." });
   };
 
   markRead = async (context: Context<AppBindings>): Promise<Response> => {
@@ -240,6 +265,10 @@ export class BookingMessagesController {
 
   private requireBookingRequestId(context: Context<AppBindings>): string {
     return requireSafeRouteParam(context, "id");
+  }
+
+  private requireMessageId(context: Context<AppBindings>): string {
+    return requireSafeRouteParam(context, "messageId");
   }
 
   private parseListQuery(

@@ -72,6 +72,17 @@ function createService(
       },
     })),
     countUnreadForSide: jest.fn(async () => options.unreadCount ?? 0),
+    findThreadParties: jest.fn(async () => ({
+      organizationName: "Maya Santos Organization",
+      renterUsername: "renter-one",
+    })),
+    findById: jest.fn(async () => createMessage()),
+    updateBody: jest.fn(async () =>
+      createMessage({ editedAt: "2026-08-10T12:30:00.000Z" }),
+    ),
+    softDelete: jest.fn(async () =>
+      createMessage({ body: "", deletedAt: "2026-08-10T12:40:00.000Z" }),
+    ),
     markReadForSide: jest.fn(async () => options.markedCount ?? 0),
   } as unknown as BookingMessagesRepository;
 
@@ -434,6 +445,111 @@ describe("BookingMessagesService", () => {
           pageSize: 20,
         }),
       ).rejects.toBe(membershipError);
+    });
+  });
+
+  describe("edit and remove", () => {
+    const recent = () => new Date(Date.now() - 60_000).toISOString();
+    const stale = () => new Date(Date.now() - 20 * 60_000).toISOString();
+
+    it("edits the author's own recent message and publishes the update", async () => {
+      const { service, bookingMessagesRepository, cacheService } =
+        createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ createdAt: recent() }),
+      );
+
+      await expect(
+        service.edit({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+          body: "Corrected",
+        }),
+      ).resolves.toMatchObject({ editedAt: expect.any(String) });
+
+      const [, payload] = (cacheService.publish as jest.Mock).mock.calls[0];
+      expect(JSON.parse(payload)).toMatchObject({ type: "message.updated" });
+    });
+
+    it("soft deletes the author's own recent message", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ createdAt: recent() }),
+      );
+
+      await expect(
+        service.remove({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+        }),
+      ).resolves.toMatchObject({ body: "", deletedAt: expect.any(String) });
+    });
+
+    it("rejects changing someone else's message", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ authorId: "someone-else", createdAt: recent() }),
+      );
+
+      await expect(
+        service.edit({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+          body: "Not mine",
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("rejects a change outside the edit window", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ createdAt: stale() }),
+      );
+
+      await expect(
+        service.edit({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+          body: "Too late",
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("rejects changing an already deleted message", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({
+          createdAt: recent(),
+          deletedAt: "2026-08-10T12:40:00.000Z",
+        }),
+      );
+
+      await expect(
+        service.remove({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("rejects a message that belongs to another booking", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ bookingRequestId: "other-booking" }),
+      );
+
+      await expect(
+        service.remove({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+        }),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
   });
 

@@ -12615,9 +12615,12 @@ paths:
                       bookingRequestId: booking-1
                       authorId: user-1
                       authorSide: renter
+                      authorUsername: renter-one
                       body: Is an early pickup possible on the first day?
                       createdAt: '2026-05-26T08:00:00.000Z'
                       readAt: null
+                      editedAt: null
+                      deletedAt: null
                   pagination:
                     page: 1
                     pageSize: 20
@@ -12627,6 +12630,7 @@ paths:
                     hasPreviousPage: false
                   unreadCount: 1
                   canWrite: true
+                  counterpartName: renter-one
                   viewerSide: owner
                 error: null
                 meta:
@@ -12700,9 +12704,161 @@ paths:
                   bookingRequestId: booking-1
                   authorId: user-1
                   authorSide: renter
+                  authorUsername: renter-one
                   body: Is an early pickup possible on the first day?
                   createdAt: '2026-05-26T08:00:00.000Z'
                   readAt: null
+                  editedAt: null
+                  deletedAt: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/booking-requests/{id}/messages/{messageId}':
+    patch:
+      operationId: editBookingMessage
+      summary: Edit a booking request message
+      description: 'Edits the authenticated user''s own message. Allowed within 15 minutes of sending, regardless of whether the other party has read it, and the edit is marked so the other side can see the message changed. PAT bearer authentication is not allowed.'
+      tags:
+        - booking-requests
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Booking request identifier.
+          schema:
+            type: string
+          example: booking-1
+        - name: messageId
+          in: path
+          required: true
+          description: Message identifier.
+          schema:
+            type: string
+          example: booking-message-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendBookingMessageRequest'
+            example:
+              body: The keys will be in the lockbox by the side door.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BookingMessageRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Message updated successfully.
+                data:
+                  id: booking-message-1
+                  bookingRequestId: booking-1
+                  authorId: user-1
+                  authorSide: renter
+                  authorUsername: renter-one
+                  body: The keys will be in the lockbox by the side door.
+                  createdAt: '2026-05-26T08:00:00.000Z'
+                  readAt: null
+                  editedAt: '2026-05-26T08:02:00.000Z'
+                  deletedAt: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteBookingMessage
+      summary: Delete a booking request message
+      description: 'Deletes the authenticated user''s own message within 15 minutes of sending. The message is soft deleted: its text is cleared but the row remains so the booking keeps a record that a message existed. PAT bearer authentication is not allowed.'
+      tags:
+        - booking-requests
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Booking request identifier.
+          schema:
+            type: string
+          example: booking-1
+        - name: messageId
+          in: path
+          required: true
+          description: Message identifier.
+          schema:
+            type: string
+          example: booking-message-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BookingMessageRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Message deleted successfully.
+                data:
+                  id: booking-message-1
+                  bookingRequestId: booking-1
+                  authorId: user-1
+                  authorSide: renter
+                  authorUsername: renter-one
+                  body: ''
+                  createdAt: '2026-05-26T08:00:00.000Z'
+                  readAt: null
+                  editedAt: null
+                  deletedAt: '2026-05-26T08:05:00.000Z'
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -17382,9 +17538,12 @@ components:
         - bookingRequestId
         - authorId
         - authorSide
+        - authorUsername
         - body
         - createdAt
         - readAt
+        - editedAt
+        - deletedAt
       properties:
         id:
           type: string
@@ -17398,9 +17557,13 @@ components:
             - renter
             - owner
           description: 'Which side of the booking authored the message, derived from the booking''s renter.'
+        authorUsername:
+          type: string
+          description: 'The author''s username, so a thread with several organization managers stays legible.'
         body:
           type: string
           maxLength: 2000
+          description: Empty once the message is deleted.
         createdAt:
           type: string
           format: date-time
@@ -17410,6 +17573,18 @@ components:
             - 'null'
           format: date-time
           description: 'When the recipient side read this message, or null while unread.'
+        editedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the author last edited the message.
+        deletedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the author deleted the message. The row is kept as a tombstone so the booking retains a record that a message existed.
     BookingMessagesListResult:
       type: object
       required:
@@ -17417,6 +17592,7 @@ components:
         - pagination
         - unreadCount
         - canWrite
+        - counterpartName
         - viewerSide
       properties:
         messages:
@@ -17432,6 +17608,9 @@ components:
         canWrite:
           type: boolean
           description: 'Whether the requesting user may send messages and mark the thread read. Resolved against the booking''s organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.'
+        counterpartName:
+          type: string
+          description: 'Who the requesting user is talking to: the owning organization''s name for a renter, and the renter''s username for the organization side.'
         viewerSide:
           type: string
           enum:

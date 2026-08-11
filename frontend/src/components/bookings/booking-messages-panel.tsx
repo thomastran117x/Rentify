@@ -9,6 +9,7 @@ import { bookingMessagesApi } from "@/lib/booking-messages/api";
 import { openBookingMessageStream } from "@/lib/booking-messages/stream";
 import type { BookingMessageStreamHandle } from "@/lib/booking-messages/stream";
 import {
+  BOOKING_MESSAGE_EDIT_WINDOW_MS,
   MAX_BOOKING_MESSAGE_LENGTH,
   type BookingMessageAuthorSide,
   type BookingMessageRecord,
@@ -29,6 +30,12 @@ interface PanelBanner {
 
 interface BookingMessagesPanelProps {
   bookingRequestId: string;
+  /**
+   * Used only to decide which messages this user may edit or delete. Alignment
+   * deliberately uses `viewerSide` instead: a colleague manager's message is on
+   * your side of the thread but is not yours to change.
+   */
+  currentUserId: string;
 }
 
 /**
@@ -66,6 +73,10 @@ export function MessageBubble({
   message,
   mine,
   showReceipt = false,
+  canModify = false,
+  onEdit,
+  onDelete,
+  pending = false,
 }: {
   message: BookingMessageRecord;
   mine: boolean;
@@ -74,29 +85,49 @@ export function MessageBubble({
    * bubble is noise: once a later message is read, every earlier one was too.
    */
   showReceipt?: boolean;
+  /** Whether this viewer may still edit or delete this message. */
+  canModify?: boolean;
+  onEdit?: (message: BookingMessageRecord) => void;
+  onDelete?: (message: BookingMessageRecord) => void;
+  pending?: boolean;
 }) {
   const readAt = showReceipt && message.readAt ? message.readAt : null;
+  const deleted = Boolean(message.deletedAt);
 
   return (
     <li
-      className={`flex ${mine ? "justify-end" : "justify-start"}`}
+      className={`flex flex-col ${mine ? "items-end" : "items-start"}`}
       data-testid="booking-message"
       data-mine={mine ? "true" : "false"}
     >
+      <span className="mb-1 px-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        {message.authorUsername}
+      </span>
       <div
         className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-          mine
-            ? "bg-violet-600 text-white"
-            : "border border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          deleted
+            ? "border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+            : mine
+              ? "bg-violet-600 text-white"
+              : "border border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
         }`}
       >
-        <p className="whitespace-pre-wrap break-words">{message.body}</p>
+        {deleted ? (
+          <p className="italic">Message deleted</p>
+        ) : (
+          <p className="whitespace-pre-wrap break-words">{message.body}</p>
+        )}
         <p
-          className={`mt-2 flex items-center justify-end gap-1 text-[11px] ${
-            mine ? "text-violet-100" : "text-slate-400 dark:text-slate-500"
+          className={`mt-2 flex flex-wrap items-center justify-end gap-1 text-[11px] ${
+            deleted
+              ? "text-slate-400 dark:text-slate-500"
+              : mine
+                ? "text-violet-100"
+                : "text-slate-400 dark:text-slate-500"
           }`}
         >
           <span>{formatDateTime(message.createdAt) ?? ""}</span>
+          {message.editedAt && !deleted ? <span>· edited</span> : null}
           {readAt ? (
             <span
               className="inline-flex items-center gap-0.5"
@@ -108,6 +139,26 @@ export function MessageBubble({
           ) : null}
         </p>
       </div>
+      {canModify && !deleted ? (
+        <div className="mt-1 flex gap-2 px-1">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onEdit?.(message)}
+            className="text-[11px] font-medium text-slate-500 underline-offset-2 transition hover:text-violet-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onDelete?.(message)}
+            className="text-[11px] font-medium text-slate-500 underline-offset-2 transition hover:text-rose-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400"
+          >
+            Delete
+          </button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -177,6 +228,7 @@ export function MessageComposer({
 
 export function BookingMessagesPanel({
   bookingRequestId,
+  currentUserId,
 }: BookingMessagesPanelProps) {
   const [messages, setMessages] = useState<BookingMessageRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
@@ -190,6 +242,8 @@ export function BookingMessagesPanel({
   const [viewerSide, setViewerSide] = useState<BookingMessageAuthorSide | null>(
     null,
   );
+  const [counterpartName, setCounterpartName] = useState("");
+  const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -303,6 +357,7 @@ export function BookingMessagesPanel({
           setUnreadCount(result.unreadCount);
           setCanWrite(result.canWrite);
           setViewerSide(result.viewerSide);
+          setCounterpartName(result.counterpartName);
         });
       } catch (error) {
         setBanner({
@@ -388,6 +443,16 @@ export function BookingMessagesPanel({
           return;
         }
 
+        if (event.type === "message.updated") {
+          // Edits and deletes replace in place; they never change ordering.
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === event.message.id ? event.message : message,
+            ),
+          );
+          return;
+        }
+
         // A read event marks the messages the *other* side authored. Keying
         // off the current user instead would flag your own messages as seen
         // when you, or anyone else on your side, opened the thread.
@@ -466,6 +531,84 @@ export function BookingMessagesPanel({
     [bookingRequestId],
   );
 
+  const applyUpdated = useCallback((record: BookingMessageRecord) => {
+    setMessages((previous) =>
+      previous.map((message) => (message.id === record.id ? record : message)),
+    );
+  }, []);
+
+  const handleEdit = useCallback(
+    async (message: BookingMessageRecord) => {
+      const next = window.prompt("Edit your message", message.body);
+
+      if (next === null || next.trim() === message.body) {
+        return;
+      }
+
+      setPendingMessageId(message.id);
+      setBanner(null);
+
+      try {
+        applyUpdated(
+          await bookingMessagesApi.edit(bookingRequestId, message.id, {
+            body: next.trim(),
+          }),
+        );
+      } catch (error) {
+        setBanner({
+          tone: "error",
+          text: getApiErrorMessage(error, {
+            action: "edit message",
+            fallback: "We could not edit that message.",
+          }),
+        });
+      } finally {
+        setPendingMessageId(null);
+      }
+    },
+    [applyUpdated, bookingRequestId],
+  );
+
+  const handleDelete = useCallback(
+    async (message: BookingMessageRecord) => {
+      if (!window.confirm("Delete this message? This cannot be undone.")) {
+        return;
+      }
+
+      setPendingMessageId(message.id);
+      setBanner(null);
+
+      try {
+        applyUpdated(
+          await bookingMessagesApi.remove(bookingRequestId, message.id),
+        );
+      } catch (error) {
+        setBanner({
+          tone: "error",
+          text: getApiErrorMessage(error, {
+            action: "delete message",
+            fallback: "We could not delete that message.",
+          }),
+        });
+      } finally {
+        setPendingMessageId(null);
+      }
+    },
+    [applyUpdated, bookingRequestId],
+  );
+
+  // Mirrors the server rule so the controls disappear when the API would start
+  // rejecting them, rather than offering an action that can only fail.
+  const canModifyMessage = useCallback(
+    (message: BookingMessageRecord): boolean =>
+      canWrite &&
+      !message.deletedAt &&
+      message.authorId === currentUserId &&
+      Date.now() - new Date(message.createdAt).getTime() <
+        BOOKING_MESSAGE_EDIT_WINDOW_MS,
+    [canWrite, currentUserId],
+  );
+
   // State stays newest-first because that is the order the API pages in, and
   // the trim, receipt, and merge logic all depend on it. Only the render is
   // reversed, so the thread reads top-to-bottom like any other chat.
@@ -485,9 +628,16 @@ export function BookingMessagesPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 text-slate-950 dark:text-white">
         <div className="flex items-center gap-2">
           <MessagesSquare aria-hidden="true" className="h-5 w-5" />
-          <h2 className="text-base font-semibold tracking-[-0.02em]">
-            Messages
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold tracking-[-0.02em]">
+              Messages
+            </h2>
+            {counterpartName ? (
+              <p className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                with {counterpartName}
+              </p>
+            ) : null}
+          </div>
           {unreadCount > 0 ? (
             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
               {unreadCount} unread
@@ -530,6 +680,10 @@ export function BookingMessagesPanel({
                   message={message}
                   mine={message.authorSide === viewerSide}
                   showReceipt={message.id === receiptMessageId}
+                  canModify={canModifyMessage(message)}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  pending={pendingMessageId === message.id}
                 />
               ))}
             </ul>

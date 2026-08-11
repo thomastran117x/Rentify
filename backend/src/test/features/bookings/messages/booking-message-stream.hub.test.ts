@@ -48,9 +48,12 @@ const createdEvent: BookingMessageStreamEvent = {
     bookingRequestId: BOOKING_ID,
     authorId: "renter-1",
     authorSide: "renter",
+    authorUsername: "renter-one",
     body: "hello",
     createdAt: "2026-08-10T12:00:00.000Z",
     readAt: null,
+    editedAt: null,
+    deletedAt: null,
   },
 };
 

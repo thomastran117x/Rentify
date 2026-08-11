@@ -208,7 +208,10 @@ export function BookingDetailClient({
           ) : null}
         </Panel>
 
-        <BookingMessagesPanel bookingRequestId={booking.id} />
+        <BookingMessagesPanel
+          bookingRequestId={booking.id}
+          currentUserId={session.user.id}
+        />
       </div>
     </div>
   );

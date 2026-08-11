@@ -31,6 +31,26 @@ export const bookingMessagesApi = {
       input,
     );
   },
+  edit(
+    bookingRequestId: string,
+    messageId: string,
+    input: { body: string },
+  ): Promise<BookingMessageRecord> {
+    return authenticatedJson<BookingMessageRecord, { body: string }>(
+      "PATCH",
+      `/booking-requests/${encodeURIComponent(bookingRequestId)}/messages/${encodeURIComponent(messageId)}`,
+      input,
+    );
+  },
+  remove(
+    bookingRequestId: string,
+    messageId: string,
+  ): Promise<BookingMessageRecord> {
+    return authenticatedJson<BookingMessageRecord>(
+      "DELETE",
+      `/booking-requests/${encodeURIComponent(bookingRequestId)}/messages/${encodeURIComponent(messageId)}`,
+    );
+  },
   markRead(bookingRequestId: string): Promise<MarkBookingMessagesReadResult> {
     return authenticatedJson<MarkBookingMessagesReadResult>(
       "POST",

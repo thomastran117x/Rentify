@@ -7,7 +7,19 @@ import type {
   BookingMessagesPagination,
 } from "@/features/bookings/messages/booking-messages.model";
 
-type BookingMessagePersistence = Prisma.BookingMessageGetPayload<object>;
+const AUTHOR_INCLUDE = {
+  author: {
+    select: {
+      profile: {
+        select: { username: true },
+      },
+    },
+  },
+} as const;
+
+type BookingMessagePersistence = Prisma.BookingMessageGetPayload<{
+  include: typeof AUTHOR_INCLUDE;
+}>;
 
 export type BookingMessageEmailContext = Prisma.BookingMessageGetPayload<{
   include: {
@@ -70,6 +82,7 @@ export class BookingMessagesRepository extends BaseRepository {
           authorId: input.authorId,
           body: input.body,
         },
+        include: AUTHOR_INCLUDE,
       }),
     );
 
@@ -96,6 +109,7 @@ export class BookingMessagesRepository extends BaseRepository {
           // `id` breaks ties: two messages can share a DATETIME(6) value, and an
           // unstable sort would duplicate or drop rows across pages.
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          include: AUTHOR_INCLUDE,
         }),
         this.prisma.bookingMessage.count({ where }),
       ]),
@@ -135,6 +149,84 @@ export class BookingMessagesRepository extends BaseRepository {
     );
 
     return result.count;
+  }
+
+  async findById(
+    messageId: string,
+    renterId: string,
+  ): Promise<BookingMessageRecord | null> {
+    const row = await this.executeAsync(() =>
+      this.prisma.bookingMessage.findUnique({
+        where: { id: messageId },
+        include: AUTHOR_INCLUDE,
+      }),
+    );
+
+    return row ? this.mapMessage(row, renterId) : null;
+  }
+
+  async updateBody(input: {
+    messageId: string;
+    body: string;
+    editedAt: Date;
+    renterId: string;
+  }): Promise<BookingMessageRecord> {
+    const updated = await this.executeAsync(() =>
+      this.prisma.bookingMessage.update({
+        where: { id: input.messageId },
+        data: { body: input.body, editedAt: input.editedAt },
+        include: AUTHOR_INCLUDE,
+      }),
+    );
+
+    return this.mapMessage(updated, input.renterId);
+  }
+
+  async softDelete(input: {
+    messageId: string;
+    deletedAt: Date;
+    renterId: string;
+  }): Promise<BookingMessageRecord> {
+    const deleted = await this.executeAsync(() =>
+      this.prisma.bookingMessage.update({
+        where: { id: input.messageId },
+        // The row survives so the booking keeps a record that a message
+        // existed; only its text is removed.
+        data: { body: "", deletedAt: input.deletedAt },
+        include: AUTHOR_INCLUDE,
+      }),
+    );
+
+    return this.mapMessage(deleted, input.renterId);
+  }
+
+  /**
+   * The two named parties on a thread: the renting user and the owning
+   * organization. One query so the list endpoint can tell each side who they
+   * are talking to.
+   */
+  async findThreadParties(bookingRequestId: string): Promise<{
+    organizationName: string;
+    renterUsername: string;
+  } | null> {
+    const booking = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findUnique({
+        where: { id: bookingRequestId },
+        select: {
+          organization: { select: { name: true } },
+          renter: { select: { profile: { select: { username: true } } } },
+        },
+      }),
+    );
+
+    if (!booking) {
+      return null;
+    }
+
+    return {
+      organizationName: booking.organization?.name ?? "the organization",
+      renterUsername: booking.renter?.profile?.username ?? "the renter",
+    };
   }
 
   async findByIdWithContext(
@@ -194,9 +286,12 @@ export class BookingMessagesRepository extends BaseRepository {
       bookingRequestId: row.bookingRequestId,
       authorId: row.authorId,
       authorSide: row.authorId === renterId ? "renter" : "owner",
+      authorUsername: row.author?.profile?.username ?? "Unknown",
       body: row.body,
       createdAt: row.createdAt.toISOString(),
       readAt: row.readAt ? row.readAt.toISOString() : null,
+      editedAt: row.editedAt ? row.editedAt.toISOString() : null,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
     };
   }
 

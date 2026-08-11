@@ -786,9 +786,12 @@ const bookingMessageExample = {
   bookingRequestId: "booking-1",
   authorId: "user-1",
   authorSide: "renter",
+  authorUsername: "renter-one",
   body: "Is an early pickup possible on the first day?",
   createdAt: "2026-05-26T08:00:00.000Z",
   readAt: null,
+  editedAt: null,
+  deletedAt: null,
 };
 
 const bookingRequestExample = {
@@ -6961,6 +6964,7 @@ function buildOperations(): OperationDefinition[] {
             },
             unreadCount: 1,
             canWrite: true,
+            counterpartName: "renter-one",
             viewerSide: "owner",
           },
           "Successful response.",
@@ -7005,6 +7009,73 @@ function buildOperations(): OperationDefinition[] {
           "Message sent successfully.",
           "BookingMessageRecord",
           bookingMessageExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/booking-requests/:id/messages/:messageId",
+      operationId: "editBookingMessage",
+      summary: "Edit a booking request message",
+      description:
+        "Edits the authenticated user's own message. Allowed within 15 minutes of sending, regardless of whether the other party has read it, and the edit is marked so the other side can see the message changed. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+        routePathParam("messageId", "Message identifier.", "booking-message-1"),
+      ],
+      requestBody: requestBody("SendBookingMessageRequest", {
+        body: "The keys will be in the lockbox by the side door.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Message updated successfully.",
+          "BookingMessageRecord",
+          {
+            ...bookingMessageExample,
+            body: "The keys will be in the lockbox by the side door.",
+            editedAt: "2026-05-26T08:02:00.000Z",
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/booking-requests/:id/messages/:messageId",
+      operationId: "deleteBookingMessage",
+      summary: "Delete a booking request message",
+      description:
+        "Deletes the authenticated user's own message within 15 minutes of sending. The message is soft deleted: its text is cleared but the row remains so the booking keeps a record that a message existed. PAT bearer authentication is not allowed.",
+      tags: ["booking-requests"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Booking request identifier.", "booking-1"),
+        routePathParam("messageId", "Message identifier.", "booking-message-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Message deleted successfully.",
+          "BookingMessageRecord",
+          {
+            ...bookingMessageExample,
+            body: "",
+            deletedAt: "2026-05-26T08:05:00.000Z",
+          },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
@@ -10146,9 +10217,12 @@ function buildComponents(): Record<string, unknown> {
           "bookingRequestId",
           "authorId",
           "authorSide",
+          "authorUsername",
           "body",
           "createdAt",
           "readAt",
+          "editedAt",
+          "deletedAt",
         ],
         properties: {
           id: { type: "string" },
@@ -10160,13 +10234,33 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Which side of the booking authored the message, derived from the booking's renter.",
           },
-          body: { type: "string", maxLength: 2000 },
+          authorUsername: {
+            type: "string",
+            description:
+              "The author's username, so a thread with several organization managers stays legible.",
+          },
+          body: {
+            type: "string",
+            maxLength: 2000,
+            description: "Empty once the message is deleted.",
+          },
           createdAt: { type: "string", format: "date-time" },
           readAt: {
             type: ["string", "null"],
             format: "date-time",
             description:
               "When the recipient side read this message, or null while unread.",
+          },
+          editedAt: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "When the author last edited the message.",
+          },
+          deletedAt: {
+            type: ["string", "null"],
+            format: "date-time",
+            description:
+              "When the author deleted the message. The row is kept as a tombstone so the booking retains a record that a message existed.",
           },
         },
       },
@@ -10177,6 +10271,7 @@ function buildComponents(): Record<string, unknown> {
           "pagination",
           "unreadCount",
           "canWrite",
+          "counterpartName",
           "viewerSide",
         ],
         properties: {
@@ -10195,6 +10290,11 @@ function buildComponents(): Record<string, unknown> {
             type: "boolean",
             description:
               "Whether the requesting user may send messages and mark the thread read. Resolved against the booking's organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.",
+          },
+          counterpartName: {
+            type: "string",
+            description:
+              "Who the requesting user is talking to: the owning organization's name for a renter, and the renter's username for the organization side.",
           },
           viewerSide: {
             type: "string",

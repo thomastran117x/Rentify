@@ -10,10 +10,15 @@ export interface BookingMessageRecord {
   bookingRequestId: string;
   authorId: string;
   authorSide: BookingMessageAuthorSide;
+  /** The author's username, so a thread with several managers stays legible. */
+  authorUsername: string;
+  /** Empty once deleted — the tombstone is the record, not the text. */
   body: string;
   createdAt: string;
   /** When the recipient side read this message, or null while unread. */
   readAt: string | null;
+  editedAt: string | null;
+  deletedAt: string | null;
 }
 
 export interface BookingMessagesListResult {
@@ -28,6 +33,8 @@ export interface BookingMessagesListResult {
    * several organizations.
    */
   canWrite: boolean;
+  /** Who this viewer is talking to, for naming the conversation. */
+  counterpartName: string;
   /**
    * Which side of the thread this viewer is on. Align the conversation against
    * this rather than the author's user id: a second organization manager must
@@ -42,9 +49,16 @@ export interface MarkBookingMessagesReadResult {
   readAt: string;
 }
 
+export const BOOKING_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
 export type BookingMessageStreamEvent =
   | {
       type: "message.created";
+      bookingRequestId: string;
+      message: BookingMessageRecord;
+    }
+  | {
+      type: "message.updated";
       bookingRequestId: string;
       message: BookingMessageRecord;
     }

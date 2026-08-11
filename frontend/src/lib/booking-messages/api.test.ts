@@ -64,6 +64,34 @@ describe("bookingMessagesApi", () => {
     );
   });
 
+  it("edits a message", () => {
+    bookingMessagesApi.edit("booking-1", "message-1", { body: "Fixed" });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "PATCH",
+      "/booking-requests/booking-1/messages/message-1",
+      { body: "Fixed" },
+    );
+  });
+
+  it("deletes a message", () => {
+    bookingMessagesApi.remove("booking-1", "message-1");
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "DELETE",
+      "/booking-requests/booking-1/messages/message-1",
+    );
+  });
+
+  it("encodes message identifiers", () => {
+    bookingMessagesApi.remove("booking-1", "msg / 1");
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "DELETE",
+      "/booking-requests/booking-1/messages/msg%20%2F%201",
+    );
+  });
+
   it("encodes booking identifiers", () => {
     bookingMessagesApi.send("book ing/1", { body: "Hello" });
 

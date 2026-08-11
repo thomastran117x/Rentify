@@ -2,20 +2,31 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { listMock, sendMock, markReadMock, openStreamMock, closeMock } =
-  vi.hoisted(() => ({
-    listMock: vi.fn(),
-    sendMock: vi.fn(),
-    markReadMock: vi.fn(),
-    openStreamMock: vi.fn(),
-    closeMock: vi.fn(),
-  }));
+const {
+  listMock,
+  sendMock,
+  markReadMock,
+  openStreamMock,
+  closeMock,
+  editMock,
+  removeMock,
+} = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  sendMock: vi.fn(),
+  markReadMock: vi.fn(),
+  openStreamMock: vi.fn(),
+  closeMock: vi.fn(),
+  editMock: vi.fn(),
+  removeMock: vi.fn(),
+}));
 
 vi.mock("@/lib/booking-messages/api", () => ({
   bookingMessagesApi: {
     list: listMock,
     send: sendMock,
     markRead: markReadMock,
+    edit: editMock,
+    remove: removeMock,
   },
 }));
 
@@ -38,6 +49,9 @@ function buildMessage(overrides: Record<string, unknown> = {}) {
     body: "Is an early pickup possible?",
     createdAt: "2026-08-10T12:00:00.000Z",
     readAt: null,
+    authorUsername: "renter-one",
+    editedAt: null,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -55,6 +69,7 @@ function buildList(overrides: Record<string, unknown> = {}) {
     },
     unreadCount: 0,
     canWrite: true,
+    counterpartName: "Maya Santos Organization",
     viewerSide: "renter" as const,
     ...overrides,
   };
@@ -69,7 +84,12 @@ function captureStreamHandlers() {
 }
 
 function renderPanel() {
-  return render(<BookingMessagesPanel bookingRequestId="booking-1" />);
+  return render(
+    <BookingMessagesPanel
+      bookingRequestId="booking-1"
+      currentUserId={CURRENT_USER_ID}
+    />,
+  );
 }
 
 describe("BookingMessagesPanel", () => {
@@ -87,6 +107,8 @@ describe("BookingMessagesPanel", () => {
       readAt: "2026-08-10T12:05:00.000Z",
     });
     openStreamMock.mockReturnValue({ close: closeMock });
+    editMock.mockReset();
+    removeMock.mockReset();
   });
 
   afterEach(() => {
@@ -771,6 +793,182 @@ describe("BookingMessagesPanel", () => {
     await screen.findByText("Colleague reply");
     // A colleague on the same side has not written to this viewer.
     expect(markReadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("names who the viewer is talking to", async () => {
+    renderPanel();
+
+    expect(
+      await screen.findByText("with Maya Santos Organization"),
+    ).toBeInTheDocument();
+  });
+
+  it("labels each message with its author", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "from-manager",
+            authorId: "manager-9",
+            authorSide: "owner",
+            authorUsername: "owner-one",
+            body: "Manager reply",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+
+    expect(await screen.findByText("owner-one")).toBeInTheDocument();
+  });
+
+  it("renders a tombstone for a deleted message", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "gone",
+            body: "",
+            deletedAt: "2026-08-10T12:30:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+
+    expect(await screen.findByText("Message deleted")).toBeInTheDocument();
+    // No controls on a message that is already gone.
+    expect(
+      screen.queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks an edited message", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [buildMessage({ editedAt: "2026-08-10T12:30:00.000Z" })],
+      }),
+    );
+
+    renderPanel();
+
+    expect(await screen.findByText("· edited")).toBeInTheDocument();
+  });
+
+  it("edits the viewer's own recent message", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi
+      .spyOn(window, "prompt")
+      .mockReturnValue("Corrected text");
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [buildMessage({ createdAt: new Date().toISOString() })],
+      }),
+    );
+    editMock.mockResolvedValue(
+      buildMessage({
+        body: "Corrected text",
+        editedAt: "2026-08-10T12:30:00.000Z",
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    await waitFor(() =>
+      expect(editMock).toHaveBeenCalledWith("booking-1", "message-1", {
+        body: "Corrected text",
+      }),
+    );
+    expect(await screen.findByText("Corrected text")).toBeInTheDocument();
+
+    promptSpy.mockRestore();
+  });
+
+  it("deletes the viewer's own recent message after confirming", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [buildMessage({ createdAt: new Date().toISOString() })],
+      }),
+    );
+    removeMock.mockResolvedValue(
+      buildMessage({ body: "", deletedAt: "2026-08-10T12:40:00.000Z" }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(removeMock).toHaveBeenCalledWith("booking-1", "message-1"),
+    );
+    expect(await screen.findByText("Message deleted")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("hides the controls once the edit window has passed", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            createdAt: new Date(Date.now() - 20 * 60_000).toISOString(),
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    // The API would reject the change, so the control must not be offered.
+    expect(
+      screen.queryByRole("button", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer controls on another user's message", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "theirs",
+            authorId: "owner-9",
+            authorSide: "owner",
+            createdAt: new Date().toISOString(),
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    expect(
+      screen.queryByRole("button", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("applies a streamed update in place", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onEvent({
+      type: "message.updated",
+      bookingRequestId: "booking-1",
+      message: buildMessage({
+        body: "",
+        deletedAt: "2026-08-10T12:40:00.000Z",
+      }),
+    });
+
+    expect(await screen.findByText("Message deleted")).toBeInTheDocument();
+    expect(screen.getAllByTestId("booking-message")).toHaveLength(1);
   });
 
   it("closes the stream on unmount", async () => {

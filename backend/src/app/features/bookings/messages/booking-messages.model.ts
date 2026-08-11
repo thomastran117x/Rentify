@@ -16,6 +16,13 @@ export const BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS = 300;
 
 export const MAX_BOOKING_MESSAGE_SNIPPET_LENGTH = 140;
 
+/**
+ * How long an author may edit or delete their own message. A fixed window is
+ * predictable for the sender and bounds how far the booking record can be
+ * rewritten after the fact, regardless of whether the other side has read it.
+ */
+export const BOOKING_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
 // `.trim()` runs before the length checks, so a whitespace-only body is
 // rejected and a 2000-character body with trailing spaces is accepted.
 export const sendBookingMessageSchema = z.object({
@@ -29,6 +36,8 @@ export const sendBookingMessageSchema = z.object({
     ),
 });
 
+export const editBookingMessageSchema = sendBookingMessageSchema;
+
 export const listBookingMessagesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce
@@ -40,6 +49,7 @@ export const listBookingMessagesQuerySchema = z.object({
 });
 
 export type SendBookingMessageBody = z.infer<typeof sendBookingMessageSchema>;
+export type EditBookingMessageBody = z.infer<typeof editBookingMessageSchema>;
 export type ListBookingMessagesQuery = z.infer<
   typeof listBookingMessagesQuerySchema
 >;
@@ -54,6 +64,9 @@ export interface BookingMessageRecord {
    * knowing who the renter is.
    */
   authorSide: BookingParticipantSide;
+  /** The author's username, so a thread with several managers stays legible. */
+  authorUsername: string;
+  /** Empty once deleted — the tombstone is the record, not the text. */
   body: string;
   createdAt: string;
   /**
@@ -61,6 +74,8 @@ export interface BookingMessageRecord {
    * `BookingMessagesService.markRead` for the exact rule.
    */
   readAt: string | null;
+  editedAt: string | null;
+  deletedAt: string | null;
 }
 
 export interface BookingMessagesPagination {
@@ -83,6 +98,8 @@ export interface BookingMessagesListResult {
    * organizations keeps write access on a booking owned by any of them.
    */
   canWrite: boolean;
+  /** Who the requesting user is talking to, so the thread names its parties. */
+  counterpartName: string;
   /**
    * Which side of the thread the requesting user is on. Clients align the
    * conversation against this rather than against the author's user id, so a
@@ -103,6 +120,19 @@ export interface SendBookingMessageInput {
   body: string;
 }
 
+export interface EditBookingMessageInput {
+  bookingRequestId: string;
+  messageId: string;
+  actorUserId: string;
+  body: string;
+}
+
+export interface DeleteBookingMessageInput {
+  bookingRequestId: string;
+  messageId: string;
+  actorUserId: string;
+}
+
 export interface ListBookingMessagesInput {
   bookingRequestId: string;
   actorUserId: string;
@@ -118,6 +148,11 @@ export interface BookingMessageStreamAuthorization {
 export type BookingMessageStreamEvent =
   | {
       type: "message.created";
+      bookingRequestId: string;
+      message: BookingMessageRecord;
+    }
+  | {
+      type: "message.updated";
       bookingRequestId: string;
       message: BookingMessageRecord;
     }

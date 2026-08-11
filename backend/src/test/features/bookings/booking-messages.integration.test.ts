@@ -148,6 +148,84 @@ describe("Booking messages persistence integration", () => {
     ]);
   }, 60_000);
 
+  it("lets the author edit and soft delete their own message", async () => {
+    const { renter, bookingRequestId } = await createThread();
+    const owner = await createAuthenticatedRequestContext({
+      email: OWNER_EMAIL,
+    });
+
+    const sendResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({ body: "Original text" }),
+      },
+    );
+    const created = await readData<{ id: string; authorUsername: string }>(
+      sendResponse,
+    );
+    expect(created.authorUsername).toBe("viewer-one");
+
+    const editResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/${created.id}`)}`,
+      {
+        method: "PATCH",
+        headers: renter.headers(),
+        body: JSON.stringify({ body: "Corrected text" }),
+      },
+    );
+
+    expect(editResponse.status).toBe(200);
+    const edited = await readData<{ body: string; editedAt: string | null }>(
+      editResponse,
+    );
+    expect(edited.body).toBe("Corrected text");
+    expect(edited.editedAt).not.toBeNull();
+
+    // Only the author may change it, even for a manager on the other side.
+    const ownerEditResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/${created.id}`)}`,
+      {
+        method: "PATCH",
+        headers: owner.headers(),
+        body: JSON.stringify({ body: "Not mine to change" }),
+      },
+    );
+    expect(ownerEditResponse.status).toBe(403);
+
+    const deleteResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/${created.id}`)}`,
+      { method: "DELETE", headers: renter.headers() },
+    );
+
+    expect(deleteResponse.status).toBe(200);
+    const deleted = await readData<{ body: string; deletedAt: string | null }>(
+      deleteResponse,
+    );
+    expect(deleted.body).toBe("");
+    expect(deleted.deletedAt).not.toBeNull();
+
+    // The row survives as a tombstone so the booking keeps the record.
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
+      { headers: renter.headers() },
+    );
+    const list = await readData<{
+      messages: Array<{ id: string; deletedAt: string | null }>;
+      counterpartName: string;
+    }>(listResponse);
+    expect(list.messages.map((message) => message.id)).toContain(created.id);
+    expect(list.counterpartName).toBeTruthy();
+
+    // A second delete is rejected rather than silently repeated.
+    const repeatDeleteResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/${created.id}`)}`,
+      { method: "DELETE", headers: renter.headers() },
+    );
+    expect(repeatDeleteResponse.status).toBe(400);
+  }, 60_000);
+
   it("returns 403 on every endpoint for a user who is not a party", async () => {
     const { bookingRequestId } = await createThread();
     const outsider = await createAuthenticatedRequestContext({

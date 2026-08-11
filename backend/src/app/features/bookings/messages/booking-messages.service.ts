@@ -8,8 +8,12 @@ import {
 } from "@/features/bookings/booking-participants";
 import type { BookingRequestRecord } from "@/features/bookings/bookings.model";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
+import BadRequestError from "@/errors/http/bad-request.error";
+import ForbiddenError from "@/errors/http/forbidden.error";
 import type {
   BookingMessageRecord,
+  DeleteBookingMessageInput,
+  EditBookingMessageInput,
   BookingMessageStreamAuthorization,
   BookingMessageStreamEvent,
   BookingMessagesListResult,
@@ -17,7 +21,10 @@ import type {
   MarkBookingMessagesReadResult,
   SendBookingMessageInput,
 } from "@/features/bookings/messages/booking-messages.model";
-import { BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS } from "@/features/bookings/messages/booking-messages.model";
+import {
+  BOOKING_MESSAGE_EDIT_WINDOW_MS,
+  BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS,
+} from "@/features/bookings/messages/booking-messages.model";
 import { bookingMessageChannel } from "@/features/bookings/messages/booking-message-stream.hub";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -83,7 +90,7 @@ export class BookingMessagesService {
       input.actorUserId,
     );
 
-    const [page, unreadCount] = await Promise.all([
+    const [page, unreadCount, parties] = await Promise.all([
       this.bookingMessagesRepository.listByBookingRequest({
         bookingRequestId: bookingRequest.id,
         renterId: bookingRequest.renterId,
@@ -95,6 +102,7 @@ export class BookingMessagesService {
         renterId: bookingRequest.renterId,
         side,
       }),
+      this.bookingMessagesRepository.findThreadParties(bookingRequest.id),
     ]);
 
     return {
@@ -103,7 +111,109 @@ export class BookingMessagesService {
       unreadCount,
       canWrite: canManage,
       viewerSide: side,
+      // Each side is told who the *other* party is: the renter talks to the
+      // organization, and the organization talks to a named renter.
+      counterpartName:
+        side === "renter"
+          ? (parties?.organizationName ?? "the organization")
+          : (parties?.renterUsername ?? "the renter"),
     };
+  }
+
+  async edit(input: EditBookingMessageInput): Promise<BookingMessageRecord> {
+    const { bookingRequest, message } = await this.requireOwnEditableMessage(
+      input.bookingRequestId,
+      input.messageId,
+      input.actorUserId,
+    );
+
+    const updated = await this.bookingMessagesRepository.updateBody({
+      messageId: message.id,
+      body: input.body,
+      editedAt: new Date(),
+      renterId: bookingRequest.renterId,
+    });
+
+    await this.publishEvent({
+      type: "message.updated",
+      bookingRequestId: bookingRequest.id,
+      message: updated,
+    });
+
+    return updated;
+  }
+
+  async remove(
+    input: DeleteBookingMessageInput,
+  ): Promise<BookingMessageRecord> {
+    const { bookingRequest, message } = await this.requireOwnEditableMessage(
+      input.bookingRequestId,
+      input.messageId,
+      input.actorUserId,
+    );
+
+    const deleted = await this.bookingMessagesRepository.softDelete({
+      messageId: message.id,
+      deletedAt: new Date(),
+      renterId: bookingRequest.renterId,
+    });
+
+    await this.publishEvent({
+      type: "message.updated",
+      bookingRequestId: bookingRequest.id,
+      message: deleted,
+    });
+
+    return deleted;
+  }
+
+  /**
+   * Only the author may change their own message, and only inside the edit
+   * window. Read state deliberately does not gate this: a fixed window is
+   * predictable, whereas locking on read would surprise the sender.
+   */
+  private async requireOwnEditableMessage(
+    bookingRequestId: string,
+    messageId: string,
+    actorUserId: string,
+  ): Promise<{
+    bookingRequest: BookingRequestRecord;
+    message: BookingMessageRecord;
+  }> {
+    const bookingRequest = await this.requireBookingRequest(bookingRequestId);
+    await resolveBookingParticipant(
+      this.organizationAccessService,
+      bookingRequest,
+      actorUserId,
+      "manage",
+    );
+
+    const message = await this.bookingMessagesRepository.findById(
+      messageId,
+      bookingRequest.renterId,
+    );
+
+    if (!message || message.bookingRequestId !== bookingRequest.id) {
+      throw new ResourceNotFoundError("Message could not be found.");
+    }
+
+    if (message.authorId !== actorUserId) {
+      throw new ForbiddenError("You can only change your own messages.");
+    }
+
+    if (message.deletedAt) {
+      throw new BadRequestError("This message has already been deleted.");
+    }
+
+    const age = Date.now() - new Date(message.createdAt).getTime();
+
+    if (age > BOOKING_MESSAGE_EDIT_WINDOW_MS) {
+      throw new BadRequestError(
+        "Messages can only be changed within 15 minutes of sending.",
+      );
+    }
+
+    return { bookingRequest, message };
   }
 
   async markRead(
