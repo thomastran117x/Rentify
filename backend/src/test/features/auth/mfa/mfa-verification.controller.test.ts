@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+﻿import { createLegacyTestContext } from "../../../support/mock-http";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -52,35 +52,25 @@ function createContext(options?: {
   query?: Record<string, string | undefined>;
   client?: ClientRequestContext;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("client", options?.client ?? createClient());
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  const query = new URLSearchParams(
+    Object.entries(options?.query ?? {}).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  ).toString();
+
+  return createLegacyTestContext({
+    body: options?.body,
+    url: `https://example.test/auth/mfa/verify${query ? `?${query}` : ""}`,
+    state: {
+      client: options?.client ?? createClient(),
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      query: (name: string) => options?.query?.[name],
-      url: "https://example.test/auth/mfa/verify",
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 function createController() {

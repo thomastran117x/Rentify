@@ -1,17 +1,21 @@
-import { Hono } from "hono";
+import express from "express";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { csrfMiddleware } from "@/configuration/middlewares/csrf.middleware";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
+import { createTestApp } from "../../support/fetch-app";
+
+function ok(_request: express.Request, response: express.Response): void {
+  response.json({ ok: true });
+}
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("/auth/*", csrfMiddleware);
-  app.onError(handleApplicationError);
-  app.post("/auth/refresh", (context) => context.json({ ok: true }));
-  app.post("/auth/logout", (context) => context.json({ ok: true }));
-  app.post("/auth/local/login", (context) => context.json({ ok: true }));
-  return app;
+  return createTestApp((app) => {
+    app.use("/auth", csrfMiddleware);
+    app.post("/auth/refresh", ok);
+    app.post("/auth/logout", ok);
+    app.post("/auth/local/login", ok);
+    app.use(handleApplicationError);
+  });
 }
 
 describe("csrfMiddleware", () => {
@@ -143,12 +147,14 @@ describe("csrfMiddleware", () => {
   });
 
   it("supports versioned auth routes when CSRF is mounted on the API base path", async () => {
-    const app = new Hono<AppBindings>();
-    const api = app.basePath(getApiRoutePrefix());
+    const app = createTestApp((instance) => {
+      const api = express.Router();
+      instance.use(getApiRoutePrefix(), api);
 
-    api.use("/auth/*", csrfMiddleware);
-    app.onError(handleApplicationError);
-    api.post("/auth/refresh", (context) => context.json({ ok: true }));
+      api.use("/auth", csrfMiddleware);
+      api.post("/auth/refresh", ok);
+      instance.use(handleApplicationError);
+    });
 
     const response = await app.request(
       `http://rent.test${getApiRoutePrefix()}/auth/refresh`,

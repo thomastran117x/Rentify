@@ -7,63 +7,56 @@ import {
   toErrorResponse,
 } from "@/configuration/middlewares/error-handler.middleware";
 import { RequestValidationError } from "@/configuration/validation/request";
-import type { AppBindings } from "@/configuration/http/bindings";
-import type { Context } from "hono";
+import type { Logger } from "@/configuration/logging";
+import { createTestApp } from "../../support/fetch-app";
 
-function createContext(options?: {
-  requestId?: string;
-  outputFormat?: "json" | "xml";
-  accept?: string;
-}) {
-  const variables = new Map<string, unknown>();
-  const logger = {
-    error: jest.fn(),
-  };
+/**
+ * The handler is an Express error middleware now, so it is exercised through a
+ * real request rather than called directly and inspected.
+ */
+async function handle(
+  error: unknown,
+  options?: {
+    requestId?: string;
+    outputFormat?: "json" | "xml";
+    accept?: string;
+  },
+): Promise<{ response: Response; logger: { error: jest.Mock } }> {
+  const logger = { error: jest.fn() };
 
-  if (options?.requestId) {
-    variables.set("requestId", options.requestId);
-  }
+  const app = createTestApp((instance) => {
+    instance.use((request, _response, next) => {
+      if (options?.requestId) {
+        request.requestId = options.requestId;
+      }
 
-  variables.set("logger", logger);
+      if (options?.outputFormat) {
+        request.outputFormat = options.outputFormat;
+      }
 
-  const context = {
-    req: {
-      raw: new Request("http://rent.test/errors", {
-        headers: options?.accept
-          ? {
-              accept: options.accept,
-            }
-          : undefined,
-      }),
-    },
-    res: {
-      headers: new Headers(),
-    },
-    var: {
-      outputFormat: options?.outputFormat,
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-  };
+      request.logger = logger as unknown as Logger;
+      next();
+    });
+    instance.get("/errors", () => {
+      throw error;
+    });
+    instance.use(handleApplicationError);
+  });
 
-  return {
-    context: context as unknown as Context<AppBindings>,
-    logger,
-  };
+  const response = await app.request("http://rent.test/errors", {
+    headers: options?.accept ? { accept: options.accept } : undefined,
+  });
+
+  return { response, logger };
 }
 
 describe("error-handler.middleware", () => {
   it("returns app error status, code, and details without logging", async () => {
-    const { context, logger } = createContext({
-      requestId: "req-app-error",
-    });
-    const response = handleApplicationError(
+    const { response, logger } = await handle(
       new BadRequestError("Refund amount is invalid.", {
         field: "amount",
       }),
-      context,
+      { requestId: "req-app-error" },
     );
 
     expect(response.status).toBe(400);
@@ -88,10 +81,7 @@ describe("error-handler.middleware", () => {
   });
 
   it("formats request validation errors with grouped field details", async () => {
-    const { context, logger } = createContext({
-      requestId: "req-validation",
-    });
-    const response = handleApplicationError(
+    const { response, logger } = await handle(
       new RequestValidationError("Request body validation failed.", [
         {
           path: "page",
@@ -106,7 +96,7 @@ describe("error-handler.middleware", () => {
           message: "Page must be an integer.",
         },
       ]),
-      context,
+      { requestId: "req-validation" },
     );
 
     expect(response.status).toBe(400);
@@ -132,16 +122,15 @@ describe("error-handler.middleware", () => {
   });
 
   it("masks unexpected runtime errors, avoids leaking internal details, and logs them", async () => {
-    const { context, logger } = createContext({
-      requestId: "req-runtime",
-    });
     const runtimeError = new Error(
       "Prisma connection to postgres://admin:secret@db.internal failed",
     );
     runtimeError.stack =
       "Error: Prisma connection failed\n    at internal/server.ts:42:13";
 
-    const response = handleApplicationError(runtimeError, context);
+    const { response, logger } = await handle(runtimeError, {
+      requestId: "req-runtime",
+    });
     const body = await response.text();
 
     expect(response.status).toBe(500);
@@ -162,15 +151,11 @@ describe("error-handler.middleware", () => {
   });
 
   it("renders xml error bodies when xml output is requested", async () => {
-    const { context, logger } = createContext({
-      requestId: "req-xml",
-      outputFormat: "xml",
-    });
-    const response = handleApplicationError(
+    const { response, logger } = await handle(
       new BadRequestError("Webhook signature is invalid.", {
         provider: "square",
       }),
-      context,
+      { requestId: "req-xml", outputFormat: "xml" },
     );
     const body = await response.text();
 
@@ -184,6 +169,17 @@ describe("error-handler.middleware", () => {
     expect(body).toContain("<provider>square</provider>");
     expect(body).toContain("<requestId>req-xml</requestId>");
     expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("negotiates xml from the accept header when no output format was resolved", async () => {
+    const { response } = await handle(new BadRequestError("Nope."), {
+      requestId: "req-accept-xml",
+      accept: "application/xml",
+    });
+
+    expect(response.headers.get("content-type")).toBe(
+      "application/xml; charset=UTF-8",
+    );
   });
 
   it("maps unknown values to a generic internal server error envelope", () => {
@@ -219,6 +215,34 @@ describe("error-handler.middleware", () => {
     expect(toErrorResponse(error)).toMatchObject({
       status: 400,
       body: { code: "MFA_FACTOR_UNAVAILABLE" },
+    });
+  });
+
+  it("translates the body parser's oversized payload error", () => {
+    const error = Object.assign(new Error("request entity too large"), {
+      type: "entity.too.large",
+    });
+
+    expect(toErrorResponse(error)).toMatchObject({
+      status: 413,
+      body: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request body is too large.",
+      },
+    });
+  });
+
+  it("translates the body parser's malformed json error", () => {
+    const error = Object.assign(new SyntaxError("Unexpected token"), {
+      type: "entity.parse.failed",
+    });
+
+    expect(toErrorResponse(error)).toMatchObject({
+      status: 400,
+      body: {
+        code: "VALIDATION_ERROR",
+        message: "Request body must be valid JSON.",
+      },
     });
   });
 });

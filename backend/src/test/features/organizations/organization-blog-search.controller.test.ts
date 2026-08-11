@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
@@ -25,34 +24,20 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  return createLegacyTestContext({
+    params: options?.params,
+    url:
+      options?.url ??
+      "https://example.test/api/v1/admin/organizations/blog-search/reindex-runs/run-1?limit=15",
+    state: {
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      url:
-        options?.url ??
-        "https://example.test/api/v1/admin/organizations/blog-search/reindex-runs/run-1?limit=15",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: { "content-type": "application/json" },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("OrganizationBlogSearchController", () => {

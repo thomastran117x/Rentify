@@ -1,27 +1,48 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import express from "express";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
-import { requestBodyPolicyMiddleware } from "@/configuration/middlewares/request-body-policy.middleware";
+import {
+  readDeclaredContentLength,
+  readRequestBodyMaxBytes,
+  requestBodyPolicyMiddleware,
+} from "@/configuration/middlewares/request-body-policy.middleware";
+import { readRawBody } from "@/configuration/http/request";
+import { createTestApp } from "../../support/fetch-app";
 
+/**
+ * Composed the same way as createApplication: the policy middleware gates the
+ * request, then the body parsers run with the matching limit and media types.
+ */
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", requestBodyPolicyMiddleware);
-  app.onError(handleApplicationError);
-  app.get("/profiles", async (context) =>
-    context.json({
-      ok: true,
-    }),
-  );
-  app.post("/profiles", async (context) =>
-    context.json(await context.req.json()),
-  );
-  app.post("/blob/upload", async (context) =>
-    context.json({ body: await context.req.text() }),
-  );
-  app.post("/payments/webhooks/square", async (context) =>
-    context.json({ body: await context.req.text() }),
-  );
-  return app;
+  return createTestApp((app) => {
+    app.use(requestBodyPolicyMiddleware);
+
+    const limit = readRequestBodyMaxBytes();
+    app.use("/blob/upload", express.raw({ type: "*/*", limit }));
+    app.use(
+      express.json({
+        limit,
+        type: ["application/json", "application/*+json"],
+        verify: (request, _response, buffer) => {
+          (request as express.Request).rawBody = buffer;
+        },
+      }),
+    );
+
+    app.get("/profiles", (_request, response) => {
+      response.json({ ok: true });
+    });
+    app.post("/profiles", (request, response) => {
+      response.json(request.body);
+    });
+    app.post("/blob/upload", (request, response) => {
+      response.json({ body: readRawBody(request) });
+    });
+    app.post("/payments/webhooks/square", (request, response) => {
+      response.json({ body: readRawBody(request) });
+    });
+
+    app.use(handleApplicationError);
+  });
 }
 
 describe("requestBodyPolicyMiddleware", () => {
@@ -116,33 +137,6 @@ describe("requestBodyPolicyMiddleware", () => {
     });
   });
 
-  it("rejects invalid content-length headers", async () => {
-    const app = createApp();
-    const response = await app.request("http://rent.test/profiles", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "content-length": "abc",
-      },
-      body: JSON.stringify({
-        bio: "hello",
-      }),
-    });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      message: "Content-Length header is invalid.",
-      data: null,
-      error: {
-        code: "BAD_REQUEST",
-      },
-      meta: {
-        requestId: "unknown",
-      },
-    });
-  });
-
   it("allows non-json uploads on blob routes", async () => {
     const app = createApp();
     const response = await app.request("http://rent.test/blob/upload", {
@@ -189,6 +183,45 @@ describe("requestBodyPolicyMiddleware", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
+    });
+  });
+
+  // Asserted directly rather than over HTTP: the test client talks to a real
+  // socket, which will not emit a malformed Content-Length.
+  describe("readDeclaredContentLength", () => {
+    function requestWithContentLength(value?: string) {
+      const headers: Record<string, string> = {};
+
+      if (value !== undefined) {
+        headers["content-length"] = value;
+      }
+
+      return {
+        headers,
+        get: (name: string) => headers[name.toLowerCase()],
+      } as unknown as express.Request;
+    }
+
+    it("rejects a non-numeric content length", () => {
+      expect(() =>
+        readDeclaredContentLength(requestWithContentLength("abc")),
+      ).toThrow("Content-Length header is invalid.");
+    });
+
+    it("rejects a negative content length", () => {
+      expect(() =>
+        readDeclaredContentLength(requestWithContentLength("-1")),
+      ).toThrow("Content-Length header is invalid.");
+    });
+
+    it("returns null when the header is absent", () => {
+      expect(readDeclaredContentLength(requestWithContentLength())).toBeNull();
+    });
+
+    it("returns the parsed length when the header is valid", () => {
+      expect(readDeclaredContentLength(requestWithContentLength("42"))).toBe(
+        42,
+      );
     });
   });
 });

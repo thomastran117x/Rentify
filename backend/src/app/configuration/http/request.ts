@@ -96,6 +96,29 @@ export function getHeader(request: Request, name: string): string | undefined {
 }
 
 /**
+ * The request body exactly as it arrived on the wire.
+ *
+ * Signature-verifying webhooks must hash the original bytes; a body
+ * re-serialised from `req.body` would differ in key order and whitespace. The
+ * raw buffer is captured by express.json's verify hook in createApplication.
+ */
+export function readRawBody(request: Request): string {
+  if (request.rawBody) {
+    return request.rawBody.toString("utf8");
+  }
+
+  if (typeof request.body === "string") {
+    return request.body;
+  }
+
+  if (Buffer.isBuffer(request.body)) {
+    return request.body.toString("utf8");
+  }
+
+  return request.body === undefined ? "" : JSON.stringify(request.body);
+}
+
+/**
  * Reads a cookie straight off the request header.
  *
  * Deliberately independent of any cookie-parsing middleware so it cannot break

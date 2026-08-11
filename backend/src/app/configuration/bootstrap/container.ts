@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request } from "express";
 import {
   createRootContainer,
   createServiceToken,
@@ -63,8 +62,6 @@ export async function disposeContainer(): Promise<void> {
   await container.dispose();
 }
 
-export function getRequestContainer(
-  context: Context<AppBindings>,
-): ServiceContainer {
-  return context.get("container");
+export function getRequestContainer(request: Request): ServiceContainer {
+  return request.container;
 }

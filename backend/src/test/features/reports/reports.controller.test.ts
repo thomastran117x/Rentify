@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { ReportsController } from "@/features/reports/reports.controller";
@@ -32,30 +31,20 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url:
-        options?.url ??
-        "https://example.test/reports/moderation?page=2&pageSize=5",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    url:
+      options?.url ??
+      "https://example.test/reports/moderation?page=2&pageSize=5",
+    state: {
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
     },
-    get: () => ({
-      resolve: () => ({
-        inspectRequest: () => [],
-      }),
-    }),
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 describe("ReportsController", () => {

@@ -1,5 +1,4 @@
-import type { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Router } from "express";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
 import {
   getEnabledRouteModules,
@@ -7,14 +6,21 @@ import {
   registerRouteModule,
 } from "@/configuration/bootstrap/routes/registry";
 
-export function mountRoutes(app: Hono<AppBindings>): Hono<AppBindings> {
-  const api = app.basePath(getApiRoutePrefix());
-
+/**
+ * Registers every enabled route module onto the API router.
+ *
+ * Hono re-derived the /api/v1 base path here; under Express the router is
+ * already mounted at that prefix by createApplication, so modules register
+ * their paths relative to it.
+ */
+export function mountRoutes(api: Router): Router {
   for (const routeModule of getEnabledRouteModules()) {
     registerRouteModule(routeModule, api);
   }
 
   logRouteComposition();
 
-  return app;
+  return api;
 }
+
+export { getApiRoutePrefix };

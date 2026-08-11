@@ -17,6 +17,11 @@ import {
 } from "@/configuration/middlewares/jwt-middleware";
 import type { PersonalAccessTokenPrincipal } from "@/features/auth/auth.principal";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import {
+  asHonoContext,
+  createLegacyContext,
+} from "@/configuration/http/legacy-context";
+import { createMockRequest, createMockResponse } from "../../support/mock-http";
 
 class FakeTokenService {
   constructor(
@@ -117,43 +122,30 @@ function createContext(options?: {
   client?: ClientRequestContext;
   method?: string;
 }): Context<AppBindings> {
-  const variables = new Map<string, unknown>();
+  // Built on the real legacy-context bridge over a mock Express request, so the
+  // auth helpers (which now take a request) and the controllers (which still
+  // take a context) both see what they expect.
+  const request = createMockRequest({
+    method: options?.method ?? "GET",
+    url: options?.url ?? "https://example.test/resource",
+    headers: {
+      authorization: options?.authorization,
+    },
+    params: options?.params,
+    body: {},
+    state: {
+      container: new FakeContainer(
+        options?.tokenService ?? new FakeTokenService(() => createClaims()),
+        options?.personalAccessTokenService ??
+          new FakePersonalAccessTokenService(() => createPatPrincipal()),
+      ),
+      client: options?.client ?? createClientContext(),
+    },
+  });
 
-  variables.set(
-    "container",
-    new FakeContainer(
-      options?.tokenService ?? new FakeTokenService(() => createClaims()),
-      options?.personalAccessTokenService ??
-        new FakePersonalAccessTokenService(() => createPatPrincipal()),
-    ),
+  return asHonoContext(
+    createLegacyContext(request, createMockResponse().response),
   );
-  variables.set("client", options?.client ?? createClientContext());
-
-  const context = {
-    req: {
-      method: options?.method ?? "GET",
-      url: options?.url ?? "https://example.test/resource",
-      header: (name: string) =>
-        name.toLowerCase() === "authorization"
-          ? options?.authorization
-          : undefined,
-      param: (name: string) => options?.params?.[name],
-      json: async () => ({}),
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("jwt middleware helpers", () => {

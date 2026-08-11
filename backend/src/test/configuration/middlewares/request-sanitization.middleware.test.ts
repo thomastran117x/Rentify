@@ -1,13 +1,14 @@
-import { Hono } from "hono";
+import express from "express";
 import { z } from "zod";
-import type { AppBindings } from "@/configuration/http/bindings";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { requestSanitizationMiddleware } from "@/configuration/middlewares/request-sanitization.middleware";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import { parseRequestBody } from "@/configuration/validation/request";
+import { readRawBody } from "@/configuration/http/request";
 import { containerTokens } from "@/configuration/container/tokens";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { createTestApp } from "../../support/fetch-app";
 
 class FakeContainer implements ServiceContainer {
   private readonly contentSanitizationService =
@@ -29,37 +30,46 @@ class FakeContainer implements ServiceContainer {
 }
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-
-  app.use("*", async (context, next) => {
-    context.set("container", new FakeContainer());
-    context.set("outputFormat", "json");
-    await next();
-  });
-  app.use("*", requestSanitizationMiddleware);
-  app.onError(handleApplicationError);
-
-  app.get("/search", (context) => context.json({ ok: true }));
-  app.get("/postings/:id", (context) =>
-    context.json({ id: requireSafeRouteParam(context, "id") }),
-  );
-  app.post("/profiles", async (context) => {
-    const body = await parseRequestBody(
-      context,
-      z.object({
-        bio: z.string(),
-        password: z.string(),
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.container = new FakeContainer();
+      request.outputFormat = "json";
+      next();
+    });
+    app.use(requestSanitizationMiddleware);
+    // Mirrors createApplication: the raw bytes are kept so signature-verifying
+    // webhook routes can still read exactly what was sent.
+    app.use(
+      express.json({
+        verify: (request, _response, buffer) => {
+          (request as express.Request).rawBody = buffer;
+        },
       }),
     );
 
-    return context.json(body);
-  });
-  app.post("/payments/webhooks/square", async (context) => {
-    const body = await context.req.text();
-    return context.json({ body });
-  });
+    app.get("/search", (_request, response) => {
+      response.json({ ok: true });
+    });
+    app.get("/postings/:id", (request, response) => {
+      response.json({ id: requireSafeRouteParam(request, "id") });
+    });
+    app.post("/profiles", async (request, response) => {
+      const body = await parseRequestBody(
+        request,
+        z.object({
+          bio: z.string(),
+          password: z.string(),
+        }),
+      );
 
-  return app;
+      response.json(body);
+    });
+    app.post("/payments/webhooks/square", (request, response) => {
+      response.json({ body: readRawBody(request) });
+    });
+
+    app.use(handleApplicationError);
+  });
 }
 
 describe("requestSanitizationMiddleware", () => {

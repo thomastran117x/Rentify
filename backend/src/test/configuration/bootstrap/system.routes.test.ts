@@ -1,5 +1,5 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Express } from "express";
+import { createTestApp, type TestApp } from "../../support/fetch-app";
 
 const mockPingDatabase = jest.fn();
 const mockReadOpenApiYamlSpecFile = jest.fn();
@@ -16,13 +16,14 @@ jest.mock("@/openapi/file", () => ({
     mockReadOpenApiJsonSpecFile(...args),
 }));
 
-function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", async (context, next) => {
-    context.set("requestId", "req-system-test");
-    await next();
+function createApp(register: (app: Express) => void): TestApp {
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.requestId = "req-system-test";
+      next();
+    });
+    register(app);
   });
-  return app;
 }
 
 describe("systemRouteModule", () => {
@@ -34,9 +35,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/");
 
@@ -63,9 +64,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/health");
 
@@ -95,9 +96,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/health");
 
@@ -129,9 +130,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/openapi.yaml");
 
@@ -148,9 +149,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/openapi.json");
 

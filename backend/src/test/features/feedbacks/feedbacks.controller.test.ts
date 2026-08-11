@@ -1,9 +1,8 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { RequestValidationError } from "@/configuration/validation/request";
+﻿import { RequestValidationError } from "@/configuration/validation/request";
 import BadRequestError from "@/errors/http/bad-request.error";
 import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { createLegacyTestContext } from "../../support/mock-http";
 
 const mockGetOptionalJwtAuth = jest.fn();
 const mockResolveIdempotencyKey = jest.fn();
@@ -34,45 +33,23 @@ function createAuth(
 }
 
 function createContext(body?: unknown) {
-  const container = {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
-  };
-  const context = {
-    req: {
-      json: async () => body ?? {},
-    },
-    get: (key: string) => {
-      if (key === "container") {
-        return container;
-      }
-
-      if (key === "client") {
-        return {
-          ip: "127.0.0.1",
-          device: {
-            id: "device-1",
-          },
-        };
-      }
-
-      if (key === "requestId") {
-        return "request-1";
-      }
-
-      return undefined;
-    },
-    json: (payload: unknown, status = 200) =>
-      new Response(JSON.stringify(payload), {
-        status,
-        headers: {
-          "content-type": "application/json",
+  return createLegacyTestContext({
+    body,
+    state: {
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+      client: {
+        ip: "127.0.0.1",
+        device: {
+          id: "device-1",
         },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+      },
+      requestId: "request-1",
+    },
+  });
 }
 
 describe("FeedbacksController", () => {

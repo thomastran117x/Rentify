@@ -1,10 +1,11 @@
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { RequestHandler } from "express";
 import { assertSafeRequestQuery } from "@/configuration/validation/input-sanitization";
 
-export const requestSanitizationMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    assertSafeRequestQuery(context);
-    await next();
-  },
-);
+export const requestSanitizationMiddleware: RequestHandler = (
+  request,
+  _response,
+  next,
+) => {
+  assertSafeRequestQuery(request);
+  next();
+};

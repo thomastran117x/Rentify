@@ -1,54 +1,53 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request } from "express";
 import {
   detectOutputFormat,
   outputFormatMiddleware,
   serializeToXml,
 } from "@/configuration/middlewares/output-format.middleware";
+import { createTestApp } from "../../support/fetch-app";
+
+function fakeRequest(originalUrl: string, accept?: string): Request {
+  const headers: Record<string, string> = { host: "rent.test" };
+
+  if (accept) {
+    headers.accept = accept;
+  }
+
+  return {
+    originalUrl,
+    protocol: "http",
+    headers,
+    get: (name: string) => headers[name.toLowerCase()],
+  } as unknown as Request;
+}
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", outputFormatMiddleware);
+  return createTestApp((app) => {
+    app.use(outputFormatMiddleware);
 
-  app.get("/json", (context) =>
-    context.json({
-      message: "<ok>",
-      createdAt: new Date("2026-06-07T00:00:00.000Z"),
-      "123 bad key": "A&B",
-      items: [1, null],
-    }),
-  );
-  app.get(
-    "/json-like",
-    () =>
-      new Response(JSON.stringify({ ok: true }), {
-        headers: {
-          "content-type": "application/hal+json",
-          vary: "Origin",
-        },
-      }),
-  );
-  app.get(
-    "/text",
-    () =>
-      new Response("plain-text-body", {
-        headers: {
-          "content-type": "text/plain; charset=UTF-8",
-        },
-      }),
-  );
-  app.get(
-    "/invalid-json",
-    () =>
-      new Response("{broken-json", {
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  );
-  app.get("/empty", () => new Response(null, { status: 204 }));
-
-  return app;
+    app.get("/json", (_request, response) => {
+      response.json({
+        message: "<ok>",
+        createdAt: new Date("2026-06-07T00:00:00.000Z"),
+        "123 bad key": "A&B",
+        items: [1, null],
+      });
+    });
+    app.get("/json-with-vary", (_request, response) => {
+      response.setHeader("vary", "Origin");
+      response.json({ ok: true });
+    });
+    // Written with res.send rather than res.json, so it is outside the
+    // transcoding seam — the same way the OpenAPI spec files and blob
+    // downloads are.
+    app.get("/text", (_request, response) => {
+      response.setHeader("content-type", "text/plain; charset=UTF-8");
+      response.end("plain-text-body");
+    });
+    app.get("/empty", (_request, response) => {
+      response.status(204).end();
+    });
+  });
 }
 
 describe("outputFormatMiddleware", () => {
@@ -71,22 +70,12 @@ describe("outputFormatMiddleware", () => {
 
   it("detects explicit and negotiated output formats", () => {
     const xmlByQuery = detectOutputFormat(
-      new Request("http://rent.test/items?format=xml", {
-        headers: {
-          accept: "application/json",
-        },
-      }),
+      fakeRequest("/items?format=xml", "application/json"),
     );
     const xmlByAccept = detectOutputFormat(
-      new Request("http://rent.test/items", {
-        headers: {
-          accept: "application/json;q=0.1, application/xml;q=0.9",
-        },
-      }),
+      fakeRequest("/items", "application/json;q=0.1, application/xml;q=0.9"),
     );
-    const defaultJson = detectOutputFormat(
-      new Request("http://rent.test/items"),
-    );
+    const defaultJson = detectOutputFormat(fakeRequest("/items"));
 
     expect(xmlByQuery).toBe("xml");
     expect(xmlByAccept).toBe("xml");
@@ -113,21 +102,24 @@ describe("outputFormatMiddleware", () => {
     expect(body).toContain("<item-123-bad-key>A&amp;B</item-123-bad-key>");
   });
 
-  it("normalizes json-like content types and appends Accept to Vary for json responses", async () => {
+  it("normalizes the json content type and keeps the charset upper case", async () => {
     const app = createApp();
 
-    const response = await app.request(
-      "http://rent.test/json-like?format=json",
-    );
+    const response = await app.request("http://rent.test/json?format=json");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "application/json; charset=UTF-8",
     );
-    expect(response.headers.get("vary")).toBe("Origin");
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-    });
+    await expect(response.json()).resolves.toMatchObject({ message: "<ok>" });
+  });
+
+  it("appends Accept to an existing Vary header", async () => {
+    const app = createApp();
+
+    const response = await app.request("http://rent.test/json-with-vary");
+
+    expect(response.headers.get("vary")).toBe("Origin, Accept");
   });
 
   it("preserves non-json responses for XML requests while still varying on Accept", async () => {
@@ -141,19 +133,6 @@ describe("outputFormatMiddleware", () => {
     );
     expect(response.headers.get("vary")).toBe("Accept");
     await expect(response.text()).resolves.toBe("plain-text-body");
-  });
-
-  it("returns an empty body when xml conversion cannot parse the original json body", async () => {
-    const app = createApp();
-
-    const response = await app.request(
-      "http://rent.test/invalid-json?format=xml",
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("application/json");
-    expect(response.headers.get("vary")).toBe("Accept");
-    await expect(response.text()).resolves.toBe("");
   });
 
   it("leaves bodyless responses untouched", async () => {

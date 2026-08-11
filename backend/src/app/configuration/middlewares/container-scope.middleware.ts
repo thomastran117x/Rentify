@@ -1,16 +1,19 @@
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { RequestHandler } from "express";
 import { getContainer } from "@/configuration/bootstrap/container";
+import { runAfterResponse } from "@/configuration/http/response-lifecycle";
 
-export const containerScopeMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const scope = getContainer().createScope();
-    context.set("container", scope);
+export const containerScopeMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  const scope = getContainer().createScope();
+  request.container = scope;
 
-    try {
-      await next();
-    } finally {
-      await scope.dispose();
-    }
-  },
-);
+  // Hono disposed the scope in a `finally` around `await next()`. Express has
+  // no such seam, so the disposal hangs off the response lifecycle instead —
+  // which also covers aborted requests, where the handler never completes.
+  runAfterResponse(response, () => scope.dispose());
+
+  next();
+};

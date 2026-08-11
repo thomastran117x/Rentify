@@ -1,3 +1,5 @@
+﻿import type { Context } from "hono";
+import type { AppBindings } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
 import { AuthController } from "@/features/auth/auth.controller";
 import type {
@@ -7,14 +9,11 @@ import type {
 import { containerTokens } from "@/configuration/container/tokens";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
-import type {
-  AppBindings,
-  ClientRequestContext,
-} from "@/configuration/http/bindings";
+import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
-import type { Context } from "hono";
+import { createLegacyTestContext } from "../../support/mock-http";
 
 const mockRequireJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
@@ -115,7 +114,6 @@ function createContext(options?: {
   params?: Record<string, string>;
   url?: string;
 }) {
-  const variables = new Map<string, unknown>();
   const contentSanitizationService = new ContentSanitizationService();
   const container: ServiceContainer = {
     resolve<TValue>(token: unknown): TValue {
@@ -131,42 +129,21 @@ function createContext(options?: {
     async dispose(): Promise<void> {},
   };
 
-  variables.set("container", container);
-  variables.set("client", options?.client ?? createClient());
-  variables.set(
-    "requestId",
-    options?.headers?.["x-request-id"] ??
-      options?.headers?.["X-Request-Id"] ??
-      "request-test",
-  );
-
-  if (options?.auth) {
-    variables.set("auth", options.auth);
-  }
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url: options?.url ?? "https://example.test/auth",
-      header: (name: string) =>
-        options?.headers?.[name.toLowerCase()] ?? options?.headers?.[name],
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    headers: options?.headers,
+    url: options?.url ?? "https://example.test/auth",
+    state: {
+      container,
+      client: options?.client ?? createClient(),
+      requestId:
+        options?.headers?.["x-request-id"] ??
+        options?.headers?.["X-Request-Id"] ??
+        "request-test",
+      ...(options?.auth ? { auth: options.auth } : {}),
     },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 function createController(overrides?: {

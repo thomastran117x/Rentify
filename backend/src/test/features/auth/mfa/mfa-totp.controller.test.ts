@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+﻿import { createLegacyTestContext } from "../../../support/mock-http";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -72,34 +72,19 @@ function createContext(options?: {
   body?: unknown;
   client?: ClientRequestContext;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("client", options?.client ?? createClient());
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  return createLegacyTestContext({
+    body: options?.body,
+    url: "https://example.test/auth/mfa/totp",
+    state: {
+      client: options?.client ?? createClient(),
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url: "https://example.test/auth/mfa/totp",
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 function createController() {

@@ -1,6 +1,5 @@
-import { cors } from "hono/cors";
-import type { MiddlewareHandler } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import cors from "cors";
+import type { RequestHandler } from "express";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 
 function expandLoopbackOriginAliases(origin: string): string[] {
@@ -50,19 +49,20 @@ function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
   }
 }
 
-export function createCorsMiddleware(): MiddlewareHandler<AppBindings> {
+export function createCorsMiddleware(): RequestHandler {
   const allowedOrigins = readAllowedOrigins();
 
   return cors({
-    origin: (origin) => {
-      if (!origin) {
-        return "";
-      }
-
-      return isOriginAllowed(origin, allowedOrigins) ? origin : "";
+    // Mirrors the previous hono/cors callback: an unknown or missing origin
+    // gets no Access-Control-Allow-Origin header rather than a rejection.
+    origin: (origin, callback) => {
+      callback(
+        null,
+        Boolean(origin) && isOriginAllowed(origin!, allowedOrigins),
+      );
     },
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowHeaders: [
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
       "authorization",
       "content-type",
       "x-ms-blob-type",
@@ -71,7 +71,7 @@ export function createCorsMiddleware(): MiddlewareHandler<AppBindings> {
       "x-request-id",
       "x-csrf-token",
     ],
-    exposeHeaders: [
+    exposedHeaders: [
       "content-type",
       "retry-after",
       "x-ratelimit-backend",

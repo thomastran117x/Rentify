@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 
@@ -10,27 +9,12 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 }));
 
 function createContext(url: string) {
-  const context = {
-    req: {
-      url,
+  return createLegacyTestContext({
+    url,
+    state: {
+      requestId: "request-1",
     },
-    get: (name: string) => {
-      if (name === "requestId") {
-        return "request-1";
-      }
-
-      return undefined;
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 describe("RecommendationsController", () => {

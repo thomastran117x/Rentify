@@ -1,5 +1,4 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import express from "express";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { buildApiPath, getApiRoutePrefix } from "@/configuration/http/api-path";
@@ -12,6 +11,31 @@ import {
 import type { Logger } from "@/configuration/logging";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { createTestApp } from "../../support/fetch-app";
+
+function ok(_request: express.Request, response: express.Response): void {
+  response.json({ ok: true });
+}
+
+/**
+ * A minimal stand-in for an Express request, for the cases that call
+ * resolveRateLimitPolicy directly rather than over HTTP.
+ */
+function policyRequest(
+  url: string,
+  init?: { method?: string },
+): express.Request {
+  const target = new URL(url);
+  const headers: Record<string, string> = { host: target.host };
+
+  return {
+    originalUrl: `${target.pathname}${target.search}`,
+    protocol: "http",
+    method: init?.method ?? "GET",
+    headers,
+    get: (name: string) => headers[name.toLowerCase()],
+  } as unknown as express.Request;
+}
 
 class FakeContainer implements ServiceContainer {
   constructor(
@@ -55,7 +79,6 @@ function createApp(
   cacheEval = jest.fn().mockResolvedValue([1, 4, 0]),
   verifyAccessToken = jest.fn().mockResolvedValue(createClaims()),
 ) {
-  const app = new Hono<AppBindings>();
   const cacheService = {
     eval: cacheEval,
   };
@@ -72,32 +95,32 @@ function createApp(
   };
   requestLogger.child = jest.fn(() => requestLogger);
 
-  app.use("*", async (context, next) => {
-    context.set("client", {
-      ip: "203.0.113.10",
-      device: {
-        type: "desktop",
-        isMobile: false,
-      },
+  const app = createTestApp((instance) => {
+    instance.use((request, _response, next) => {
+      request.client = {
+        ip: "203.0.113.10",
+        device: {
+          type: "desktop",
+          isMobile: false,
+        },
+      };
+      request.container = new FakeContainer(cacheService, tokenService);
+      request.logger = requestLogger;
+      request.outputFormat = "json";
+      next();
     });
-    context.set("container", new FakeContainer(cacheService, tokenService));
-    context.set("logger", requestLogger);
-    context.set("outputFormat", "json");
-    await next();
+    instance.use(rateLimiterMiddleware);
+    instance.post("/auth/local/login", ok);
+    instance.post("/auth/refresh", ok);
+    instance.post("/auth/device/verify", ok);
+    instance.post("/auth/oauth/google/link", ok);
+    instance.delete("/auth/oauth/google", ok);
+    instance.post("/payments/:id/refunds", ok);
+    instance.post("/payments/webhooks/square", ok);
+    instance.post("/sms/webhooks/telnyx", ok);
+    instance.post("/postings", ok);
+    instance.use(handleApplicationError);
   });
-  app.use("*", rateLimiterMiddleware);
-  app.onError(handleApplicationError);
-  app.post("/auth/local/login", (context) => context.json({ ok: true }));
-  app.post("/auth/refresh", (context) => context.json({ ok: true }));
-  app.post("/auth/device/verify", (context) => context.json({ ok: true }));
-  app.post("/auth/oauth/google/link", (context) => context.json({ ok: true }));
-  app.delete("/auth/oauth/google", (context) => context.json({ ok: true }));
-  app.post("/payments/:id/refunds", (context) => context.json({ ok: true }));
-  app.post("/payments/webhooks/square", (context) =>
-    context.json({ ok: true }),
-  );
-  app.post("/sms/webhooks/telnyx", (context) => context.json({ ok: true }));
-  app.post("/postings", (context) => context.json({ ok: true }));
 
   return { app, cacheEval, verifyAccessToken, requestLogger };
 }
@@ -105,7 +128,7 @@ function createApp(
 describe("resolveRateLimitPolicy", () => {
   it("assigns a stricter auth policy to login routes", () => {
     const policy = resolveRateLimitPolicy(
-      new Request("http://rent.test/auth/local/login", {
+      policyRequest("http://rent.test/auth/local/login", {
         method: "POST",
       }),
     );
@@ -120,7 +143,7 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns the same auth policy to versioned login routes", () => {
     const policy = resolveRateLimitPolicy(
-      new Request(`http://rent.test${buildApiPath("/auth/local/login")}`, {
+      policyRequest(`http://rent.test${buildApiPath("/auth/local/login")}`, {
         method: "POST",
       }),
     );
@@ -135,12 +158,12 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns a stable payment-write bucket to dynamic payment mutation routes", () => {
     const firstPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/payments/payment-1/refunds", {
+      policyRequest("http://rent.test/payments/payment-1/refunds", {
         method: "POST",
       }),
     );
     const secondPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/payments/payment-2/refunds", {
+      policyRequest("http://rent.test/payments/payment-2/refunds", {
         method: "POST",
       }),
     );
@@ -153,10 +176,10 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns a more generous dedicated policy to refresh than other auth session routes", () => {
     const refreshPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/auth/refresh", { method: "POST" }),
+      policyRequest("http://rent.test/auth/refresh", { method: "POST" }),
     );
     const logoutPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/auth/logout", { method: "POST" }),
+      policyRequest("http://rent.test/auth/logout", { method: "POST" }),
     );
 
     expect(refreshPolicy).toMatchObject({
@@ -173,12 +196,12 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns the auth-session policy to oauth link and delete routes", () => {
     const linkPolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/auth/oauth/google/link", {
+      policyRequest("http://rent.test/auth/oauth/google/link", {
         method: "POST",
       }),
     );
     const deletePolicy = resolveRateLimitPolicy(
-      new Request("http://rent.test/auth/oauth/google", {
+      policyRequest("http://rent.test/auth/oauth/google", {
         method: "DELETE",
       }),
     );
@@ -195,7 +218,7 @@ describe("resolveRateLimitPolicy", () => {
 
   it("assigns the token-bucket webhook policy to the Square webhook route", () => {
     const policy = resolveRateLimitPolicy(
-      new Request("http://rent.test/payments/webhooks/square", {
+      policyRequest("http://rent.test/payments/webhooks/square", {
         method: "POST",
       }),
     );
@@ -210,7 +233,7 @@ describe("resolveRateLimitPolicy", () => {
 
   it("falls back to the default policy for unrelated routes", () => {
     const policy = resolveRateLimitPolicy(
-      new Request("http://rent.test/postings", {
+      policyRequest("http://rent.test/postings", {
         method: "POST",
       }),
     );
@@ -293,8 +316,6 @@ describe("rateLimiterMiddleware", () => {
 
   it("supports versioned API routes when the middleware is mounted on the API base path", async () => {
     const { cacheEval, verifyAccessToken } = createApp();
-    const app = new Hono<AppBindings>();
-    const api = app.basePath(getApiRoutePrefix());
     const cacheService = {
       eval: cacheEval,
     };
@@ -302,21 +323,26 @@ describe("rateLimiterMiddleware", () => {
       verifyAccessToken,
     };
 
-    api.use("*", async (context, next) => {
-      context.set("client", {
-        ip: "203.0.113.10",
-        device: {
-          type: "desktop",
-          isMobile: false,
-        },
+    const app = createTestApp((instance) => {
+      const api = express.Router();
+      instance.use(getApiRoutePrefix(), api);
+
+      api.use((request, _response, next) => {
+        request.client = {
+          ip: "203.0.113.10",
+          device: {
+            type: "desktop",
+            isMobile: false,
+          },
+        };
+        request.container = new FakeContainer(cacheService, tokenService);
+        request.outputFormat = "json";
+        next();
       });
-      context.set("container", new FakeContainer(cacheService, tokenService));
-      context.set("outputFormat", "json");
-      await next();
+      api.use(rateLimiterMiddleware);
+      api.post("/auth/local/login", ok);
+      instance.use(handleApplicationError);
     });
-    api.use("*", rateLimiterMiddleware);
-    app.onError(handleApplicationError);
-    api.post("/auth/local/login", (context) => context.json({ ok: true }));
 
     const response = await app.request(
       `http://rent.test${buildApiPath("/auth/local/login")}`,
@@ -531,7 +557,24 @@ describe("rateLimiterMiddleware", () => {
   });
 
   it("enforces token-bucket limits on the in-memory fallback path", async () => {
-    jest.useFakeTimers().setSystemTime(new Date("2026-06-11T12:00:00.000Z"));
+    // Only the clock is frozen, so the token bucket cannot refill between
+    // attempts. The timer functions stay real because requests now travel over
+    // a socket, and faking those would stall the HTTP client.
+    jest
+      .useFakeTimers({
+        doNotFake: [
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "setImmediate",
+          "clearImmediate",
+          "nextTick",
+          "queueMicrotask",
+          "performance",
+        ],
+      })
+      .setSystemTime(new Date("2026-06-11T12:00:00.000Z"));
     const writeSpy = jest.spyOn(process.stdout, "write").mockImplementation(((
       _chunk: string | Uint8Array,
       callback?: unknown,

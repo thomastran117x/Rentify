@@ -1,9 +1,13 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request } from "express";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
+import { getRequestUrl } from "@/configuration/http/request";
+import {
+  toRequest,
+  type RequestLike,
+} from "@/configuration/http/legacy-context";
 import type { ContentSanitizationInput } from "@/features/security/content-sanitization.service";
 import { RequestValidationError } from "./request";
 
@@ -64,7 +68,7 @@ function collectStringInputs(
 }
 
 function assertSafeInputs(
-  context: Context<AppBindings>,
+  request: Request,
   inputs: ContentSanitizationInput[],
   message: string,
 ): void {
@@ -72,7 +76,7 @@ function assertSafeInputs(
     return;
   }
 
-  const violations = getRequestContainer(context)
+  const violations = getRequestContainer(request)
     .resolve(containerTokens.contentSanitizationService)
     .inspectRequest(inputs)
     .map((violation) => ({
@@ -86,16 +90,23 @@ function assertSafeInputs(
 }
 
 export function assertSafeRequestBody(
-  context: Context<AppBindings>,
+  source: RequestLike,
   body: unknown,
 ): void {
   const inputs: ContentSanitizationInput[] = [];
   collectStringInputs(body, "", inputs);
-  assertSafeInputs(context, inputs, "Request body validation failed.");
+  assertSafeInputs(
+    toRequest(source),
+    inputs,
+    "Request body validation failed.",
+  );
 }
 
-export function assertSafeRequestQuery(context: Context<AppBindings>): void {
-  const url = new URL(context.req.url);
+export function assertSafeRequestQuery(source: RequestLike): void {
+  const request = toRequest(source);
+  // Reads searchParams rather than getQuery(): repeated parameters each need
+  // inspecting, and getQuery deliberately keeps only the first value.
+  const url = getRequestUrl(request);
   const valuesByKey = new Map<string, string[]>();
 
   url.searchParams.forEach((value, key) => {
@@ -120,24 +131,25 @@ export function assertSafeRequestQuery(context: Context<AppBindings>): void {
     });
   });
 
-  assertSafeInputs(context, inputs, "Request query validation failed.");
+  assertSafeInputs(request, inputs, "Request query validation failed.");
 }
 
-export function assertSafeRouteParams(context: Context<AppBindings>): void {
-  const params = context.req.param();
-  const inputs = Object.entries(params).map(([key, value]) => ({
+export function assertSafeRouteParams(source: RequestLike): void {
+  const request = toRequest(source);
+  const inputs = Object.entries(request.params).map(([key, value]) => ({
     path: `params.${key}`,
-    value,
+    value: String(value),
   }));
 
-  assertSafeInputs(context, inputs, "Route parameter validation failed.");
+  assertSafeInputs(request, inputs, "Route parameter validation failed.");
 }
 
 export function requireSafeRouteParam(
-  context: Context<AppBindings>,
+  source: RequestLike,
   name: string,
 ): string {
-  const value = context.req.param(name);
+  const request = toRequest(source);
+  const value = request.params[name] as string | undefined;
 
   if (!value) {
     throw new RequestValidationError("Route parameter validation failed.", [
@@ -149,7 +161,7 @@ export function requireSafeRouteParam(
   }
 
   assertSafeInputs(
-    context,
+    request,
     [
       {
         path: name,

@@ -1,11 +1,14 @@
-import { createMiddleware } from "hono/factory";
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request, RequestHandler } from "express";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
+import { getHeader, getPathname } from "@/configuration/http/request";
+import {
+  toRequest,
+  type RequestLike,
+} from "@/configuration/http/legacy-context";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { JwtClaims } from "@/features/auth/token/token.service";
@@ -250,15 +253,15 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
 ];
 
 function assertPersonalAccessTokenAccess(
-  context: Context<AppBindings>,
+  request: Request,
   auth: AuthPrincipal,
 ): void {
   if (auth.authMethod !== "pat") {
     return;
   }
 
-  const pathname = stripApiRoutePrefix(new URL(context.req.url).pathname);
-  const requestMethod = context.req.method ?? "GET";
+  const pathname = stripApiRoutePrefix(getPathname(request));
+  const requestMethod = request.method ?? "GET";
   const policy = PAT_ROUTE_POLICIES.find(
     (entry) => entry.method === requestMethod && entry.pattern.test(pathname),
   );
@@ -285,53 +288,60 @@ function assertPersonalAccessTokenAccess(
   }
 }
 
-export const jwtMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    await requireJwtAuth(context);
-    await next();
-  },
-);
+export const jwtMiddleware: RequestHandler = async (
+  request,
+  _response,
+  next,
+) => {
+  try {
+    await requireJwtAuth(request);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
 
 export async function requireJwtAuth(
-  context: Context<AppBindings>,
+  source: RequestLike,
 ): Promise<AuthPrincipal> {
-  const existingClaims = context.get("auth");
+  const request = toRequest(source);
+  const existingClaims = request.auth;
 
   if (existingClaims) {
     return existingClaims;
   }
 
-  const token = readBearerToken(context.req.header("authorization"));
+  const token = readBearerToken(getHeader(request, "authorization"));
   const claims = isPersonalAccessToken(token)
-    ? await getRequestContainer(context)
+    ? await getRequestContainer(request)
         .resolve(containerTokens.personalAccessTokenService)
         .authenticateToken(token)
     : createJwtPrincipal(
-        await getRequestContainer(context)
+        await getRequestContainer(request)
           .resolve(containerTokens.tokenService)
           .verifyAccessToken(token),
       );
 
-  assertPersonalAccessTokenAccess(context, claims);
+  assertPersonalAccessTokenAccess(request, claims);
 
-  context.set("auth", claims);
+  request.auth = claims;
   return claims;
 }
 
 export async function getOptionalJwtAuth(
-  context: Context<AppBindings>,
+  source: RequestLike,
 ): Promise<AuthPrincipal | null> {
-  if (!context.req.header("authorization")) {
+  if (!getHeader(toRequest(source), "authorization")) {
     return null;
   }
 
-  return requireJwtAuth(context);
+  return requireJwtAuth(source);
 }
 
 export async function requireSessionAuth(
-  context: Context<AppBindings>,
+  source: RequestLike,
 ): Promise<JwtAuthPrincipal> {
-  const auth = await requireJwtAuth(context);
+  const auth = await requireJwtAuth(source);
 
   if (auth.authMethod !== "jwt") {
     throw new ForbiddenError(

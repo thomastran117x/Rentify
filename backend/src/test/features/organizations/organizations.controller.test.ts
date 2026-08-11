@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
@@ -38,35 +38,21 @@ function createContext(options?: {
   params?: Record<string, string>;
   query?: Record<string, string>;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  const query = new URLSearchParams(options?.query ?? {}).toString();
+
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    url: query ? `/?${query}` : "/",
+    state: {
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      query: () => options?.query ?? {},
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("OrganizationsController", () => {

@@ -1,6 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
+import { createLegacyTestContext } from "../../support/mock-http";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import ForbiddenError from "@/errors/http/forbidden.error";
 
@@ -33,23 +32,17 @@ function createContext(
     query?: Record<string, string>;
   } = {},
 ) {
-  const context = {
-    req: {
-      json: async () => options.body ?? {},
-      param: (name: string) => options.params?.[name],
-      query: (name: string) => options.query?.[name],
+  const query = new URLSearchParams(options.query ?? {}).toString();
+
+  return createLegacyTestContext({
+    body: options.body,
+    params: options.params,
+    url: query ? `/?${query}` : "/",
+    state: {
+      requestId: "request-1",
+      container: { resolve: () => ({ inspectRequest: () => [] }) },
     },
-    get: (key: string) => {
-      if (key === "requestId") return "request-1";
-      return { resolve: () => ({ inspectRequest: () => [] }) };
-    },
-    json: (payload: unknown, status = 200) =>
-      new Response(JSON.stringify(payload), {
-        status,
-        headers: { "content-type": "application/json" },
-      }),
-  };
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 const flag = (name: string, enabled: boolean) => ({

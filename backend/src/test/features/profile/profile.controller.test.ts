@@ -1,6 +1,7 @@
-import type { Context } from "hono";
-import { RequestValidationError } from "@/configuration/validation/request";
+﻿import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
+import { createLegacyTestContext } from "../../support/mock-http";
+import { RequestValidationError } from "@/configuration/validation/request";
 import { ProfileController } from "@/features/profile/profile.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
@@ -28,50 +29,30 @@ function createContext(options?: {
   url?: string;
   auth?: JwtClaims;
 }) {
-  const variables = new Map<string, unknown>();
-
-  if (options?.auth) {
-    variables.set("auth", options.auth);
-  }
-
-  variables.set("requestId", "request-1");
-  variables.set("client", {
-    ip: "127.0.0.1",
-    device: {
-      id: "device-1",
-      type: "desktop",
-      isMobile: false,
-      userAgent: "test-agent",
-      platform: "test-os",
-    },
-  });
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
-  });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url:
-        options?.url ??
-        "https://example.test/api/v1/profile?page=1&pageSize=20",
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
+  return createLegacyTestContext({
+    body: options?.body,
+    url:
+      options?.url ?? "https://example.test/api/v1/profile?page=1&pageSize=20",
+    state: {
+      ...(options?.auth ? { auth: options.auth } : {}),
+      requestId: "request-1",
+      client: {
+        ip: "127.0.0.1",
+        device: {
+          id: "device-1",
+          type: "desktop",
+          isMobile: false,
+          userAgent: "test-agent",
+          platform: "test-os",
         },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+      },
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
+  });
 }
 
 describe("ProfileController", () => {

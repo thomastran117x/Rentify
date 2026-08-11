@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
@@ -28,47 +27,29 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url: options?.url ?? "https://example.test/rentings/renting-1",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name?: string) => {
-      if (name === "requestId") {
-        return "request-1";
-      }
-
-      if (name === "client") {
-        return {
-          ip: "127.0.0.1",
-          device: {
-            id: "device-1",
-            type: "desktop",
-            isMobile: false,
-            userAgent: "test-agent",
-            platform: "test-os",
-          },
-        };
-      }
-
-      return {
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    url: options?.url ?? "https://example.test/rentings/renting-1",
+    state: {
+      requestId: "request-1",
+      client: {
+        ip: "127.0.0.1",
+        device: {
+          id: "device-1",
+          type: "desktop",
+          isMobile: false,
+          userAgent: "test-agent",
+          platform: "test-os",
+        },
+      },
+      container: {
         resolve: () => ({
           inspectRequest: () => [],
         }),
-      };
+      },
     },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 describe("RentingsController", () => {

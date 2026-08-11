@@ -1,5 +1,9 @@
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { Context } from "hono";
+import type { Request } from "express";
+import {
+  toRequest,
+  type RequestLike,
+} from "@/configuration/http/legacy-context";
 import { ZodError, type ZodType, type output } from "zod";
 import { assertSafeRequestBody } from "./input-sanitization";
 
@@ -16,13 +20,43 @@ export class RequestValidationError extends BadRequestError {
   }
 }
 
+/**
+ * Whether the request actually carried a body.
+ *
+ * `express.json()` leaves `req.body` as `{}` when nothing was sent, which is
+ * indistinguishable from an explicit `{}`. Hono's `c.req.json()` threw on an
+ * empty body, so this restores that distinction. Mirrors the check in
+ * request-body-policy.middleware.
+ */
+function hasRequestBody(request: Request): boolean {
+  const contentLength = request.headers["content-length"];
+
+  if (contentLength !== undefined) {
+    return Number(contentLength) > 0;
+  }
+
+  return request.headers["transfer-encoding"] !== undefined;
+}
+
+function readJsonBody(request: Request): unknown {
+  if (!hasRequestBody(request)) {
+    // Surfaces through handleParseError as "Request body must be valid JSON.",
+    // which is what Hono produced for this case.
+    throw new SyntaxError("Request body is empty.");
+  }
+
+  return request.body;
+}
+
 export async function parseRequestBody<TSchema extends ZodType>(
-  context: Context,
+  source: RequestLike,
   schema: TSchema,
 ): Promise<output<TSchema>> {
+  const request = toRequest(source);
+
   try {
-    const body = await context.req.json();
-    assertSafeRequestBody(context, body);
+    const body = readJsonBody(request);
+    assertSafeRequestBody(request, body);
     return schema.parse(body);
   } catch (error) {
     return handleParseError(error);
@@ -38,21 +72,23 @@ export async function parseRequestBody<TSchema extends ZodType>(
  * inspected for unsafe markup and injection patterns.
  */
 export async function parseRequestBodyWithRichText<TSchema extends ZodType>(
-  context: Context,
+  source: RequestLike,
   schema: TSchema,
   richTextFields: readonly string[],
 ): Promise<output<TSchema>> {
+  const request = toRequest(source);
+
   try {
-    const body = await context.req.json();
+    const body = readJsonBody(request);
 
     if (body && typeof body === "object" && !Array.isArray(body)) {
       const inspectable: Record<string, unknown> = { ...body };
       for (const field of richTextFields) {
         delete inspectable[field];
       }
-      assertSafeRequestBody(context, inspectable);
+      assertSafeRequestBody(request, inspectable);
     } else {
-      assertSafeRequestBody(context, body);
+      assertSafeRequestBody(request, body);
     }
 
     return schema.parse(body);

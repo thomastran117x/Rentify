@@ -30,6 +30,15 @@ declare global {
       outputFormat: OutputFormat;
       requestId: string;
       logger: Logger;
+
+      /**
+       * The unparsed request body, captured by express.json's verify hook.
+       *
+       * The Square and Telnyx webhooks verify a signature over the exact bytes
+       * that were sent, so re-serialising the parsed JSON would not do: key
+       * order and whitespace would differ and every signature check would fail.
+       */
+      rawBody?: Buffer;
     }
   }
 }

@@ -1,33 +1,36 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import express from "express";
+import { withLegacyContext } from "@/configuration/bootstrap/routes/helpers";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { SmsController } from "@/features/sms/sms.controller";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp(processWebhook: jest.Mock) {
-  const app = new Hono<AppBindings>();
   const controller = new SmsController({
     processWebhook,
   } as any);
 
-  app.use("*", async (context, next) => {
-    context.set("requestId", "request-1");
-    context.set("outputFormat", "json");
-    context.set("logger", {
-      debug: jest.fn(),
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      critical: jest.fn(),
-      child: jest.fn(),
-    } as any);
-    await next();
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.requestId = "request-1";
+      request.outputFormat = "json";
+      request.logger = {
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        critical: jest.fn(),
+        child: jest.fn(),
+      } as any;
+      next();
+    });
+    // Mirrors createApplication: the webhook body is left unparsed so the
+    // handler sees the exact bytes it has to verify a signature over.
+    app.use("/sms/webhooks/telnyx", express.raw({ type: "*/*" }));
+    app.post("/sms/webhooks/telnyx", withLegacyContext(controller.webhook));
+    app.use(handleApplicationError);
   });
-  app.post("/sms/webhooks/telnyx", controller.webhook);
-  app.onError(handleApplicationError);
-
-  return app;
 }
 
 describe("SMS webhook route", () => {

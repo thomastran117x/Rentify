@@ -1,5 +1,10 @@
-import { createMiddleware } from "hono/factory";
-import type { AppBindings, OutputFormat } from "@/configuration/http/bindings";
+import type {
+  Request,
+  RequestHandler,
+  Response as ExpressResponse,
+} from "express";
+import type { OutputFormat } from "@/configuration/http/bindings";
+import { getRequestUrl } from "@/configuration/http/request";
 
 const XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>';
 const DEFAULT_OUTPUT_FORMAT: OutputFormat = "json";
@@ -106,7 +111,7 @@ function parseAcceptHeader(acceptHeader: string | null): OutputFormat {
 }
 
 export function detectOutputFormat(request: Request): OutputFormat {
-  const url = new URL(request.url);
+  const url = getRequestUrl(request);
   const explicitFormat = url.searchParams.get("format")?.trim().toLowerCase();
 
   if (explicitFormat === "xml") {
@@ -117,121 +122,77 @@ export function detectOutputFormat(request: Request): OutputFormat {
     return "json";
   }
 
-  return parseAcceptHeader(request.headers.get("accept"));
-}
-
-function isJsonLikeContentType(contentType: string | null): boolean {
-  const normalized = contentType?.toLowerCase() ?? "";
-  return (
-    normalized.includes("application/json") || normalized.includes("+json")
-  );
+  return parseAcceptHeader(request.get("accept") ?? null);
 }
 
 function canHaveBody(status: number): boolean {
   return ![204, 205, 304].includes(status);
 }
 
-function setVaryAccept(headers: Headers): void {
-  const current = headers.get("vary");
-
-  if (!current) {
-    headers.set("vary", "Accept");
-    return;
-  }
-
-  const values = current.split(",").map((value) => value.trim().toLowerCase());
-
-  if (!values.includes("accept")) {
-    headers.set("vary", `${current}, Accept`);
-  }
-}
-
-function serializeBody(body: unknown, format: OutputFormat): string {
-  switch (format) {
-    case "xml":
-      return serializeToXml(body);
-    case "json":
-    default:
-      return JSON.stringify(body);
-  }
-}
-
-function getContentType(format: OutputFormat): string {
+export function getContentType(format: OutputFormat): string {
   return CONTENT_TYPES[format];
 }
 
-async function tryReadJsonBody(response: Response): Promise<unknown | null> {
-  const text = await response.text();
-
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+/**
+ * Writes a serialised body with an exact Content-Type.
+ *
+ * `res.send` would rewrite the charset to lower case ("utf-8"), changing a
+ * header this API has always sent as "UTF-8". Writing through `res.end`
+ * bypasses that normalisation; Content-Length is set explicitly because
+ * skipping `res.send` also skips its length handling.
+ */
+export function writeSerializedBody(
+  response: ExpressResponse,
+  contentType: string,
+  payload: string,
+): void {
+  response.setHeader("content-type", contentType);
+  response.setHeader("content-length", String(Buffer.byteLength(payload)));
+  response.end(payload);
 }
 
-export const outputFormatMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const outputFormat = detectOutputFormat(context.req.raw);
-    context.set("outputFormat", outputFormat);
+/**
+ * Negotiates the response format and, when XML was asked for, transcodes it.
+ *
+ * The Hono version buffered and rewrote the finished response. Express gives a
+ * cleaner seam: every JSON response in this app is produced by `res.json`, so
+ * overriding that one method catches all of them — success envelopes and error
+ * envelopes alike — while responses written with `res.send`/`res.end` (the
+ * OpenAPI spec files, blob downloads) pass through untouched. That matches the
+ * old behaviour, which only ever transcoded JSON-like content types.
+ */
+export const outputFormatMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  const outputFormat = detectOutputFormat(request);
+  request.outputFormat = outputFormat;
 
-    await next();
-
-    const response = context.res;
-
-    if (!canHaveBody(response.status)) {
-      return;
+  // Vary is applied at writeHead so the status is already known: 204/205/304
+  // did not carry a Vary header before and should not start now.
+  const originalWriteHead = response.writeHead.bind(response);
+  response.writeHead = function patchedWriteHead(
+    ...args: Parameters<typeof originalWriteHead>
+  ) {
+    if (canHaveBody(response.statusCode)) {
+      response.vary("Accept");
     }
 
-    const headers = new Headers(response.headers);
-    setVaryAccept(headers);
+    return originalWriteHead(...args);
+  } as typeof response.writeHead;
 
-    if (outputFormat === "json") {
-      if (isJsonLikeContentType(response.headers.get("content-type"))) {
-        headers.set("content-type", getContentType("json"));
-      }
+  response.json = function patchedJson(body: unknown) {
+    const useXml = outputFormat === "xml" && canHaveBody(response.statusCode);
 
-      context.res = new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+    writeSerializedBody(
+      response,
+      getContentType(useXml ? "xml" : "json"),
+      useXml ? serializeToXml(body) : JSON.stringify(body),
+    );
 
-      return;
-    }
+    return response;
+  } as typeof response.json;
 
-    if (!isJsonLikeContentType(response.headers.get("content-type"))) {
-      context.res = new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-
-      return;
-    }
-
-    const parsedBody = await tryReadJsonBody(response);
-
-    if (parsedBody === null) {
-      context.res = new Response(null, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-
-      return;
-    }
-
-    headers.set("content-type", getContentType("xml"));
-
-    context.res = new Response(serializeBody(parsedBody, "xml"), {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
-  },
-);
+  next();
+};

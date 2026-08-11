@@ -1,10 +1,9 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
 import { requestLoggerMiddleware } from "@/configuration/middlewares/request-logger.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 jest.mock("@/configuration/bootstrap/container", () => {
   const actual = jest.requireActual("@/configuration/bootstrap/container");
@@ -19,26 +18,28 @@ const mockGetRequestContainer = getRequestContainer as jest.MockedFunction<
 >;
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", async (context, next) => {
-    context.set("requestId", "req-123");
-    context.set("client", {
-      ip: "203.0.113.9",
-      device: {
-        id: "device-1",
-        type: "mobile",
-        isMobile: true,
-        platform: "iOS",
-        userAgent: "Mozilla/5.0",
-      },
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.requestId = "req-123";
+      request.client = {
+        ip: "203.0.113.9",
+        device: {
+          id: "device-1",
+          type: "mobile",
+          isMobile: true,
+          platform: "iOS",
+          userAgent: "Mozilla/5.0",
+        },
+      };
+      next();
     });
-    await next();
+    app.use(requestLoggerMiddleware);
+    app.get("/request", (request, response) => {
+      response
+        .type("text/plain")
+        .send(request.logger === requestLogger ? "ready" : "missing");
+    });
   });
-  app.use("*", requestLoggerMiddleware);
-  app.get("/request", (context) =>
-    context.text(context.get("logger") === requestLogger ? "ready" : "missing"),
-  );
-  return app;
 }
 
 const requestLogger = {

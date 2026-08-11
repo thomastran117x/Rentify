@@ -1,3 +1,5 @@
+﻿import type { Context } from "hono";
+import { createLegacyTestContext } from "../../support/mock-http";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import {
   getAuthRole,
@@ -11,7 +13,6 @@ import { containerTokens } from "@/configuration/container/tokens";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PostingsController } from "@/features/postings/postings.controller";
 import { SearchController } from "@/features/search/search.controller";
-import type { Context } from "hono";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -93,31 +94,15 @@ function createContext(options?: {
   );
   variables.set("client", createClientContext());
 
-  const context = {
-    req: {
-      url: options?.url ?? "https://example.test/resource",
-      header: (name: string) =>
-        name.toLowerCase() === "authorization"
-          ? options?.authorization
-          : undefined,
-      param: (name: string) => options?.params?.[name],
-      json: async () => options?.body ?? {},
-      text: async () => "",
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    url: options?.url ?? "https://example.test/resource",
+    headers: {
+      authorization: options?.authorization,
     },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+    state: Object.fromEntries(variables),
+  });
 }
 
 describe("authorization", () => {

@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request, RequestHandler } from "express";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
+import { getPathname } from "@/configuration/http/request";
 import { loggerFactory } from "@/configuration/logging";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -150,7 +150,7 @@ function createPolicy(
   request: Request,
   policy: Omit<RateLimitPolicy, "bucketKey"> & { bucketKey?: string },
 ): RateLimitPolicy {
-  const pathname = stripApiRoutePrefix(new URL(request.url).pathname);
+  const pathname = stripApiRoutePrefix(getPathname(request));
 
   return {
     ...policy,
@@ -225,7 +225,7 @@ function isSmsWebhookRoute(request: Request, pathname: string): boolean {
 }
 
 export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
-  const pathname = stripApiRoutePrefix(new URL(request.url).pathname);
+  const pathname = stripApiRoutePrefix(getPathname(request));
 
   if (isAuthSensitiveRoute(request, pathname)) {
     return createPolicy(request, {
@@ -312,9 +312,9 @@ interface RateLimitIdentity {
 }
 
 async function resolveRateLimitIdentity(
-  context: Parameters<typeof rateLimiterMiddleware>[0],
+  request: Request,
 ): Promise<RateLimitIdentity> {
-  const existingAuth = context.get("auth");
+  const existingAuth = request.auth;
 
   if (existingAuth?.sub) {
     return {
@@ -324,7 +324,7 @@ async function resolveRateLimitIdentity(
   }
 
   try {
-    const auth = await getOptionalJwtAuth(context);
+    const auth = await getOptionalJwtAuth(request);
 
     if (auth?.sub) {
       return {
@@ -340,12 +340,12 @@ async function resolveRateLimitIdentity(
 
   return {
     type: "ip",
-    keyPart: `ip:${context.get("client").ip ?? "unknown"}`,
+    keyPart: `ip:${request.client?.ip ?? "unknown"}`,
   };
 }
 
 async function evaluateSlidingWindow(
-  context: Parameters<typeof rateLimiterMiddleware>[0],
+  request: Request,
   key: string,
   policy: RateLimitPolicy,
 ): Promise<SlidingWindowResult> {
@@ -354,7 +354,7 @@ async function evaluateSlidingWindow(
   const limit = policy.limit;
   const member = `${now}:${randomUUID()}`;
 
-  const result = await getRequestContainer(context)
+  const result = await getRequestContainer(request)
     .resolve(containerTokens.cacheService)
     .eval<[number, number, number]>(
       SLIDING_WINDOW_SCRIPT,
@@ -406,7 +406,7 @@ function evaluateSlidingWindowInMemory(
 }
 
 async function evaluateTokenBucket(
-  context: Parameters<typeof rateLimiterMiddleware>[0],
+  request: Request,
   key: string,
   policy: RateLimitPolicy,
 ): Promise<TokenBucketResult> {
@@ -415,7 +415,7 @@ async function evaluateTokenBucket(
   const refillRate = policy.refillTokensPerSecond;
   const ttlMs = Math.max(Math.ceil((capacity / refillRate) * 1000 * 2), 1000);
 
-  const result = await getRequestContainer(context)
+  const result = await getRequestContainer(request)
     .resolve(containerTokens.cacheService)
     .eval<[number, number, number]>(
       TOKEN_BUCKET_SCRIPT,
@@ -516,15 +516,15 @@ function logRedisFallback(error: unknown, policy: RateLimitPolicy): void {
 }
 
 async function evaluateRateLimit(
-  context: Parameters<typeof rateLimiterMiddleware>[0],
+  request: Request,
   key: string,
   policy: RateLimitPolicy,
 ): Promise<RateLimitEvaluation> {
   try {
     const result =
       policy.strategy === "sliding-window"
-        ? await evaluateSlidingWindow(context, key, policy)
-        : await evaluateTokenBucket(context, key, policy);
+        ? await evaluateSlidingWindow(request, key, policy)
+        : await evaluateTokenBucket(request, key, policy);
 
     return {
       backend: "redis",
@@ -554,33 +554,37 @@ export function resetRateLimiterMemoryFallbackForTests(): void {
   lastRedisFallbackLogAt = 0;
 }
 
-export const rateLimiterMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    if (!isEnabled()) {
-      await next();
-      return;
-    }
+export const rateLimiterMiddleware: RequestHandler = async (
+  request,
+  response,
+  next,
+) => {
+  if (!isEnabled()) {
+    next();
+    return;
+  }
 
-    const policy = resolveRateLimitPolicy(context.req.raw);
-    const identity = await resolveRateLimitIdentity(context);
+  try {
+    const policy = resolveRateLimitPolicy(request);
+    const identity = await resolveRateLimitIdentity(request);
     const key = buildRateLimitKey(policy, identity.keyPart);
     const strategy = policy.strategy;
-    const evaluation = await evaluateRateLimit(context, key, policy);
+    const evaluation = await evaluateRateLimit(request, key, policy);
 
-    context.header("x-ratelimit-limit", String(policy.limit));
-    context.header("x-ratelimit-backend", evaluation.backend);
-    context.header(
+    response.setHeader("x-ratelimit-limit", String(policy.limit));
+    response.setHeader("x-ratelimit-backend", evaluation.backend);
+    response.setHeader(
       "x-ratelimit-remaining",
       String(Math.max(0, evaluation.result.remaining)),
     );
-    context.header("x-ratelimit-policy", policy.id);
-    context.header("x-ratelimit-strategy", strategy);
+    response.setHeader("x-ratelimit-policy", policy.id);
+    response.setHeader("x-ratelimit-strategy", strategy);
     if (evaluation.backend === "memory") {
-      context.header("x-ratelimit-degraded", "true");
+      response.setHeader("x-ratelimit-degraded", "true");
     }
 
     if (!evaluation.result.allowed) {
-      context.header(
+      response.setHeader(
         "retry-after",
         String(Math.max(1, evaluation.result.retryAfterSeconds)),
       );
@@ -596,6 +600,8 @@ export const rateLimiterMiddleware = createMiddleware<AppBindings>(
       );
     }
 
-    await next();
-  },
-);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

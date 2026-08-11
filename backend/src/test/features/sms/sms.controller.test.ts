@@ -1,38 +1,22 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { SmsController } from "@/features/sms/sms.controller";
+﻿import { SmsController } from "@/features/sms/sms.controller";
+import { createLegacyTestContext } from "../../support/mock-http";
 
 function createContext(options?: {
   headers?: Record<string, string>;
   text?: string;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  return createLegacyTestContext({
+    headers: options?.headers,
+    rawBody: options?.text ?? "",
+    state: {
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      text: async () => options?.text ?? "",
-      header: (name: string) => options?.headers?.[name.toLowerCase()],
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("SmsController", () => {

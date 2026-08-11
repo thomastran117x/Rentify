@@ -1,16 +1,16 @@
-import { Hono } from "hono";
+import express from "express";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
 import { filterRouteModules } from "@/configuration/bootstrap/routes/registry";
 import {
   containerTokens,
   type ServiceContainer,
 } from "@/configuration/bootstrap/container";
-import { buildApiPath } from "@/configuration/http/api-path";
-import type { AppBindings } from "@/configuration/http/bindings";
+import { buildApiPath, getApiRoutePrefix } from "@/configuration/http/api-path";
 import type {
   RouteModule,
   RouteModuleId,
 } from "@/configuration/bootstrap/routes/types";
+import { createTestApp } from "../../support/fetch-app";
 
 class FakeRequestContainer implements ServiceContainer {
   constructor(private readonly services: Map<unknown, unknown>) {}
@@ -32,15 +32,18 @@ class FakeRequestContainer implements ServiceContainer {
 
 function createApp(services: Map<unknown, unknown> = new Map()) {
   const container = new FakeRequestContainer(services);
-  const app = new Hono<AppBindings>();
 
-  app.use("*", async (context, next) => {
-    context.set("container", container);
-    await next();
+  return createTestApp((app) => {
+    const api = express.Router();
+    app.use(getApiRoutePrefix(), api);
+
+    api.use((request, _response, next) => {
+      request.container = container;
+      next();
+    });
+
+    mountRoutes(api);
   });
-
-  mountRoutes(app);
-  return app;
 }
 
 describe("mountRoutes", () => {

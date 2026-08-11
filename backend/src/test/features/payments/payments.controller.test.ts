@@ -1,7 +1,6 @@
-import type { Context } from "hono";
 import { RequestValidationError } from "@/configuration/validation/request";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { PaymentsController } from "@/features/payments/payments.controller";
+import { createLegacyTestContext } from "../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
 const mockRequireJwtAuth = jest.fn();
@@ -30,39 +29,20 @@ function createContext(options?: {
   headers?: Record<string, string>;
   text?: string;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  return createLegacyTestContext({
+    ...options,
+    url:
+      options?.url ??
+      "https://example.test/api/v1/payments/payment-1/payouts?page=2&pageSize=5&status=scheduled",
+    state: {
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      text: async () => options?.text ?? "",
-      url:
-        options?.url ??
-        "https://example.test/api/v1/payments/payment-1/payouts?page=2&pageSize=5&status=scheduled",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-      header: (name: string) => options?.headers?.[name.toLowerCase()],
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("PaymentsController", () => {

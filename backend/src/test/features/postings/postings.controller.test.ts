@@ -1,8 +1,8 @@
+﻿import { createLegacyTestContext } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { PostingsController } from "@/features/postings/postings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
-import type { Context } from "hono";
 
 const mockRequireJwtAuth = jest.fn();
 const mockGetOptionalJwtAuth = jest.fn();
@@ -82,47 +82,29 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url: options?.url ?? "https://example.test/postings",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name?: string) => {
-      if (name === "client") {
-        return {
-          ip: "127.0.0.1",
-          device: {
-            id: "device-1",
-            type: "desktop",
-            isMobile: false,
-            userAgent: "test-agent",
-            platform: "test-os",
-          },
-        };
-      }
-
-      if (name === "requestId") {
-        return "request-1";
-      }
-
-      return {
+  return createLegacyTestContext({
+    body: options?.body,
+    params: options?.params,
+    url: options?.url ?? "https://example.test/postings",
+    state: {
+      client: {
+        ip: "127.0.0.1",
+        device: {
+          id: "device-1",
+          type: "desktop",
+          isMobile: false,
+          userAgent: "test-agent",
+          platform: "test-os",
+        },
+      },
+      requestId: "request-1",
+      container: {
         resolve: () => ({
           inspectRequest: () => [],
         }),
-      };
+      },
     },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 function createController(
@@ -1403,7 +1385,7 @@ describe("PostingsController", () => {
       mockRequireJwtAuth.mockResolvedValue(createClaims());
     });
 
-    it("listSeasonalPricing — returns 200 with the rule list", async () => {
+    it("listSeasonalPricing â€” returns 200 with the rule list", async () => {
       const list = jest.fn(async () => [rule]);
       const controller = createController({}, { seasonalPricing: { list } });
       const context = createContext({ params: { id: "posting-1" } });
@@ -1414,7 +1396,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(200);
     });
 
-    it("createSeasonalPricingRule — returns 201 after delegating to service", async () => {
+    it("createSeasonalPricingRule â€” returns 201 after delegating to service", async () => {
       const create = jest.fn(async () => rule);
       const controller = createController({}, { seasonalPricing: { create } });
       const context = createContext({
@@ -1432,7 +1414,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(201);
     });
 
-    it("updateSeasonalPricingRule — returns 200 with the updated rule", async () => {
+    it("updateSeasonalPricingRule â€” returns 200 with the updated rule", async () => {
       const update = jest.fn(async () => ({ ...rule, name: "Updated" }));
       const controller = createController({}, { seasonalPricing: { update } });
       const context = createContext({
@@ -1451,7 +1433,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(200);
     });
 
-    it("deleteSeasonalPricingRule — returns 204 after deleting the rule", async () => {
+    it("deleteSeasonalPricingRule â€” returns 204 after deleting the rule", async () => {
       const del = jest.fn(async () => undefined);
       const controller = createController(
         {},
@@ -1473,7 +1455,7 @@ describe("PostingsController", () => {
       mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
     });
 
-    it("listSaved — forwards the parsed page and exposes pagination meta", async () => {
+    it("listSaved â€” forwards the parsed page and exposes pagination meta", async () => {
       const pagination = {
         page: 2,
         pageSize: 5,
@@ -1503,7 +1485,7 @@ describe("PostingsController", () => {
       );
     });
 
-    it("listSaved — defaults page and pageSize when absent", async () => {
+    it("listSaved â€” defaults page and pageSize when absent", async () => {
       const list = jest.fn(async () => ({
         postings: [],
         pagination: {
@@ -1528,7 +1510,7 @@ describe("PostingsController", () => {
     it.each([
       ["page=0", "https://example.test/postings/saved?page=0"],
       ["pageSize=999", "https://example.test/postings/saved?pageSize=999"],
-    ])("listSaved — rejects %s", async (_label, url) => {
+    ])("listSaved â€” rejects %s", async (_label, url) => {
       const list = jest.fn();
       const controller = createController({}, { savedPostings: { list } });
 
@@ -1538,7 +1520,7 @@ describe("PostingsController", () => {
       expect(list).not.toHaveBeenCalled();
     });
 
-    it("listSavedIds — forwards the caller identifier", async () => {
+    it("listSavedIds â€” forwards the caller identifier", async () => {
       const listIds = jest.fn(async () => ({
         postingIds: ["posting-1"],
         truncated: false,
@@ -1551,7 +1533,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(200);
     });
 
-    it("save — returns 200 with the saved state", async () => {
+    it("save â€” returns 200 with the saved state", async () => {
       const save = jest.fn(async () => ({
         postingId: "posting-1",
         saved: true,
@@ -1571,7 +1553,7 @@ describe("PostingsController", () => {
       );
     });
 
-    it("unsave — returns 200 with the cleared state", async () => {
+    it("unsave â€” returns 200 with the cleared state", async () => {
       const unsave = jest.fn(async () => ({
         postingId: "posting-1",
         saved: false,

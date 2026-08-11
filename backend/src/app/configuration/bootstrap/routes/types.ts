@@ -1,5 +1,4 @@
-import type { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Router } from "express";
 import type { resolveHandler } from "@/configuration/bootstrap/routes/helpers";
 
 export const ROUTE_MODULE_IDS = [
@@ -43,5 +42,10 @@ export interface RouteModuleHelpers {
 export interface RouteModule {
   id: RouteModuleId;
   featureId?: string;
-  register(app: Hono<AppBindings>, helpers: RouteModuleHelpers): void;
+  /**
+   * The parameter must stay named `app` and the registrations must stay literal
+   * `app.get("/path", ...)` calls: openapi/validation.ts scrapes these modules
+   * with a regex to check the committed spec against the real routes.
+   */
+  register(app: Router, helpers: RouteModuleHelpers): void;
 }
