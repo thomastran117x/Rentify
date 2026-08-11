@@ -236,6 +236,48 @@ describe("Booking message socket integration", () => {
     await scope.dispose();
   }, 60_000);
 
+  it("refuses to redeem a ticket minted before the session was revoked", async () => {
+    const { renter, bookingRequestId } = await createThread();
+    const ticket = await mintTicket(bookingRequestId, renter.headers());
+
+    // The sweep only closes sockets that already exist. A ticket minted just
+    // before a logout has thirty seconds of life left, and without a session
+    // check at redemption it still buys a brand new connection.
+    await persistenceApp.prisma.user.update({
+      where: { id: renter.userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    const scope = persistenceApp.container.createScope();
+    const service = scope.resolve(containerTokens.bookingMessagesService);
+
+    await expect(service.redeemSocketTicket(ticket)).resolves.toBeNull();
+
+    await scope.dispose();
+  }, 60_000);
+
+  it("rejects the upgrade itself once the session is revoked", async () => {
+    const { renter, bookingRequestId } = await createThread();
+    const ticket = await mintTicket(bookingRequestId, renter.headers());
+
+    await persistenceApp.prisma.user.update({
+      where: { id: renter.userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    // End to end over a real upgrade, not just the service call: the socket
+    // must never open in the first place.
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: `rentify_ws_ticket=${ticket}` },
+    });
+    const error = await new Promise<Error>((resolve) =>
+      socket.once("error", resolve),
+    );
+
+    expect(error.message).toMatch(/401/);
+    socket.terminate();
+  }, 60_000);
+
   it("delivers a message published while the socket is open", async () => {
     const { renter, bookingRequestId } = await createThread();
     const owner = await createAuthenticatedRequestContext({

@@ -355,10 +355,14 @@ export class BookingMessagesService {
       return null;
     }
 
-    // Re-authorized rather than trusted: membership can change between minting
-    // the ticket and the upgrade landing.
+    // Re-authorized rather than trusted: both membership and the session can
+    // change between minting the ticket and the upgrade landing. Checking only
+    // membership here left a signed-out user able to open a *new* socket inside
+    // the ticket's 30-second window and hold it until the next sweep — the
+    // periodic check closes a connection, it does not stop one being made.
     try {
       await this.authorizeStream(identity.bookingRequestId, identity.userId);
+      await this.assertSocketSessionValid(identity);
     } catch {
       return null;
     }

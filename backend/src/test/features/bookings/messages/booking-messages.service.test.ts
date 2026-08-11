@@ -762,6 +762,28 @@ describe("BookingMessagesService", () => {
       await expect(service.redeemSocketTicket("abc")).resolves.toBeNull();
     });
 
+    it("refuses a ticket whose session was revoked before the upgrade landed", async () => {
+      const { service, tokenService } = createService({
+        ticketIdentity: {
+          bookingRequestId: BOOKING_ID,
+          userId: RENTER_ID,
+          sessionId: "session-9",
+          tokenVersion: 3,
+        },
+        sessionError: new Error("Session is no longer valid."),
+      });
+
+      // Membership is untouched here. The window is small — the ticket lives 30
+      // seconds — but the periodic sweep only closes sockets that exist, so
+      // without this check a signed-out user could still open a fresh one.
+      await expect(service.redeemSocketTicket("abc")).resolves.toBeNull();
+      expect(tokenService.assertSessionIsUsable).toHaveBeenCalledWith(
+        RENTER_ID,
+        "session-9",
+        3,
+      );
+    });
+
     it("passes the recorded session to the token service on recheck", async () => {
       const { service, tokenService } = createService();
 
