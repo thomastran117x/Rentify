@@ -113,8 +113,45 @@ describe("BookingMessagesPanel", () => {
     await screen.findByText("Is an early pickup possible?");
     const bubbles = screen.getAllByTestId("booking-message");
 
-    expect(bubbles[0]).toHaveAttribute("data-mine", "true");
-    expect(bubbles[1]).toHaveAttribute("data-mine", "false");
+    // Rendered oldest-first, so the reply the API returned first appears last.
+    expect(bubbles[0]).toHaveTextContent("Yes, from 9am.");
+    expect(bubbles[0]).toHaveAttribute("data-mine", "false");
+    expect(bubbles[1]).toHaveTextContent("Is an early pickup possible?");
+    expect(bubbles[1]).toHaveAttribute("data-mine", "true");
+  });
+
+  it("renders the thread oldest to newest", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          // The API returns newest-first.
+          buildMessage({
+            id: "third",
+            body: "Third",
+            createdAt: "2026-08-10T12:20:00.000Z",
+          }),
+          buildMessage({
+            id: "second",
+            body: "Second",
+            createdAt: "2026-08-10T12:10:00.000Z",
+          }),
+          buildMessage({
+            id: "first",
+            body: "First",
+            createdAt: "2026-08-10T12:00:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("First");
+
+    expect(
+      screen
+        .getAllByTestId("booking-message")
+        .map((bubble) => bubble.querySelector("p")?.textContent),
+    ).toEqual(["First", "Second", "Third"]);
   });
 
   it("shows an empty state when there are no messages", async () => {
@@ -342,8 +379,10 @@ describe("BookingMessagesPanel", () => {
     await screen.findByText("Colleague reply");
 
     const bubbles = screen.getAllByTestId("booking-message");
-    expect(bubbles[0]).toHaveAttribute("data-mine", "true");
-    expect(bubbles[1]).toHaveAttribute("data-mine", "false");
+    expect(bubbles[0]).toHaveTextContent("Renter question");
+    expect(bubbles[0]).toHaveAttribute("data-mine", "false");
+    expect(bubbles[1]).toHaveTextContent("Colleague reply");
+    expect(bubbles[1]).toHaveAttribute("data-mine", "true");
   });
 
   it("keeps a message that arrives while a history request is in flight", async () => {
@@ -458,11 +497,12 @@ describe("BookingMessagesPanel", () => {
     const receipts = screen.getAllByText(/^Read /);
     expect(receipts).toHaveLength(1);
 
+    // Oldest-first: the newest sent message is last.
     const bubbles = screen.getAllByTestId("booking-message");
-    expect(bubbles[0]).toHaveTextContent("Newest sent");
-    expect(bubbles[0]).toHaveTextContent(/Read /);
+    expect(bubbles[2]).toHaveTextContent("Newest sent");
+    expect(bubbles[2]).toHaveTextContent(/Read /);
+    expect(bubbles[0]).not.toHaveTextContent(/Read /);
     expect(bubbles[1]).not.toHaveTextContent(/Read /);
-    expect(bubbles[2]).not.toHaveTextContent(/Read /);
   });
 
   it("shows no receipt while the newest sent message is unread", async () => {

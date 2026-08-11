@@ -18,6 +18,8 @@ import { formatDateTime } from "@/lib/rentings/format";
 
 /** Fallback refresh cadence used once the live stream gives up. */
 const FALLBACK_POLL_INTERVAL_MS = 15_000;
+/** How close to the bottom still counts as "following" the conversation. */
+const SCROLL_STICK_THRESHOLD_PX = 80;
 const PAGE_SIZE = 20;
 
 interface PanelBanner {
@@ -209,6 +211,24 @@ export function BookingMessagesPanel({
   // updater, so a flag set inside one cannot be read straight afterwards.
   const messageIdsRef = useRef<Set<string>>(new Set());
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Only follow the newest message when the reader is already at the bottom;
+  // yanking someone away from older messages they are reading is worse than
+  // letting a new one arrive off-screen.
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const element = scrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight;
+    stickToBottomRef.current = distanceFromBottom <= SCROLL_STICK_THRESHOLD_PX;
+  }, []);
+
   const insertMessage = useCallback((record: BookingMessageRecord) => {
     // The same message arrives twice across a reconnect re-sync, and again as
     // the echo of a local send.
@@ -378,6 +398,18 @@ export function BookingMessagesPanel({
   }, [bookingRequestId, insertMessage, loadMessages, markRead, viewerSide]);
 
   useEffect(() => {
+    const element = scrollRef.current;
+
+    if (!element || !stickToBottomRef.current) {
+      return;
+    }
+
+    // The newest message sits at the bottom now, so that is where a reader
+    // following the conversation expects to be.
+    element.scrollTop = element.scrollHeight;
+  }, [messages, loading]);
+
+  useEffect(() => {
     if (liveStatus !== "failed") {
       return;
     }
@@ -420,6 +452,11 @@ export function BookingMessagesPanel({
     },
     [bookingRequestId],
   );
+
+  // State stays newest-first because that is the order the API pages in, and
+  // the trim, receipt, and merge logic all depend on it. Only the render is
+  // reversed, so the thread reads top-to-bottom like any other chat.
+  const orderedMessages = [...messages].reverse();
 
   // Messages are newest-first, so the first one from this side is the newest
   // this viewer sent. Page 2 and beyond never hold it, so the receipt would be
@@ -468,16 +505,22 @@ export function BookingMessagesPanel({
             No messages yet. Start the conversation below.
           </div>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                mine={message.authorSide === viewerSide}
-                showReceipt={message.id === receiptMessageId}
-              />
-            ))}
-          </ul>
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="max-h-[28rem] overflow-y-auto pr-1"
+          >
+            <ul className="flex flex-col gap-3">
+              {orderedMessages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  mine={message.authorSide === viewerSide}
+                  showReceipt={message.id === receiptMessageId}
+                />
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 
