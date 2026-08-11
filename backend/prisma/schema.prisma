@@ -520,6 +520,9 @@ model BookingMessage {
   body             String         @db.VarChar(2000)
   createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(6)
   readAt           DateTime?      @map("read_at") @db.DateTime(6)
+  // Distinct from readAt: the recipient's client received the message, which
+  // can happen while the thread sits unopened in another tab.
+  deliveredAt      DateTime?      @map("delivered_at") @db.DateTime(6)
   editedAt         DateTime?      @map("edited_at") @db.DateTime(6)
   // Soft delete: the row is kept so the booking keeps a record that a message
   // existed, while its text is cleared.

@@ -23,6 +23,20 @@ export const MAX_BOOKING_MESSAGE_SNIPPET_LENGTH = 140;
  */
 export const BOOKING_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
+/**
+ * A browser `WebSocket` cannot send an `Authorization` header, so the client
+ * exchanges its bearer token for a short-lived single-use ticket over REST and
+ * presents that on the upgrade. Kept brief because it necessarily travels in
+ * the query string, where proxies and access logs can see it.
+ */
+export const BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS = 30;
+
+/** How long a typing indicator stands before it expires on its own. */
+export const BOOKING_MESSAGE_TYPING_TTL_SECONDS = 6;
+
+/** Presence keys are refreshed by heartbeat and expire if a socket vanishes. */
+export const BOOKING_MESSAGE_PRESENCE_TTL_SECONDS = 45;
+
 // `.trim()` runs before the length checks, so a whitespace-only body is
 // rejected and a 2000-character body with trailing spaces is accepted.
 export const sendBookingMessageSchema = z.object({
@@ -145,6 +159,22 @@ export interface BookingMessageStreamAuthorization {
   side: BookingParticipantSide;
 }
 
+export interface BookingMessageSocketTicket {
+  ticket: string;
+  expiresInSeconds: number;
+}
+
+export interface BookingMessageSocketIdentity {
+  bookingRequestId: string;
+  userId: string;
+}
+
+/** Frames the client may send once connected. */
+export type BookingMessageClientFrame =
+  | { type: "typing" }
+  | { type: "delivered"; messageIds: string[] }
+  | { type: "ping" };
+
 export type BookingMessageStreamEvent =
   | {
       type: "message.created";
@@ -162,6 +192,28 @@ export type BookingMessageStreamEvent =
       readerSide: BookingParticipantSide;
       readAt: string;
       markedCount: number;
+    }
+  | {
+      type: "messages.delivered";
+      bookingRequestId: string;
+      messageIds: string[];
+      deliveredAt: string;
+    }
+  | {
+      // Ephemeral: never persisted, and expires on its own if the sender goes
+      // quiet or their socket drops.
+      type: "typing";
+      bookingRequestId: string;
+      side: BookingParticipantSide;
+      username: string;
+      expiresAt: string;
+    }
+  | {
+      type: "presence";
+      bookingRequestId: string;
+      side: BookingParticipantSide;
+      username: string;
+      state: "online" | "offline";
     };
 
 export interface BookingMessageEmailContent {
