@@ -212,4 +212,42 @@ describe("createApplication", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).not.toContain("text/html");
   });
+
+  // Express matches loosely and case-insensitively by default. Hono did not,
+  // and the rate limiter keys off a strict lowercase pathname: letting
+  // /auth/local/login/ or /AUTH/LOCAL/LOGIN through would drop those requests
+  // into the default bucket instead of the stricter auth-sensitive one.
+  describe("path matching", () => {
+    it("does not match a route with a trailing slash", async () => {
+      const app = await createApp();
+
+      const response = await app.request("http://rent.test/api/v1/ping/");
+
+      expect(response.status).toBe(404);
+    });
+
+    it("does not match a route whose case differs", async () => {
+      const app = await createApp();
+
+      const response = await app.request("http://rent.test/api/v1/PING");
+
+      expect(response.status).toBe(404);
+    });
+
+    it("does not match a differently-cased api prefix", async () => {
+      const app = await createApp();
+
+      const response = await app.request("http://rent.test/API/V1/ping");
+
+      expect(response.status).toBe(404);
+    });
+
+    it("still answers a missed mount with the error envelope", async () => {
+      const app = await createApp();
+
+      const response = await app.request("http://rent.test/API/V1/ping");
+
+      expect(response.headers.get("content-type")).not.toContain("text/html");
+    });
+  });
 });

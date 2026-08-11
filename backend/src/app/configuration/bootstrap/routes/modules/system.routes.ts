@@ -61,8 +61,8 @@ export const systemRouteModule: RouteModule = {
       }
     });
 
-    // Served verbatim rather than through res.json: these are pre-rendered
-    // documents and must not be reserialised.
+    // YAML is not a JSON-like content type, so it was never subject to the
+    // output-format middleware's transcoding. Written verbatim.
     app.get("/openapi.yaml", async (_request, response) => {
       const body = await readOpenApiYamlSpecFile();
 
@@ -72,12 +72,22 @@ export const systemRouteModule: RouteModule = {
       response.end(body);
     });
 
-    app.get("/openapi.json", async (_request, response) => {
+    app.get("/openapi.json", async (request, response) => {
       const body = await readOpenApiJsonSpecFile();
 
       response.status(200);
-      response.setHeader("content-type", "application/json; charset=UTF-8");
       response.setHeader("cache-control", "no-store");
+
+      // This response is JSON-like, so XML negotiation applies to it the same
+      // way it does to every other endpoint. Only the XML path parses the
+      // document; the JSON path writes the committed artifact verbatim rather
+      // than reserialising it through res.json.
+      if (request.outputFormat === "xml") {
+        response.json(JSON.parse(body));
+        return;
+      }
+
+      response.setHeader("content-type", "application/json; charset=UTF-8");
       response.end(body);
     });
   },

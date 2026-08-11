@@ -1,4 +1,5 @@
 ﻿import type { Express } from "express";
+import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
 import { createTestApp, type TestApp } from "../../support/fetch-app";
 
 const mockPingDatabase = jest.fn();
@@ -160,6 +161,53 @@ describe("systemRouteModule", () => {
       "application/json; charset=UTF-8",
     );
     expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toBe('{"openapi":"3.1.0"}\n');
+  });
+
+  // The spec document is a JSON-like response, so it is subject to the same
+  // XML negotiation as every other endpoint. Only the JSON path is written
+  // verbatim.
+  it("transcodes the OpenAPI JSON document when xml is negotiated", async () => {
+    mockReadOpenApiJsonSpecFile.mockResolvedValueOnce('{"openapi":"3.1.0"}\n');
+    const { systemRouteModule } = await import(
+      "@/configuration/bootstrap/routes/modules/system.routes"
+    );
+    const app = createApp((instance) => {
+      instance.use(outputFormatMiddleware);
+      systemRouteModule.register(instance, {} as any);
+    });
+
+    const response = await app.request(
+      "http://rent.test/openapi.json?format=xml",
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "application/xml; charset=UTF-8",
+    );
+    expect(body).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(body).toContain("<openapi>3.1.0</openapi>");
+  });
+
+  it("still serves the json document verbatim when json is negotiated", async () => {
+    mockReadOpenApiJsonSpecFile.mockResolvedValueOnce('{"openapi":"3.1.0"}\n');
+    const { systemRouteModule } = await import(
+      "@/configuration/bootstrap/routes/modules/system.routes"
+    );
+    const app = createApp((instance) => {
+      instance.use(outputFormatMiddleware);
+      systemRouteModule.register(instance, {} as any);
+    });
+
+    const response = await app.request(
+      "http://rent.test/openapi.json?format=json",
+    );
+
+    expect(response.headers.get("content-type")).toBe(
+      "application/json; charset=UTF-8",
+    );
+    // Byte-for-byte, including the trailing newline: not reserialised.
     await expect(response.text()).resolves.toBe('{"openapi":"3.1.0"}\n');
   });
 });

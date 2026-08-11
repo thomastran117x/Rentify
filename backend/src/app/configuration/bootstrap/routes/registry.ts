@@ -137,8 +137,9 @@ export function registerRouteModule(
 ): void {
   if (routeModule.featureId) {
     // A nested router so the flag check only guards this module's routes,
-    // matching the sub-app Hono mounted at "/".
-    const sub = express.Router();
+    // matching the sub-app Hono mounted at "/". Matches strictly, like the
+    // router it is mounted on.
+    const sub = express.Router({ caseSensitive: true, strict: true });
     sub.use(createFeatureFlagMiddleware(routeModule.featureId));
     routeModule.register(sub, routeModuleHelpers);
     app.use(sub);

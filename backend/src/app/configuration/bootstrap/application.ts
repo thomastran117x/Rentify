@@ -39,8 +39,16 @@ export function createApplication(): Express {
   app.disable("etag");
   // "simple" matches Hono's flat parsing of nested keys such as ?a[b]=1.
   app.set("query parser", "simple");
+  // Hono matched paths exactly. Express is loose and case-insensitive by
+  // default, which would let /auth/local/login/ and /AUTH/LOCAL/LOGIN reach the
+  // handler — and, because the rate limiter matches the pathname against strict
+  // lowercase patterns, land in the default 60/min bucket instead of the
+  // 10/min auth-sensitive one. That is a rate-limit bypass, so both the app and
+  // the API router match strictly.
+  app.set("case sensitive routing", true);
+  app.set("strict routing", true);
 
-  const api = express.Router();
+  const api = express.Router({ caseSensitive: true, strict: true });
   app.use(getApiRoutePrefix(), api);
 
   api.use(corsMiddleware);
@@ -92,8 +100,10 @@ export function createApplication(): Express {
 
   mountRoutes(api);
 
-  // Express would otherwise answer an unmatched route with an HTML page.
-  api.use((_request, _response, next) => {
+  // Express would otherwise answer an unmatched route with an HTML page. This
+  // sits on the app rather than the API router so it also covers requests that
+  // miss the mount entirely, such as a differently-cased /API/V1 prefix.
+  app.use((_request, _response, next) => {
     next(new ResourceNotFoundError("Not found."));
   });
 
