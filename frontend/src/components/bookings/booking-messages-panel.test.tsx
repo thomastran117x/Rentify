@@ -269,14 +269,14 @@ describe("BookingMessagesPanel", () => {
     });
 
     await waitFor(() => expect(listMock).toHaveBeenCalled());
-    expect(screen.queryByText("Seen")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
   });
 
   it("flips the seen indicator on a read event", async () => {
     renderPanel();
     await screen.findByText("Is an early pickup possible?");
 
-    expect(screen.queryByText("Seen")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
 
     captureStreamHandlers().onEvent({
       type: "messages.read",
@@ -286,7 +286,7 @@ describe("BookingMessagesPanel", () => {
       markedCount: 1,
     });
 
-    expect(await screen.findByText("Seen")).toBeInTheDocument();
+    expect(await screen.findByText(/^Read /)).toBeInTheDocument();
   });
 
   it("re-syncs the history whenever the stream opens", async () => {
@@ -421,6 +421,111 @@ describe("BookingMessagesPanel", () => {
     ).toHaveLength(1);
   });
 
+  it("shows the read time only on the newest message this side sent", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          // Newest first.
+          buildMessage({
+            id: "newest-sent",
+            body: "Newest sent",
+            createdAt: "2026-08-10T12:10:00.000Z",
+            readAt: "2026-08-10T12:20:00.000Z",
+          }),
+          buildMessage({
+            id: "incoming",
+            body: "Their reply",
+            authorId: "owner-9",
+            authorSide: "owner",
+            createdAt: "2026-08-10T12:05:00.000Z",
+            readAt: "2026-08-10T12:06:00.000Z",
+          }),
+          buildMessage({
+            id: "older-sent",
+            body: "Older sent",
+            createdAt: "2026-08-10T12:00:00.000Z",
+            readAt: "2026-08-10T12:20:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Newest sent");
+
+    // Exactly one receipt, on the newest message this side sent — never on an
+    // earlier one, and never on a message the other side wrote.
+    const receipts = screen.getAllByText(/^Read /);
+    expect(receipts).toHaveLength(1);
+
+    const bubbles = screen.getAllByTestId("booking-message");
+    expect(bubbles[0]).toHaveTextContent("Newest sent");
+    expect(bubbles[0]).toHaveTextContent(/Read /);
+    expect(bubbles[1]).not.toHaveTextContent(/Read /);
+    expect(bubbles[2]).not.toHaveTextContent(/Read /);
+  });
+
+  it("shows no receipt while the newest sent message is unread", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "newest-sent",
+            body: "Newest sent",
+            createdAt: "2026-08-10T12:10:00.000Z",
+            readAt: null,
+          }),
+          buildMessage({
+            id: "older-sent",
+            body: "Older sent",
+            createdAt: "2026-08-10T12:00:00.000Z",
+            readAt: "2026-08-10T12:05:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Newest sent");
+
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
+  });
+
+  it("does not attach the receipt on an older page", async () => {
+    const user = userEvent.setup();
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "sent",
+            body: "Sent",
+            readAt: "2026-08-10T12:20:00.000Z",
+          }),
+        ],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Sent");
+    expect(screen.getByText(/^Read /)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+
+    // Page 2 cannot hold the newest sent message, so a receipt there would be
+    // pinned to a stale one.
+    await waitFor(() =>
+      expect(screen.queryByText(/^Read /)).not.toBeInTheDocument(),
+    );
+  });
+
   it("trims page one back to the page size after a live insert", async () => {
     const fullPage = Array.from({ length: 20 }, (_, index) =>
       buildMessage({
@@ -502,8 +607,22 @@ describe("BookingMessagesPanel", () => {
       markedCount: 1,
     });
 
-    // Only the message that existed when the read ran shows a receipt.
-    await waitFor(() => expect(screen.getAllByText("Seen")).toHaveLength(1));
+    // The receipt sits on the newest sent message, which this read did not
+    // cover, so nothing is claimed as read.
+    await waitFor(() => expect(markReadMock).toHaveBeenCalled());
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
+
+    // A later read does cover it, proving the cutoff gates the update rather
+    // than suppressing it outright.
+    captureStreamHandlers().onEvent({
+      type: "messages.read",
+      bookingRequestId: "booking-1",
+      readerSide: "renter",
+      readAt: "2026-08-10T12:15:00.000Z",
+      markedCount: 1,
+    });
+
+    expect(await screen.findByText(/^Read /)).toBeInTheDocument();
   });
 
   it("does not mark read for a message from the viewer's own side", async () => {

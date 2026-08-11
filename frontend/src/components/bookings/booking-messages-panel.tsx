@@ -63,10 +63,18 @@ function bannerClasses(tone: PanelBanner["tone"]): string {
 export function MessageBubble({
   message,
   mine,
+  showReceipt = false,
 }: {
   message: BookingMessageRecord;
   mine: boolean;
+  /**
+   * Only the newest message you sent carries the receipt. Repeating it on every
+   * bubble is noise: once a later message is read, every earlier one was too.
+   */
+  showReceipt?: boolean;
 }) {
+  const readAt = showReceipt && message.readAt ? message.readAt : null;
+
   return (
     <li
       className={`flex ${mine ? "justify-end" : "justify-start"}`}
@@ -87,10 +95,13 @@ export function MessageBubble({
           }`}
         >
           <span>{formatDateTime(message.createdAt) ?? ""}</span>
-          {mine && message.readAt ? (
-            <span className="inline-flex items-center gap-0.5" title="Seen">
+          {readAt ? (
+            <span
+              className="inline-flex items-center gap-0.5"
+              title={`Read ${formatDateTime(readAt) ?? ""}`}
+            >
               <Check aria-hidden="true" className="h-3 w-3" />
-              Seen
+              Read {formatDateTime(readAt)}
             </span>
           ) : null}
         </p>
@@ -410,6 +421,15 @@ export function BookingMessagesPanel({
     [bookingRequestId],
   );
 
+  // Messages are newest-first, so the first one from this side is the newest
+  // this viewer sent. Page 2 and beyond never hold it, so the receipt would be
+  // attached to a stale message there.
+  const receiptMessageId =
+    page === 1
+      ? (messages.find((message) => message.authorSide === viewerSide)?.id ??
+        null)
+      : null;
+
   return (
     <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3 text-slate-950 dark:text-white">
@@ -454,6 +474,7 @@ export function BookingMessagesPanel({
                 key={message.id}
                 message={message}
                 mine={message.authorSide === viewerSide}
+                showReceipt={message.id === receiptMessageId}
               />
             ))}
           </ul>
