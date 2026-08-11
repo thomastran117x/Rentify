@@ -354,6 +354,62 @@ describe("BookingMessagesController", () => {
       expect(release).toHaveBeenCalledTimes(1);
     });
 
+    it("closes an open stream once the viewer's access is revoked", async () => {
+      jest.useFakeTimers();
+
+      try {
+        const release = jest.fn(async () => undefined);
+        const authorizeStream = jest
+          .fn()
+          .mockResolvedValueOnce({
+            bookingRequestId: "booking-1",
+            side: "owner" as const,
+          })
+          // The membership was removed while the stream was held open.
+          .mockRejectedValue(
+            Object.assign(new Error("forbidden"), { status: 403 }),
+          );
+        const service = createService({ authorizeStream });
+        const hub = createHub({ subscribe: jest.fn(async () => release) });
+
+        const response = await mountStream(service, hub).request(
+          "http://rent.test/booking-requests/booking-1/messages/stream",
+        );
+
+        expect(response.status).toBe(200);
+        expect(authorizeStream).toHaveBeenCalledTimes(1);
+
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(authorizeStream).toHaveBeenCalledTimes(2);
+        // Revocation must tear the connection down, not just stop writing.
+        expect(release).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("keeps a stream open while the viewer still has access", async () => {
+      jest.useFakeTimers();
+
+      try {
+        const release = jest.fn(async () => undefined);
+        const service = createService();
+        const hub = createHub({ subscribe: jest.fn(async () => release) });
+
+        await mountStream(service, hub).request(
+          "http://rent.test/booking-requests/booking-1/messages/stream",
+        );
+
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(service.authorizeStream).toHaveBeenCalledTimes(2);
+        expect(release).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("propagates an authorization failure instead of opening a stream", async () => {
       const forbidden = Object.assign(new Error("forbidden"), { status: 403 });
       const service = createService({

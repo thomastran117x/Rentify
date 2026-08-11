@@ -421,6 +421,91 @@ describe("BookingMessagesPanel", () => {
     ).toHaveLength(1);
   });
 
+  it("trims page one back to the page size after a live insert", async () => {
+    const fullPage = Array.from({ length: 20 }, (_, index) =>
+      buildMessage({
+        id: `message-${index}`,
+        body: `Message ${index}`,
+        createdAt: `2026-08-10T12:${String(index).padStart(2, "0")}:00.000Z`,
+      }),
+    );
+    listMock.mockResolvedValue(
+      buildList({
+        messages: fullPage,
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Message 0");
+
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({ id: "message-new", body: "Newest" }),
+    });
+
+    expect(await screen.findByText("Newest")).toBeInTheDocument();
+    // A 21st row would leave the server returning the last row again at the
+    // top of page 2, showing it on both pages.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("booking-message")).toHaveLength(20),
+    );
+    expect(screen.queryByText("Message 19")).not.toBeInTheDocument();
+  });
+
+  it("does not mark a message created after the read cutoff as seen", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "before-cutoff",
+            body: "Before cutoff",
+            authorId: "manager-1",
+            authorSide: "owner",
+            createdAt: "2026-08-10T12:00:00.000Z",
+          }),
+        ],
+        viewerSide: "owner",
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Before cutoff");
+
+    // Arrives ahead of the read event it raced, so the update never covered it.
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({
+        id: "after-cutoff",
+        body: "After cutoff",
+        authorId: "manager-1",
+        authorSide: "owner",
+        createdAt: "2026-08-10T12:10:00.000Z",
+      }),
+    });
+    await screen.findByText("After cutoff");
+
+    captureStreamHandlers().onEvent({
+      type: "messages.read",
+      bookingRequestId: "booking-1",
+      readerSide: "renter",
+      readAt: "2026-08-10T12:05:00.000Z",
+      markedCount: 1,
+    });
+
+    // Only the message that existed when the read ran shows a receipt.
+    await waitFor(() => expect(screen.getAllByText("Seen")).toHaveLength(1));
+  });
+
   it("does not mark read for a message from the viewer's own side", async () => {
     listMock.mockResolvedValue(buildList({ viewerSide: "owner" }));
 

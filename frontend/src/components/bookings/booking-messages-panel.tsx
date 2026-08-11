@@ -206,7 +206,11 @@ export function BookingMessagesPanel({
     }
 
     messageIdsRef.current.add(record.id);
-    setMessages((previous) => [record, ...previous]);
+    // Trimmed back to a page: a 21-item page 1 leaves the server returning its
+    // twentieth row again at the top of page 2, so the message shows twice.
+    // The id set deliberately keeps trimmed ids — it only answers "already
+    // inserted?", and it is rebuilt from scratch on every load.
+    setMessages((previous) => [record, ...previous].slice(0, PAGE_SIZE));
     setPagination((previous) =>
       previous ? addToPagination(previous, 1) : previous,
     );
@@ -343,9 +347,15 @@ export function BookingMessagesPanel({
         // A read event marks the messages the *other* side authored. Keying
         // off the current user instead would flag your own messages as seen
         // when you, or anyone else on your side, opened the thread.
+        //
+        // The cutoff matters because a send racing a mark-read can have its
+        // `message.created` frame overtake the `messages.read` frame: that row
+        // was not covered by the update, so it must not display as seen.
         setMessages((previous) =>
           previous.map((message) =>
-            message.authorSide !== event.readerSide && !message.readAt
+            message.authorSide !== event.readerSide &&
+            !message.readAt &&
+            message.createdAt <= event.readAt
               ? { ...message, readAt: event.readAt }
               : message,
           ),

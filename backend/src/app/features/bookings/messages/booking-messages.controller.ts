@@ -24,6 +24,14 @@ import type { BookingMessagesService } from "@/features/bookings/messages/bookin
 /** Kept below the 30-60s idle window a reverse proxy typically enforces. */
 const HEARTBEAT_INTERVAL_MS = 20_000;
 
+/**
+ * How often an open stream re-checks that its viewer is still a party to the
+ * booking. One membership lookup per connection per minute is a deliberate
+ * trade: cheap enough at this scale, and it bounds how long a removed member
+ * can keep reading a thread.
+ */
+const STREAM_REAUTHORIZE_INTERVAL_MS = 60_000;
+
 export class BookingMessagesController {
   private readonly logger: Logger;
 
@@ -92,6 +100,11 @@ export class BookingMessagesController {
 
     const hub = this.streamHub;
     const logger = this.logger;
+    // Captured, never resolved inside the callback. The instance stays valid
+    // after the scope is disposed — disposal clears the scope's resolution map
+    // and runs dispose hooks, of which this graph has none — but resolving
+    // from a disposed scope would not.
+    const service = this.bookingMessagesService;
 
     return streamSSE(
       context,
@@ -110,6 +123,7 @@ export class BookingMessagesController {
 
           closed = true;
           clearInterval(heartbeat);
+          clearInterval(reauthorize);
           void release?.();
           finish();
         };
@@ -127,6 +141,31 @@ export class BookingMessagesController {
             data: String(Date.now()),
           });
         }, HEARTBEAT_INTERVAL_MS);
+
+        // Authorization is otherwise checked only at connect, so a member
+        // removed from the organization would keep receiving message bodies
+        // for as long as they held the connection open, while every REST
+        // request they made was already being rejected.
+        const reauthorize = setInterval(() => {
+          if (closed || stream.aborted || stream.closed) {
+            teardown();
+            return;
+          }
+
+          void service
+            .authorizeStream(bookingRequestId, auth.sub)
+            .catch((error: unknown) => {
+              logger.info(
+                "Closing a booking message stream after access was revoked.",
+                {
+                  bookingRequestId,
+                  userId: auth.sub,
+                  reason: error instanceof Error ? error.message : "unknown",
+                },
+              );
+              teardown();
+            });
+        }, STREAM_REAUTHORIZE_INTERVAL_MS);
 
         stream.onAbort(teardown);
         context.req.raw.signal.addEventListener("abort", teardown);
