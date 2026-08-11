@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import {
   created,
   mergeResponseMeta,
@@ -25,10 +25,10 @@ import {
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  create = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  create = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       createContentReportRequestSchema,
     );
     const result = await this.reportsService.create({
@@ -40,18 +40,21 @@ export class ReportsController {
       description: body.description.trim(),
     });
 
-    return created(context, result, {
+    created(response, result, {
       message: "Report created successfully.",
     });
   };
 
-  listModeration = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireModerator(context);
+  listModeration = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireModerator(request);
     void auth;
     const result = await this.reportsService.listModeration(
-      this.parseListInput(context),
+      this.parseListInput(request),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: mergeResponseMeta(
         paginationMeta(result),
         pickMeta(result, ["source"]),
@@ -60,68 +63,72 @@ export class ReportsController {
   };
 
   getModerationById = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireModerator(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireModerator(request);
     void auth;
     const result = await this.reportsService.getModerationDetail(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  assign = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireModerator(context);
+  assign = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireModerator(request);
     const body = await parseRequestBody(
-      context,
+      request,
       assignContentReportRequestSchema,
     );
     const result = await this.reportsService.assign({
       actorUserId: auth.sub,
       actorRole: getAuthRole(auth),
-      reportId: this.requireRouteId(context),
+      reportId: this.requireRouteId(request),
       assignedModeratorId:
         body.assignedModeratorId === undefined
           ? undefined
           : body.assignedModeratorId,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Report assignment updated successfully.",
     });
   };
 
-  updateStatus = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireModerator(context);
+  updateStatus = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireModerator(request);
     const body = await parseRequestBody(
-      context,
+      request,
       updateContentReportStatusRequestSchema,
     );
     const result = await this.reportsService.updateStatus({
       actorUserId: auth.sub,
       actorRole: getAuthRole(auth),
-      reportId: this.requireRouteId(context),
+      reportId: this.requireRouteId(request),
       status: body.status,
       resolutionCode: body.resolutionCode,
       resolutionSummary: body.resolutionSummary,
       note: body.note,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Report status updated successfully.",
     });
   };
 
-  private async requireModerator(context: Context<AppBindings>) {
-    const auth = await requireSessionAuth(context);
+  private async requireModerator(request: Request) {
+    const auth = await requireSessionAuth(request);
     requireAnyRole(auth, ["moderator", "admin"]);
     return auth;
   }
 
-  private requireRouteId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireRouteId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private parseListInput(context: Context<AppBindings>) {
-    const url = new URL(context.req.url);
+  private parseListInput(request: Request) {
+    const url = getRequestUrl(request);
 
     try {
       return listContentReportsQuerySchema.parse({

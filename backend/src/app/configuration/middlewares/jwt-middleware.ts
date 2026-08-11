@@ -1,14 +1,10 @@
-import type { Request, RequestHandler } from "express";
+﻿import type { Request, RequestHandler } from "express";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
 import { getHeader, getPathname } from "@/configuration/http/request";
-import {
-  toRequest,
-  type RequestLike,
-} from "@/configuration/http/legacy-context";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { JwtClaims } from "@/features/auth/token/token.service";
@@ -301,10 +297,7 @@ export const jwtMiddleware: RequestHandler = async (
   }
 };
 
-export async function requireJwtAuth(
-  source: RequestLike,
-): Promise<AuthPrincipal> {
-  const request = toRequest(source);
+export async function requireJwtAuth(request: Request): Promise<AuthPrincipal> {
   const existingClaims = request.auth;
 
   if (existingClaims) {
@@ -329,19 +322,19 @@ export async function requireJwtAuth(
 }
 
 export async function getOptionalJwtAuth(
-  source: RequestLike,
+  request: Request,
 ): Promise<AuthPrincipal | null> {
-  if (!getHeader(toRequest(source), "authorization")) {
+  if (!getHeader(request, "authorization")) {
     return null;
   }
 
-  return requireJwtAuth(source);
+  return requireJwtAuth(request);
 }
 
 export async function requireSessionAuth(
-  source: RequestLike,
+  request: Request,
 ): Promise<JwtAuthPrincipal> {
-  const auth = await requireJwtAuth(source);
+  const auth = await requireJwtAuth(request);
 
   if (auth.authMethod !== "jwt") {
     throw new ForbiddenError(

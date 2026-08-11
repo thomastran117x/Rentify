@@ -21,7 +21,7 @@ export const systemRouteModule: RouteModule = {
           apiBasePath: getApiRoutePrefix(),
         },
         {
-          message: "TypeScript Hono server is running",
+          message: "TypeScript Express server is running",
         },
       );
     });

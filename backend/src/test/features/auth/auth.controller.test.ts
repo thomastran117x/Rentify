@@ -1,6 +1,4 @@
-﻿import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
-import BadRequestError from "@/errors/http/bad-request.error";
+﻿import BadRequestError from "@/errors/http/bad-request.error";
 import { AuthController } from "@/features/auth/auth.controller";
 import type {
   AuthSessionResult,

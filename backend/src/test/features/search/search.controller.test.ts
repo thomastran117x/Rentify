@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { SearchController } from "@/features/search/search.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
@@ -24,7 +24,7 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     params: options?.params,
     url:
       options?.url ??
@@ -55,7 +55,8 @@ describe("SearchController", () => {
       getReindexRun,
     } as any);
 
-    const response = await controller.getReindexRun(
+    const response = await invoke(
+      controller.getReindexRun,
       createContext({
         params: {
           id: "run-1",
@@ -83,7 +84,8 @@ describe("SearchController", () => {
       getReindexRun: jest.fn(async () => null),
     } as any);
 
-    const response = await controller.getReindexRun(
+    const response = await invoke(
+      controller.getReindexRun,
       createContext({
         params: {
           id: "run-missing",
@@ -113,17 +115,20 @@ describe("SearchController", () => {
       replayDeadLetteredOutbox,
     } as any);
 
-    await controller.replayDeadLettered(
+    await invoke(
+      controller.replayDeadLettered,
       createContext({
         url: "https://example.test/api/v1/search/replay?limit=7",
       }),
     );
-    const fallbackResponse = await controller.replayDeadLettered(
+    const fallbackResponse = await invoke(
+      controller.replayDeadLettered,
       createContext({
         url: "https://example.test/api/v1/search/replay?limit=-3",
       }),
     );
-    await controller.replayDeadLettered(
+    await invoke(
+      controller.replayDeadLettered,
       createContext({
         url: "https://example.test/api/v1/search/replay?limit=%20%20%20",
       }),
@@ -150,9 +155,11 @@ describe("SearchController", () => {
       getStatus,
     } as any);
 
-    const cleanupResponse =
-      await controller.cleanupRetainedIndices(createContext());
-    const statusResponse = await controller.getStatus(createContext());
+    const cleanupResponse = await invoke(
+      controller.cleanupRetainedIndices,
+      createContext(),
+    );
+    const statusResponse = await invoke(controller.getStatus, createContext());
 
     expect(cleanupRetainedIndices).toHaveBeenCalled();
     expect(getStatus).toHaveBeenCalled();

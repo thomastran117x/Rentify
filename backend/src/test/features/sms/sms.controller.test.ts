@@ -1,11 +1,11 @@
 ﻿import { SmsController } from "@/features/sms/sms.controller";
-import { createLegacyTestContext } from "../../support/mock-http";
+import { createTestContext, invoke } from "../../support/mock-http";
 
 function createContext(options?: {
   headers?: Record<string, string>;
   text?: string;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     headers: options?.headers,
     rawBody: options?.text ?? "",
     state: {
@@ -26,7 +26,8 @@ describe("SmsController", () => {
       processWebhook,
     } as any);
 
-    const response = await controller.webhook(
+    const response = await invoke(
+      controller.webhook,
       createContext({
         text: '{"data":{"event_type":"message.sent"}}',
         headers: {

@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { requireMinimumRole } from "@/features/auth/authorization";
@@ -14,60 +14,68 @@ export class OrganizationBlogSearchController {
     private readonly organizationBlogSearchService: OrganizationBlogSearchService,
   ) {}
 
-  startReindex = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAdmin(context);
+  startReindex = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAdmin(request);
     void auth;
     const result = await this.organizationBlogSearchService.startReindex();
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Organization blog search reindex has been started.",
     });
   };
 
-  getReindexRun = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAdmin(context);
+  getReindexRun = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAdmin(request);
     void auth;
     const result = await this.organizationBlogSearchService.getReindexRun(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
     );
-    return ok(context, result ?? { run: null });
+    ok(response, result ?? { run: null });
   };
 
-  getStatus = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAdmin(context);
+  getStatus = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAdmin(request);
     void auth;
     const result = await this.organizationBlogSearchService.getStatus();
-    return ok(context, result);
+    ok(response, result);
   };
 
   replayDeadLettered = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAdmin(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAdmin(request);
     void auth;
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
     const limit = this.readPositiveIntQuery(url, "limit", 100);
     const result =
       await this.organizationBlogSearchService.replayDeadLetteredOutbox(limit);
-    return accepted(context, result, {
+    accepted(response, result, {
       message:
         "Dead-lettered organization blog search outbox entries are being replayed.",
     });
   };
 
   cleanupRetainedIndices = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAdmin(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAdmin(request);
     void auth;
     const result =
       await this.organizationBlogSearchService.cleanupRetainedIndices();
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Organization blog search index cleanup has been started.",
     });
   };
 
-  private requireRouteId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireRouteId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
   private readPositiveIntQuery(
@@ -85,8 +93,8 @@ export class OrganizationBlogSearchController {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
-  private async requireAdmin(context: Context<AppBindings>) {
-    const auth = await requireJwtAuth(context);
+  private async requireAdmin(request: Request) {
+    const auth = await requireJwtAuth(request);
     requireMinimumRole(auth, "admin");
     return auth;
   }

@@ -1,13 +1,9 @@
-import type { Request } from "express";
+﻿import type { Request } from "express";
 import {
   containerTokens,
   getRequestContainer,
 } from "@/configuration/bootstrap/container";
 import { getRequestUrl } from "@/configuration/http/request";
-import {
-  toRequest,
-  type RequestLike,
-} from "@/configuration/http/legacy-context";
 import type { ContentSanitizationInput } from "@/features/security/content-sanitization.service";
 import { RequestValidationError } from "./request";
 
@@ -89,21 +85,13 @@ function assertSafeInputs(
   }
 }
 
-export function assertSafeRequestBody(
-  source: RequestLike,
-  body: unknown,
-): void {
+export function assertSafeRequestBody(request: Request, body: unknown): void {
   const inputs: ContentSanitizationInput[] = [];
   collectStringInputs(body, "", inputs);
-  assertSafeInputs(
-    toRequest(source),
-    inputs,
-    "Request body validation failed.",
-  );
+  assertSafeInputs(request, inputs, "Request body validation failed.");
 }
 
-export function assertSafeRequestQuery(source: RequestLike): void {
-  const request = toRequest(source);
+export function assertSafeRequestQuery(request: Request): void {
   // Reads searchParams rather than getQuery(): repeated parameters each need
   // inspecting, and getQuery deliberately keeps only the first value.
   const url = getRequestUrl(request);
@@ -134,8 +122,7 @@ export function assertSafeRequestQuery(source: RequestLike): void {
   assertSafeInputs(request, inputs, "Request query validation failed.");
 }
 
-export function assertSafeRouteParams(source: RequestLike): void {
-  const request = toRequest(source);
+export function assertSafeRouteParams(request: Request): void {
   const inputs = Object.entries(request.params).map(([key, value]) => ({
     path: `params.${key}`,
     value: String(value),
@@ -144,11 +131,7 @@ export function assertSafeRouteParams(source: RequestLike): void {
   assertSafeInputs(request, inputs, "Route parameter validation failed.");
 }
 
-export function requireSafeRouteParam(
-  source: RequestLike,
-  name: string,
-): string {
-  const request = toRequest(source);
+export function requireSafeRouteParam(request: Request, name: string): string {
   const value = request.params[name] as string | undefined;
 
   if (!value) {

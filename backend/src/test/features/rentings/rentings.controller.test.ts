@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
@@ -27,7 +27,7 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     params: options?.params,
     url: options?.url ?? "https://example.test/rentings/renting-1",
@@ -74,7 +74,8 @@ describe("RentingsController", () => {
       } as any,
     );
 
-    const response = await controller.convertBookingRequest(
+    const response = await invoke(
+      controller.convertBookingRequest,
       createContext({
         params: {
           id: "booking-1",
@@ -112,7 +113,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.getById(
+    const response = await invoke(
+      controller.getById,
       createContext({
         params: {
           id: "renting-1",
@@ -145,7 +147,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.listMine(
+    const response = await invoke(
+      controller.listMine,
       createContext({
         url: "https://example.test/rentings/me?page=2&pageSize=5&status=active",
       }),
@@ -165,7 +168,8 @@ describe("RentingsController", () => {
     const controller = new RentingsController({} as any, {} as any);
 
     await expect(
-      controller.listMine(
+      invoke(
+        controller.listMine,
         createContext({
           url: "https://example.test/rentings/me?page=0&pageSize=999",
         }),
@@ -185,7 +189,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.updateInstructions(
+    const response = await invoke(
+      controller.updateInstructions,
       createContext({
         params: {
           id: "renting-1",
@@ -219,7 +224,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.markCheckInReady(
+    const response = await invoke(
+      controller.markCheckInReady,
       createContext({
         params: {
           id: "renting-1",
@@ -247,7 +253,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.markCheckInComplete(
+    const response = await invoke(
+      controller.markCheckInComplete,
       createContext({
         params: {
           id: "renting-1",
@@ -275,7 +282,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.markCompleted(
+    const response = await invoke(
+      controller.markCompleted,
       createContext({
         params: {
           id: "renting-1",
@@ -303,7 +311,8 @@ describe("RentingsController", () => {
       {} as any,
     );
 
-    const response = await controller.createDispute(
+    const response = await invoke(
+      controller.createDispute,
       createContext({
         params: {
           id: "renting-1",

@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { PostingsController } from "@/features/postings/postings.controller";
@@ -82,7 +82,7 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     params: options?.params,
     url: options?.url ?? "https://example.test/postings",
@@ -162,7 +162,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?page=2&pageSize=5&family=vehicle&subtype=car",
     });
 
-    const response = await controller.search(context);
+    const response = await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -203,7 +203,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?organization=Maya%20Santos%20Organization&organizationId=6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f&sort=organizationAsc",
     });
 
-    const response = await controller.search(context);
+    const response = await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -231,7 +231,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?organizationId=not-a-uuid",
     });
 
-    await expect(controller.search(context)).rejects.toThrow();
+    await expect(invoke(controller.search, context)).rejects.toThrow();
     expect(searchPublic).not.toHaveBeenCalled();
   });
 
@@ -262,7 +262,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?family=place&subtype=entire_place&attr.bedrooms.min=2&attr.bedrooms.max=4&attr.amenities=wifi&attr.amenities=desk",
     });
 
-    await controller.search(context);
+    await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -310,7 +310,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?latitude=43.6532&longitude=-79.3832&radiusKm=12",
     });
 
-    await controller.search(context);
+    await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -339,7 +339,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?latitude=43.6532&radiusKm=12",
     });
 
-    await expect(controller.search(context)).rejects.toMatchObject<
+    await expect(invoke(controller.search, context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
       message: "Request query validation failed.",
@@ -388,7 +388,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?page=&pageSize=&q=&family=&subtype=&availabilityStatus=&minDailyPrice=&maxDailyPrice=&latitude=&longitude=&radiusKm=&startAt=&endAt=&sort=&attr.bedrooms.min=",
     });
 
-    await controller.search(context);
+    await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith({
       page: 1,
@@ -435,7 +435,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?q=%20Saint-Roch%20Production%20Flat%20&tags=flat,production&tags=quebec-city&startAt=2026-07-01T00:00:00.000Z&endAt=2026-07-05T00:00:00.000Z",
     });
 
-    await controller.search(context);
+    await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -465,7 +465,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings?family=place&subtype=entire_place&attr.bedrooms.min=two",
     });
 
-    await expect(controller.search(context)).rejects.toMatchObject<
+    await expect(invoke(controller.search, context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
       message: "Request query validation failed.",
@@ -506,7 +506,7 @@ describe("PostingsController", () => {
     );
     const context = createContext();
 
-    const response = await controller.search(context);
+    const response = await invoke(controller.search, context);
 
     expect(searchPublic).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
@@ -525,7 +525,7 @@ describe("PostingsController", () => {
       body: createPostingBody(),
     });
 
-    const response = await controller.create(context);
+    const response = await invoke(controller.create, context);
 
     expect(createDraft).toHaveBeenCalledWith(
       "owner-1",
@@ -595,7 +595,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.update(context);
+    const response = await invoke(controller.update, context);
 
     expect(update).toHaveBeenCalledWith(
       "posting-1",
@@ -648,7 +648,7 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toMatchObject({
+    await expect(invoke(controller.create, context)).rejects.toMatchObject({
       details: [expect.objectContaining({ path: "" })],
     });
     expect(createDraft).not.toHaveBeenCalled();
@@ -696,7 +696,7 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.create(context)).rejects.toMatchObject({
+    await expect(invoke(controller.create, context)).rejects.toMatchObject({
       message: "Request body validation failed.",
       details: expect.arrayContaining([
         expect.objectContaining({
@@ -752,7 +752,7 @@ describe("PostingsController", () => {
       },
     });
 
-    await expect(controller.update(context)).rejects.toMatchObject({
+    await expect(invoke(controller.update, context)).rejects.toMatchObject({
       details: [expect.objectContaining({ path: "" })],
     });
     expect(update).not.toHaveBeenCalled();
@@ -773,7 +773,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.duplicate(context);
+    const response = await invoke(controller.duplicate, context);
 
     expect(duplicate).toHaveBeenCalledWith("posting-1", "owner-1");
     expect(response.status).toBe(201);
@@ -802,7 +802,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.createAvailabilityBlock(context);
+    const response = await invoke(controller.createAvailabilityBlock, context);
 
     expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith(
       "posting-1",
@@ -839,7 +839,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.updateAvailabilityBlock(context);
+    const response = await invoke(controller.updateAvailabilityBlock, context);
 
     expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith(
       "posting-1",
@@ -867,7 +867,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.deleteAvailabilityBlock(context);
+    const response = await invoke(controller.deleteAvailabilityBlock, context);
 
     expect(deleteOwnerAvailabilityBlock).toHaveBeenCalledWith(
       "posting-1",
@@ -904,8 +904,8 @@ describe("PostingsController", () => {
       },
     });
 
-    const pauseResponse = await controller.pause(context);
-    const unpauseResponse = await controller.unpause(context);
+    const pauseResponse = await invoke(controller.pause, context);
+    const unpauseResponse = await invoke(controller.unpause, context);
 
     expect(pause).toHaveBeenCalledWith("posting-1", "owner-1");
     expect(unpause).toHaveBeenCalledWith("posting-1", "owner-1");
@@ -939,8 +939,8 @@ describe("PostingsController", () => {
       },
     });
 
-    const publishResponse = await controller.publish(context);
-    const archiveResponse = await controller.archive(context);
+    const publishResponse = await invoke(controller.publish, context);
+    const archiveResponse = await invoke(controller.archive, context);
 
     expect(publishPostingLifecycle).toHaveBeenNthCalledWith(
       1,
@@ -976,7 +976,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.listAvailabilityBlocks(context);
+    const response = await invoke(controller.listAvailabilityBlocks, context);
 
     expect(response.status).toBe(200);
     expect(listOwnerAvailabilityBlocks).toHaveBeenCalledWith(
@@ -1005,7 +1005,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings/mine?page=2&pageSize=5&status=paused",
     });
 
-    const response = await controller.listMine(context);
+    const response = await invoke(controller.listMine, context);
 
     expect(listByOwner).toHaveBeenCalledWith("owner-1", {
       page: 2,
@@ -1040,17 +1040,20 @@ describe("PostingsController", () => {
       },
     );
 
-    const mineResponse = await controller.batchMine(
+    const mineResponse = await invoke(
+      controller.batchMine,
       createContext({
         url: "https://example.test/postings/mine/batch?ids=posting-1,posting-2&ids=posting-3",
       }),
     );
-    const publicResponse = await controller.batchPublic(
+    const publicResponse = await invoke(
+      controller.batchPublic,
       createContext({
         url: "https://example.test/postings/batch?ids=posting-4&ids=posting-5",
       }),
     );
-    const autocompleteResponse = await controller.autocomplete(
+    const autocompleteResponse = await invoke(
+      controller.autocomplete,
       createContext({
         url: "https://example.test/postings/autocomplete?q= loft &family=place&subtype=entire_place&limit=8",
       }),
@@ -1128,17 +1131,20 @@ describe("PostingsController", () => {
       },
     );
 
-    const summaryResponse = await controller.analyticsSummary(
+    const summaryResponse = await invoke(
+      controller.analyticsSummary,
       createContext({
         url: "https://example.test/postings/analytics/summary?window=30d",
       }),
     );
-    const analyticsResponse = await controller.analyticsPostings(
+    const analyticsResponse = await invoke(
+      controller.analyticsPostings,
       createContext({
         url: "https://example.test/postings/analytics/postings?window=all&page=3&pageSize=7",
       }),
     );
-    const detailResponse = await controller.analyticsById(
+    const detailResponse = await invoke(
+      controller.analyticsById,
       createContext({
         params: {
           id: "posting-1",
@@ -1146,7 +1152,8 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/posting-1/analytics?window=all&granularity=hour",
       }),
     );
-    const listReviewsResponse = await controller.listReviews(
+    const listReviewsResponse = await invoke(
+      controller.listReviews,
       createContext({
         params: {
           id: "posting-1",
@@ -1154,7 +1161,8 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/posting-1/reviews?page=2&pageSize=4",
       }),
     );
-    const createReviewResponse = await controller.createReview(
+    const createReviewResponse = await invoke(
+      controller.createReview,
       createContext({
         params: {
           id: "posting-1",
@@ -1166,7 +1174,8 @@ describe("PostingsController", () => {
         },
       }),
     );
-    const updateReviewResponse = await controller.updateOwnReview(
+    const updateReviewResponse = await invoke(
+      controller.updateOwnReview,
       createContext({
         params: {
           id: "posting-1",
@@ -1178,7 +1187,8 @@ describe("PostingsController", () => {
         },
       }),
     );
-    const getOwnReviewResponse = await controller.getOwnReview(
+    const getOwnReviewResponse = await invoke(
+      controller.getOwnReview,
       createContext({
         params: {
           id: "posting-1",
@@ -1246,7 +1256,7 @@ describe("PostingsController", () => {
       },
     });
 
-    const response = await controller.trackSearchClick(context);
+    const response = await invoke(controller.trackSearchClick, context);
 
     expect(publishSearchClick).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1286,7 +1296,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings/posting-1",
     });
 
-    const response = await controller.getById(context);
+    const response = await invoke(controller.getById, context);
 
     expect(trackPublicView).toHaveBeenCalledTimes(1);
     expect(publishPostingView).toHaveBeenCalledTimes(1);
@@ -1321,7 +1331,7 @@ describe("PostingsController", () => {
       url: "https://example.test/postings/posting-1",
     });
 
-    const response = await controller.getById(context);
+    const response = await invoke(controller.getById, context);
 
     expect(trackPublicView).not.toHaveBeenCalled();
     expect(publishPostingView).not.toHaveBeenCalled();
@@ -1337,7 +1347,7 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/analytics/export?window=7d",
       });
 
-      const response = await controller.exportAnalytics(context);
+      const response = await invoke(controller.exportAnalytics, context);
 
       expect(exportAsCsv).toHaveBeenCalledWith("owner-1", "7d");
       expect(response.status).toBe(200);
@@ -1356,9 +1366,9 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/analytics/summary?window=not_a_real_window",
       });
 
-      await expect(controller.analyticsSummary(context)).rejects.toBeInstanceOf(
-        RequestValidationError,
-      );
+      await expect(
+        invoke(controller.analyticsSummary, context),
+      ).rejects.toBeInstanceOf(RequestValidationError);
     });
   });
 
@@ -1385,18 +1395,18 @@ describe("PostingsController", () => {
       mockRequireJwtAuth.mockResolvedValue(createClaims());
     });
 
-    it("listSeasonalPricing â€” returns 200 with the rule list", async () => {
+    it("listSeasonalPricing — returns 200 with the rule list", async () => {
       const list = jest.fn(async () => [rule]);
       const controller = createController({}, { seasonalPricing: { list } });
       const context = createContext({ params: { id: "posting-1" } });
 
-      const response = await controller.listSeasonalPricing(context);
+      const response = await invoke(controller.listSeasonalPricing, context);
 
       expect(list).toHaveBeenCalledWith("posting-1", "owner-1");
       expect(response.status).toBe(200);
     });
 
-    it("createSeasonalPricingRule â€” returns 201 after delegating to service", async () => {
+    it("createSeasonalPricingRule — returns 201 after delegating to service", async () => {
       const create = jest.fn(async () => rule);
       const controller = createController({}, { seasonalPricing: { create } });
       const context = createContext({
@@ -1404,7 +1414,10 @@ describe("PostingsController", () => {
         body: ruleBody,
       });
 
-      const response = await controller.createSeasonalPricingRule(context);
+      const response = await invoke(
+        controller.createSeasonalPricingRule,
+        context,
+      );
 
       expect(create).toHaveBeenCalledWith(
         "posting-1",
@@ -1414,7 +1427,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(201);
     });
 
-    it("updateSeasonalPricingRule â€” returns 200 with the updated rule", async () => {
+    it("updateSeasonalPricingRule — returns 200 with the updated rule", async () => {
       const update = jest.fn(async () => ({ ...rule, name: "Updated" }));
       const controller = createController({}, { seasonalPricing: { update } });
       const context = createContext({
@@ -1422,7 +1435,10 @@ describe("PostingsController", () => {
         body: { ...ruleBody, name: "Updated" },
       });
 
-      const response = await controller.updateSeasonalPricingRule(context);
+      const response = await invoke(
+        controller.updateSeasonalPricingRule,
+        context,
+      );
 
       expect(update).toHaveBeenCalledWith(
         "posting-1",
@@ -1433,7 +1449,7 @@ describe("PostingsController", () => {
       expect(response.status).toBe(200);
     });
 
-    it("deleteSeasonalPricingRule â€” returns 204 after deleting the rule", async () => {
+    it("deleteSeasonalPricingRule — returns 204 after deleting the rule", async () => {
       const del = jest.fn(async () => undefined);
       const controller = createController(
         {},
@@ -1443,7 +1459,10 @@ describe("PostingsController", () => {
         params: { id: "posting-1", ruleId: "rule-1" },
       });
 
-      const response = await controller.deleteSeasonalPricingRule(context);
+      const response = await invoke(
+        controller.deleteSeasonalPricingRule,
+        context,
+      );
 
       expect(del).toHaveBeenCalledWith("posting-1", "rule-1", "owner-1");
       expect(response.status).toBe(204);
@@ -1455,7 +1474,7 @@ describe("PostingsController", () => {
       mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
     });
 
-    it("listSaved â€” forwards the parsed page and exposes pagination meta", async () => {
+    it("listSaved — forwards the parsed page and exposes pagination meta", async () => {
       const pagination = {
         page: 2,
         pageSize: 5,
@@ -1474,7 +1493,7 @@ describe("PostingsController", () => {
         url: "https://example.test/postings/saved?page=2&pageSize=5",
       });
 
-      const response = await controller.listSaved(context);
+      const response = await invoke(controller.listSaved, context);
 
       expect(list).toHaveBeenCalledWith("user-1", 2, 5);
       expect(response.status).toBe(200);
@@ -1485,7 +1504,7 @@ describe("PostingsController", () => {
       );
     });
 
-    it("listSaved â€” defaults page and pageSize when absent", async () => {
+    it("listSaved — defaults page and pageSize when absent", async () => {
       const list = jest.fn(async () => ({
         postings: [],
         pagination: {
@@ -1500,7 +1519,8 @@ describe("PostingsController", () => {
       }));
       const controller = createController({}, { savedPostings: { list } });
 
-      await controller.listSaved(
+      await invoke(
+        controller.listSaved,
         createContext({ url: "https://example.test/postings/saved" }),
       );
 
@@ -1510,30 +1530,30 @@ describe("PostingsController", () => {
     it.each([
       ["page=0", "https://example.test/postings/saved?page=0"],
       ["pageSize=999", "https://example.test/postings/saved?pageSize=999"],
-    ])("listSaved â€” rejects %s", async (_label, url) => {
+    ])("listSaved — rejects %s", async (_label, url) => {
       const list = jest.fn();
       const controller = createController({}, { savedPostings: { list } });
 
       await expect(
-        controller.listSaved(createContext({ url })),
+        invoke(controller.listSaved, createContext({ url })),
       ).rejects.toBeInstanceOf(RequestValidationError);
       expect(list).not.toHaveBeenCalled();
     });
 
-    it("listSavedIds â€” forwards the caller identifier", async () => {
+    it("listSavedIds — forwards the caller identifier", async () => {
       const listIds = jest.fn(async () => ({
         postingIds: ["posting-1"],
         truncated: false,
       }));
       const controller = createController({}, { savedPostings: { listIds } });
 
-      const response = await controller.listSavedIds(createContext());
+      const response = await invoke(controller.listSavedIds, createContext());
 
       expect(listIds).toHaveBeenCalledWith("user-1");
       expect(response.status).toBe(200);
     });
 
-    it("save â€” returns 200 with the saved state", async () => {
+    it("save — returns 200 with the saved state", async () => {
       const save = jest.fn(async () => ({
         postingId: "posting-1",
         saved: true,
@@ -1542,7 +1562,7 @@ describe("PostingsController", () => {
       const controller = createController({}, { savedPostings: { save } });
       const context = createContext({ params: { id: "posting-1" } });
 
-      const response = await controller.save(context);
+      const response = await invoke(controller.save, context);
 
       expect(save).toHaveBeenCalledWith("posting-1", "user-1");
       expect(response.status).toBe(200);
@@ -1553,7 +1573,7 @@ describe("PostingsController", () => {
       );
     });
 
-    it("unsave â€” returns 200 with the cleared state", async () => {
+    it("unsave — returns 200 with the cleared state", async () => {
       const unsave = jest.fn(async () => ({
         postingId: "posting-1",
         saved: false,
@@ -1562,7 +1582,7 @@ describe("PostingsController", () => {
       const controller = createController({}, { savedPostings: { unsave } });
       const context = createContext({ params: { id: "posting-1" } });
 
-      const response = await controller.unsave(context);
+      const response = await invoke(controller.unsave, context);
 
       expect(unsave).toHaveBeenCalledWith("posting-1", "user-1");
       expect(response.status).toBe(200);

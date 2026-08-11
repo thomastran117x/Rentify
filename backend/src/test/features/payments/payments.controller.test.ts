@@ -1,6 +1,6 @@
-import { RequestValidationError } from "@/configuration/validation/request";
+﻿import { RequestValidationError } from "@/configuration/validation/request";
 import { PaymentsController } from "@/features/payments/payments.controller";
-import { createLegacyTestContext } from "../../support/mock-http";
+import { createTestContext, invoke } from "../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
 const mockRequireJwtAuth = jest.fn();
@@ -29,7 +29,7 @@ function createContext(options?: {
   headers?: Record<string, string>;
   text?: string;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     ...options,
     url:
       options?.url ??
@@ -60,7 +60,8 @@ describe("PaymentsController", () => {
       createPaymentSession,
     } as any);
 
-    const response = await controller.createSessionForBooking(
+    const response = await invoke(
+      controller.createSessionForBooking,
       createContext({
         params: {
           id: "booking-1",
@@ -96,7 +97,7 @@ describe("PaymentsController", () => {
       listPayouts,
     } as any);
 
-    const response = await controller.listPayouts(createContext());
+    const response = await invoke(controller.listPayouts, createContext());
 
     expect(listPayouts).toHaveBeenCalledWith({
       actorUserId: "user-1",
@@ -126,7 +127,8 @@ describe("PaymentsController", () => {
       processSquareWebhook,
     } as any);
 
-    const response = await controller.webhook(
+    const response = await invoke(
+      controller.webhook,
       createContext({
         text: '{"type":"payment.updated"}',
         headers: {
@@ -172,10 +174,10 @@ describe("PaymentsController", () => {
       },
     });
 
-    await controller.getById(context);
-    await controller.retry(context);
-    await controller.createRefund(context);
-    await controller.reconcile(context);
+    await invoke(controller.getById, context);
+    await invoke(controller.retry, context);
+    await invoke(controller.createRefund, context);
+    await invoke(controller.reconcile, context);
 
     expect(service.getPaymentById).toHaveBeenCalledWith("payment-1", "user-1");
     expect(service.retryPayment).toHaveBeenCalledWith({
@@ -207,7 +209,7 @@ describe("PaymentsController", () => {
       },
     });
 
-    const response = await controller.getByBookingRequest(context);
+    const response = await invoke(controller.getByBookingRequest, context);
 
     expect(service.getPaymentByBookingRequest).toHaveBeenCalledWith(
       "booking-1",
@@ -225,7 +227,8 @@ describe("PaymentsController", () => {
     } as any);
 
     await expect(
-      controller.listPayouts(
+      invoke(
+        controller.listPayouts,
         createContext({
           url: "https://example.test/api/v1/payments/payouts?page=0&pageSize=999",
         }),

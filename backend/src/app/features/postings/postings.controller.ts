@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import {
   accepted,
   created,
@@ -100,235 +100,241 @@ export class PostingsController {
     this.logger = loggerFactory.forClass(PostingsController, "controller");
   }
 
-  create = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, upsertPostingRequestSchema);
+  create = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, upsertPostingRequestSchema);
     const result = await this.postingsService.createDraft(
       auth.sub,
       this.toUpsertInput(body),
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Posting draft created successfully.",
     });
   };
 
-  update = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, updatePostingRequestSchema);
+  update = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, updatePostingRequestSchema);
     const result = await this.postingsService.update(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
       this.toUpsertInput(body),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting updated successfully.",
     });
   };
 
-  duplicate = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  duplicate = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.duplicate(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Posting duplicated successfully.",
     });
   };
 
   listAvailabilityBlocks = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.listOwnerAvailabilityBlocks(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
   createAvailabilityBlock = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       ownerAvailabilityBlockRequestSchema,
     );
     const result = await this.postingsService.createOwnerAvailabilityBlock(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
       this.toAvailabilityBlockInput(body),
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Availability block created successfully.",
     });
   };
 
   updateAvailabilityBlock = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       ownerAvailabilityBlockRequestSchema,
     );
     const result = await this.postingsService.updateOwnerAvailabilityBlock(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
-      this.requireRouteParam(context, "blockId"),
+      this.requireRouteParam(request, "blockId"),
       this.toAvailabilityBlockInput(body),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Availability block updated successfully.",
     });
   };
 
   deleteAvailabilityBlock = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     await this.postingsService.deleteOwnerAvailabilityBlock(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
-      this.requireRouteParam(context, "blockId"),
+      this.requireRouteParam(request, "blockId"),
     );
-    return noContent();
+    noContent(response);
   };
 
-  publish = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  publish = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.publish(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_published",
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
       actorUserId: auth.sub,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting published successfully.",
     });
   };
 
-  archive = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  archive = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.archive(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_archived",
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
       actorUserId: auth.sub,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting archived successfully.",
     });
   };
 
-  pause = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  pause = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.pause(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_paused",
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
       actorUserId: auth.sub,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting paused successfully.",
     });
   };
 
-  unpause = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  unpause = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.unpause(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
     await this.recommendationActivityPublisher.publishPostingLifecycle({
       posting: result,
       eventType: "posting_unpaused",
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
       actorUserId: auth.sub,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting unpaused successfully.",
     });
   };
 
-  getById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.getOptionalAuth(context);
+  getById = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.getOptionalAuth(request);
     const result = await this.postingsService.getById(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth?.sub,
     );
 
     if (!auth || !this.isManagedPostingRecord(result)) {
       await this.postingsAnalyticsService.trackPublicView(
         result,
-        context.get("client"),
+        request.client,
         auth?.sub,
       );
       await this.recommendationActivityPublisher.publishPostingView({
         posting: result,
-        client: context.get("client"),
-        requestId: this.readRequestId(context),
+        client: request.client,
+        requestId: this.readRequestId(request),
         actorUserId: auth?.sub,
       });
     }
 
-    return ok(context, result);
+    ok(response, result);
   };
 
   getAvailabilityCalendar = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.getOptionalAuth(context);
-    const query = this.parseAvailabilityCalendarQuery(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.getOptionalAuth(request);
+    const query = this.parseAvailabilityCalendarQuery(request);
     const result = await this.postingsService.getAvailabilityCalendar(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       query,
       auth?.sub,
     );
 
-    return ok(context, result);
+    ok(response, result);
   };
 
   trackSearchClick = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.getOptionalAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.getOptionalAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       searchClickActivityRequestSchema,
     );
 
     await this.postingsAnalyticsService.trackSearchClick(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth?.sub,
     );
     await this.recommendationActivityPublisher.publishSearchClick({
-      postingId: this.requireRouteId(context),
-      client: context.get("client"),
+      postingId: this.requireRouteId(request),
+      client: request.client,
       body: this.toSearchClickActivityRequest(body),
-      requestId: this.readRequestId(context),
+      requestId: this.readRequestId(request),
       actorUserId: auth?.sub,
     });
 
-    return accepted(
-      context,
+    accepted(
+      response,
       {
         accepted: true,
       },
@@ -338,42 +344,45 @@ export class PostingsController {
     );
   };
 
-  listMine = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  listMine = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.listByOwner(
       auth.sub,
-      this.parseListOwnerPostingsInput(context),
+      this.parseListOwnerPostingsInput(request),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  statusSummary = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  statusSummary = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.getOwnerStatusSummary(auth.sub);
-    return ok(context, result);
+    ok(response, result);
   };
 
-  batchMine = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  batchMine = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsService.batchByOwner(
       auth.sub,
-      this.parseBatchIds(context),
+      this.parseBatchIds(request),
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  batchPublic = async (context: Context<AppBindings>): Promise<Response> => {
+  batchPublic = async (request: Request, response: Response): Promise<void> => {
     const result = await this.postingsService.batchPublic(
-      this.parseBatchIds(context),
+      this.parseBatchIds(request),
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  search = async (context: Context<AppBindings>): Promise<Response> => {
+  search = async (request: Request, response: Response): Promise<void> => {
     const result = await this.postingsService.searchPublic(
-      this.parseSearchPostingsInput(context),
+      this.parseSearchPostingsInput(request),
     );
     void this.postingsAnalyticsService
       .trackSearchImpressions(result.postings)
@@ -384,7 +393,7 @@ export class PostingsController {
           error,
         );
       });
-    return ok(context, result, {
+    ok(response, result, {
       meta: mergeResponseMeta(
         paginationMeta(result),
         pickMeta(result, ["source"]),
@@ -392,55 +401,64 @@ export class PostingsController {
     });
   };
 
-  autocomplete = async (context: Context<AppBindings>): Promise<Response> => {
+  autocomplete = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const result =
       await this.postingsPublicAutocompleteService.autocompletePublic(
-        this.parseAutocompletePostingsInput(context),
+        this.parseAutocompletePostingsInput(request),
       );
-    return ok(context, result);
+    ok(response, result);
   };
 
   analyticsSummary = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const query = this.parseAnalyticsSummaryQuery(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const query = this.parseAnalyticsSummaryQuery(request);
     const result = await this.postingsAnalyticsService.getOwnerSummary(
       auth.sub,
       query.window,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
   analyticsPostings = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const input = this.parseListPostingAnalyticsInput(context, auth.sub);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const input = this.parseListPostingAnalyticsInput(request, auth.sub);
     const result =
       await this.postingsAnalyticsService.listOwnerPostingsAnalytics(input);
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  analyticsById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  analyticsById = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const input = this.parsePostingAnalyticsDetailInput(
-      context,
+      request,
       auth.sub,
-      this.requireRouteId(context),
+      this.requireRouteId(request),
     );
     const result =
       await this.postingsAnalyticsService.getPostingAnalyticsDetail(input);
-    return ok(context, result);
+    ok(response, result);
   };
 
   exportAnalytics = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const url = new URL(context.req.url);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const url = getRequestUrl(request);
     let window: PostingAnalyticsWindow;
     try {
       window = postingAnalyticsWindowSchema.parse(
@@ -453,165 +471,181 @@ export class PostingsController {
       auth.sub,
       window,
     );
-    return new Response(csv, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="analytics.csv"',
-      },
-    });
+    // Written directly rather than through res.send so the content type is
+    // sent exactly as declared.
+    response.status(200);
+    response.setHeader("Content-Type", "text/csv; charset=utf-8");
+    response.setHeader(
+      "Content-Disposition",
+      'attachment; filename="analytics.csv"',
+    );
+    response.end(csv);
   };
 
-  listReviews = async (context: Context<AppBindings>): Promise<Response> => {
-    const { page, pageSize } = this.parseListPostingReviewsQuery(context);
+  listReviews = async (request: Request, response: Response): Promise<void> => {
+    const { page, pageSize } = this.parseListPostingReviewsQuery(request);
     const result = await this.postingsReviewsService.list(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       page,
       pageSize,
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  getOwnReview = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  getOwnReview = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.postingsReviewsService.getOwn(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  createReview = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  createReview = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       createPostingReviewRequestSchema,
     );
     const result = await this.postingsReviewsService.create(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
       body,
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Review created successfully.",
     });
   };
 
   updateOwnReview = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       createPostingReviewRequestSchema,
     );
     const result = await this.postingsReviewsService.updateOwn(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
       body,
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Review updated successfully.",
     });
   };
 
-  listSaved = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const query = this.parseListSavedPostingsQuery(context);
+  listSaved = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const query = this.parseListSavedPostingsQuery(request);
     const result = await this.savedPostingsService.list(
       auth.sub,
       query.page,
       query.pageSize,
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  listSavedIds = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  listSavedIds = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.savedPostingsService.listIds(auth.sub);
-    return ok(context, result);
+    ok(response, result);
   };
 
-  save = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  save = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.savedPostingsService.save(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting saved successfully.",
     });
   };
 
-  unsave = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  unsave = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.savedPostingsService.unsave(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Posting removed from saved postings.",
     });
   };
 
   listSeasonalPricing = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const rules = await this.seasonalPricingService.list(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
     );
-    return ok(context, rules);
+    ok(response, rules);
   };
 
   createSeasonalPricingRule = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, upsertSeasonalPricingSchema);
     const rule = await this.seasonalPricingService.create(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       auth.sub,
       body,
     );
-    return created(context, rule, {
+    created(response, rule, {
       message: "Seasonal pricing rule created successfully.",
     });
   };
 
   updateSeasonalPricingRule = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, upsertSeasonalPricingSchema);
-    const ruleId = requireSafeRouteParam(context, "ruleId");
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, upsertSeasonalPricingSchema);
+    const ruleId = requireSafeRouteParam(request, "ruleId");
     const rule = await this.seasonalPricingService.update(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       ruleId,
       auth.sub,
       body,
     );
-    return ok(context, rule, {
+    ok(response, rule, {
       message: "Seasonal pricing rule updated successfully.",
     });
   };
 
   deleteSeasonalPricingRule = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const ruleId = requireSafeRouteParam(context, "ruleId");
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const ruleId = requireSafeRouteParam(request, "ruleId");
     await this.seasonalPricingService.delete(
-      this.requireRouteId(context),
+      this.requireRouteId(request),
       ruleId,
       auth.sub,
     );
-    return noContent();
+    noContent(response);
   };
 
   private toUpsertInput(
@@ -664,9 +698,9 @@ export class PostingsController {
   }
 
   private parseListOwnerPostingsInput(
-    context: Context<AppBindings>,
+    request: Request,
   ): Omit<ListOwnerPostingsInput, "organizationId"> {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       const query = listOwnerPostingsQuerySchema.parse({
@@ -682,10 +716,8 @@ export class PostingsController {
     }
   }
 
-  private parseSearchPostingsInput(
-    context: Context<AppBindings>,
-  ): SearchPostingsInput {
-    const url = new URL(context.req.url);
+  private parseSearchPostingsInput(request: Request): SearchPostingsInput {
+    const url = getRequestUrl(request);
 
     try {
       const query = publicSearchPostingsQuerySchema.parse({
@@ -743,9 +775,9 @@ export class PostingsController {
   }
 
   private parseListPostingReviewsQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): ListPostingReviewsQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return listPostingReviewsQuerySchema.parse({
@@ -758,9 +790,9 @@ export class PostingsController {
   }
 
   private parseListSavedPostingsQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): ListSavedPostingsQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return listSavedPostingsQuerySchema.parse({
@@ -773,9 +805,9 @@ export class PostingsController {
   }
 
   private parseAnalyticsSummaryQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): PostingAnalyticsSummaryQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return postingAnalyticsSummaryQuerySchema.parse({
@@ -787,9 +819,9 @@ export class PostingsController {
   }
 
   private parseAvailabilityCalendarQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): AvailabilityCalendarQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return availabilityCalendarQuerySchema.parse({
@@ -803,10 +835,10 @@ export class PostingsController {
   }
 
   private parseListPostingAnalyticsInput(
-    context: Context<AppBindings>,
+    request: Request,
     actorUserId: string,
   ): ListPostingAnalyticsInput {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       const query = listPostingAnalyticsQuerySchema.parse({
@@ -822,11 +854,11 @@ export class PostingsController {
   }
 
   private parsePostingAnalyticsDetailInput(
-    context: Context<AppBindings>,
+    request: Request,
     actorUserId: string,
     postingId: string,
   ): PostingAnalyticsDetailInput {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       const query = postingAnalyticsDetailQuerySchema.parse({
@@ -1003,8 +1035,8 @@ export class PostingsController {
     };
   }
 
-  private parseBatchIds(context: Context<AppBindings>): string[] {
-    const url = new URL(context.req.url);
+  private parseBatchIds(request: Request): string[] {
+    const url = getRequestUrl(request);
     try {
       return postingBatchIdsQuerySchema.parse(
         this.readArrayQuery(url.searchParams, "ids"),
@@ -1015,9 +1047,9 @@ export class PostingsController {
   }
 
   private parseAutocompletePostingsInput(
-    context: Context<AppBindings>,
+    request: Request,
   ): PostingAutocompleteInput {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       const query = publicAutocompletePostingsQuerySchema.parse({
@@ -1056,15 +1088,12 @@ export class PostingsController {
     return trimmed.length > 0 ? trimmed : undefined;
   }
 
-  private requireRouteId(context: Context<AppBindings>): string {
-    return this.requireRouteParam(context, "id");
+  private requireRouteId(request: Request): string {
+    return this.requireRouteParam(request, "id");
   }
 
-  private requireRouteParam(
-    context: Context<AppBindings>,
-    name: string,
-  ): string {
-    const value = requireSafeRouteParam(context, name);
+  private requireRouteParam(request: Request, name: string): string {
+    const value = requireSafeRouteParam(request, name);
 
     try {
       return postingResourceIdSchema.parse(value);
@@ -1086,20 +1115,18 @@ export class PostingsController {
     }
   }
 
-  private async requireAuth(
-    context: Context<AppBindings>,
-  ): Promise<AuthPrincipal> {
-    return requireJwtAuth(context);
+  private async requireAuth(request: Request): Promise<AuthPrincipal> {
+    return requireJwtAuth(request);
   }
 
   private async getOptionalAuth(
-    context: Context<AppBindings>,
+    request: Request,
   ): Promise<AuthPrincipal | null> {
-    return getOptionalJwtAuth(context);
+    return getOptionalJwtAuth(request);
   }
 
-  private readRequestId(context: Context<AppBindings>): string | undefined {
-    return context.get("requestId");
+  private readRequestId(request: Request): string | undefined {
+    return request.requestId;
   }
 
   private isManagedPostingRecord(

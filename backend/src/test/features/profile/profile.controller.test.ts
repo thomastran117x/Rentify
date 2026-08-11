@@ -1,6 +1,4 @@
-﻿import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ProfileController } from "@/features/profile/profile.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
@@ -29,7 +27,7 @@ function createContext(options?: {
   url?: string;
   auth?: JwtClaims;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     url:
       options?.url ?? "https://example.test/api/v1/profile?page=1&pageSize=20",
@@ -80,7 +78,7 @@ describe("ProfileController", () => {
       url: "https://example.test/api/v1/profile?page=2&pageSize=5&q=owner",
     });
 
-    const response = await controller.list(context);
+    const response = await invoke(controller.list, context);
 
     expect(list).toHaveBeenCalledWith({
       page: 2,
@@ -124,7 +122,8 @@ describe("ProfileController", () => {
     } as any);
 
     await expect(
-      controller.list(
+      invoke(
+        controller.list,
         createContext({
           url: "https://example.test/api/v1/profile?page=0&pageSize=101",
         }),
@@ -146,10 +145,8 @@ describe("ProfileController", () => {
 
   it("reads the authenticated user profile from context auth", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (
-      context: Context<AppBindings>,
-    ) => {
-      context.set("auth", claims as any);
+    mockRequireJwtAuth.mockImplementation((async (request: any) => {
+      request.auth = claims as any;
       return claims;
     }) as any);
     const getByUserId = jest.fn(async (userId: string) => ({
@@ -161,7 +158,7 @@ describe("ProfileController", () => {
     } as any);
     const context = createContext();
 
-    const response = await controller.getMe(context);
+    const response = await invoke(controller.getMe, context);
 
     expect(getByUserId).toHaveBeenCalledWith("profile-user");
     expect(context.get("auth")).toEqual(claims);
@@ -170,10 +167,8 @@ describe("ProfileController", () => {
 
   it("validates update bodies, maps auth to userId, and returns a success message", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (
-      context: Context<AppBindings>,
-    ) => {
-      context.set("auth", claims as any);
+    mockRequireJwtAuth.mockImplementation((async (request: any) => {
+      request.auth = claims as any;
       return claims;
     }) as any);
     const update = jest.fn(async (input) => ({
@@ -197,7 +192,7 @@ describe("ProfileController", () => {
       },
     });
 
-    const response = await controller.updateMe(context);
+    const response = await invoke(controller.updateMe, context);
 
     expect(update).toHaveBeenCalledWith({
       userId: "profile-user",
@@ -227,10 +222,8 @@ describe("ProfileController", () => {
 
   it("returns request validation errors for invalid update bodies", async () => {
     const claims = createClaims({ sub: "profile-user" });
-    mockRequireJwtAuth.mockImplementation((async (
-      context: Context<AppBindings>,
-    ) => {
-      context.set("auth", claims as any);
+    mockRequireJwtAuth.mockImplementation((async (request: any) => {
+      request.auth = claims as any;
       return claims;
     }) as any);
     const update = jest.fn();
@@ -239,7 +232,8 @@ describe("ProfileController", () => {
     } as any);
 
     await expect(
-      controller.updateMe(
+      invoke(
+        controller.updateMe,
         createContext({
           body: {
             username: "x",

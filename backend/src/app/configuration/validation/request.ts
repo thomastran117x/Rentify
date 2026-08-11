@@ -1,9 +1,5 @@
-import BadRequestError from "@/errors/http/bad-request.error";
+﻿import BadRequestError from "@/errors/http/bad-request.error";
 import type { Request } from "express";
-import {
-  toRequest,
-  type RequestLike,
-} from "@/configuration/http/legacy-context";
 import { ZodError, type ZodType, type output } from "zod";
 import { assertSafeRequestBody } from "./input-sanitization";
 
@@ -49,11 +45,9 @@ function readJsonBody(request: Request): unknown {
 }
 
 export async function parseRequestBody<TSchema extends ZodType>(
-  source: RequestLike,
+  request: Request,
   schema: TSchema,
 ): Promise<output<TSchema>> {
-  const request = toRequest(source);
-
   try {
     const body = readJsonBody(request);
     assertSafeRequestBody(request, body);
@@ -72,12 +66,10 @@ export async function parseRequestBody<TSchema extends ZodType>(
  * inspected for unsafe markup and injection patterns.
  */
 export async function parseRequestBodyWithRichText<TSchema extends ZodType>(
-  source: RequestLike,
+  request: Request,
   schema: TSchema,
   richTextFields: readonly string[],
 ): Promise<output<TSchema>> {
-  const request = toRequest(source);
-
   try {
     const body = readJsonBody(request);
 

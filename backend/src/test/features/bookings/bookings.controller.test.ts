@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
@@ -26,7 +26,7 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     params: options?.params,
     url: options?.url ?? "https://example.test/booking-requests/me",
@@ -73,7 +73,8 @@ describe("BookingsController", () => {
       } as any,
     );
 
-    const response = await controller.createForPosting(
+    const response = await invoke(
+      controller.createForPosting,
       createContext({
         params: {
           id: "posting-1",
@@ -126,7 +127,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.quoteForPosting(
+    const response = await invoke(
+      controller.quoteForPosting,
       createContext({
         params: {
           id: "posting-2",
@@ -172,7 +174,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.listOwned(
+    const response = await invoke(
+      controller.listOwned,
       createContext({
         url: "https://example.test/booking-requests/owner?page=1&pageSize=20",
       }),
@@ -220,12 +223,14 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const mineResponse = await controller.listMine(
+    const mineResponse = await invoke(
+      controller.listMine,
       createContext({
         url: "https://example.test/booking-requests/me?page=2&pageSize=5&status=pending",
       }),
     );
-    const ownerPostingResponse = await controller.listForOwnerPosting(
+    const ownerPostingResponse = await invoke(
+      controller.listForOwnerPosting,
       createContext({
         params: {
           id: "posting-1",
@@ -287,7 +292,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.dashboardMine(
+    const response = await invoke(
+      controller.dashboardMine,
       createContext({
         url: "https://example.test/booking-requests/me/dashboard?page=2&pageSize=5&sort=urgency&bucket=action_needed&status=awaiting_payment",
       }),
@@ -346,7 +352,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.dashboardOwned(
+    const response = await invoke(
+      controller.dashboardOwned,
       createContext({
         url: "https://example.test/booking-requests/owner/dashboard?sort=start_at&status=pending&actionNeeded=approval&postingId=posting-1",
       }),
@@ -386,7 +393,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.getCancellationQuote(
+    const response = await invoke(
+      controller.getCancellationQuote,
       createContext({
         params: {
           id: "booking-1",
@@ -428,14 +436,16 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const getResponse = await controller.getById(
+    const getResponse = await invoke(
+      controller.getById,
       createContext({
         params: {
           id: "booking-2",
         },
       }),
     );
-    const updateResponse = await controller.updateOwn(
+    const updateResponse = await invoke(
+      controller.updateOwn,
       createContext({
         params: {
           id: "booking-2",
@@ -450,7 +460,8 @@ describe("BookingsController", () => {
         },
       }),
     );
-    const approveResponse = await controller.approve(
+    const approveResponse = await invoke(
+      controller.approve,
       createContext({
         params: {
           id: "booking-2",
@@ -460,7 +471,8 @@ describe("BookingsController", () => {
         },
       }),
     );
-    const declineResponse = await controller.decline(
+    const declineResponse = await invoke(
+      controller.decline,
       createContext({
         params: {
           id: "booking-2",
@@ -538,7 +550,8 @@ describe("BookingsController", () => {
       {} as any,
     );
 
-    const response = await controller.cancel(
+    const response = await invoke(
+      controller.cancel,
       createContext({
         params: {
           id: "booking-1",
@@ -568,7 +581,8 @@ describe("BookingsController", () => {
     );
 
     await expect(
-      controller.listMine(
+      invoke(
+        controller.listMine,
         createContext({
           url: "https://example.test/booking-requests/me?page=0&pageSize=two",
         }),

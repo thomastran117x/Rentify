@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../../support/mock-http";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -58,7 +58,7 @@ function createContext(options?: {
     ),
   ).toString();
 
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     url: `https://example.test/auth/mfa/verify${query ? `?${query}` : ""}`,
     state: {
@@ -122,7 +122,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.getOptions(context);
+    const response = await invoke(controller.getOptions, context);
     const payload = await response.json();
 
     expect(mfaVerificationService.getOptions).toHaveBeenCalledWith({
@@ -147,7 +147,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.issueChallenge(context);
+    const response = await invoke(controller.issueChallenge, context);
 
     expect(mfaVerificationService.issueChallenge).toHaveBeenCalledWith({
       userId: "user-2",
@@ -170,7 +170,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.confirmChallenge(context);
+    const response = await invoke(controller.confirmChallenge, context);
     const payload = await response.json();
 
     expect(mfaVerificationService.confirmChallenge).toHaveBeenCalledWith({
@@ -197,7 +197,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.previewCurrentEmailOtp(context);
+    const response = await invoke(controller.previewCurrentEmailOtp, context);
 
     expect(mfaVerificationService.previewCurrentEmailOtp).toHaveBeenCalledWith({
       userId: "user-4",
@@ -212,7 +212,8 @@ describe("MfaVerificationController", () => {
     const { controller, mfaVerificationService } = createController();
 
     await expect(
-      controller.getOptions(
+      invoke(
+        controller.getOptions,
         createContext({
           query: {
             scope: "not-a-scope",
@@ -230,7 +231,8 @@ describe("MfaVerificationController", () => {
     const { controller, mfaVerificationService } = createController();
 
     await expect(
-      controller.getOptions(
+      invoke(
+        controller.getOptions,
         createContext({
           query: {
             scope: "mfa-management",

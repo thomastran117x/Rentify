@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
 import { filterRouteModules } from "@/configuration/bootstrap/routes/registry";
 import {
@@ -46,6 +46,13 @@ function createApp(services: Map<unknown, unknown> = new Map()) {
   });
 }
 
+/** A fake controller handler that writes a fixed JSON payload. */
+function respond(payload: unknown) {
+  return async (_request: any, response: any) => {
+    response.status(200).json(payload);
+  };
+}
+
 describe("mountRoutes", () => {
   const originalDisabledRouteModules = process.env.DISABLED_ROUTE_MODULES;
 
@@ -60,20 +67,7 @@ describe("mountRoutes", () => {
   it("mounts enabled route modules by default", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
     const blobController = {
-      createUploadUrl: async (
-        context: Parameters<
-          Exclude<typeof createApp, undefined>
-        >[0] extends never
-          ? never
-          : never,
-      ) => {
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        });
-      },
+      createUploadUrl: respond({ ok: true }),
     };
     const app = createApp(
       new Map([[containerTokens.blobController, blobController]]),
@@ -106,13 +100,7 @@ describe("mountRoutes", () => {
         [
           containerTokens.blobController,
           {
-            createUploadUrl: async () =>
-              new Response(JSON.stringify({ ok: true }), {
-                headers: {
-                  "content-type": "application/json; charset=UTF-8",
-                },
-                status: 200,
-              }),
+            createUploadUrl: respond({ ok: true }),
           },
         ],
       ]),
@@ -131,20 +119,8 @@ describe("mountRoutes", () => {
   it("disabling one module does not affect neighboring modules", async () => {
     process.env.DISABLED_ROUTE_MODULES = "auth-local";
     const authController = {
-      linkedOAuthProviders: async () =>
-        new Response(JSON.stringify({ providers: ["google"] }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      localAuthenticate: async () =>
-        new Response(JSON.stringify({ ok: true }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
+      linkedOAuthProviders: respond({ providers: ["google"] }),
+      localAuthenticate: respond({ ok: true }),
     };
     const app = createApp(
       new Map([[containerTokens.authController, authController]]),
@@ -170,58 +146,15 @@ describe("mountRoutes", () => {
   it("preserves static-before-dynamic postings route behavior", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
     const postingsController = {
-      analyticsSummary: async () =>
-        new Response(JSON.stringify({ route: "analyticsSummary" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      batchPublic: async () =>
-        new Response(JSON.stringify({ route: "batchPublic" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      getById: async (context: { req: { param(name: string): string } }) =>
-        new Response(
-          JSON.stringify({ id: context.req.param("id"), route: "getById" }),
-          {
-            headers: {
-              "content-type": "application/json; charset=UTF-8",
-            },
-            status: 200,
-          },
-        ),
-      listMine: async () =>
-        new Response(JSON.stringify({ route: "listMine" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      search: async () =>
-        new Response(JSON.stringify({ route: "search" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      listSaved: async () =>
-        new Response(JSON.stringify({ route: "listSaved" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      listSavedIds: async () =>
-        new Response(JSON.stringify({ route: "listSavedIds" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
+      analyticsSummary: respond({ route: "analyticsSummary" }),
+      batchPublic: respond({ route: "batchPublic" }),
+      getById: async (request: any, response: any) => {
+        response.status(200).json({ id: request.params.id, route: "getById" });
+      },
+      listMine: respond({ route: "listMine" }),
+      search: respond({ route: "search" }),
+      listSaved: respond({ route: "listSaved" }),
+      listSavedIds: respond({ route: "listSavedIds" }),
     };
     const app = createApp(
       new Map([[containerTokens.postingsController, postingsController]]),
@@ -267,53 +200,22 @@ describe("mountRoutes", () => {
   it("preserves static-before-dynamic organization route behavior", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
     const organizationsController = {
-      listMine: async () =>
-        new Response(JSON.stringify({ route: "listMine" }), {
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-          },
-          status: 200,
-        }),
-      previewInvitation: async (context: {
-        req: { param(name: string): string };
-      }) =>
-        new Response(
-          JSON.stringify({
-            route: "previewInvitation",
-            token: context.req.param("token"),
-          }),
-          {
-            headers: {
-              "content-type": "application/json; charset=UTF-8",
-            },
-            status: 200,
-          },
-        ),
-      getWorkspaceById: async (context: {
-        req: { param(name: string): string };
-      }) =>
-        new Response(
-          JSON.stringify({
-            route: "getWorkspaceById",
-            id: context.req.param("id"),
-          }),
-          {
-            headers: {
-              "content-type": "application/json; charset=UTF-8",
-            },
-            status: 200,
-          },
-        ),
-      getById: async (context: { req: { param(name: string): string } }) =>
-        new Response(
-          JSON.stringify({ route: "getById", id: context.req.param("id") }),
-          {
-            headers: {
-              "content-type": "application/json; charset=UTF-8",
-            },
-            status: 200,
-          },
-        ),
+      listMine: respond({ route: "listMine" }),
+      previewInvitation: async (request: any, response: any) => {
+        response.status(200).json({
+          route: "previewInvitation",
+          token: request.params.token,
+        });
+      },
+      getWorkspaceById: async (request: any, response: any) => {
+        response.status(200).json({
+          route: "getWorkspaceById",
+          id: request.params.id,
+        });
+      },
+      getById: async (request: any, response: any) => {
+        response.status(200).json({ route: "getById", id: request.params.id });
+      },
     };
     const app = createApp(
       new Map([

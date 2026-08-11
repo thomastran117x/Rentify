@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { OrganizationsController } from "@/features/organizations/organizations.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
@@ -40,7 +40,7 @@ function createContext(options?: {
 }) {
   const query = new URLSearchParams(options?.query ?? {}).toString();
 
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     params: options?.params,
     url: query ? `/?${query}` : "/",
@@ -75,7 +75,8 @@ describe("OrganizationsController", () => {
       createOrganization,
     } as any);
 
-    const response = await controller.create(
+    const response = await invoke(
+      controller.create,
       createContext({
         body: {
           name: "Northwind",
@@ -112,7 +113,8 @@ describe("OrganizationsController", () => {
       listAudit,
     } as any);
 
-    const response = await controller.listAudit(
+    const response = await invoke(
+      controller.listAudit,
       createContext({
         params: {
           id: ORGANIZATION_ID,
@@ -156,7 +158,8 @@ describe("OrganizationsController", () => {
       restoreVersion,
     } as any);
 
-    const response = await controller.restoreAuditEntry(
+    const response = await invoke(
+      controller.restoreAuditEntry,
       createContext({
         params: {
           id: ORGANIZATION_ID,
@@ -190,7 +193,8 @@ describe("OrganizationsController", () => {
       updateMemberRole,
     } as any);
 
-    await controller.updateMemberRole(
+    await invoke(
+      controller.updateMemberRole,
       createContext({
         params: {
           id: ORGANIZATION_ID,
@@ -224,7 +228,8 @@ describe("OrganizationsController", () => {
       previewInvitation,
     } as any);
 
-    await controller.previewInvitation(
+    await invoke(
+      controller.previewInvitation,
       createContext({
         params: {
           token: "invite-token",
@@ -248,7 +253,8 @@ describe("OrganizationsController", () => {
       revokeInvitation,
     } as any);
 
-    await controller.revokeInvitation(
+    await invoke(
+      controller.revokeInvitation,
       createContext({
         params: {
           id: ORGANIZATION_ID,
@@ -277,7 +283,8 @@ describe("OrganizationsController", () => {
       listAnnouncements,
     } as any);
 
-    const response = await controller.listAnnouncements(
+    const response = await invoke(
+      controller.listAnnouncements,
       createContext({
         params: { id: ORGANIZATION_ID },
         query: { status: "published" },
@@ -307,7 +314,8 @@ describe("OrganizationsController", () => {
       createAnnouncement,
     } as any);
 
-    const response = await controller.createAnnouncement(
+    const response = await invoke(
+      controller.createAnnouncement,
       createContext({
         params: { id: ORGANIZATION_ID },
         body: {
@@ -340,7 +348,8 @@ describe("OrganizationsController", () => {
       updateAnnouncement,
     } as any);
 
-    await controller.updateAnnouncement(
+    await invoke(
+      controller.updateAnnouncement,
       createContext({
         params: {
           id: ORGANIZATION_ID,
@@ -367,7 +376,8 @@ describe("OrganizationsController", () => {
       deleteAnnouncement,
     } as any);
 
-    const response = await controller.deleteAnnouncement(
+    const response = await invoke(
+      controller.deleteAnnouncement,
       createContext({
         params: {
           id: ORGANIZATION_ID,

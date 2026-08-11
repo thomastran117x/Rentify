@@ -1,5 +1,5 @@
-import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
-import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
+import { createTestContext, invoke } from "../../support/mock-http";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import ForbiddenError from "@/errors/http/forbidden.error";
 
@@ -34,7 +34,7 @@ function createContext(
 ) {
   const query = new URLSearchParams(options.query ?? {}).toString();
 
-  return createLegacyTestContext({
+  return createTestContext({
     body: options.body,
     params: options.params,
     url: query ? `/?${query}` : "/",
@@ -63,7 +63,7 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => [flag("test-flag", true)]);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      const response = await controller.list(createContext());
+      const response = await invoke(controller.list, createContext());
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -74,7 +74,10 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => []);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      await controller.list(createContext({ query: { enabled: "true" } }));
+      await invoke(
+        controller.list,
+        createContext({ query: { enabled: "true" } }),
+      );
 
       expect(listAll).toHaveBeenCalledWith(
         expect.objectContaining({ enabled: true }),
@@ -85,7 +88,10 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => []);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      await controller.list(createContext({ query: { enabled: "false" } }));
+      await invoke(
+        controller.list,
+        createContext({ query: { enabled: "false" } }),
+      );
 
       expect(listAll).toHaveBeenCalledWith(
         expect.objectContaining({ enabled: false }),
@@ -96,7 +102,10 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => []);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      await controller.list(createContext({ query: { search: "payments" } }));
+      await invoke(
+        controller.list,
+        createContext({ query: { search: "payments" } }),
+      );
 
       expect(listAll).toHaveBeenCalledWith(
         expect.objectContaining({ search: "payments" }),
@@ -107,7 +116,10 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => []);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      await controller.list(createContext({ query: { group: "payments" } }));
+      await invoke(
+        controller.list,
+        createContext({ query: { group: "payments" } }),
+      );
 
       expect(listAll).toHaveBeenCalledWith(
         expect.objectContaining({ group: "payments" }),
@@ -118,7 +130,7 @@ describe("FeatureFlagController", () => {
       const listAll = jest.fn(async () => []);
       const controller = new FeatureFlagController({ listAll } as any);
 
-      await controller.list(createContext());
+      await invoke(controller.list, createContext());
 
       expect(listAll).toHaveBeenCalledWith({});
     });
@@ -127,9 +139,9 @@ describe("FeatureFlagController", () => {
       mockRequireJwtAuth.mockResolvedValue(createAuth({ role: "user" }));
       const controller = new FeatureFlagController({} as any);
 
-      await expect(controller.list(createContext())).rejects.toBeInstanceOf(
-        ForbiddenError,
-      );
+      await expect(
+        invoke(controller.list, createContext()),
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
 
@@ -138,7 +150,8 @@ describe("FeatureFlagController", () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
       const controller = new FeatureFlagController({ setFlag } as any);
 
-      const response = await controller.set(
+      const response = await invoke(
+        controller.set,
         createContext({
           body: { enabled: true },
           params: { name: "my-flag" },
@@ -161,7 +174,8 @@ describe("FeatureFlagController", () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
       const controller = new FeatureFlagController({ setFlag } as any);
 
-      await controller.set(
+      await invoke(
+        controller.set,
         createContext({
           body: { enabled: true, description: "my desc" },
           params: { name: "my-flag" },
@@ -177,7 +191,8 @@ describe("FeatureFlagController", () => {
       const setFlag = jest.fn(async () => flag("my-flag", true));
       const controller = new FeatureFlagController({ setFlag } as any);
 
-      await controller.set(
+      await invoke(
+        controller.set,
         createContext({
           body: { enabled: true, group: "payments" },
           params: { name: "my-flag" },
@@ -194,7 +209,8 @@ describe("FeatureFlagController", () => {
       const controller = new FeatureFlagController({} as any);
 
       await expect(
-        controller.set(
+        invoke(
+          controller.set,
           createContext({
             body: { enabled: true },
             params: { name: "my-flag" },
@@ -215,7 +231,8 @@ describe("FeatureFlagController", () => {
       const deleteFlag = jest.fn(async () => deleteResult);
       const controller = new FeatureFlagController({ deleteFlag } as any);
 
-      const response = await controller.delete(
+      const response = await invoke(
+        controller.delete,
         createContext({ params: { name: "my-flag" } }),
       );
       const body = await response.json();
@@ -232,7 +249,10 @@ describe("FeatureFlagController", () => {
       const controller = new FeatureFlagController({} as any);
 
       await expect(
-        controller.delete(createContext({ params: { name: "my-flag" } })),
+        invoke(
+          controller.delete,
+          createContext({ params: { name: "my-flag" } }),
+        ),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });

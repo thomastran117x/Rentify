@@ -1,5 +1,4 @@
-import express from "express";
-import { withLegacyContext } from "@/configuration/bootstrap/routes/helpers";
+﻿import express from "express";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
@@ -28,7 +27,7 @@ function createApp(processWebhook: jest.Mock) {
     // Mirrors createApplication: the webhook body is left unparsed so the
     // handler sees the exact bytes it has to verify a signature over.
     app.use("/sms/webhooks/telnyx", express.raw({ type: "*/*" }));
-    app.post("/sms/webhooks/telnyx", withLegacyContext(controller.webhook));
+    app.post("/sms/webhooks/telnyx", controller.webhook);
     app.use(handleApplicationError);
   });
 }

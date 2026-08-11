@@ -1231,7 +1231,7 @@ function buildOperations(): OperationDefinition[] {
       responses: {
         "200": successResponse(
           200,
-          "TypeScript Hono server is running",
+          "TypeScript Express server is running",
           "SystemRoot",
           {
             apiVersion: "v1",

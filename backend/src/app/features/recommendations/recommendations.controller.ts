@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import {
   mergeResponseMeta,
   ok,
@@ -21,14 +21,14 @@ export class RecommendationsController {
     private readonly recommendationQueryService: RecommendationQueryService,
   ) {}
 
-  list = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.getOptionalAuth(context);
+  list = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.getOptionalAuth(request);
     const result = await this.recommendationQueryService.getRecommendations(
-      this.parseRecommendationQueryInput(context),
+      this.parseRecommendationQueryInput(request),
       auth,
     );
 
-    return ok(context, result, {
+    ok(response, result, {
       meta: mergeResponseMeta(
         paginationMeta(result),
         pickMeta(result, ["mode", "fallback", "snapshotGeneratedAt"]),
@@ -37,9 +37,9 @@ export class RecommendationsController {
   };
 
   private parseRecommendationQueryInput(
-    context: Context<AppBindings>,
+    request: Request,
   ): RecommendationQueryInput {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       const query = recommendationQuerySchema.parse({
@@ -105,9 +105,9 @@ export class RecommendationsController {
   }
 
   private async getOptionalAuth(
-    context: Context<AppBindings>,
+    request: Request,
   ): Promise<AuthPrincipal | null> {
-    return getOptionalJwtAuth(context);
+    return getOptionalJwtAuth(request);
   }
 
   private toValidationError(

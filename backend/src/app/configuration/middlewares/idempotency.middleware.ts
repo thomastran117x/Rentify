@@ -1,10 +1,6 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import type { Request, RequestHandler } from "express";
 import { getHeader } from "@/configuration/http/request";
-import {
-  toRequest,
-  type RequestLike,
-} from "@/configuration/http/legacy-context";
 import BadRequestError from "@/errors/http/bad-request.error";
 import {
   REQUEST_ID_HEADER_NAME,
@@ -55,10 +51,9 @@ function readIdempotencyKeyHeader(request: Request): string | null {
 }
 
 export function resolveIdempotencyKey(
-  source: RequestLike,
+  request: Request,
   override?: string | null,
 ): string {
-  const request = toRequest(source);
   const normalizedOverride = normalizeKey(override);
 
   if (normalizedOverride) {

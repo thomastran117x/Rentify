@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 
@@ -9,7 +9,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 }));
 
 function createContext(url: string) {
-  return createLegacyTestContext({
+  return createTestContext({
     url,
     state: {
       requestId: "request-1",
@@ -47,7 +47,7 @@ describe("RecommendationsController", () => {
       sub: "user-1",
     });
 
-    const response = await controller.list(context);
+    const response = await invoke(controller.list, context);
 
     expect(getRecommendations).toHaveBeenCalledWith(
       {
@@ -134,7 +134,7 @@ describe("RecommendationsController", () => {
     );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
-    const response = await controller.list(context);
+    const response = await invoke(controller.list, context);
     const payload = await response.json();
 
     expect(payload).toEqual({
@@ -202,7 +202,7 @@ describe("RecommendationsController", () => {
     );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
-    await controller.list(context);
+    await invoke(controller.list, context);
 
     expect(getRecommendations).toHaveBeenCalledWith(
       {
@@ -225,7 +225,7 @@ describe("RecommendationsController", () => {
       "https://example.test/postings/recommendations?startAt=2026-05-08T00:00:00.000Z",
     );
 
-    await expect(controller.list(context)).rejects.toMatchObject<
+    await expect(invoke(controller.list, context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
       message: "Request query validation failed.",

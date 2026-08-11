@@ -1,5 +1,8 @@
-﻿import type { Context } from "hono";
-import { createLegacyTestContext } from "../../support/mock-http";
+﻿import {
+  createTestContext,
+  invoke,
+  type TestContext,
+} from "../../support/mock-http";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import {
   getAuthRole,
@@ -83,7 +86,7 @@ function createContext(options?: {
   params?: Record<string, string>;
   body?: unknown;
   tokenService?: FakeTokenService;
-}): Context<AppBindings> {
+}): TestContext {
   const variables = new Map<string, unknown>();
 
   variables.set(
@@ -94,7 +97,7 @@ function createContext(options?: {
   );
   variables.set("client", createClientContext());
 
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     params: options?.params,
     url: options?.url ?? "https://example.test/resource",
@@ -198,7 +201,7 @@ describe("authorization", () => {
       },
     });
 
-    const response = await controller.create(context);
+    const response = await invoke(controller.create, context);
 
     expect(response.status).toBe(201);
     expect(createDraftCalled).toBe(true);
@@ -219,9 +222,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.repair(ownerContext)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    await expect(
+      invoke(controller.repair, ownerContext),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repairCalled).toBe(false);
 
     const adminContext = createContext({
@@ -232,7 +235,7 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });
 
-    const response = await controller.repair(adminContext);
+    const response = await invoke(controller.repair, adminContext);
 
     expect(repairCalled).toBe(true);
     expect(response.status).toBe(200);
@@ -261,9 +264,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.startReindex(ownerContext)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    await expect(
+      invoke(controller.startReindex, ownerContext),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(reindexCalled).toBe(false);
 
     const adminContext = createContext({
@@ -271,7 +274,7 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });
 
-    const response = await controller.startReindex(adminContext);
+    const response = await invoke(controller.startReindex, adminContext);
 
     expect(reindexCalled).toBe(true);
     expect(response.status).toBe(202);

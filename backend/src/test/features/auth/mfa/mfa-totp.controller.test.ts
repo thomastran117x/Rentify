@@ -1,4 +1,4 @@
-﻿import { createLegacyTestContext } from "../../../support/mock-http";
+﻿import { createTestContext, invoke } from "../../../support/mock-http";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -72,7 +72,7 @@ function createContext(options?: {
   body?: unknown;
   client?: ClientRequestContext;
 }) {
-  return createLegacyTestContext({
+  return createTestContext({
     body: options?.body,
     url: "https://example.test/auth/mfa/totp",
     state: {
@@ -120,7 +120,7 @@ describe("MfaTotpController", () => {
     mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: "user-9" }));
     const { controller, mfaTotpService } = createController();
 
-    const response = await controller.getStatus(createContext());
+    const response = await invoke(controller.getStatus, createContext());
     const payload = await response.json();
 
     expect(mockRequireSessionAuth).toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe("MfaTotpController", () => {
       },
     });
 
-    const response = await controller.beginEnrollment(context);
+    const response = await invoke(controller.beginEnrollment, context);
 
     expect(mockRequireRecentMfaVerification).toHaveBeenCalled();
     expect(mfaTotpService.beginEnrollment).toHaveBeenCalledWith(
@@ -166,7 +166,8 @@ describe("MfaTotpController", () => {
     mockRequireRecentMfaVerification.mockResolvedValue(createAuth());
     const { controller, mfaTotpService } = createController();
 
-    const response = await controller.confirmEnrollment(
+    const response = await invoke(
+      controller.confirmEnrollment,
       createContext({
         body: {
           code: " 123456 ",
@@ -196,7 +197,8 @@ describe("MfaTotpController", () => {
     );
     const { controller, mfaTotpService } = createController();
 
-    const response = await controller.disable(
+    const response = await invoke(
+      controller.disable,
       createContext({
         body: {},
       }),
@@ -221,7 +223,7 @@ describe("MfaTotpController", () => {
     );
     const { controller, mfaTotpService } = createController();
 
-    const response = await controller.cancelEnrollment(createContext());
+    const response = await invoke(controller.cancelEnrollment, createContext());
     const payload = await response.json();
 
     expect(mfaTotpService.cancelEnrollment).toHaveBeenCalledWith("user-4");

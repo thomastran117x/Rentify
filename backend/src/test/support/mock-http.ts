@@ -1,10 +1,4 @@
-import type { Request, Response } from "express";
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
-import {
-  asHonoContext,
-  createLegacyContext,
-} from "@/configuration/http/legacy-context";
+﻿import type { Request, Response } from "express";
 
 export interface MockRequestOptions {
   method?: string;
@@ -127,50 +121,89 @@ export async function invokeHandler(
   };
 }
 
-export interface LegacyContextOptions extends MockRequestOptions {
-  /** Value returned by `context.req.text()`. Defaults to the body, serialised. */
-  text?: string;
+export interface TestContext {
+  request: Request;
+  response: Response;
+  recorder: MockResponse;
+  /** Reads request-scoped state, replacing Hono's `c.get(name)`. */
+  get(name: string): unknown;
 }
 
 /**
- * A controller context backed by mock Express objects.
- *
- * TEMPORARY, alongside the legacy context bridge itself: the controllers still
- * take a Hono-shaped context, but everything underneath is now an Express
- * request, and the shared helpers they call (parseRequestBody, requireJwtAuth,
- * …) resolve that request out of the context. Building the context through the
- * real bridge keeps those two halves consistent — a hand-rolled fake diverges
- * from what the bridge actually provides. Each of these call sites goes away as
- * its controller moves to native (req, res) handlers.
+ * Pairs an already-built mock request with a fresh response recorder.
  */
-export function createLegacyTestContext(
+export function toTestContext(request: Request): TestContext {
+  const recorder = createMockResponse();
+  (recorder.response as { req?: Request }).req = request;
+
+  return {
+    request,
+    response: recorder.response,
+    recorder,
+    get: (name: string) =>
+      (request as unknown as Record<string, unknown>)[name],
+  };
+}
+
+/**
+ * A mock request/response pair for testing a controller handler directly.
+ */
+export function createTestContext(
   options: LegacyContextOptions = {},
-): Context<AppBindings> {
+): TestContext {
   const body = options.body ?? {};
+  const serialised = typeof body === "string" ? body : JSON.stringify(body);
 
   const request = createMockRequest({
     ...options,
     body,
-    rawBody:
-      options.rawBody ??
-      options.text ??
-      (typeof body === "string" ? body : JSON.stringify(body)),
+    rawBody: options.rawBody ?? options.text ?? serialised,
     headers: {
-      // parseRequestBody treats a request with no declared length as bodyless,
-      // the way Hono's c.req.json() threw on an empty body.
-      "content-length": String(
-        Buffer.byteLength(
-          typeof body === "string" ? body : JSON.stringify(body),
-        ),
-      ),
       "content-type": "application/json",
+      "content-length": String(Buffer.byteLength(serialised)),
       ...options.headers,
     },
   });
+  const recorder = createMockResponse();
+  // Express exposes the request from the response; the envelope helpers read
+  // the request id through it.
+  (recorder.response as { req?: Request }).req = request;
 
-  return asHonoContext(
-    createLegacyContext(request, createMockResponse().response),
-  );
+  return {
+    request,
+    response: recorder.response,
+    recorder,
+    get: (name: string) =>
+      (request as unknown as Record<string, unknown>)[name],
+  };
+}
+
+/**
+ * Calls a native `(request, response)` handler against a {@link TestContext}
+ * and reports what it wrote.
+ *
+ * `status` and the async `json()` mirror a WHATWG Response, so assertions read
+ * the same as they did when handlers returned one.
+ */
+export async function invoke(
+  handler: (request: Request, response: Response) => Promise<void> | void,
+  context: TestContext,
+) {
+  await handler(context.request, context.response);
+
+  return {
+    status: context.recorder.status(),
+    // Typed loosely like Response.json(), so callers can read into the payload.
+    json: async (): Promise<any> => context.recorder.json(),
+    text: async (): Promise<string> => String(context.recorder.body() ?? ""),
+    // A real Headers so assertions can keep using the case-insensitive get().
+    headers: new Headers(context.recorder.headers()),
+  };
+}
+
+export interface LegacyContextOptions extends MockRequestOptions {
+  /** Raw body text, for handlers that verify a signature over it. */
+  text?: string;
 }
 
 export interface MockResponse {

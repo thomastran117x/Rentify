@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getQuery } from "@/configuration/http/request";
 import { ok } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
@@ -14,31 +14,31 @@ import {
 export class FeatureFlagController {
   constructor(private readonly featureFlagService: FeatureFlagService) {}
 
-  list = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
+  list = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
     requireMinimumRole(auth, "admin");
 
     const filter: ListFlagsFilter = {};
-    const enabledParam = context.req.query("enabled");
+    const enabledParam = getQuery(request).enabled;
     if (enabledParam === "true") filter.enabled = true;
     else if (enabledParam === "false") filter.enabled = false;
 
-    const search = context.req.query("search")?.trim();
+    const search = getQuery(request).search?.trim();
     if (search) filter.search = search;
 
-    const group = context.req.query("group")?.trim();
+    const group = getQuery(request).group?.trim();
     if (group) filter.group = group;
 
     const flags = await this.featureFlagService.listAll(filter);
-    return ok(context, flags);
+    ok(response, flags);
   };
 
-  set = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
+  set = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
     requireMinimumRole(auth, "admin");
 
-    const name = requireSafeRouteParam(context, "name");
-    const body = await parseRequestBody(context, setFlagBodySchema);
+    const name = requireSafeRouteParam(request, "name");
+    const body = await parseRequestBody(request, setFlagBodySchema);
 
     const result = await this.featureFlagService.setFlag({
       name,
@@ -48,19 +48,19 @@ export class FeatureFlagController {
       actorUserId: auth.sub,
     });
 
-    return ok(context, result);
+    ok(response, result);
   };
 
-  delete = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
+  delete = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
     requireMinimumRole(auth, "admin");
 
-    const name = requireSafeRouteParam(context, "name");
+    const name = requireSafeRouteParam(request, "name");
     const result = await this.featureFlagService.deleteFlag({
       name,
       actorUserId: auth.sub,
     });
 
-    return ok(context, result);
+    ok(response, result);
   };
 }
