@@ -6,8 +6,8 @@ import { Pagination } from "@/components/common/pagination";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import { bookingMessagesApi } from "@/lib/booking-messages/api";
-import { openBookingMessageStream } from "@/lib/booking-messages/stream";
-import type { BookingMessageStreamHandle } from "@/lib/booking-messages/stream";
+import { openBookingMessageSocket } from "@/lib/booking-messages/socket";
+import type { BookingMessageSocketHandle } from "@/lib/booking-messages/socket";
 import {
   BOOKING_MESSAGE_EDIT_WINDOW_MS,
   MAX_BOOKING_MESSAGE_LENGTH,
@@ -169,9 +169,11 @@ export function MessageBubble({
 export function MessageComposer({
   onSend,
   disabled,
+  onTyping,
 }: {
   onSend: (body: string) => Promise<boolean>;
   disabled: boolean;
+  onTyping?: () => void;
 }) {
   const [value, setValue] = useState("");
   const trimmed = value.trim();
@@ -203,7 +205,13 @@ export function MessageComposer({
         value={value}
         disabled={disabled}
         placeholder="Write a message about this booking..."
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          setValue(event.target.value);
+
+          if (event.target.value.trim()) {
+            onTyping?.();
+          }
+        }}
         className="w-full resize-y rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
       />
       <div className="mt-2 flex items-center justify-between gap-3">
@@ -246,6 +254,8 @@ export function BookingMessagesPanel({
     null,
   );
   const [counterpartName, setCounterpartName] = useState("");
+  const [typingUsername, setTypingUsername] = useState<string | null>(null);
+  const [counterpartOnline, setCounterpartOnline] = useState(false);
   const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
   // Re-rendered on a tick so the edit window can close on an idle thread. A
   // plain Date.now() check is never reevaluated without a render, leaving the
@@ -285,6 +295,7 @@ export function BookingMessagesPanel({
   // stream rate limit after a handful of navigations.
   const viewerSideRef = useRef<BookingMessageAuthorSide | null>(null);
   viewerSideRef.current = viewerSide;
+  const socketRef = useRef<BookingMessageSocketHandle | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Only follow the newest message when the reader is already at the bottom;
@@ -443,9 +454,9 @@ export function BookingMessagesPanel({
   }, [markRead]);
 
   useEffect(() => {
-    let handle: BookingMessageStreamHandle | null = null;
+    let handle: BookingMessageSocketHandle | null = null;
 
-    handle = openBookingMessageStream({
+    handle = openBookingMessageSocket({
       bookingRequestId,
       onStatus: (status) => {
         setLiveStatus(status);
@@ -473,6 +484,43 @@ export function BookingMessagesPanel({
             void markReadRef.current();
           }
 
+          return;
+        }
+
+        if (event.type === "typing") {
+          // Ignore our own side's echo, and let the indicator expire on its own
+          // rather than waiting for a "stopped typing" frame that may never
+          // arrive if the sender drops.
+          if (event.side === viewerSideRef.current) {
+            return;
+          }
+
+          setTypingUsername(event.username);
+          const remaining = new Date(event.expiresAt).getTime() - Date.now();
+          window.setTimeout(
+            () => setTypingUsername(null),
+            Math.max(0, remaining),
+          );
+          return;
+        }
+
+        if (event.type === "presence") {
+          if (event.side === viewerSideRef.current) {
+            return;
+          }
+
+          setCounterpartOnline(event.state === "online");
+          return;
+        }
+
+        if (event.type === "messages.delivered") {
+          setMessages((previous) =>
+            previous.map((message) =>
+              event.messageIds.includes(message.id) && !message.deliveredAt
+                ? { ...message, deliveredAt: event.deliveredAt }
+                : message,
+            ),
+          );
           return;
         }
 
@@ -507,8 +555,31 @@ export function BookingMessagesPanel({
       },
     });
 
-    return () => handle?.close();
+    socketRef.current = handle;
+
+    return () => {
+      socketRef.current = null;
+      handle?.close();
+    };
   }, [bookingRequestId]);
+
+  useEffect(() => {
+    if (!viewerSide) {
+      return;
+    }
+
+    // Delivery is weaker than read: it says the bytes arrived, which is true
+    // as soon as they are rendered here even if the tab is not focused.
+    const unacknowledged = messages
+      .filter(
+        (message) => message.authorSide !== viewerSide && !message.deliveredAt,
+      )
+      .map((message) => message.id);
+
+    if (unacknowledged.length > 0) {
+      socketRef.current?.sendDelivered(unacknowledged);
+    }
+  }, [messages, viewerSide]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -707,8 +778,21 @@ export function BookingMessagesPanel({
               Messages
             </h2>
             {counterpartName ? (
-              <p className="text-xs font-normal text-slate-500 dark:text-slate-400">
+              <p className="flex items-center gap-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">
+                <span
+                  aria-hidden="true"
+                  data-testid="counterpart-presence"
+                  data-online={counterpartOnline ? "true" : "false"}
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    counterpartOnline
+                      ? "bg-emerald-500"
+                      : "bg-slate-300 dark:bg-slate-600"
+                  }`}
+                />
                 with {counterpartName}
+                <span className="sr-only">
+                  {counterpartOnline ? "online" : "offline"}
+                </span>
               </p>
             ) : null}
           </div>
@@ -765,6 +849,15 @@ export function BookingMessagesPanel({
         )}
       </div>
 
+      {typingUsername ? (
+        <p
+          className="mt-2 text-xs italic text-slate-500 dark:text-slate-400"
+          aria-live="polite"
+        >
+          {typingUsername} is typing...
+        </p>
+      ) : null}
+
       {pagination && pagination.totalPages > 1 ? (
         <div className="mt-4">
           <Pagination
@@ -778,7 +871,11 @@ export function BookingMessagesPanel({
       ) : null}
 
       {canWrite ? (
-        <MessageComposer onSend={handleSend} disabled={sending} />
+        <MessageComposer
+          onSend={handleSend}
+          disabled={sending}
+          onTyping={() => socketRef.current?.sendTyping()}
+        />
       ) : (
         <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           You have read-only access to this conversation. Ask an organization

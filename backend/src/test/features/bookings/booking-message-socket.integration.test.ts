@@ -163,11 +163,24 @@ describe("Booking message socket integration", () => {
     );
 
     expect(response.status).toBe(201);
-    return (await readData<{ ticket: string }>(response)).ticket;
+
+    // The ticket is delivered as an HttpOnly cookie, never in the body.
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Path=/ws/booking-messages");
+    await expect(readData<Record<string, unknown>>(response)).resolves.not.toHaveProperty(
+      "ticket",
+    );
+
+    const ticket = /rentify_ws_ticket=([^;]+)/.exec(setCookie)?.[1] ?? "";
+    expect(ticket).toBeTruthy();
+    return ticket;
   }
 
   async function connect(ticket: string): Promise<WebSocket> {
-    const socket = new WebSocket(`${baseUrl}?ticket=${ticket}`);
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: `rentify_ws_ticket=${ticket}` },
+    });
 
     await new Promise<void>((resolve, reject) => {
       socket.once("open", resolve);
@@ -178,7 +191,9 @@ describe("Booking message socket integration", () => {
   }
 
   it("rejects an upgrade without a valid ticket", async () => {
-    const socket = new WebSocket(`${baseUrl}?ticket=not-a-real-ticket`);
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=not-a-real-ticket" },
+    });
 
     const error = await new Promise<Error>((resolve) => {
       socket.once("error", resolve);

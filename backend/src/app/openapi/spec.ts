@@ -7118,7 +7118,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createBookingMessageSocketTicket",
       summary: "Issue a booking message socket ticket",
       description:
-        "Issues a short-lived, single-use ticket for the booking message WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is presented on the upgrade instead: `GET /ws/booking-messages?ticket=...`. The ticket expires in 30 seconds and is consumed on first use. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `message.created`, `message.updated`, `messages.read`, `messages.delivered`, `typing`, and `presence` frames, and accepts `typing`, `delivered`, and `ping` frames from the client. PAT bearer authentication is not allowed.",
+        "Issues a short-lived, single-use ticket for the booking message WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/booking-messages`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use after 30 seconds. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `message.created`, `message.updated`, `messages.read`, `messages.delivered`, `typing`, and `presence` frames, and accepts `typing`, `delivered`, and `ping` frames from the client. PAT bearer authentication is not allowed.",
       tags: ["booking-requests"],
       security: ownerSecurity,
       permissions: {
@@ -7134,10 +7134,7 @@ function buildOperations(): OperationDefinition[] {
           201,
           "Socket ticket issued successfully.",
           "BookingMessageSocketTicket",
-          {
-            ticket: "K3s9x1QF2pW8t0Zb7yQ4nR6vL5cJ2mH1",
-            expiresInSeconds: 30,
-          },
+          { expiresInSeconds: 30 },
         ),
         ...commonErrors([401, 403, 404, 429, 500]),
       },
@@ -10307,13 +10304,10 @@ function buildComponents(): Record<string, unknown> {
       },
       BookingMessageSocketTicket: {
         type: "object",
-        required: ["ticket", "expiresInSeconds"],
+        required: ["expiresInSeconds"],
+        description:
+          "The ticket itself is delivered as an HttpOnly cookie scoped to the socket path, never in this body.",
         properties: {
-          ticket: {
-            type: "string",
-            description:
-              "Single-use credential for the socket upgrade. Consumed on first use.",
-          },
           expiresInSeconds: { type: "integer", minimum: 1 },
         },
       },

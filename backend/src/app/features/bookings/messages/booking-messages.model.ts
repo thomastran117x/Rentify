@@ -31,6 +31,12 @@ export const BOOKING_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
  */
 export const BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS = 30;
 
+/** Path the client upgrades on, and the cookie's scope. */
+export const BOOKING_MESSAGE_SOCKET_PATH = "/ws/booking-messages";
+
+/** HttpOnly cookie carrying the upgrade ticket, scoped to the socket path. */
+export const BOOKING_MESSAGE_SOCKET_COOKIE_NAME = "rentify_ws_ticket";
+
 /** How long a typing indicator stands before it expires on its own. */
 export const BOOKING_MESSAGE_TYPING_TTL_SECONDS = 6;
 
@@ -162,6 +168,7 @@ export interface BookingMessageStreamAuthorization {
 }
 
 export interface BookingMessageSocketTicket {
+  /** Never returned to the browser: it is delivered as an HttpOnly cookie. */
   ticket: string;
   expiresInSeconds: number;
 }

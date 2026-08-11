@@ -10,6 +10,8 @@ const {
   closeMock,
   editMock,
   removeMock,
+  sendTypingMock,
+  sendDeliveredMock,
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   sendMock: vi.fn(),
@@ -18,6 +20,8 @@ const {
   closeMock: vi.fn(),
   editMock: vi.fn(),
   removeMock: vi.fn(),
+  sendTypingMock: vi.fn(),
+  sendDeliveredMock: vi.fn(),
 }));
 
 vi.mock("@/lib/booking-messages/api", () => ({
@@ -30,8 +34,8 @@ vi.mock("@/lib/booking-messages/api", () => ({
   },
 }));
 
-vi.mock("@/lib/booking-messages/stream", () => ({
-  openBookingMessageStream: openStreamMock,
+vi.mock("@/lib/booking-messages/socket", () => ({
+  openBookingMessageSocket: openStreamMock,
 }));
 
 const { BookingMessagesPanel } = await import(
@@ -49,6 +53,7 @@ function buildMessage(overrides: Record<string, unknown> = {}) {
     body: "Is an early pickup possible?",
     createdAt: "2026-08-10T12:00:00.000Z",
     readAt: null,
+    deliveredAt: null,
     authorUsername: "renter-one",
     editedAt: null,
     deletedAt: null,
@@ -106,9 +111,15 @@ describe("BookingMessagesPanel", () => {
       markedCount: 0,
       readAt: "2026-08-10T12:05:00.000Z",
     });
-    openStreamMock.mockReturnValue({ close: closeMock });
+    openStreamMock.mockReturnValue({
+      close: closeMock,
+      sendTyping: sendTypingMock,
+      sendDelivered: sendDeliveredMock,
+    });
     editMock.mockReset();
     removeMock.mockReset();
+    sendTypingMock.mockReset();
+    sendDeliveredMock.mockReset();
   });
 
   afterEach(() => {
@@ -1109,6 +1120,121 @@ describe("BookingMessagesPanel", () => {
     await screen.findByText("Message deleted");
 
     expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
+  });
+
+  it("shows a typing indicator from the other side and lets it expire", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onEvent({
+      type: "typing",
+      bookingRequestId: "booking-1",
+      side: "owner",
+      username: "owner-one",
+      expiresAt: new Date(Date.now() + 6_000).toISOString(),
+    });
+
+    expect(await screen.findByText(/owner-one is typing/i)).toBeInTheDocument();
+
+    // Self-expiring: no "stopped typing" frame is required.
+    await vi.advanceTimersByTimeAsync(6_500);
+    await waitFor(() =>
+      expect(screen.queryByText(/is typing/i)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("ignores a typing echo from the viewer's own side", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onEvent({
+      type: "typing",
+      bookingRequestId: "booking-1",
+      side: "renter",
+      username: "renter-one",
+      expiresAt: new Date(Date.now() + 6_000).toISOString(),
+    });
+
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    expect(screen.queryByText(/is typing/i)).not.toBeInTheDocument();
+  });
+
+  it("reflects the counterpart's presence", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    expect(screen.getByTestId("counterpart-presence")).toHaveAttribute(
+      "data-online",
+      "false",
+    );
+
+    captureStreamHandlers().onEvent({
+      type: "presence",
+      bookingRequestId: "booking-1",
+      side: "owner",
+      username: "owner-one",
+      state: "online",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("counterpart-presence")).toHaveAttribute(
+        "data-online",
+        "true",
+      ),
+    );
+  });
+
+  it("acknowledges delivery of the other side's messages only", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "theirs",
+            authorId: "owner-9",
+            authorSide: "owner",
+            body: "From the owner",
+          }),
+          buildMessage({ id: "mine", body: "From me" }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("From the owner");
+
+    // Only the other side's messages are acknowledged; our own are not.
+    await waitFor(() =>
+      expect(sendDeliveredMock).toHaveBeenCalledWith(["theirs"]),
+    );
+  });
+
+  it("marks messages delivered from a socket frame", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onEvent({
+      type: "messages.delivered",
+      bookingRequestId: "booking-1",
+      messageIds: ["message-1"],
+      deliveredAt: "2026-08-10T12:30:00.000Z",
+    });
+
+    // Delivery must not be confused with a read receipt.
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
+  });
+
+  it("announces typing as the composer is used", async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    await user.type(screen.getByLabelText("Message"), "Hi");
+
+    expect(sendTypingMock).toHaveBeenCalled();
   });
 
   it("closes the stream on unmount", async () => {

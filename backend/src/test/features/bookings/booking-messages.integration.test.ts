@@ -550,18 +550,25 @@ describe("Booking messages persistence integration", () => {
     );
 
     expect(ticketResponse.status).toBe(201);
-    const issued = await readData<{
-      ticket: string;
-      expiresInSeconds: number;
-    }>(ticketResponse);
-    expect(issued.ticket).toBeTruthy();
+
+    // The credential is an HttpOnly cookie scoped to the socket path, so it
+    // never reaches page scripts and never lands in a URL or access log.
+    const setCookie = ticketResponse.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Path=/ws/booking-messages");
+
+    const issued = await readData<Record<string, unknown>>(ticketResponse);
+    expect(issued).not.toHaveProperty("ticket");
     expect(issued.expiresInSeconds).toBeGreaterThan(0);
+
+    const ticket = /rentify_ws_ticket=([^;]+)/.exec(setCookie)?.[1] ?? "";
+    expect(ticket).toBeTruthy();
 
     const service = persistenceApp.container
       .createScope()
       .resolve(containerTokens.bookingMessagesService);
 
-    await expect(service.redeemSocketTicket(issued.ticket)).resolves.toEqual({
+    await expect(service.redeemSocketTicket(ticket)).resolves.toEqual({
       bookingRequestId,
       userId: renter.userId,
     });

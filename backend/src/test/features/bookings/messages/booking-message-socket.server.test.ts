@@ -130,7 +130,9 @@ describe("BookingMessageSocketServer", () => {
    * the upgrade completes, so a listener added afterwards can miss it.
    */
   async function connect(ticket = "good"): Promise<Connection> {
-    const socket = new WebSocket(`${baseUrl}?ticket=${ticket}`);
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: `rentify_ws_ticket=${ticket}` },
+    });
     const frames: Array<Record<string, unknown>> = [];
 
     socket.on("message", (raw) => {
@@ -189,10 +191,25 @@ describe("BookingMessageSocketServer", () => {
     connection.socket.close();
   }, 20_000);
 
+  it("rejects an upgrade with no ticket cookie at all", async () => {
+    const fakes = installFakeContainer();
+
+    const socket = new WebSocket(baseUrl);
+    const error = await new Promise<Error>((resolve) =>
+      socket.once("error", resolve),
+    );
+
+    expect(error.message).toMatch(/401/);
+    expect(fakes.redeemSocketTicket).toHaveBeenCalledWith("");
+    socket.terminate();
+  }, 20_000);
+
   it("rejects an upgrade whose ticket does not redeem", async () => {
     installFakeContainer();
 
-    const socket = new WebSocket(`${baseUrl}?ticket=bad`);
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=bad" },
+    });
     const error = await new Promise<Error>((resolve) =>
       socket.once("error", resolve),
     );

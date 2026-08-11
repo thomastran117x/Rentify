@@ -1,4 +1,6 @@
 import type { Context } from "hono";
+import { setCookie } from "hono/cookie";
+import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import type { AppBindings } from "@/configuration/http/bindings";
@@ -14,6 +16,8 @@ import {
 } from "@/configuration/validation/request";
 import type { ListBookingMessagesQuery } from "@/features/bookings/messages/booking-messages.model";
 import {
+  BOOKING_MESSAGE_SOCKET_COOKIE_NAME,
+  BOOKING_MESSAGE_SOCKET_PATH,
   editBookingMessageSchema,
   listBookingMessagesQuerySchema,
   sendBookingMessageSchema,
@@ -88,17 +92,31 @@ export class BookingMessagesController {
   };
 
   socketTicket = async (context: Context<AppBindings>): Promise<Response> => {
-    // Session bearer only, like the stream it authorizes: a PAT must not be
-    // exchangeable for a long-lived socket.
+    // Session bearer only, like the socket it authorizes: a PAT must not be
+    // exchangeable for a long-lived connection.
     const auth = await requireSessionAuth(context);
     const result = await this.bookingMessagesService.createSocketTicket(
       this.requireBookingRequestId(context),
       auth.sub,
     );
 
-    return created(context, result, {
-      message: "Socket ticket issued successfully.",
+    // The ticket rides in an HttpOnly cookie rather than the response body or a
+    // query parameter: a browser `WebSocket` cannot set headers, and the query
+    // string is visible to proxies and access logs. Scoping the path keeps it
+    // off every other request to this origin.
+    setCookie(context, BOOKING_MESSAGE_SOCKET_COOKIE_NAME, result.ticket, {
+      path: BOOKING_MESSAGE_SOCKET_PATH,
+      httpOnly: true,
+      secure: environment.isProduction(),
+      sameSite: "Lax",
+      maxAge: result.expiresInSeconds,
     });
+
+    return created(
+      context,
+      { expiresInSeconds: result.expiresInSeconds },
+      { message: "Socket ticket issued successfully." },
+    );
   };
 
   markRead = async (context: Context<AppBindings>): Promise<Response> => {

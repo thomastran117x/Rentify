@@ -5,13 +5,14 @@ import { getContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
-import type {
-  BookingMessageClientFrame,
-  BookingMessageStreamEvent,
+import {
+  BOOKING_MESSAGE_SOCKET_COOKIE_NAME,
+  BOOKING_MESSAGE_SOCKET_PATH,
+  type BookingMessageClientFrame,
+  type BookingMessageStreamEvent,
 } from "@/features/bookings/messages/booking-messages.model";
 
-/** Path the client upgrades on. Handled outside Hono, on the raw server. */
-export const BOOKING_MESSAGE_SOCKET_PATH = "/ws/booking-messages";
+export { BOOKING_MESSAGE_SOCKET_PATH };
 
 /** Ping cadence; a socket that misses two rounds is assumed dead. */
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -24,6 +25,30 @@ const TYPING_THROTTLE_MS = 2_000;
 
 /** Largest client frame accepted, to bound parse cost. */
 const MAX_CLIENT_FRAME_BYTES = 4_096;
+
+/**
+ * Minimal cookie parse for the upgrade request. `hono/cookie` needs a Hono
+ * context, and this runs on the raw Node request.
+ */
+function readTicketCookie(header?: string): string {
+  if (!header) {
+    return "";
+  }
+
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+
+    if (separator === -1) {
+      continue;
+    }
+
+    if (part.slice(0, separator).trim() === BOOKING_MESSAGE_SOCKET_COOKIE_NAME) {
+      return decodeURIComponent(part.slice(separator + 1).trim());
+    }
+  }
+
+  return "";
+}
 
 interface SocketState {
   bookingRequestId: string;
@@ -134,8 +159,11 @@ export class BookingMessageSocketServer {
 
     try {
       const service = scope.resolve(containerTokens.bookingMessagesService);
+      // Read from the HttpOnly cookie the ticket endpoint set: a browser
+      // WebSocket cannot send an authorization header, and a query parameter
+      // would put the credential into proxy and access logs.
       const identity = await service.redeemSocketTicket(
-        url.searchParams.get("ticket") ?? "",
+        readTicketCookie(request.headers.cookie),
       );
 
       if (!identity) {

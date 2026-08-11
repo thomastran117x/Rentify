@@ -27,7 +27,19 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
 }
 
 function createContext(options?: { body?: unknown; url?: string }) {
+  // `setCookie` writes through `c.header(...)`, so the fake has to collect
+  // headers and hand them to the Response for the assertions to see them.
+  const headers = new Headers();
+
   const context = {
+    header: (name: string, value: string, opts?: { append?: boolean }) => {
+      if (opts?.append) {
+        headers.append(name, value);
+        return;
+      }
+
+      headers.set(name, value);
+    },
     req: {
       json: async () => options?.body ?? {},
       url:
@@ -47,11 +59,15 @@ function createContext(options?: { body?: unknown; url?: string }) {
         }),
       };
     },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
+    json: (body: unknown, status = 200) => {
+      const responseHeaders = new Headers(headers);
+      responseHeaders.set("content-type", "application/json");
+
+      return new Response(JSON.stringify(body), {
         status,
-        headers: { "content-type": "application/json" },
-      }),
+        headers: responseHeaders,
+      });
+    },
   };
 
   return context as unknown as Context<AppBindings>;
@@ -230,7 +246,12 @@ describe("BookingMessagesController", () => {
         "booking-1",
         "user-1",
       );
-      expect(payload.data).toMatchObject({ ticket: "ticket-1" });
+      // Delivered as a scoped HttpOnly cookie, never echoed in the body.
+      expect(payload.data).toEqual({ expiresInSeconds: 30 });
+      expect(response.headers.get("set-cookie")).toContain(
+        "rentify_ws_ticket=ticket-1",
+      );
+      expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     });
 
     it("rejects a personal access token", async () => {

@@ -17,6 +17,8 @@ export interface BookingMessageRecord {
   createdAt: string;
   /** When the recipient side read this message, or null while unread. */
   readAt: string | null;
+  /** When the recipient's client acknowledged receipt, distinct from readAt. */
+  deliveredAt: string | null;
   editedAt: string | null;
   deletedAt: string | null;
 }
@@ -68,6 +70,26 @@ export type BookingMessageStreamEvent =
       readerSide: BookingMessageAuthorSide;
       readAt: string;
       markedCount: number;
+    }
+  | {
+      type: "messages.delivered";
+      bookingRequestId: string;
+      messageIds: string[];
+      deliveredAt: string;
+    }
+  | {
+      type: "typing";
+      bookingRequestId: string;
+      side: BookingMessageAuthorSide;
+      username: string;
+      expiresAt: string;
+    }
+  | {
+      type: "presence";
+      bookingRequestId: string;
+      side: BookingMessageAuthorSide;
+      username: string;
+      state: "online" | "offline";
     };
 
 export type BookingMessageStreamStatus =
