@@ -360,13 +360,22 @@ describe("Booking message socket integration", () => {
     try {
       await ownerFrames.waitFor("ready");
 
+      // The snapshot the owner receives on connect: nobody is on the renter
+      // side yet. Matched on state as well as side, because there are now two
+      // presence frames in play and the first one says the opposite.
+      const snapshot = await ownerFrames.waitFor(
+        "presence",
+        (frame) => frame.side === "renter",
+      );
+      expect(snapshot).toMatchObject({ side: "renter", state: "offline" });
+
       const renterSocket = await connect(
         await mintTicket(bookingRequestId, renter.headers()),
       );
 
       const presence = await ownerFrames.waitFor(
         "presence",
-        (frame) => frame.side === "renter",
+        (frame) => frame.side === "renter" && frame.state === "online",
       );
       expect(presence).toMatchObject({
         bookingRequestId,
@@ -376,6 +385,38 @@ describe("Booking message socket integration", () => {
 
       renterSocket.close();
     } finally {
+      ownerSocket.close();
+    }
+  }, 60_000);
+
+  it("tells a late joiner that the other party is already here", async () => {
+    const { renter, bookingRequestId } = await createThread();
+    const owner = await createAuthenticatedRequestContext({
+      email: OWNER_EMAIL,
+    });
+
+    // The renter arrives first and their "online" is announced to nobody.
+    const renterSocket = await connect(
+      await mintTicket(bookingRequestId, renter.headers()),
+    );
+    await collectFrames(renterSocket).waitFor("ready");
+
+    const ownerSocket = await connect(
+      await mintTicket(bookingRequestId, owner.headers()),
+    );
+    const ownerFrames = collectFrames(ownerSocket);
+
+    try {
+      // Without a snapshot on connect the owner would show the renter as
+      // offline indefinitely: the arrival they missed is never replayed, and a
+      // live key is deliberately not re-announced on refresh.
+      const presence = await ownerFrames.waitFor(
+        "presence",
+        (frame) => frame.side === "renter",
+      );
+      expect(presence).toMatchObject({ side: "renter", state: "online" });
+    } finally {
+      renterSocket.close();
       ownerSocket.close();
     }
   }, 60_000);

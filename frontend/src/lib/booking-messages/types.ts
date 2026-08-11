@@ -87,8 +87,12 @@ export type BookingMessageStreamEvent =
   | {
       type: "presence";
       bookingRequestId: string;
+      /**
+       * Presence belongs to the side rather than a person: an organization is
+       * present when any of its managers is watching, so no username is
+       * carried. `typing` names its actor because there the actor is the point.
+       */
       side: BookingMessageAuthorSide;
-      username: string;
       state: "online" | "offline";
     };
 

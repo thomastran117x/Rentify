@@ -20,8 +20,10 @@ interface Fakes {
   assertSocketSessionValid: jest.Mock;
   markDelivered: jest.Mock;
   publishTyping: jest.Mock;
-  markOnline: jest.Mock;
-  markOffline: jest.Mock;
+  join: jest.Mock;
+  leave: jest.Mock;
+  refresh: jest.Mock;
+  isSideOnline: jest.Mock;
   release: jest.Mock;
   subscribe: jest.Mock;
   listeners: Array<(event: unknown) => void>;
@@ -56,8 +58,10 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
       overrides.assertSocketSessionValid ?? jest.fn(async () => undefined),
     markDelivered: overrides.markDelivered ?? jest.fn(async () => ["m1"]),
     publishTyping: overrides.publishTyping ?? jest.fn(async () => undefined),
-    markOnline: overrides.markOnline ?? jest.fn(async () => undefined),
-    markOffline: overrides.markOffline ?? jest.fn(async () => undefined),
+    join: overrides.join ?? jest.fn(async () => undefined),
+    leave: overrides.leave ?? jest.fn(async () => undefined),
+    refresh: overrides.refresh ?? jest.fn(async () => undefined),
+    isSideOnline: overrides.isSideOnline ?? jest.fn(async () => false),
     release,
     subscribe:
       overrides.subscribe ??
@@ -89,8 +93,10 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
     resolve: () =>
       ({
         publishTyping: fakes.publishTyping,
-        markOnline: fakes.markOnline,
-        markOffline: fakes.markOffline,
+        join: fakes.join,
+        leave: fakes.leave,
+        refresh: fakes.refresh,
+        isSideOnline: fakes.isSideOnline,
       }) as never,
   });
   container.register({
@@ -194,7 +200,7 @@ describe("BookingMessageSocketServer", () => {
       bookingRequestId: BOOKING_ID,
     });
     expect(fakes.redeemSocketTicket).toHaveBeenCalledWith("good");
-    expect(fakes.markOnline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+    expect(fakes.join).toHaveBeenCalledWith(BOOKING_ID, "renter");
 
     connection.socket.close();
   }, 20_000);
@@ -379,21 +385,51 @@ describe("BookingMessageSocketServer", () => {
     const second = await connect("other");
     await second.waitFor("ready");
 
+    // Each socket joins and leaves the *side*, never a per-user key. Whether
+    // that leaves the side empty is the shared count's answer, which is the
+    // only one that stays right when the API runs on more than one replica —
+    // this process's socket map cannot see a colleague on another instance.
+    expect(fakes.join).toHaveBeenCalledTimes(2);
+    expect(fakes.join).toHaveBeenCalledWith(BOOKING_ID, "owner");
+
     first.socket.close();
     await settle(30);
-
-    // Their own key is cleared, but the renter must not see the organization
-    // go dark while the other manager is still watching.
-    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, "manager-a", {
-      announce: false,
-    });
+    expect(fakes.leave).toHaveBeenCalledTimes(1);
+    expect(fakes.leave).toHaveBeenCalledWith(BOOKING_ID, "owner");
 
     second.socket.close();
     await settle(30);
+    expect(fakes.leave).toHaveBeenCalledTimes(2);
+  }, 20_000);
 
-    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, "manager-b", {
-      announce: true,
+  it("sends the counterpart's current presence on connect", async () => {
+    installFakeContainer({ isSideOnline: jest.fn(async () => true) });
+
+    const connection = await connect();
+    const presence = await connection.waitFor("presence");
+
+    // The counterpart's own arrival was announced before this socket existed,
+    // and a live key is never re-announced, so without this a newcomer would
+    // show an active party as offline until they happened to reconnect.
+    expect(presence).toMatchObject({
+      type: "presence",
+      bookingRequestId: BOOKING_ID,
+      side: "owner",
+      state: "online",
     });
+
+    connection.socket.close();
+  }, 20_000);
+
+  it("reports the counterpart as offline when nobody is on that side", async () => {
+    installFakeContainer({ isSideOnline: jest.fn(async () => false) });
+
+    const connection = await connect();
+    const presence = await connection.waitFor("presence");
+
+    expect(presence).toMatchObject({ side: "owner", state: "offline" });
+
+    connection.socket.close();
   }, 20_000);
 
   it("records delivery acknowledgements and ignores empty ones", async () => {
@@ -479,13 +515,11 @@ describe("BookingMessageSocketServer", () => {
     await settle(30);
 
     expect(fakes.release).toHaveBeenCalled();
-    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, USER_ID, {
-      announce: true,
-    });
+    expect(fakes.leave).toHaveBeenCalledWith(BOOKING_ID, "renter");
     expect(socketServer.activeConnectionCount()).toBe(0);
   }, 20_000);
 
-  it("keeps presence while another socket for the same user remains", async () => {
+  it("counts a second tab as its own arrival and departure", async () => {
     const fakes = installFakeContainer();
     const first = await connect();
     await first.waitFor("ready");
@@ -495,12 +529,41 @@ describe("BookingMessageSocketServer", () => {
     first.socket.close();
     await settle(30);
 
-    // A second tab closing must not mark the user offline.
-    expect(fakes.markOffline).not.toHaveBeenCalled();
+    // Both tabs joined, so both leave. The side is still present after the
+    // first goes because the count says so — one balanced pair per socket is
+    // what keeps that count honest.
+    expect(fakes.join).toHaveBeenCalledTimes(2);
+    expect(fakes.leave).toHaveBeenCalledTimes(1);
 
     second.socket.close();
     await settle(30);
-    expect(fakes.markOffline).toHaveBeenCalledTimes(1);
+    expect(fakes.leave).toHaveBeenCalledTimes(2);
+  }, 20_000);
+
+  it("does not decrement a side it never joined", async () => {
+    const fakes = installFakeContainer({
+      authorizeStream: jest.fn(async () => {
+        throw new Error("No access.");
+      }),
+    });
+
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=good" },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+    await settle(20);
+
+    socket.close();
+    await settle(30);
+
+    // The capability lookup failed, so this socket never joined the side. A
+    // decrement here would push the shared count below the number of live
+    // sockets and take the side offline while people were still watching.
+    expect(fakes.join).not.toHaveBeenCalled();
+    expect(fakes.leave).not.toHaveBeenCalled();
   }, 20_000);
 
   /**
@@ -577,19 +640,24 @@ describe("BookingMessageSocketServer", () => {
 
     // Nothing connected: the sweep must not resolve a scope it has no use for.
     await sweeps(socketServer).refreshPresence();
-    expect(fakes.markOnline).not.toHaveBeenCalled();
+    expect(fakes.refresh).not.toHaveBeenCalled();
 
-    const connection = await connect();
-    await connection.waitFor("ready");
-    fakes.markOnline.mockClear();
+    const first = await connect();
+    await first.waitFor("ready");
+    const second = await connect();
+    await second.waitFor("ready");
+    fakes.refresh.mockClear();
 
     await sweeps(socketServer).refreshPresence();
 
     // Refreshed well inside the presence TTL, so the key never lapses and a
-    // disconnect is always announced.
-    expect(fakes.markOnline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+    // disconnect is always announced. Keyed by side, so two sockets on the same
+    // side cost one write rather than repeating an identical one each.
+    expect(fakes.refresh).toHaveBeenCalledTimes(1);
+    expect(fakes.refresh).toHaveBeenCalledWith(BOOKING_ID, "renter");
 
-    connection.socket.close();
+    first.socket.close();
+    second.socket.close();
   }, 20_000);
 
   it("drops a socket that missed a full heartbeat round", async () => {
@@ -602,6 +670,37 @@ describe("BookingMessageSocketServer", () => {
     sweeps(socketServer).ping();
     await settle(30);
 
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("releases the subscription when the peer vanishes mid-handshake", async () => {
+    let releaseSubscription: () => Promise<void> = async () => undefined;
+    const fakes = installFakeContainer({
+      subscribe: jest.fn(async () => {
+        // Slow enough that the client is gone before this resolves. Real
+        // enough: subscribing talks to Redis.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return releaseSubscription;
+      }),
+    });
+    releaseSubscription = fakes.release;
+
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=good" },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+
+    // Aborted immediately. The close handler runs teardown while subscribe is
+    // still pending, which drops the socket from the map — so the release
+    // assigned afterwards had nothing left to call it, and the listener and its
+    // Redis channel stayed for the life of the process.
+    socket.terminate();
+    await settle(50);
+
+    expect(fakes.release).toHaveBeenCalledTimes(1);
     expect(socketServer.activeConnectionCount()).toBe(0);
   }, 20_000);
 

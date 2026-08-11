@@ -1205,7 +1205,6 @@ describe("BookingMessagesPanel", () => {
       type: "presence",
       bookingRequestId: "booking-1",
       side: "owner",
-      username: "owner-one",
       state: "online",
     });
 
@@ -1213,6 +1212,22 @@ describe("BookingMessagesPanel", () => {
       expect(screen.getByTestId("counterpart-presence")).toHaveAttribute(
         "data-online",
         "true",
+      ),
+    );
+
+    // The server sends the counterpart's current state on connect, so a client
+    // that joins second is not stuck showing an active party as offline.
+    captureStreamHandlers().onEvent({
+      type: "presence",
+      bookingRequestId: "booking-1",
+      side: "owner",
+      state: "offline",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("counterpart-presence")).toHaveAttribute(
+        "data-online",
+        "false",
       ),
     );
   });

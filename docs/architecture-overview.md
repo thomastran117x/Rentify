@@ -113,10 +113,21 @@ a signed-out user receiving message bodies over a connection that outlives their
 session while every REST call they make returns 401, so the ticket records the
 session that minted it and the sweep validates both.
 
-Presence keys are refreshed on a separate, faster interval. A refresh slower
-than the key's own TTL leaves windows where the key has lapsed, and a disconnect
-inside one of those goes unannounced — the counterpart is left looking at a
-contact who appears permanently online.
+Presence is a **count per (thread, side) in Redis**, not a flag per user and not
+a tally of this process's sockets. That shape is forced by two things: the
+question being asked is "is anyone from the organization watching", which a
+per-user key cannot answer without enumerating members; and the API is meant to
+be replicable, so a process that counts only its own sockets would announce a
+side offline whenever its last manager left, while a colleague sat connected to
+another instance. Each socket increments on join and decrements on leave, and
+only the transition through zero is announced.
+
+Two consequences worth knowing. The key is refreshed on its own faster interval
+than its TTL — a refresh slower than the TTL leaves windows where the key has
+lapsed and a disconnect inside one goes unannounced. And a socket is sent the
+counterpart's current state when it connects, because the other party's arrival
+was announced before that socket existed and a live key is deliberately never
+re-announced.
 
 ## Background Workers
 

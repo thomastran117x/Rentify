@@ -243,8 +243,14 @@ export type BookingMessageStreamEvent =
   | {
       type: "presence";
       bookingRequestId: string;
+      /**
+       * Presence belongs to the side, not to a person. An organization is
+       * present when any of its managers is watching, and naming whichever one
+       * tripped the transition would tell the renter which colleague is at
+       * their desk — so no username is carried here, unlike `typing`, where the
+       * actor is the whole point.
+       */
       side: BookingParticipantSide;
-      username: string;
       state: "online" | "offline";
     };
 

@@ -15,16 +15,21 @@ function createService(
   options: {
     bookingRequest?: unknown;
     username?: string;
-    alreadyOnline?: boolean;
-    removed?: boolean;
+    /** What INCR/DECR returns: the count *after* this call. */
+    count?: number;
+    /** What a raw read of the key returns. */
+    storedCount?: string | null;
   } = {},
 ) {
   const cacheService = {
     publish: jest.fn(async () => 1),
-    setIfNotExists: jest.fn(async () => !options.alreadyOnline),
+    increment: jest.fn(async () => options.count ?? 1),
     expire: jest.fn(async () => true),
-    delete: jest.fn(async () => options.removed ?? true),
+    delete: jest.fn(async () => true),
     exists: jest.fn(async () => true),
+    get: jest.fn(async () =>
+      options.storedCount === undefined ? "1" : options.storedCount,
+    ),
   } as unknown as CacheService;
 
   const bookingsRepository = {
@@ -116,94 +121,121 @@ describe("BookingMessagePresenceService", () => {
   });
 
   describe("presence", () => {
-    it("announces a newly online viewer and sets a TTL", async () => {
-      const { service, cacheService } = createService();
+    const KEY = `booking-messages:presence:${BOOKING_ID}:owner`;
 
-      await service.markOnline(BOOKING_ID, RENTER_ID);
+    it("announces the first arrival on a side and sets a TTL", async () => {
+      const { service, cacheService } = createService({ count: 1 });
 
-      expect(cacheService.setIfNotExists).toHaveBeenCalledWith(
-        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
-        "1",
+      await service.join(BOOKING_ID, "owner");
+
+      expect(cacheService.increment).toHaveBeenCalledWith(KEY, 1);
+      expect(cacheService.expire).toHaveBeenCalledWith(
+        KEY,
         BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
       );
       expect(publishedEvent(cacheService).event).toMatchObject({
         type: "presence",
         state: "online",
-        side: "renter",
+        side: "owner",
       });
     });
 
-    it("refreshes a heartbeat without re-announcing", async () => {
-      const { service, cacheService } = createService({ alreadyOnline: true });
+    it("stays quiet when a colleague joins a side that is already present", async () => {
+      const { service, cacheService } = createService({ count: 2 });
 
-      await service.markOnline(BOOKING_ID, RENTER_ID);
+      await service.join(BOOKING_ID, "owner");
 
+      // The other party already sees the organization as here; a second manager
+      // arriving is not a transition, and re-announcing would be noise.
+      expect(cacheService.publish).not.toHaveBeenCalled();
+    });
+
+    it("announces offline only when the last of a side leaves", async () => {
+      const { service, cacheService } = createService({ count: 0 });
+
+      await service.leave(BOOKING_ID, "owner");
+
+      expect(cacheService.increment).toHaveBeenCalledWith(KEY, -1);
+      expect(cacheService.delete).toHaveBeenCalledWith(KEY);
+      expect(publishedEvent(cacheService).event).toMatchObject({
+        type: "presence",
+        state: "offline",
+        side: "owner",
+      });
+    });
+
+    it("keeps a side present while another socket for it remains", async () => {
+      const { service, cacheService } = createService({ count: 1 });
+
+      await service.leave(BOOKING_ID, "owner");
+
+      // The count is what decides, not this process's socket map: with the API
+      // replicated, the surviving socket may be on another instance entirely.
+      expect(cacheService.publish).not.toHaveBeenCalled();
+      expect(cacheService.delete).not.toHaveBeenCalled();
       expect(cacheService.expire).toHaveBeenCalledWith(
-        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
+        KEY,
         BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
       );
-      expect(cacheService.publish).not.toHaveBeenCalled();
     });
 
-    it("announces going offline once", async () => {
-      const { service, cacheService } = createService();
+    it("recovers from a negative count left by a process that died", async () => {
+      const { service, cacheService } = createService({ count: -2 });
 
-      await service.markOffline(BOOKING_ID, RENTER_ID);
+      await service.leave(BOOKING_ID, "owner");
 
+      // Left negative, the next arrival would increment to -1 rather than 1 and
+      // its announcement would be swallowed, so the side would never light up
+      // again. Removing the key resets that.
+      expect(cacheService.delete).toHaveBeenCalledWith(KEY);
       expect(publishedEvent(cacheService).event).toMatchObject({
-        type: "presence",
         state: "offline",
       });
     });
 
-    it("clears the key but stays quiet when the side is still covered", async () => {
+    it("pushes out the TTL without touching the count", async () => {
       const { service, cacheService } = createService();
 
-      await service.markOffline(BOOKING_ID, RENTER_ID, { announce: false });
+      await service.refresh(BOOKING_ID, "owner");
 
-      // Presence reads as "is the organization here", not "is this manager
-      // here", so a colleague still watching means nothing changed for the
-      // other party — while this user's own key must still go.
-      expect(cacheService.delete).toHaveBeenCalledWith(
-        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
+      // A refresh that incremented would inflate the count on every sweep and
+      // the side would never go offline.
+      expect(cacheService.expire).toHaveBeenCalledWith(
+        KEY,
+        BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
       );
-      expect(cacheService.publish).not.toHaveBeenCalled();
+      expect(cacheService.increment).not.toHaveBeenCalled();
     });
 
-    it("reports whether a user is currently watching the thread", async () => {
-      const { service, cacheService } = createService();
+    it("reports whether a side is currently watching", async () => {
+      const { service } = createService({ storedCount: "2" });
 
-      await expect(service.isOnline(BOOKING_ID, RENTER_ID)).resolves.toBe(true);
-      expect(cacheService.exists).toHaveBeenCalledWith(
-        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
+      await expect(service.isSideOnline(BOOKING_ID, "owner")).resolves.toBe(
+        true,
       );
     });
 
-    it("stays quiet when the booking behind the presence event is gone", async () => {
-      const { service, cacheService } = createService({ bookingRequest: null });
+    it("treats a missing or exhausted key as offline", async () => {
+      const missing = createService({ storedCount: null });
+      await expect(
+        missing.service.isSideOnline(BOOKING_ID, "owner"),
+      ).resolves.toBe(false);
 
-      await service.markOffline(BOOKING_ID, RENTER_ID);
-
-      // A deleted booking has no sides to describe, so there is nothing
-      // meaningful to announce and no channel worth publishing to.
-      expect(cacheService.publish).not.toHaveBeenCalled();
+      const drained = createService({ storedCount: "0" });
+      await expect(
+        drained.service.isSideOnline(BOOKING_ID, "owner"),
+      ).resolves.toBe(false);
     });
 
-    it("announces going offline even when the key had already expired", async () => {
-      const { service, cacheService } = createService({ removed: false });
-
-      await service.markOffline(BOOKING_ID, RENTER_ID);
-
-      // Keying the announcement off the delete result meant that a key which
-      // lapsed between refreshes swallowed the offline event, leaving the
-      // counterpart's dot lit for good. Not announcing for a second tab is the
-      // socket server's job — it only calls this once the user's last socket on
-      // the thread has gone — so Redis is not consulted about a transition the
-      // caller already knows about.
-      expect(publishedEvent(cacheService).event).toMatchObject({
-        type: "presence",
-        state: "offline",
+    it("stays quiet when the booking behind the event is gone", async () => {
+      const { service, cacheService } = createService({
+        bookingRequest: null,
+        count: 0,
       });
+
+      await service.leave(BOOKING_ID, "owner");
+
+      expect(cacheService.publish).not.toHaveBeenCalled();
     });
   });
 });

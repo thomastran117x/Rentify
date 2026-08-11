@@ -52,66 +52,105 @@ export class BookingMessagePresenceService {
     });
   }
 
-  async markOnline(bookingRequestId: string, userId: string): Promise<void> {
-    const key = this.presenceKey(bookingRequestId, userId);
-    // `setIfNotExists` doubles as the "was already online" test, so a heartbeat
-    // refresh does not re-announce a user who never left.
-    const isNewlyOnline = await this.cacheService.setIfNotExists(
-      key,
-      "1",
-      BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
-    );
+  /**
+   * Records that a socket for this side has connected.
+   *
+   * Counted rather than flagged, and keyed by side rather than by user, because
+   * that is the question the other party is actually asking: is anyone from the
+   * organization watching. A per-user boolean could not answer it without
+   * enumerating the organization's members, and a per-process socket tally
+   * could not answer it at all once the API runs more than one replica — each
+   * replica only sees its own sockets, so the last one to lose a manager would
+   * announce the whole side offline while a colleague sat connected to another.
+   *
+   * `INCR` returning 1 is the atomic "first one in" test, so only a genuine
+   * transition is announced.
+   */
+  async join(
+    bookingRequestId: string,
+    side: BookingParticipantSide,
+  ): Promise<void> {
+    const key = this.presenceKey(bookingRequestId, side);
+    const count = await this.cacheService.increment(key, 1);
+    await this.cacheService.expire(key, BOOKING_MESSAGE_PRESENCE_TTL_SECONDS);
 
-    if (!isNewlyOnline) {
+    if (count === 1) {
+      await this.publishPresence(bookingRequestId, side, "online");
+    }
+  }
+
+  /**
+   * Records that a socket for this side has gone. The side only goes offline
+   * when the last of them leaves, wherever it was connected.
+   */
+  async leave(
+    bookingRequestId: string,
+    side: BookingParticipantSide,
+  ): Promise<void> {
+    const key = this.presenceKey(bookingRequestId, side);
+    const count = await this.cacheService.increment(key, -1);
+
+    if (count > 0) {
       await this.cacheService.expire(key, BOOKING_MESSAGE_PRESENCE_TTL_SECONDS);
       return;
     }
 
-    await this.publishPresence(bookingRequestId, userId, "online");
+    // At or below zero: nobody is left. Below zero means a process died without
+    // decrementing and its share expired, so the key is removed rather than
+    // left holding a negative that would swallow the next join's announcement.
+    await this.cacheService.delete(key);
+    await this.publishPresence(bookingRequestId, side, "offline");
   }
 
-  async markOffline(
+  /**
+   * Pushes the TTL out for a side that still has sockets. Separate from `join`
+   * so a refresh cannot be mistaken for an arrival and inflate the count.
+   */
+  async refresh(
     bookingRequestId: string,
-    userId: string,
-    options: { announce?: boolean } = {},
+    side: BookingParticipantSide,
   ): Promise<void> {
-    await this.cacheService.delete(this.presenceKey(bookingRequestId, userId));
-
-    // The key is per user, but the announcement is per side: the other party
-    // sees "the organization is here", not which manager. When a colleague on
-    // the same side is still connected the caller suppresses the announcement
-    // while this user's own key is still cleared.
-    if (options.announce === false) {
-      return;
-    }
-
-    // Otherwise published whether or not the key was still there. Keying the
-    // announcement off the delete result meant a key that expired between
-    // refreshes swallowed the offline event and left the counterpart's dot lit
-    // forever. The caller knows the transition happened; Redis does not.
-    await this.publishPresence(bookingRequestId, userId, "offline");
+    await this.cacheService.expire(
+      this.presenceKey(bookingRequestId, side),
+      BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
+    );
   }
 
-  async isOnline(bookingRequestId: string, userId: string): Promise<boolean> {
-    return this.cacheService.exists(this.presenceKey(bookingRequestId, userId));
+  /** Whether anyone on this side is currently watching, across all replicas. */
+  async isSideOnline(
+    bookingRequestId: string,
+    side: BookingParticipantSide,
+  ): Promise<boolean> {
+    const raw = await this.cacheService.get(
+      this.presenceKey(bookingRequestId, side),
+    );
+
+    return raw !== null && Number(raw) > 0;
   }
 
+  /**
+   * The side is passed in rather than derived from the user, because the
+   * transition belongs to the side: the user who happened to trip it is only
+   * useful for a label. That label is deliberately omitted — with several
+   * managers behind one presence signal, naming whichever one arrived first
+   * would tell the renter which colleague is at their desk.
+   */
   private async publishPresence(
     bookingRequestId: string,
-    userId: string,
+    side: BookingParticipantSide,
     state: "online" | "offline",
   ): Promise<void> {
-    const actor = await this.describeActor(bookingRequestId, userId);
+    const bookingRequest =
+      await this.bookingsRepository.findById(bookingRequestId);
 
-    if (!actor) {
+    if (!bookingRequest) {
       return;
     }
 
     await this.publish({
       type: "presence",
       bookingRequestId,
-      side: actor.side,
-      username: actor.username,
+      side,
       state,
     });
   }
@@ -154,7 +193,10 @@ export class BookingMessagePresenceService {
     }
   }
 
-  private presenceKey(bookingRequestId: string, userId: string): string {
-    return `booking-messages:presence:${bookingRequestId}:${userId}`;
+  private presenceKey(
+    bookingRequestId: string,
+    side: BookingParticipantSide,
+  ): string {
+    return `booking-messages:presence:${bookingRequestId}:${side}`;
   }
 }

@@ -74,6 +74,8 @@ interface SocketState {
   canWrite: boolean;
   /** Resolves once `side` and `canWrite` have been looked up. */
   authorized: Promise<void> | null;
+  /** Whether this socket incremented the side's presence count. */
+  joined: boolean;
   alive: boolean;
   lastTypingAt: number;
   release: (() => Promise<void>) | null;
@@ -283,6 +285,7 @@ export class BookingMessageSocketServer {
       // cannot emit anything the other party will see.
       canWrite: false,
       authorized: null,
+      joined: false,
       alive: true,
       lastTypingAt: 0,
       release: null,
@@ -317,8 +320,10 @@ export class BookingMessageSocketServer {
 
     await state.authorized;
 
+    let release: () => Promise<void>;
+
     try {
-      state.release = await hub.subscribe(bookingRequestId, (event) => {
+      release = await hub.subscribe(bookingRequestId, (event) => {
         this.send(client, event);
       });
     } catch (error) {
@@ -331,12 +336,19 @@ export class BookingMessageSocketServer {
       return;
     }
 
-    // The client can disconnect while subscribe() is still pending; release
-    // here or the listener and its Redis channel are retained forever.
-    if (client.readyState !== client.OPEN) {
+    // The peer can disconnect while the lookup or the subscribe above is still
+    // pending. If it did, the close handler has already run teardown and
+    // dropped this socket from `states`, so a second teardown here would return
+    // immediately and this release — assigned after that ran — would never be
+    // called, retaining the listener and its Redis channel for good. Release it
+    // directly rather than handing it to a teardown that has already happened.
+    if (!this.states.has(client) || client.readyState !== client.OPEN) {
+      await release();
       await this.teardown(client);
       return;
     }
+
+    state.release = release;
 
     this.send(client, {
       type: "ready",
@@ -347,7 +359,28 @@ export class BookingMessageSocketServer {
       const presence = scope.resolve(
         containerTokens.bookingMessagePresenceService,
       );
-      await presence.markOnline(bookingRequestId, userId);
+
+      if (state.side) {
+        await presence.join(bookingRequestId, state.side);
+        state.joined = true;
+
+        // The counterpart's own arrival was announced before this socket
+        // existed, and a live key is never re-announced, so without asking for
+        // the current state a newcomer would show an active party as offline
+        // until they happened to reconnect.
+        const counterpartSide = state.side === "renter" ? "owner" : "renter";
+        const online = await presence.isSideOnline(
+          bookingRequestId,
+          counterpartSide,
+        );
+
+        this.send(client, {
+          type: "presence",
+          bookingRequestId,
+          side: counterpartSide,
+          state: online ? "online" : "offline",
+        } as BookingMessageStreamEvent);
+      }
     });
   }
 
@@ -511,10 +544,26 @@ export class BookingMessageSocketServer {
         containerTokens.bookingMessagePresenceService,
       );
 
-      // One scope for the whole sweep: these are cache writes, and a scope per
-      // socket would be pure overhead on a tick that runs every 20 seconds.
+      // Deduplicated to one refresh per (thread, side): the key is shared by
+      // every socket on that side, so refreshing it once per socket would be
+      // the same write repeated.
+      const sides = new Set<string>();
+
       for (const state of this.states.values()) {
-        await presence.markOnline(state.bookingRequestId, state.userId);
+        if (!state.side) {
+          continue;
+        }
+
+        sides.add(`${state.bookingRequestId}:${state.side}`);
+      }
+
+      for (const entry of sides) {
+        const separator = entry.lastIndexOf(":");
+
+        await presence.refresh(
+          entry.slice(0, separator),
+          entry.slice(separator + 1) as BookingParticipantSide,
+        );
       }
     });
   }
@@ -545,31 +594,21 @@ export class BookingMessageSocketServer {
     this.states.delete(client);
     await state.release?.();
 
-    const remaining = [...this.states.values()].filter(
-      (other) => other.bookingRequestId === state.bookingRequestId,
-    );
+    // Only sockets that actually joined decrement. `side` is null when the
+    // capability lookup never completed, and that connection was never counted.
+    //
+    // Whether the side is now empty is Redis's answer, not this map's: with the
+    // API replicated, each process only sees its own sockets, so a local check
+    // would announce the whole side offline whenever the last manager on *this*
+    // replica left, while a colleague sat connected to another.
+    if (state.side && state.joined) {
+      const side = state.side;
 
-    // A second tab of this user's must not clear their key.
-    const userStillConnected = remaining.some(
-      (other) => other.userId === state.userId,
-    );
-
-    // Presence is announced per *side*, not per user, because that is how the
-    // other party reads it: an organization is present when any of its managers
-    // is watching. Announcing on the user alone meant one of two managers
-    // leaving turned the renter's dot off while a colleague was still there.
-    const sideStillConnected = remaining.some(
-      (other) => state.side !== null && other.side === state.side,
-    );
-
-    if (!userStillConnected) {
       await this.withScope(async (scope) => {
         const presence = scope.resolve(
           containerTokens.bookingMessagePresenceService,
         );
-        await presence.markOffline(state.bookingRequestId, state.userId, {
-          announce: !sideStillConnected,
-        });
+        await presence.leave(state.bookingRequestId, side);
       });
     }
 
