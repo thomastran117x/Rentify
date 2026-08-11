@@ -15,21 +15,17 @@ function createService(
   options: {
     bookingRequest?: unknown;
     username?: string;
-    /** What INCR/DECR returns: the count *after* this call. */
-    count?: number;
-    /** What a raw read of the key returns. */
-    storedCount?: string | null;
+    /** How many live leases remain after the call under test. */
+    liveLeases?: number;
   } = {},
 ) {
   const cacheService = {
     publish: jest.fn(async () => 1),
-    increment: jest.fn(async () => options.count ?? 1),
+    addToLeaseSet: jest.fn(async () => undefined),
+    removeFromLeaseSet: jest.fn(async () => undefined),
+    countLiveLeases: jest.fn(async () => options.liveLeases ?? 1),
     expire: jest.fn(async () => true),
     delete: jest.fn(async () => true),
-    exists: jest.fn(async () => true),
-    get: jest.fn(async () =>
-      options.storedCount === undefined ? "1" : options.storedCount,
-    ),
   } as unknown as CacheService;
 
   const bookingsRepository = {
@@ -123,15 +119,15 @@ describe("BookingMessagePresenceService", () => {
   describe("presence", () => {
     const KEY = `booking-messages:presence:${BOOKING_ID}:owner`;
 
-    it("announces the first arrival on a side and sets a TTL", async () => {
-      const { service, cacheService } = createService({ count: 1 });
+    it("announces the first arrival on a side and leases it", async () => {
+      const { service, cacheService } = createService({ liveLeases: 1 });
 
-      await service.join(BOOKING_ID, "owner");
+      await service.join(BOOKING_ID, "owner", "socket-a");
 
-      expect(cacheService.increment).toHaveBeenCalledWith(KEY, 1);
-      expect(cacheService.expire).toHaveBeenCalledWith(
+      expect(cacheService.addToLeaseSet).toHaveBeenCalledWith(
         KEY,
-        BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
+        "socket-a",
+        expect.any(Number),
       );
       expect(publishedEvent(cacheService).event).toMatchObject({
         type: "presence",
@@ -141,99 +137,100 @@ describe("BookingMessagePresenceService", () => {
     });
 
     it("stays quiet when a colleague joins a side that is already present", async () => {
-      const { service, cacheService } = createService({ count: 2 });
+      const { service, cacheService } = createService({ liveLeases: 2 });
 
-      await service.join(BOOKING_ID, "owner");
+      await service.join(BOOKING_ID, "owner", "socket-b");
 
-      // The other party already sees the organization as here; a second manager
-      // arriving is not a transition, and re-announcing would be noise.
       expect(cacheService.publish).not.toHaveBeenCalled();
     });
 
-    it("announces offline only when the last of a side leaves", async () => {
-      const { service, cacheService } = createService({ count: 0 });
+    it("announces offline when the last lease on a side goes", async () => {
+      const { service, cacheService } = createService({ liveLeases: 0 });
 
-      await service.leave(BOOKING_ID, "owner");
+      await service.leave(BOOKING_ID, "owner", "socket-a");
 
-      expect(cacheService.increment).toHaveBeenCalledWith(KEY, -1);
+      expect(cacheService.removeFromLeaseSet).toHaveBeenCalledWith(
+        KEY,
+        "socket-a",
+      );
       expect(cacheService.delete).toHaveBeenCalledWith(KEY);
       expect(publishedEvent(cacheService).event).toMatchObject({
-        type: "presence",
         state: "offline",
         side: "owner",
       });
     });
 
-    it("keeps a side present while another socket for it remains", async () => {
-      const { service, cacheService } = createService({ count: 1 });
+    it("keeps a side present while a lease remains anywhere", async () => {
+      const { service, cacheService } = createService({ liveLeases: 1 });
 
-      await service.leave(BOOKING_ID, "owner");
+      await service.leave(BOOKING_ID, "owner", "socket-a");
 
-      // The count is what decides, not this process's socket map: with the API
-      // replicated, the surviving socket may be on another instance entirely.
+      // The remaining lease may belong to a socket on another replica, which
+      // this process cannot see. Only the shared set knows.
       expect(cacheService.publish).not.toHaveBeenCalled();
       expect(cacheService.delete).not.toHaveBeenCalled();
-      expect(cacheService.expire).toHaveBeenCalledWith(
-        KEY,
-        BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
-      );
     });
 
-    it("recovers from a negative count left by a process that died", async () => {
-      const { service, cacheService } = createService({ count: -2 });
+    it("counts after mutating, so a join racing a departure wins", async () => {
+      const { service, cacheService } = createService({ liveLeases: 1 });
 
-      await service.leave(BOOKING_ID, "owner");
+      await service.leave(BOOKING_ID, "owner", "socket-a");
 
-      // Left negative, the next arrival would increment to -1 rather than 1 and
-      // its announcement would be swallowed, so the side would never light up
-      // again. Removing the key resets that.
-      expect(cacheService.delete).toHaveBeenCalledWith(KEY);
-      expect(publishedEvent(cacheService).event).toMatchObject({
-        state: "offline",
-      });
+      // Ordering is the whole guarantee: the newcomer's lease is already in the
+      // set when this counts, so the departure sees it and stays quiet. Counting
+      // first would have published offline over an online just sent.
+      const order = (cacheService.removeFromLeaseSet as jest.Mock).mock
+        .invocationCallOrder[0];
+      const countOrder = (cacheService.countLiveLeases as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(order).toBeLessThan(countOrder);
+      expect(cacheService.publish).not.toHaveBeenCalled();
     });
 
-    it("pushes out the TTL without touching the count", async () => {
+    it("renews only its own lease", async () => {
       const { service, cacheService } = createService();
 
-      await service.refresh(BOOKING_ID, "owner");
+      await service.refresh(BOOKING_ID, "owner", "socket-a");
 
-      // A refresh that incremented would inflate the count on every sweep and
-      // the side would never go offline.
-      expect(cacheService.expire).toHaveBeenCalledWith(
+      // Renewing the key as a whole would carry a dead replica's lease along
+      // with it, and the side would never be announced offline again.
+      expect(cacheService.addToLeaseSet).toHaveBeenCalledWith(
         KEY,
-        BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
+        "socket-a",
+        expect.any(Number),
       );
-      expect(cacheService.increment).not.toHaveBeenCalled();
+      expect(cacheService.publish).not.toHaveBeenCalled();
     });
 
-    it("reports whether a side is currently watching", async () => {
-      const { service } = createService({ storedCount: "2" });
+    it("reports a side with a live lease as online", async () => {
+      const { service } = createService({ liveLeases: 2 });
 
       await expect(service.isSideOnline(BOOKING_ID, "owner")).resolves.toBe(
         true,
       );
     });
 
-    it("treats a missing or exhausted key as offline", async () => {
-      const missing = createService({ storedCount: null });
-      await expect(
-        missing.service.isSideOnline(BOOKING_ID, "owner"),
-      ).resolves.toBe(false);
+    it("treats a side whose leases have all expired as offline", async () => {
+      const { service, cacheService } = createService({ liveLeases: 0 });
 
-      const drained = createService({ storedCount: "0" });
-      await expect(
-        drained.service.isSideOnline(BOOKING_ID, "owner"),
-      ).resolves.toBe(false);
+      await expect(service.isSideOnline(BOOKING_ID, "owner")).resolves.toBe(
+        false,
+      );
+      // Expired leases are pruned on read: a crashed holder leaves nothing
+      // behind to come back and remove them.
+      expect(cacheService.countLiveLeases).toHaveBeenCalledWith(
+        KEY,
+        expect.any(Number),
+      );
     });
 
     it("stays quiet when the booking behind the event is gone", async () => {
       const { service, cacheService } = createService({
         bookingRequest: null,
-        count: 0,
+        liveLeases: 0,
       });
 
-      await service.leave(BOOKING_ID, "owner");
+      await service.leave(BOOKING_ID, "owner", "socket-a");
 
       expect(cacheService.publish).not.toHaveBeenCalled();
     });

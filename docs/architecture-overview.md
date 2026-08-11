@@ -113,21 +113,33 @@ a signed-out user receiving message bodies over a connection that outlives their
 session while every REST call they make returns 401, so the ticket records the
 session that minted it and the sweep validates both.
 
-Presence is a **count per (thread, side) in Redis**, not a flag per user and not
-a tally of this process's sockets. That shape is forced by two things: the
-question being asked is "is anyone from the organization watching", which a
-per-user key cannot answer without enumerating members; and the API is meant to
-be replicable, so a process that counts only its own sockets would announce a
-side offline whenever its last manager left, while a colleague sat connected to
-another instance. Each socket increments on join and decrements on leave, and
-only the transition through zero is announced.
+Presence is a **set of per-socket leases per (thread, side) in Redis**, scored by
+expiry. Each of the three obvious simpler designs fails a specific way, and the
+sequence is worth knowing before anyone simplifies it back:
 
-Two consequences worth knowing. The key is refreshed on its own faster interval
-than its TTL — a refresh slower than the TTL leaves windows where the key has
-lapsed and a disconnect inside one goes unannounced. And a socket is sent the
-counterpart's current state when it connects, because the other party's arrival
-was announced before that socket existed and a live key is deliberately never
-re-announced.
+- A **flag per user** cannot answer the question actually being asked — "is
+  anyone from this organization watching" — without enumerating the
+  organization's members.
+- A **tally of one process's sockets** breaks as soon as the API is replicated:
+  each instance sees only its own, so the last one to lose a manager announces
+  the side offline while a colleague sits connected elsewhere.
+- A **shared counter** fixes that but cannot expire a dead instance's share. Any
+  surviving socket refreshing the key renews every contribution including those
+  of processes that have died, so the count never reaches zero and the side is
+  never announced offline again.
+
+Leases avoid all three: each socket renews only its own, expired ones are pruned
+on read, and the side is online while any unexpired lease remains. The count is
+taken _after_ a join or leave writes, so a join racing a departure can only
+conclude "someone is here", never the reverse.
+
+A connecting socket is also sent the counterpart's current state, because the
+other party's arrival was announced before that socket existed and a live
+presence is deliberately never re-announced.
+
+Shutdown has to dispose the container before disconnecting Redis: that is what
+closes upgraded sockets and gives their leases back. Skipping it makes every
+rollout look like an abrupt process death to the other party.
 
 ## Background Workers
 

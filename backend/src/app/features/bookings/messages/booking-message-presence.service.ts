@@ -53,79 +53,101 @@ export class BookingMessagePresenceService {
   }
 
   /**
-   * Records that a socket for this side has connected.
+   * Registers one socket's presence lease for this side.
    *
-   * Counted rather than flagged, and keyed by side rather than by user, because
-   * that is the question the other party is actually asking: is anyone from the
-   * organization watching. A per-user boolean could not answer it without
-   * enumerating the organization's members, and a per-process socket tally
-   * could not answer it at all once the API runs more than one replica — each
-   * replica only sees its own sockets, so the last one to lose a manager would
-   * announce the whole side offline while a colleague sat connected to another.
+   * A sorted set of leases rather than a counter, and keyed by side rather than
+   * by user, for three separate reasons that all point the same way:
    *
-   * `INCR` returning 1 is the atomic "first one in" test, so only a genuine
-   * transition is announced.
+   * - The question the other party asks is "is anyone from the organization
+   *   watching", which a per-user key cannot answer without enumerating the
+   *   organization's members.
+   * - A tally of one process's sockets cannot answer it either once the API is
+   *   replicated: each replica sees only its own, so the last one to lose a
+   *   manager would announce the side offline while a colleague sat connected
+   *   elsewhere.
+   * - A shared *counter* fixes that but cannot expire a dead replica's share.
+   *   Any surviving socket refreshing the key renews everyone's contribution,
+   *   including contributions from processes that have since died, so the count
+   *   never reaches zero and the side is never announced offline again. Each
+   *   socket holding its own independently expiring lease is what makes a crash
+   *   self-correcting.
    */
   async join(
     bookingRequestId: string,
     side: BookingParticipantSide,
+    socketId: string,
   ): Promise<void> {
     const key = this.presenceKey(bookingRequestId, side);
-    const count = await this.cacheService.increment(key, 1);
+    await this.cacheService.addToLeaseSet(key, socketId, this.leaseExpiry());
     await this.cacheService.expire(key, BOOKING_MESSAGE_PRESENCE_TTL_SECONDS);
 
-    if (count === 1) {
+    // Counted after the write, so a join and a departure racing each other can
+    // only both conclude "someone is here" — never both conclude "nobody is".
+    const live = await this.cacheService.countLiveLeases(key, Date.now());
+
+    if (live === 1) {
       await this.publishPresence(bookingRequestId, side, "online");
     }
   }
 
   /**
-   * Records that a socket for this side has gone. The side only goes offline
-   * when the last of them leaves, wherever it was connected.
+   * Drops one socket's lease. The side goes offline only when no live lease is
+   * left anywhere.
    */
   async leave(
     bookingRequestId: string,
     side: BookingParticipantSide,
+    socketId: string,
   ): Promise<void> {
     const key = this.presenceKey(bookingRequestId, side);
-    const count = await this.cacheService.increment(key, -1);
+    await this.cacheService.removeFromLeaseSet(key, socketId);
 
-    if (count > 0) {
-      await this.cacheService.expire(key, BOOKING_MESSAGE_PRESENCE_TTL_SECONDS);
+    // Removal and the count are separate round trips, so a socket joining in
+    // between is possible. Counting *after* removing is what makes that safe:
+    // the newcomer's lease is already in the set, this reads a non-zero count
+    // and stays quiet, and its own join announced the arrival. The reverse
+    // order would delete a live socket's presence and publish offline over the
+    // top of an online it had just sent.
+    const live = await this.cacheService.countLiveLeases(key, Date.now());
+
+    if (live > 0) {
       return;
     }
 
-    // At or below zero: nobody is left. Below zero means a process died without
-    // decrementing and its share expired, so the key is removed rather than
-    // left holding a negative that would swallow the next join's announcement.
     await this.cacheService.delete(key);
     await this.publishPresence(bookingRequestId, side, "offline");
   }
 
   /**
-   * Pushes the TTL out for a side that still has sockets. Separate from `join`
-   * so a refresh cannot be mistaken for an arrival and inflate the count.
+   * Renews this socket's own lease. Only its own: renewing the whole key would
+   * carry dead replicas' leases along with it, which is the failure this shape
+   * exists to avoid.
    */
   async refresh(
     bookingRequestId: string,
     side: BookingParticipantSide,
+    socketId: string,
   ): Promise<void> {
-    await this.cacheService.expire(
-      this.presenceKey(bookingRequestId, side),
-      BOOKING_MESSAGE_PRESENCE_TTL_SECONDS,
-    );
+    const key = this.presenceKey(bookingRequestId, side);
+    await this.cacheService.addToLeaseSet(key, socketId, this.leaseExpiry());
+    await this.cacheService.expire(key, BOOKING_MESSAGE_PRESENCE_TTL_SECONDS);
   }
 
-  /** Whether anyone on this side is currently watching, across all replicas. */
+  /** Whether anyone on this side is watching, across every replica. */
   async isSideOnline(
     bookingRequestId: string,
     side: BookingParticipantSide,
   ): Promise<boolean> {
-    const raw = await this.cacheService.get(
+    const live = await this.cacheService.countLiveLeases(
       this.presenceKey(bookingRequestId, side),
+      Date.now(),
     );
 
-    return raw !== null && Number(raw) > 0;
+    return live > 0;
+  }
+
+  private leaseExpiry(): number {
+    return Date.now() + BOOKING_MESSAGE_PRESENCE_TTL_SECONDS * 1_000;
   }
 
   /**

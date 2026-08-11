@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -64,6 +65,11 @@ function readTicketCookie(header?: string): string {
 }
 
 interface SocketState {
+  /**
+   * Identifies this connection's presence lease. Per socket, not per user: two
+   * tabs hold two leases, and each expires on its own if its process dies.
+   */
+  socketId: string;
   bookingRequestId: string;
   userId: string;
   /** The redeemed ticket, kept so the session can be rechecked periodically. */
@@ -276,6 +282,7 @@ export class BookingMessageSocketServer {
     const hub = getContainer().resolve(containerTokens.bookingMessageStreamHub);
 
     const state: SocketState = {
+      socketId: randomUUID(),
       bookingRequestId,
       userId,
       session: identity,
@@ -307,18 +314,43 @@ export class BookingMessageSocketServer {
     // Started now, awaited by whoever needs it. Frames arriving before it
     // settles wait on the same promise rather than being judged against a
     // capability that has not been looked up yet.
-    state.authorized = this.withScope(async (scope) => {
-      const service = scope.resolve(containerTokens.bookingMessagesService);
-      const authorization = await service.authorizeStream(
-        bookingRequestId,
-        userId,
+    //
+    // Deliberately not routed through `withScope`, which logs and swallows: a
+    // rejection here means access was lost between redeeming the ticket and
+    // registering, and swallowing it left the socket subscribed and streaming
+    // message bodies to someone no longer entitled to them until the next
+    // sweep noticed, a minute later.
+    const scope = getContainer().createScope();
+
+    state.authorized = (async () => {
+      try {
+        const service = scope.resolve(containerTokens.bookingMessagesService);
+        const authorization = await service.authorizeStream(
+          bookingRequestId,
+          userId,
+        );
+
+        state.side = authorization.side;
+        state.canWrite = authorization.canWrite;
+      } finally {
+        await scope.dispose();
+      }
+    })();
+
+    try {
+      await state.authorized;
+    } catch (error) {
+      this.logger.info(
+        "Closing a booking message socket that lost access before registering.",
+        {
+          bookingRequestId,
+          userId,
+          reason: error instanceof Error ? error.message : "unknown",
+        },
       );
-
-      state.side = authorization.side;
-      state.canWrite = authorization.canWrite;
-    });
-
-    await state.authorized;
+      await this.teardown(client, 1008);
+      return;
+    }
 
     let release: () => Promise<void>;
 
@@ -361,7 +393,7 @@ export class BookingMessageSocketServer {
       );
 
       if (state.side) {
-        await presence.join(bookingRequestId, state.side);
+        await presence.join(bookingRequestId, state.side, state.socketId);
         state.joined = true;
 
         // The counterpart's own arrival was announced before this socket
@@ -422,8 +454,15 @@ export class BookingMessageSocketServer {
 
     if (frame.type === "typing") {
       // A frame can arrive before the capability lookup settles, so wait for it
-      // rather than judging against the not-yet-known default.
-      await state.authorized;
+      // rather than judging against the not-yet-known default. Caught, not
+      // propagated: this runs in a discarded promise, and an unhandled
+      // rejection here takes the process down. A failed lookup leaves
+      // `canWrite` false and the socket is being torn down anyway.
+      try {
+        await state.authorized;
+      } catch {
+        return;
+      }
 
       // Connecting only needs read access, so an organization operator can hold
       // a socket while the UI deliberately withholds their composer. Nothing
@@ -544,25 +583,20 @@ export class BookingMessageSocketServer {
         containerTokens.bookingMessagePresenceService,
       );
 
-      // Deduplicated to one refresh per (thread, side): the key is shared by
-      // every socket on that side, so refreshing it once per socket would be
-      // the same write repeated.
-      const sides = new Set<string>();
-
+      // One refresh per socket, deliberately not deduplicated per side. Each
+      // socket holds its own lease, and renewing the side as a whole is exactly
+      // the bug this shape exists to avoid: a survivor would keep a dead
+      // replica's lease alive indefinitely, and the side would never be
+      // announced offline again.
       for (const state of this.states.values()) {
-        if (!state.side) {
+        if (!state.side || !state.joined) {
           continue;
         }
 
-        sides.add(`${state.bookingRequestId}:${state.side}`);
-      }
-
-      for (const entry of sides) {
-        const separator = entry.lastIndexOf(":");
-
         await presence.refresh(
-          entry.slice(0, separator),
-          entry.slice(separator + 1) as BookingParticipantSide,
+          state.bookingRequestId,
+          state.side,
+          state.socketId,
         );
       }
     });
@@ -608,7 +642,7 @@ export class BookingMessageSocketServer {
         const presence = scope.resolve(
           containerTokens.bookingMessagePresenceService,
         );
-        await presence.leave(state.bookingRequestId, side);
+        await presence.leave(state.bookingRequestId, side, state.socketId);
       });
     }
 

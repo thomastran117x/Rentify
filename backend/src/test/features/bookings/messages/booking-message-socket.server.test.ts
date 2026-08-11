@@ -200,7 +200,11 @@ describe("BookingMessageSocketServer", () => {
       bookingRequestId: BOOKING_ID,
     });
     expect(fakes.redeemSocketTicket).toHaveBeenCalledWith("good");
-    expect(fakes.join).toHaveBeenCalledWith(BOOKING_ID, "renter");
+    expect(fakes.join).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "renter",
+      expect.any(String),
+    );
 
     connection.socket.close();
   }, 20_000);
@@ -390,12 +394,20 @@ describe("BookingMessageSocketServer", () => {
     // only one that stays right when the API runs on more than one replica —
     // this process's socket map cannot see a colleague on another instance.
     expect(fakes.join).toHaveBeenCalledTimes(2);
-    expect(fakes.join).toHaveBeenCalledWith(BOOKING_ID, "owner");
+    expect(fakes.join).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "owner",
+      expect.any(String),
+    );
 
     first.socket.close();
     await settle(30);
     expect(fakes.leave).toHaveBeenCalledTimes(1);
-    expect(fakes.leave).toHaveBeenCalledWith(BOOKING_ID, "owner");
+    expect(fakes.leave).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "owner",
+      expect.any(String),
+    );
 
     second.socket.close();
     await settle(30);
@@ -515,7 +527,11 @@ describe("BookingMessageSocketServer", () => {
     await settle(30);
 
     expect(fakes.release).toHaveBeenCalled();
-    expect(fakes.leave).toHaveBeenCalledWith(BOOKING_ID, "renter");
+    expect(fakes.leave).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "renter",
+      expect.any(String),
+    );
     expect(socketServer.activeConnectionCount()).toBe(0);
   }, 20_000);
 
@@ -602,18 +618,56 @@ describe("BookingMessageSocketServer", () => {
   }, 20_000);
 
   it("closes a socket whose membership was revoked", async () => {
-    installFakeContainer({
+    let calls = 0;
+    const fakes = installFakeContainer({
+      // Healthy at registration, revoked by the time the sweep comes round.
+      // The two moments are different code paths and both have to close.
       authorizeStream: jest.fn(async () => {
-        throw new Error("No access.");
+        calls += 1;
+
+        if (calls > 1) {
+          throw new Error("No access.");
+        }
+
+        return { bookingRequestId: BOOKING_ID, side: "renter", canWrite: true };
       }),
     });
     const connection = await connect();
     await connection.waitFor("ready");
+    expect(socketServer.activeConnectionCount()).toBe(1);
 
     await sweeps(socketServer).reauthorize();
     await settle(30);
 
     expect(socketServer.activeConnectionCount()).toBe(0);
+    // The lease is given back rather than left to expire.
+    expect(fakes.leave).toHaveBeenCalled();
+  }, 20_000);
+
+  it("closes a socket that lost access between the ticket and registration", async () => {
+    const fakes = installFakeContainer({
+      authorizeStream: jest.fn(async () => {
+        throw new Error("No access.");
+      }),
+    });
+
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=good" },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+    await settle(40);
+
+    // The upgrade already succeeded, so the only way to refuse someone who lost
+    // access in the gap is to tear the socket down. Swallowing the failure left
+    // it subscribed and streaming message bodies until the next sweep.
+    expect(socketServer.activeConnectionCount()).toBe(0);
+    expect(fakes.subscribe).not.toHaveBeenCalled();
+    expect(fakes.join).not.toHaveBeenCalled();
+
+    socket.terminate();
   }, 20_000);
 
   it("closes a socket whose session was revoked even though membership holds", async () => {
@@ -650,11 +704,15 @@ describe("BookingMessageSocketServer", () => {
 
     await sweeps(socketServer).refreshPresence();
 
-    // Refreshed well inside the presence TTL, so the key never lapses and a
-    // disconnect is always announced. Keyed by side, so two sockets on the same
-    // side cost one write rather than repeating an identical one each.
-    expect(fakes.refresh).toHaveBeenCalledTimes(1);
-    expect(fakes.refresh).toHaveBeenCalledWith(BOOKING_ID, "renter");
+    // One renewal per socket, deliberately not deduplicated per side: each
+    // holds its own lease, and renewing the side as a whole would keep a dead
+    // replica's lease alive forever.
+    expect(fakes.refresh).toHaveBeenCalledTimes(2);
+    expect(fakes.refresh).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "renter",
+      expect.any(String),
+    );
 
     first.socket.close();
     second.socket.close();
@@ -670,6 +728,26 @@ describe("BookingMessageSocketServer", () => {
     sweeps(socketServer).ping();
     await settle(30);
 
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("gives back presence leases when the server shuts down", async () => {
+    const fakes = installFakeContainer();
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    // What a rollout does. `close()` is reached through the container's dispose
+    // hook, which the process shutdown path has to actually invoke — until it
+    // did, every deploy dropped sockets without a close frame and left both
+    // sides marked online until their leases expired.
+    await socketServer.close();
+
+    expect(fakes.leave).toHaveBeenCalledWith(
+      BOOKING_ID,
+      "renter",
+      expect.any(String),
+    );
+    expect(fakes.release).toHaveBeenCalled();
     expect(socketServer.activeConnectionCount()).toBe(0);
   }, 20_000);
 
