@@ -680,7 +680,7 @@ export function BookingMessagesPanel({
         setSending(false);
       }
     },
-    [bookingRequestId],
+    [bookingRequestId, insertMessage],
   );
 
   const applyUpdated = useCallback((record: BookingMessageRecord) => {

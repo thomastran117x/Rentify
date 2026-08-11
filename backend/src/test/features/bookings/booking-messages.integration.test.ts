@@ -573,8 +573,9 @@ describe("Booking messages persistence integration", () => {
       userId: renter.userId,
     });
 
-    // Single use: a leaked ticket cannot be replayed.
-    await expect(service.redeemSocketTicket(issued.ticket)).resolves.toBeNull();
+    // Single use: the same ticket cannot be redeemed twice, so a leaked one is
+    // worthless the moment the legitimate upgrade has spent it.
+    await expect(service.redeemSocketTicket(ticket)).resolves.toBeNull();
     await expect(
       service.redeemSocketTicket("not-a-ticket"),
     ).resolves.toBeNull();

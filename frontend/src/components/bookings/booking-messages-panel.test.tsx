@@ -38,8 +38,9 @@ vi.mock("@/lib/booking-messages/socket", () => ({
   openBookingMessageSocket: openStreamMock,
 }));
 
-const { BookingMessagesPanel } =
-  await import("@/components/bookings/booking-messages-panel");
+const { BookingMessagesPanel } = await import(
+  "@/components/bookings/booking-messages-panel"
+);
 
 const CURRENT_USER_ID = "renter-1";
 

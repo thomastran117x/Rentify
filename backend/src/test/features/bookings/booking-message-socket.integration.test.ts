@@ -168,9 +168,9 @@ describe("Booking message socket integration", () => {
     const setCookie = response.headers.get("set-cookie") ?? "";
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("Path=/ws/booking-messages");
-    await expect(readData<Record<string, unknown>>(response)).resolves.not.toHaveProperty(
-      "ticket",
-    );
+    await expect(
+      readData<Record<string, unknown>>(response),
+    ).resolves.not.toHaveProperty("ticket");
 
     const ticket = /rentify_ws_ticket=([^;]+)/.exec(setCookie)?.[1] ?? "";
     expect(ticket).toBeTruthy();

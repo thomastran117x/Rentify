@@ -42,7 +42,9 @@ function readTicketCookie(header?: string): string {
       continue;
     }
 
-    if (part.slice(0, separator).trim() === BOOKING_MESSAGE_SOCKET_COOKIE_NAME) {
+    if (
+      part.slice(0, separator).trim() === BOOKING_MESSAGE_SOCKET_COOKIE_NAME
+    ) {
       return decodeURIComponent(part.slice(separator + 1).trim());
     }
   }
