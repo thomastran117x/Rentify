@@ -34,7 +34,13 @@ function expandLoopbackOriginAliases(origin: string): string[] {
   }
 }
 
-function readAllowedOrigins(): string[] {
+/**
+ * Exported so the WebSocket upgrade handler can apply the same allow-list. That
+ * handler is attached to the raw Node server and never passes through this
+ * middleware, so without sharing this list it would be the one authenticated
+ * entry point in the app with no origin check at all.
+ */
+export function readAllowedOrigins(): string[] {
   const configuredOrigins =
     getOptionalEnvironmentVariable("CSRF_ALLOWED_ORIGINS") ??
     getOptionalEnvironmentVariable("CORS_ALLOWED_ORIGINS") ??

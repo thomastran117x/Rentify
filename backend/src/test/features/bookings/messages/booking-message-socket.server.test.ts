@@ -47,7 +47,11 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
       ),
     authorizeStream:
       overrides.authorizeStream ??
-      jest.fn(async () => ({ bookingRequestId: BOOKING_ID, side: "renter" })),
+      jest.fn(async () => ({
+        bookingRequestId: BOOKING_ID,
+        side: "renter",
+        canWrite: true,
+      })),
     assertSocketSessionValid:
       overrides.assertSocketSessionValid ?? jest.fn(async () => undefined),
     markDelivered: overrides.markDelivered ?? jest.fn(async () => ["m1"]),
@@ -222,6 +226,39 @@ describe("BookingMessageSocketServer", () => {
     socket.terminate();
   }, 20_000);
 
+  it("rejects an upgrade from an origin that is not allow-listed", async () => {
+    const fakes = installFakeContainer();
+
+    const socket = new WebSocket(baseUrl, {
+      headers: {
+        cookie: "rentify_ws_ticket=good",
+        origin: "https://evil.example.com",
+      },
+    });
+    const error = await new Promise<Error>((resolve) =>
+      socket.once("error", resolve),
+    );
+
+    // This handler is attached to the raw Node server, so it never passes
+    // through the CORS or CSRF middleware. `SameSite=Lax` is scoped to the
+    // site rather than the origin, so a sibling origin gets the ticket cookie
+    // attached to any upgrade it attempts.
+    expect(error.message).toMatch(/403/);
+    expect(fakes.redeemSocketTicket).not.toHaveBeenCalled();
+    socket.terminate();
+  }, 20_000);
+
+  it("accepts an upgrade with no origin header at all", async () => {
+    installFakeContainer();
+
+    // Non-browser clients send no origin and carry no ambient cookie, so
+    // requiring the header would break them without deterring a browser.
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    connection.socket.close();
+  }, 20_000);
+
   it("closes an upgrade on an unrecognised path", async () => {
     installFakeContainer();
     const { port } = httpServer.address() as AddressInfo;
@@ -268,6 +305,95 @@ describe("BookingMessageSocketServer", () => {
     expect(fakes.publishTyping).toHaveBeenCalledTimes(1);
 
     socket.close();
+  }, 20_000);
+
+  it("handles a frame that arrives before the capability lookup settles", async () => {
+    const fakes = installFakeContainer({
+      // A slow lookup makes the window deterministic. It is real either way:
+      // this is a database round trip, and a client can send its first frame
+      // the instant the handshake completes.
+      authorizeStream: jest.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return { bookingRequestId: BOOKING_ID, side: "renter", canWrite: true };
+      }),
+    });
+
+    const socket = new WebSocket(baseUrl, {
+      headers: { cookie: "rentify_ws_ticket=good" },
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+
+    // Sent immediately, well before the lookup resolves. Attaching the message
+    // listener after that await dropped this frame outright; judging it against
+    // the default-closed capability would silently discard it instead.
+    socket.send(JSON.stringify({ type: "typing" }));
+    await settle(60);
+
+    expect(fakes.publishTyping).toHaveBeenCalledTimes(1);
+
+    socket.close();
+  }, 20_000);
+
+  it("drops typing frames from a participant who cannot write", async () => {
+    const fakes = installFakeContainer({
+      authorizeStream: jest.fn(async () => ({
+        bookingRequestId: BOOKING_ID,
+        side: "owner",
+        canWrite: false,
+      })),
+    });
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    socket.send(JSON.stringify({ type: "typing" }));
+    await settle(20);
+
+    // A read-only organization member connects legitimately — the UI simply
+    // withholds their composer — but nothing stops them sending this by hand,
+    // and the renter would see someone who cannot reply appear to be typing.
+    expect(fakes.publishTyping).not.toHaveBeenCalled();
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+
+    socket.close();
+  }, 20_000);
+
+  it("keeps the side present when a colleague on it is still connected", async () => {
+    const fakes = installFakeContainer({
+      redeemSocketTicket: jest.fn(async (ticket: string) => ({
+        bookingRequestId: BOOKING_ID,
+        // Two different managers of the same organization.
+        userId: ticket === "good" ? "manager-a" : "manager-b",
+      })),
+      authorizeStream: jest.fn(async () => ({
+        bookingRequestId: BOOKING_ID,
+        side: "owner",
+        canWrite: true,
+      })),
+    });
+
+    const first = await connect("good");
+    await first.waitFor("ready");
+    const second = await connect("other");
+    await second.waitFor("ready");
+
+    first.socket.close();
+    await settle(30);
+
+    // Their own key is cleared, but the renter must not see the organization
+    // go dark while the other manager is still watching.
+    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, "manager-a", {
+      announce: false,
+    });
+
+    second.socket.close();
+    await settle(30);
+
+    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, "manager-b", {
+      announce: true,
+    });
   }, 20_000);
 
   it("records delivery acknowledgements and ignores empty ones", async () => {
@@ -353,7 +479,9 @@ describe("BookingMessageSocketServer", () => {
     await settle(30);
 
     expect(fakes.release).toHaveBeenCalled();
-    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, USER_ID, {
+      announce: true,
+    });
     expect(socketServer.activeConnectionCount()).toBe(0);
   }, 20_000);
 

@@ -156,6 +156,20 @@ describe("BookingMessagePresenceService", () => {
       });
     });
 
+    it("clears the key but stays quiet when the side is still covered", async () => {
+      const { service, cacheService } = createService();
+
+      await service.markOffline(BOOKING_ID, RENTER_ID, { announce: false });
+
+      // Presence reads as "is the organization here", not "is this manager
+      // here", so a colleague still watching means nothing changed for the
+      // other party — while this user's own key must still go.
+      expect(cacheService.delete).toHaveBeenCalledWith(
+        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
+      );
+      expect(cacheService.publish).not.toHaveBeenCalled();
+    });
+
     it("reports whether a user is currently watching the thread", async () => {
       const { service, cacheService } = createService();
 

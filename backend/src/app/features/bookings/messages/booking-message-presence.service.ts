@@ -70,14 +70,25 @@ export class BookingMessagePresenceService {
     await this.publishPresence(bookingRequestId, userId, "online");
   }
 
-  async markOffline(bookingRequestId: string, userId: string): Promise<void> {
+  async markOffline(
+    bookingRequestId: string,
+    userId: string,
+    options: { announce?: boolean } = {},
+  ): Promise<void> {
     await this.cacheService.delete(this.presenceKey(bookingRequestId, userId));
 
-    // Published whether or not the key was still there. Keying the announcement
-    // off the delete result meant that a key which had expired between refreshes
-    // swallowed the offline event, and the counterpart's dot stayed lit forever.
-    // The caller only reaches here when the user's last socket on this thread
-    // has gone, so it is the authority on the transition, not Redis.
+    // The key is per user, but the announcement is per side: the other party
+    // sees "the organization is here", not which manager. When a colleague on
+    // the same side is still connected the caller suppresses the announcement
+    // while this user's own key is still cleared.
+    if (options.announce === false) {
+      return;
+    }
+
+    // Otherwise published whether or not the key was still there. Keying the
+    // announcement off the delete result meant a key that expired between
+    // refreshes swallowed the offline event and left the counterpart's dot lit
+    // forever. The caller knows the transition happened; Redis does not.
     await this.publishPresence(bookingRequestId, userId, "offline");
   }
 

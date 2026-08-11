@@ -859,12 +859,34 @@ describe("BookingMessagesService", () => {
   });
 
   describe("authorizeStream", () => {
-    it("resolves the side for a party", async () => {
+    it("resolves the side and write capability for a party", async () => {
       const { service } = createService();
 
       await expect(
         service.authorizeStream(BOOKING_ID, RENTER_ID),
-      ).resolves.toEqual({ bookingRequestId: BOOKING_ID, side: "renter" });
+      ).resolves.toEqual({
+        bookingRequestId: BOOKING_ID,
+        side: "renter",
+        canWrite: true,
+      });
+    });
+
+    it("admits a read-only member without write capability", async () => {
+      // An organization operator: entitled to watch the thread, not to post to
+      // it. The socket needs both facts — one to let them connect, the other to
+      // refuse the frames only a writer should be able to emit.
+      const { service } = createService({
+        role: "operator",
+        manageError: new ForbiddenError("Operators cannot write."),
+      });
+
+      await expect(
+        service.authorizeStream(BOOKING_ID, "operator-1"),
+      ).resolves.toEqual({
+        bookingRequestId: BOOKING_ID,
+        side: "owner",
+        canWrite: false,
+      });
     });
 
     it("rejects an unknown booking request", async () => {

@@ -423,14 +423,16 @@ export class BookingMessagesService {
     actorUserId: string,
   ): Promise<BookingMessageStreamAuthorization> {
     const bookingRequest = await this.requireBookingRequest(bookingRequestId);
-    const side = await resolveBookingParticipant(
+    // Resolved rather than asserted, for the same reason `list` does it: a
+    // read-only member may connect, and the caller needs to know they cannot
+    // write. Non-participants are still rejected.
+    const { side, canManage } = await resolveBookingParticipantAccess(
       this.organizationAccessService,
       bookingRequest,
       actorUserId,
-      "read",
     );
 
-    return { bookingRequestId: bookingRequest.id, side };
+    return { bookingRequestId: bookingRequest.id, side, canWrite: canManage };
   }
 
   private async requireBookingRequest(

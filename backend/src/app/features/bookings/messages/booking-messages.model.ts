@@ -165,6 +165,13 @@ export interface ListBookingMessagesInput {
 export interface BookingMessageStreamAuthorization {
   bookingRequestId: string;
   side: BookingParticipantSide;
+  /**
+   * Whether this participant may write to the thread. Connecting only needs
+   * read access — an organization operator can watch a thread they may not
+   * post to — so the capability has to travel separately from the permission
+   * to be here at all.
+   */
+  canWrite: boolean;
 }
 
 export interface BookingMessageSocketTicket {

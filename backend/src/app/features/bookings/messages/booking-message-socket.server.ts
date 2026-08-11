@@ -5,6 +5,8 @@ import { getContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
+import { readAllowedOrigins } from "@/configuration/middlewares/csrf.middleware";
+import type { BookingParticipantSide } from "@/features/bookings/booking-participants";
 import {
   BOOKING_MESSAGE_SOCKET_COOKIE_NAME,
   BOOKING_MESSAGE_SOCKET_PATH,
@@ -66,6 +68,12 @@ interface SocketState {
   userId: string;
   /** The redeemed ticket, kept so the session can be rechecked periodically. */
   session: BookingMessageSocketIdentity;
+  /** Which half of the thread this connection sits on. */
+  side: BookingParticipantSide | null;
+  /** Whether this participant may write. Refreshed by the sweep. */
+  canWrite: boolean;
+  /** Resolves once `side` and `canWrite` have been looked up. */
+  authorized: Promise<void> | null;
   alive: boolean;
   lastTypingAt: number;
   release: (() => Promise<void>) | null;
@@ -177,6 +185,19 @@ export class BookingMessageSocketServer {
       return;
     }
 
+    // The upgrade never passes through the CORS or CSRF middleware, so the
+    // origin check has to happen here or not at all. `SameSite=Lax` is scoped
+    // to the *site*, not the origin, so a sibling origin under the same site
+    // has the ticket cookie attached to any upgrade it attempts and could race
+    // a freshly minted ticket into an authenticated socket.
+    if (!this.isOriginAllowed(request.headers.origin)) {
+      this.logger.warn("Rejected a booking message upgrade from an origin.", {
+        origin: request.headers.origin,
+      });
+      this.rejectUpgrade(socket, 403, "Forbidden");
+      return;
+    }
+
     const scope = getContainer().createScope();
 
     try {
@@ -208,6 +229,35 @@ export class BookingMessageSocketServer {
     }
   }
 
+  /**
+   * Browsers always send `Origin` on a WebSocket handshake, and it is the one
+   * header a page cannot forge. A missing header means a non-browser client —
+   * a script, a mobile app, the integration suite — which carries no ambient
+   * cookie and so is not the threat this guards against; requiring the header
+   * would break those without making a browser attack any harder.
+   */
+  private isOriginAllowed(origin?: string): boolean {
+    if (!origin) {
+      return true;
+    }
+
+    let normalized: string;
+
+    try {
+      normalized = new URL(origin).origin;
+    } catch {
+      return false;
+    }
+
+    return readAllowedOrigins().some((allowed) => {
+      try {
+        return new URL(allowed).origin === normalized;
+      } catch {
+        return allowed === normalized;
+      }
+    });
+  }
+
   private rejectUpgrade(socket: Duplex, status: number, reason: string): void {
     socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
     socket.destroy();
@@ -227,12 +277,21 @@ export class BookingMessageSocketServer {
       bookingRequestId,
       userId,
       session: identity,
+      side: null,
+      // Closed until proven open. If the capability lookup below fails, this
+      // connection can still read — that is what its ticket bought — but it
+      // cannot emit anything the other party will see.
+      canWrite: false,
+      authorized: null,
       alive: true,
       lastTypingAt: 0,
       release: null,
     };
     this.states.set(client, state);
 
+    // Listeners first, before anything is awaited. A client may send its first
+    // frame the instant the handshake completes, and `ws` drops messages that
+    // arrive with no listener attached — an await here silently loses them.
     client.on("pong", () => {
       state.alive = true;
     });
@@ -241,6 +300,22 @@ export class BookingMessageSocketServer {
     client.on("message", (raw) => {
       void this.handleClientFrame(client, state, raw.toString());
     });
+
+    // Started now, awaited by whoever needs it. Frames arriving before it
+    // settles wait on the same promise rather than being judged against a
+    // capability that has not been looked up yet.
+    state.authorized = this.withScope(async (scope) => {
+      const service = scope.resolve(containerTokens.bookingMessagesService);
+      const authorization = await service.authorizeStream(
+        bookingRequestId,
+        userId,
+      );
+
+      state.side = authorization.side;
+      state.canWrite = authorization.canWrite;
+    });
+
+    await state.authorized;
 
     try {
       state.release = await hub.subscribe(bookingRequestId, (event) => {
@@ -313,6 +388,18 @@ export class BookingMessageSocketServer {
     }
 
     if (frame.type === "typing") {
+      // A frame can arrive before the capability lookup settles, so wait for it
+      // rather than judging against the not-yet-known default.
+      await state.authorized;
+
+      // Connecting only needs read access, so an organization operator can hold
+      // a socket while the UI deliberately withholds their composer. Nothing
+      // stops them sending this frame by hand, and the renter would then watch
+      // someone who cannot post appear to be composing a reply.
+      if (!state.canWrite) {
+        return;
+      }
+
       const now = Date.now();
 
       // Throttled server-side: a client that ignores its own throttle must not
@@ -380,7 +467,15 @@ export class BookingMessageSocketServer {
         try {
           // Membership can be revoked while a socket is held open, and every
           // REST call that user made would already be rejected.
-          await service.authorizeStream(state.bookingRequestId, state.userId);
+          const authorization = await service.authorizeStream(
+            state.bookingRequestId,
+            state.userId,
+          );
+
+          // A demotion from manager to operator does not close the socket —
+          // they may still read — but it has to withdraw the ability to emit.
+          state.side = authorization.side;
+          state.canWrite = authorization.canWrite;
           // The session behind the ticket can be revoked too — a logout, a
           // password change, a token-version bump. Checking membership alone
           // let a signed-out user keep receiving message bodies indefinitely
@@ -450,20 +545,31 @@ export class BookingMessageSocketServer {
     this.states.delete(client);
     await state.release?.();
 
-    // Only the last socket for this user on this thread clears presence; a
-    // second tab must not mark them offline.
-    const stillConnected = [...this.states.values()].some(
-      (other) =>
-        other.userId === state.userId &&
-        other.bookingRequestId === state.bookingRequestId,
+    const remaining = [...this.states.values()].filter(
+      (other) => other.bookingRequestId === state.bookingRequestId,
     );
 
-    if (!stillConnected) {
+    // A second tab of this user's must not clear their key.
+    const userStillConnected = remaining.some(
+      (other) => other.userId === state.userId,
+    );
+
+    // Presence is announced per *side*, not per user, because that is how the
+    // other party reads it: an organization is present when any of its managers
+    // is watching. Announcing on the user alone meant one of two managers
+    // leaving turned the renter's dot off while a colleague was still there.
+    const sideStillConnected = remaining.some(
+      (other) => state.side !== null && other.side === state.side,
+    );
+
+    if (!userStillConnected) {
       await this.withScope(async (scope) => {
         const presence = scope.resolve(
           containerTokens.bookingMessagePresenceService,
         );
-        await presence.markOffline(state.bookingRequestId, state.userId);
+        await presence.markOffline(state.bookingRequestId, state.userId, {
+          announce: !sideStillConnected,
+        });
       });
     }
 

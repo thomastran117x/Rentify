@@ -226,13 +226,19 @@ function isBookingMessageWriteRoute(
   );
 }
 
-function isBookingMessageStreamRoute(
+/**
+ * Ticket issuance is the throttle point for the socket transport. The upgrade
+ * itself never reaches this middleware — it is served off the raw Node server —
+ * so the only place a reconnect storm can be caught is where the ticket that
+ * makes a connection possible is minted.
+ */
+function isBookingMessageSocketTicketRoute(
   request: Request,
   pathname: string,
 ): boolean {
   return (
-    request.method === "GET" &&
-    /^\/booking-requests\/[^/]+\/messages\/stream$/.test(pathname)
+    request.method === "POST" &&
+    /^\/booking-requests\/[^/]+\/messages\/socket-ticket$/.test(pathname)
   );
 }
 
@@ -295,13 +301,13 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     });
   }
 
-  if (isBookingMessageStreamRoute(request, pathname)) {
+  if (isBookingMessageSocketTicketRoute(request, pathname)) {
     // Sized for the client's reconnect ladder (1/2/4/8/15s then holding at
     // 15s): a healthy client uses well under 20 attempts across five minutes
     // even during a full outage, while a reconnect storm trips this.
     return createPolicy(request, {
-      id: "booking-messages-stream",
-      bucketKey: `${request.method}:booking-messages-stream`,
+      id: "booking-messages-socket-ticket",
+      bucketKey: `${request.method}:booking-messages-socket-ticket`,
       strategy: "sliding-window",
       limit: 20,
       windowSeconds: 300,
