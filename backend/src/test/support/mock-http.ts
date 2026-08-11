@@ -69,6 +69,64 @@ export function createMockRequest(options: MockRequestOptions = {}): Request {
   return request as unknown as Request;
 }
 
+export interface InvokedResponse {
+  status: number;
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+  headers: Record<string, string>;
+  request: Request;
+  response: Response;
+}
+
+/**
+ * Calls a native `(request, response)` controller handler against mock objects
+ * and reports what it wrote.
+ *
+ * `status` and the async `json()` mirror a WHATWG Response so assertions read
+ * the same as they did when handlers returned one.
+ */
+export async function invokeHandler(
+  handler: (request: Request, response: Response) => Promise<void> | void,
+  options: MockRequestOptions = {},
+): Promise<InvokedResponse> {
+  const body = options.body;
+  const serialised =
+    body === undefined
+      ? undefined
+      : typeof body === "string"
+        ? body
+        : JSON.stringify(body);
+
+  const request = createMockRequest({
+    ...options,
+    headers: {
+      ...(serialised === undefined
+        ? {}
+        : {
+            "content-type": "application/json",
+            "content-length": String(Buffer.byteLength(serialised)),
+          }),
+      ...options.headers,
+    },
+    rawBody: options.rawBody ?? serialised,
+  });
+  const recorder = createMockResponse();
+  // Express exposes the request from the response; the envelope helpers read
+  // the request id through it.
+  (recorder.response as { req?: Request }).req = request;
+
+  await handler(request, recorder.response);
+
+  return {
+    status: recorder.status(),
+    json: async () => recorder.json(),
+    text: async () => String(recorder.body() ?? ""),
+    headers: recorder.headers(),
+    request,
+    response: recorder.response,
+  };
+}
+
 export interface LegacyContextOptions extends MockRequestOptions {
   /** Value returned by `context.req.text()`. Defaults to the body, serialised. */
   text?: string;

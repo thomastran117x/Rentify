@@ -1,3 +1,4 @@
+import type { Response as ExpressResponse } from "express";
 import type { Context } from "hono";
 import type { AppBindings } from "@/configuration/http/bindings";
 
@@ -139,42 +140,75 @@ export function buildErrorResponse<TDetails>(
   };
 }
 
+/**
+ * A ported controller passes its Express response; one still on the bridge
+ * passes its context.
+ *
+ * TEMPORARY: narrows to just ExpressResponse once every controller takes
+ * (req, res), at which point these helpers stop returning anything.
+ */
+export type ResponseTarget = ExpressResponse | Context<AppBindings>;
+
+function isLegacyContext(
+  target: ResponseTarget,
+): target is Context<AppBindings> {
+  // `expressResponse` is set only by createLegacyContext. Checking for `json`
+  // or `req` would not do: an Express response has both.
+  return "expressResponse" in target;
+}
+
 function jsonResponse<TData>(
-  context: Context<AppBindings>,
+  target: ResponseTarget,
   status: 200 | 201 | 202,
   data: TData,
   options?: ResponseOptions,
 ): Response {
-  return context.json(
-    buildSuccessResponse(context.get("requestId"), data, status, options),
-    status,
-  );
+  if (isLegacyContext(target)) {
+    return target.json(
+      buildSuccessResponse(target.get("requestId"), data, status, options),
+      status,
+    );
+  }
+
+  const response = target as ExpressResponse;
+  response
+    .status(status)
+    .json(buildSuccessResponse(response.req.requestId, data, status, options));
+
+  // Ported controllers write to the response and return void; the declared
+  // return type is only here to keep the bridge's callers compiling.
+  return undefined as unknown as Response;
 }
 
 export function ok<TData>(
-  context: Context<AppBindings>,
+  target: ResponseTarget,
   data: TData,
   options?: ResponseOptions,
 ): Response {
-  return jsonResponse(context, 200, data, options);
+  return jsonResponse(target, 200, data, options);
 }
 
 export function created<TData>(
-  context: Context<AppBindings>,
+  target: ResponseTarget,
   data: TData,
   options?: ResponseOptions,
 ): Response {
-  return jsonResponse(context, 201, data, options);
+  return jsonResponse(target, 201, data, options);
 }
 
 export function accepted<TData>(
-  context: Context<AppBindings>,
+  target: ResponseTarget,
   data: TData,
   options?: ResponseOptions,
 ): Response {
-  return jsonResponse(context, 202, data, options);
+  return jsonResponse(target, 202, data, options);
 }
 
-export function noContent(): Response {
+export function noContent(target?: ResponseTarget): Response {
+  if (target && !isLegacyContext(target)) {
+    (target as ExpressResponse).status(204).end();
+    return undefined as unknown as Response;
+  }
+
   return new Response(null, { status: 204 });
 }

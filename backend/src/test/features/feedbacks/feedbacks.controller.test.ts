@@ -2,7 +2,7 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
-import { createLegacyTestContext } from "../../support/mock-http";
+import { invokeHandler } from "../../support/mock-http";
 
 const mockGetOptionalJwtAuth = jest.fn();
 const mockResolveIdempotencyKey = jest.fn();
@@ -32,24 +32,30 @@ function createAuth(
   };
 }
 
-function createContext(body?: unknown) {
-  return createLegacyTestContext({
-    body,
-    state: {
-      container: {
-        resolve: () => ({
-          inspectRequest: () => [],
-        }),
-      },
-      client: {
-        ip: "127.0.0.1",
-        device: {
-          id: "device-1",
+function invoke(
+  controller: FeedbacksController,
+  body?: unknown,
+): ReturnType<typeof invokeHandler> {
+  return invokeHandler(
+    (request, response) => controller.create(request, response),
+    {
+      body,
+      state: {
+        container: {
+          resolve: () => ({
+            inspectRequest: () => [],
+          }),
         },
+        client: {
+          ip: "127.0.0.1",
+          device: {
+            id: "device-1",
+          },
+        },
+        requestId: "request-1",
       },
-      requestId: "request-1",
     },
-  });
+  );
 }
 
 describe("FeedbacksController", () => {
@@ -76,14 +82,12 @@ describe("FeedbacksController", () => {
       } as any,
     );
 
-    const response = await controller.create(
-      createContext({
-        name: "Taylor Morgan",
-        email: "taylor@example.com",
-        category: "feature_request",
-        message: "Please add saved searches to the renter flow.",
-      }),
-    );
+    const response = await invoke(controller, {
+      name: "Taylor Morgan",
+      email: "taylor@example.com",
+      category: "feature_request",
+      message: "Please add saved searches to the renter flow.",
+    });
 
     expect(create).toHaveBeenCalledWith({
       userId: "user-1",
@@ -117,15 +121,13 @@ describe("FeedbacksController", () => {
       } as any,
     );
 
-    await controller.create(
-      createContext({
-        name: "Taylor Morgan",
-        email: "taylor@example.com",
-        category: "bug_report",
-        message: "The contact page submits twice on mobile Safari.",
-        captchaToken: "turnstile-token",
-      }),
-    );
+    await invoke(controller, {
+      name: "Taylor Morgan",
+      email: "taylor@example.com",
+      category: "bug_report",
+      message: "The contact page submits twice on mobile Safari.",
+      captchaToken: "turnstile-token",
+    });
 
     expect(verify).toHaveBeenCalledWith({
       token: "turnstile-token",
@@ -145,14 +147,12 @@ describe("FeedbacksController", () => {
     const controller = new FeedbacksController({} as any, {} as any);
 
     await expect(
-      controller.create(
-        createContext({
-          name: "Taylor Morgan",
-          email: "taylor@example.com",
-          category: "praise",
-          message: "The booking workspace feels much easier to use now.",
-        }),
-      ),
+      invoke(controller, {
+        name: "Taylor Morgan",
+        email: "taylor@example.com",
+        category: "praise",
+        message: "The booking workspace feels much easier to use now.",
+      }),
     ).rejects.toBeInstanceOf(RequestValidationError);
   });
 
@@ -171,15 +171,13 @@ describe("FeedbacksController", () => {
     );
 
     await expect(
-      controller.create(
-        createContext({
-          name: "Taylor Morgan",
-          email: "taylor@example.com",
-          category: "usability",
-          message: "The saved filters disappear when navigating back.",
-          captchaToken: "bad-token",
-        }),
-      ),
+      invoke(controller, {
+        name: "Taylor Morgan",
+        email: "taylor@example.com",
+        category: "usability",
+        message: "The saved filters disappear when navigating back.",
+        captchaToken: "bad-token",
+      }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 });

@@ -3,7 +3,6 @@ import {
   readOpenApiYamlSpecFile,
 } from "@/openapi/file";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
-import { withLegacyContext } from "@/configuration/bootstrap/routes/helpers";
 import {
   getApiRoutePrefix,
   getApiVersion,
@@ -14,89 +13,72 @@ import { pingDatabase } from "@/configuration/resources/database";
 export const systemRouteModule: RouteModule = {
   id: "system",
   register(app) {
-    app.get(
-      "/",
-      withLegacyContext((context) => {
-        return ok(
-          context,
-          {
-            apiVersion: getApiVersion(),
-            apiBasePath: getApiRoutePrefix(),
+    app.get("/", (request, response) => {
+      ok(
+        response,
+        {
+          apiVersion: getApiVersion(),
+          apiBasePath: getApiRoutePrefix(),
+        },
+        {
+          message: "TypeScript Hono server is running",
+        },
+      );
+    });
+
+    app.get("/health", async (request, response) => {
+      const uptime = process.uptime();
+
+      try {
+        const database = await pingDatabase();
+
+        ok(response, {
+          ok: true,
+          uptime,
+          checks: {
+            database,
           },
-          {
-            message: "TypeScript Hono server is running",
-          },
-        );
-      }),
-    );
-
-    app.get(
-      "/health",
-      withLegacyContext(async (context) => {
-        const uptime = process.uptime();
-
-        try {
-          const database = await pingDatabase();
-
-          return ok(context, {
-            ok: true,
-            uptime,
-            checks: {
-              database,
-            },
-          });
-        } catch (error) {
-          return context.json(
-            buildErrorResponse(context.get("requestId"), {
-              message: "Health check failed.",
-              code: "SERVICE_UNAVAILABLE",
-              details: {
-                uptime,
-                checks: {
-                  database: {
-                    ok: false,
-                    message:
-                      error instanceof Error
-                        ? error.message
-                        : "Database health check failed.",
-                  },
+        });
+      } catch (error) {
+        response.status(503).json(
+          buildErrorResponse(request.requestId, {
+            message: "Health check failed.",
+            code: "SERVICE_UNAVAILABLE",
+            details: {
+              uptime,
+              checks: {
+                database: {
+                  ok: false,
+                  message:
+                    error instanceof Error
+                      ? error.message
+                      : "Database health check failed.",
                 },
               },
-            }),
-            503,
-          );
-        }
-      }),
-    );
+            },
+          }),
+        );
+      }
+    });
 
-    app.get(
-      "/openapi.yaml",
-      withLegacyContext(async () => {
-        const body = await readOpenApiYamlSpecFile();
+    // Served verbatim rather than through res.json: these are pre-rendered
+    // documents and must not be reserialised.
+    app.get("/openapi.yaml", async (_request, response) => {
+      const body = await readOpenApiYamlSpecFile();
 
-        return new Response(body, {
-          status: 200,
-          headers: {
-            "content-type": "application/yaml; charset=UTF-8",
-            "cache-control": "no-store",
-          },
-        });
-      }),
-    );
+      response.status(200);
+      response.setHeader("content-type", "application/yaml; charset=UTF-8");
+      response.setHeader("cache-control", "no-store");
+      response.end(body);
+    });
 
-    app.get(
-      "/openapi.json",
-      withLegacyContext(async () => {
-        const body = await readOpenApiJsonSpecFile();
+    app.get("/openapi.json", async (_request, response) => {
+      const body = await readOpenApiJsonSpecFile();
 
-        return new Response(body, {
-          status: 200,
-          headers: {
-            "content-type": "application/json; charset=UTF-8",
-            "cache-control": "no-store",
-          },
-        });
-      }),
-    );
+      response.status(200);
+      response.setHeader("content-type", "application/json; charset=UTF-8");
+      response.setHeader("cache-control", "no-store");
+      response.end(body);
+    });
   },
 };

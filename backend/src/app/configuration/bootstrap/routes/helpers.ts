@@ -10,12 +10,24 @@ import {
   type ServiceToken,
 } from "@/configuration/bootstrap/container";
 
+/** A controller that has moved to native Express handlers. */
+type ExpressControllerHandler = (
+  request: Request,
+  response: Response,
+) => Promise<void>;
+
+/**
+ * A controller still on the bridge, taking a Hono context and returning a
+ * WHATWG Response. TEMPORARY.
+ */
+type LegacyControllerHandler = (
+  context: Context<AppBindings>,
+) => Promise<globalThis.Response>;
+
 export type ControllerHandlerName<TController> = {
-  // globalThis.Response, not Express's: the controllers still return a WHATWG
-  // Response until the legacy context bridge is removed.
-  [TKey in keyof TController]: TController[TKey] extends (
-    context: Context<AppBindings>,
-  ) => Promise<globalThis.Response>
+  [TKey in keyof TController]: TController[TKey] extends
+    | ExpressControllerHandler
+    | LegacyControllerHandler
     ? TKey
     : never;
 }[keyof TController];
@@ -103,11 +115,18 @@ export function resolveHandler<TController>(
 ): RequestHandler {
   return async (request: Request, response: Response): Promise<void> => {
     const controller = getRequestContainer(request).resolve(token);
-    const handler = controller[handlerName] as (
-      context: Context<AppBindings>,
-    ) => Promise<globalThis.Response>;
+    const handler = controller[handlerName] as
+      | ExpressControllerHandler
+      | LegacyControllerHandler;
 
-    const webResponse = await handler(
+    // Arity tells the two apart: a ported handler declares (request, response),
+    // one still on the bridge declares a single context. TEMPORARY.
+    if (handler.length >= 2) {
+      await (handler as ExpressControllerHandler)(request, response);
+      return;
+    }
+
+    const webResponse = await (handler as LegacyControllerHandler)(
       asHonoContext(createLegacyContext(request, response)),
     );
 
