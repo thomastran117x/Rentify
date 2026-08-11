@@ -236,6 +236,16 @@ export function BookingMessagesPanel({
       return;
     }
 
+    // Newest-first paging puts every new message on page 1. Prepending it to an
+    // older page would show a page-1 row there and push a row that does belong
+    // off the end, so older pages only move their counters.
+    if (pageRef.current !== 1) {
+      setPagination((previous) =>
+        previous ? addToPagination(previous, 1) : previous,
+      );
+      return;
+    }
+
     messageIdsRef.current.add(record.id);
     // Trimmed back to a page: a 21-item page 1 leaves the server returning its
     // twentieth row again at the top of page 2, so the message shows twice.
@@ -281,7 +291,10 @@ export function BookingMessagesPanel({
               )
             : [];
 
-        const merged = [...missed, ...result.messages];
+        // Capped like a live insert: a full page snapshotted before an
+        // arrival would otherwise merge to 21 rows, and the server would hand
+        // back the displaced row again at the top of the next page.
+        const merged = [...missed, ...result.messages].slice(0, PAGE_SIZE);
         messageIdsRef.current = new Set(merged.map((message) => message.id));
 
         startTransition(() => {

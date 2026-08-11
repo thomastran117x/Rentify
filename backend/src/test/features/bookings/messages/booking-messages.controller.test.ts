@@ -5,6 +5,7 @@ import type { JwtClaims } from "@/features/auth/token/token.service";
 import type { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import type { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
+import type { TokenService } from "@/features/auth/token/token.service";
 
 const mockRequireJwtAuth = jest.fn();
 const mockRequireSessionAuth = jest.fn();
@@ -86,6 +87,13 @@ function createService(overrides: Record<string, unknown> = {}) {
   } as unknown as BookingMessagesService;
 }
 
+function createTokenService(overrides: Record<string, unknown> = {}) {
+  return {
+    verifyAccessToken: jest.fn(async () => createClaims()),
+    ...overrides,
+  } as unknown as TokenService;
+}
+
 function createHub(overrides: Record<string, unknown> = {}) {
   return {
     subscribe: jest.fn(async () => async () => undefined),
@@ -111,6 +119,7 @@ describe("BookingMessagesController", () => {
       const controller = new BookingMessagesController(
         createService(),
         createHub(),
+        createTokenService(),
       );
 
       await expect(
@@ -120,7 +129,11 @@ describe("BookingMessagesController", () => {
 
     it("accepts a body at the maximum length and trims it", async () => {
       const service = createService();
-      const controller = new BookingMessagesController(service, createHub());
+      const controller = new BookingMessagesController(
+        service,
+        createHub(),
+        createTokenService(),
+      );
       const body = "x".repeat(2000);
 
       const response = await controller.send(
@@ -146,7 +159,11 @@ describe("BookingMessagesController", () => {
   describe("list", () => {
     it("applies pagination defaults", async () => {
       const service = createService();
-      const controller = new BookingMessagesController(service, createHub());
+      const controller = new BookingMessagesController(
+        service,
+        createHub(),
+        createTokenService(),
+      );
 
       const response = await controller.list(createContext());
 
@@ -161,7 +178,11 @@ describe("BookingMessagesController", () => {
 
     it("reads page and pageSize from the query string", async () => {
       const service = createService();
-      const controller = new BookingMessagesController(service, createHub());
+      const controller = new BookingMessagesController(
+        service,
+        createHub(),
+        createTokenService(),
+      );
 
       await controller.list(
         createContext({
@@ -178,6 +199,7 @@ describe("BookingMessagesController", () => {
       const controller = new BookingMessagesController(
         createService(),
         createHub(),
+        createTokenService(),
       );
 
       await expect(
@@ -193,6 +215,7 @@ describe("BookingMessagesController", () => {
       const controller = new BookingMessagesController(
         createService(),
         createHub(),
+        createTokenService(),
       );
 
       const response = await controller.list(createContext());
@@ -205,7 +228,11 @@ describe("BookingMessagesController", () => {
   describe("markRead", () => {
     it("returns the marked count", async () => {
       const service = createService();
-      const controller = new BookingMessagesController(service, createHub());
+      const controller = new BookingMessagesController(
+        service,
+        createHub(),
+        createTokenService(),
+      );
 
       const response = await controller.markRead(createContext());
       const payload = await response.json();
@@ -222,8 +249,13 @@ describe("BookingMessagesController", () => {
     function mountStream(
       service: BookingMessagesService,
       hub: BookingMessageStreamHub,
+      tokenService?: TokenService,
     ) {
-      const controller = new BookingMessagesController(service, hub);
+      const controller = new BookingMessagesController(
+        service,
+        hub,
+        tokenService ?? createTokenService(),
+      );
       const app = new Hono<AppBindings>();
       // Stands in for containerScopeMiddleware, which route-param sanitization
       // resolves the content sanitizer from.
@@ -389,6 +421,36 @@ describe("BookingMessagesController", () => {
       }
     });
 
+    it("closes an open stream once the session is revoked", async () => {
+      jest.useFakeTimers();
+
+      try {
+        const release = jest.fn(async () => undefined);
+        // Still a booking participant, but logged out or session-revoked, which
+        // every REST call would already reject.
+        const tokenService = createTokenService({
+          verifyAccessToken: jest.fn().mockRejectedValue(
+            Object.assign(new Error("Session is no longer active."), {
+              status: 401,
+            }),
+          ),
+        });
+        const service = createService();
+        const hub = createHub({ subscribe: jest.fn(async () => release) });
+
+        await mountStream(service, hub, tokenService).request(
+          "http://rent.test/booking-requests/booking-1/messages/stream",
+        );
+
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(tokenService.verifyAccessToken).toHaveBeenCalled();
+        expect(release).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("keeps a stream open while the viewer still has access", async () => {
       jest.useFakeTimers();
 
@@ -418,7 +480,11 @@ describe("BookingMessagesController", () => {
         }),
       });
       const hub = createHub();
-      const controller = new BookingMessagesController(service, hub);
+      const controller = new BookingMessagesController(
+        service,
+        hub,
+        createTokenService(),
+      );
 
       await expect(controller.stream(createContext())).rejects.toBe(forbidden);
       expect(hub.subscribe).not.toHaveBeenCalled();
@@ -430,7 +496,11 @@ describe("BookingMessagesController", () => {
       });
       mockRequireSessionAuth.mockRejectedValue(patError);
       const service = createService();
-      const controller = new BookingMessagesController(service, createHub());
+      const controller = new BookingMessagesController(
+        service,
+        createHub(),
+        createTokenService(),
+      );
 
       await expect(controller.stream(createContext())).rejects.toBe(patError);
       expect(service.authorizeStream).not.toHaveBeenCalled();

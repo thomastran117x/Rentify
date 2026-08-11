@@ -116,11 +116,13 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.bookingMessagesService,
         containerTokens.bookingMessageStreamHub,
+        containerTokens.tokenService,
       ],
       resolve: ({ resolve }) =>
         new BookingMessagesController(
           resolve(containerTokens.bookingMessagesService),
           resolve(containerTokens.bookingMessageStreamHub),
+          resolve(containerTokens.tokenService),
         ),
     });
   },

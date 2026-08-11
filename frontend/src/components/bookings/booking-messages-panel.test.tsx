@@ -566,6 +566,91 @@ describe("BookingMessagesPanel", () => {
     );
   });
 
+  it("does not insert a live message into an older page", async () => {
+    const user = userEvent.setup();
+    const pageTwo = Array.from({ length: 20 }, (_, index) =>
+      buildMessage({ id: `older-${index}`, body: `Older ${index}` }),
+    );
+    listMock.mockImplementation(async (_id: string, input: { page: number }) =>
+      buildList({
+        messages:
+          input.page === 1
+            ? [buildMessage({ id: "newest", body: "Newest" })]
+            : pageTwo,
+        pagination: {
+          page: input.page,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: input.page < 2,
+          hasPreviousPage: input.page > 1,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Newest");
+    await user.click(screen.getByRole("button", { name: "2" }));
+    await screen.findByText("Older 0");
+
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({ id: "streamed", body: "Streamed while paging" }),
+    });
+
+    // Newest-first paging places it on page 1; showing it here would also push
+    // a row that does belong on this page off the end.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("booking-message")).toHaveLength(20),
+    );
+    expect(screen.queryByText("Streamed while paging")).not.toBeInTheDocument();
+    expect(screen.getByText("Older 19")).toBeInTheDocument();
+  });
+
+  it("caps the page at the page size when a race is merged in", async () => {
+    let resolveList: (value: unknown) => void = () => {};
+    const fullPage = Array.from({ length: 20 }, (_, index) =>
+      buildMessage({ id: `server-${index}`, body: `Server ${index}` }),
+    );
+    listMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+
+    renderPanel();
+    await waitFor(() => expect(openStreamMock).toHaveBeenCalled());
+
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({ id: "raced", body: "Raced in" }),
+    });
+
+    resolveList(
+      buildList({
+        messages: fullPage,
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Raced in")).toBeInTheDocument();
+    // 21 rows would hand the displaced row back at the top of page 2.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("booking-message")).toHaveLength(20),
+    );
+    expect(screen.queryByText("Server 19")).not.toBeInTheDocument();
+  });
+
   it("trims page one back to the page size after a live insert", async () => {
     const fullPage = Array.from({ length: 20 }, (_, index) =>
       buildMessage({

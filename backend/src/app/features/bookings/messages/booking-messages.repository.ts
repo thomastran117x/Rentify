@@ -122,7 +122,14 @@ export class BookingMessagesRepository extends BaseRepository {
   ): Promise<number> {
     const result = await this.executeAsync(() =>
       this.prisma.bookingMessage.updateMany({
-        where: this.buildUnreadForSideWhere(input),
+        where: {
+          ...this.buildUnreadForSideWhere(input),
+          // Another process can insert a message between the caller capturing
+          // `readAt` and this update running. Without the cutoff that row is
+          // marked read with a timestamp older than its own creation, which
+          // contradicts the event clients already filter on.
+          createdAt: { lte: input.readAt },
+        },
         data: { readAt: input.readAt },
       }),
     );

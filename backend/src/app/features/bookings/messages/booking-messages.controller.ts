@@ -20,6 +20,7 @@ import {
   sendBookingMessageSchema,
 } from "@/features/bookings/messages/booking-messages.model";
 import type { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
+import type { TokenService } from "@/features/auth/token/token.service";
 
 /** Kept below the 30-60s idle window a reverse proxy typically enforces. */
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -38,6 +39,7 @@ export class BookingMessagesController {
   constructor(
     private readonly bookingMessagesService: BookingMessagesService,
     private readonly streamHub: BookingMessageStreamHub,
+    private readonly tokenService: TokenService,
   ) {
     this.logger = loggerFactory.forClass(
       BookingMessagesController,
@@ -100,6 +102,12 @@ export class BookingMessagesController {
 
     const hub = this.streamHub;
     const logger = this.logger;
+    const tokenService = this.tokenService;
+    // Kept so the periodic check can re-run the same validation REST does:
+    // signature, expiry, token version, and server-side session state.
+    const accessToken = (context.req.header("authorization") ?? "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
     // Captured, never resolved inside the callback. The instance stays valid
     // after the scope is disposed — disposal clears the scope's resolution map
     // and runs dispose hooks, of which this graph has none — but resolving
@@ -152,19 +160,23 @@ export class BookingMessagesController {
             return;
           }
 
-          void service
-            .authorizeStream(bookingRequestId, auth.sub)
-            .catch((error: unknown) => {
-              logger.info(
-                "Closing a booking message stream after access was revoked.",
-                {
-                  bookingRequestId,
-                  userId: auth.sub,
-                  reason: error instanceof Error ? error.message : "unknown",
-                },
-              );
-              teardown();
-            });
+          // Booking membership alone is not enough: a logged-out or revoked
+          // session still belongs to a booking participant, and every REST
+          // call it made would already be rejected.
+          void Promise.all([
+            tokenService.verifyAccessToken(accessToken),
+            service.authorizeStream(bookingRequestId, auth.sub),
+          ]).catch((error: unknown) => {
+            logger.info(
+              "Closing a booking message stream after access was revoked.",
+              {
+                bookingRequestId,
+                userId: auth.sub,
+                reason: error instanceof Error ? error.message : "unknown",
+              },
+            );
+            teardown();
+          });
         }, STREAM_REAUTHORIZE_INTERVAL_MS);
 
         stream.onAbort(teardown);
