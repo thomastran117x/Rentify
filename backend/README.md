@@ -5,7 +5,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 ## Stack
 
 - runtime: `Node.js 24`
-- server: `Hono`
+- server: `Express`
 - data access: `Prisma`
 - database: `MySQL`
 - supporting services: `Redis`, `Elasticsearch`, `RabbitMQ`

@@ -7,7 +7,7 @@ This document is a practical map of how the current Rentify codebase is organize
 Rentify is a modular full-stack application with:
 
 - a `Next.js` frontend in `frontend/`
-- a `Hono` API in `backend/`
+- an `Express` API in `backend/`
 - background workers in `backend/src/app/workers`
 - shared local infrastructure through Docker Compose
 
