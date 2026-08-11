@@ -132,11 +132,11 @@ export const bookingsRouteModule: RouteModule = {
         "markRead",
       ),
     );
-    app.get(
-      "/booking-requests/:id/messages/stream",
+    app.post(
+      "/booking-requests/:id/messages/socket-ticket",
       resolveHandler<BookingMessagesController>(
         containerTokens.bookingMessagesController,
-        "stream",
+        "socketTicket",
       ),
     );
   },

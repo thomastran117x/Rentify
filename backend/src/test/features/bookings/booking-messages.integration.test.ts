@@ -266,11 +266,11 @@ describe("Booking messages persistence integration", () => {
     );
     expect(readResponse.status).toBe(403);
 
-    const streamResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/stream`)}`,
-      { headers: outsider.headers() },
+    const ticketResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/socket-ticket`)}`,
+      { method: "POST", headers: outsider.headers() },
     );
-    expect(streamResponse.status).toBe(403);
+    expect(ticketResponse.status).toBe(403);
   }, 60_000);
 
   it("lets an organization operator read but not write", async () => {
@@ -541,94 +541,81 @@ describe("Booking messages persistence integration", () => {
     ).rejects.toThrow();
   }, 60_000);
 
-  it("streams a message created after the stream opened", async () => {
+  it("issues a single-use socket ticket and redeems it once", async () => {
+    const { renter, bookingRequestId } = await createThread();
+
+    const ticketResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/socket-ticket`)}`,
+      { method: "POST", headers: renter.headers() },
+    );
+
+    expect(ticketResponse.status).toBe(201);
+    const issued = await readData<{
+      ticket: string;
+      expiresInSeconds: number;
+    }>(ticketResponse);
+    expect(issued.ticket).toBeTruthy();
+    expect(issued.expiresInSeconds).toBeGreaterThan(0);
+
+    const service = persistenceApp.container
+      .createScope()
+      .resolve(containerTokens.bookingMessagesService);
+
+    await expect(service.redeemSocketTicket(issued.ticket)).resolves.toEqual({
+      bookingRequestId,
+      userId: renter.userId,
+    });
+
+    // Single use: a leaked ticket cannot be replayed.
+    await expect(service.redeemSocketTicket(issued.ticket)).resolves.toBeNull();
+    await expect(
+      service.redeemSocketTicket("not-a-ticket"),
+    ).resolves.toBeNull();
+  }, 60_000);
+
+  it("records delivery acknowledgements for the other side only", async () => {
     const { renter, bookingRequestId } = await createThread();
     const owner = await createAuthenticatedRequestContext({
       email: OWNER_EMAIL,
     });
 
-    const streamResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages/stream`)}`,
-      { headers: owner.headers() },
+    const sendResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({ body: "Delivered check" }),
+      },
     );
+    const created = await readData<{ id: string }>(sendResponse);
 
-    expect(streamResponse.status).toBe(200);
-    expect(streamResponse.headers.get("content-type")).toContain(
-      "text/event-stream",
+    const service = persistenceApp.container
+      .createScope()
+      .resolve(containerTokens.bookingMessagesService);
+
+    // The author acknowledging their own message is a no-op.
+    await expect(
+      service.markDelivered(bookingRequestId, renter.userId, [created.id]),
+    ).resolves.toEqual([]);
+
+    await expect(
+      service.markDelivered(bookingRequestId, owner.userId, [created.id]),
+    ).resolves.toEqual([created.id]);
+
+    // Repeat acks are free: only undelivered rows are touched.
+    await expect(
+      service.markDelivered(bookingRequestId, owner.userId, [created.id]),
+    ).resolves.toEqual([]);
+
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
+      { headers: renter.headers() },
     );
-
-    const reader = streamResponse.body!.getReader();
-    const decoder = new TextDecoder();
-
-    // Always race the read loop: a stream that never yields would otherwise
-    // hang until Jest's global timeout.
-    async function readUntil(marker: string): Promise<string> {
-      let buffer = "";
-
-      const readLoop = (async () => {
-        while (!buffer.includes(marker)) {
-          const chunk = await reader.read();
-
-          if (chunk.done) {
-            throw new Error(`Stream closed before receiving "${marker}".`);
-          }
-
-          buffer += decoder.decode(chunk.value, { stream: true });
-        }
-
-        return buffer;
-      })();
-
-      let timer: NodeJS.Timeout | undefined;
-
-      try {
-        return await Promise.race([
-          readLoop,
-          new Promise<string>((_, reject) => {
-            timer = setTimeout(
-              () => reject(new Error(`Timed out waiting for "${marker}".`)),
-              10_000,
-            );
-          }),
-        ]);
-      } finally {
-        // Clearing matters: an un-cleared timer keeps the event loop alive
-        // after the test finishes and makes Jest hang on exit.
-        clearTimeout(timer);
-      }
-    }
-
-    try {
-      await readUntil("event: ready");
-
-      await persistenceApp.app.request(
-        `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
-        {
-          method: "POST",
-          headers: renter.headers(),
-          body: JSON.stringify({ body: "Streamed hello." }),
-        },
-      );
-
-      const received = await readUntil("event: message.created");
-      expect(received).toContain("Streamed hello.");
-    } finally {
-      await reader.cancel();
-    }
-
-    // Disconnecting must unwind the Redis subscription. A leak here is
-    // otherwise invisible: StreamingApi.write swallows every error, so a
-    // stranded stream would keep a heartbeat timer and a subscription alive
-    // with nothing surfacing in logs.
-    const hub = persistenceApp.container.resolve(
-      containerTokens.bookingMessageStreamHub,
-    );
-
-    const deadline = Date.now() + 5_000;
-    while (hub.activeChannelCount() > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-
-    expect(hub.activeChannelCount()).toBe(0);
+    const list = await readData<{
+      messages: Array<{ id: string; deliveredAt: string | null }>;
+    }>(listResponse);
+    expect(
+      list.messages.find((message) => message.id === created.id)?.deliveredAt,
+    ).not.toBeNull();
   }, 60_000);
 });

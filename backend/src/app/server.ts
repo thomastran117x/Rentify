@@ -4,6 +4,8 @@ import {
   initializeServerApplication,
 } from "@/configuration/bootstrap/startup";
 import { disconnectLogging, loggerFactory } from "@/configuration/logging";
+import { getContainer } from "@/configuration/bootstrap/container";
+import { containerTokens } from "@/configuration/container/tokens";
 
 const serverLogger = loggerFactory.forComponent("server", "app");
 
@@ -23,6 +25,12 @@ async function bootstrap(): Promise<void> {
       });
     },
   );
+
+  // Attached to the Node server rather than routed through Hono: the
+  // @hono/node-ws adapter peers on @hono/node-server 1.x and this app runs 2.x.
+  getContainer()
+    .resolve(containerTokens.bookingMessageSocketServer)
+    .attach(server as unknown as import("node:http").Server);
 
   let isShuttingDown = false;
 

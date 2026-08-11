@@ -88,6 +88,8 @@ export interface BookingMessageRecord {
    * `BookingMessagesService.markRead` for the exact rule.
    */
   readAt: string | null;
+  /** When the recipient's client acknowledged receipt, distinct from readAt. */
+  deliveredAt: string | null;
   editedAt: string | null;
   deletedAt: string | null;
 }

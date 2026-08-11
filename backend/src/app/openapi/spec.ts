@@ -790,6 +790,7 @@ const bookingMessageExample = {
   body: "Is an early pickup possible on the first day?",
   createdAt: "2026-05-26T08:00:00.000Z",
   readAt: null,
+  deliveredAt: null,
   editedAt: null,
   deletedAt: null,
 };
@@ -7112,12 +7113,12 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
-      method: "get",
-      path: "/booking-requests/:id/messages/stream",
-      operationId: "streamBookingMessages",
-      summary: "Stream booking request messages",
+      method: "post",
+      path: "/booking-requests/:id/messages/socket-ticket",
+      operationId: "createBookingMessageSocketTicket",
+      summary: "Issue a booking message socket ticket",
       description:
-        "Opens a Server-Sent Events stream of live thread activity, emitting `ready`, `message.created`, `messages.read`, and `heartbeat` events. Session bearer authentication is required in the `authorization` header, so browser `EventSource` cannot be used — clients must read the stream with `fetch`. The stream is not a durable log: on connect and on every reconnect, refetch `GET /booking-requests/{id}/messages` and merge by message id. PAT bearer authentication is not allowed.",
+        "Issues a short-lived, single-use ticket for the booking message WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is presented on the upgrade instead: `GET /ws/booking-messages?ticket=...`. The ticket expires in 30 seconds and is consumed on first use. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `message.created`, `message.updated`, `messages.read`, `messages.delivered`, `typing`, and `presence` frames, and accepts `typing`, `delivered`, and `ping` frames from the client. PAT bearer authentication is not allowed.",
       tags: ["booking-requests"],
       security: ownerSecurity,
       permissions: {
@@ -7129,23 +7130,15 @@ function buildOperations(): OperationDefinition[] {
         routePathParam("id", "Booking request identifier.", "booking-1"),
       ],
       responses: {
-        "200": {
-          description: "Server-Sent Events stream opened.",
-          content: {
-            "text/event-stream": {
-              schema: {
-                type: "string",
-                description:
-                  "A Server-Sent Events frame sequence terminated by a blank line.",
-              },
-              example:
-                'event: ready\ndata: {"bookingRequestId":"booking-1"}\n\n' +
-                'event: message.created\nid: booking-message-1\ndata: {"type":"message.created","bookingRequestId":"booking-1","message":{"id":"booking-message-1"}}\n\n' +
-                'event: message.updated\ndata: {"type":"message.updated","bookingRequestId":"booking-1","message":{"id":"booking-message-1","editedAt":"2026-05-26T08:02:00.000Z"}}\n\n' +
-                "event: heartbeat\ndata: 1780000000000\n\n",
-            },
+        "201": successResponse(
+          201,
+          "Socket ticket issued successfully.",
+          "BookingMessageSocketTicket",
+          {
+            ticket: "K3s9x1QF2pW8t0Zb7yQ4nR6vL5cJ2mH1",
+            expiresInSeconds: 30,
           },
-        },
+        ),
         ...commonErrors([401, 403, 404, 429, 500]),
       },
     },
@@ -10222,6 +10215,7 @@ function buildComponents(): Record<string, unknown> {
           "body",
           "createdAt",
           "readAt",
+          "deliveredAt",
           "editedAt",
           "deletedAt",
         ],
@@ -10251,6 +10245,12 @@ function buildComponents(): Record<string, unknown> {
             format: "date-time",
             description:
               "When the recipient side read this message, or null while unread.",
+          },
+          deliveredAt: {
+            type: ["string", "null"],
+            format: "date-time",
+            description:
+              "When the recipient's client acknowledged receipt over the socket. Weaker than readAt: the bytes arrived, which can happen while the thread sits unopened.",
           },
           editedAt: {
             type: ["string", "null"],
@@ -10303,6 +10303,18 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing.",
           },
+        },
+      },
+      BookingMessageSocketTicket: {
+        type: "object",
+        required: ["ticket", "expiresInSeconds"],
+        properties: {
+          ticket: {
+            type: "string",
+            description:
+              "Single-use credential for the socket upgrade. Consumed on first use.",
+          },
+          expiresInSeconds: { type: "integer", minimum: 1 },
         },
       },
       MarkBookingMessagesReadResult: {

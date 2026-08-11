@@ -32,6 +32,8 @@ import { BookingMessageEmailComposer } from "@/features/bookings/messages/bookin
 import { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
+import { BookingMessagePresenceService } from "@/features/bookings/messages/booking-message-presence.service";
+import { BookingMessageSocketServer } from "@/features/bookings/messages/booking-message-socket.server";
 import { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import { CacheService } from "@/features/cache/cache.service";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
@@ -267,6 +269,13 @@ export const containerTokens = {
   ),
   bookingMessageEmailComposer: createServiceToken<BookingMessageEmailComposer>(
     "BookingMessageEmailComposer",
+  ),
+  bookingMessagePresenceService:
+    createServiceToken<BookingMessagePresenceService>(
+      "BookingMessagePresenceService",
+    ),
+  bookingMessageSocketServer: createServiceToken<BookingMessageSocketServer>(
+    "BookingMessageSocketServer",
   ),
   paymentsRepository:
     createServiceToken<PaymentsRepository>("PaymentsRepository"),

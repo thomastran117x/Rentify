@@ -18633,6 +18633,7 @@
                         "body": "Is an early pickup possible on the first day?",
                         "createdAt": "2026-05-26T08:00:00.000Z",
                         "readAt": null,
+                        "deliveredAt": null,
                         "editedAt": null,
                         "deletedAt": null
                       }
@@ -18763,6 +18764,7 @@
                     "body": "Is an early pickup possible on the first day?",
                     "createdAt": "2026-05-26T08:00:00.000Z",
                     "readAt": null,
+                    "deliveredAt": null,
                     "editedAt": null,
                     "deletedAt": null
                   },
@@ -18883,6 +18885,7 @@
                     "body": "The keys will be in the lockbox by the side door.",
                     "createdAt": "2026-05-26T08:00:00.000Z",
                     "readAt": null,
+                    "deliveredAt": null,
                     "editedAt": "2026-05-26T08:02:00.000Z",
                     "deletedAt": null
                   },
@@ -18988,6 +18991,7 @@
                     "body": "",
                     "createdAt": "2026-05-26T08:00:00.000Z",
                     "readAt": null,
+                    "deliveredAt": null,
                     "editedAt": null,
                     "deletedAt": "2026-05-26T08:05:00.000Z"
                   },
@@ -19107,11 +19111,11 @@
         }
       }
     },
-    "/booking-requests/{id}/messages/stream": {
-      "get": {
-        "operationId": "streamBookingMessages",
-        "summary": "Stream booking request messages",
-        "description": "Opens a Server-Sent Events stream of live thread activity, emitting `ready`, `message.created`, `messages.read`, and `heartbeat` events. Session bearer authentication is required in the `authorization` header, so browser `EventSource` cannot be used — clients must read the stream with `fetch`. The stream is not a durable log: on connect and on every reconnect, refetch `GET /booking-requests/{id}/messages` and merge by message id. PAT bearer authentication is not allowed.",
+    "/booking-requests/{id}/messages/socket-ticket": {
+      "post": {
+        "operationId": "createBookingMessageSocketTicket",
+        "summary": "Issue a booking message socket ticket",
+        "description": "Issues a short-lived, single-use ticket for the booking message WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is presented on the upgrade instead: `GET /ws/booking-messages?ticket=...`. The ticket expires in 30 seconds and is consumed on first use. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `message.created`, `message.updated`, `messages.read`, `messages.delivered`, `typing`, and `presence` frames, and accepts `typing`, `delivered`, and `ping` frames from the client. PAT bearer authentication is not allowed.",
         "tags": [
           "booking-requests"
         ],
@@ -19138,15 +19142,40 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Server-Sent Events stream opened.",
+          "201": {
+            "description": "Successful response.",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "description": "A Server-Sent Events frame sequence terminated by a blank line."
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BookingMessageSocketTicket"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
                 },
-                "example": "event: ready\ndata: {\"bookingRequestId\":\"booking-1\"}\n\nevent: message.created\nid: booking-message-1\ndata: {\"type\":\"message.created\",\"bookingRequestId\":\"booking-1\",\"message\":{\"id\":\"booking-message-1\"}}\n\nevent: message.updated\ndata: {\"type\":\"message.updated\",\"bookingRequestId\":\"booking-1\",\"message\":{\"id\":\"booking-message-1\",\"editedAt\":\"2026-05-26T08:02:00.000Z\"}}\n\nevent: heartbeat\ndata: 1780000000000\n\n"
+                "example": {
+                  "success": true,
+                  "message": "Socket ticket issued successfully.",
+                  "data": {
+                    "ticket": "K3s9x1QF2pW8t0Zb7yQ4nR6vL5cJ2mH1",
+                    "expiresInSeconds": 30
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
               }
             }
           },
@@ -25711,6 +25740,7 @@
           "body",
           "createdAt",
           "readAt",
+          "deliveredAt",
           "editedAt",
           "deletedAt"
         ],
@@ -25752,6 +25782,14 @@
             ],
             "format": "date-time",
             "description": "When the recipient side read this message, or null while unread."
+          },
+          "deliveredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the recipient's client acknowledged receipt over the socket. Weaker than readAt: the bytes arrived, which can happen while the thread sits unopened."
           },
           "editedAt": {
             "type": [
@@ -25811,6 +25849,23 @@
               "owner"
             ],
             "description": "Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing."
+          }
+        }
+      },
+      "BookingMessageSocketTicket": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "expiresInSeconds"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "Single-use credential for the socket upgrade. Consumed on first use."
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },

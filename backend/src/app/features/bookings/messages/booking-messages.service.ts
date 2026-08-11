@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
@@ -12,6 +13,8 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import type {
   BookingMessageRecord,
+  BookingMessageSocketIdentity,
+  BookingMessageSocketTicket,
   DeleteBookingMessageInput,
   EditBookingMessageInput,
   BookingMessageStreamAuthorization,
@@ -24,6 +27,7 @@ import type {
 import {
   BOOKING_MESSAGE_EDIT_WINDOW_MS,
   BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS,
+  BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
 } from "@/features/bookings/messages/booking-messages.model";
 import { bookingMessageChannel } from "@/features/bookings/messages/booking-message-stream.hub";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
@@ -270,6 +274,112 @@ export class BookingMessagesService {
     }
 
     return result;
+  }
+
+  /**
+   * Mints a single-use ticket for the socket upgrade. A browser `WebSocket`
+   * cannot send an `Authorization` header, so the bearer token is exchanged
+   * here and the ticket is presented on the upgrade instead.
+   */
+  async createSocketTicket(
+    bookingRequestId: string,
+    actorUserId: string,
+  ): Promise<BookingMessageSocketTicket> {
+    // Same bar as reading the thread: a ticket must never widen access.
+    await this.authorizeStream(bookingRequestId, actorUserId);
+
+    const ticket = randomBytes(32).toString("base64url");
+
+    await this.cacheService.setJson(
+      this.socketTicketKey(ticket),
+      { bookingRequestId, userId: actorUserId },
+      BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
+    );
+
+    return {
+      ticket,
+      expiresInSeconds: BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
+    };
+  }
+
+  /**
+   * Redeems a ticket exactly once. Deleting before use closes the window where
+   * a ticket leaked from a proxy log or browser history could be replayed.
+   */
+  async redeemSocketTicket(
+    ticket: string,
+  ): Promise<BookingMessageSocketIdentity | null> {
+    if (!ticket) {
+      return null;
+    }
+
+    const key = this.socketTicketKey(ticket);
+    const identity =
+      await this.cacheService.getJson<BookingMessageSocketIdentity>(key);
+
+    if (!identity) {
+      return null;
+    }
+
+    await this.cacheService.delete(key);
+
+    // Re-authorized rather than trusted: membership can change between minting
+    // the ticket and the upgrade landing.
+    try {
+      await this.authorizeStream(identity.bookingRequestId, identity.userId);
+    } catch {
+      return null;
+    }
+
+    return identity;
+  }
+
+  private socketTicketKey(ticket: string): string {
+    return `booking-messages:ws-ticket:${ticket}`;
+  }
+
+  /**
+   * Records that a recipient's client received these messages. Delivery is
+   * weaker than read: it only says the bytes arrived, which can happen while
+   * the thread sits unopened in another tab.
+   */
+  async markDelivered(
+    bookingRequestId: string,
+    actorUserId: string,
+    messageIds: string[],
+  ): Promise<string[]> {
+    const bookingRequest = await this.requireBookingRequest(bookingRequestId);
+    // Read access is enough: acknowledging receipt is not a write to the
+    // conversation, and a read-only member still receives the messages.
+    const { side } = await resolveBookingParticipantAccess(
+      this.organizationAccessService,
+      bookingRequest,
+      actorUserId,
+    );
+
+    const deliveredAt = new Date();
+    const delivered = await this.bookingMessagesRepository.markDeliveredForSide(
+      {
+        bookingRequestId: bookingRequest.id,
+        renterId: bookingRequest.renterId,
+        side,
+        messageIds,
+        deliveredAt,
+      },
+    );
+
+    if (delivered.length === 0) {
+      return [];
+    }
+
+    await this.publishEvent({
+      type: "messages.delivered",
+      bookingRequestId: bookingRequest.id,
+      messageIds: delivered,
+      deliveredAt: deliveredAt.toISOString(),
+    });
+
+    return delivered;
   }
 
   async authorizeStream(

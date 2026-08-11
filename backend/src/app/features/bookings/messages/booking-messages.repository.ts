@@ -151,6 +151,50 @@ export class BookingMessagesRepository extends BaseRepository {
     return result.count;
   }
 
+  /**
+   * Marks messages the *other* side authored as delivered. Only rows that are
+   * still undelivered are touched, so the first ack wins and repeats are free.
+   */
+  async markDeliveredForSide(input: {
+    bookingRequestId: string;
+    renterId: string;
+    side: BookingParticipantSide;
+    messageIds: string[];
+    deliveredAt: Date;
+  }): Promise<string[]> {
+    if (input.messageIds.length === 0) {
+      return [];
+    }
+
+    const where: Prisma.BookingMessageWhereInput = {
+      id: { in: input.messageIds },
+      bookingRequestId: input.bookingRequestId,
+      deliveredAt: null,
+      authorId:
+        input.side === "renter"
+          ? { not: input.renterId }
+          : { equals: input.renterId },
+    };
+
+    return this.executeAsync(async () => {
+      const pending = await this.prisma.bookingMessage.findMany({
+        where,
+        select: { id: true },
+      });
+
+      if (pending.length === 0) {
+        return [];
+      }
+
+      await this.prisma.bookingMessage.updateMany({
+        where,
+        data: { deliveredAt: input.deliveredAt },
+      });
+
+      return pending.map((row) => row.id);
+    });
+  }
+
   async findById(
     messageId: string,
     renterId: string,
@@ -319,6 +363,7 @@ export class BookingMessagesRepository extends BaseRepository {
       body: row.body,
       createdAt: row.createdAt.toISOString(),
       readAt: row.readAt ? row.readAt.toISOString() : null,
+      deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
       editedAt: row.editedAt ? row.editedAt.toISOString() : null,
       deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
     };

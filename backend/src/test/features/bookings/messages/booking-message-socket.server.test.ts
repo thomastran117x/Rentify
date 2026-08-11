@@ -1,0 +1,331 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import WebSocket from "ws";
+import {
+  createRootContainer,
+  setContainer,
+} from "@/configuration/bootstrap/container";
+import { containerTokens } from "@/configuration/container/tokens";
+import {
+  BOOKING_MESSAGE_SOCKET_PATH,
+  BookingMessageSocketServer,
+} from "@/features/bookings/messages/booking-message-socket.server";
+
+const BOOKING_ID = "booking-1";
+const USER_ID = "user-1";
+
+interface Fakes {
+  redeemSocketTicket: jest.Mock;
+  authorizeStream: jest.Mock;
+  markDelivered: jest.Mock;
+  publishTyping: jest.Mock;
+  markOnline: jest.Mock;
+  markOffline: jest.Mock;
+  release: jest.Mock;
+  subscribe: jest.Mock;
+  listeners: Array<(event: unknown) => void>;
+}
+
+/**
+ * A container of fakes, so the socket server's own logic — upgrade handling,
+ * frame routing, throttling, teardown — is exercised without any
+ * infrastructure. The live wiring is covered separately by the integration
+ * suite.
+ */
+function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
+  const listeners: Array<(event: unknown) => void> = [];
+  const release = overrides.release ?? jest.fn(async () => undefined);
+
+  const fakes: Fakes = {
+    redeemSocketTicket:
+      overrides.redeemSocketTicket ??
+      jest.fn(async (ticket: string) =>
+        ticket === "good"
+          ? { bookingRequestId: BOOKING_ID, userId: USER_ID }
+          : null,
+      ),
+    authorizeStream:
+      overrides.authorizeStream ??
+      jest.fn(async () => ({ bookingRequestId: BOOKING_ID, side: "renter" })),
+    markDelivered: overrides.markDelivered ?? jest.fn(async () => ["m1"]),
+    publishTyping: overrides.publishTyping ?? jest.fn(async () => undefined),
+    markOnline: overrides.markOnline ?? jest.fn(async () => undefined),
+    markOffline: overrides.markOffline ?? jest.fn(async () => undefined),
+    release,
+    subscribe:
+      overrides.subscribe ??
+      jest.fn(async (_id: string, listener: (event: unknown) => void) => {
+        listeners.push(listener);
+        return release;
+      }),
+    listeners,
+  };
+
+  const container = createRootContainer();
+
+  container.register({
+    token: containerTokens.bookingMessagesService,
+    lifetime: "scoped",
+    dependencies: [],
+    resolve: () =>
+      ({
+        redeemSocketTicket: fakes.redeemSocketTicket,
+        authorizeStream: fakes.authorizeStream,
+        markDelivered: fakes.markDelivered,
+      }) as never,
+  });
+  container.register({
+    token: containerTokens.bookingMessagePresenceService,
+    lifetime: "scoped",
+    dependencies: [],
+    resolve: () =>
+      ({
+        publishTyping: fakes.publishTyping,
+        markOnline: fakes.markOnline,
+        markOffline: fakes.markOffline,
+      }) as never,
+  });
+  container.register({
+    token: containerTokens.bookingMessageStreamHub,
+    lifetime: "singleton",
+    dependencies: [],
+    resolve: () => ({ subscribe: fakes.subscribe }) as never,
+  });
+
+  setContainer(container);
+  return fakes;
+}
+
+describe("BookingMessageSocketServer", () => {
+  let socketServer: BookingMessageSocketServer;
+  let httpServer: Server;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    socketServer = new BookingMessageSocketServer();
+    httpServer = createServer((_request, response) => {
+      response.writeHead(404);
+      response.end();
+    });
+    socketServer.attach(httpServer);
+
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    baseUrl = `ws://127.0.0.1:${port}${BOOKING_MESSAGE_SOCKET_PATH}`;
+  });
+
+  afterEach(async () => {
+    await socketServer.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  });
+
+  interface Connection {
+    socket: WebSocket;
+    frames: Array<Record<string, unknown>>;
+    waitFor(type: string, timeoutMs?: number): Promise<Record<string, unknown>>;
+  }
+
+  /**
+   * The listener is attached before `open` resolves: `ready` is sent the moment
+   * the upgrade completes, so a listener added afterwards can miss it.
+   */
+  async function connect(ticket = "good"): Promise<Connection> {
+    const socket = new WebSocket(`${baseUrl}?ticket=${ticket}`);
+    const frames: Array<Record<string, unknown>> = [];
+
+    socket.on("message", (raw) => {
+      try {
+        frames.push(JSON.parse(raw.toString()) as Record<string, unknown>);
+      } catch {
+        // Not a frame these tests assert on.
+      }
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+
+    return {
+      socket,
+      frames,
+      async waitFor(type: string, timeoutMs = 10_000) {
+        const deadline = Date.now() + timeoutMs;
+
+        while (Date.now() < deadline) {
+          const found = frames.find((frame) => frame.type === type);
+
+          if (found) {
+            return found;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+
+        throw new Error(`Timed out waiting for "${type}".`);
+      },
+    };
+  }
+
+  async function settle(times = 12): Promise<void> {
+    for (let index = 0; index < times; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  it("accepts a valid ticket and announces readiness", async () => {
+    const fakes = installFakeContainer();
+
+    const connection = await connect();
+    const ready = await connection.waitFor("ready");
+
+    expect(ready).toMatchObject({
+      type: "ready",
+      bookingRequestId: BOOKING_ID,
+    });
+    expect(fakes.redeemSocketTicket).toHaveBeenCalledWith("good");
+    expect(fakes.markOnline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+
+    connection.socket.close();
+  }, 20_000);
+
+  it("rejects an upgrade whose ticket does not redeem", async () => {
+    installFakeContainer();
+
+    const socket = new WebSocket(`${baseUrl}?ticket=bad`);
+    const error = await new Promise<Error>((resolve) =>
+      socket.once("error", resolve),
+    );
+
+    expect(error.message).toMatch(/401/);
+    socket.terminate();
+  }, 20_000);
+
+  it("closes an upgrade on an unrecognised path", async () => {
+    installFakeContainer();
+    const { port } = httpServer.address() as AddressInfo;
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/something-else`);
+    const error = await new Promise<Error>((resolve) =>
+      socket.once("error", resolve),
+    );
+
+    // Registering an upgrade listener stops Node destroying unmatched
+    // upgrades, so an unanswered path would hold the socket open forever.
+    expect(error.message).toMatch(/404/);
+    socket.terminate();
+  }, 20_000);
+
+  it("forwards hub events to the connected client", async () => {
+    const fakes = installFakeContainer();
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    fakes.listeners[0]?.({
+      type: "message.created",
+      bookingRequestId: BOOKING_ID,
+    });
+
+    expect(await connection.waitFor("message.created")).toMatchObject({
+      type: "message.created",
+    });
+
+    connection.socket.close();
+  }, 20_000);
+
+  it("throttles typing frames", async () => {
+    const fakes = installFakeContainer();
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    socket.send(JSON.stringify({ type: "typing" }));
+    socket.send(JSON.stringify({ type: "typing" }));
+    socket.send(JSON.stringify({ type: "typing" }));
+    await settle();
+
+    // A client ignoring its own throttle must not flood the thread channel.
+    expect(fakes.publishTyping).toHaveBeenCalledTimes(1);
+
+    socket.close();
+  }, 20_000);
+
+  it("records delivery acknowledgements and ignores empty ones", async () => {
+    const fakes = installFakeContainer();
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    socket.send(JSON.stringify({ type: "delivered", messageIds: ["m1"] }));
+    await settle();
+    expect(fakes.markDelivered).toHaveBeenCalledWith(BOOKING_ID, USER_ID, [
+      "m1",
+    ]);
+
+    socket.send(JSON.stringify({ type: "delivered", messageIds: [] }));
+    socket.send(JSON.stringify({ type: "delivered", messageIds: [42] }));
+    await settle();
+    expect(fakes.markDelivered).toHaveBeenCalledTimes(1);
+
+    socket.close();
+  }, 20_000);
+
+  it("survives a malformed frame", async () => {
+    const fakes = installFakeContainer();
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    socket.send("not json");
+    await settle();
+
+    // Still healthy: a bad frame is the client's problem, not grounds to drop.
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    expect(fakes.markDelivered).not.toHaveBeenCalled();
+
+    socket.close();
+  }, 20_000);
+
+  it("releases the hub subscription and clears presence on close", async () => {
+    const fakes = installFakeContainer();
+    const { socket, waitFor } = await connect();
+    await waitFor("ready");
+
+    expect(socketServer.activeConnectionCount()).toBe(1);
+
+    socket.close();
+    await settle(30);
+
+    expect(fakes.release).toHaveBeenCalled();
+    expect(fakes.markOffline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("keeps presence while another socket for the same user remains", async () => {
+    const fakes = installFakeContainer();
+    const first = await connect();
+    await first.waitFor("ready");
+    const second = await connect();
+    await second.waitFor("ready");
+
+    first.socket.close();
+    await settle(30);
+
+    // A second tab closing must not mark the user offline.
+    expect(fakes.markOffline).not.toHaveBeenCalled();
+
+    second.socket.close();
+    await settle(30);
+    expect(fakes.markOffline).toHaveBeenCalledTimes(1);
+  }, 20_000);
+
+  it("closes the socket when the subscription cannot be established", async () => {
+    installFakeContainer({
+      subscribe: jest.fn(async () => {
+        throw new Error("redis down");
+      }),
+    });
+
+    const { socket } = await connect();
+    await new Promise<void>((resolve) => socket.once("close", () => resolve()));
+
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+});

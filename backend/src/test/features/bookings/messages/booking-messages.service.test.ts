@@ -48,6 +48,8 @@ function createService(
     emailError?: Error;
     markedCount?: number;
     unreadCount?: number;
+    ticketIdentity?: unknown;
+    deliveredIds?: string[];
   } = {},
 ) {
   const bookingsRepository = {
@@ -84,6 +86,7 @@ function createService(
       createMessage({ body: "", deletedAt: "2026-08-10T12:40:00.000Z" }),
     ),
     markReadForSide: jest.fn(async () => options.markedCount ?? 0),
+    markDeliveredForSide: jest.fn(async () => options.deliveredIds ?? []),
   } as unknown as BookingMessagesRepository;
 
   const organizationAccessService = {
@@ -123,6 +126,8 @@ function createService(
     }),
     setIfNotExists: jest.fn(async () => options.cooldownClaimed ?? true),
     delete: jest.fn(async () => true),
+    setJson: jest.fn(async () => undefined),
+    getJson: jest.fn(async () => options.ticketIdentity ?? null),
   } as unknown as CacheService;
 
   const emailService = {
@@ -654,6 +659,104 @@ describe("BookingMessagesService", () => {
         status: 403,
         message: "You do not have permission to manage this booking request.",
       });
+    });
+  });
+
+  describe("socket tickets", () => {
+    it("mints a ticket only for an authorized participant", async () => {
+      const { service, cacheService } = createService();
+
+      const issued = await service.createSocketTicket(BOOKING_ID, RENTER_ID);
+
+      expect(issued.ticket).toHaveLength(43);
+      expect(issued.expiresInSeconds).toBeGreaterThan(0);
+      expect(cacheService.setJson).toHaveBeenCalledWith(
+        `booking-messages:ws-ticket:${issued.ticket}`,
+        { bookingRequestId: BOOKING_ID, userId: RENTER_ID },
+        expect.any(Number),
+      );
+    });
+
+    it("refuses to mint for a non-party", async () => {
+      const membershipError = new ForbiddenError(
+        "You do not have access to this booking request.",
+      );
+      const { service } = createService({ membershipError });
+
+      await expect(
+        service.createSocketTicket(BOOKING_ID, "outsider-1"),
+      ).rejects.toBe(membershipError);
+    });
+
+    it("consumes a ticket on redemption", async () => {
+      const { service, cacheService } = createService({
+        ticketIdentity: { bookingRequestId: BOOKING_ID, userId: RENTER_ID },
+      });
+
+      await expect(service.redeemSocketTicket("abc")).resolves.toEqual({
+        bookingRequestId: BOOKING_ID,
+        userId: RENTER_ID,
+      });
+      // Deleted before use, so a leaked ticket cannot be replayed.
+      expect(cacheService.delete).toHaveBeenCalledWith(
+        "booking-messages:ws-ticket:abc",
+      );
+    });
+
+    it("rejects an unknown or empty ticket", async () => {
+      const { service } = createService();
+
+      await expect(service.redeemSocketTicket("nope")).resolves.toBeNull();
+      await expect(service.redeemSocketTicket("")).resolves.toBeNull();
+    });
+
+    it("rejects a ticket whose holder lost access after minting", async () => {
+      const { service } = createService({
+        ticketIdentity: { bookingRequestId: BOOKING_ID, userId: "removed-1" },
+        membershipError: new ForbiddenError("No access."),
+      });
+
+      await expect(service.redeemSocketTicket("abc")).resolves.toBeNull();
+    });
+  });
+
+  describe("markDelivered", () => {
+    it("publishes only the rows it actually marked", async () => {
+      const { service, cacheService } = createService({
+        deliveredIds: ["message-1"],
+      });
+
+      await expect(
+        service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
+      ).resolves.toEqual(["message-1"]);
+
+      const [, payload] = (cacheService.publish as jest.Mock).mock.calls[0];
+      expect(JSON.parse(payload)).toMatchObject({
+        type: "messages.delivered",
+        messageIds: ["message-1"],
+      });
+    });
+
+    it("stays silent when nothing was newly delivered", async () => {
+      const { service, cacheService } = createService({ deliveredIds: [] });
+
+      await expect(
+        service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
+      ).resolves.toEqual([]);
+      expect(cacheService.publish).not.toHaveBeenCalled();
+    });
+
+    it("allows a read-only member to acknowledge receipt", async () => {
+      // Acking is not a write to the conversation, so the manage bar does not
+      // apply: an operator still receives the messages.
+      const { service } = createService({
+        role: "operator",
+        deliveredIds: ["message-1"],
+      });
+
+      await expect(
+        service.markDelivered(BOOKING_ID, "operator-1", ["message-1"]),
+      ).resolves.toEqual(["message-1"]);
     });
   });
 
