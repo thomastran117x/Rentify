@@ -69,7 +69,10 @@
     "@prisma/client": "^7.9.1",
     "amqplib": "^2.0.1",
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "hono": "^4.12.33",
     "mysql2": "^3.15.2",
     "nodemailer": "^9.0.3",
@@ -81,6 +84,9 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.8",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.0",
@@ -94,7 +100,8 @@
     "@prisma/engines@7.9.1": true,
     "bcrypt@6.0.0": true,
     "esbuild@0.27.7": true,
+    "esbuild@0.28.1": true,
     "prisma@7.9.1": true,
-    "unrs-resolver@1.11.1": true
+    "unrs-resolver@1.12.2": true
   }
 }
