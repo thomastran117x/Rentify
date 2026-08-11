@@ -102,6 +102,7 @@ export class BookingMessagesService {
       pagination: page.pagination,
       unreadCount,
       canWrite: canManage,
+      viewerSide: side,
     };
   }
 

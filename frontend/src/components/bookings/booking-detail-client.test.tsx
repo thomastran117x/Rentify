@@ -135,12 +135,9 @@ describe("BookingDetailClient", () => {
     expect(screen.getByText("Quiet work trip.")).toBeInTheDocument();
     expect(screen.getByTestId("messages-panel")).toBeInTheDocument();
 
-    expect(panelMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bookingRequestId: "booking-1",
-        currentUserId: "renter-1",
-      }),
-    );
+    // The panel resolves the viewer's side and write capability from the API,
+    // so the route only needs to hand it the booking id.
+    expect(panelMock).toHaveBeenCalledWith({ bookingRequestId: "booking-1" });
   });
 
   it("renders a not-found state on 404", async () => {

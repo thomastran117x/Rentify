@@ -10,6 +10,7 @@ import { openBookingMessageStream } from "@/lib/booking-messages/stream";
 import type { BookingMessageStreamHandle } from "@/lib/booking-messages/stream";
 import {
   MAX_BOOKING_MESSAGE_LENGTH,
+  type BookingMessageAuthorSide,
   type BookingMessageRecord,
   type BookingMessageStreamStatus,
 } from "@/lib/booking-messages/types";
@@ -26,7 +27,31 @@ interface PanelBanner {
 
 interface BookingMessagesPanelProps {
   bookingRequestId: string;
-  currentUserId: string;
+}
+
+/**
+ * Keeps the page count honest after a live insert. Without this, the 41st
+ * message in a 20-per-page thread still reports two pages, so page 2 repeats an
+ * item shifted off page 1 and the oldest message becomes unreachable.
+ */
+function addToPagination(
+  pagination: PaginationMeta,
+  added: number,
+): PaginationMeta {
+  if (added <= 0) {
+    return pagination;
+  }
+
+  const total = pagination.total + added;
+  const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
+
+  return {
+    ...pagination,
+    total,
+    totalPages,
+    hasNextPage: pagination.page < totalPages,
+    hasPreviousPage: pagination.page > 1,
+  };
 }
 
 function bannerClasses(tone: PanelBanner["tone"]): string {
@@ -139,7 +164,6 @@ export function MessageComposer({
 
 export function BookingMessagesPanel({
   bookingRequestId,
-  currentUserId,
 }: BookingMessagesPanelProps) {
   const [messages, setMessages] = useState<BookingMessageRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
@@ -148,6 +172,11 @@ export function BookingMessagesPanel({
   // viewer's membership in this booking's organization. Defaults to false so
   // no composer is offered before the first load resolves.
   const [canWrite, setCanWrite] = useState(false);
+  // Also from the API: alignment follows the viewer's *side*, so a second
+  // organization manager sees a colleague's message as outgoing.
+  const [viewerSide, setViewerSide] = useState<BookingMessageAuthorSide | null>(
+    null,
+  );
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -159,11 +188,39 @@ export function BookingMessagesPanel({
   const pageRef = useRef(page);
   pageRef.current = page;
 
+  // Messages delivered by the stream while a history request is in flight. The
+  // response would otherwise replace the whole array with a snapshot taken
+  // before the insert, dropping the message until the next reconnect.
+  const inFlightArrivalsRef = useRef<BookingMessageRecord[]>([]);
+  const loadTokenRef = useRef(0);
+  // Mirrors the rendered message ids. Deduping here rather than inside a
+  // setState updater keeps the decision synchronous: React may defer an
+  // updater, so a flag set inside one cannot be read straight afterwards.
+  const messageIdsRef = useRef<Set<string>>(new Set());
+
+  const insertMessage = useCallback((record: BookingMessageRecord) => {
+    // The same message arrives twice across a reconnect re-sync, and again as
+    // the echo of a local send.
+    if (messageIdsRef.current.has(record.id)) {
+      return;
+    }
+
+    messageIdsRef.current.add(record.id);
+    setMessages((previous) => [record, ...previous]);
+    setPagination((previous) =>
+      previous ? addToPagination(previous, 1) : previous,
+    );
+  }, []);
+
   const loadMessages = useCallback(
     async (targetPage: number, silent = false) => {
       if (!silent) {
         setLoading(true);
       }
+
+      const token = loadTokenRef.current + 1;
+      loadTokenRef.current = token;
+      inFlightArrivalsRef.current = [];
 
       try {
         const result = await bookingMessagesApi.list(bookingRequestId, {
@@ -171,11 +228,33 @@ export function BookingMessagesPanel({
           pageSize: PAGE_SIZE,
         });
 
+        // A newer request superseded this one; its own merge is authoritative.
+        if (loadTokenRef.current !== token) {
+          return;
+        }
+
+        const arrivals = inFlightArrivalsRef.current;
+        inFlightArrivalsRef.current = [];
+
+        // Only the newest page can host live arrivals; on an older page they
+        // are already accounted for by the server's ordering.
+        const missed =
+          targetPage === 1
+            ? arrivals.filter(
+                (arrival) =>
+                  !result.messages.some((message) => message.id === arrival.id),
+              )
+            : [];
+
+        const merged = [...missed, ...result.messages];
+        messageIdsRef.current = new Set(merged.map((message) => message.id));
+
         startTransition(() => {
-          setMessages(result.messages);
-          setPagination(result.pagination);
+          setMessages(merged);
+          setPagination(addToPagination(result.pagination, missed.length));
           setUnreadCount(result.unreadCount);
           setCanWrite(result.canWrite);
+          setViewerSide(result.viewerSide);
         });
       } catch (error) {
         setBanner({
@@ -243,14 +322,18 @@ export function BookingMessagesPanel({
       },
       onEvent: (event) => {
         if (event.type === "message.created") {
-          setMessages((previous) =>
-            // The same event can arrive twice across a reconnect re-sync.
-            previous.some((message) => message.id === event.message.id)
-              ? previous
-              : [event.message, ...previous],
-          );
+          // Buffered so an in-flight history request can merge it back in
+          // rather than replacing it with a pre-insert snapshot.
+          inFlightArrivalsRef.current = [
+            ...inFlightArrivalsRef.current,
+            event.message,
+          ];
 
-          if (event.message.authorId !== currentUserId) {
+          insertMessage(event.message);
+
+          // Only messages from the other side are addressed to this viewer; a
+          // colleague on the same side has not written to us.
+          if (event.message.authorSide !== viewerSide) {
             void markRead();
           }
 
@@ -271,7 +354,7 @@ export function BookingMessagesPanel({
     });
 
     return () => handle?.close();
-  }, [bookingRequestId, currentUserId, loadMessages, markRead]);
+  }, [bookingRequestId, insertMessage, loadMessages, markRead, viewerSide]);
 
   useEffect(() => {
     if (liveStatus !== "failed") {
@@ -297,11 +380,7 @@ export function BookingMessagesPanel({
           body,
         });
 
-        setMessages((previous) =>
-          previous.some((message) => message.id === created.id)
-            ? previous
-            : [created, ...previous],
-        );
+        insertMessage(created);
 
         return true;
       } catch (error) {
@@ -364,7 +443,7 @@ export function BookingMessagesPanel({
               <MessageBubble
                 key={message.id}
                 message={message}
-                mine={message.authorId === currentUserId}
+                mine={message.authorSide === viewerSide}
               />
             ))}
           </ul>

@@ -12627,6 +12627,7 @@ paths:
                     hasPreviousPage: false
                   unreadCount: 1
                   canWrite: true
+                  viewerSide: owner
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -17416,6 +17417,7 @@ components:
         - pagination
         - unreadCount
         - canWrite
+        - viewerSide
       properties:
         messages:
           type: array
@@ -17430,6 +17432,12 @@ components:
         canWrite:
           type: boolean
           description: 'Whether the requesting user may send messages and mark the thread read. Resolved against the booking''s organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.'
+        viewerSide:
+          type: string
+          enum:
+            - renter
+            - owner
+          description: 'Which side of the thread the requesting user is on. Align the conversation against this rather than the author''s user id, so a second organization manager sees a colleague''s message as outgoing.'
     MarkBookingMessagesReadResult:
       type: object
       required:

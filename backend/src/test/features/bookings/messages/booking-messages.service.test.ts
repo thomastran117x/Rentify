@@ -397,7 +397,7 @@ describe("BookingMessagesService", () => {
           page: 1,
           pageSize: 20,
         }),
-      ).resolves.toMatchObject({ canWrite: true });
+      ).resolves.toMatchObject({ canWrite: true, viewerSide: "renter" });
 
       const manager = createService({ role: "manager" });
       await expect(
@@ -407,7 +407,7 @@ describe("BookingMessagesService", () => {
           page: 1,
           pageSize: 20,
         }),
-      ).resolves.toMatchObject({ canWrite: true });
+      ).resolves.toMatchObject({ canWrite: true, viewerSide: "owner" });
 
       const operator = createService({ role: "operator" });
       await expect(
@@ -417,7 +417,7 @@ describe("BookingMessagesService", () => {
           page: 1,
           pageSize: 20,
         }),
-      ).resolves.toMatchObject({ canWrite: false });
+      ).resolves.toMatchObject({ canWrite: false, viewerSide: "owner" });
     });
 
     it("rejects a non-party", async () => {

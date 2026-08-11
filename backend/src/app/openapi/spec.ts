@@ -6961,6 +6961,7 @@ function buildOperations(): OperationDefinition[] {
             },
             unreadCount: 1,
             canWrite: true,
+            viewerSide: "owner",
           },
           "Successful response.",
           {
@@ -10171,7 +10172,13 @@ function buildComponents(): Record<string, unknown> {
       },
       BookingMessagesListResult: {
         type: "object",
-        required: ["messages", "pagination", "unreadCount", "canWrite"],
+        required: [
+          "messages",
+          "pagination",
+          "unreadCount",
+          "canWrite",
+          "viewerSide",
+        ],
         properties: {
           messages: {
             type: "array",
@@ -10188,6 +10195,12 @@ function buildComponents(): Record<string, unknown> {
             type: "boolean",
             description:
               "Whether the requesting user may send messages and mark the thread read. Resolved against the booking's organization, so a manager who belongs to several organizations keeps write access on a booking owned by any of them.",
+          },
+          viewerSide: {
+            type: "string",
+            enum: ["renter", "owner"],
+            description:
+              "Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing.",
           },
         },
       },

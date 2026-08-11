@@ -83,6 +83,12 @@ export interface BookingMessagesListResult {
    * organizations keeps write access on a booking owned by any of them.
    */
   canWrite: boolean;
+  /**
+   * Which side of the thread the requesting user is on. Clients align the
+   * conversation against this rather than against the author's user id, so a
+   * second organization manager sees a colleague's message as outgoing.
+   */
+  viewerSide: BookingParticipantSide;
 }
 
 export interface MarkBookingMessagesReadResult {

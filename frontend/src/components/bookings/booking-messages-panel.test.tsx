@@ -55,6 +55,7 @@ function buildList(overrides: Record<string, unknown> = {}) {
     },
     unreadCount: 0,
     canWrite: true,
+    viewerSide: "renter" as const,
     ...overrides,
   };
 }
@@ -68,12 +69,7 @@ function captureStreamHandlers() {
 }
 
 function renderPanel() {
-  return render(
-    <BookingMessagesPanel
-      bookingRequestId="booking-1"
-      currentUserId={CURRENT_USER_ID}
-    />,
-  );
+  return render(<BookingMessagesPanel bookingRequestId="booking-1" />);
 }
 
 describe("BookingMessagesPanel", () => {
@@ -317,6 +313,135 @@ describe("BookingMessagesPanel", () => {
     await vi.advanceTimersByTimeAsync(15_000);
 
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("aligns by participant side, not author id", async () => {
+    // The viewer is an organization manager; a colleague manager's message has
+    // a different authorId but is still outgoing for this side.
+    listMock.mockResolvedValue(
+      buildList({
+        viewerSide: "owner",
+        messages: [
+          buildMessage({
+            id: "from-colleague",
+            authorId: "manager-other",
+            authorSide: "owner",
+            body: "Colleague reply",
+          }),
+          buildMessage({
+            id: "from-renter",
+            authorId: "renter-9",
+            authorSide: "renter",
+            body: "Renter question",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Colleague reply");
+
+    const bubbles = screen.getAllByTestId("booking-message");
+    expect(bubbles[0]).toHaveAttribute("data-mine", "true");
+    expect(bubbles[1]).toHaveAttribute("data-mine", "false");
+  });
+
+  it("keeps a message that arrives while a history request is in flight", async () => {
+    let resolveList: (value: unknown) => void = () => {};
+    listMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+
+    renderPanel();
+
+    await waitFor(() => expect(openStreamMock).toHaveBeenCalled());
+
+    // Delivered after the request was issued but before its response lands.
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({
+        id: "raced-message",
+        authorId: "owner-9",
+        authorSide: "owner",
+        body: "Raced message",
+      }),
+    });
+
+    // The response is a snapshot taken before that insert.
+    resolveList(buildList());
+
+    expect(await screen.findByText("Raced message")).toBeInTheDocument();
+    // The list response is a pre-insert snapshot; both must survive the merge.
+    expect(
+      await screen.findByText("Is an early pickup possible?"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps pagination totals honest when a message is inserted live", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({ id: "message-41", body: "Forty first" }),
+    });
+
+    // 41 messages at 20 per page is three pages; leaving it at two makes the
+    // oldest message unreachable.
+    expect(await screen.findByText("Forty first")).toBeInTheDocument();
+    // A third page control must appear, otherwise the oldest message sits on a
+    // page the user cannot navigate to.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "3" })).toBeInTheDocument(),
+    );
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          (element.textContent ?? "").includes("of 41 messages"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("does not mark read for a message from the viewer's own side", async () => {
+    listMock.mockResolvedValue(buildList({ viewerSide: "owner" }));
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledTimes(1));
+
+    captureStreamHandlers().onEvent({
+      type: "message.created",
+      bookingRequestId: "booking-1",
+      message: buildMessage({
+        id: "from-colleague",
+        authorId: "manager-other",
+        authorSide: "owner",
+        body: "Colleague reply",
+      }),
+    });
+
+    await screen.findByText("Colleague reply");
+    // A colleague on the same side has not written to this viewer.
+    expect(markReadMock).toHaveBeenCalledTimes(1);
   });
 
   it("closes the stream on unmount", async () => {

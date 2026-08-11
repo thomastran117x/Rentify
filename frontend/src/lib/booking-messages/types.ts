@@ -28,6 +28,12 @@ export interface BookingMessagesListResult {
    * several organizations.
    */
   canWrite: boolean;
+  /**
+   * Which side of the thread this viewer is on. Align the conversation against
+   * this rather than the author's user id: a second organization manager must
+   * see a colleague's message as outgoing, not as the renter's.
+   */
+  viewerSide: BookingMessageAuthorSide;
 }
 
 export interface MarkBookingMessagesReadResult {
