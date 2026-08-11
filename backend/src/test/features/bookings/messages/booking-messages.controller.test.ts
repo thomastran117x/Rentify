@@ -46,7 +46,9 @@ function createContext(options?: { body?: unknown; url?: string }) {
         options?.url ??
         "https://example.test/booking-requests/booking-1/messages",
       param: (name?: string) =>
-        name ? { id: "booking-1" }[name] : { id: "booking-1" },
+        name
+          ? { id: "booking-1", messageId: "message-1" }[name]
+          : { id: "booking-1", messageId: "message-1" },
     },
     get: (name?: string) => {
       if (name === "requestId") {
@@ -227,6 +229,62 @@ describe("BookingMessagesController", () => {
       const payload = await response.json();
 
       expect(payload.meta.pagination).toMatchObject({ page: 1, total: 0 });
+    });
+  });
+
+  describe("edit and remove", () => {
+    it("edits a message through the service", async () => {
+      const service = createService({
+        edit: jest.fn(async () => ({ id: "message-1", body: "Updated" })),
+      });
+      const controller = new BookingMessagesController(
+        service,
+        createTokenService(),
+      );
+
+      const response = await controller.edit(
+        createContext({ body: { body: "Updated" } }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(service.edit).toHaveBeenCalledWith({
+        bookingRequestId: "booking-1",
+        messageId: "message-1",
+        actorUserId: "user-1",
+        body: "Updated",
+      });
+    });
+
+    it("rejects an edit with an empty body", async () => {
+      const service = createService({ edit: jest.fn() });
+      const controller = new BookingMessagesController(
+        service,
+        createTokenService(),
+      );
+
+      await expect(
+        controller.edit(createContext({ body: { body: "   " } })),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(service.edit).not.toHaveBeenCalled();
+    });
+
+    it("deletes a message through the service", async () => {
+      const service = createService({
+        remove: jest.fn(async () => ({ id: "message-1", deletedAt: "now" })),
+      });
+      const controller = new BookingMessagesController(
+        service,
+        createTokenService(),
+      );
+
+      const response = await controller.remove(createContext());
+
+      expect(response.status).toBe(200);
+      expect(service.remove).toHaveBeenCalledWith({
+        bookingRequestId: "booking-1",
+        messageId: "message-1",
+        actorUserId: "user-1",
+      });
     });
   });
 

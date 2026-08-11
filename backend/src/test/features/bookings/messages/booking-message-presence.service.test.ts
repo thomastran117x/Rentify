@@ -156,6 +156,25 @@ describe("BookingMessagePresenceService", () => {
       });
     });
 
+    it("reports whether a user is currently watching the thread", async () => {
+      const { service, cacheService } = createService();
+
+      await expect(service.isOnline(BOOKING_ID, RENTER_ID)).resolves.toBe(true);
+      expect(cacheService.exists).toHaveBeenCalledWith(
+        `booking-messages:presence:${BOOKING_ID}:${RENTER_ID}`,
+      );
+    });
+
+    it("stays quiet when the booking behind the presence event is gone", async () => {
+      const { service, cacheService } = createService({ bookingRequest: null });
+
+      await service.markOffline(BOOKING_ID, RENTER_ID);
+
+      // A deleted booking has no sides to describe, so there is nothing
+      // meaningful to announce and no channel worth publishing to.
+      expect(cacheService.publish).not.toHaveBeenCalled();
+    });
+
     it("announces going offline even when the key had already expired", async () => {
       const { service, cacheService } = createService({ removed: false });
 

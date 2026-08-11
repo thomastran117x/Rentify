@@ -375,6 +375,108 @@ describe("BookingMessageSocketServer", () => {
     expect(fakes.markOffline).toHaveBeenCalledTimes(1);
   }, 20_000);
 
+  /**
+   * The periodic sweeps run on 20 and 60 second intervals, which no unit test
+   * is going to wait for, and faking timers would break the real sockets these
+   * tests use. They are driven directly instead — the alternative is leaving
+   * the revocation paths, the ones that decide whether a signed-out user keeps
+   * receiving messages, with no coverage at all.
+   */
+  function sweeps(server: BookingMessageSocketServer) {
+    const internals = server as unknown as {
+      reauthorizeAll(): Promise<void>;
+      refreshPresenceAll(): Promise<void>;
+      pingAll(): void;
+    };
+
+    return {
+      reauthorize: () => internals.reauthorizeAll(),
+      refreshPresence: () => internals.refreshPresenceAll(),
+      ping: () => internals.pingAll(),
+    };
+  }
+
+  it("keeps a socket open while membership and session both hold", async () => {
+    const fakes = installFakeContainer();
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    await sweeps(socketServer).reauthorize();
+
+    expect(fakes.authorizeStream).toHaveBeenCalled();
+    expect(fakes.assertSocketSessionValid).toHaveBeenCalled();
+    expect(socketServer.activeConnectionCount()).toBe(1);
+
+    connection.socket.close();
+  }, 20_000);
+
+  it("closes a socket whose membership was revoked", async () => {
+    installFakeContainer({
+      authorizeStream: jest.fn(async () => {
+        throw new Error("No access.");
+      }),
+    });
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    await sweeps(socketServer).reauthorize();
+    await settle(30);
+
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("closes a socket whose session was revoked even though membership holds", async () => {
+    const fakes = installFakeContainer({
+      assertSocketSessionValid: jest.fn(async () => {
+        throw new Error("Session is no longer valid.");
+      }),
+    });
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    await sweeps(socketServer).reauthorize();
+    await settle(30);
+
+    // The membership check passes here. Without the session check this socket
+    // would stay open, feeding message bodies to someone who has logged out
+    // and whose every REST call is being rejected.
+    expect(fakes.authorizeStream).toHaveBeenCalled();
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("pushes out presence for every open socket, and skips the work when idle", async () => {
+    const fakes = installFakeContainer();
+
+    // Nothing connected: the sweep must not resolve a scope it has no use for.
+    await sweeps(socketServer).refreshPresence();
+    expect(fakes.markOnline).not.toHaveBeenCalled();
+
+    const connection = await connect();
+    await connection.waitFor("ready");
+    fakes.markOnline.mockClear();
+
+    await sweeps(socketServer).refreshPresence();
+
+    // Refreshed well inside the presence TTL, so the key never lapses and a
+    // disconnect is always announced.
+    expect(fakes.markOnline).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+
+    connection.socket.close();
+  }, 20_000);
+
+  it("drops a socket that missed a full heartbeat round", async () => {
+    installFakeContainer();
+    const connection = await connect();
+    await connection.waitFor("ready");
+
+    // First sweep marks it pending; the second finds no pong in between.
+    sweeps(socketServer).ping();
+    sweeps(socketServer).ping();
+    await settle(30);
+
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
   it("closes the socket when the subscription cannot be established", async () => {
     installFakeContainer({
       subscribe: jest.fn(async () => {
