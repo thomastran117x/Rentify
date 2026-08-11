@@ -296,6 +296,7 @@ export function BookingMessagesPanel({
   const viewerSideRef = useRef<BookingMessageAuthorSide | null>(null);
   viewerSideRef.current = viewerSide;
   const socketRef = useRef<BookingMessageSocketHandle | null>(null);
+  const typingTimerRef = useRef<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Only follow the newest message when the reader is already at the bottom;
@@ -496,9 +497,20 @@ export function BookingMessagesPanel({
           }
 
           setTypingUsername(event.username);
+
+          // A single timer, replaced on every frame. Scheduling one per frame
+          // would let an earlier expiry hide an indicator a later frame had
+          // already extended.
+          if (typingTimerRef.current !== null) {
+            window.clearTimeout(typingTimerRef.current);
+          }
+
           const remaining = new Date(event.expiresAt).getTime() - Date.now();
-          window.setTimeout(
-            () => setTypingUsername(null),
+          typingTimerRef.current = window.setTimeout(
+            () => {
+              typingTimerRef.current = null;
+              setTypingUsername(null);
+            },
             Math.max(0, remaining),
           );
           return;
@@ -560,6 +572,11 @@ export function BookingMessagesPanel({
     return () => {
       socketRef.current = null;
       handle?.close();
+
+      if (typingTimerRef.current !== null) {
+        window.clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
     };
   }, [bookingRequestId]);
 

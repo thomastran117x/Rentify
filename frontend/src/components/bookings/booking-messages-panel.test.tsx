@@ -38,9 +38,8 @@ vi.mock("@/lib/booking-messages/socket", () => ({
   openBookingMessageSocket: openStreamMock,
 }));
 
-const { BookingMessagesPanel } = await import(
-  "@/components/bookings/booking-messages-panel"
-);
+const { BookingMessagesPanel } =
+  await import("@/components/bookings/booking-messages-panel");
 
 const CURRENT_USER_ID = "renter-1";
 
@@ -1140,6 +1139,37 @@ describe("BookingMessagesPanel", () => {
 
     // Self-expiring: no "stopped typing" frame is required.
     await vi.advanceTimersByTimeAsync(6_500);
+    await waitFor(() =>
+      expect(screen.queryByText(/is typing/i)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("extends the typing indicator when a later frame arrives", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    const typingFrame = () => ({
+      type: "typing" as const,
+      bookingRequestId: "booking-1",
+      side: "owner" as const,
+      username: "owner-one",
+      expiresAt: new Date(Date.now() + 6_000).toISOString(),
+    });
+
+    captureStreamHandlers().onEvent(typingFrame());
+    await screen.findByText(/owner-one is typing/i);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    captureStreamHandlers().onEvent(typingFrame());
+
+    // The first frame's expiry lands here. A per-frame timer would hide the
+    // indicator even though the refresh extended it to t=9s.
+    await vi.advanceTimersByTimeAsync(3_500);
+    expect(screen.getByText(/owner-one is typing/i)).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(3_000);
     await waitFor(() =>
       expect(screen.queryByText(/is typing/i)).not.toBeInTheDocument(),
     );

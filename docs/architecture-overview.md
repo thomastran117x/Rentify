@@ -79,6 +79,35 @@ The route registry currently groups the API into these main areas:
 - rentings
 - public posting discovery and detail routes
 
+## Realtime Transport
+
+Booking request message threads are the one realtime surface. They run over a
+WebSocket at `/ws/booking-messages`, outside the versioned REST prefix, fanned
+out across processes by Redis pub/sub with one channel per thread.
+
+Three things about it are worth knowing before extending it:
+
+- **The socket is attached to the Node HTTP server directly, not routed through
+  Hono.** `@hono/node-ws` peers on `@hono/node-server@^1.19.11` and this backend
+  runs 2.x, so the adapter cannot be used. The consequence is that registering
+  an `upgrade` listener stops Node from destroying unmatched upgrades on its
+  own — a second upgrade consumer must negotiate paths with the existing
+  handler rather than adding an independent listener, or unmatched sockets leak.
+- **Authentication is a two-step ticket exchange.** A browser `WebSocket` cannot
+  set an `authorization` header. The client posts to
+  `/booking-requests/{id}/messages/socket-ticket` with its bearer token and the
+  server replies with a single-use 30-second ticket in an HttpOnly cookie scoped
+  to the socket path, which the browser then attaches to the upgrade. Putting
+  the ticket in a query string instead would place a credential into proxy and
+  access logs.
+- **A connection holds no request scope.** The container scope used to redeem
+  the ticket is disposed before the socket is registered, and each subsequent
+  piece of work creates and disposes its own. A socket that pinned a scope would
+  hold a database connection for its entire lifetime.
+
+Authorization is checked at connect and re-checked every 60 seconds, so a
+revoked membership closes the socket rather than waiting for it to drop.
+
 ## Background Workers
 
 Workers currently cover:
