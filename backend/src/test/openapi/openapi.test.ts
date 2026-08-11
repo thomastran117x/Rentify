@@ -1,13 +1,23 @@
-import { Hono } from "hono";
+import express from "express";
 import { mountRoutes } from "@/configuration/bootstrap/routes";
-import type { AppBindings } from "@/configuration/http/bindings";
-import { buildApiPath } from "@/configuration/http/api-path";
+import { buildApiPath, getApiRoutePrefix } from "@/configuration/http/api-path";
 import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
 import {
   readOpenApiJsonSpecFile,
   readOpenApiYamlSpecFile,
 } from "@/openapi/file";
 import { runOpenApiChecks } from "@/openapi/validation";
+import { createTestApp } from "../support/fetch-app";
+
+function createApp() {
+  return createTestApp((app) => {
+    const api = express.Router();
+    app.use(getApiRoutePrefix(), api);
+
+    api.use(outputFormatMiddleware);
+    mountRoutes(api);
+  });
+}
 
 describe("OpenAPI documentation", () => {
   it("passes the OpenAPI validation and route coverage checks", async () => {
@@ -15,9 +25,7 @@ describe("OpenAPI documentation", () => {
   });
 
   it("serves the canonical openapi yaml file through the API route", async () => {
-    const app = new Hono<AppBindings>();
-    app.use("*", outputFormatMiddleware);
-    mountRoutes(app);
+    const app = createApp();
 
     const response = await app.request(
       `http://rent.test${buildApiPath("/openapi.yaml")}`,
@@ -33,9 +41,7 @@ describe("OpenAPI documentation", () => {
   });
 
   it("serves the canonical openapi json file through the API route", async () => {
-    const app = new Hono<AppBindings>();
-    app.use("*", outputFormatMiddleware);
-    mountRoutes(app);
+    const app = createApp();
 
     const response = await app.request(
       `http://rent.test${buildApiPath("/openapi.json")}`,
@@ -45,6 +51,7 @@ describe("OpenAPI documentation", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/json; charset=UTF-8",
     );
+    // Byte-for-byte: the committed spec file is served as-is, not reserialised.
     await expect(response.text()).resolves.toBe(
       await readOpenApiJsonSpecFile(),
     );

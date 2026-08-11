@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 
@@ -10,27 +9,12 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 }));
 
 function createContext(url: string) {
-  const context = {
-    req: {
-      url,
+  return createTestContext({
+    url,
+    state: {
+      requestId: "request-1",
     },
-    get: (name: string) => {
-      if (name === "requestId") {
-        return "request-1";
-      }
-
-      return undefined;
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 describe("RecommendationsController", () => {
@@ -63,7 +47,7 @@ describe("RecommendationsController", () => {
       sub: "user-1",
     });
 
-    const response = await controller.list(context);
+    const response = await invoke(controller.list, context);
 
     expect(getRecommendations).toHaveBeenCalledWith(
       {
@@ -150,7 +134,7 @@ describe("RecommendationsController", () => {
     );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
-    const response = await controller.list(context);
+    const response = await invoke(controller.list, context);
     const payload = await response.json();
 
     expect(payload).toEqual({
@@ -218,7 +202,7 @@ describe("RecommendationsController", () => {
     );
     mockGetOptionalJwtAuth.mockResolvedValue(null);
 
-    await controller.list(context);
+    await invoke(controller.list, context);
 
     expect(getRecommendations).toHaveBeenCalledWith(
       {
@@ -241,7 +225,7 @@ describe("RecommendationsController", () => {
       "https://example.test/postings/recommendations?startAt=2026-05-08T00:00:00.000Z",
     );
 
-    await expect(controller.list(context)).rejects.toMatchObject<
+    await expect(invoke(controller.list, context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
       message: "Request query validation failed.",

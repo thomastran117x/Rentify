@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request, RequestHandler } from "express";
+import { getHeader } from "@/configuration/http/request";
 import BadRequestError from "@/errors/http/bad-request.error";
 
 export const REQUEST_ID_HEADER_NAME = "x-request-id";
@@ -24,7 +24,7 @@ export function validateRequestId(value: string): string {
 
 export function resolveRequestId(request: Request): string {
   const requestId = normalizeRequestId(
-    request.headers.get(REQUEST_ID_HEADER_NAME),
+    getHeader(request, REQUEST_ID_HEADER_NAME),
   );
 
   if (!requestId) {
@@ -34,15 +34,18 @@ export function resolveRequestId(request: Request): string {
   return validateRequestId(requestId);
 }
 
-export const requestIdMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const requestId = resolveRequestId(context.req.raw);
-    context.set("requestId", requestId);
+export const requestIdMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  // Set before next() rather than after: the header only has to be on the
+  // response, and once a handler starts writing it is too late to add one.
+  // An invalid incoming id throws first, so the header is skipped in that case
+  // just as it was under Hono.
+  const requestId = resolveRequestId(request);
+  request.requestId = requestId;
+  response.setHeader(REQUEST_ID_HEADER_NAME, requestId);
 
-    try {
-      await next();
-    } finally {
-      context.header(REQUEST_ID_HEADER_NAME, requestId);
-    }
-  },
-);
+  next();
+};

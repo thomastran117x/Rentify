@@ -1,5 +1,4 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import express from "express";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
@@ -7,6 +6,8 @@ import {
   rateLimiterMiddleware,
   resolveRateLimitPolicy,
 } from "@/configuration/middlewares/rate-limiter.middleware";
+import { createMockRequest } from "../../support/mock-http";
+import { createTestApp } from "../../support/fetch-app";
 
 class FakeContainer implements ServiceContainer {
   constructor(private readonly cacheService: { eval: jest.Mock }) {}
@@ -27,26 +28,29 @@ class FakeContainer implements ServiceContainer {
 }
 
 function createApp(cacheEval = jest.fn().mockResolvedValue([1, 119, 0])) {
-  const app = new Hono<AppBindings>();
   const cacheService = {
     eval: cacheEval,
   };
 
-  app.use("*", async (context, next) => {
-    context.set("client", {
-      ip: "203.0.113.10",
-      device: {
-        type: "desktop",
-        isMobile: false,
-      },
+  const app = createTestApp((instance) => {
+    instance.use((request, _response, next) => {
+      request.client = {
+        ip: "203.0.113.10",
+        device: {
+          type: "desktop",
+          isMobile: false,
+        },
+      };
+      request.container = new FakeContainer(cacheService);
+      request.outputFormat = "json";
+      next();
     });
-    context.set("container", new FakeContainer(cacheService));
-    context.set("outputFormat", "json");
-    await next();
+    instance.use(rateLimiterMiddleware);
+    instance.post("/sms/webhooks/telnyx", (_request, response) => {
+      response.json({ ok: true });
+    });
+    instance.use(handleApplicationError);
   });
-  app.use("*", rateLimiterMiddleware);
-  app.onError(handleApplicationError);
-  app.post("/sms/webhooks/telnyx", (context) => context.json({ ok: true }));
 
   return { app, cacheEval };
 }
@@ -54,9 +58,10 @@ function createApp(cacheEval = jest.fn().mockResolvedValue([1, 119, 0])) {
 describe("SMS webhook rate limiting", () => {
   it("assigns the token-bucket webhook policy to the Telnyx webhook route", () => {
     const policy = resolveRateLimitPolicy(
-      new Request("http://rent.test/sms/webhooks/telnyx", {
+      createMockRequest({
+        url: "http://rent.test/sms/webhooks/telnyx",
         method: "POST",
-      }),
+      }) as express.Request,
     );
 
     expect(policy).toMatchObject({

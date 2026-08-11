@@ -1,21 +1,20 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { idempotencyMiddleware } from "@/configuration/middlewares/idempotency.middleware";
 import { requestIdMiddleware } from "@/configuration/middlewares/request-id.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", requestIdMiddleware);
-  app.use("*", idempotencyMiddleware);
-  app.onError(handleApplicationError);
-  app.post("/payments", (context) =>
-    context.json({
-      idempotencyKey: context.get("idempotencyKey"),
-      requestId: context.get("requestId"),
-    }),
-  );
-  return app;
+  return createTestApp((app) => {
+    app.use(requestIdMiddleware);
+    app.use(idempotencyMiddleware);
+    app.post("/payments", (request, response) => {
+      response.json({
+        idempotencyKey: request.idempotencyKey,
+        requestId: request.requestId,
+      });
+    });
+    app.use(handleApplicationError);
+  });
 }
 
 describe("idempotencyMiddleware", () => {

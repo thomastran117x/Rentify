@@ -9,6 +9,7 @@ import {
   setContainer,
 } from "@/configuration/bootstrap/container";
 import { createApplication } from "@/configuration/bootstrap/application";
+import { createFetchApp, type FetchApp } from "./fetch-app";
 import { loadEnvironment } from "@/configuration/environment";
 import {
   connectDatabase,
@@ -172,7 +173,12 @@ export interface PersistenceTestInfrastructure {
 }
 
 export interface PersistenceTestApp {
-  app: ReturnType<typeof createApplication>;
+  /**
+   * The composed Express app, wrapped so the suites can keep driving it with
+   * `app.request(url, init)`. See src/test/support/fetch-app.ts for why that
+   * calling convention is preserved.
+   */
+  app: FetchApp;
   container: RootServiceContainer;
   infra: PersistenceTestInfrastructure;
   prisma: ReturnType<typeof getDatabaseClient>;
@@ -272,7 +278,7 @@ export async function createPersistenceTestApp(
   container.validate();
   setContainer(container);
 
-  const app = createApplication();
+  const app = createFetchApp(createApplication());
   const result = {
     app,
     container,

@@ -1,8 +1,4 @@
-import type { Context } from "hono";
-import type {
-  AppBindings,
-  ClientRequestContext,
-} from "@/configuration/http/bindings";
+﻿import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -17,6 +13,12 @@ import {
 } from "@/configuration/middlewares/jwt-middleware";
 import type { PersonalAccessTokenPrincipal } from "@/features/auth/auth.principal";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import {
+  createMockRequest,
+  invoke,
+  toTestContext,
+  type TestContext,
+} from "../../support/mock-http";
 
 class FakeTokenService {
   constructor(
@@ -116,44 +118,29 @@ function createContext(options?: {
   personalAccessTokenService?: FakePersonalAccessTokenService;
   client?: ClientRequestContext;
   method?: string;
-}): Context<AppBindings> {
-  const variables = new Map<string, unknown>();
-
-  variables.set(
-    "container",
-    new FakeContainer(
-      options?.tokenService ?? new FakeTokenService(() => createClaims()),
-      options?.personalAccessTokenService ??
-        new FakePersonalAccessTokenService(() => createPatPrincipal()),
-    ),
-  );
-  variables.set("client", options?.client ?? createClientContext());
-
-  const context = {
-    req: {
-      method: options?.method ?? "GET",
-      url: options?.url ?? "https://example.test/resource",
-      header: (name: string) =>
-        name.toLowerCase() === "authorization"
-          ? options?.authorization
-          : undefined,
-      param: (name: string) => options?.params?.[name],
-      json: async () => ({}),
+}): TestContext {
+  // Built on the real legacy-context bridge over a mock Express request, so the
+  // auth helpers (which now take a request) and the controllers (which still
+  // take a context) both see what they expect.
+  const request = createMockRequest({
+    method: options?.method ?? "GET",
+    url: options?.url ?? "https://example.test/resource",
+    headers: {
+      authorization: options?.authorization,
     },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
+    params: options?.params,
+    body: {},
+    state: {
+      container: new FakeContainer(
+        options?.tokenService ?? new FakeTokenService(() => createClaims()),
+        options?.personalAccessTokenService ??
+          new FakePersonalAccessTokenService(() => createPatPrincipal()),
+      ),
+      client: options?.client ?? createClientContext(),
     },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
+  });
 
-  return context as unknown as Context<AppBindings>;
+  return toTestContext(request);
 }
 
 describe("jwt middleware helpers", () => {
@@ -167,7 +154,7 @@ describe("jwt middleware helpers", () => {
       }),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toMatchObject({
       ...claims,
@@ -182,7 +169,7 @@ describe("jwt middleware helpers", () => {
   it("requireJwtAuth rejects when the authorization header is missing", async () => {
     const context = createContext();
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<UnauthorizedError>
     >({
       message: "Authorization header is required.",
@@ -194,7 +181,7 @@ describe("jwt middleware helpers", () => {
       authorization: "Basic abc123",
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<UnauthorizedError>
     >({
       message: "Authorization header must use the Bearer scheme.",
@@ -204,7 +191,7 @@ describe("jwt middleware helpers", () => {
   it("getOptionalJwtAuth returns null when no authorization header is supplied", async () => {
     const context = createContext();
 
-    const result = await getOptionalJwtAuth(context);
+    const result = await getOptionalJwtAuth(context.request);
 
     expect(result).toBeNull();
     expect(context.get("auth")).toBeUndefined();
@@ -215,7 +202,7 @@ describe("jwt middleware helpers", () => {
       authorization: "Token nope",
     });
 
-    await expect(getOptionalJwtAuth(context)).rejects.toMatchObject<
+    await expect(getOptionalJwtAuth(context.request)).rejects.toMatchObject<
       Partial<UnauthorizedError>
     >({
       message: "Authorization header must use the Bearer scheme.",
@@ -236,7 +223,7 @@ describe("jwt middleware helpers", () => {
       tokenService: new FakeTokenService(() => claims),
     });
 
-    const response = await controller.getMe(context);
+    const response = await invoke(controller.getMe, context);
 
     expect(receivedUserId).toBe("profile-user");
     expect(context.get("auth")).toMatchObject({
@@ -269,7 +256,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
     expect(context.get("auth")).toEqual(principal);
@@ -288,7 +275,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
   });
@@ -300,7 +287,7 @@ describe("jwt middleware helpers", () => {
         "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "Personal access tokens cannot access this endpoint.",
@@ -321,7 +308,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
   });
@@ -340,7 +327,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
   });
@@ -359,7 +346,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
   });
@@ -387,8 +374,12 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(bookingContext)).resolves.toEqual(principal);
-    await expect(requireJwtAuth(rentingContext)).resolves.toEqual(principal);
+    await expect(requireJwtAuth(bookingContext.request)).resolves.toEqual(
+      principal,
+    );
+    await expect(requireJwtAuth(rentingContext.request)).resolves.toEqual(
+      principal,
+    );
   });
 
   it("accepts PAT bearer auth on booking dashboard read routes", async () => {
@@ -414,12 +405,12 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(renterDashboardContext)).resolves.toEqual(
-      principal,
-    );
-    await expect(requireJwtAuth(ownerDashboardContext)).resolves.toEqual(
-      principal,
-    );
+    await expect(
+      requireJwtAuth(renterDashboardContext.request),
+    ).resolves.toEqual(principal);
+    await expect(
+      requireJwtAuth(ownerDashboardContext.request),
+    ).resolves.toEqual(principal);
   });
 
   it("accepts PAT bearer auth on booking write routes with mcp:write scope", async () => {
@@ -436,7 +427,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    const result = await requireJwtAuth(context);
+    const result = await requireJwtAuth(context.request);
 
     expect(result).toEqual(principal);
   });
@@ -453,7 +444,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "Personal access token does not include the required scope.",
@@ -473,7 +464,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "Personal access token does not include the required scope.",
@@ -493,7 +484,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "Personal access token does not include the required scope.",
@@ -513,7 +504,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireJwtAuth(context)).rejects.toMatchObject<
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "Personal access tokens cannot access this endpoint.",
@@ -530,7 +521,7 @@ describe("jwt middleware helpers", () => {
       ),
     });
 
-    await expect(requireSessionAuth(context)).rejects.toMatchObject<
+    await expect(requireSessionAuth(context.request)).rejects.toMatchObject<
       Partial<ForbiddenError>
     >({
       message: "This endpoint requires a signed-in user session.",
@@ -578,7 +569,7 @@ describe("jwt middleware helpers", () => {
       },
     });
 
-    const response = await controller.getById(context);
+    const response = await invoke(controller.getById, context);
 
     expect(receivedViewerId).toBeUndefined();
     expect(context.get("auth")).toBeUndefined();

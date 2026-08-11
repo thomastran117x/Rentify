@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import { ok, paginationMeta } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
@@ -19,39 +19,37 @@ import { RequestValidationError } from "@/configuration/validation/request";
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
-  list = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = this.parseListProfilesInput(context);
+  list = async (request: Request, response: Response): Promise<void> => {
+    const input = this.parseListProfilesInput(request);
     const result = await this.profileService.list(input);
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  getMe = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
-    const result = await this.profileService.getByUserId(
-      context.get("auth").sub,
-    );
-    return ok(context, result);
+  getMe = async (request: Request, response: Response): Promise<void> => {
+    await requireJwtAuth(request);
+    const result = await this.profileService.getByUserId(request.auth.sub);
+    ok(response, result);
   };
 
-  updateMe = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
-    const input = await parseRequestBody(context, updateProfileRequestSchema);
+  updateMe = async (request: Request, response: Response): Promise<void> => {
+    await requireJwtAuth(request);
+    const input = await parseRequestBody(request, updateProfileRequestSchema);
     const result = await this.profileService.update(
-      this.toUpdateProfileInput(context, input),
+      this.toUpdateProfileInput(request, input),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Profile updated successfully.",
     });
   };
 
   private toUpdateProfileInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: UpdateProfileRequestBody,
   ): UpdateProfileInput {
     return {
-      userId: context.get("auth").sub,
+      userId: request.auth.sub,
       username: input.username,
       phoneNumber: input.phoneNumber,
       isPrivate: input.isPrivate,
@@ -65,10 +63,8 @@ export class ProfileController {
     };
   }
 
-  private parseListProfilesInput(
-    context: Context<AppBindings>,
-  ): ListProfilesInput {
-    const url = new URL(context.req.url);
+  private parseListProfilesInput(request: Request): ListProfilesInput {
+    const url = getRequestUrl(request);
 
     try {
       const query = listProfilesQuerySchema.parse({

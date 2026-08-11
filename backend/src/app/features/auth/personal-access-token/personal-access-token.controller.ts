@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
 import { created, ok } from "@/configuration/http/responses";
 import { requireSessionAuth } from "@/configuration/middlewares/jwt-middleware";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
@@ -16,33 +15,33 @@ export class PersonalAccessTokenController {
     private readonly personalAccessTokenService: PersonalAccessTokenService,
   ) {}
 
-  list = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  list = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const result = await this.personalAccessTokenService.listForUser(auth.sub);
-    return ok(context, result);
+    ok(response, result);
   };
 
-  create = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  create = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const input = await parseRequestBody(
-      context,
+      request,
       createPersonalAccessTokenRequestSchema,
     );
     const result = await this.personalAccessTokenService.create(
       this.toCreateInput(auth.sub, input),
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Personal access token created successfully.",
     });
   };
 
-  revoke = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  revoke = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const result = await this.personalAccessTokenService.revoke({
       userId: auth.sub,
-      tokenId: requireSafeRouteParam(context, "id"),
+      tokenId: requireSafeRouteParam(request, "id"),
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Personal access token revoked successfully.",
     });
   };

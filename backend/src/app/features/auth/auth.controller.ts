@@ -1,7 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { randomUUID } from "node:crypto";
+import type { Request, Response } from "express";
+import {
+  clearCookie,
+  getQuery,
+  getRequestUrl,
+  readCookie,
+  writeCookie,
+} from "@/configuration/http/request";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
@@ -84,372 +89,404 @@ export class AuthController {
   ) {}
 
   localAuthenticate = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       localAuthenticateRequestSchema,
     );
-    await this.verifyCaptcha(context, input.captchaToken);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.localAuthenticate(
-      this.toLocalAuthenticateInput(context, input),
+      this.toLocalAuthenticateInput(request, input),
     );
 
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Authenticated successfully.",
     });
   };
 
-  localSignup = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, localSignupRequestSchema);
-    await this.verifyCaptcha(context, input.captchaToken);
+  localSignup = async (request: Request, response: Response): Promise<void> => {
+    const input = await parseRequestBody(request, localSignupRequestSchema);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.localSignup(
-      this.toLocalSignupInput(context, input),
+      this.toLocalSignupInput(request, input),
     );
 
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Signup verification is pending.",
     });
   };
 
-  forgotPassword = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, forgotPasswordRequestSchema);
-    await this.verifyCaptcha(context, input.captchaToken);
+  forgotPassword = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const input = await parseRequestBody(request, forgotPasswordRequestSchema);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.forgotPassword(
-      this.toForgotPasswordInput(context, input),
+      this.toForgotPasswordInput(request, input),
     );
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Password reset instructions have been accepted.",
     });
   };
 
   resendForgotPassword = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       resendForgotPasswordRequestSchema,
     );
-    await this.verifyCaptcha(context, input.captchaToken);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.resendForgotPassword(
-      this.toResendForgotPasswordInput(context, input),
+      this.toResendForgotPasswordInput(request, input),
     );
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Password reset instructions have been re-sent.",
     });
   };
 
-  forgotUsername = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, forgotUsernameRequestSchema);
-    await this.verifyCaptcha(context, input.captchaToken);
+  forgotUsername = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const input = await parseRequestBody(request, forgotUsernameRequestSchema);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.forgotUsername(
-      this.toForgotUsernameInput(context, input),
+      this.toForgotUsernameInput(request, input),
     );
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Username reminder instructions have been accepted.",
     });
   };
 
-  resetPassword = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, resetPasswordRequestSchema);
+  resetPassword = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const input = await parseRequestBody(request, resetPasswordRequestSchema);
     const result = await this.authService.resetPassword(
-      this.toResetPasswordInput(context, input),
+      this.toResetPasswordInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Password reset successfully.",
     });
   };
 
-  verifyEmail = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, verifyEmailRequestSchema);
+  verifyEmail = async (request: Request, response: Response): Promise<void> => {
+    const input = await parseRequestBody(request, verifyEmailRequestSchema);
     const result = await this.authService.verifyEmail(
-      this.toVerifyEmailInput(context, input),
+      this.toVerifyEmailInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Email verified successfully.",
     });
   };
 
   resendVerificationEmail = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       resendVerificationEmailRequestSchema,
     );
-    await this.verifyCaptcha(context, input.captchaToken);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.resendVerificationEmail(
-      this.toResendVerificationEmailInput(context, input),
+      this.toResendVerificationEmailInput(request, input),
     );
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Verification email has been re-sent.",
     });
   };
 
-  changePassword = async (context: Context<AppBindings>): Promise<Response> => {
+  changePassword = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
-    const input = await parseRequestBody(context, changePasswordRequestSchema);
+    const input = await parseRequestBody(request, changePasswordRequestSchema);
     const result = await this.authService.changePassword(
-      this.toChangePasswordInput(context, input),
+      this.toChangePasswordInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Password changed successfully.",
     });
   };
 
   unlockLocalLogin = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       unlockLocalLoginRequestSchema,
     );
     const result = await this.authService.unlockLocalLogin(
       this.toUnlockLocalLoginInput(input),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Local login unlocked successfully.",
     });
   };
 
   resendUnlockLocalLogin = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       resendUnlockLocalLoginRequestSchema,
     );
-    await this.verifyCaptcha(context, input.captchaToken);
+    await this.verifyCaptcha(request, input.captchaToken);
     const result = await this.authService.resendUnlockLocalLogin(
-      this.toResendUnlockLocalLoginInput(context, input),
+      this.toResendUnlockLocalLoginInput(request, input),
     );
-    return accepted(context, result, {
+    accepted(response, result, {
       message: "Unlock email has been re-sent.",
     });
   };
 
-  localVerify = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
+  localVerify = async (request: Request, response: Response): Promise<void> => {
+    await requireJwtAuth(request);
     const result = await this.authService.localVerify({
-      auth: context.get("auth"),
-      client: context.get("client"),
+      auth: request.auth,
+      client: request.client,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
   googleAuthenticate = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       oauthAuthenticateRequestSchema,
     );
     const result = await this.authService.googleAuthenticate(
-      this.toOAuthAuthenticateInput(context, input),
+      this.toOAuthAuthenticateInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Authenticated successfully.",
     });
   };
 
   microsoftAuthenticate = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       oauthAuthenticateRequestSchema,
     );
     const result = await this.authService.microsoftAuthenticate(
-      this.toOAuthAuthenticateInput(context, input),
+      this.toOAuthAuthenticateInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Authenticated successfully.",
     });
   };
 
   appleAuthenticate = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const input = await parseRequestBody(
-      context,
+      request,
       oauthAuthenticateRequestSchema,
     );
     const result = await this.authService.appleAuthenticate(
-      this.toOAuthAuthenticateInput(context, input),
+      this.toOAuthAuthenticateInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Authenticated successfully.",
     });
   };
 
   linkOAuthProvider = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    await requireJwtAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireJwtAuth(request);
     const input = await parseRequestBody(
-      context,
+      request,
       oauthAuthenticateRequestSchema,
     );
     const result = await this.authService.linkOAuthProvider(
-      this.toLinkOAuthProviderInput(context, input),
+      this.toLinkOAuthProviderInput(request, input),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "OAuth provider linked successfully.",
     });
   };
 
   linkedOAuthProviders = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    await requireJwtAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireJwtAuth(request);
     const result = await this.authService.linkedOAuthProviders({
-      userId: context.get("auth").sub,
+      userId: request.auth.sub,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
   unlinkOAuthProvider = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    await requireJwtAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireJwtAuth(request);
     const result = await this.authService.unlinkOAuthProvider(
-      this.toUnlinkOAuthProviderInput(context),
+      this.toUnlinkOAuthProviderInput(request),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "OAuth provider unlinked successfully.",
     });
   };
 
-  refresh = async (context: Context<AppBindings>): Promise<Response> => {
-    const input = await parseRequestBody(context, refreshRequestSchema);
+  refresh = async (request: Request, response: Response): Promise<void> => {
+    const input = await parseRequestBody(request, refreshRequestSchema);
     const result = await this.authService.refresh(
-      this.toRefreshInput(context, input),
+      this.toRefreshInput(request, input),
     );
-    return this.json(context, result, {
+    this.json(request, response, result, {
       message: "Session refreshed successfully.",
     });
   };
 
-  logout = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
+  logout = async (request: Request, response: Response): Promise<void> => {
+    await requireJwtAuth(request);
     const result = await this.authService.logout({
-      auth: context.get("auth"),
-      client: context.get("client"),
-      refreshToken: getCookie(context, REFRESH_TOKEN_COOKIE_NAME),
+      auth: request.auth,
+      client: request.client,
+      refreshToken: readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
     });
 
-    deleteCookie(context, REFRESH_TOKEN_COOKIE_NAME, {
+    clearCookie(response, REFRESH_TOKEN_COOKIE_NAME, {
       path: "/",
       httpOnly: true,
       secure: this.isSecureCookieEnabled(),
       sameSite: "Lax",
     });
-    deleteCookie(context, CSRF_TOKEN_COOKIE_NAME, {
+    clearCookie(response, CSRF_TOKEN_COOKIE_NAME, {
       path: "/",
       secure: this.isSecureCookieEnabled(),
       sameSite: "Lax",
     });
 
-    return ok(context, result, {
+    ok(response, result, {
       message: "Logged out successfully.",
     });
   };
 
-  deviceVerify = async (context: Context<AppBindings>): Promise<Response> => {
-    await requireJwtAuth(context);
+  deviceVerify = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireJwtAuth(request);
     const result = await this.authService.deviceVerify({
-      auth: context.get("auth"),
-      client: context.get("client"),
+      auth: request.auth,
+      client: request.client,
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Device verified successfully.",
     });
   };
 
-  devices = async (context: Context<AppBindings>): Promise<Response> => {
+  devices = async (request: Request, response: Response): Promise<void> => {
     await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
     const result = await this.authService.devices({
-      auth: context.get("auth"),
-      client: context.get("client"),
+      auth: request.auth,
+      client: request.client,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
   removeKnownDevice = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
     const input = await parseRequestBody(
-      context,
+      request,
       removeKnownDeviceRequestSchema,
     );
     const result = await this.authService.removeKnownDevice(
-      this.toRemoveKnownDeviceInput(context, input),
+      this.toRemoveKnownDeviceInput(request, input),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Known device removed successfully.",
     });
   };
 
+  /**
+   * Writes an authenticated session response, setting the refresh and CSRF
+   * cookies for browser clients.
+   */
   private json(
-    context: Context<AppBindings>,
+    request: Request,
+    response: Response,
     body: AuthSessionResult,
     options?: {
       message?: string;
     },
-  ): Response {
-    const responseBody = this.toAuthResponseBody(context, body);
+  ): void {
+    const responseBody = this.toAuthResponseBody(request, body);
 
-    if (this.shouldSetRefreshCookie(context)) {
-      this.setBrowserSessionCookies(context, body);
+    if (this.shouldSetRefreshCookie(request)) {
+      this.setBrowserSessionCookies(response, body);
     }
 
-    return ok(context, responseBody, options);
+    ok(response, responseBody, options);
   }
 
   private toLocalAuthenticateInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: LocalAuthenticateRequestBody,
   ): LocalAuthenticateInput {
     return {
       username: input.username,
       password: input.password,
       rememberMe: input.rememberMe,
-      client: context.get("client"),
-      deviceId: this.resolveDeviceId(context, input.deviceId),
+      client: request.client,
+      deviceId: this.resolveDeviceId(request, input.deviceId),
       totpCode: input.totpCode,
     };
   }
 
   private toLocalSignupInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: LocalSignupRequestBody,
   ): LocalSignupInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       username: input.username,
       email: input.email,
       password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
-      deviceId: this.resolveDeviceId(context, input.deviceId),
+      deviceId: this.resolveDeviceId(request, input.deviceId),
     };
   }
 
   private toOAuthAuthenticateInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: OAuthAuthenticateRequestBody,
   ): OAuthAuthenticateInput {
     return {
@@ -458,38 +495,36 @@ export class AuthController {
       idToken: input.idToken,
       nonce: input.nonce,
       rememberMe: input.rememberMe,
-      client: context.get("client"),
+      client: request.client,
       firstName: input.firstName,
       lastName: input.lastName,
-      deviceId: this.resolveDeviceId(context, input.deviceId),
+      deviceId: this.resolveDeviceId(request, input.deviceId),
       totpCode: input.totpCode,
     };
   }
 
   private toLinkOAuthProviderInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: OAuthAuthenticateRequestBody,
   ): LinkOAuthProviderInput {
     return {
-      ...this.toOAuthAuthenticateInput(context, input),
-      provider: this.requireOAuthProviderParam(context),
-      userId: context.get("auth").sub,
+      ...this.toOAuthAuthenticateInput(request, input),
+      provider: this.requireOAuthProviderParam(request),
+      userId: request.auth.sub,
     };
   }
 
   private toUnlinkOAuthProviderInput(
-    context: Context<AppBindings>,
+    request: Request,
   ): UnlinkOAuthProviderInput {
     return {
-      provider: this.requireOAuthProviderParam(context),
-      userId: context.get("auth").sub,
+      provider: this.requireOAuthProviderParam(request),
+      userId: request.auth.sub,
     };
   }
 
-  private requireOAuthProviderParam(
-    context: Context<AppBindings>,
-  ): OAuthProvider {
-    const provider = requireSafeRouteParam(context, "provider");
+  private requireOAuthProviderParam(request: Request): OAuthProvider {
+    const provider = requireSafeRouteParam(request, "provider");
 
     try {
       return oauthProviderSchema.parse(provider);
@@ -509,98 +544,98 @@ export class AuthController {
   }
 
   private resolveDeviceId(
-    context: Context<AppBindings>,
+    request: Request,
     deviceId?: string,
   ): string | undefined {
-    return deviceId ?? context.get("client").device.id;
+    return deviceId ?? request.client.device.id;
   }
 
   private toVerifyEmailInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: VerifyEmailRequestBody,
   ): VerifyEmailInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       email: input.email,
       code: input.code,
-      deviceId: this.resolveDeviceId(context, input.deviceId),
+      deviceId: this.resolveDeviceId(request, input.deviceId),
     };
   }
 
   private toResendVerificationEmailInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ResendVerificationEmailRequestBody,
   ): ResendVerificationEmailInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       email: input.email,
-      deviceId: this.resolveDeviceId(context),
+      deviceId: this.resolveDeviceId(request),
     };
   }
 
   private toForgotPasswordInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ForgotPasswordRequestBody,
   ): ForgotPasswordInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       username: input.username,
-      deviceId: this.resolveDeviceId(context),
+      deviceId: this.resolveDeviceId(request),
     };
   }
 
   private toResendForgotPasswordInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ResendForgotPasswordRequestBody,
   ): ResendForgotPasswordInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       username: input.username,
-      deviceId: this.resolveDeviceId(context),
+      deviceId: this.resolveDeviceId(request),
     };
   }
 
   private toForgotUsernameInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ForgotUsernameRequestBody,
   ): ForgotUsernameInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       email: input.email,
-      deviceId: this.resolveDeviceId(context),
+      deviceId: this.resolveDeviceId(request),
     };
   }
 
   private toRefreshInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: RefreshRequestBody,
   ): RefreshInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       refreshToken:
-        input.refreshToken ?? getCookie(context, REFRESH_TOKEN_COOKIE_NAME),
+        input.refreshToken ?? readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
     };
   }
 
   private toResetPasswordInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ResetPasswordRequestBody,
   ): ResetPasswordInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       username: input.username,
       code: input.code,
       newPassword: input.newPassword,
-      deviceId: this.resolveDeviceId(context, input.deviceId),
+      deviceId: this.resolveDeviceId(request, input.deviceId),
     };
   }
 
   private toRemoveKnownDeviceInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: RemoveKnownDeviceRequestBody,
   ): RemoveKnownDeviceInput {
     return {
-      userId: context.get("auth").sub,
+      userId: request.auth.sub,
       deviceId: input.deviceId,
     };
   }
@@ -615,31 +650,31 @@ export class AuthController {
   }
 
   private toResendUnlockLocalLoginInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ResendUnlockLocalLoginRequestBody,
   ): ResendUnlockLocalLoginInput {
     return {
-      client: context.get("client"),
+      client: request.client,
       email: input.email,
-      deviceId: this.resolveDeviceId(context),
+      deviceId: this.resolveDeviceId(request),
     };
   }
 
   private toChangePasswordInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: ChangePasswordRequestBody,
   ): ChangePasswordInput {
     return {
-      userId: context.get("auth").sub,
-      client: context.get("client"),
+      userId: request.auth.sub,
+      client: request.client,
       currentPassword: input.currentPassword,
       newPassword: input.newPassword,
-      deviceId: context.get("auth").deviceId ?? context.get("client").device.id,
+      deviceId: request.auth.deviceId ?? request.client.device.id,
     };
   }
 
   private toAuthResponseBody(
-    context: Context<AppBindings>,
+    request: Request,
     result: AuthSessionResult,
   ): AuthResponseBody {
     const responseBody: AuthResponseBody = {
@@ -656,7 +691,7 @@ export class AuthController {
       },
     };
 
-    if (!this.shouldSetRefreshCookie(context)) {
+    if (!this.shouldSetRefreshCookie(request)) {
       responseBody.refreshToken = result.refreshToken;
     }
 
@@ -667,15 +702,15 @@ export class AuthController {
     return responseBody;
   }
 
-  private shouldSetRefreshCookie(context: Context<AppBindings>): boolean {
-    return this.isBrowserRequest(context);
+  private shouldSetRefreshCookie(request: Request): boolean {
+    return this.isBrowserRequest(request);
   }
 
-  private isBrowserRequest(context: Context<AppBindings>): boolean {
+  private isBrowserRequest(request: Request): boolean {
     return Boolean(
-      context.req.header("origin") ||
-        context.req.header("referer") ||
-        context.req.header("sec-fetch-site"),
+      request.get("origin") ||
+        request.get("referer") ||
+        request.get("sec-fetch-site"),
     );
   }
 
@@ -688,19 +723,19 @@ export class AuthController {
   }
 
   private setBrowserSessionCookies(
-    context: Context<AppBindings>,
+    response: Response,
     result: AuthSessionResult,
   ): void {
     const secure = this.isSecureCookieEnabled();
 
-    setCookie(context, REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
+    writeCookie(response, REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
       path: "/",
       httpOnly: true,
       secure,
       sameSite: "Lax",
       maxAge: result.refreshTokenExpiresInSeconds,
     });
-    setCookie(context, CSRF_TOKEN_COOKIE_NAME, this.createCsrfToken(), {
+    writeCookie(response, CSRF_TOKEN_COOKIE_NAME, this.createCsrfToken(), {
       path: "/",
       secure,
       sameSite: "Lax",
@@ -708,13 +743,13 @@ export class AuthController {
     });
   }
   private async verifyCaptcha(
-    context: Context<AppBindings>,
+    request: Request,
     captchaToken: string,
   ): Promise<void> {
     const result = await this.captchaService.verify({
       token: captchaToken,
-      remoteIp: context.get("client").ip,
-      idempotencyKey: resolveIdempotencyKey(context),
+      remoteIp: request.client.ip,
+      idempotencyKey: resolveIdempotencyKey(request),
     });
 
     if (!result.success || result.failOpen) {

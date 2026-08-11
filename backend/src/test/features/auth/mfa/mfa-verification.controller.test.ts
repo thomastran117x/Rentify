@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+﻿import { createTestContext, invoke } from "../../../support/mock-http";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -52,35 +52,25 @@ function createContext(options?: {
   query?: Record<string, string | undefined>;
   client?: ClientRequestContext;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("client", options?.client ?? createClient());
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  const query = new URLSearchParams(
+    Object.entries(options?.query ?? {}).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  ).toString();
+
+  return createTestContext({
+    body: options?.body,
+    url: `https://example.test/auth/mfa/verify${query ? `?${query}` : ""}`,
+    state: {
+      client: options?.client ?? createClient(),
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      query: (name: string) => options?.query?.[name],
-      url: "https://example.test/auth/mfa/verify",
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 function createController() {
@@ -132,7 +122,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.getOptions(context);
+    const response = await invoke(controller.getOptions, context);
     const payload = await response.json();
 
     expect(mfaVerificationService.getOptions).toHaveBeenCalledWith({
@@ -157,7 +147,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.issueChallenge(context);
+    const response = await invoke(controller.issueChallenge, context);
 
     expect(mfaVerificationService.issueChallenge).toHaveBeenCalledWith({
       userId: "user-2",
@@ -180,7 +170,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.confirmChallenge(context);
+    const response = await invoke(controller.confirmChallenge, context);
     const payload = await response.json();
 
     expect(mfaVerificationService.confirmChallenge).toHaveBeenCalledWith({
@@ -207,7 +197,7 @@ describe("MfaVerificationController", () => {
       },
     });
 
-    const response = await controller.previewCurrentEmailOtp(context);
+    const response = await invoke(controller.previewCurrentEmailOtp, context);
 
     expect(mfaVerificationService.previewCurrentEmailOtp).toHaveBeenCalledWith({
       userId: "user-4",
@@ -222,7 +212,8 @@ describe("MfaVerificationController", () => {
     const { controller, mfaVerificationService } = createController();
 
     await expect(
-      controller.getOptions(
+      invoke(
+        controller.getOptions,
         createContext({
           query: {
             scope: "not-a-scope",
@@ -240,7 +231,8 @@ describe("MfaVerificationController", () => {
     const { controller, mfaVerificationService } = createController();
 
     await expect(
-      controller.getOptions(
+      invoke(
+        controller.getOptions,
         createContext({
           query: {
             scope: "mfa-management",

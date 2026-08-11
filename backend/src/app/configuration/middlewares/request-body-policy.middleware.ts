@@ -1,7 +1,7 @@
-import { createMiddleware } from "hono/factory";
+import type { Request, RequestHandler } from "express";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
-import type { AppBindings } from "@/configuration/http/bindings";
+import { getHeader, getPathname } from "@/configuration/http/request";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
@@ -27,8 +27,8 @@ function readRequestBodyMaxBytes(): number {
   return parsedValue;
 }
 
-function readDeclaredContentLength(request: Request): number | null {
-  const value = request.headers.get("content-length");
+export function readDeclaredContentLength(request: Request): number | null {
+  const value = getHeader(request, "content-length");
 
   if (!value) {
     return null;
@@ -56,8 +56,8 @@ function requestHasBody(
   }
 
   return (
-    request.headers.has("transfer-encoding") ||
-    request.headers.has("content-type")
+    getHeader(request, "transfer-encoding") !== undefined ||
+    getHeader(request, "content-type") !== undefined
   );
 }
 
@@ -68,65 +68,65 @@ function isJsonContentType(contentType: string | null): boolean {
   );
 }
 
-function allowsNonJsonBody(request: Request): boolean {
+export function allowsNonJsonBody(request: Request): boolean {
   try {
-    const pathname = stripApiRoutePrefix(new URL(request.url).pathname);
-    return pathname === "/blob/upload";
+    return stripApiRoutePrefix(getPathname(request)) === "/blob/upload";
   } catch {
     return false;
   }
 }
 
-async function assertRequestBodySizeWithinLimit(
-  request: Request,
+function assertDeclaredBodySizeWithinLimit(
   maxBytes: number,
   declaredContentLength: number | null,
-): Promise<void> {
-  if (declaredContentLength !== null) {
-    if (declaredContentLength > maxBytes) {
-      throw new PayloadTooLargeError("Request body is too large.", {
-        limitBytes: maxBytes,
-        receivedBytes: declaredContentLength,
-      });
-    }
-
+): void {
+  if (declaredContentLength === null || declaredContentLength <= maxBytes) {
     return;
   }
 
-  const bodySize = (await request.clone().arrayBuffer()).byteLength;
-
-  if (bodySize > maxBytes) {
-    throw new PayloadTooLargeError("Request body is too large.", {
-      limitBytes: maxBytes,
-      receivedBytes: bodySize,
-    });
-  }
+  throw new PayloadTooLargeError("Request body is too large.", {
+    limitBytes: maxBytes,
+    receivedBytes: declaredContentLength,
+  });
 }
 
-export const requestBodyPolicyMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const request = context.req.raw;
-    const declaredContentLength = readDeclaredContentLength(request);
+/**
+ * Runs before the body parsers so an oversized or wrongly typed request is
+ * rejected without reading the payload.
+ *
+ * The Hono version buffered the body itself when no Content-Length was
+ * declared. Under Express that job belongs to the body parsers, which are
+ * configured with the same limit; their `entity.too.large` is translated back
+ * into PayloadTooLargeError in the error handler, so the wire response is the
+ * same either way.
+ */
+export const requestBodyPolicyMiddleware: RequestHandler = (
+  request,
+  _response,
+  next,
+) => {
+  const declaredContentLength = readDeclaredContentLength(request);
 
-    if (!requestHasBody(request, declaredContentLength)) {
-      await next();
-      return;
-    }
+  if (!requestHasBody(request, declaredContentLength)) {
+    next();
+    return;
+  }
 
-    if (
-      !isJsonContentType(request.headers.get("content-type")) &&
-      !allowsNonJsonBody(request)
-    ) {
-      throw new UnsupportedMediaTypeError(
-        "Request body must use application/json.",
-      );
-    }
-
-    await assertRequestBodySizeWithinLimit(
-      request,
-      readRequestBodyMaxBytes(),
-      declaredContentLength,
+  if (
+    !isJsonContentType(getHeader(request, "content-type") ?? null) &&
+    !allowsNonJsonBody(request)
+  ) {
+    throw new UnsupportedMediaTypeError(
+      "Request body must use application/json.",
     );
-    await next();
-  },
-);
+  }
+
+  assertDeclaredBodySizeWithinLimit(
+    readRequestBodyMaxBytes(),
+    declaredContentLength,
+  );
+
+  next();
+};
+
+export { readRequestBodyMaxBytes };

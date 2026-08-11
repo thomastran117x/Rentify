@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
@@ -44,172 +44,180 @@ export class BookingsController {
   ) {}
 
   createForPosting = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createBookingRequestSchema);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, createBookingRequestSchema);
     const result = await this.bookingsService.create(
-      this.toCreateInput(this.requirePostingId(context), auth.sub, body),
+      this.toCreateInput(this.requirePostingId(request), auth.sub, body),
     );
     await this.recommendationActivityPublisher.publishBookingRequestCreated({
       bookingRequest: result,
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
     });
-    return created(context, result, {
+    created(response, result, {
       message: "Booking request created successfully.",
     });
   };
 
   quoteForPosting = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, bookingQuoteSchema);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, bookingQuoteSchema);
     const result = await this.bookingsService.quote(
-      this.toQuoteInput(this.requirePostingId(context), auth.sub, body),
+      this.toQuoteInput(this.requirePostingId(request), auth.sub, body),
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  listMine = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  listMine = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.listMine(
-      this.toListMineInput(auth.sub, this.parseListQuery(context)),
+      this.toListMineInput(auth.sub, this.parseListQuery(request)),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  listOwned = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  listOwned = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.listOwned(
-      this.toListOwnedInput(auth.sub, this.parseListQuery(context)),
+      this.toListOwnedInput(auth.sub, this.parseListQuery(request)),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  dashboardMine = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  dashboardMine = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.dashboardMine(
       this.toDashboardMineInput(
         auth.sub,
-        this.parseRenterDashboardQuery(context),
+        this.parseRenterDashboardQuery(request),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  dashboardOwned = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  dashboardOwned = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.dashboardOwned(
       this.toDashboardOwnedInput(
         auth.sub,
-        this.parseOwnerDashboardQuery(context),
+        this.parseOwnerDashboardQuery(request),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
   listForOwnerPosting = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.listForOwnerPosting(
       this.toListOwnerPostingInput(
         auth.sub,
-        this.requirePostingId(context),
-        this.parseListQuery(context),
+        this.requirePostingId(request),
+        this.parseListQuery(request),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  getById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  getById = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.getById(
-      this.requireBookingRequestId(context),
+      this.requireBookingRequestId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
   getCancellationQuote = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.bookingsService.getCancellationQuote(
-      this.requireBookingRequestId(context),
+      this.requireBookingRequestId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  updateOwn = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, updateBookingRequestSchema);
+  updateOwn = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, updateBookingRequestSchema);
     const result = await this.bookingsService.updateOwnPending(
-      this.toUpdateInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toUpdateInput(this.requireBookingRequestId(request), auth.sub, body),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Booking request updated successfully.",
     });
   };
 
-  approve = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, decideBookingRequestSchema);
+  approve = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, decideBookingRequestSchema);
     const result = await this.bookingsService.approve(
       this.toDecisionInput(
-        this.requireBookingRequestId(context),
+        this.requireBookingRequestId(request),
         auth.sub,
         body,
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Booking request approved successfully.",
     });
   };
 
-  decline = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, decideBookingRequestSchema);
+  decline = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, decideBookingRequestSchema);
     const result = await this.bookingsService.decline(
       this.toDecisionInput(
-        this.requireBookingRequestId(context),
+        this.requireBookingRequestId(request),
         auth.sub,
         body,
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Booking request declined successfully.",
     });
   };
 
-  cancel = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, cancelBookingRequestSchema);
+  cancel = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, cancelBookingRequestSchema);
     const result = await this.bookingsService.cancel(
-      this.toCancelInput(this.requireBookingRequestId(context), auth.sub, body),
+      this.toCancelInput(this.requireBookingRequestId(request), auth.sub, body),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Booking request cancelled successfully.",
     });
   };
 
-  private parseListQuery(
-    context: Context<AppBindings>,
-  ): ListBookingRequestsQuery {
-    const url = new URL(context.req.url);
+  private parseListQuery(request: Request): ListBookingRequestsQuery {
+    const url = getRequestUrl(request);
 
     try {
       return listBookingRequestsQuerySchema.parse({
@@ -223,9 +231,9 @@ export class BookingsController {
   }
 
   private parseRenterDashboardQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): RenterBookingDashboardQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return renterBookingDashboardQuerySchema.parse({
@@ -241,9 +249,9 @@ export class BookingsController {
   }
 
   private parseOwnerDashboardQuery(
-    context: Context<AppBindings>,
+    request: Request,
   ): OwnerBookingDashboardQuery {
-    const url = new URL(context.req.url);
+    const url = getRequestUrl(request);
 
     try {
       return ownerBookingDashboardQuerySchema.parse({
@@ -414,20 +422,20 @@ export class BookingsController {
     };
   }
 
-  private requirePostingId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requirePostingId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private requireBookingRequestId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireBookingRequestId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private async requireAuth(context: Context<AppBindings>) {
-    return requireJwtAuth(context);
+  private async requireAuth(request: Request) {
+    return requireJwtAuth(request);
   }
 
-  private readRequestId(context: Context<AppBindings>): string | undefined {
-    return context.get("requestId");
+  private readRequestId(request: Request): string | undefined {
+    return request.requestId;
   }
 
   private toValidationError(

@@ -1,4 +1,4 @@
-import BadRequestError from "@/errors/http/bad-request.error";
+﻿import BadRequestError from "@/errors/http/bad-request.error";
 import { AuthController } from "@/features/auth/auth.controller";
 import type {
   AuthSessionResult,
@@ -7,14 +7,11 @@ import type {
 import { containerTokens } from "@/configuration/container/tokens";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
-import type {
-  AppBindings,
-  ClientRequestContext,
-} from "@/configuration/http/bindings";
+import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
-import type { Context } from "hono";
+import { createMockRequest, createMockResponse } from "../../support/mock-http";
 
 const mockRequireJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
@@ -31,10 +28,13 @@ jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
     mockRequireRecentMfaVerification(...args),
 }));
 
-jest.mock("hono/cookie", () => ({
-  getCookie: (...args: unknown[]) => mockGetCookie(...args),
-  setCookie: (...args: unknown[]) => mockSetCookie(...args),
-  deleteCookie: (...args: unknown[]) => mockDeleteCookie(...args),
+// Only the cookie helpers are stubbed; the rest of the module (getQuery,
+// getRequestUrl) is what the controller uses to read the request.
+jest.mock("@/configuration/http/request", () => ({
+  ...jest.requireActual("@/configuration/http/request"),
+  readCookie: (...args: unknown[]) => mockGetCookie(...args),
+  writeCookie: (...args: unknown[]) => mockSetCookie(...args),
+  clearCookie: (...args: unknown[]) => mockDeleteCookie(...args),
 }));
 
 function createClient(
@@ -115,7 +115,6 @@ function createContext(options?: {
   params?: Record<string, string>;
   url?: string;
 }) {
-  const variables = new Map<string, unknown>();
   const contentSanitizationService = new ContentSanitizationService();
   const container: ServiceContainer = {
     resolve<TValue>(token: unknown): TValue {
@@ -131,42 +130,62 @@ function createContext(options?: {
     async dispose(): Promise<void> {},
   };
 
-  variables.set("container", container);
-  variables.set("client", options?.client ?? createClient());
-  variables.set(
-    "requestId",
-    options?.headers?.["x-request-id"] ??
-      options?.headers?.["X-Request-Id"] ??
-      "request-test",
-  );
+  const body = options?.body ?? {};
+  const serialised = typeof body === "string" ? body : JSON.stringify(body);
 
-  if (options?.auth) {
-    variables.set("auth", options.auth);
-  }
+  const request = createMockRequest({
+    params: options?.params,
+    url: options?.url ?? "https://example.test/auth",
+    body,
+    rawBody: serialised,
+    headers: {
+      "content-type": "application/json",
+      "content-length": String(Buffer.byteLength(serialised)),
+      ...options?.headers,
+    },
+    state: {
+      container,
+      client: options?.client ?? createClient(),
+      requestId:
+        options?.headers?.["x-request-id"] ??
+        options?.headers?.["X-Request-Id"] ??
+        "request-test",
+      ...(options?.auth ? { auth: options.auth } : {}),
+    },
+  });
+  const recorder = createMockResponse();
+  (recorder.response as { req?: typeof request }).req = request;
 
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url: options?.url ?? "https://example.test/auth",
-      header: (name: string) =>
-        options?.headers?.[name.toLowerCase()] ?? options?.headers?.[name],
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
+  return {
+    request,
+    response: recorder.response,
+    recorder,
+    get: (name: string) =>
+      (request as unknown as Record<string, unknown>)[name],
   };
+}
 
-  return context as unknown as Context<AppBindings>;
+type TestContext = ReturnType<typeof createContext>;
+
+/**
+ * Calls a native handler and reports what it wrote, so the assertions below can
+ * keep reading `status` and `json()` the way they did when handlers returned a
+ * Response.
+ */
+async function invoke(
+  handler: (
+    request: TestContext["request"],
+    response: TestContext["response"],
+  ) => Promise<void>,
+  context: TestContext,
+) {
+  await handler(context.request, context.response);
+
+  return {
+    status: context.recorder.status(),
+    // Typed loosely like Response.json(), so callers can read into the payload.
+    json: async (): Promise<any> => context.recorder.json(),
+  };
 }
 
 function createController(overrides?: {
@@ -405,7 +424,7 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.localAuthenticate(context);
+    const response = await invoke(controller.localAuthenticate, context);
 
     expect(captchaService.verify).toHaveBeenCalledWith({
       token: "captcha-token",
@@ -420,7 +439,7 @@ describe("AuthController", () => {
       deviceId: "device-1",
     });
     expect(mockSetCookie).toHaveBeenCalledWith(
-      context,
+      context.response,
       "refresh_token",
       "refresh-token-1",
       {
@@ -432,7 +451,7 @@ describe("AuthController", () => {
       },
     );
     expect(mockSetCookie).toHaveBeenCalledWith(
-      context,
+      context.response,
       "csrf_token",
       expect.any(String),
       {
@@ -487,7 +506,7 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.localAuthenticate(context);
+    const response = await invoke(controller.localAuthenticate, context);
 
     expect(mockSetCookie).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
@@ -538,10 +557,10 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.localAuthenticate(context);
+    const response = await invoke(controller.localAuthenticate, context);
 
     expect(mockSetCookie).toHaveBeenCalledWith(
-      context,
+      context.response,
       "refresh_token",
       "refresh-token-1",
       {
@@ -590,7 +609,7 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.localAuthenticate(context);
+    const response = await invoke(controller.localAuthenticate, context);
 
     await expect(response.json()).resolves.toMatchObject({
       data: {
@@ -624,7 +643,7 @@ describe("AuthController", () => {
       },
     });
 
-    await expect(controller.localSignup(context)).rejects.toMatchObject<
+    await expect(invoke(controller.localSignup, context)).rejects.toMatchObject<
       Partial<BadRequestError>
     >({
       message: "Captcha verification failed.",
@@ -638,7 +657,8 @@ describe("AuthController", () => {
   it("covers signup and recovery flows with their expected service inputs", async () => {
     const { controller, authService } = createController();
 
-    const signupResponse = await controller.localSignup(
+    const signupResponse = await invoke(
+      controller.localSignup,
       createContext({
         body: {
           email: "USER@example.com",
@@ -654,7 +674,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const forgotResponse = await controller.forgotPassword(
+    const forgotResponse = await invoke(
+      controller.forgotPassword,
       createContext({
         body: {
           username: "OWNER-ONE",
@@ -662,7 +683,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const resendForgotResponse = await controller.resendForgotPassword(
+    const resendForgotResponse = await invoke(
+      controller.resendForgotPassword,
       createContext({
         body: {
           username: "OWNER-ONE",
@@ -670,7 +692,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const resetResponse = await controller.resetPassword(
+    const resetResponse = await invoke(
+      controller.resetPassword,
       createContext({
         body: {
           username: "OWNER-ONE",
@@ -680,7 +703,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const verifyResponse = await controller.verifyEmail(
+    const verifyResponse = await invoke(
+      controller.verifyEmail,
       createContext({
         body: {
           email: "USER@example.com",
@@ -689,7 +713,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const resendVerifyResponse = await controller.resendVerificationEmail(
+    const resendVerifyResponse = await invoke(
+      controller.resendVerificationEmail,
       createContext({
         body: {
           email: "USER@example.com",
@@ -697,7 +722,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const unlockResponse = await controller.unlockLocalLogin(
+    const unlockResponse = await invoke(
+      controller.unlockLocalLogin,
       createContext({
         body: {
           email: "USER@example.com",
@@ -705,7 +731,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const resendUnlockResponse = await controller.resendUnlockLocalLogin(
+    const resendUnlockResponse = await invoke(
+      controller.resendUnlockLocalLogin,
       createContext({
         body: {
           email: "USER@example.com",
@@ -773,7 +800,8 @@ describe("AuthController", () => {
   it("public resend actions verify captcha before calling the auth service", async () => {
     const { controller, authService, captchaService } = createController();
 
-    await controller.resendForgotPassword(
+    await invoke(
+      controller.resendForgotPassword,
       createContext({
         body: {
           username: "owner-one",
@@ -784,7 +812,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    await controller.resendVerificationEmail(
+    await invoke(
+      controller.resendVerificationEmail,
       createContext({
         body: {
           email: "user@example.com",
@@ -795,7 +824,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    await controller.resendUnlockLocalLogin(
+    await invoke(
+      controller.resendUnlockLocalLogin,
       createContext({
         body: {
           email: "user@example.com",
@@ -816,7 +846,8 @@ describe("AuthController", () => {
   it("forgotUsername verifies captcha, lowercases the email, and accepts the request", async () => {
     const { controller, authService, captchaService } = createController();
 
-    const response = await controller.forgotUsername(
+    const response = await invoke(
+      controller.forgotUsername,
       createContext({
         body: {
           email: "OWNER1@rentify.local",
@@ -849,7 +880,7 @@ describe("AuthController", () => {
       },
     });
 
-    await expect(controller.localSignup(context)).rejects.toMatchObject<
+    await expect(invoke(controller.localSignup, context)).rejects.toMatchObject<
       Partial<RequestValidationError>
     >({
       details: [
@@ -873,9 +904,9 @@ describe("AuthController", () => {
       },
     });
 
-    await expect(controller.localAuthenticate(context)).rejects.toMatchObject<
-      Partial<RequestValidationError>
-    >({
+    await expect(
+      invoke(controller.localAuthenticate, context),
+    ).rejects.toMatchObject<Partial<RequestValidationError>>({
       message: "Request body validation failed.",
       details: [
         {
@@ -894,8 +925,8 @@ describe("AuthController", () => {
       deviceId: "token-device-9",
     });
     mockRequireRecentMfaVerification.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
@@ -916,10 +947,10 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.changePassword(context);
+    const response = await invoke(controller.changePassword, context);
 
     expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
-      context,
+      context.request,
       expect.any(Object),
       "mfa-management",
     );
@@ -940,9 +971,12 @@ describe("AuthController", () => {
       body: {},
     });
 
-    const response = await controller.refresh(context);
+    const response = await invoke(controller.refresh, context);
 
-    expect(mockGetCookie).toHaveBeenCalledWith(context, "refresh_token");
+    expect(mockGetCookie).toHaveBeenCalledWith(
+      context.request,
+      "refresh_token",
+    );
     expect(authService.refresh).toHaveBeenCalledWith({
       client: context.get("client"),
       refreshToken: "cookie-refresh-token",
@@ -956,8 +990,8 @@ describe("AuthController", () => {
       deviceId: "device-4",
     });
     mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
@@ -965,24 +999,32 @@ describe("AuthController", () => {
     const { controller, authService } = createController();
     const context = createContext();
 
-    const response = await controller.logout(context);
+    const response = await invoke(controller.logout, context);
 
     expect(authService.logout).toHaveBeenCalledWith({
       auth,
       client: context.get("client"),
       refreshToken: "refresh-cookie-token",
     });
-    expect(mockDeleteCookie).toHaveBeenCalledWith(context, "refresh_token", {
-      path: "/",
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-    });
-    expect(mockDeleteCookie).toHaveBeenCalledWith(context, "csrf_token", {
-      path: "/",
-      secure: false,
-      sameSite: "Lax",
-    });
+    expect(mockDeleteCookie).toHaveBeenCalledWith(
+      context.response,
+      "refresh_token",
+      {
+        path: "/",
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+      },
+    );
+    expect(mockDeleteCookie).toHaveBeenCalledWith(
+      context.response,
+      "csrf_token",
+      {
+        path: "/",
+        secure: false,
+        sameSite: "Lax",
+      },
+    );
     await expect(response.json()).resolves.toEqual({
       success: true,
       data: {
@@ -1002,15 +1044,15 @@ describe("AuthController", () => {
       role: "owner",
     });
     mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
     const { controller, authService } = createController();
     const context = createContext();
 
-    await controller.localVerify(context);
+    await invoke(controller.localVerify, context);
 
     expect(authService.localVerify).toHaveBeenCalledWith({
       auth,
@@ -1023,8 +1065,8 @@ describe("AuthController", () => {
       sub: "user-12",
     });
     mockRequireRecentMfaVerification.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
@@ -1035,7 +1077,7 @@ describe("AuthController", () => {
       },
     });
 
-    const response = await controller.removeKnownDevice(context);
+    const response = await invoke(controller.removeKnownDevice, context);
 
     expect(authService.removeKnownDevice).toHaveBeenCalledWith({
       userId: "user-12",
@@ -1060,8 +1102,8 @@ describe("AuthController", () => {
       sub: "user-15",
     });
     mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
@@ -1076,17 +1118,20 @@ describe("AuthController", () => {
       lastName: "User",
     };
 
-    const googleResponse = await controller.googleAuthenticate(
+    const googleResponse = await invoke(
+      controller.googleAuthenticate,
       createContext({
         body: oauthBody,
       }),
     );
-    const microsoftResponse = await controller.microsoftAuthenticate(
+    const microsoftResponse = await invoke(
+      controller.microsoftAuthenticate,
       createContext({
         body: oauthBody,
       }),
     );
-    const appleResponse = await controller.appleAuthenticate(
+    const appleResponse = await invoke(
+      controller.appleAuthenticate,
       createContext({
         body: {
           idToken: "id-token",
@@ -1094,7 +1139,8 @@ describe("AuthController", () => {
         },
       }),
     );
-    const linkResponse = await controller.linkOAuthProvider(
+    const linkResponse = await invoke(
+      controller.linkOAuthProvider,
       createContext({
         auth,
         params: {
@@ -1103,12 +1149,14 @@ describe("AuthController", () => {
         body: oauthBody,
       }),
     );
-    const listResponse = await controller.linkedOAuthProviders(
+    const listResponse = await invoke(
+      controller.linkedOAuthProviders,
       createContext({
         auth,
       }),
     );
-    const unlinkResponse = await controller.unlinkOAuthProvider(
+    const unlinkResponse = await invoke(
+      controller.unlinkOAuthProvider,
       createContext({
         auth,
         params: {
@@ -1182,7 +1230,8 @@ describe("AuthController", () => {
         }),
     });
 
-    const response = await controller.googleAuthenticate(
+    const response = await invoke(
+      controller.googleAuthenticate,
       createContext({
         body: {
           code: "oauth-code",
@@ -1204,7 +1253,8 @@ describe("AuthController", () => {
         }),
     });
 
-    const response = await controller.googleAuthenticate(
+    const response = await invoke(
+      controller.googleAuthenticate,
       createContext({
         body: {
           code: "oauth-code",
@@ -1221,15 +1271,16 @@ describe("AuthController", () => {
   it("validates oauth provider route params before calling the service", async () => {
     const auth = createClaims();
     mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
     const { controller, authService } = createController();
 
     await expect(
-      controller.unlinkOAuthProvider(
+      invoke(
+        controller.unlinkOAuthProvider,
         createContext({
           auth,
           params: {
@@ -1253,20 +1304,22 @@ describe("AuthController", () => {
       deviceId: "trusted-device-44",
     });
     mockRequireJwtAuth.mockImplementation(
-      async (context: Context<AppBindings>) => {
-        context.set("auth", auth);
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
         return auth;
       },
     );
     mockRequireRecentMfaVerification.mockResolvedValue(undefined);
     const { controller, authService } = createController();
 
-    const verifyResponse = await controller.deviceVerify(
+    const verifyResponse = await invoke(
+      controller.deviceVerify,
       createContext({
         auth,
       }),
     );
-    const devicesResponse = await controller.devices(
+    const devicesResponse = await invoke(
+      controller.devices,
       createContext({
         auth,
       }),

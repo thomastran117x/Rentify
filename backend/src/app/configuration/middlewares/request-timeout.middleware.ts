@@ -1,6 +1,6 @@
-import { createMiddleware } from "hono/factory";
+import type { RequestHandler } from "express";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
-import type { AppBindings } from "@/configuration/http/bindings";
+import { runAfterResponse } from "@/configuration/http/response-lifecycle";
 import GatewayTimeoutError from "@/errors/http/gateway-timeout.error";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
@@ -21,30 +21,32 @@ function readRequestTimeoutMs(): number {
   return parsedValue;
 }
 
-export const requestTimeoutMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const timeoutMs = readRequestTimeoutMs();
+export const requestTimeoutMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  const timeoutMs = readRequestTimeoutMs();
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    try {
-      await Promise.race([
-        next(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            reject(
-              new GatewayTimeoutError("Request timed out.", {
-                requestId: context.get("requestId"),
-                timeoutMs,
-              }),
-            );
-          }, timeoutMs);
-        }),
-      ]);
-    } finally {
-      if (timer) {
-        clearTimeout(timer);
-      }
+  // The Hono version raced next() against a rejecting timer. Express's next()
+  // is not awaitable, so the timer instead pushes the error into the error
+  // middleware itself, and is cleared once the response completes.
+  const timer = setTimeout(() => {
+    if (response.headersSent || response.writableEnded) {
+      return;
     }
-  },
-);
+
+    next(
+      new GatewayTimeoutError("Request timed out.", {
+        requestId: request.requestId,
+        timeoutMs,
+      }),
+    );
+  }, timeoutMs);
+
+  runAfterResponse(response, () => {
+    clearTimeout(timer);
+  });
+
+  next();
+};

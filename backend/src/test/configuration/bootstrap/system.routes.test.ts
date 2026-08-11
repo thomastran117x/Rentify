@@ -1,5 +1,6 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Express } from "express";
+import { outputFormatMiddleware } from "@/configuration/middlewares/output-format.middleware";
+import { createTestApp, type TestApp } from "../../support/fetch-app";
 
 const mockPingDatabase = jest.fn();
 const mockReadOpenApiYamlSpecFile = jest.fn();
@@ -16,13 +17,14 @@ jest.mock("@/openapi/file", () => ({
     mockReadOpenApiJsonSpecFile(...args),
 }));
 
-function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", async (context, next) => {
-    context.set("requestId", "req-system-test");
-    await next();
+function createApp(register: (app: Express) => void): TestApp {
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.requestId = "req-system-test";
+      next();
+    });
+    register(app);
   });
-  return app;
 }
 
 describe("systemRouteModule", () => {
@@ -34,16 +36,16 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/");
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      message: "TypeScript Hono server is running",
+      message: "TypeScript Express server is running",
       data: {
         apiVersion: "v1",
         apiBasePath: "/api/v1",
@@ -63,9 +65,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/health");
 
@@ -95,9 +97,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/health");
 
@@ -129,9 +131,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/openapi.yaml");
 
@@ -148,9 +150,9 @@ describe("systemRouteModule", () => {
     const { systemRouteModule } = await import(
       "@/configuration/bootstrap/routes/modules/system.routes"
     );
-    const app = createApp();
-
-    systemRouteModule.register(app, {} as any);
+    const app = createApp((instance) => {
+      systemRouteModule.register(instance, {} as any);
+    });
 
     const response = await app.request("http://rent.test/openapi.json");
 
@@ -159,6 +161,53 @@ describe("systemRouteModule", () => {
       "application/json; charset=UTF-8",
     );
     expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toBe('{"openapi":"3.1.0"}\n');
+  });
+
+  // The spec document is a JSON-like response, so it is subject to the same
+  // XML negotiation as every other endpoint. Only the JSON path is written
+  // verbatim.
+  it("transcodes the OpenAPI JSON document when xml is negotiated", async () => {
+    mockReadOpenApiJsonSpecFile.mockResolvedValueOnce('{"openapi":"3.1.0"}\n');
+    const { systemRouteModule } = await import(
+      "@/configuration/bootstrap/routes/modules/system.routes"
+    );
+    const app = createApp((instance) => {
+      instance.use(outputFormatMiddleware);
+      systemRouteModule.register(instance, {} as any);
+    });
+
+    const response = await app.request(
+      "http://rent.test/openapi.json?format=xml",
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "application/xml; charset=UTF-8",
+    );
+    expect(body).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(body).toContain("<openapi>3.1.0</openapi>");
+  });
+
+  it("still serves the json document verbatim when json is negotiated", async () => {
+    mockReadOpenApiJsonSpecFile.mockResolvedValueOnce('{"openapi":"3.1.0"}\n');
+    const { systemRouteModule } = await import(
+      "@/configuration/bootstrap/routes/modules/system.routes"
+    );
+    const app = createApp((instance) => {
+      instance.use(outputFormatMiddleware);
+      systemRouteModule.register(instance, {} as any);
+    });
+
+    const response = await app.request(
+      "http://rent.test/openapi.json?format=json",
+    );
+
+    expect(response.headers.get("content-type")).toBe(
+      "application/json; charset=UTF-8",
+    );
+    // Byte-for-byte, including the trailing newline: not reserialised.
     await expect(response.text()).resolves.toBe('{"openapi":"3.1.0"}\n');
   });
 });

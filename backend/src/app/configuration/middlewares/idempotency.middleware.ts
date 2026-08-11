@@ -1,7 +1,6 @@
-import { randomUUID } from "node:crypto";
-import type { Context } from "hono";
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { randomUUID } from "node:crypto";
+import type { Request, RequestHandler } from "express";
+import { getHeader } from "@/configuration/http/request";
 import BadRequestError from "@/errors/http/bad-request.error";
 import {
   REQUEST_ID_HEADER_NAME,
@@ -30,12 +29,10 @@ function validateIdempotencyKey(value: string): string {
   return value;
 }
 
-function readIdempotencyKeyHeader(
-  context: Pick<Context<AppBindings>, "req">,
-): string | null {
-  const primary = normalizeKey(context.req.header(IDEMPOTENCY_KEY_HEADER_NAME));
+function readIdempotencyKeyHeader(request: Request): string | null {
+  const primary = normalizeKey(getHeader(request, IDEMPOTENCY_KEY_HEADER_NAME));
   const legacy = normalizeKey(
-    context.req.header(LEGACY_IDEMPOTENCY_KEY_HEADER_NAME),
+    getHeader(request, LEGACY_IDEMPOTENCY_KEY_HEADER_NAME),
   );
 
   if (primary && legacy && primary !== legacy) {
@@ -54,7 +51,7 @@ function readIdempotencyKeyHeader(
 }
 
 export function resolveIdempotencyKey(
-  context: Context<AppBindings>,
+  request: Request,
   override?: string | null,
 ): string {
   const normalizedOverride = normalizeKey(override);
@@ -63,19 +60,19 @@ export function resolveIdempotencyKey(
     return normalizedOverride;
   }
 
-  const contextKey = normalizeKey(context.get("idempotencyKey"));
+  const contextKey = normalizeKey(request.idempotencyKey);
   if (contextKey) {
     return contextKey;
   }
 
-  const headerKey = readIdempotencyKeyHeader(context);
+  const headerKey = readIdempotencyKeyHeader(request);
   if (headerKey) {
     return validateIdempotencyKey(headerKey);
   }
 
   const requestId =
-    normalizeKey(context.get("requestId")) ??
-    normalizeKey(context.req.header(REQUEST_ID_HEADER_NAME));
+    normalizeKey(request.requestId) ??
+    normalizeKey(getHeader(request, REQUEST_ID_HEADER_NAME));
   if (requestId) {
     return validateRequestId(requestId);
   }
@@ -83,15 +80,16 @@ export function resolveIdempotencyKey(
   return randomUUID();
 }
 
-export const idempotencyMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const key = resolveIdempotencyKey(context);
-    context.set("idempotencyKey", key);
+export const idempotencyMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  // As with the request id, the echoed header is set up front instead of in a
+  // `finally`, so it is on the response before any handler starts writing.
+  const key = resolveIdempotencyKey(request);
+  request.idempotencyKey = key;
+  response.setHeader(IDEMPOTENCY_KEY_HEADER_NAME, key);
 
-    try {
-      await next();
-    } finally {
-      context.header(IDEMPOTENCY_KEY_HEADER_NAME, key);
-    }
-  },
-);
+  next();
+};

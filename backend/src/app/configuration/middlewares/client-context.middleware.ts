@@ -1,18 +1,15 @@
-import { getConnInfo } from "@hono/node-server/conninfo";
-import { createMiddleware } from "hono/factory";
-import type {
-  AppBindings,
-  ClientDeviceContext,
-} from "@/configuration/http/bindings";
+import type { Request, RequestHandler } from "express";
+import type { ClientDeviceContext } from "@/configuration/http/bindings";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { getHeader } from "@/configuration/http/request";
 
 function isTrustedProxyHeaderEnabled(): boolean {
   const value = getOptionalEnvironmentVariable("TRUST_PROXY_HEADERS");
   return value === "1" || value?.toLowerCase() === "true";
 }
 
-function readProxyIpAddress(headers: Headers): string | undefined {
-  const forwardedFor = headers.get("x-forwarded-for");
+function readProxyIpAddress(request: Request): string | undefined {
+  const forwardedFor = getHeader(request, "x-forwarded-for");
 
   if (forwardedFor) {
     const [firstValue] = forwardedFor.split(",");
@@ -31,7 +28,7 @@ function readProxyIpAddress(headers: Headers): string | undefined {
     "fastly-client-ip",
     "true-client-ip",
   ]) {
-    const value = headers.get(headerName)?.trim();
+    const value = getHeader(request, headerName)?.trim();
 
     if (value) {
       return value;
@@ -42,29 +39,33 @@ function readProxyIpAddress(headers: Headers): string | undefined {
 }
 
 function readIpAddress(
-  headers: Headers,
+  request: Request,
   remoteAddress?: string,
 ): string | undefined {
   if (isTrustedProxyHeaderEnabled()) {
-    return readProxyIpAddress(headers) ?? remoteAddress;
+    return readProxyIpAddress(request) ?? remoteAddress;
   }
 
   return remoteAddress;
 }
 
-function readRemoteAddress(
-  context: Parameters<typeof clientContextMiddleware>[0],
-): string | undefined {
-  try {
-    return getConnInfo(context).remote.address;
-  } catch {
-    return undefined;
-  }
+/**
+ * The peer address of the socket.
+ *
+ * Replaces `getConnInfo(c).remote.address` from @hono/node-server. Deliberately
+ * reads the socket rather than `req.ip`, because `req.ip` would consult
+ * Express's own `trust proxy` setting; proxy headers are handled by
+ * {@link readProxyIpAddress} under our own TRUST_PROXY_HEADERS flag instead, so
+ * the resolution order stays exactly as it was.
+ */
+function readRemoteAddress(request: Request): string | undefined {
+  return request.socket?.remoteAddress ?? undefined;
 }
 
-function readPlatform(headers: Headers): string | undefined {
+function readPlatform(request: Request): string | undefined {
   const value =
-    headers.get("sec-ch-ua-platform") ?? headers.get("x-device-platform");
+    getHeader(request, "sec-ch-ua-platform") ??
+    getHeader(request, "x-device-platform");
 
   if (!value) {
     return undefined;
@@ -107,30 +108,29 @@ function inferDeviceType(userAgent?: string): ClientDeviceContext["type"] {
   return "unknown";
 }
 
-function readDevice(headers: Headers): ClientDeviceContext {
-  const userAgent = headers.get("user-agent")?.trim() || undefined;
+function readDevice(request: Request): ClientDeviceContext {
+  const userAgent = getHeader(request, "user-agent")?.trim() || undefined;
   const inferredType = inferDeviceType(userAgent);
-  const mobileHint = headers.get("sec-ch-ua-mobile")?.trim();
+  const mobileHint = getHeader(request, "sec-ch-ua-mobile")?.trim();
 
   return {
-    id: headers.get("x-device-id")?.trim() || undefined,
+    id: getHeader(request, "x-device-id")?.trim() || undefined,
     type: inferredType,
     isMobile: mobileHint === "?1" || inferredType === "mobile",
     userAgent,
-    platform: readPlatform(headers),
+    platform: readPlatform(request),
   };
 }
 
-export const clientContextMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const headers = context.req.raw.headers;
-    const remoteAddress = readRemoteAddress(context);
+export const clientContextMiddleware: RequestHandler = (
+  request,
+  _response,
+  next,
+) => {
+  request.client = {
+    ip: readIpAddress(request, readRemoteAddress(request)),
+    device: readDevice(request),
+  };
 
-    context.set("client", {
-      ip: readIpAddress(headers, remoteAddress),
-      device: readDevice(headers),
-    });
-
-    await next();
-  },
-);
+  next();
+};

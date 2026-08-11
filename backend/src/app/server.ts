@@ -1,4 +1,3 @@
-import { serve } from "@hono/node-server";
 import {
   disconnectApplicationResources,
   initializeServerApplication,
@@ -10,19 +9,12 @@ const serverLogger = loggerFactory.forComponent("server", "app");
 async function bootstrap(): Promise<void> {
   const { app, port } = await initializeServerApplication();
 
-  const server = serve(
-    {
-      fetch: app.fetch,
-      port,
+  const server = app.listen(port, "0.0.0.0", () => {
+    serverLogger.info("Server listening.", {
       hostname: "0.0.0.0",
-    },
-    () => {
-      serverLogger.info("Server listening.", {
-        hostname: "0.0.0.0",
-        port,
-      });
-    },
-  );
+      port,
+    });
+  });
 
   let isShuttingDown = false;
 
@@ -37,6 +29,10 @@ async function bootstrap(): Promise<void> {
     });
 
     server.close();
+    // Unlike @hono/node-server, Express's close() waits for keep-alive sockets
+    // to go idle on their own, which would hang shutdown in the container.
+    server.closeIdleConnections();
+
     await Promise.allSettled([
       disconnectApplicationResources(),
       disconnectLogging(),

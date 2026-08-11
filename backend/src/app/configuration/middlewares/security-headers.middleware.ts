@@ -1,6 +1,5 @@
-import { createMiddleware } from "hono/factory";
+import type { RequestHandler } from "express";
 import { environment } from "@/configuration/environment";
-import type { AppBindings } from "@/configuration/http/bindings";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
@@ -16,23 +15,24 @@ const SECURITY_HEADERS: Record<string, string> = {
 const STRICT_TRANSPORT_SECURITY_HEADER = "strict-transport-security";
 const STRICT_TRANSPORT_SECURITY_VALUE = "max-age=31536000; includeSubDomains";
 
-export const securityHeadersMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    try {
-      await next();
-    } finally {
-      for (const [headerName, headerValue] of Object.entries(
-        SECURITY_HEADERS,
-      )) {
-        context.header(headerName, headerValue);
-      }
+export const securityHeadersMiddleware: RequestHandler = (
+  _request,
+  response,
+  next,
+) => {
+  // Applied before next() rather than in a `finally` afterwards: headers must
+  // be on the response before anything starts writing to it. These are static
+  // values that no handler overrides, so the earlier application is equivalent.
+  for (const [headerName, headerValue] of Object.entries(SECURITY_HEADERS)) {
+    response.setHeader(headerName, headerValue);
+  }
 
-      if (environment.isProduction()) {
-        context.header(
-          STRICT_TRANSPORT_SECURITY_HEADER,
-          STRICT_TRANSPORT_SECURITY_VALUE,
-        );
-      }
-    }
-  },
-);
+  if (environment.isProduction()) {
+    response.setHeader(
+      STRICT_TRANSPORT_SECURITY_HEADER,
+      STRICT_TRANSPORT_SECURITY_VALUE,
+    );
+  }
+
+  next();
+};

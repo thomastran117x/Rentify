@@ -81,7 +81,7 @@ paths:
                         $ref: '#/components/schemas/RequestMeta'
               example:
                 success: true
-                message: TypeScript Hono server is running
+                message: TypeScript Express server is running
                 data:
                   apiVersion: v1
                   apiBasePath: /api/v1

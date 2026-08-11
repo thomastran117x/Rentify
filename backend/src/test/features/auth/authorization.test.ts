@@ -1,3 +1,8 @@
+﻿import {
+  createTestContext,
+  invoke,
+  type TestContext,
+} from "../../support/mock-http";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import {
   getAuthRole,
@@ -11,7 +16,6 @@ import { containerTokens } from "@/configuration/container/tokens";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PostingsController } from "@/features/postings/postings.controller";
 import { SearchController } from "@/features/search/search.controller";
-import type { Context } from "hono";
 import type {
   AppBindings,
   ClientRequestContext,
@@ -82,7 +86,7 @@ function createContext(options?: {
   params?: Record<string, string>;
   body?: unknown;
   tokenService?: FakeTokenService;
-}): Context<AppBindings> {
+}): TestContext {
   const variables = new Map<string, unknown>();
 
   variables.set(
@@ -93,31 +97,15 @@ function createContext(options?: {
   );
   variables.set("client", createClientContext());
 
-  const context = {
-    req: {
-      url: options?.url ?? "https://example.test/resource",
-      header: (name: string) =>
-        name.toLowerCase() === "authorization"
-          ? options?.authorization
-          : undefined,
-      param: (name: string) => options?.params?.[name],
-      json: async () => options?.body ?? {},
-      text: async () => "",
+  return createTestContext({
+    body: options?.body,
+    params: options?.params,
+    url: options?.url ?? "https://example.test/resource",
+    headers: {
+      authorization: options?.authorization,
     },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+    state: Object.fromEntries(variables),
+  });
 }
 
 describe("authorization", () => {
@@ -213,7 +201,7 @@ describe("authorization", () => {
       },
     });
 
-    const response = await controller.create(context);
+    const response = await invoke(controller.create, context);
 
     expect(response.status).toBe(201);
     expect(createDraftCalled).toBe(true);
@@ -234,9 +222,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.repair(ownerContext)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    await expect(
+      invoke(controller.repair, ownerContext),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repairCalled).toBe(false);
 
     const adminContext = createContext({
@@ -247,7 +235,7 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });
 
-    const response = await controller.repair(adminContext);
+    const response = await invoke(controller.repair, adminContext);
 
     expect(repairCalled).toBe(true);
     expect(response.status).toBe(200);
@@ -276,9 +264,9 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
 
-    await expect(controller.startReindex(ownerContext)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    await expect(
+      invoke(controller.startReindex, ownerContext),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     expect(reindexCalled).toBe(false);
 
     const adminContext = createContext({
@@ -286,7 +274,7 @@ describe("authorization", () => {
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });
 
-    const response = await controller.startReindex(adminContext);
+    const response = await invoke(controller.startReindex, adminContext);
 
     expect(reindexCalled).toBe(true);
     expect(response.status).toBe(202);

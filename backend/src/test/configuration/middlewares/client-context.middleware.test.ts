@@ -1,43 +1,46 @@
-import { getConnInfo } from "@hono/node-server/conninfo";
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
-
-jest.mock("@hono/node-server/conninfo", () => ({
-  getConnInfo: jest.fn(),
-}));
+import { createTestApp } from "../../support/fetch-app";
 
 jest.mock("@/configuration/environment", () => ({
   getOptionalEnvironmentVariable: jest.fn(),
 }));
 
-const mockGetConnInfo = getConnInfo as jest.MockedFunction<typeof getConnInfo>;
 const mockGetOptionalEnvironmentVariable =
   getOptionalEnvironmentVariable as jest.MockedFunction<
     typeof getOptionalEnvironmentVariable
   >;
 
-function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", clientContextMiddleware);
-  app.get("/client", (context) => context.json(context.get("client")));
-  return app;
+/**
+ * The middleware used to read the peer address through @hono/node-server's
+ * getConnInfo; it now reads the socket directly. Tests run over a real loopback
+ * socket, so the address is overridden here to stand in for the peer the
+ * scenario is about.
+ */
+function createApp(remoteAddress: string | undefined) {
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      Object.defineProperty(request, "socket", {
+        value: remoteAddress === undefined ? undefined : { remoteAddress },
+        configurable: true,
+      });
+      next();
+    });
+    app.use(clientContextMiddleware);
+    app.get("/client", (request, response) => {
+      response.json(request.client);
+    });
+  });
 }
 
 describe("clientContextMiddleware", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetOptionalEnvironmentVariable.mockReturnValue(undefined);
-    mockGetConnInfo.mockReturnValue({
-      remote: {
-        address: "10.0.0.5",
-      },
-    } as ReturnType<typeof getConnInfo>);
   });
 
   it("uses the remote socket address when proxy headers are not trusted", async () => {
-    const app = createApp();
+    const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {
       headers: {
@@ -66,7 +69,7 @@ describe("clientContextMiddleware", () => {
 
   it("prefers the first forwarded ip when trusted proxy headers are enabled", async () => {
     mockGetOptionalEnvironmentVariable.mockReturnValue("true");
-    const app = createApp();
+    const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {
       headers: {
@@ -79,21 +82,16 @@ describe("clientContextMiddleware", () => {
     await expect(response.json()).resolves.toEqual({
       ip: "203.0.113.9",
       device: {
-        id: undefined,
         type: "bot",
         isMobile: false,
         userAgent: "curl/8.0.1",
-        platform: undefined,
       },
     });
   });
 
   it("falls back to alternate proxy headers and tolerates missing connection info", async () => {
     mockGetOptionalEnvironmentVariable.mockReturnValue("1");
-    mockGetConnInfo.mockImplementation(() => {
-      throw new Error("conn info unavailable");
-    });
-    const app = createApp();
+    const app = createApp(undefined);
 
     const response = await app.request("http://rent.test/client", {
       headers: {
@@ -108,7 +106,6 @@ describe("clientContextMiddleware", () => {
     await expect(response.json()).resolves.toEqual({
       ip: "198.51.100.7",
       device: {
-        id: undefined,
         type: "tablet",
         isMobile: false,
         userAgent:
