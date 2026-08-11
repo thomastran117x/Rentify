@@ -380,6 +380,33 @@ describe("openBookingMessageStream", () => {
     handle.close();
   });
 
+  it("backs off rather than hot looping on a 429 with no retry-after", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 429 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handle = openBookingMessageStream({
+      bookingRequestId: "booking-1",
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Number(null) is 0, so a missing header must not mean "retry immediately"
+    // and burn the whole failure budget in one tick.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    handle.close();
+  });
+
   it("stops fetching once closed", async () => {
     const fetchMock = vi.fn(async () => streamingResponse([READY_FRAME]));
     vi.stubGlobal("fetch", fetchMock);

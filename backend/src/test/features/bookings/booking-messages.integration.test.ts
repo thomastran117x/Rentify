@@ -45,10 +45,19 @@ describe("Booking messages persistence integration", () => {
     return body.data;
   }
 
+  // Each thread books a distinct window. Reusing one set of dates lets a later
+  // creation collide with an earlier booking, after which findFirstOrThrow can
+  // return the previous test's thread and its messages.
+  let threadSequence = 0;
+
   async function createThread() {
     const renter = await createAuthenticatedRequestContext({
       email: RENTER_EMAIL,
     });
+
+    threadSequence += 1;
+    const startDay = String(threadSequence * 2).padStart(2, "0");
+    const endDay = String(threadSequence * 2 + 1).padStart(2, "0");
 
     const createResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/postings/${MUTABLE_POSTING_ID}/booking-requests`)}`,
@@ -56,8 +65,8 @@ describe("Booking messages persistence integration", () => {
         method: "POST",
         headers: renter.headers(),
         body: JSON.stringify({
-          startAt: "2027-03-10T16:00:00.000Z",
-          endAt: "2027-03-12T16:00:00.000Z",
+          startAt: `2027-03-${startDay}T16:00:00.000Z`,
+          endAt: `2027-03-${endDay}T16:00:00.000Z`,
           guestCount: 1,
           note: "Quiet work trip.",
           contactName: "Viewer One",
@@ -70,8 +79,11 @@ describe("Booking messages persistence integration", () => {
 
     const booking = await persistenceApp.prisma.bookingRequest.findFirstOrThrow(
       {
-        where: { postingId: MUTABLE_POSTING_ID, renterId: renter.userId },
-        orderBy: { createdAt: "desc" },
+        where: {
+          postingId: MUTABLE_POSTING_ID,
+          renterId: renter.userId,
+          startAt: new Date(`2027-03-${startDay}T16:00:00.000Z`),
+        },
       },
     );
 

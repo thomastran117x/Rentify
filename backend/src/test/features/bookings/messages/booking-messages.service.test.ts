@@ -77,10 +77,10 @@ function createService(
       renterUsername: "renter-one",
     })),
     findById: jest.fn(async () => createMessage()),
-    updateBody: jest.fn(async () =>
+    updateBodyIfEligible: jest.fn(async () =>
       createMessage({ editedAt: "2026-08-10T12:30:00.000Z" }),
     ),
-    softDelete: jest.fn(async () =>
+    softDeleteIfEligible: jest.fn(async () =>
       createMessage({ body: "", deletedAt: "2026-08-10T12:40:00.000Z" }),
     ),
     markReadForSide: jest.fn(async () => options.markedCount ?? 0),
@@ -122,6 +122,7 @@ function createService(
       return 1;
     }),
     setIfNotExists: jest.fn(async () => options.cooldownClaimed ?? true),
+    delete: jest.fn(async () => true),
   } as unknown as CacheService;
 
   const emailService = {
@@ -533,6 +534,44 @@ describe("BookingMessagesService", () => {
           bookingRequestId: BOOKING_ID,
           messageId: "message-1",
           actorUserId: RENTER_ID,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("releases the notification cooldown when the enqueue fails", async () => {
+      const { service, cacheService } = createService({
+        emailError: new Error("rabbitmq down"),
+      });
+
+      await service.send({
+        bookingRequestId: BOOKING_ID,
+        authorId: RENTER_ID,
+        body: "hello",
+      });
+
+      // Holding the claim would mute every notification for this pair for the
+      // full window after one transient broker failure.
+      expect(cacheService.delete).toHaveBeenCalledWith(
+        `booking-messages:notify:${BOOKING_ID}:${PRIMARY_MANAGER_ID}`,
+      );
+    });
+
+    it("rejects a change that lost a race with a concurrent delete", async () => {
+      const { service, bookingMessagesRepository } = createService();
+      (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
+        createMessage({ createdAt: new Date().toISOString() }),
+      );
+      // The conditional write matched no row: something else got there first.
+      (
+        bookingMessagesRepository.updateBodyIfEligible as jest.Mock
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.edit({
+          bookingRequestId: BOOKING_ID,
+          messageId: "message-1",
+          actorUserId: RENTER_ID,
+          body: "Too late",
         }),
       ).rejects.toMatchObject({ status: 400 });
     });

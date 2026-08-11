@@ -165,39 +165,68 @@ export class BookingMessagesRepository extends BaseRepository {
     return row ? this.mapMessage(row, renterId) : null;
   }
 
-  async updateBody(input: {
+  /**
+   * Eligibility is re-asserted inside the write so concurrent requests cannot
+   * both pass an earlier check: without it a PATCH landing after a DELETE would
+   * restore a body while leaving `deletedAt` set, and two DELETEs would both
+   * report success.
+   */
+  private buildEligibleWhere(input: {
     messageId: string;
+    authorId: string;
+    notBefore: Date;
+  }): Prisma.BookingMessageWhereInput {
+    return {
+      id: input.messageId,
+      authorId: input.authorId,
+      deletedAt: null,
+      createdAt: { gte: input.notBefore },
+    };
+  }
+
+  async updateBodyIfEligible(input: {
+    messageId: string;
+    authorId: string;
     body: string;
     editedAt: Date;
+    notBefore: Date;
     renterId: string;
-  }): Promise<BookingMessageRecord> {
-    const updated = await this.executeAsync(() =>
-      this.prisma.bookingMessage.update({
-        where: { id: input.messageId },
+  }): Promise<BookingMessageRecord | null> {
+    const result = await this.executeAsync(() =>
+      this.prisma.bookingMessage.updateMany({
+        where: this.buildEligibleWhere(input),
         data: { body: input.body, editedAt: input.editedAt },
-        include: AUTHOR_INCLUDE,
       }),
     );
 
-    return this.mapMessage(updated, input.renterId);
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findById(input.messageId, input.renterId);
   }
 
-  async softDelete(input: {
+  async softDeleteIfEligible(input: {
     messageId: string;
+    authorId: string;
     deletedAt: Date;
+    notBefore: Date;
     renterId: string;
-  }): Promise<BookingMessageRecord> {
-    const deleted = await this.executeAsync(() =>
-      this.prisma.bookingMessage.update({
-        where: { id: input.messageId },
+  }): Promise<BookingMessageRecord | null> {
+    const result = await this.executeAsync(() =>
+      this.prisma.bookingMessage.updateMany({
+        where: this.buildEligibleWhere(input),
         // The row survives so the booking keeps a record that a message
         // existed; only its text is removed.
         data: { body: "", deletedAt: input.deletedAt },
-        include: AUTHOR_INCLUDE,
       }),
     );
 
-    return this.mapMessage(deleted, input.renterId);
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findById(input.messageId, input.renterId);
   }
 
   /**

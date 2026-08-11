@@ -21,6 +21,8 @@ import { formatDateTime } from "@/lib/rentings/format";
 const FALLBACK_POLL_INTERVAL_MS = 15_000;
 /** How close to the bottom still counts as "following" the conversation. */
 const SCROLL_STICK_THRESHOLD_PX = 80;
+/** How often the edit window is reevaluated while a control is on screen. */
+const EDIT_WINDOW_TICK_MS = 15_000;
 const PAGE_SIZE = 20;
 
 interface PanelBanner {
@@ -91,8 +93,9 @@ export function MessageBubble({
   onDelete?: (message: BookingMessageRecord) => void;
   pending?: boolean;
 }) {
-  const readAt = showReceipt && message.readAt ? message.readAt : null;
   const deleted = Boolean(message.deletedAt);
+  const readAt =
+    showReceipt && message.readAt && !deleted ? message.readAt : null;
 
   return (
     <li
@@ -244,6 +247,10 @@ export function BookingMessagesPanel({
   );
   const [counterpartName, setCounterpartName] = useState("");
   const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
+  // Re-rendered on a tick so the edit window can close on an idle thread. A
+  // plain Date.now() check is never reevaluated without a render, leaving the
+  // controls visible long after the server started rejecting them.
+  const [now, setNow] = useState(() => Date.now());
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -259,11 +266,25 @@ export function BookingMessagesPanel({
   // response would otherwise replace the whole array with a snapshot taken
   // before the insert, dropping the message until the next reconnect.
   const inFlightArrivalsRef = useRef<BookingMessageRecord[]>([]);
+  // Edits and deletes delivered while a history request was in flight. The
+  // response is a pre-change snapshot, so corrected text would revert and a
+  // deleted message would reappear without this overlay.
+  const inFlightUpdatesRef = useRef<Map<string, BookingMessageRecord>>(
+    new Map(),
+  );
   const loadTokenRef = useRef(0);
   // Mirrors the rendered message ids. Deduping here rather than inside a
   // setState updater keeps the decision synchronous: React may defer an
   // updater, so a flag set inside one cannot be read straight afterwards.
   const messageIdsRef = useRef<Set<string>>(new Set());
+
+  // The stream effect reads these through refs so it depends only on the
+  // booking id. Depending on the callbacks directly tore the connection down
+  // and reopened it the moment the first list response changed `canWrite` and
+  // `viewerSide`, opening two connections per mount and burning the per-user
+  // stream rate limit after a handful of navigations.
+  const viewerSideRef = useRef<BookingMessageAuthorSide | null>(null);
+  viewerSideRef.current = viewerSide;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Only follow the newest message when the reader is already at the bottom;
@@ -290,6 +311,10 @@ export function BookingMessagesPanel({
       return;
     }
 
+    // Recorded before the early return: the POST response and the stream event
+    // deliver the same record, and an unrecorded id would count it twice.
+    messageIdsRef.current.add(record.id);
+
     // Newest-first paging puts every new message on page 1. Prepending it to an
     // older page would show a page-1 row there and push a row that does belong
     // off the end, so older pages only move their counters.
@@ -300,7 +325,6 @@ export function BookingMessagesPanel({
       return;
     }
 
-    messageIdsRef.current.add(record.id);
     // Trimmed back to a page: a 21-item page 1 leaves the server returning its
     // twentieth row again at the top of page 2, so the message shows twice.
     // The id set deliberately keeps trimmed ids — it only answers "already
@@ -320,6 +344,7 @@ export function BookingMessagesPanel({
       const token = loadTokenRef.current + 1;
       loadTokenRef.current = token;
       inFlightArrivalsRef.current = [];
+      inFlightUpdatesRef.current = new Map();
 
       try {
         const result = await bookingMessagesApi.list(bookingRequestId, {
@@ -333,7 +358,9 @@ export function BookingMessagesPanel({
         }
 
         const arrivals = inFlightArrivalsRef.current;
+        const updates = inFlightUpdatesRef.current;
         inFlightArrivalsRef.current = [];
+        inFlightUpdatesRef.current = new Map();
 
         // Only the newest page can host live arrivals; on an older page they
         // are already accounted for by the server's ordering.
@@ -348,13 +375,19 @@ export function BookingMessagesPanel({
         // Capped like a live insert: a full page snapshotted before an
         // arrival would otherwise merge to 21 rows, and the server would hand
         // back the displaced row again at the top of the next page.
-        const merged = [...missed, ...result.messages].slice(0, PAGE_SIZE);
+        const merged = [...missed, ...result.messages]
+          .slice(0, PAGE_SIZE)
+          .map((message) => updates.get(message.id) ?? message);
         messageIdsRef.current = new Set(merged.map((message) => message.id));
 
         startTransition(() => {
           setMessages(merged);
           setPagination(addToPagination(result.pagination, missed.length));
-          setUnreadCount(result.unreadCount);
+          // Skipped on a silent re-sync: that snapshot can predate a concurrent
+          // markRead and would bring a cleared badge back.
+          if (!silent) {
+            setUnreadCount(result.unreadCount);
+          }
           setCanWrite(result.canWrite);
           setViewerSide(result.viewerSide);
           setCounterpartName(result.counterpartName);
@@ -420,7 +453,7 @@ export function BookingMessagesPanel({
         // The stream is not a durable log: re-sync on every successful
         // (re)connect so anything published while disconnected appears.
         if (status === "open") {
-          void loadMessages(pageRef.current, true);
+          void loadMessagesRef.current(pageRef.current, true);
         }
       },
       onEvent: (event) => {
@@ -432,18 +465,20 @@ export function BookingMessagesPanel({
             event.message,
           ];
 
-          insertMessage(event.message);
+          insertMessageRef.current(event.message);
 
           // Only messages from the other side are addressed to this viewer; a
           // colleague on the same side has not written to us.
-          if (event.message.authorSide !== viewerSide) {
-            void markRead();
+          if (event.message.authorSide !== viewerSideRef.current) {
+            void markReadRef.current();
           }
 
           return;
         }
 
         if (event.type === "message.updated") {
+          inFlightUpdatesRef.current.set(event.message.id, event.message);
+
           // Edits and deletes replace in place; they never change ordering.
           setMessages((previous) =>
             previous.map((message) =>
@@ -473,7 +508,7 @@ export function BookingMessagesPanel({
     });
 
     return () => handle?.close();
-  }, [bookingRequestId, insertMessage, loadMessages, markRead, viewerSide]);
+  }, [bookingRequestId]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -486,6 +521,29 @@ export function BookingMessagesPanel({
     // following the conversation expects to be.
     element.scrollTop = element.scrollHeight;
   }, [messages, loading]);
+
+  useEffect(() => {
+    const hasEditable = messages.some(
+      (message) =>
+        message.authorId === currentUserId &&
+        !message.deletedAt &&
+        now - new Date(message.createdAt).getTime() <
+          BOOKING_MESSAGE_EDIT_WINDOW_MS,
+    );
+
+    if (!hasEditable) {
+      return;
+    }
+
+    // Only runs while a control is still on screen, so an idle thread with
+    // nothing editable schedules nothing.
+    const intervalId = window.setInterval(
+      () => setNow(Date.now()),
+      EDIT_WINDOW_TICK_MS,
+    );
+
+    return () => window.clearInterval(intervalId);
+  }, [messages, currentUserId, now]);
 
   useEffect(() => {
     if (liveStatus !== "failed") {
@@ -512,6 +570,12 @@ export function BookingMessagesPanel({
         });
 
         insertMessage(created);
+
+        // Newest-first paging puts the sent message on page 1, so a sender
+        // viewing older history would otherwise get no feedback at all.
+        if (pageRef.current !== 1) {
+          setPage(1);
+        }
 
         return true;
       } catch (error) {
@@ -541,7 +605,9 @@ export function BookingMessagesPanel({
     async (message: BookingMessageRecord) => {
       const next = window.prompt("Edit your message", message.body);
 
-      if (next === null || next.trim() === message.body) {
+      // An empty body fails the same validation the composer already guards
+      // against, so treat clearing the prompt as a cancel rather than a 400.
+      if (next === null || next.trim() === "" || next.trim() === message.body) {
         return;
       }
 
@@ -604,10 +670,17 @@ export function BookingMessagesPanel({
       canWrite &&
       !message.deletedAt &&
       message.authorId === currentUserId &&
-      Date.now() - new Date(message.createdAt).getTime() <
+      now - new Date(message.createdAt).getTime() <
         BOOKING_MESSAGE_EDIT_WINDOW_MS,
-    [canWrite, currentUserId],
+    [canWrite, currentUserId, now],
   );
+
+  const loadMessagesRef = useRef(loadMessages);
+  loadMessagesRef.current = loadMessages;
+  const markReadRef = useRef(markRead);
+  markReadRef.current = markRead;
+  const insertMessageRef = useRef(insertMessage);
+  insertMessageRef.current = insertMessage;
 
   // State stays newest-first because that is the order the API pages in, and
   // the trim, receipt, and merge logic all depend on it. Only the render is
@@ -619,8 +692,9 @@ export function BookingMessagesPanel({
   // attached to a stale message there.
   const receiptMessageId =
     page === 1
-      ? (messages.find((message) => message.authorSide === viewerSide)?.id ??
-        null)
+      ? (messages.find(
+          (message) => message.authorSide === viewerSide && !message.deletedAt,
+        )?.id ?? null)
       : null;
 
   return (

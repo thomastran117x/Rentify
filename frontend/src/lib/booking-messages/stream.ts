@@ -254,10 +254,15 @@ export function openBookingMessageStream(options: {
     }
 
     if (response.status === 429) {
-      const retryAfterSeconds = Number(response.headers.get("retry-after"));
-      const delayMs = Number.isFinite(retryAfterSeconds)
-        ? retryAfterSeconds * 1_000
-        : undefined;
+      // `Number(null)` is 0, not NaN, so a 429 without the header would
+      // otherwise schedule an immediate reconnect and burn the whole failure
+      // budget back to back.
+      const header = response.headers.get("retry-after");
+      const retryAfterSeconds = header === null ? Number.NaN : Number(header);
+      const delayMs =
+        Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+          ? retryAfterSeconds * 1_000
+          : undefined;
       scheduleReconnect(delayMs);
       return;
     }

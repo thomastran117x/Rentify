@@ -127,12 +127,19 @@ export class BookingMessagesService {
       input.actorUserId,
     );
 
-    const updated = await this.bookingMessagesRepository.updateBody({
+    const updated = await this.bookingMessagesRepository.updateBodyIfEligible({
       messageId: message.id,
+      authorId: input.actorUserId,
       body: input.body,
       editedAt: new Date(),
+      notBefore: this.editWindowStart(),
       renterId: bookingRequest.renterId,
     });
+
+    if (!updated) {
+      // Lost a race with a concurrent delete or the window closing.
+      throw new BadRequestError("This message can no longer be changed.");
+    }
 
     await this.publishEvent({
       type: "message.updated",
@@ -152,11 +159,17 @@ export class BookingMessagesService {
       input.actorUserId,
     );
 
-    const deleted = await this.bookingMessagesRepository.softDelete({
+    const deleted = await this.bookingMessagesRepository.softDeleteIfEligible({
       messageId: message.id,
+      authorId: input.actorUserId,
       deletedAt: new Date(),
+      notBefore: this.editWindowStart(),
       renterId: bookingRequest.renterId,
     });
+
+    if (!deleted) {
+      throw new BadRequestError("This message can no longer be changed.");
+    }
 
     await this.publishEvent({
       type: "message.updated",
@@ -172,6 +185,10 @@ export class BookingMessagesService {
    * window. Read state deliberately does not gate this: a fixed window is
    * predictable, whereas locking on read would surprise the sender.
    */
+  private editWindowStart(): Date {
+    return new Date(Date.now() - BOOKING_MESSAGE_EDIT_WINDOW_MS);
+  }
+
   private async requireOwnEditableMessage(
     bookingRequestId: string,
     messageId: string,
@@ -329,8 +346,12 @@ export class BookingMessagesService {
         return;
       }
 
+      const cooldownKey = this.notifyCooldownKey(
+        bookingRequest.id,
+        recipientId,
+      );
       const claimed = await this.cacheService.setIfNotExists(
-        this.notifyCooldownKey(bookingRequest.id, recipientId),
+        cooldownKey,
         "1",
         BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS,
       );
@@ -339,11 +360,18 @@ export class BookingMessagesService {
         return;
       }
 
-      await this.emailService.sendBookingMessageNotificationEmail({
-        bookingRequestId: bookingRequest.id,
-        recipientId,
-        messageId: record.id,
-      });
+      try {
+        await this.emailService.sendBookingMessageNotificationEmail({
+          bookingRequestId: bookingRequest.id,
+          recipientId,
+          messageId: record.id,
+        });
+      } catch (error) {
+        // Release the claim: keeping it would let one transient broker failure
+        // silently mute every notification for this pair for the full window.
+        await this.cacheService.delete(cooldownKey).catch(() => undefined);
+        throw error;
+      }
     } catch (error) {
       this.logger.error(
         "Failed to queue booking message notification.",

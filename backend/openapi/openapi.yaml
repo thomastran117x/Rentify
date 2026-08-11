@@ -12966,6 +12966,9 @@ paths:
                 id: booking-message-1
                 data: {"type":"message.created","bookingRequestId":"booking-1","message":{"id":"booking-message-1"}}
 
+                event: message.updated
+                data: {"type":"message.updated","bookingRequestId":"booking-1","message":{"id":"booking-message-1","editedAt":"2026-05-26T08:02:00.000Z"}}
+
                 event: heartbeat
                 data: 1780000000000
 

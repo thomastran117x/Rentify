@@ -971,6 +971,146 @@ describe("BookingMessagesPanel", () => {
     expect(screen.getAllByTestId("booking-message")).toHaveLength(1);
   });
 
+  it("opens exactly one stream connection per mount", async () => {
+    renderPanel();
+
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    // The first response changes canWrite and viewerSide; the effect must not
+    // tear the connection down and reopen it when they land.
+    await waitFor(() => expect(screen.getByLabelText("Message")).toBeTruthy());
+
+    expect(openStreamMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns to the newest page after sending from an older page", async () => {
+    const user = userEvent.setup();
+    listMock.mockImplementation(async (_id: string, input: { page: number }) =>
+      buildList({
+        messages: [
+          buildMessage({
+            id: `page-${input.page}`,
+            body: `Page ${input.page} message`,
+          }),
+        ],
+        pagination: {
+          page: input.page,
+          pageSize: 20,
+          total: 40,
+          totalPages: 2,
+          hasNextPage: input.page < 2,
+          hasPreviousPage: input.page > 1,
+        },
+      }),
+    );
+    sendMock.mockResolvedValue(buildMessage({ id: "sent", body: "Sent it" }));
+
+    renderPanel();
+    await screen.findByText("Page 1 message");
+    await user.click(screen.getByRole("button", { name: "2" }));
+    await screen.findByText("Page 2 message");
+
+    await user.type(screen.getByLabelText("Message"), "Sent it");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    // Otherwise the message is persisted but never shown, with no feedback.
+    await waitFor(() =>
+      expect(listMock).toHaveBeenLastCalledWith("booking-1", {
+        page: 1,
+        pageSize: 20,
+      }),
+    );
+  });
+
+  it("does not resurrect a cleared unread badge on a silent re-sync", async () => {
+    listMock.mockResolvedValue(buildList({ unreadCount: 2 }));
+    markReadMock.mockResolvedValue({
+      bookingRequestId: "booking-1",
+      markedCount: 2,
+      readAt: "2026-08-10T12:05:00.000Z",
+    });
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await waitFor(() =>
+      expect(screen.queryByText("2 unread")).not.toBeInTheDocument(),
+    );
+
+    // A pre-markRead snapshot arriving late must not bring the badge back.
+    captureStreamHandlers().onStatus("open");
+
+    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("2 unread")).not.toBeInTheDocument();
+  });
+
+  it("keeps a streamed update that raced a history response", async () => {
+    let resolveList: (value: unknown) => void = () => {};
+    listMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+
+    renderPanel();
+    await waitFor(() => expect(openStreamMock).toHaveBeenCalled());
+
+    captureStreamHandlers().onEvent({
+      type: "message.updated",
+      bookingRequestId: "booking-1",
+      message: buildMessage({
+        body: "",
+        deletedAt: "2026-08-10T12:40:00.000Z",
+      }),
+    });
+
+    // The response is a pre-delete snapshot.
+    resolveList(buildList());
+
+    expect(await screen.findByText("Message deleted")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Is an early pickup possible?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cancels an edit cleared to an empty body", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("   ");
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [buildMessage({ createdAt: new Date().toISOString() })],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    // The API rejects an empty body; treat clearing the prompt as a cancel.
+    expect(editMock).not.toHaveBeenCalled();
+
+    promptSpy.mockRestore();
+  });
+
+  it("never shows a read receipt on a deleted message", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        messages: [
+          buildMessage({
+            id: "gone",
+            body: "",
+            readAt: "2026-08-10T12:20:00.000Z",
+            deletedAt: "2026-08-10T12:30:00.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Message deleted");
+
+    expect(screen.queryByText(/^Read /)).not.toBeInTheDocument();
+  });
+
   it("closes the stream on unmount", async () => {
     const { unmount } = renderPanel();
     await screen.findByText("Is an early pickup possible?");

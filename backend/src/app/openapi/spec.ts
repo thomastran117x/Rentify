@@ -7141,6 +7141,7 @@ function buildOperations(): OperationDefinition[] {
               example:
                 'event: ready\ndata: {"bookingRequestId":"booking-1"}\n\n' +
                 'event: message.created\nid: booking-message-1\ndata: {"type":"message.created","bookingRequestId":"booking-1","message":{"id":"booking-message-1"}}\n\n' +
+                'event: message.updated\ndata: {"type":"message.updated","bookingRequestId":"booking-1","message":{"id":"booking-message-1","editedAt":"2026-05-26T08:02:00.000Z"}}\n\n' +
                 "event: heartbeat\ndata: 1780000000000\n\n",
             },
           },
