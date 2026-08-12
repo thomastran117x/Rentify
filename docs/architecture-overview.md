@@ -81,65 +81,71 @@ The route registry currently groups the API into these main areas:
 
 ## Realtime Transport
 
-Booking request message threads are the one realtime surface. They run over a
-WebSocket at `/ws/booking-messages`, outside the versioned REST prefix, fanned
-out across processes by Redis pub/sub with one channel per thread.
+Booking request message threads are the one realtime surface. They run on
+**Socket.IO**, mounted at `/ws/booking-messages` outside the versioned REST
+prefix, with the **Redis adapter** carrying events between API instances.
 
-Three things about it are worth knowing before extending it:
+The shape is: one room per thread, plus one room per _side_ of that thread.
+Messages go to the thread room; presence is answered by asking whether the side
+room has anyone in it. Both rooms are cluster-wide, because the adapter answers
+for every instance rather than just the local one.
 
-- **The socket is attached to the Node HTTP server directly, not routed through
-  Hono.** `@hono/node-ws` peers on `@hono/node-server@^1.19.11` and this backend
-  runs 2.x, so the adapter cannot be used. The consequence is that registering
-  an `upgrade` listener stops Node from destroying unmatched upgrades on its
-  own — a second upgrade consumer must negotiate paths with the existing
-  handler rather than adding an independent listener, or unmatched sockets leak.
-- **Authentication is a two-step ticket exchange.** A browser `WebSocket` cannot
-  set an `authorization` header. The client posts to
+Four things are worth knowing before extending it:
+
+- **Deployment requires sticky sessions.** Transports keep Socket.IO's default
+  of polling first and upgrading to WebSocket. The polling handshake is several
+  HTTP requests that must reach the same instance, so a replicated API behind a
+  load balancer needs session affinity configured. Without it the handshake
+  fails in a way that looks like a flaky network. Choosing `transports:
+["websocket"]` would remove that requirement at the cost of failing outright
+  wherever WebSocket upgrades are blocked.
+- **Authentication is a two-step ticket exchange.** A browser cannot set an
+  `authorization` header on this handshake. The client posts to
   `/booking-requests/{id}/messages/socket-ticket` with its bearer token and the
   server replies with a single-use 30-second ticket in an HttpOnly cookie scoped
-  to the socket path, which the browser then attaches to the upgrade. Putting
-  the ticket in a query string instead would place a credential into proxy and
-  access logs.
-- **A connection holds no request scope.** The container scope used to redeem
-  the ticket is disposed before the socket is registered, and each subsequent
-  piece of work creates and disposes its own. A socket that pinned a scope would
-  hold a database connection for its entire lifetime.
+  to the socket path, which the browser attaches to the handshake. A ticket in
+  the query string would land in proxy and access logs instead. Because a ticket
+  is single-use, Socket.IO's own reconnection is **disabled** on the client and
+  each retry mints a fresh one — reconnecting automatically would replay a
+  spent ticket.
+- **Authorization happens in the handshake, not after it.** The Socket.IO
+  middleware redeems the ticket _and_ resolves the participant's side and write
+  capability before the connection is accepted, so someone who lost access in
+  the ticket's window never reaches a room.
+- **A connection holds no request scope.** Each piece of work creates and
+  disposes its own container scope. A socket that pinned one would hold a
+  database connection for its entire lifetime.
 
-Access is checked at connect and re-checked every 60 seconds, on two axes that
-are easy to conflate. **Membership** answers whether this user may still read
-this thread. **The session** answers whether they are still signed in at all — a
-logout, a password change, a token-version bump. Checking only the first leaves
-a signed-out user receiving message bodies over a connection that outlives their
-session while every REST call they make returns 401, so the ticket records the
-session that minted it and the sweep validates both.
+Access is re-checked every 60 seconds on two axes that are easy to conflate.
+**Membership** answers whether this user may still read this thread. **The
+session** answers whether they are still signed in at all — a logout, a password
+change, a token-version bump. Checking only the first leaves a signed-out user
+receiving message bodies over a connection that outlives their session while
+every REST call they make returns 401, so the ticket records the session that
+minted it and the sweep validates both.
 
-Presence is a **set of per-socket leases per (thread, side) in Redis**, scored by
-expiry. Each of the three obvious simpler designs fails a specific way, and the
-sequence is worth knowing before anyone simplifies it back:
+**Presence is room membership**, which is worth stating plainly because three
+hand-built designs preceded it and each failed a specific way:
 
 - A **flag per user** cannot answer the question actually being asked — "is
-  anyone from this organization watching" — without enumerating the
-  organization's members.
-- A **tally of one process's sockets** breaks as soon as the API is replicated:
-  each instance sees only its own, so the last one to lose a manager announces
-  the side offline while a colleague sits connected elsewhere.
-- A **shared counter** fixes that but cannot expire a dead instance's share. Any
-  surviving socket refreshing the key renews every contribution including those
-  of processes that have died, so the count never reaches zero and the side is
-  never announced offline again.
+  anyone from this organization watching" — without enumerating the members.
+- A **tally of one process's sockets** breaks once the API is replicated: each
+  instance sees only its own, so the last one to lose a manager announces the
+  side offline while a colleague sits connected elsewhere.
+- A **shared counter in Redis** fixes that but cannot expire a dead instance's
+  share, because any surviving socket refreshing the key renews every
+  contribution including the dead one's.
 
-Leases avoid all three: each socket renews only its own, expired ones are pruned
-on read, and the side is online while any unexpired lease remains. The count is
-taken _after_ a join or leave writes, so a join racing a departure can only
-conclude "someone is here", never the reverse.
-
-A connecting socket is also sent the counterpart's current state, because the
-other party's arrival was announced before that socket existed and a live
-presence is deliberately never re-announced.
+Asking the adapter how many sockets are in a side room avoids all three: a dead
+instance's sockets leave the cluster's view on their own, and there is no
+separate bookkeeping that can drift from the connections it describes. Only the
+transition in or out of an empty room is announced, and a connecting socket is
+told the counterpart's current state directly — its arrival was announced before
+that socket existed, and an unchanged presence is never re-announced.
 
 Shutdown has to dispose the container before disconnecting Redis: that is what
-closes upgraded sockets and gives their leases back. Skipping it makes every
-rollout look like an abrupt process death to the other party.
+closes the sockets and lets their rooms empty. Skipping it makes every rollout
+look like an abrupt process death to the other party.
 
 ## Background Workers
 

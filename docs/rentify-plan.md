@@ -382,14 +382,18 @@ Messaging and booking updates will benefit from realtime support. Recommendation
 
 - Start with REST + polling for MVP if speed is critical.
 - Add WebSocket or SSE for chat, booking status changes, and notifications once the core flows are stable.
-  - Done for booking request messages: `GET /ws/booking-messages` is a WebSocket endpoint
-    fanned out over Redis pub/sub. It replaced an earlier Server-Sent Events stream once the
-    thread needed client-to-server traffic — typing indicators, presence, and delivery
-    acknowledgements are things a one-way stream cannot carry without a second REST call per
-    keystroke. Because a browser `WebSocket` cannot set an `authorization` header, the client
-    exchanges its bearer token for a short-lived single-use ticket over REST and the server
-    returns it as an HttpOnly cookie scoped to the socket path. Clients fall back to polling
-    after repeated connect failures. Booking status changes and notifications still poll.
+  - Done for booking request messages: Socket.IO at `/ws/booking-messages`, with the Redis
+    adapter fanning events between API instances. It replaced an earlier Server-Sent Events
+    stream once the thread needed client-to-server traffic — typing indicators, presence and
+    delivery acknowledgements are things a one-way stream cannot carry without a second REST
+    call per keystroke. Because a browser cannot set an `authorization` header on the
+    handshake, the client exchanges its bearer token for a short-lived single-use ticket over
+    REST and the server returns it as an HttpOnly cookie scoped to the socket path. Presence
+    is room membership rather than bookkeeping, so it stays correct when the API is
+    replicated. Note the transport keeps Socket.IO's polling-then-upgrade default, which
+    means a replicated deployment needs sticky sessions. Clients fall back to polling the
+    REST endpoint after repeated connect failures. Booking status changes and notifications
+    still poll.
 
 ## 10. Payment Strategy
 

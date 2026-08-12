@@ -29,10 +29,8 @@ import { BookingsController } from "@/features/bookings/bookings.controller";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
 import { BookingsService } from "@/features/bookings/bookings.service";
 import { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
-import { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
-import { BookingMessagePresenceService } from "@/features/bookings/messages/booking-message-presence.service";
 import { BookingMessageSocketServer } from "@/features/bookings/messages/booking-message-socket.server";
 import { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import { CacheService } from "@/features/cache/cache.service";
@@ -264,16 +262,9 @@ export const containerTokens = {
   bookingMessagesController: createServiceToken<BookingMessagesController>(
     "BookingMessagesController",
   ),
-  bookingMessageStreamHub: createServiceToken<BookingMessageStreamHub>(
-    "BookingMessageStreamHub",
-  ),
   bookingMessageEmailComposer: createServiceToken<BookingMessageEmailComposer>(
     "BookingMessageEmailComposer",
   ),
-  bookingMessagePresenceService:
-    createServiceToken<BookingMessagePresenceService>(
-      "BookingMessagePresenceService",
-    ),
   bookingMessageSocketServer: createServiceToken<BookingMessageSocketServer>(
     "BookingMessageSocketServer",
   ),

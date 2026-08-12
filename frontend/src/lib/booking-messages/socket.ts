@@ -1,3 +1,4 @@
+import { io, type Socket } from "socket.io-client";
 import { authenticatedJson } from "@/lib/api/client";
 import { resolveApiBaseUrl } from "@/lib/env";
 import type {
@@ -5,18 +6,24 @@ import type {
   BookingMessageStreamStatus,
 } from "@/lib/booking-messages/types";
 
-/**
- * Reconnect delays, then held at the final value, jittered by ±20% so a fleet
- * reconnecting after an outage does not synchronise.
- */
-const BACKOFF_LADDER_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
-const JITTER_RATIO = 0.2;
+/** Path the server mounts Socket.IO on, and the ticket cookie is scoped to. */
+const SOCKET_PATH = "/ws/booking-messages";
 
 /** After this many consecutive failed connects the caller should fall back. */
 export const MAX_CONSECUTIVE_SOCKET_FAILURES = 5;
 
 /** Client-side typing throttle. The server enforces its own as well. */
 const TYPING_THROTTLE_MS = 2_500;
+
+/** Server events the panel consumes, forwarded verbatim. */
+const FORWARDED_EVENTS = [
+  "message.created",
+  "message.updated",
+  "messages.read",
+  "messages.delivered",
+  "typing",
+  "presence",
+] as const;
 
 export interface BookingMessageSocketHandle {
   /** Announces that the local user is composing. Throttled. */
@@ -26,32 +33,25 @@ export interface BookingMessageSocketHandle {
   close(): void;
 }
 
-function computeBackoffMs(attempt: number): number {
-  const base =
-    BACKOFF_LADDER_MS[Math.min(attempt, BACKOFF_LADDER_MS.length - 1)];
-  const jitter = base * JITTER_RATIO * (Math.random() * 2 - 1);
-
-  return Math.max(0, Math.round(base + jitter));
-}
-
-/** `http(s)://host/api/v1` → `ws(s)://host/ws/booking-messages`. */
-function resolveSocketUrl(): string {
+/** `http(s)://host/api/v1` → `http(s)://host`. Socket.IO adds the path. */
+function resolveSocketOrigin(): string {
   const api = new URL(resolveApiBaseUrl(), window.location.origin);
-  api.protocol = api.protocol === "https:" ? "wss:" : "ws:";
-  api.pathname = "/ws/booking-messages";
-  api.search = "";
 
-  return api.toString();
+  return api.origin;
 }
 
 /**
  * Opens the booking message socket.
  *
- * Authentication is a two-step exchange: a browser `WebSocket` cannot send an
- * `authorization` header, so the bearer token is first exchanged over REST for
- * a single-use ticket that the server returns as an HttpOnly cookie scoped to
- * the socket path. The browser then attaches it to the upgrade automatically —
- * the ticket is never readable by this code, and never appears in a URL.
+ * Authentication is a two-step exchange: the bearer token is swapped over REST
+ * for a single-use ticket that the server returns as an HttpOnly cookie scoped
+ * to the socket path, and the browser attaches it to the handshake. The ticket
+ * is never readable by this code and never appears in a URL.
+ *
+ * Reconnection, backoff and heartbeats are Socket.IO's, not ours — the ladder,
+ * jitter and ping/pong this used to hand-roll are all built in. What remains
+ * here is the part that is specific to this application: minting a fresh ticket
+ * before every attempt, since a ticket is single-use and short-lived.
  */
 export function openBookingMessageSocket(options: {
   bookingRequestId: string;
@@ -62,188 +62,108 @@ export function openBookingMessageSocket(options: {
 
   let closed = false;
   let failures = 0;
-  let suspended = false;
-  let socket: WebSocket | null = null;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let lastTypingAt = 0;
+  let socket: Socket | null = null;
 
-  function clearRetryTimer(): void {
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-  }
-
-  function closeCurrentSocket(): void {
-    if (!socket) {
-      return;
-    }
-
-    // Detached before closing: the handlers must not treat a deliberate
-    // teardown as a dropped connection and schedule a reconnect.
-    socket.onopen = null;
-    socket.onmessage = null;
-    socket.onerror = null;
-    socket.onclose = null;
-
-    try {
-      socket.close();
-    } catch {
-      // Already closing.
-    }
-
-    socket = null;
-  }
-
-  function scheduleReconnect(): void {
-    if (closed || suspended) {
-      return;
-    }
-
-    failures += 1;
-
-    if (failures >= MAX_CONSECUTIVE_SOCKET_FAILURES) {
-      onStatus("failed");
-      return;
-    }
-
-    onStatus("reconnecting");
-    clearRetryTimer();
-    retryTimer = setTimeout(
-      () => {
-        retryTimer = null;
-        void connect();
-      },
-      computeBackoffMs(failures - 1),
-    );
-  }
-
-  async function connect(): Promise<void> {
-    if (closed || suspended) {
-      return;
-    }
-
-    closeCurrentSocket();
-    onStatus("connecting");
-
+  async function mintTicket(): Promise<boolean> {
     try {
       // Sets the HttpOnly ticket cookie. Its body carries only the lifetime.
       await authenticatedJson<{ expiresInSeconds: number }>(
         "POST",
         `/booking-requests/${encodeURIComponent(bookingRequestId)}/messages/socket-ticket`,
       );
-    } catch {
-      // A rejected exchange is usually an expired session or lost access; the
-      // backoff applies rather than hammering the endpoint.
-      scheduleReconnect();
-      return;
-    }
 
-    if (closed || suspended) {
-      return;
-    }
-
-    let next: WebSocket;
-
-    try {
-      next = new WebSocket(resolveSocketUrl());
-    } catch {
-      scheduleReconnect();
-      return;
-    }
-
-    socket = next;
-
-    next.onopen = () => {
-      failures = 0;
-      onStatus("open");
-    };
-
-    next.onmessage = (message) => {
-      try {
-        const frame = JSON.parse(String(message.data)) as
-          | BookingMessageStreamEvent
-          | { type: "ready"; bookingRequestId: string };
-
-        // The ticket cookie is shared by every tab on this origin, so two tabs
-        // opening different threads at once can each end up holding the other's
-        // ticket and subscribing to the wrong booking. The server is consistent
-        // either way — the subscription matches the ticket it redeemed — but
-        // this tab would render another conversation. Dropping the socket sends
-        // it back through the exchange for a ticket of its own.
-        if (frame.bookingRequestId !== bookingRequestId) {
-          closeCurrentSocket();
-          scheduleReconnect();
-          return;
-        }
-
-        // `ready` only confirms the subscription; the panel re-syncs off the
-        // `open` status instead.
-        if (frame.type === "ready") {
-          return;
-        }
-
-        onEvent(frame);
-      } catch {
-        // A malformed frame must not tear down a healthy socket.
-      }
-    };
-
-    next.onerror = () => {
-      // `onclose` always follows, and it owns the reconnect decision.
-    };
-
-    next.onclose = () => {
-      if (socket === next) {
-        socket = null;
-      }
-
-      if (!closed && !suspended) {
-        scheduleReconnect();
-      }
-    };
-  }
-
-  /** Returns whether the frame actually went out. */
-  function send(frame: Record<string, unknown>): boolean {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-
-    try {
-      socket.send(JSON.stringify(frame));
       return true;
     } catch {
-      // Dropping an ephemeral frame is preferable to surfacing an error.
       return false;
     }
   }
 
-  function handleVisibilityChange(): void {
+  function handleFailure(): void {
+    failures += 1;
+
+    if (failures >= MAX_CONSECUTIVE_SOCKET_FAILURES) {
+      onStatus("failed");
+      socket?.disconnect();
+      return;
+    }
+
+    onStatus("reconnecting");
+  }
+
+  async function connect(): Promise<void> {
     if (closed) {
       return;
     }
 
-    if (document.visibilityState === "hidden") {
-      // Set before closing so the close handler does not read a deliberate
-      // teardown as a drop and schedule a reconnect behind our back.
-      suspended = true;
-      closeCurrentSocket();
-      clearRetryTimer();
+    onStatus("connecting");
+
+    if (!(await mintTicket())) {
+      handleFailure();
+
+      if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
+        // No socket exists yet, so nothing else will retry for us.
+        window.setTimeout(() => void connect(), 1_000 * failures);
+      }
+
       return;
     }
 
-    if (!suspended) {
+    if (closed) {
       return;
     }
 
-    suspended = false;
-    failures = 0;
-    void connect();
-  }
+    const next = io(resolveSocketOrigin(), {
+      path: SOCKET_PATH,
+      // The ticket rides in a cookie, so the handshake has to carry credentials.
+      withCredentials: true,
+      // Reconnection is Socket.IO's, but each attempt needs a *fresh* ticket,
+      // so the reconnect is driven from here instead.
+      reconnection: false,
+    });
 
-  if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    socket = next;
+
+    next.on("connect", () => {
+      failures = 0;
+      onStatus("open");
+    });
+
+    for (const name of FORWARDED_EVENTS) {
+      next.on(name, (event: BookingMessageStreamEvent) => {
+        // Two tabs on one origin share the ticket cookie, so a tab can end up
+        // holding the other's ticket and joining the wrong thread's room. The
+        // server stays consistent — it joined the room its ticket named — but
+        // this tab would render someone else's conversation.
+        if (event?.bookingRequestId !== bookingRequestId) {
+          next.disconnect();
+          void connect();
+          return;
+        }
+
+        onEvent(event);
+      });
+    }
+
+    // `ready` only confirms the subscription; the panel re-syncs off `open`.
+    next.on("ready", () => undefined);
+
+    next.on("connect_error", () => {
+      handleFailure();
+
+      if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
+        window.setTimeout(() => void connect(), 1_000 * failures);
+      }
+    });
+
+    next.on("disconnect", (reason) => {
+      if (closed || reason === "io client disconnect") {
+        return;
+      }
+
+      onStatus("reconnecting");
+      void connect();
+    });
   }
 
   void connect();
@@ -256,19 +176,20 @@ export function openBookingMessageSocket(options: {
         return;
       }
 
-      // Recorded only when the frame goes out: an attempt made while the
-      // socket is closed would otherwise spend the window and suppress the
-      // first real indicator after connecting.
-      if (send({ type: "typing" })) {
+      // Recorded only when the frame goes out: an attempt made while
+      // disconnected would otherwise spend the window and suppress the first
+      // real indicator after connecting.
+      if (socket?.connected) {
+        socket.emit("typing");
         lastTypingAt = now;
       }
     },
     sendDelivered(messageIds: string[]): void {
-      if (messageIds.length === 0) {
+      if (messageIds.length === 0 || !socket?.connected) {
         return;
       }
 
-      send({ type: "delivered", messageIds });
+      socket.emit("delivered", messageIds);
     },
     close(): void {
       if (closed) {
@@ -276,15 +197,8 @@ export function openBookingMessageSocket(options: {
       }
 
       closed = true;
-      clearRetryTimer();
-      closeCurrentSocket();
-
-      if (typeof document !== "undefined") {
-        document.removeEventListener(
-          "visibilitychange",
-          handleVisibilityChange,
-        );
-      }
+      socket?.disconnect();
+      socket = null;
     },
   };
 }

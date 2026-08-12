@@ -141,6 +141,14 @@ function createService(
     }),
   } as unknown as EmailService;
 
+  const realtimeGateway = {
+    publish: jest.fn(() => {
+      if (options.publishError) {
+        throw options.publishError;
+      }
+    }),
+  };
+
   const tokenService = {
     assertSessionIsUsable: jest.fn(async () => {
       if (options.sessionError) {
@@ -157,6 +165,7 @@ function createService(
     cacheService,
     emailService,
     tokenService,
+    realtimeGateway,
   );
 
   return {
@@ -168,6 +177,7 @@ function createService(
     cacheService,
     emailService,
     tokenService,
+    realtimeGateway,
   };
 }
 
@@ -220,7 +230,7 @@ describe("BookingMessagesService", () => {
     });
 
     it("still resolves when the stream publish fails", async () => {
-      const { service, cacheService } = createService({
+      const { service, realtimeGateway } = createService({
         publishError: new Error("redis down"),
       });
 
@@ -232,7 +242,7 @@ describe("BookingMessagesService", () => {
         }),
       ).resolves.toMatchObject({ id: "message-1" });
 
-      expect(cacheService.publish).toHaveBeenCalled();
+      expect(realtimeGateway.publish).toHaveBeenCalled();
     });
 
     it("still resolves when queueing the notification fails", async () => {
@@ -253,8 +263,8 @@ describe("BookingMessagesService", () => {
       ).toHaveBeenCalled();
     });
 
-    it("publishes a message.created event on the thread channel", async () => {
-      const { service, cacheService } = createService();
+    it("publishes a message.created event to the thread", async () => {
+      const { service, cacheService, realtimeGateway } = createService();
 
       await service.send({
         bookingRequestId: BOOKING_ID,
@@ -262,10 +272,8 @@ describe("BookingMessagesService", () => {
         body: "hello",
       });
 
-      const [channel, payload] = (cacheService.publish as jest.Mock).mock
-        .calls[0];
-      expect(channel).toBe(`booking-messages:${BOOKING_ID}`);
-      expect(JSON.parse(payload)).toMatchObject({
+      const [event] = (realtimeGateway.publish as jest.Mock).mock.calls[0];
+      expect(event).toMatchObject({
         type: "message.created",
         bookingRequestId: BOOKING_ID,
         message: { id: "message-1" },
@@ -454,7 +462,7 @@ describe("BookingMessagesService", () => {
       const membershipError = new ForbiddenError(
         "You do not have access to this booking request.",
       );
-      const { service } = createService({ membershipError });
+      const { service, realtimeGateway } = createService({ membershipError });
 
       await expect(
         service.list({
@@ -472,7 +480,7 @@ describe("BookingMessagesService", () => {
     const stale = () => new Date(Date.now() - 20 * 60_000).toISOString();
 
     it("edits the author's own recent message and publishes the update", async () => {
-      const { service, bookingMessagesRepository, cacheService } =
+      const { service, bookingMessagesRepository, realtimeGateway } =
         createService();
       (bookingMessagesRepository.findById as jest.Mock).mockResolvedValue(
         createMessage({ createdAt: recent() }),
@@ -487,8 +495,8 @@ describe("BookingMessagesService", () => {
         }),
       ).resolves.toMatchObject({ editedAt: expect.any(String) });
 
-      const [, payload] = (cacheService.publish as jest.Mock).mock.calls[0];
-      expect(JSON.parse(payload)).toMatchObject({ type: "message.updated" });
+      const [event] = (realtimeGateway.publish as jest.Mock).mock.calls[0];
+      expect(event).toMatchObject({ type: "message.updated" });
     });
 
     it("soft deletes the author's own recent message", async () => {
@@ -641,14 +649,14 @@ describe("BookingMessagesService", () => {
     });
 
     it("publishes a messages.read event when something was marked", async () => {
-      const { service, cacheService } = createService({ markedCount: 2 });
+      const { service, cacheService, realtimeGateway } = createService({
+        markedCount: 2,
+      });
 
       await service.markRead(BOOKING_ID, RENTER_ID);
 
-      const [channel, payload] = (cacheService.publish as jest.Mock).mock
-        .calls[0];
-      expect(channel).toBe(`booking-messages:${BOOKING_ID}`);
-      expect(JSON.parse(payload)).toMatchObject({
+      const [event] = (realtimeGateway.publish as jest.Mock).mock.calls[0];
+      expect(event).toMatchObject({
         type: "messages.read",
         readerSide: "renter",
         markedCount: 2,
@@ -656,11 +664,13 @@ describe("BookingMessagesService", () => {
     });
 
     it("does not publish when nothing was marked", async () => {
-      const { service, cacheService } = createService({ markedCount: 0 });
+      const { service, cacheService, realtimeGateway } = createService({
+        markedCount: 0,
+      });
 
       await service.markRead(BOOKING_ID, RENTER_ID);
 
-      expect(cacheService.publish).not.toHaveBeenCalled();
+      expect(realtimeGateway.publish).not.toHaveBeenCalled();
     });
 
     it("requires a manager role on the organization side", async () => {
@@ -820,7 +830,7 @@ describe("BookingMessagesService", () => {
 
   describe("markDelivered", () => {
     it("publishes only the rows it actually marked", async () => {
-      const { service, cacheService } = createService({
+      const { service, cacheService, realtimeGateway } = createService({
         deliveredIds: ["message-1"],
       });
 
@@ -828,20 +838,22 @@ describe("BookingMessagesService", () => {
         service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
       ).resolves.toEqual(["message-1"]);
 
-      const [, payload] = (cacheService.publish as jest.Mock).mock.calls[0];
-      expect(JSON.parse(payload)).toMatchObject({
+      const [event] = (realtimeGateway.publish as jest.Mock).mock.calls[0];
+      expect(event).toMatchObject({
         type: "messages.delivered",
         messageIds: ["message-1"],
       });
     });
 
     it("stays silent when nothing was newly delivered", async () => {
-      const { service, cacheService } = createService({ deliveredIds: [] });
+      const { service, cacheService, realtimeGateway } = createService({
+        deliveredIds: [],
+      });
 
       await expect(
         service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
       ).resolves.toEqual([]);
-      expect(cacheService.publish).not.toHaveBeenCalled();
+      expect(realtimeGateway.publish).not.toHaveBeenCalled();
     });
 
     it("allows a read-only member to acknowledge receipt", async () => {

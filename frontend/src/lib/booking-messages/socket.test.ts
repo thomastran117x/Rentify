@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authenticatedJsonMock } = vi.hoisted(() => ({
+const { authenticatedJsonMock, ioMock } = vi.hoisted(() => ({
   authenticatedJsonMock: vi.fn(),
+  ioMock: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
@@ -12,43 +13,66 @@ vi.mock("@/lib/env", () => ({
   resolveApiBaseUrl: () => "https://api.test/api/v1",
 }));
 
+vi.mock("socket.io-client", () => ({
+  io: ioMock,
+}));
+
 const { openBookingMessageSocket } = await import(
   "@/lib/booking-messages/socket"
 );
 
-/** Minimal stand-in: jsdom has no WebSocket, and the tests drive it directly. */
-class FakeWebSocket {
-  static instances: FakeWebSocket[] = [];
-  static readonly OPEN = 1;
-  static readonly CLOSED = 3;
+/**
+ * A stand-in for a Socket.IO client. Only the surface this module uses is
+ * implemented, so a new dependency on the library shows up as a loud failure
+ * rather than a silent pass.
+ */
+class FakeSocket {
+  static instances: FakeSocket[] = [];
 
-  readyState = 0;
-  sent: string[] = [];
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  onclose: (() => void) | null = null;
+  connected = false;
+  emitted: Array<{ event: string; payload?: unknown }> = [];
+  disconnected = 0;
+  private readonly listeners = new Map<string, Array<(arg: never) => void>>();
 
-  constructor(public readonly url: string) {
-    FakeWebSocket.instances.push(this);
+  constructor(
+    public readonly url: string,
+    public readonly options: Record<string, unknown>,
+  ) {
+    FakeSocket.instances.push(this);
   }
 
-  send(payload: string): void {
-    this.sent.push(payload);
+  on(event: string, listener: (arg: never) => void): this {
+    const existing = this.listeners.get(event) ?? [];
+    existing.push(listener);
+    this.listeners.set(event, existing);
+    return this;
   }
 
-  close(): void {
-    this.readyState = FakeWebSocket.CLOSED;
-    this.onclose?.();
+  off(): this {
+    return this;
+  }
+
+  emit(event: string, payload?: unknown): this {
+    this.emitted.push({ event, payload });
+    return this;
+  }
+
+  disconnect(): this {
+    this.connected = false;
+    this.disconnected += 1;
+    return this;
+  }
+
+  /** Drives a server-side event into the client. */
+  fire(event: string, payload?: unknown): void {
+    for (const listener of this.listeners.get(event) ?? []) {
+      (listener as (arg: unknown) => void)(payload);
+    }
   }
 
   open(): void {
-    this.readyState = FakeWebSocket.OPEN;
-    this.onopen?.();
-  }
-
-  emit(frame: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(frame) });
+    this.connected = true;
+    this.fire("connect");
   }
 }
 
@@ -60,18 +84,21 @@ async function flush(times = 12): Promise<void> {
 
 describe("openBookingMessageSocket", () => {
   beforeEach(() => {
-    FakeWebSocket.instances = [];
+    FakeSocket.instances = [];
     authenticatedJsonMock.mockReset();
     authenticatedJsonMock.mockResolvedValue({ expiresInSeconds: 30 });
-    vi.stubGlobal("WebSocket", FakeWebSocket);
+    ioMock.mockReset();
+    ioMock.mockImplementation(
+      (url: string, options: Record<string, unknown>) =>
+        new FakeSocket(url, options),
+    );
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
-  it("exchanges a ticket before connecting and carries no credential in the URL", async () => {
+  it("mints a ticket before connecting and carries no credential in the URL", async () => {
     const handle = openBookingMessageSocket({
       bookingRequestId: "booking-1",
       onEvent: vi.fn(),
@@ -85,15 +112,19 @@ describe("openBookingMessageSocket", () => {
       "/booking-requests/booking-1/messages/socket-ticket",
     );
 
-    const socket = FakeWebSocket.instances[0];
-    expect(socket.url).toBe("wss://api.test/ws/booking-messages");
-    // The ticket lives in an HttpOnly cookie the browser attaches itself.
-    expect(socket.url).not.toContain("ticket");
+    const [url, options] = ioMock.mock.calls[0];
+    expect(url).toBe("https://api.test");
+    expect(options).toMatchObject({
+      path: "/ws/booking-messages",
+      // The ticket lives in an HttpOnly cookie the browser attaches itself.
+      withCredentials: true,
+    });
+    expect(JSON.stringify(options)).not.toContain("ticket");
 
     handle.close();
   });
 
-  it("reports open and forwards frames, swallowing the ready handshake", async () => {
+  it("reports open and forwards events, swallowing the ready handshake", async () => {
     const onEvent = vi.fn();
     const onStatus = vi.fn();
     const handle = openBookingMessageSocket({
@@ -103,15 +134,18 @@ describe("openBookingMessageSocket", () => {
     });
 
     await flush();
-    const socket = FakeWebSocket.instances[0];
+    const socket = FakeSocket.instances[0];
     socket.open();
 
     expect(onStatus).toHaveBeenCalledWith("open");
 
-    socket.emit({ type: "ready", bookingRequestId: "booking-1" });
+    socket.fire("ready", { type: "ready", bookingRequestId: "booking-1" });
     expect(onEvent).not.toHaveBeenCalled();
 
-    socket.emit({ type: "message.created", bookingRequestId: "booking-1" });
+    socket.fire("message.created", {
+      type: "message.created",
+      bookingRequestId: "booking-1",
+    });
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({ type: "message.created" }),
     );
@@ -120,43 +154,6 @@ describe("openBookingMessageSocket", () => {
   });
 
   it("drops a socket that was handed another booking's ticket", async () => {
-    vi.useFakeTimers();
-    const onEvent = vi.fn();
-
-    const handle = openBookingMessageSocket({
-      bookingRequestId: "booking-1",
-      onEvent,
-      onStatus: vi.fn(),
-    });
-
-    await vi.advanceTimersByTimeAsync(0);
-    const socket = FakeWebSocket.instances[0];
-    socket.open();
-
-    // The ticket cookie is shared by every tab on this origin, so two tabs
-    // opening different threads at once can each end up upgrading with the
-    // other's ticket. The server stays self-consistent — it subscribed to the
-    // booking whose ticket it redeemed — but this tab would render someone
-    // else's conversation.
-    socket.emit({ type: "ready", bookingRequestId: "booking-2" });
-    socket.emit({
-      type: "message.created",
-      bookingRequestId: "booking-2",
-      message: { id: "m1" },
-    });
-
-    expect(onEvent).not.toHaveBeenCalled();
-    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
-
-    // It reconnects rather than giving up: the collision is a race, so the next
-    // attempt normally gets a ticket of its own.
-    await vi.advanceTimersByTimeAsync(3_000);
-    expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
-
-    handle.close();
-  });
-
-  it("ignores a malformed frame", async () => {
     const onEvent = vi.fn();
     const handle = openBookingMessageSocket({
       bookingRequestId: "booking-1",
@@ -165,16 +162,28 @@ describe("openBookingMessageSocket", () => {
     });
 
     await flush();
-    const socket = FakeWebSocket.instances[0];
+    const socket = FakeSocket.instances[0];
     socket.open();
-    socket.onmessage?.({ data: "not json" });
+
+    // Two tabs on one origin share the ticket cookie, so a tab can end up
+    // holding the other's ticket and joining the wrong thread's room. The
+    // server stays consistent — it joined the room its ticket named — but this
+    // tab would render someone else's conversation.
+    socket.fire("message.created", {
+      type: "message.created",
+      bookingRequestId: "booking-2",
+    });
 
     expect(onEvent).not.toHaveBeenCalled();
+    expect(socket.disconnected).toBe(1);
+
+    await flush();
+    expect(FakeSocket.instances.length).toBeGreaterThan(1);
 
     handle.close();
   });
 
-  it("throttles typing frames and drops them while closed", async () => {
+  it("throttles typing and drops it while disconnected", async () => {
     const handle = openBookingMessageSocket({
       bookingRequestId: "booking-1",
       onEvent: vi.fn(),
@@ -182,18 +191,20 @@ describe("openBookingMessageSocket", () => {
     });
 
     await flush();
-    const socket = FakeWebSocket.instances[0];
+    const socket = FakeSocket.instances[0];
 
-    // Nothing is sent before the socket opens.
+    // Nothing goes out before the socket connects, and the attempt must not
+    // spend the throttle window — that suppressed the first real indicator
+    // after connecting.
     handle.sendTyping();
-    expect(socket.sent).toHaveLength(0);
+    expect(socket.emitted).toHaveLength(0);
 
     socket.open();
     handle.sendTyping();
     handle.sendTyping();
     handle.sendTyping();
 
-    expect(socket.sent).toEqual([JSON.stringify({ type: "typing" })]);
+    expect(socket.emitted).toEqual([{ event: "typing", payload: undefined }]);
 
     handle.close();
   });
@@ -206,16 +217,16 @@ describe("openBookingMessageSocket", () => {
     });
 
     await flush();
-    const socket = FakeWebSocket.instances[0];
+    const socket = FakeSocket.instances[0];
     socket.open();
 
     handle.sendDelivered([]);
-    expect(socket.sent).toHaveLength(0);
+    expect(socket.emitted).toHaveLength(0);
 
     handle.sendDelivered(["m1", "m2"]);
-    expect(JSON.parse(socket.sent[0])).toEqual({
-      type: "delivered",
-      messageIds: ["m1", "m2"],
+    expect(socket.emitted[0]).toEqual({
+      event: "delivered",
+      payload: ["m1", "m2"],
     });
 
     handle.close();
@@ -234,8 +245,9 @@ describe("openBookingMessageSocket", () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    // A rejected exchange must not hammer the endpoint.
-    expect(FakeWebSocket.instances).toHaveLength(0);
+    // A rejected exchange must not hammer the endpoint, and no socket is opened
+    // without a ticket to present.
+    expect(ioMock).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith("reconnecting");
 
     await vi.advanceTimersByTimeAsync(2_000);
@@ -264,22 +276,27 @@ describe("openBookingMessageSocket", () => {
     handle.close();
   });
 
-  it("reconnects when the socket closes unexpectedly", async () => {
-    vi.useFakeTimers();
-
+  it("mints a fresh ticket for each reconnect", async () => {
     const handle = openBookingMessageSocket({
       bookingRequestId: "booking-1",
       onEvent: vi.fn(),
       onStatus: vi.fn(),
     });
 
-    await vi.advanceTimersByTimeAsync(0);
-    FakeWebSocket.instances[0].open();
-    FakeWebSocket.instances[0].close();
+    await flush();
+    const socket = FakeSocket.instances[0];
+    socket.open();
 
-    await vi.advanceTimersByTimeAsync(3_000);
+    // A ticket is single-use, so Socket.IO's own reconnection is off and the
+    // retry is driven from here — reconnecting silently would present a ticket
+    // that has already been spent.
+    expect(socket.options.reconnection).toBe(false);
 
-    expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
+    socket.fire("disconnect", "transport close");
+    await flush();
+
+    expect(authenticatedJsonMock).toHaveBeenCalledTimes(2);
+    expect(FakeSocket.instances).toHaveLength(2);
 
     handle.close();
   });
@@ -294,11 +311,13 @@ describe("openBookingMessageSocket", () => {
     });
 
     await vi.advanceTimersByTimeAsync(0);
-    FakeWebSocket.instances[0].open();
+    const socket = FakeSocket.instances[0];
+    socket.open();
     handle.close();
 
+    socket.fire("disconnect", "io client disconnect");
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(FakeSocket.instances).toHaveLength(1);
   });
 });

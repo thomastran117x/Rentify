@@ -30,13 +30,21 @@ import {
   BOOKING_MESSAGE_NOTIFY_COOLDOWN_SECONDS,
   BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
 } from "@/features/bookings/messages/booking-messages.model";
-import { bookingMessageChannel } from "@/features/bookings/messages/booking-message-stream.hub";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
+
+/**
+ * The realtime seam. Narrowed to what this service needs so the service does
+ * not depend on the whole Socket.IO gateway, and so tests can stand in for it
+ * without a server.
+ */
+export interface BookingMessageRealtimeGateway {
+  publish(event: BookingMessageStreamEvent): void;
+}
 
 export class BookingMessagesService {
   private readonly logger: Logger;
@@ -49,6 +57,7 @@ export class BookingMessagesService {
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
     private readonly tokenService: TokenService,
+    private readonly realtimeGateway: BookingMessageRealtimeGateway,
   ) {
     this.logger = loggerFactory.forClass(BookingMessagesService, "service");
   }
@@ -458,10 +467,10 @@ export class BookingMessagesService {
 
   private async publishEvent(event: BookingMessageStreamEvent): Promise<void> {
     try {
-      await this.cacheService.publish(
-        bookingMessageChannel(event.bookingRequestId),
-        JSON.stringify(event),
-      );
+      // Emitted into the thread's room rather than a private Redis channel.
+      // The Socket.IO adapter carries it to sockets held by every other
+      // instance, which is what the hand-written pub/sub hub used to do.
+      this.realtimeGateway.publish(event);
     } catch (error) {
       this.logger.error(
         "Failed to publish booking message event.",

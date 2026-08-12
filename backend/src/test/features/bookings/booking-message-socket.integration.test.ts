@@ -1,6 +1,9 @@
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import WebSocket from "ws";
+import {
+  io as createClient,
+  type Socket as ClientSocket,
+} from "socket.io-client";
 import { containerTokens } from "@/configuration/container/tokens";
 import { buildApiPath } from "@/configuration/http/api-path";
 import {
@@ -24,17 +27,29 @@ interface SocketEvent {
   [key: string]: unknown;
 }
 
-/** Collects frames so a test can await one without racing the socket. */
-function collectFrames(socket: WebSocket) {
+/**
+ * Collects events so a test can await one without racing the socket. Socket.IO
+ * delivers named events rather than a single message stream, so every event the
+ * gateway can emit is subscribed up front.
+ */
+const COLLECTED_EVENTS = [
+  "ready",
+  "message.created",
+  "message.updated",
+  "messages.read",
+  "messages.delivered",
+  "typing",
+  "presence",
+] as const;
+
+function collectFrames(socket: ClientSocket) {
   const frames: SocketEvent[] = [];
 
-  socket.on("message", (raw) => {
-    try {
-      frames.push(JSON.parse(raw.toString()) as SocketEvent);
-    } catch {
-      // Ignored: the assertions below only care about well-formed frames.
-    }
-  });
+  for (const name of COLLECTED_EVENTS) {
+    socket.on(name, (event: SocketEvent) => {
+      frames.push({ ...event, type: event?.type ?? name });
+    });
+  }
 
   return {
     frames,
@@ -58,7 +73,7 @@ function collectFrames(socket: WebSocket) {
       }
 
       throw new Error(
-        `Timed out waiting for a "${type}" frame. Saw: ${frames
+        `Timed out waiting for a "${type}" event. Saw: ${frames
           .map((frame) => frame.type)
           .join(", ")}`,
       );
@@ -66,12 +81,16 @@ function collectFrames(socket: WebSocket) {
   };
 }
 
+/** A connected client with its event collector attached. */
+type ConnectedSocket = ClientSocket & ReturnType<typeof collectFrames>;
+
 describe("Booking message socket integration", () => {
   let persistenceApp: PersistenceTestApp;
   let socketServer: BookingMessageSocketServer;
   let httpServer: Server;
   let baseUrl: string;
   let threadSequence = 0;
+  const sockets: ClientSocket[] = [];
 
   beforeAll(async () => {
     persistenceApp = await createPersistenceTestApp();
@@ -83,12 +102,17 @@ describe("Booking message socket integration", () => {
       response.end();
     });
 
-    socketServer = new BookingMessageSocketServer();
+    // Resolved from the container rather than constructed here: the REST
+    // handlers publish through the instance the container holds, and a second
+    // instance would never see their events.
+    socketServer = persistenceApp.container.resolve(
+      containerTokens.bookingMessageSocketServer,
+    );
     socketServer.attach(httpServer);
 
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
-    baseUrl = `ws://127.0.0.1:${port}${BOOKING_MESSAGE_SOCKET_PATH}`;
+    baseUrl = `http://127.0.0.1:${port}`;
   }, 180_000);
 
   beforeEach(async () => {
@@ -96,6 +120,10 @@ describe("Booking message socket integration", () => {
   }, 180_000);
 
   afterEach(async () => {
+    for (const socket of sockets.splice(0)) {
+      socket.disconnect();
+    }
+
     // Sockets are torn down asynchronously, so a leftover from one test would
     // otherwise be counted by the next.
     const deadline = Date.now() + 5_000;
@@ -177,30 +205,44 @@ describe("Booking message socket integration", () => {
     return ticket;
   }
 
-  async function connect(ticket: string): Promise<WebSocket> {
-    const socket = new WebSocket(baseUrl, {
-      headers: { cookie: `rentify_ws_ticket=${ticket}` },
+  async function connect(ticket: string): Promise<ConnectedSocket> {
+    const socket = createClient(baseUrl, {
+      path: BOOKING_MESSAGE_SOCKET_PATH,
+      extraHeaders: { cookie: `rentify_ws_ticket=${ticket}` },
+      reconnection: false,
     });
+    sockets.push(socket);
+
+    // Collector attached before the handshake resolves: `ready` and the
+    // presence snapshot follow each other immediately, and a collector built
+    // afterwards races them.
+    const collector = collectFrames(socket);
 
     await new Promise<void>((resolve, reject) => {
-      socket.once("open", resolve);
-      socket.once("error", reject);
+      socket.once("ready", () => resolve());
+      socket.once("connect_error", reject);
     });
 
-    return socket;
+    return Object.assign(socket, collector);
   }
 
-  it("rejects an upgrade without a valid ticket", async () => {
-    const socket = new WebSocket(baseUrl, {
-      headers: { cookie: "rentify_ws_ticket=not-a-real-ticket" },
+  function connectExpectingFailure(ticket: string): Promise<Error> {
+    const socket = createClient(baseUrl, {
+      path: BOOKING_MESSAGE_SOCKET_PATH,
+      extraHeaders: { cookie: `rentify_ws_ticket=${ticket}` },
+      reconnection: false,
     });
+    sockets.push(socket);
 
-    const error = await new Promise<Error>((resolve) => {
-      socket.once("error", resolve);
+    return new Promise<Error>((resolve) => {
+      socket.once("connect_error", resolve);
     });
+  }
 
-    expect(error.message).toMatch(/401/);
-    socket.terminate();
+  it("refuses a handshake without a valid ticket", async () => {
+    const error = await connectExpectingFailure("not-a-real-ticket");
+
+    expect(error.message).toBe("Unauthorized");
   }, 30_000);
 
   it("refuses a ticket whose session has been revoked", async () => {
@@ -265,17 +307,11 @@ describe("Booking message socket integration", () => {
       data: { tokenVersion: { increment: 1 } },
     });
 
-    // End to end over a real upgrade, not just the service call: the socket
+    // End to end over a real handshake, not just the service call: the socket
     // must never open in the first place.
-    const socket = new WebSocket(baseUrl, {
-      headers: { cookie: `rentify_ws_ticket=${ticket}` },
-    });
-    const error = await new Promise<Error>((resolve) =>
-      socket.once("error", resolve),
-    );
+    const error = await connectExpectingFailure(ticket);
 
-    expect(error.message).toMatch(/401/);
-    socket.terminate();
+    expect(error.message).toBe("Unauthorized");
   }, 60_000);
 
   it("delivers a message published while the socket is open", async () => {
@@ -287,11 +323,9 @@ describe("Booking message socket integration", () => {
     const socket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    const collector = collectFrames(socket);
+    const collector = socket;
 
     try {
-      await collector.waitFor("ready");
-
       await persistenceApp.app.request(
         `http://rent.test${buildApiPath(`/booking-requests/${bookingRequestId}/messages`)}`,
         {
@@ -307,7 +341,7 @@ describe("Booking message socket integration", () => {
         message: expect.objectContaining({ body: "Socket delivery" }),
       });
     } finally {
-      socket.close();
+      socket.disconnect();
     }
   }, 60_000);
 
@@ -320,15 +354,13 @@ describe("Booking message socket integration", () => {
     const ownerSocket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    const ownerFrames = collectFrames(ownerSocket);
+    const ownerFrames = ownerSocket;
     const renterSocket = await connect(
       await mintTicket(bookingRequestId, renter.headers()),
     );
 
     try {
-      await ownerFrames.waitFor("ready");
-
-      renterSocket.send(JSON.stringify({ type: "typing" }));
+      renterSocket.emit("typing");
 
       const typing = await ownerFrames.waitFor("typing");
       expect(typing).toMatchObject({
@@ -341,8 +373,8 @@ describe("Booking message socket integration", () => {
         Date.now(),
       );
     } finally {
-      ownerSocket.close();
-      renterSocket.close();
+      ownerSocket.disconnect();
+      renterSocket.disconnect();
     }
   }, 60_000);
 
@@ -355,11 +387,9 @@ describe("Booking message socket integration", () => {
     const ownerSocket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    const ownerFrames = collectFrames(ownerSocket);
+    const ownerFrames = ownerSocket;
 
     try {
-      await ownerFrames.waitFor("ready");
-
       // The snapshot the owner receives on connect: nobody is on the renter
       // side yet. Matched on state as well as side, because there are now two
       // presence frames in play and the first one says the opposite.
@@ -383,9 +413,9 @@ describe("Booking message socket integration", () => {
         state: "online",
       });
 
-      renterSocket.close();
+      renterSocket.disconnect();
     } finally {
-      ownerSocket.close();
+      ownerSocket.disconnect();
     }
   }, 60_000);
 
@@ -399,12 +429,11 @@ describe("Booking message socket integration", () => {
     const renterSocket = await connect(
       await mintTicket(bookingRequestId, renter.headers()),
     );
-    await collectFrames(renterSocket).waitFor("ready");
 
     const ownerSocket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    const ownerFrames = collectFrames(ownerSocket);
+    const ownerFrames = ownerSocket;
 
     try {
       // Without a snapshot on connect the owner would show the renter as
@@ -416,8 +445,8 @@ describe("Booking message socket integration", () => {
       );
       expect(presence).toMatchObject({ side: "renter", state: "online" });
     } finally {
-      renterSocket.close();
-      ownerSocket.close();
+      renterSocket.disconnect();
+      ownerSocket.disconnect();
     }
   }, 60_000);
 
@@ -440,14 +469,10 @@ describe("Booking message socket integration", () => {
     const ownerSocket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    const ownerFrames = collectFrames(ownerSocket);
+    const ownerFrames = ownerSocket;
 
     try {
-      await ownerFrames.waitFor("ready");
-
-      ownerSocket.send(
-        JSON.stringify({ type: "delivered", messageIds: [created.id] }),
-      );
+      ownerSocket.emit("delivered", [created.id]);
 
       const delivered = await ownerFrames.waitFor("messages.delivered");
       expect(delivered).toMatchObject({ messageIds: [created.id] });
@@ -460,11 +485,11 @@ describe("Booking message socket integration", () => {
       // Delivery is weaker than read: acknowledging receipt must not mark it read.
       expect(stored.readAt).toBeNull();
     } finally {
-      ownerSocket.close();
+      ownerSocket.disconnect();
     }
   }, 60_000);
 
-  it("releases its hub subscription when a socket closes", async () => {
+  it("leaves its rooms when a socket closes", async () => {
     const { bookingRequestId } = await createThread();
     const owner = await createAuthenticatedRequestContext({
       email: OWNER_EMAIL,
@@ -473,26 +498,26 @@ describe("Booking message socket integration", () => {
     const socket = await connect(
       await mintTicket(bookingRequestId, owner.headers()),
     );
-    await collectFrames(socket).waitFor("ready");
 
     expect(socketServer.activeConnectionCount()).toBe(1);
+    await expect(
+      socketServer.isSideOnline(bookingRequestId, "owner"),
+    ).resolves.toBe(true);
 
-    socket.close();
+    socket.disconnect();
 
-    const hub = persistenceApp.container.resolve(
-      containerTokens.bookingMessageStreamHub,
-    );
     const deadline = Date.now() + 5_000;
 
-    while (
-      (socketServer.activeConnectionCount() > 0 ||
-        hub.activeChannelCount() > 0) &&
-      Date.now() < deadline
-    ) {
+    while (socketServer.activeConnectionCount() > 0 && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
     expect(socketServer.activeConnectionCount()).toBe(0);
-    expect(hub.activeChannelCount()).toBe(0);
+    // Room membership is the successor to the old hub subscription: nothing is
+    // left behind for the adapter to answer with, so presence reads as offline
+    // without any separate bookkeeping to clean up.
+    await expect(
+      socketServer.isSideOnline(bookingRequestId, "owner"),
+    ).resolves.toBe(false);
   }, 60_000);
 });

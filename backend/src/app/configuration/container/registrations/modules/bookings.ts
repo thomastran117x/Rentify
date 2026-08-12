@@ -4,10 +4,8 @@ import { BookingsController } from "@/features/bookings/bookings.controller";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
 import { BookingsService } from "@/features/bookings/bookings.service";
 import { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
-import { BookingMessageStreamHub } from "@/features/bookings/messages/booking-message-stream.hub";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
-import { BookingMessagePresenceService } from "@/features/bookings/messages/booking-message-presence.service";
 import { BookingMessageSocketServer } from "@/features/bookings/messages/booking-message-socket.server";
 import { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 
@@ -69,16 +67,6 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
       resolve: () => new BookingMessagesRepository(),
     });
     container.register({
-      // Singleton: the hub owns a dedicated Redis subscriber connection and
-      // must outlive the request scope, which is disposed as soon as a
-      // streaming handler returns its Response.
-      token: containerTokens.bookingMessageStreamHub,
-      lifetime: "singleton",
-      dependencies: [],
-      resolve: () => new BookingMessageStreamHub(),
-      dispose: (hub) => hub.dispose(),
-    });
-    container.register({
       token: containerTokens.bookingMessageEmailComposer,
       lifetime: "singleton",
       dependencies: [
@@ -102,6 +90,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.cacheService,
         containerTokens.emailService,
         containerTokens.tokenService,
+        containerTokens.bookingMessageSocketServer,
       ],
       resolve: ({ resolve }) =>
         new BookingMessagesService(
@@ -112,26 +101,14 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.cacheService),
           resolve(containerTokens.emailService),
           resolve(containerTokens.tokenService),
+          resolve(containerTokens.bookingMessageSocketServer),
         ),
     });
     container.register({
-      token: containerTokens.bookingMessagePresenceService,
-      lifetime: "scoped",
-      dependencies: [
-        containerTokens.cacheService,
-        containerTokens.bookingsRepository,
-        containerTokens.authRepository,
-      ],
-      resolve: ({ resolve }) =>
-        new BookingMessagePresenceService(
-          resolve(containerTokens.cacheService),
-          resolve(containerTokens.bookingsRepository),
-          resolve(containerTokens.authRepository),
-        ),
-    });
-    container.register({
-      // Singleton with a dispose hook: it owns the upgrade listener and every
-      // open socket, so it must outlive any request scope.
+      // Singleton with a dispose hook: it owns the Socket.IO server, its Redis
+      // adapter connections and every open socket, so it must outlive any
+      // request scope. The service resolves it as its realtime seam, which is
+      // not a cycle: this constructor takes no dependencies.
       token: containerTokens.bookingMessageSocketServer,
       lifetime: "singleton",
       dependencies: [],
