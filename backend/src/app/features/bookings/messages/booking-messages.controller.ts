@@ -90,7 +90,10 @@ export class BookingMessagesController {
     ok(response, result, { message: "Message deleted successfully." });
   };
 
-  socketTicket = async (request: Request, response: Response): Promise<void> => {
+  socketTicket = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     // Session bearer only, like the socket it authorizes: a PAT must not be
     // exchangeable for a long-lived connection.
     const auth = await requireSessionAuth(request);

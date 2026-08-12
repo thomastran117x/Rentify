@@ -116,7 +116,8 @@ describe("BookingMessagesController", () => {
       );
       const body = "x".repeat(2000);
 
-      const response = await invoke(controller.send, 
+      const response = await invoke(
+        controller.send,
         createContext({ body: { body: ` ${body} ` } }),
       );
 
@@ -162,7 +163,8 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      await invoke(controller.list, 
+      await invoke(
+        controller.list,
         createContext({
           url: "https://example.test/booking-requests/booking-1/messages?page=3&pageSize=5",
         }),
@@ -180,7 +182,8 @@ describe("BookingMessagesController", () => {
       );
 
       await expect(
-        invoke(controller.list, 
+        invoke(
+          controller.list,
           createContext({
             url: "https://example.test/booking-requests/booking-1/messages?pageSize=999",
           }),
@@ -211,7 +214,8 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await invoke(controller.edit, 
+      const response = await invoke(
+        controller.edit,
         createContext({ body: { body: "Updated" } }),
       );
 
@@ -319,9 +323,9 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      await expect(invoke(controller.socketTicket, createContext())).rejects.toBe(
-        patError,
-      );
+      await expect(
+        invoke(controller.socketTicket, createContext()),
+      ).rejects.toBe(patError);
       expect(service.createSocketTicket).not.toHaveBeenCalled();
     });
   });
