@@ -106,7 +106,18 @@ export class BookingMessageSocketServer {
     this.logger = loggerFactory.forClass(BookingMessageSocketServer, "service");
   }
 
-  attach(server: HttpServer): void {
+  /**
+   * Awaited by the caller, because the adapter has to be in place *before* the
+   * server accepts anything. Replacing the adapter on a live server does not
+   * migrate the room membership of sockets that already joined through the
+   * in-memory one, so a client that connected during the Redis handshake would
+   * look healthy and silently stop receiving thread broadcasts until it
+   * reconnected. Building the adapter first removes the window rather than
+   * trying to repair it.
+   */
+  async attach(server: HttpServer): Promise<void> {
+    const adapter = await this.createRedisAdapter();
+
     this.io = new SocketIoServer(server, {
       path: BOOKING_MESSAGE_SOCKET_PATH,
       // Same path the ticket cookie is scoped to, so the browser attaches it to
@@ -117,6 +128,7 @@ export class BookingMessageSocketServer {
         origin: readAllowedOrigins(),
         credentials: true,
       },
+      ...(adapter ? { adapter } : {}),
     });
 
     this.io.use((socket, next) => {
@@ -126,8 +138,6 @@ export class BookingMessageSocketServer {
     this.io.on("connection", (socket) => {
       void this.register(socket as BookingMessageSocket);
     });
-
-    void this.attachRedisAdapter();
 
     this.reauthorize = setInterval(
       () => void this.reauthorizeAll(),
@@ -142,14 +152,18 @@ export class BookingMessageSocketServer {
     }
 
     const io = this.io;
-    this.io = null;
 
     if (io) {
-      // Disconnects every client with a close frame, then stops the engine.
+      // `this.io` stays set through this: closing disconnects every client, and
+      // those disconnect handlers publish the final offline presence. Clearing
+      // it first made `publish` a no-op through its optional chain, so during a
+      // rollout the other instances kept showing the departing side as online.
       await new Promise<void>((resolve) => {
         io.close(() => resolve());
       });
     }
+
+    this.io = null;
 
     await Promise.allSettled(
       this.adapterClients.map((client) => client.quit()),
@@ -194,23 +208,28 @@ export class BookingMessageSocketServer {
    * subscriber mode exclusively, so the shared one backing cache, locks and
    * rate limiting cannot be reused.
    */
-  private async attachRedisAdapter(): Promise<void> {
+  private async createRedisAdapter(): Promise<ReturnType<
+    typeof createAdapter
+  > | null> {
     try {
       const publisher = getRedisClient().duplicate();
       const subscriber = publisher.duplicate();
 
       await Promise.all([publisher.connect(), subscriber.connect()]);
       this.adapterClients = [publisher, subscriber];
-      this.io?.adapter(createAdapter(publisher, subscriber));
+
+      return createAdapter(publisher, subscriber);
     } catch (error) {
       // A single-instance deployment still works without the adapter, so this
       // must not stop the server from serving. It is logged loudly because a
       // replicated one silently loses cross-node delivery.
       this.logger.error(
-        "Failed to attach the Redis adapter; realtime delivery is limited to this instance.",
+        "Failed to build the Redis adapter; realtime delivery is limited to this instance.",
         undefined,
         error,
       );
+
+      return null;
     }
   }
 
@@ -288,25 +307,26 @@ export class BookingMessageSocketServer {
 
     socket.emit("ready", { type: "ready", bookingRequestId });
 
-    // Announced only by the first arrival on a side. Membership is counted
-    // after this socket joined, so "1" means it is the one that changed the
-    // answer — the same test the old counter made, without the bookkeeping.
-    const own = await this.io
-      ?.in(sideRoom(bookingRequestId, state.side))
-      .fetchSockets();
+    // Announced on *every* arrival rather than only the first.
+    //
+    // Detecting the edge needs a room count, and the count is an asynchronous
+    // cluster round trip: two sockets joining the same side at once can both
+    // observe a size of two, conclude neither is first, and leave the
+    // counterpart stuck on offline. Presence is a state, not an event, so
+    // broadcasting it unconditionally is both race-free and idempotent — the
+    // receiving client assigns a boolean, and assigning `true` twice costs
+    // nothing. Only the *offline* transition needs a count, and that one is
+    // safe: an empty room means empty regardless of who observed it.
+    this.publish({
+      type: "presence",
+      bookingRequestId,
+      side: state.side,
+      state: "online",
+    });
 
-    if ((own?.length ?? 0) === 1) {
-      this.publish({
-        type: "presence",
-        bookingRequestId,
-        side: state.side,
-        state: "online",
-      });
-    }
-
-    // The counterpart's arrival was announced before this socket existed, and a
-    // presence that has not changed is never re-announced, so a client joining
-    // second has to be told the current state directly.
+    // The counterpart may have arrived before this socket existed, and their
+    // announcement is not replayed, so a client joining second has to be told
+    // the current state directly.
     const counterpartOnline = await this.isSideOnline(
       bookingRequestId,
       counterpartSide,
@@ -444,9 +464,22 @@ export class BookingMessageSocketServer {
           await service.assertSocketSessionValid(state.identity);
 
           // A demotion from manager to operator does not close the socket —
-          // they may still read — but it withdraws the ability to emit.
+          // they may still read — but it withdraws the ability to write.
+          const previousCanWrite = state.canWrite;
           state.side = authorization.side;
           state.canWrite = authorization.canWrite;
+
+          if (previousCanWrite !== authorization.canWrite) {
+            // The server rejecting their writes is not enough: the panel caches
+            // `canWrite` from the list response, so a demoted manager would keep
+            // a composer and edit controls that can only produce 403s. Told to
+            // resync rather than sent the new value, so one event covers every
+            // capability the thread response carries.
+            typed.emit("resync", {
+              type: "resync",
+              bookingRequestId: state.identity.bookingRequestId,
+            });
+          }
         } catch (error) {
           this.logger.info(
             "Closing a booking message socket after access was revoked.",

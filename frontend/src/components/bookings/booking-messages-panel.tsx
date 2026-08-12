@@ -65,6 +65,36 @@ function addToPagination(
   };
 }
 
+/** A `messages.read` event reduced to what applying it needs. */
+interface ReadCutoff {
+  readerSide: BookingMessageAuthorSide;
+  readAt: string;
+}
+
+/**
+ * Applies a read receipt to the rows it covers.
+ *
+ * Shared by the live handler and the history merge, because the rule has three
+ * parts that all matter and duplicating it invites drift. A read event marks the
+ * messages the *other* side authored — keying off the current user would flag
+ * your own messages as seen when anyone on your side opened the thread. The
+ * timestamp cutoff matters because a send racing a mark-read can have its
+ * `message.created` frame overtake the `messages.read` frame, and that row was
+ * not covered by the update.
+ */
+function applyReadCutoff(
+  messages: BookingMessageRecord[],
+  cutoff: ReadCutoff,
+): BookingMessageRecord[] {
+  return messages.map((message) =>
+    message.authorSide !== cutoff.readerSide &&
+    !message.readAt &&
+    message.createdAt <= cutoff.readAt
+      ? { ...message, readAt: cutoff.readAt }
+      : message,
+  );
+}
+
 function bannerClasses(tone: PanelBanner["tone"]): string {
   return tone === "error"
     ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
@@ -279,6 +309,7 @@ export function BookingMessagesPanel({
   // Edits and deletes delivered while a history request was in flight. The
   // response is a pre-change snapshot, so corrected text would revert and a
   // deleted message would reappear without this overlay.
+  const inFlightReadsRef = useRef<ReadCutoff[]>([]);
   const inFlightUpdatesRef = useRef<Map<string, BookingMessageRecord>>(
     new Map(),
   );
@@ -357,6 +388,7 @@ export function BookingMessagesPanel({
       loadTokenRef.current = token;
       inFlightArrivalsRef.current = [];
       inFlightUpdatesRef.current = new Map();
+      inFlightReadsRef.current = [];
 
       try {
         const result = await bookingMessagesApi.list(bookingRequestId, {
@@ -371,8 +403,10 @@ export function BookingMessagesPanel({
 
         const arrivals = inFlightArrivalsRef.current;
         const updates = inFlightUpdatesRef.current;
+        const reads = inFlightReadsRef.current;
         inFlightArrivalsRef.current = [];
         inFlightUpdatesRef.current = new Map();
+        inFlightReadsRef.current = [];
 
         // Only the newest page can host live arrivals; on an older page they
         // are already accounted for by the server's ordering.
@@ -387,9 +421,16 @@ export function BookingMessagesPanel({
         // Capped like a live insert: a full page snapshotted before an
         // arrival would otherwise merge to 21 rows, and the server would hand
         // back the displaced row again at the top of the next page.
-        const merged = [...missed, ...result.messages]
-          .slice(0, PAGE_SIZE)
-          .map((message) => updates.get(message.id) ?? message);
+        // Row replacements first, then read receipts. A response snapshotted
+        // before a mark-read carries `readAt: null`, so replaying the events
+        // that landed while it was in flight is what stops the merge from
+        // reverting a receipt the user has already been shown.
+        const merged = reads.reduce(
+          applyReadCutoff,
+          [...missed, ...result.messages]
+            .slice(0, PAGE_SIZE)
+            .map((message) => updates.get(message.id) ?? message),
+        );
         messageIdsRef.current = new Set(merged.map((message) => message.id));
 
         startTransition(() => {
@@ -481,10 +522,29 @@ export function BookingMessagesPanel({
 
           // Only messages from the other side are addressed to this viewer; a
           // colleague on the same side has not written to us.
-          if (event.message.authorSide !== viewerSideRef.current) {
+          //
+          // And only when the tab is actually visible. A read receipt is a
+          // claim about a person, not about a process: marking it from a
+          // background tab tells the sender their message was read by someone
+          // who has not looked at it. The focus handler picks it up when they
+          // genuinely come back.
+          if (
+            event.message.authorSide !== viewerSideRef.current &&
+            document.visibilityState === "visible"
+          ) {
             void markReadRef.current();
           }
 
+          return;
+        }
+
+        if (event.type === "resync") {
+          // The server withdrew or granted a capability while we were connected
+          // — a manager demoted to operator, say. Refetch rather than patch:
+          // the thread response is the authority on canWrite and the viewer's
+          // side, and silently keeping a composer that can only 403 is worse
+          // than a brief reload.
+          void loadMessagesRef.current(pageRef.current, true);
           return;
         }
 
@@ -548,22 +608,15 @@ export function BookingMessagesPanel({
           return;
         }
 
-        // A read event marks the messages the *other* side authored. Keying
-        // off the current user instead would flag your own messages as seen
-        // when you, or anyone else on your side, opened the thread.
-        //
-        // The cutoff matters because a send racing a mark-read can have its
-        // `message.created` frame overtake the `messages.read` frame: that row
-        // was not covered by the update, so it must not display as seen.
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.authorSide !== event.readerSide &&
-            !message.readAt &&
-            message.createdAt <= event.readAt
-              ? { ...message, readAt: event.readAt }
-              : message,
-          ),
-        );
+        const cutoff: ReadCutoff = {
+          readerSide: event.readerSide,
+          readAt: event.readAt,
+        };
+
+        // Buffered as well as applied, so a history response already in flight
+        // does not overwrite this receipt with its pre-read snapshot.
+        inFlightReadsRef.current = [...inFlightReadsRef.current, cutoff];
+        setMessages((previous) => applyReadCutoff(previous, cutoff));
       },
     });
 

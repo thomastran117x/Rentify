@@ -806,6 +806,87 @@ describe("BookingMessagesPanel", () => {
     expect(markReadMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not mark read while the tab is hidden", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledTimes(1));
+
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+
+    try {
+      captureStreamHandlers().onEvent({
+        type: "message.created",
+        bookingRequestId: "booking-1",
+        message: buildMessage({
+          id: "while-hidden",
+          authorId: "owner-9",
+          authorSide: "owner",
+          body: "Are you there?",
+        }),
+      });
+
+      await screen.findByText("Are you there?");
+
+      // A read receipt is a claim about a person, not a process. Marking it from
+      // a background tab tells the sender their message was read by someone who
+      // has not looked at it.
+      expect(markReadMock).toHaveBeenCalledTimes(1);
+    } finally {
+      visibility.mockRestore();
+    }
+
+    // Coming back to the tab is what marks it.
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a read receipt that arrived while history was in flight", async () => {
+    let releaseList: (() => void) | null = null;
+    // The viewer's own message: a receipt is shown to the *sender*, so the
+    // event that matters is the other side reading what this user wrote.
+    const unread = buildMessage({
+      id: "unread-1",
+      body: "Please confirm",
+      readAt: null,
+    });
+
+    listMock.mockReset();
+    // First load resolves normally; the second is held open so a read event can
+    // land while its pre-read snapshot is in flight.
+    listMock.mockResolvedValueOnce(buildList({ messages: [unread] }));
+    listMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = () =>
+            resolve(buildList({ messages: [unread], unreadCount: 0 }));
+        }),
+    );
+
+    renderPanel();
+    await screen.findByText("Please confirm");
+
+    // A reconnect re-syncs history, which is exactly when this race happens.
+    captureStreamHandlers().onStatus("open");
+    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+
+    captureStreamHandlers().onEvent({
+      type: "messages.read",
+      bookingRequestId: "booking-1",
+      readerSide: "owner",
+      readAt: "2026-08-10T12:30:00.000Z",
+      markedCount: 1,
+    });
+
+    await waitFor(() => expect(releaseList).not.toBeNull());
+    releaseList?.();
+
+    // The response predates the receipt, so merging it verbatim would revert a
+    // "Read" the user has already been shown.
+    expect(await screen.findByText(/^Read /)).toBeInTheDocument();
+  });
+
   it("names who the viewer is talking to", async () => {
     renderPanel();
 

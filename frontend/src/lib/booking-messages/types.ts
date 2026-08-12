@@ -85,6 +85,11 @@ export type BookingMessageStreamEvent =
       expiresAt: string;
     }
   | {
+      /** The server says this client's capabilities changed; refetch. */
+      type: "resync";
+      bookingRequestId: string;
+    }
+  | {
       type: "presence";
       bookingRequestId: string;
       /**

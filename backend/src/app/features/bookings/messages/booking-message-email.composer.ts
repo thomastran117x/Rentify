@@ -34,6 +34,15 @@ export class BookingMessageEmailComposer {
       return null;
     }
 
+    // A soft delete clears the body but keeps the row, so a job that waited
+    // behind a backlog while the author deleted their message would otherwise
+    // send a "new message" email with an empty snippet. Returning null makes
+    // the worker acknowledge without sending, which is what it does for a
+    // message that has gone entirely.
+    if (message.deletedAt) {
+      return null;
+    }
+
     const recipient = await this.authRepository.findUserById(input.recipientId);
 
     if (!recipient?.email) {

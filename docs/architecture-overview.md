@@ -138,14 +138,29 @@ hand-built designs preceded it and each failed a specific way:
 
 Asking the adapter how many sockets are in a side room avoids all three: a dead
 instance's sockets leave the cluster's view on their own, and there is no
-separate bookkeeping that can drift from the connections it describes. Only the
-transition in or out of an empty room is announced, and a connecting socket is
-told the counterpart's current state directly — its arrival was announced before
-that socket existed, and an unchanged presence is never re-announced.
+separate bookkeeping that can drift from the connections it describes.
+
+**Online is announced on every arrival, not only the first.** Detecting the edge
+needs a room count, and that count is an asynchronous cluster round trip — two
+sockets joining the same side at once can each observe a size of two, each
+conclude it is not the first, and leave the counterpart stuck on offline.
+Presence is a state rather than an event, so re-announcing it is idempotent and
+race-free. Only the _offline_ transition needs a count, and that one is safe:
+an empty room is empty no matter who observed it. A connecting socket is also
+told the counterpart's current state directly, since their arrival was announced
+before that socket existed.
+
+The adapter has to be in place **before** the server accepts anything. Replacing
+it on a live server does not migrate the rooms of sockets that already joined
+through the in-memory one, so a client connecting during the Redis handshake
+would look healthy and silently stop receiving broadcasts. `attach` is
+asynchronous for that reason.
 
 Shutdown has to dispose the container before disconnecting Redis: that is what
 closes the sockets and lets their rooms empty. Skipping it makes every rollout
-look like an abrupt process death to the other party.
+look like an abrupt process death to the other party. The gateway also stays
+usable _through_ its own close, because the disconnect handlers that run during
+it are what publish the final offline presence to the other instances.
 
 ## Background Workers
 

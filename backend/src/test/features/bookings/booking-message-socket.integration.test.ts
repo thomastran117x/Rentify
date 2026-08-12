@@ -108,7 +108,7 @@ describe("Booking message socket integration", () => {
     socketServer = persistenceApp.container.resolve(
       containerTokens.bookingMessageSocketServer,
     );
-    socketServer.attach(httpServer);
+    await socketServer.attach(httpServer);
 
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;

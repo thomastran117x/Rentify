@@ -241,6 +241,16 @@ export type BookingMessageStreamEvent =
       expiresAt: string;
     }
   | {
+      /**
+       * Tells a client its own capabilities may have changed and it should
+       * refetch the thread. Sent to the affected socket only, and deliberately
+       * carries no values: the thread response is already the single source for
+       * `canWrite` and the viewer's side, so one event covers all of it.
+       */
+      type: "resync";
+      bookingRequestId: string;
+    }
+  | {
       type: "presence";
       bookingRequestId: string;
       /**

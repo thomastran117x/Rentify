@@ -101,7 +101,7 @@ describe("BookingMessageSocketServer", () => {
       response.writeHead(404);
       response.end();
     });
-    socketServer.attach(httpServer);
+    await socketServer.attach(httpServer);
 
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     port = (httpServer.address() as AddressInfo).port;
@@ -252,7 +252,7 @@ describe("BookingMessageSocketServer", () => {
     expect(await received).toMatchObject({ bookingRequestId: BOOKING_ID });
   }, 20_000);
 
-  it("announces the first arrival on a side, and stays quiet for the second", async () => {
+  it("announces online on every arrival, not only the first", async () => {
     installFakeContainer();
     // Listener attached before the handshake completes: presence follows
     // `ready` immediately, so waiting for `ready` first would miss it.
@@ -265,11 +265,14 @@ describe("BookingMessageSocketServer", () => {
     );
     expect(presence).toMatchObject({ side: "renter", state: "online" });
 
-    // A second socket on the same side is not a transition: the room was
-    // already occupied, so the other party's view has not changed.
+    // Deliberately not edge-detected. Detecting "am I the first?" needs a room
+    // count, and that count is an async cluster round trip: two sockets joining
+    // the same side at once can both see a size of two, both conclude they are
+    // not first, and leave the counterpart stuck on offline. Presence is a
+    // state, so re-announcing it is idempotent and race-free.
     const seen: unknown[] = [];
     first.on("presence", (event: Record<string, unknown>) => {
-      if (event.side === "renter") {
+      if (event.side === "renter" && event.state === "online") {
         seen.push(event);
       }
     });
@@ -277,7 +280,54 @@ describe("BookingMessageSocketServer", () => {
     await connected();
     await settle(20);
 
-    expect(seen).toEqual([]);
+    expect(seen).toHaveLength(1);
+  }, 20_000);
+
+  it("tells a socket to resync when its write capability changes", async () => {
+    let calls = 0;
+    installFakeContainer({
+      // Manager at the handshake, operator by the time the sweep runs.
+      authorizeStream: jest.fn(async () => {
+        calls += 1;
+
+        return {
+          bookingRequestId: BOOKING_ID,
+          side: "renter",
+          canWrite: calls === 1,
+        };
+      }),
+    });
+    const socket = await connected();
+    const resync = nextEvent(socket, "resync");
+
+    await (
+      socketServer as unknown as { reauthorizeAll(): Promise<void> }
+    ).reauthorizeAll();
+
+    // The server refusing their writes is not enough on its own: the panel
+    // caches the capability from the thread response, so without this it keeps
+    // offering a composer that can only produce 403s.
+    expect(await resync).toMatchObject({ bookingRequestId: BOOKING_ID });
+    expect(socket.connected).toBe(true);
+  }, 20_000);
+
+  it("stays quiet when the capability is unchanged", async () => {
+    installFakeContainer();
+    const socket = await connected();
+
+    let resyncs = 0;
+    socket.on("resync", () => {
+      resyncs += 1;
+    });
+
+    await (
+      socketServer as unknown as { reauthorizeAll(): Promise<void> }
+    ).reauthorizeAll();
+    await settle(20);
+
+    // The sweep runs every minute; re-announcing an unchanged capability would
+    // make every client refetch the thread on a timer.
+    expect(resyncs).toBe(0);
   }, 20_000);
 
   it("tells a joiner the counterpart's current presence", async () => {

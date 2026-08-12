@@ -85,6 +85,20 @@ describe("BookingMessageEmailComposer", () => {
     await expect(composer.compose(INPUT)).resolves.toBeNull();
   });
 
+  it("returns null when the author deleted the message before delivery", async () => {
+    const { composer } = createComposer({
+      message: createMessageContext({
+        body: "",
+        deletedAt: new Date("2026-08-10T12:05:00.000Z"),
+      }),
+    });
+
+    // A soft delete clears the body but keeps the row, so a job that waited
+    // behind a backlog would otherwise send a "new message" email with an empty
+    // snippet. Null makes the worker acknowledge without sending.
+    await expect(composer.compose(INPUT)).resolves.toBeNull();
+  });
+
   it("returns null when the recipient no longer exists", async () => {
     const { composer } = createComposer({ recipient: null });
 

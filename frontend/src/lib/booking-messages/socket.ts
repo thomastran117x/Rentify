@@ -23,6 +23,7 @@ const FORWARDED_EVENTS = [
   "messages.delivered",
   "typing",
   "presence",
+  "resync",
 ] as const;
 
 export interface BookingMessageSocketHandle {

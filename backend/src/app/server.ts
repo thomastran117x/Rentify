@@ -25,7 +25,10 @@ async function bootstrap(): Promise<void> {
   // Express has no WebSocket story of its own, and routing an upgrade through
   // its middleware stack would mean faking a response object the stack could
   // write to — the upgrade is not a request/response exchange.
-  getContainer()
+  // Awaited: the gateway builds its Redis adapter before it accepts anything,
+  // because swapping the adapter on a live server does not migrate the rooms of
+  // sockets that already joined.
+  await getContainer()
     .resolve(containerTokens.bookingMessageSocketServer)
     .attach(server);
 
