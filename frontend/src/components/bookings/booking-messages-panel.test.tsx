@@ -843,7 +843,9 @@ describe("BookingMessagesPanel", () => {
   });
 
   it("keeps a read receipt that arrived while history was in flight", async () => {
-    let releaseList: (() => void) | null = null;
+    // Not typed as nullable: TypeScript cannot see the assignment inside the
+    // promise executor, so it narrows the variable to null at the call site.
+    let releaseList: (() => void) | undefined;
     // The viewer's own message: a receipt is shown to the *sender*, so the
     // event that matters is the other side reading what this user wrote.
     const unread = buildMessage({
@@ -879,8 +881,11 @@ describe("BookingMessagesPanel", () => {
       markedCount: 1,
     });
 
-    await waitFor(() => expect(releaseList).not.toBeNull());
-    releaseList?.();
+    if (!releaseList) {
+      throw new Error("The second history request never started.");
+    }
+
+    releaseList();
 
     // The response predates the receipt, so merging it verbatim would revert a
     // "Read" the user has already been shown.
