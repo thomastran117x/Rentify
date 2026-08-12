@@ -1,18 +1,17 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { requestIdMiddleware } from "@/configuration/middlewares/request-id.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", requestIdMiddleware);
-  app.onError(handleApplicationError);
-  app.get("/health", (context) =>
-    context.json({
-      requestId: context.get("requestId"),
-    }),
-  );
-  return app;
+  return createTestApp((app) => {
+    app.use(requestIdMiddleware);
+    app.get("/health", (request, response) => {
+      response.json({
+        requestId: request.requestId,
+      });
+    });
+    app.use(handleApplicationError);
+  });
 }
 
 describe("requestIdMiddleware", () => {

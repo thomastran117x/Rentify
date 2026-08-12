@@ -1245,7 +1245,7 @@ function buildOperations(): OperationDefinition[] {
       responses: {
         "200": successResponse(
           200,
-          "TypeScript Hono server is running",
+          "TypeScript Express server is running",
           "SystemRoot",
           {
             apiVersion: "v1",
@@ -5902,8 +5902,16 @@ function buildOperations(): OperationDefinition[] {
         ),
         queryParam(
           "organizationId",
-          { type: "string", format: "uuid" },
-          "Filter by exact owning organization id. Takes precedence over `organization`.",
+          {
+            type: "string",
+            // GUID shape rather than `format: uuid`: identifiers are stored as
+            // VarChar(36) and are not required to carry RFC 4122 version and
+            // variant bits, so an SDK or gateway enforcing `format: uuid`
+            // would reject ids this endpoint accepts.
+            pattern:
+              "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          },
+          "Filter by exact owning organization id. Takes precedence over `organization`. Accepts any 8-4-4-4-12 hexadecimal identifier, which includes but is not limited to RFC 4122 UUIDs.",
           "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f",
         ),
         queryParam(

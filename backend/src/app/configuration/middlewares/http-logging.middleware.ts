@@ -1,5 +1,6 @@
-import { createMiddleware } from "hono/factory";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request, RequestHandler } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
+import { runAfterResponse } from "@/configuration/http/response-lifecycle";
 
 const REDACTED_QUERY_VALUE = "[REDACTED]";
 
@@ -81,7 +82,7 @@ function isSensitiveQueryKey(key: string): boolean {
 }
 
 function getSanitizedPathWithQuery(request: Request): string {
-  const url = new URL(request.url);
+  const url = getRequestUrl(request);
 
   for (const key of new Set(url.searchParams.keys())) {
     if (isSensitiveQueryKey(key)) {
@@ -173,45 +174,49 @@ function formatHttpLogLine(input: {
     .join(" ");
 }
 
-export const httpLoggingMiddleware = createMiddleware<AppBindings>(
-  async (context, next) => {
-    const startedAt = performance.now();
+export const httpLoggingMiddleware: RequestHandler = (
+  request,
+  response,
+  next,
+) => {
+  const startedAt = performance.now();
 
-    try {
-      await next();
-    } finally {
-      const durationMs = roundDurationMs(startedAt);
+  // Logged once the response has been written, since the status is the whole
+  // point of the line. Reading it before next() would always report 200.
+  runAfterResponse(response, () => {
+    const durationMs = roundDurationMs(startedAt);
 
-      const logger = context.get("logger");
-      const client = context.get("client");
-      const outputFormat = context.get("outputFormat");
-      const requestId = context.get("requestId");
+    const logger = request.logger;
+    const client = request.client;
+    const outputFormat = request.outputFormat;
+    const requestId = request.requestId;
 
-      const method = context.req.method;
-      const path = getSanitizedPathWithQuery(context.req.raw);
-      const status = context.res.status;
+    const method = request.method;
+    const path = getSanitizedPathWithQuery(request);
+    const status = response.statusCode;
 
-      const logLevel = getLogLevel(status);
+    const logLevel = getLogLevel(status);
 
-      const logLine = formatHttpLogLine({
-        method,
-        path,
-        status,
-        durationMs,
-        requestId: requestId ?? "unknown",
-        ip: client?.ip ?? "unknown",
-        format: outputFormat,
-      });
+    const logLine = formatHttpLogLine({
+      method,
+      path,
+      status,
+      durationMs,
+      requestId: requestId ?? "unknown",
+      ip: client?.ip ?? "unknown",
+      format: outputFormat,
+    });
 
-      logger[logLevel](logLine, {
-        durationMs,
-        format: outputFormat,
-        ip: client?.ip ?? "unknown",
-        method,
-        path,
-        requestId: requestId ?? "unknown",
-        status,
-      });
-    }
-  },
-);
+    logger[logLevel](logLine, {
+      durationMs,
+      format: outputFormat,
+      ip: client?.ip ?? "unknown",
+      method,
+      path,
+      requestId: requestId ?? "unknown",
+      status,
+    });
+  });
+
+  next();
+};

@@ -140,4 +140,4 @@ Work from lowest risk to highest so a failure is easy to attribute. Never use `n
 
    For backend changes, also run the integration suite — behavioral regressions in an HTTP or database library will not show up in type-checks or unit tests. Bring the stack up with `docker compose up --build` and validate anything that touches native binaries (sharp's libvips, bcrypt) in the container, since the Linux/musl prebuilt path differs from a Windows or macOS development machine.
 
-`npm run openapi:check` matters here even when no route changed: the OpenAPI document is generated from the live Hono app, so a framework bump can shift the contract. If it reports the spec as stale, run `npm run openapi:generate` and commit both `openapi.yaml` and `openapi.json`.
+`npm run openapi:check` matters here even when no route changed: the OpenAPI document is checked against the routes the app actually registers, so a framework bump can shift the contract. If it reports the spec as stale, run `npm run openapi:generate` and commit both `openapi.yaml` and `openapi.json`.

@@ -1,20 +1,26 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
 import { requestIdMiddleware } from "@/configuration/middlewares/request-id.middleware";
 import { requestTimeoutMiddleware } from "@/configuration/middlewares/request-timeout.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", requestIdMiddleware);
-  app.use("*", requestTimeoutMiddleware);
-  app.onError(handleApplicationError);
-  app.get("/slow", async (context) => {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    return context.json({ ok: true });
+  return createTestApp((app) => {
+    app.use(requestIdMiddleware);
+    app.use(requestTimeoutMiddleware);
+    app.get("/slow", async (_request, response) => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      // The timeout middleware has already answered by the time a slow handler
+      // finishes; writing again would throw.
+      if (!response.headersSent) {
+        response.json({ ok: true });
+      }
+    });
+    app.get("/fast", (_request, response) => {
+      response.json({ ok: true });
+    });
+    app.use(handleApplicationError);
   });
-  app.get("/fast", (context) => context.json({ ok: true }));
-  return app;
 }
 
 describe("requestTimeoutMiddleware", () => {

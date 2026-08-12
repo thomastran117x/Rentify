@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import { getAuthRole } from "@/features/auth/authorization";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
@@ -32,129 +32,139 @@ export class RentingsController {
   ) {}
 
   convertBookingRequest = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.rentingsService.convertApprovedBookingRequest({
-      bookingRequestId: this.requireBookingRequestId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
       actorUserId: auth.sub,
     });
     await this.recommendationActivityPublisher.publishRentingConfirmed({
       renting: result,
-      client: context.get("client"),
-      requestId: this.readRequestId(context),
+      client: request.client,
+      requestId: this.readRequestId(request),
     });
-    return created(context, result, {
+    created(response, result, {
       message: "Booking request converted to renting successfully.",
     });
   };
 
-  getById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  getById = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.rentingsService.getById(
-      this.requireRentingId(context),
+      this.requireRentingId(request),
       auth.sub,
       getAuthRole(auth),
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  listMine = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const query = this.parseListQuery(context);
+  listMine = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const query = this.parseListQuery(request);
     const result = await this.rentingsService.listMine(
       this.toListMineInput(auth.sub, query),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
   updateInstructions = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       updateRentingInstructionsSchema,
     );
     const result = await this.rentingsService.updateInstructions(
       this.toUpdateInstructionsInput(
-        this.requireRentingId(context),
+        this.requireRentingId(request),
         auth.sub,
         getAuthRole(auth),
         body,
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Renting instructions updated successfully.",
     });
   };
 
   markCheckInReady = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.rentingsService.markCheckInReady(
       this.toRentingActorInput(
-        this.requireRentingId(context),
+        this.requireRentingId(request),
         auth.sub,
         getAuthRole(auth),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Renting marked as check-in ready successfully.",
     });
   };
 
   markCheckInComplete = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.rentingsService.markCheckInComplete(
       this.toRentingActorInput(
-        this.requireRentingId(context),
+        this.requireRentingId(request),
         auth.sub,
         getAuthRole(auth),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Renting check-in completed successfully.",
     });
   };
 
-  markCompleted = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  markCompleted = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.rentingsService.markCompleted(
       this.toRentingActorInput(
-        this.requireRentingId(context),
+        this.requireRentingId(request),
         auth.sub,
         getAuthRole(auth),
       ),
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Renting return completed successfully.",
     });
   };
 
-  createDispute = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createRentingDisputeSchema);
+  createDispute = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, createRentingDisputeSchema);
     const result = await this.rentingsService.createDispute(
       this.toCreateDisputeInput(
-        this.requireRentingId(context),
+        this.requireRentingId(request),
         auth.sub,
         getAuthRole(auth),
         body,
       ),
     );
-    return created(context, result, {
+    created(response, result, {
       message: "Renting dispute opened successfully.",
     });
   };
 
-  private parseListQuery(context: Context<AppBindings>): ListRentingsQuery {
-    const url = new URL(context.req.url);
+  private parseListQuery(request: Request): ListRentingsQuery {
+    const url = getRequestUrl(request);
 
     try {
       return listRentingsQuerySchema.parse({
@@ -235,19 +245,19 @@ export class RentingsController {
     };
   }
 
-  private requireBookingRequestId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireBookingRequestId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private requireRentingId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireRentingId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private async requireAuth(context: Context<AppBindings>) {
-    return requireJwtAuth(context);
+  private async requireAuth(request: Request) {
+    return requireJwtAuth(request);
   }
 
-  private readRequestId(context: Context<AppBindings>): string | undefined {
-    return context.get("requestId");
+  private readRequestId(request: Request): string | undefined {
+    return request.requestId;
   }
 }

@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import type { Request, Response } from "express";
 import { created } from "@/configuration/http/responses";
 import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
@@ -18,15 +17,15 @@ class FeedbacksController {
     private readonly captchaService: CaptchaService,
   ) {}
 
-  create = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await getOptionalJwtAuth(context);
+  create = async (request: Request, response: Response): Promise<void> => {
+    const auth = await getOptionalJwtAuth(request);
     const body = await parseRequestBody(
-      context,
+      request,
       createAppFeedbackRequestSchema,
     );
 
     if (!auth) {
-      await this.verifyCaptcha(context, body.captchaToken);
+      await this.verifyCaptcha(request, body.captchaToken);
     }
 
     const result = await this.feedbacksService.create({
@@ -37,13 +36,13 @@ class FeedbacksController {
       message: body.message,
     });
 
-    return created(context, result, {
+    created(response, result, {
       message: "Feedback submitted successfully.",
     });
   };
 
   private async verifyCaptcha(
-    context: Context<AppBindings>,
+    request: Request,
     captchaToken?: string,
   ): Promise<void> {
     if (!captchaToken) {
@@ -57,8 +56,8 @@ class FeedbacksController {
 
     const result = await this.captchaService.verify({
       token: captchaToken,
-      remoteIp: context.get("client").ip,
-      idempotencyKey: resolveIdempotencyKey(context),
+      remoteIp: request.client.ip,
+      idempotencyKey: resolveIdempotencyKey(request),
     });
 
     if (!result.success || result.failOpen) {

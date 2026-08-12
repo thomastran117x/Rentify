@@ -1,21 +1,18 @@
-import type { AppBindings } from "@/configuration/http/bindings";
-import type { Context } from "hono";
 import {
   paginationMeta,
   pickMeta,
   created,
   accepted,
 } from "@/configuration/http/responses";
+import { createMockRequest, createMockResponse } from "../../support/mock-http";
 
-function fakeContext(): Context<AppBindings> {
-  return {
-    get: (name: string) => (name === "requestId" ? "req-1" : undefined),
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status: status as number,
-        headers: { "content-type": "application/json" },
-      }),
-  } as unknown as Context<AppBindings>;
+function fakeResponse() {
+  const recorder = createMockResponse();
+  (recorder.response as { req?: unknown }).req = createMockRequest({
+    state: { requestId: "req-1" },
+  });
+
+  return recorder;
 }
 
 describe("responses helpers", () => {
@@ -53,24 +50,27 @@ describe("responses helpers", () => {
   });
 
   describe("created — default message (status 201)", () => {
-    it("uses the default 201 message when no options are passed", async () => {
-      const ctx = fakeContext();
-      const response = created(ctx, { id: "new-1" });
-      const body = await response.json();
+    it("uses the default 201 message when no options are passed", () => {
+      const recorder = fakeResponse();
+      created(recorder.response, { id: "new-1" });
 
-      expect(response.status).toBe(201);
-      expect(body.message).toBe("Resource created successfully.");
+      expect(recorder.status()).toBe(201);
+      expect(recorder.json()).toMatchObject({
+        message: "Resource created successfully.",
+        meta: { requestId: "req-1" },
+      });
     });
   });
 
   describe("accepted — default message (status 202)", () => {
-    it("uses the default 202 message when no options are passed", async () => {
-      const ctx = fakeContext();
-      const response = accepted(ctx, { queued: true });
-      const body = await response.json();
+    it("uses the default 202 message when no options are passed", () => {
+      const recorder = fakeResponse();
+      accepted(recorder.response, { queued: true });
 
-      expect(response.status).toBe(202);
-      expect(body.message).toBe("Request accepted successfully.");
+      expect(recorder.status()).toBe(202);
+      expect(recorder.json()).toMatchObject({
+        message: "Request accepted successfully.",
+      });
     });
   });
 });

@@ -1,13 +1,14 @@
-import { Hono } from "hono";
 import { environment } from "@/configuration/environment";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { securityHeadersMiddleware } from "@/configuration/middlewares/security-headers.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-  app.use("*", securityHeadersMiddleware);
-  app.get("/health", (context) => context.json({ ok: true }));
-  return app;
+  return createTestApp((app) => {
+    app.use(securityHeadersMiddleware);
+    app.get("/health", (_request, response) => {
+      response.json({ ok: true });
+    });
+  });
 }
 
 describe("securityHeadersMiddleware", () => {

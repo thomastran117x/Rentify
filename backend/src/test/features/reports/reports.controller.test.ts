@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { RequestValidationError } from "@/configuration/validation/request";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { ReportsController } from "@/features/reports/reports.controller";
@@ -32,30 +31,20 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const context = {
-    req: {
-      json: async () => options?.body ?? {},
-      url:
-        options?.url ??
-        "https://example.test/reports/moderation?page=2&pageSize=5",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
+  return createTestContext({
+    body: options?.body,
+    params: options?.params,
+    url:
+      options?.url ??
+      "https://example.test/reports/moderation?page=2&pageSize=5",
+    state: {
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
     },
-    get: () => ({
-      resolve: () => ({
-        inspectRequest: () => [],
-      }),
-    }),
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 describe("ReportsController", () => {
@@ -74,7 +63,8 @@ describe("ReportsController", () => {
       create,
     } as any);
 
-    const response = await controller.create(
+    const response = await invoke(
+      controller.create,
       createContext({
         body: {
           subjectType: "posting",
@@ -117,7 +107,8 @@ describe("ReportsController", () => {
       listModeration,
     } as any);
 
-    const response = await controller.listModeration(
+    const response = await invoke(
+      controller.listModeration,
       createContext({
         url: "https://example.test/reports/moderation?page=2&pageSize=5&q=spam&status=open&subjectType=posting&reasonCode=fraud_or_scam&assignedTo=moderator-1&reporterId=user-1&sort=newest",
       }),
@@ -146,7 +137,8 @@ describe("ReportsController", () => {
     const controller = new ReportsController({} as any);
 
     await expect(
-      controller.listModeration(
+      invoke(
+        controller.listModeration,
         createContext({
           url: "https://example.test/reports/moderation?page=0&pageSize=500",
         }),
@@ -161,7 +153,7 @@ describe("ReportsController", () => {
     const controller = new ReportsController({} as any);
 
     await expect(
-      controller.listModeration(createContext()),
+      invoke(controller.listModeration, createContext()),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -176,7 +168,8 @@ describe("ReportsController", () => {
       getModerationDetail,
     } as any);
 
-    const response = await controller.getModerationById(
+    const response = await invoke(
+      controller.getModerationById,
       createContext({
         params: {
           id: "report-1",
@@ -199,7 +192,8 @@ describe("ReportsController", () => {
       assign,
     } as any);
 
-    const response = await controller.assign(
+    const response = await invoke(
+      controller.assign,
       createContext({
         params: {
           id: "report-1",
@@ -230,7 +224,8 @@ describe("ReportsController", () => {
       updateStatus,
     } as any);
 
-    const response = await controller.updateStatus(
+    const response = await invoke(
+      controller.updateStatus,
       createContext({
         params: {
           id: "report-1",

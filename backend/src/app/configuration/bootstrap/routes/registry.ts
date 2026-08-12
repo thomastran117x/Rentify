@@ -1,10 +1,9 @@
-import { Hono } from "hono";
+import express, { type Router } from "express";
 import { loggerFactory } from "@/configuration/logging";
 import { environment } from "@/configuration/environment";
 import { resolveHandler } from "@/configuration/bootstrap/routes/helpers";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
 import { createFeatureFlagMiddleware } from "@/configuration/bootstrap/routes/feature-flag.middleware";
-import type { AppBindings } from "@/configuration/http/bindings";
 import {
   authDevicesRouteModule,
   authLocalRouteModule,
@@ -134,13 +133,16 @@ export function logRouteComposition(): void {
 
 export function registerRouteModule(
   routeModule: RouteModule,
-  app: Hono<AppBindings>,
+  app: Router,
 ): void {
   if (routeModule.featureId) {
-    const sub = new Hono<AppBindings>();
+    // A nested router so the flag check only guards this module's routes,
+    // matching the sub-app Hono mounted at "/". Matches strictly, like the
+    // router it is mounted on.
+    const sub = express.Router({ caseSensitive: true, strict: true });
     sub.use(createFeatureFlagMiddleware(routeModule.featureId));
     routeModule.register(sub, routeModuleHelpers);
-    app.route("/", sub);
+    app.use(sub);
     return;
   }
 

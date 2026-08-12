@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
 import { ok } from "@/configuration/http/responses";
 import { requireSessionAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
@@ -24,56 +23,58 @@ export class MfaTotpController {
     this.logger = loggerFactory.forClass(MfaTotpController, "controller");
   }
 
-  getStatus = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  getStatus = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const enabled = await this.mfaTotpService.isEnabled(auth.sub);
-    return ok(context, { enabled });
+    ok(response, { enabled });
   };
 
   beginEnrollment = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const auth = await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
-    const input = await parseRequestBody(context, beginEnrollmentRequestSchema);
+    const input = await parseRequestBody(request, beginEnrollmentRequestSchema);
     const accountName = input.accountName ?? auth.email ?? auth.sub;
     const result = await this.mfaTotpService.beginEnrollment(
       auth.sub,
       accountName,
     );
     this.logMfaChangeEvent(
-      context,
+      request,
       auth.sub,
       auth.sessionId,
       "TOTP enrollment started",
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
   confirmEnrollment = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const auth = await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
     const input = await parseRequestBody(
-      context,
+      request,
       confirmEnrollmentRequestSchema,
     );
     await this.mfaTotpService.confirmEnrollment(auth.sub, input.code);
     this.logMfaChangeEvent(
-      context,
+      request,
       auth.sub,
       auth.sessionId,
       "TOTP enrollment confirmed",
     );
-    return ok(
-      context,
+    ok(
+      response,
       { confirmed: true as const },
       {
         message: "Authenticator app enabled.",
@@ -81,17 +82,17 @@ export class MfaTotpController {
     );
   };
 
-  disable = async (context: Context<AppBindings>): Promise<Response> => {
+  disable = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
-    await parseRequestBody(context, disableRequestSchema);
+    await parseRequestBody(request, disableRequestSchema);
     await this.mfaTotpService.disable(auth.sub);
-    this.logMfaChangeEvent(context, auth.sub, auth.sessionId, "TOTP disabled");
-    return ok(
-      context,
+    this.logMfaChangeEvent(request, auth.sub, auth.sessionId, "TOTP disabled");
+    ok(
+      response,
       { disabled: true as const },
       {
         message: "Authenticator app disabled.",
@@ -100,25 +101,26 @@ export class MfaTotpController {
   };
 
   cancelEnrollment = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
     const auth = await requireRecentMfaVerification(
-      context,
+      request,
       this.mfaVerificationService,
       MFA_MANAGEMENT_SCOPE,
     );
     await this.mfaTotpService.cancelEnrollment(auth.sub);
     this.logMfaChangeEvent(
-      context,
+      request,
       auth.sub,
       auth.sessionId,
       "Pending TOTP enrollment cancelled",
     );
-    return ok(context, { cancelled: true as const });
+    ok(response, { cancelled: true as const });
   };
 
   private logMfaChangeEvent(
-    context: Context<AppBindings>,
+    request: Request,
     userId: string,
     sessionId: string | undefined,
     message: string,
@@ -128,8 +130,8 @@ export class MfaTotpController {
       sessionId,
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "totp",
-      ip: context.get("client").ip,
-      userAgent: context.get("client").device.userAgent,
+      ip: request.client.ip,
+      userAgent: request.client.device.userAgent,
       timestamp: new Date().toISOString(),
       result: "success",
     });

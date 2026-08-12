@@ -1,5 +1,5 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Request, Response } from "express";
+import { getRequestUrl, readRawBody } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
@@ -28,84 +28,89 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   createSessionForBooking = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createPaymentSessionSchema);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, createPaymentSessionSchema);
     const result = await this.paymentsService.createPaymentSession({
-      bookingRequestId: this.requireBookingRequestId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
       renterId: auth.sub,
-      idempotencyKey: resolveIdempotencyKey(context, body.idempotencyKey),
+      idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
     });
-    return created(context, result, {
+    created(response, result, {
       message: "Payment session created successfully.",
     });
   };
 
-  getById = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  getById = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.paymentsService.getPaymentById(
-      this.requirePaymentId(context),
+      this.requirePaymentId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
   getByBookingRequest = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.paymentsService.getPaymentByBookingRequest(
-      this.requireBookingRequestId(context),
+      this.requireBookingRequestId(request),
       auth.sub,
     );
-    return ok(context, result);
+    ok(response, result);
   };
 
-  retry = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, retryPaymentSchema);
+  retry = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, retryPaymentSchema);
     const result = await this.paymentsService.retryPayment({
-      paymentId: this.requirePaymentId(context),
+      paymentId: this.requirePaymentId(request),
       renterId: auth.sub,
-      idempotencyKey: resolveIdempotencyKey(context, body.idempotencyKey),
+      idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
     });
-    return ok(context, result, {
+    ok(response, result, {
       message: "Payment retry requested successfully.",
     });
   };
 
-  createRefund = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
-    const body = await parseRequestBody(context, createRefundSchema);
+  createRefund = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const body = await parseRequestBody(request, createRefundSchema);
     const result = await this.paymentsService.createRefund({
-      paymentId: this.requirePaymentId(context),
+      paymentId: this.requirePaymentId(request),
       actorUserId: auth.sub,
       amount: body.amount,
       reason: body.reason ?? null,
-      idempotencyKey: resolveIdempotencyKey(context, body.idempotencyKey),
+      idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
     });
-    return created(context, result, {
+    created(response, result, {
       message: "Refund created successfully.",
     });
   };
 
-  listPayouts = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  listPayouts = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.paymentsService.listPayouts(
-      this.toListPayoutsInput(auth.sub, this.parseListPayoutsQuery(context)),
+      this.toListPayoutsInput(auth.sub, this.parseListPayoutsQuery(request)),
     );
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  webhook = async (context: Context<AppBindings>): Promise<Response> => {
-    const rawBody = await context.req.text();
-    const signatureHeader = context.req.header("x-square-hmacsha256-signature");
+  webhook = async (request: Request, response: Response): Promise<void> => {
+    const rawBody = readRawBody(request);
+    const signatureHeader = request.get("x-square-hmacsha256-signature");
     await this.paymentsService.processSquareWebhook(rawBody, signatureHeader);
-    return ok(
-      context,
+    ok(
+      response,
       { ok: true },
       {
         message: "Payment webhook processed successfully.",
@@ -113,23 +118,23 @@ export class PaymentsController {
     );
   };
 
-  reconcile = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  reconcile = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     const result = await this.paymentsService.reconcilePayment(
-      this.requirePaymentId(context),
+      this.requirePaymentId(request),
       auth.sub,
     );
-    return ok(context, result, {
+    ok(response, result, {
       message: "Payment reconciled successfully.",
     });
   };
 
-  repair = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await this.requireAuth(context);
+  repair = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
     requireMinimumRole(auth, "admin");
-    await this.paymentsService.repairPayment(this.requirePaymentId(context));
-    return ok(
-      context,
+    await this.paymentsService.repairPayment(this.requirePaymentId(request));
+    ok(
+      response,
       { ok: true },
       {
         message: "Payment repair queued successfully.",
@@ -137,10 +142,8 @@ export class PaymentsController {
     );
   };
 
-  private parseListPayoutsQuery(
-    context: Context<AppBindings>,
-  ): ListPayoutsQuery {
-    const url = new URL(context.req.url);
+  private parseListPayoutsQuery(request: Request): ListPayoutsQuery {
+    const url = getRequestUrl(request);
 
     try {
       return listPayoutsQuerySchema.parse({
@@ -180,15 +183,15 @@ export class PaymentsController {
     };
   }
 
-  private requireBookingRequestId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireBookingRequestId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private requirePaymentId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requirePaymentId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private async requireAuth(context: Context<AppBindings>) {
-    return requireJwtAuth(context);
+  private async requireAuth(request: Request) {
+    return requireJwtAuth(request);
   }
 }

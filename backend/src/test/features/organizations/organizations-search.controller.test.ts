@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 
@@ -25,34 +24,20 @@ function createContext(options?: {
   url?: string;
   params?: Record<string, string>;
 }) {
-  const variables = new Map<string, unknown>();
-  variables.set("requestId", "request-1");
-  variables.set("container", {
-    resolve: () => ({
-      inspectRequest: () => [],
-    }),
+  return createTestContext({
+    params: options?.params,
+    url:
+      options?.url ??
+      "https://example.test/api/v1/admin/organizations/search/reindex-runs/run-1?limit=15",
+    state: {
+      requestId: "request-1",
+      container: {
+        resolve: () => ({
+          inspectRequest: () => [],
+        }),
+      },
+    },
   });
-
-  const context = {
-    req: {
-      url:
-        options?.url ??
-        "https://example.test/api/v1/admin/organizations/search/reindex-runs/run-1?limit=15",
-      param: (name?: string) =>
-        name ? options?.params?.[name] : (options?.params ?? {}),
-    },
-    get: (name: string) => variables.get(name),
-    set: (name: string, value: unknown) => {
-      variables.set(name, value);
-    },
-    json: (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: { "content-type": "application/json" },
-      }),
-  };
-
-  return context as unknown as Context<AppBindings>;
 }
 
 describe("OrganizationsSearchController", () => {
@@ -70,7 +55,7 @@ describe("OrganizationsSearchController", () => {
       startReindex,
     } as any);
 
-    const response = await controller.startReindex(createContext());
+    const response = await invoke(controller.startReindex, createContext());
 
     expect(startReindex).toHaveBeenCalled();
     expect(response.status).toBe(202);
@@ -88,7 +73,8 @@ describe("OrganizationsSearchController", () => {
       getReindexRun,
     } as any);
 
-    const response = await controller.getReindexRun(
+    const response = await invoke(
+      controller.getReindexRun,
       createContext({ params: { id: "run-1" } }),
     );
 
@@ -103,7 +89,8 @@ describe("OrganizationsSearchController", () => {
       getReindexRun: jest.fn(async () => null),
     } as any);
 
-    const response = await controller.getReindexRun(
+    const response = await invoke(
+      controller.getReindexRun,
       createContext({ params: { id: "missing" } }),
     );
 
@@ -118,10 +105,12 @@ describe("OrganizationsSearchController", () => {
       replayDeadLetteredOutbox,
     } as any);
 
-    await controller.replayDeadLettered(
+    await invoke(
+      controller.replayDeadLettered,
       createContext({ url: "https://example.test/x?limit=7" }),
     );
-    await controller.replayDeadLettered(
+    await invoke(
+      controller.replayDeadLettered,
       createContext({ url: "https://example.test/x?limit=-3" }),
     );
 
@@ -137,9 +126,11 @@ describe("OrganizationsSearchController", () => {
       cleanupRetainedIndices,
     } as any);
 
-    const statusResponse = await controller.getStatus(createContext());
-    const cleanupResponse =
-      await controller.cleanupRetainedIndices(createContext());
+    const statusResponse = await invoke(controller.getStatus, createContext());
+    const cleanupResponse = await invoke(
+      controller.cleanupRetainedIndices,
+      createContext(),
+    );
 
     expect(getStatus).toHaveBeenCalled();
     expect(cleanupRetainedIndices).toHaveBeenCalled();
@@ -155,7 +146,7 @@ describe("OrganizationsSearchController", () => {
     } as any);
 
     await expect(
-      controller.startReindex(createContext()),
+      invoke(controller.startReindex, createContext()),
     ).rejects.toBeDefined();
     expect(startReindex).not.toHaveBeenCalled();
   });

@@ -1,7 +1,7 @@
-import type { Context } from "hono";
+import type { Request, Response } from "express";
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { created, ok } from "@/configuration/http/responses";
+import { getQuery, getRequestUrl } from "@/configuration/http/request";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import {
@@ -16,40 +16,42 @@ export class BlobController {
   constructor(private readonly blobService: BlobService) {}
 
   createUploadUrl = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    await requireJwtAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireJwtAuth(request);
     const input = await parseRequestBody(
-      context,
+      request,
       createBlobUploadUrlRequestSchema,
     );
     const result = this.blobService.createUploadUrl(
-      this.toCreateBlobUploadUrlInput(context, input),
+      this.toCreateBlobUploadUrlInput(request, input),
     );
 
-    return created(context, result, {
+    created(response, result, {
       message: "Blob upload URL created successfully.",
     });
   };
 
   private toCreateBlobUploadUrlInput(
-    context: Context<AppBindings>,
+    request: Request,
     input: CreateBlobUploadUrlRequestBody,
   ): CreateBlobUploadUrlInput {
     return {
-      userId: context.get("auth").sub,
+      userId: request.auth.sub,
       filename: input.filename,
       contentType: input.contentType,
       scope: input.scope,
-      requestOrigin: new URL(context.req.url).origin,
+      requestOrigin: getRequestUrl(request).origin,
     };
   }
 
-  uploadLocal = async (context: Context<AppBindings>): Promise<Response> => {
-    const blobName = context.req.query("blobName")?.trim();
-    const expiresAt = context.req.query("expiresAt")?.trim();
-    const token = context.req.query("token")?.trim();
-    const contentType = context.req.header("content-type")?.trim();
+  uploadLocal = async (request: Request, response: Response): Promise<void> => {
+    const query = getQuery(request);
+    const blobName = query.blobName?.trim();
+    const expiresAt = query.expiresAt?.trim();
+    const token = query.token?.trim();
+    const contentType = request.get("content-type")?.trim();
 
     if (!blobName || !expiresAt || !token || !contentType) {
       throw new BadRequestError(
@@ -57,7 +59,8 @@ export class BlobController {
       );
     }
 
-    const body = Buffer.from(await context.req.raw.arrayBuffer());
+    // express.raw is mounted on this route, so the body is already a Buffer.
+    const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
 
     await this.blobService.uploadLocalBlob({
       blobName,
@@ -67,13 +70,11 @@ export class BlobController {
       body,
     });
 
-    return new Response(null, {
-      status: 201,
-    });
+    response.status(201).end();
   };
 
-  getLocal = async (context: Context<AppBindings>): Promise<Response> => {
-    const blobName = context.req.query("blobName")?.trim();
+  getLocal = async (request: Request, response: Response): Promise<void> => {
+    const blobName = getQuery(request).blobName?.trim();
 
     if (!blobName) {
       throw new BadRequestError("Blob name is required.");
@@ -81,23 +82,20 @@ export class BlobController {
 
     const blob = await this.blobService.readLocalBlob(blobName);
 
-    return new Response(new Uint8Array(blob.body), {
-      status: 200,
-      headers: {
-        "content-type": blob.contentType,
-        "cache-control": "public, max-age=31536000, immutable",
-      },
-    });
+    response.status(200);
+    response.setHeader("content-type", blob.contentType);
+    response.setHeader("cache-control", "public, max-age=31536000, immutable");
+    response.end(Buffer.from(blob.body));
   };
 
-  delete = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
-    const query = deleteBlobRequestQuerySchema.parse(context.req.query());
+  delete = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
+    const query = deleteBlobRequestQuerySchema.parse(getQuery(request));
 
     await this.blobService.deleteBlobForUser(auth.sub, query.blobName);
 
-    return ok(
-      context,
+    ok(
+      response,
       {
         deleted: true,
       },

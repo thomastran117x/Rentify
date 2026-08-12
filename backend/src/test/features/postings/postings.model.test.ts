@@ -241,6 +241,24 @@ describe("postings.model", () => {
     ).toBe(true);
   });
 
+  it("accepts deterministic seeded organization ids", () => {
+    // Seeded ids are well-formed 8-4-4-4-12 identifiers but carry zeroed
+    // version and variant bits, so an RFC 4122 check rejects them and the
+    // organization filter stops working against seeded data.
+    for (const organizationId of [
+      "00000000-0000-0000-1040-000000000016",
+      "00000000-0000-0000-1040-000000000001",
+      "00000000-0000-0000-2000-000000000003",
+    ]) {
+      const result = publicSearchPostingsQuerySchema.safeParse({
+        organizationId,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.organizationId).toBe(organizationId);
+    }
+  });
+
   it("rejects a malformed organization id and a blank organization name", () => {
     expect(
       publicSearchPostingsQuerySchema.safeParse({ organizationId: "org-1" })

@@ -116,7 +116,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "TypeScript Hono server is running",
+                  "message": "TypeScript Express server is running",
                   "data": {
                     "apiVersion": "v1",
                     "apiBasePath": "/api/v1"
@@ -10575,10 +10575,10 @@
             "name": "organizationId",
             "in": "query",
             "required": false,
-            "description": "Filter by exact owning organization id. Takes precedence over `organization`.",
+            "description": "Filter by exact owning organization id. Takes precedence over `organization`. Accepts any 8-4-4-4-12 hexadecimal identifier, which includes but is not limited to RFC 4122 UUIDs.",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "example": "6f1c8b2e-6b0a-4f0e-9b6e-2f9a1c2d3e4f"
           },

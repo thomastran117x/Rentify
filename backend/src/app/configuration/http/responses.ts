@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+﻿import type { Response as ExpressResponse } from "express";
 
 export interface ApiResponseMeta {
   requestId: string;
@@ -29,8 +28,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function resolveRequestId(context: Context<AppBindings>): string {
-  const requestId = context.get("requestId");
+function resolveRequestId(requestId: string | undefined): string {
   return typeof requestId === "string" && requestId.length > 0
     ? requestId
     : "unknown";
@@ -89,18 +87,23 @@ export function pickMeta<TKeys extends string>(
   return Object.keys(meta).length > 0 ? meta : undefined;
 }
 
+/**
+ * The envelope builders take a request id rather than a framework object, so
+ * they can be shared by handlers and by the error middleware, which only has an
+ * Express response to hand.
+ */
 export function buildResponseMeta(
-  context: Context<AppBindings>,
+  requestId: string | undefined,
   meta?: Record<string, unknown>,
 ): ApiResponseMeta {
   return {
-    requestId: resolveRequestId(context),
+    requestId: resolveRequestId(requestId),
     ...(meta ?? {}),
   };
 }
 
 export function buildSuccessResponse<TData>(
-  context: Context<AppBindings>,
+  requestId: string | undefined,
   data: TData,
   status: 200 | 201 | 202,
   options: ResponseOptions = {},
@@ -110,12 +113,12 @@ export function buildSuccessResponse<TData>(
     message: options.message ?? defaultSuccessMessage(status),
     data,
     error: null,
-    meta: buildResponseMeta(context, options.meta),
+    meta: buildResponseMeta(requestId, options.meta),
   };
 }
 
 export function buildErrorResponse<TDetails>(
-  context: Context<AppBindings>,
+  requestId: string | undefined,
   input: {
     message: string;
     code: string;
@@ -131,46 +134,45 @@ export function buildErrorResponse<TDetails>(
       code: input.code,
       ...(input.details !== undefined ? { details: input.details } : {}),
     },
-    meta: buildResponseMeta(context, input.meta),
+    meta: buildResponseMeta(requestId, input.meta),
   };
 }
 
 function jsonResponse<TData>(
-  context: Context<AppBindings>,
+  response: ExpressResponse,
   status: 200 | 201 | 202,
   data: TData,
   options?: ResponseOptions,
-): Response {
-  return context.json(
-    buildSuccessResponse(context, data, status, options),
-    status,
-  );
+): void {
+  response
+    .status(status)
+    .json(buildSuccessResponse(response.req.requestId, data, status, options));
 }
 
 export function ok<TData>(
-  context: Context<AppBindings>,
+  response: ExpressResponse,
   data: TData,
   options?: ResponseOptions,
-): Response {
-  return jsonResponse(context, 200, data, options);
+): void {
+  jsonResponse(response, 200, data, options);
 }
 
 export function created<TData>(
-  context: Context<AppBindings>,
+  response: ExpressResponse,
   data: TData,
   options?: ResponseOptions,
-): Response {
-  return jsonResponse(context, 201, data, options);
+): void {
+  jsonResponse(response, 201, data, options);
 }
 
 export function accepted<TData>(
-  context: Context<AppBindings>,
+  response: ExpressResponse,
   data: TData,
   options?: ResponseOptions,
-): Response {
-  return jsonResponse(context, 202, data, options);
+): void {
+  jsonResponse(response, 202, data, options);
 }
 
-export function noContent(): Response {
-  return new Response(null, { status: 204 });
+export function noContent(response: ExpressResponse): void {
+  response.status(204).end();
 }

@@ -1,35 +1,31 @@
-import { Hono } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { loggerFactory } from "@/configuration/logging";
 import { httpLoggingMiddleware } from "@/configuration/middlewares/http-logging.middleware";
+import { createTestApp } from "../../support/fetch-app";
 
 function createApp() {
-  const app = new Hono<AppBindings>();
-
-  app.use("*", async (context, next) => {
-    context.set("client", {
-      ip: "203.0.113.10",
-      device: {
-        type: "desktop",
-        isMobile: false,
-      },
-    });
-    context.set("outputFormat", "json");
-    context.set("requestId", "request-123");
-    context.set(
-      "logger",
-      loggerFactory
+  return createTestApp((app) => {
+    app.use((request, _response, next) => {
+      request.client = {
+        ip: "203.0.113.10",
+        device: {
+          type: "desktop",
+          isMobile: false,
+        },
+      };
+      request.outputFormat = "json";
+      request.requestId = "request-123";
+      request.logger = loggerFactory
         .forComponent("http-logging.middleware.test", "middleware")
         .child({
           requestId: "request-123",
-        }),
-    );
-    await next();
+        });
+      next();
+    });
+    app.use(httpLoggingMiddleware);
+    app.get("/oauth/callback", (_request, response) => {
+      response.json({ ok: true });
+    });
   });
-  app.use("*", httpLoggingMiddleware);
-  app.get("/oauth/callback", (context) => context.json({ ok: true }));
-
-  return app;
 }
 
 describe("httpLoggingMiddleware", () => {

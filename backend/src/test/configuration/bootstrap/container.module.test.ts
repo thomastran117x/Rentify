@@ -58,18 +58,17 @@ describe("bootstrap container module", () => {
     );
   });
 
-  it("reads the request-scoped container from the Hono context", async () => {
+  it("reads the request-scoped container from the request", async () => {
     const containerModule = await import("@/configuration/bootstrap/container");
     const requestContainer = {
       resolve: jest.fn(),
     };
-    const context = {
-      get: jest.fn(() => requestContainer),
+    const request = {
+      container: requestContainer,
     };
 
-    const resolved = containerModule.getRequestContainer(context as any);
+    const resolved = containerModule.getRequestContainer(request as any);
 
-    expect(context.get).toHaveBeenCalledWith("container");
     expect(resolved).toBe(requestContainer);
   });
 });

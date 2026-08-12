@@ -1,5 +1,4 @@
-import type { Context } from "hono";
-import type { AppBindings } from "@/configuration/http/bindings";
+import { createTestContext, invoke } from "../../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import type { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
@@ -26,53 +25,23 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   };
 }
 
+/**
+ * Route params and request-scoped state the middleware would normally have
+ * populated. `createTestContext` builds the Express request/response pair; the
+ * shared helper is used rather than a local fake so a change to the request
+ * surface breaks here the same way it breaks everywhere else.
+ */
 function createContext(options?: { body?: unknown; url?: string }) {
-  // `setCookie` writes through `c.header(...)`, so the fake has to collect
-  // headers and hand them to the Response for the assertions to see them.
-  const headers = new Headers();
-
-  const context = {
-    header: (name: string, value: string, opts?: { append?: boolean }) => {
-      if (opts?.append) {
-        headers.append(name, value);
-        return;
-      }
-
-      headers.set(name, value);
+  return createTestContext({
+    method: "POST",
+    url: options?.url ?? "/booking-requests/booking-1/messages",
+    body: options?.body ?? {},
+    params: { id: "booking-1", messageId: "message-1" },
+    state: {
+      requestId: "request-1",
+      container: { resolve: () => ({ inspectRequest: () => [] }) },
     },
-    req: {
-      json: async () => options?.body ?? {},
-      url:
-        options?.url ??
-        "https://example.test/booking-requests/booking-1/messages",
-      param: (name?: string) =>
-        name
-          ? { id: "booking-1", messageId: "message-1" }[name]
-          : { id: "booking-1", messageId: "message-1" },
-    },
-    get: (name?: string) => {
-      if (name === "requestId") {
-        return "request-1";
-      }
-
-      return {
-        resolve: () => ({
-          inspectRequest: () => [],
-        }),
-      };
-    },
-    json: (body: unknown, status = 200) => {
-      const responseHeaders = new Headers(headers);
-      responseHeaders.set("content-type", "application/json");
-
-      return new Response(JSON.stringify(body), {
-        status,
-        headers: responseHeaders,
-      });
-    },
-  };
-
-  return context as unknown as Context<AppBindings>;
+  });
 }
 
 function createService(overrides: Record<string, unknown> = {}) {
@@ -135,7 +104,7 @@ describe("BookingMessagesController", () => {
       );
 
       await expect(
-        controller.send(createContext({ body: payload })),
+        invoke(controller.send, createContext({ body: payload })),
       ).rejects.toMatchObject({ status: 400 });
     });
 
@@ -147,7 +116,7 @@ describe("BookingMessagesController", () => {
       );
       const body = "x".repeat(2000);
 
-      const response = await controller.send(
+      const response = await invoke(controller.send, 
         createContext({ body: { body: ` ${body} ` } }),
       );
 
@@ -175,7 +144,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.list(createContext());
+      const response = await invoke(controller.list, createContext());
 
       expect(response.status).toBe(200);
       expect(service.list).toHaveBeenCalledWith({
@@ -193,7 +162,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      await controller.list(
+      await invoke(controller.list, 
         createContext({
           url: "https://example.test/booking-requests/booking-1/messages?page=3&pageSize=5",
         }),
@@ -211,7 +180,7 @@ describe("BookingMessagesController", () => {
       );
 
       await expect(
-        controller.list(
+        invoke(controller.list, 
           createContext({
             url: "https://example.test/booking-requests/booking-1/messages?pageSize=999",
           }),
@@ -225,7 +194,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.list(createContext());
+      const response = await invoke(controller.list, createContext());
       const payload = await response.json();
 
       expect(payload.meta.pagination).toMatchObject({ page: 1, total: 0 });
@@ -242,7 +211,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.edit(
+      const response = await invoke(controller.edit, 
         createContext({ body: { body: "Updated" } }),
       );
 
@@ -263,7 +232,7 @@ describe("BookingMessagesController", () => {
       );
 
       await expect(
-        controller.edit(createContext({ body: { body: "   " } })),
+        invoke(controller.edit, createContext({ body: { body: "   " } })),
       ).rejects.toMatchObject({ status: 400 });
       expect(service.edit).not.toHaveBeenCalled();
     });
@@ -277,7 +246,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.remove(createContext());
+      const response = await invoke(controller.remove, createContext());
 
       expect(response.status).toBe(200);
       expect(service.remove).toHaveBeenCalledWith({
@@ -296,7 +265,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.socketTicket(createContext());
+      const response = await invoke(controller.socketTicket, createContext());
       const payload = await response.json();
 
       expect(response.status).toBe(201);
@@ -330,7 +299,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      await controller.socketTicket(createContext());
+      await invoke(controller.socketTicket, createContext());
 
       expect(service.createSocketTicket).toHaveBeenCalledWith(
         "booking-1",
@@ -350,7 +319,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      await expect(controller.socketTicket(createContext())).rejects.toBe(
+      await expect(invoke(controller.socketTicket, createContext())).rejects.toBe(
         patError,
       );
       expect(service.createSocketTicket).not.toHaveBeenCalled();
@@ -365,7 +334,7 @@ describe("BookingMessagesController", () => {
         createTokenService(),
       );
 
-      const response = await controller.markRead(createContext());
+      const response = await invoke(controller.markRead, createContext());
       const payload = await response.json();
 
       expect(service.markRead).toHaveBeenCalledWith("booking-1", "user-1");

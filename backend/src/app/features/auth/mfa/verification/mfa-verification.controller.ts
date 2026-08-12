@@ -1,6 +1,6 @@
-import type { Context } from "hono";
+﻿import type { Request, Response } from "express";
+import { getQuery } from "@/configuration/http/request";
 import { ZodError } from "zod";
-import type { AppBindings } from "@/configuration/http/bindings";
 import { ok } from "@/configuration/http/responses";
 import { requireSessionAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
@@ -20,23 +20,26 @@ export class MfaVerificationController {
     private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
-  getOptions = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
-    const scope = this.parseScopeQuery(context);
+  getOptions = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireSessionAuth(request);
+    const scope = this.parseScopeQuery(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const result = await this.mfaVerificationService.getOptions({
       userId: auth.sub,
       sessionId,
       scope,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
-  issueChallenge = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+  issueChallenge = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const input = await parseRequestBody(
-      context,
+      request,
       mfaVerificationChallengeRequestSchema,
     );
     const result = await this.mfaVerificationService.issueChallenge({
@@ -44,18 +47,19 @@ export class MfaVerificationController {
       sessionId,
       scope: input.scope,
       factor: input.factor,
-      client: context.get("client"),
+      client: request.client,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
   confirmChallenge = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await requireSessionAuth(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const input = await parseRequestBody(
-      context,
+      request,
       mfaVerificationConfirmRequestSchema,
     );
     const result = await this.mfaVerificationService.confirmChallenge({
@@ -64,29 +68,30 @@ export class MfaVerificationController {
       scope: input.scope,
       factor: input.factor,
       code: input.code,
-      client: context.get("client"),
+      client: request.client,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
   previewCurrentEmailOtp = async (
-    context: Context<AppBindings>,
-  ): Promise<Response> => {
-    const auth = await requireSessionAuth(context);
-    const scope = this.parseScopeQuery(context);
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await requireSessionAuth(request);
+    const scope = this.parseScopeQuery(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const result = await this.mfaVerificationService.previewCurrentEmailOtp({
       userId: auth.sub,
       sessionId,
       scope,
     });
-    return ok(context, result);
+    ok(response, result);
   };
 
-  private parseScopeQuery(context: Context<AppBindings>) {
+  private parseScopeQuery(request: Request) {
     try {
       return mfaVerificationScopeSchema.parse(
-        context.req.query("scope")?.trim() ?? "",
+        getQuery(request).scope?.trim() ?? "",
       );
     } catch (error) {
       if (error instanceof ZodError) {

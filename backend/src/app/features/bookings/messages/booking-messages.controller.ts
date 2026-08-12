@@ -1,9 +1,8 @@
-import type { Context } from "hono";
-import { setCookie } from "hono/cookie";
+import type { Request, Response } from "express";
 import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
-import type { AppBindings } from "@/configuration/http/bindings";
+import { getQuery, writeCookie } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import {
   requireJwtAuth,
@@ -38,65 +37,65 @@ export class BookingMessagesController {
     );
   }
 
-  send = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
-    const body = await parseRequestBody(context, sendBookingMessageSchema);
+  send = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
+    const body = await parseRequestBody(request, sendBookingMessageSchema);
     const result = await this.bookingMessagesService.send({
-      bookingRequestId: this.requireBookingRequestId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
       authorId: auth.sub,
       body: body.body,
     });
 
-    return created(context, result, {
+    created(response, result, {
       message: "Message sent successfully.",
     });
   };
 
-  list = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
-    const query = this.parseListQuery(context);
+  list = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
+    const query = this.parseListQuery(request);
     const result = await this.bookingMessagesService.list({
-      bookingRequestId: this.requireBookingRequestId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
       actorUserId: auth.sub,
       page: query.page,
       pageSize: query.pageSize,
     });
 
-    return ok(context, result, {
+    ok(response, result, {
       meta: paginationMeta(result),
     });
   };
 
-  edit = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
-    const body = await parseRequestBody(context, editBookingMessageSchema);
+  edit = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
+    const body = await parseRequestBody(request, editBookingMessageSchema);
     const result = await this.bookingMessagesService.edit({
-      bookingRequestId: this.requireBookingRequestId(context),
-      messageId: this.requireMessageId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
+      messageId: this.requireMessageId(request),
       actorUserId: auth.sub,
       body: body.body,
     });
 
-    return ok(context, result, { message: "Message updated successfully." });
+    ok(response, result, { message: "Message updated successfully." });
   };
 
-  remove = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
+  remove = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
     const result = await this.bookingMessagesService.remove({
-      bookingRequestId: this.requireBookingRequestId(context),
-      messageId: this.requireMessageId(context),
+      bookingRequestId: this.requireBookingRequestId(request),
+      messageId: this.requireMessageId(request),
       actorUserId: auth.sub,
     });
 
-    return ok(context, result, { message: "Message deleted successfully." });
+    ok(response, result, { message: "Message deleted successfully." });
   };
 
-  socketTicket = async (context: Context<AppBindings>): Promise<Response> => {
+  socketTicket = async (request: Request, response: Response): Promise<void> => {
     // Session bearer only, like the socket it authorizes: a PAT must not be
     // exchangeable for a long-lived connection.
-    const auth = await requireSessionAuth(context);
+    const auth = await requireSessionAuth(request);
     const result = await this.bookingMessagesService.createSocketTicket(
-      this.requireBookingRequestId(context),
+      this.requireBookingRequestId(request),
       auth.sub,
       // Recorded so the socket can be re-checked against this session later.
       // The claim bag is loosely typed, so both fields are narrowed rather than
@@ -112,7 +111,7 @@ export class BookingMessagesController {
     // query parameter: a browser `WebSocket` cannot set headers, and the query
     // string is visible to proxies and access logs. Scoping the path keeps it
     // off every other request to this origin.
-    setCookie(context, BOOKING_MESSAGE_SOCKET_COOKIE_NAME, result.ticket, {
+    writeCookie(response, BOOKING_MESSAGE_SOCKET_COOKIE_NAME, result.ticket, {
       path: BOOKING_MESSAGE_SOCKET_PATH,
       httpOnly: true,
       secure: environment.isProduction(),
@@ -120,42 +119,43 @@ export class BookingMessagesController {
       maxAge: result.expiresInSeconds,
     });
 
-    return created(
-      context,
+    created(
+      response,
       { expiresInSeconds: result.expiresInSeconds },
       { message: "Socket ticket issued successfully." },
     );
   };
 
-  markRead = async (context: Context<AppBindings>): Promise<Response> => {
-    const auth = await requireJwtAuth(context);
+  markRead = async (request: Request, response: Response): Promise<void> => {
+    const auth = await requireJwtAuth(request);
     const result = await this.bookingMessagesService.markRead(
-      this.requireBookingRequestId(context),
+      this.requireBookingRequestId(request),
       auth.sub,
     );
 
-    return ok(context, result, {
+    ok(response, result, {
       message: "Messages marked as read.",
     });
   };
 
-  private requireBookingRequestId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "id");
+  private requireBookingRequestId(request: Request): string {
+    return requireSafeRouteParam(request, "id");
   }
 
-  private requireMessageId(context: Context<AppBindings>): string {
-    return requireSafeRouteParam(context, "messageId");
+  private requireMessageId(request: Request): string {
+    return requireSafeRouteParam(request, "messageId");
   }
 
-  private parseListQuery(
-    context: Context<AppBindings>,
-  ): ListBookingMessagesQuery {
-    const url = new URL(context.req.url);
+  private parseListQuery(request: Request): ListBookingMessagesQuery {
+    // `getQuery` flattens repeated keys to one value each. Express hands back
+    // `string[]` where Hono gave a single string, and the schema coerces
+    // numbers — an array would coerce to NaN rather than fail cleanly.
+    const query = getQuery(request);
 
     try {
       return listBookingMessagesQuerySchema.parse({
-        page: url.searchParams.get("page") ?? undefined,
-        pageSize: url.searchParams.get("pageSize") ?? undefined,
+        page: query.page,
+        pageSize: query.pageSize,
       });
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");
