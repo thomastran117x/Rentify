@@ -72,11 +72,13 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.bookingMessagesRepository,
         containerTokens.authRepository,
+        containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new BookingMessageEmailComposer(
           resolve(containerTokens.bookingMessagesRepository),
           resolve(containerTokens.authRepository),
+          resolve(containerTokens.organizationAccessService),
         ),
     });
     container.register({

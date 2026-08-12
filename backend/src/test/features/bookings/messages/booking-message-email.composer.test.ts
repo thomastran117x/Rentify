@@ -1,6 +1,8 @@
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
+import ForbiddenError from "@/errors/http/forbidden.error";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 
 const INPUT = {
   bookingRequestId: "booking-1",
@@ -31,6 +33,7 @@ function createComposer(
   options: {
     message?: unknown;
     recipient?: unknown;
+    membershipError?: Error;
   } = {},
 ) {
   const bookingMessagesRepository = {
@@ -38,6 +41,17 @@ function createComposer(
       options.message === undefined ? createMessageContext() : options.message,
     ),
   } as unknown as BookingMessagesRepository;
+
+  const organizationAccessService = {
+    requireMembership: jest.fn(async () => {
+      if (options.membershipError) {
+        throw options.membershipError;
+      }
+
+      return { organizationId: "org-1", role: "primary_manager" };
+    }),
+    canManage: jest.fn(() => true),
+  } as unknown as OrganizationAccessService;
 
   const authRepository = {
     findUserById: jest.fn(async () =>
@@ -51,6 +65,7 @@ function createComposer(
     composer: new BookingMessageEmailComposer(
       bookingMessagesRepository,
       authRepository,
+      organizationAccessService,
     ),
     bookingMessagesRepository,
     authRepository,
@@ -83,6 +98,30 @@ describe("BookingMessageEmailComposer", () => {
     });
 
     await expect(composer.compose(INPUT)).resolves.toBeNull();
+  });
+
+  it("returns null when the recipient is no longer a party to the booking", async () => {
+    const { composer, authRepository } = createComposer({
+      membershipError: new ForbiddenError("No access."),
+    });
+
+    // The recipient was the organization's primary manager when the message was
+    // written. If they were removed before the worker ran, this email would
+    // carry a snippet of a conversation they can no longer read.
+    await expect(composer.compose(INPUT)).resolves.toBeNull();
+    expect(authRepository.findUserById).not.toHaveBeenCalled();
+  });
+
+  it("still notifies the renter, who is a party by definition", async () => {
+    const { composer } = createComposer({
+      membershipError: new ForbiddenError("No access."),
+    });
+
+    // The renter is resolved from the booking's own `renterId`, so the
+    // membership lookup is never reached for them.
+    await expect(
+      composer.compose({ ...INPUT, recipientId: "renter-1" }),
+    ).resolves.toMatchObject({ to: "owner@example.com" });
   });
 
   it("returns null when the author deleted the message before delivery", async () => {

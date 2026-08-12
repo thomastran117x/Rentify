@@ -1,4 +1,6 @@
 import type { AuthRepository } from "@/features/auth/auth.repository";
+import { resolveBookingParticipantAccess } from "@/features/bookings/booking-participants";
+import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { BookingMessageEmailContent } from "@/features/bookings/messages/booking-messages.model";
 import { MAX_BOOKING_MESSAGE_SNIPPET_LENGTH } from "@/features/bookings/messages/booking-messages.model";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
@@ -21,6 +23,7 @@ export class BookingMessageEmailComposer {
   constructor(
     private readonly bookingMessagesRepository: BookingMessagesRepository,
     private readonly authRepository: AuthRepository,
+    private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
   async compose(
@@ -40,6 +43,21 @@ export class BookingMessageEmailComposer {
     // the worker acknowledge without sending, which is what it does for a
     // message that has gone entirely.
     if (message.deletedAt) {
+      return null;
+    }
+
+    // Re-checked at send time, not trusted from the job. The recipient was the
+    // organization's primary manager when the message was written; by the time
+    // the worker runs they may have been removed or replaced, and this email
+    // carries a snippet of a private conversation. Membership is the gate for
+    // reading the thread, so it has to be the gate for being told about it.
+    try {
+      await resolveBookingParticipantAccess(
+        this.organizationAccessService,
+        message.bookingRequest,
+        input.recipientId,
+      );
+    } catch {
       return null;
     }
 
