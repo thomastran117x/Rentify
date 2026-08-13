@@ -302,17 +302,26 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
   }
 
   if (isBookingMessageSocketTicketRoute(request, pathname)) {
-    // Sized for the client's reconnect ladder (1/2/4/8/15s then holding at
-    // 15s): a healthy client uses well under 20 attempts across five minutes
-    // even during a full outage, while a reconnect storm trips this.
+    // One ticket is minted per panel mount and per reconnect attempt, and a
+    // ticket is single-use, so this bucket is spent by ordinary navigation as
+    // well as by trouble. Sized for the former: opening a thread, reading it and
+    // moving to the next is a few seconds of work, and an owner triaging their
+    // inbox can reasonably do dozens in five minutes. A client in trouble is
+    // bounded separately — it gives up after five consecutive failures and falls
+    // back to polling — so this does not have to be the thing that stops a
+    // reconnect storm.
+    //
+    // It was 20, sized against a backoff ladder the client no longer implements;
+    // that left roughly twenty thread visits before a user was silently dropped
+    // to polling.
     return createPolicy(request, {
       id: "booking-messages-socket-ticket",
       bucketKey: `${request.method}:booking-messages-socket-ticket`,
       strategy: "sliding-window",
-      limit: 20,
+      limit: 60,
       windowSeconds: 300,
-      bucketCapacity: 20,
-      refillTokensPerSecond: 20 / 300,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 60 / 300,
     });
   }
 

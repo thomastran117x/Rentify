@@ -140,50 +140,6 @@ export class CacheService {
     return this.getClient().ttl(key);
   }
 
-  /**
-   * Publishes to a Redis pub/sub channel and returns the number of subscribers
-   * that received the message.
-   *
-   * Fan-out only — pub/sub is fire-and-forget, so a message published while no
-   * subscriber is connected is dropped. Callers must not rely on this for
-   * durability.
-   */
-  async publish(channel: string, message: string): Promise<number> {
-    return this.getClient().publish(channel, message);
-  }
-
-  /**
-   * Adds or updates a member in a sorted set, scored by an expiry timestamp.
-   *
-   * The pattern this exists for is a lease register: many holders, each with an
-   * independent expiry, where the set is live if any unexpired member remains.
-   * A counter cannot express that — refreshing it renews every holder's share
-   * at once, including shares belonging to processes that have since died.
-   */
-  async addToLeaseSet(
-    key: string,
-    member: string,
-    expiresAtMs: number,
-  ): Promise<void> {
-    await this.getClient().zAdd(key, { score: expiresAtMs, value: member });
-  }
-
-  async removeFromLeaseSet(key: string, member: string): Promise<void> {
-    await this.getClient().zRem(key, member);
-  }
-
-  /**
-   * Drops expired members and returns how many remain. Pruning on read is what
-   * makes a crashed holder's lease disappear on its own: nothing else is going
-   * to come back and remove it.
-   */
-  async countLiveLeases(key: string, nowMs: number): Promise<number> {
-    const client = this.getClient();
-    await client.zRemRangeByScore(key, "-inf", nowMs);
-
-    return client.zCard(key);
-  }
-
   async increment(key: string, amount = 1): Promise<number> {
     return this.getClient().incrBy(key, amount);
   }

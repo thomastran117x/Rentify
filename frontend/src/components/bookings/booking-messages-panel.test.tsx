@@ -892,6 +892,93 @@ describe("BookingMessagesPanel", () => {
     expect(await screen.findByText(/^Read /)).toBeInTheDocument();
   });
 
+  it("orders two messages that arrive during one history request", async () => {
+    let releaseList: (() => void) | undefined;
+
+    listMock.mockReset();
+    listMock.mockResolvedValueOnce(buildList({ messages: [buildMessage()] }));
+    listMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = () =>
+            resolve(buildList({ messages: [buildMessage()] }));
+        }),
+    );
+
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+
+    captureStreamHandlers().onStatus("open");
+    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+
+    for (const [id, body, at] of [
+      ["arrival-1", "First reply", "2026-08-10T12:10:00.000Z"],
+      ["arrival-2", "Second reply", "2026-08-10T12:20:00.000Z"],
+    ]) {
+      captureStreamHandlers().onEvent({
+        type: "message.created",
+        bookingRequestId: "booking-1",
+        message: buildMessage({
+          id,
+          body,
+          createdAt: at,
+          authorId: "owner-9",
+          authorSide: "owner",
+        }),
+      });
+    }
+
+    if (!releaseList) {
+      throw new Error("The second history request never started.");
+    }
+
+    releaseList();
+
+    // Buffered arrivals accumulate oldest-first while the response is
+    // newest-first, so prepending them verbatim rendered the pair upside down
+    // relative to each other once the list is flipped for display.
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByTestId("booking-message")
+          .map((bubble) => bubble.querySelector("p")?.textContent),
+      ).toEqual([
+        "Is an early pickup possible?",
+        "First reply",
+        "Second reply",
+      ]),
+    );
+  });
+
+  it("counts a message that arrives while the tab is hidden as unread", async () => {
+    renderPanel();
+    await screen.findByText("Is an early pickup possible?");
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledTimes(1));
+
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+
+    try {
+      captureStreamHandlers().onEvent({
+        type: "message.created",
+        bookingRequestId: "booking-1",
+        message: buildMessage({
+          id: "unseen",
+          authorId: "owner-9",
+          authorSide: "owner",
+          body: "While you were away",
+        }),
+      });
+
+      // It is not being marked read, so it is genuinely unread and the badge
+      // has to say so. The count otherwise only ever came from a list response.
+      expect(await screen.findByText("1 unread")).toBeInTheDocument();
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
   it("names who the viewer is talking to", async () => {
     renderPanel();
 

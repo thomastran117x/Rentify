@@ -24,10 +24,11 @@ export const MAX_BOOKING_MESSAGE_SNIPPET_LENGTH = 140;
 export const BOOKING_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 /**
- * A browser `WebSocket` cannot send an `Authorization` header, so the client
- * exchanges its bearer token for a short-lived single-use ticket over REST and
- * presents that on the upgrade. Kept brief because it necessarily travels in
- * the query string, where proxies and access logs can see it.
+ * A browser cannot set an `Authorization` header on the Socket.IO handshake, so
+ * the client exchanges its bearer token for a short-lived single-use ticket over
+ * REST. The ticket comes back as an HttpOnly cookie scoped to the socket path,
+ * which keeps it out of URLs, proxy logs and page scripts; the short life bounds
+ * what a leaked one is worth.
  */
 export const BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS = 30;
 
@@ -39,9 +40,6 @@ export const BOOKING_MESSAGE_SOCKET_COOKIE_NAME = "rentify_ws_ticket";
 
 /** How long a typing indicator stands before it expires on its own. */
 export const BOOKING_MESSAGE_TYPING_TTL_SECONDS = 6;
-
-/** Presence keys are refreshed by heartbeat and expire if a socket vanishes. */
-export const BOOKING_MESSAGE_PRESENCE_TTL_SECONDS = 45;
 
 // `.trim()` runs before the length checks, so a whitespace-only body is
 // rejected and a 2000-character body with trailing spaces is accepted.
@@ -200,12 +198,6 @@ export interface BookingMessageSocketIdentity {
   sessionId: string | null;
   tokenVersion: number | null;
 }
-
-/** Frames the client may send once connected. */
-export type BookingMessageClientFrame =
-  | { type: "typing" }
-  | { type: "delivered"; messageIds: string[] }
-  | { type: "ping" };
 
 export type BookingMessageStreamEvent =
   | {

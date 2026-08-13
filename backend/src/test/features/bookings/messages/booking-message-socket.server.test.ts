@@ -97,7 +97,13 @@ describe("BookingMessageSocketServer", () => {
 
   beforeEach(async () => {
     socketServer = new BookingMessageSocketServer();
-    httpServer = createServer((_request, response) => {
+    httpServer = createServer((request, response) => {
+      if (request.url === "/slow") {
+        // Deliberately never answered: the shutdown test needs a connection
+        // that is serving a request, which is what a rolling deploy has.
+        return;
+      }
+
       response.writeHead(404);
       response.end();
     });
@@ -474,6 +480,44 @@ describe("BookingMessageSocketServer", () => {
     // every REST call is being rejected.
     expect(fakes.authorizeStream).toHaveBeenCalled();
     expect(socketServer.activeConnectionCount()).toBe(0);
+  }, 20_000);
+
+  it("closes even with a request in flight on the same server", async () => {
+    installFakeContainer();
+    const socket = await connected();
+
+    // The http server is closed first, exactly as the process shutdown does,
+    // and a request is left hanging. `io.close()` would delegate to
+    // `httpServer.close(cb)`; that second close waits on a `close` event which
+    // cannot fire while a connection is serving a request, so the await never
+    // settled and every rolling deploy hung until the container was killed.
+    // `closeIdleConnections()` cannot rescue it either — that connection is not
+    // idle, which is the whole point.
+    const abort = new AbortController();
+    const inFlight = fetch(`http://127.0.0.1:${port}/slow`, {
+      signal: abort.signal,
+    }).catch(() => undefined);
+    await settle(10);
+    httpServer.close();
+
+    const clientClosed = new Promise<void>((resolve) =>
+      socket.once("disconnect", () => resolve()),
+    );
+
+    const outcome = await Promise.race([
+      socketServer.close().then(() => "closed"),
+      new Promise((resolve) => setTimeout(() => resolve("hung"), 4_000)),
+    ]);
+
+    expect(outcome).toBe("closed");
+
+    // The client is told, rather than merely dropped when the process exits.
+    await clientClosed;
+    expect(socket.connected).toBe(false);
+
+    abort.abort();
+    await inFlight;
+    httpServer.closeAllConnections();
   }, 20_000);
 
   it("disconnects everyone when the server closes", async () => {

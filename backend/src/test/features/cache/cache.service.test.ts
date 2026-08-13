@@ -14,7 +14,6 @@ function createRedisClientMock() {
     mSet: jest.fn(),
     scan: jest.fn(),
     eval: jest.fn(),
-    publish: jest.fn(),
     getDel: jest.fn(),
   };
 }
@@ -35,20 +34,6 @@ describe("CacheService", () => {
     expect(client.set).toHaveBeenNthCalledWith(2, "key-3", "value-3", {
       EX: 60,
     });
-  });
-
-  it("publishes to a channel and returns the subscriber count", async () => {
-    const client = createRedisClientMock();
-    client.publish.mockResolvedValue(2);
-    const service = new CacheService(client as any);
-
-    await expect(
-      service.publish("booking-messages:booking-1", '{"type":"ping"}'),
-    ).resolves.toBe(2);
-    expect(client.publish).toHaveBeenCalledWith(
-      "booking-messages:booking-1",
-      '{"type":"ping"}',
-    );
   });
 
   it("parses cached JSON values and deletes malformed payloads", async () => {

@@ -425,9 +425,14 @@ export function BookingMessagesPanel({
         // before a mark-read carries `readAt: null`, so replaying the events
         // that landed while it was in flight is what stops the merge from
         // reverting a receipt the user has already been shown.
+        //
+        // `missed` is reversed because it accumulates in arrival order, oldest
+        // first, while the response is newest first. Prepending it as-is put two
+        // messages that landed during one request in the wrong order relative to
+        // each other once the list is flipped for display.
         const merged = reads.reduce(
           applyReadCutoff,
-          [...missed, ...result.messages]
+          [...[...missed].reverse(), ...result.messages]
             .slice(0, PAGE_SIZE)
             .map((message) => updates.get(message.id) ?? message),
         );
@@ -528,11 +533,17 @@ export function BookingMessagesPanel({
           // background tab tells the sender their message was read by someone
           // who has not looked at it. The focus handler picks it up when they
           // genuinely come back.
-          if (
-            event.message.authorSide !== viewerSideRef.current &&
-            document.visibilityState === "visible"
-          ) {
-            void markReadRef.current();
+          if (event.message.authorSide !== viewerSideRef.current) {
+            if (document.visibilityState === "visible") {
+              void markReadRef.current();
+            } else {
+              // Not marked read, so it is genuinely unread and the badge has to
+              // say so. Without this the count only ever came from a list
+              // response, and silent re-syncs skip it — so a thread left open
+              // showed nothing at all for messages that arrived while it sat
+              // there.
+              setUnreadCount((previous) => previous + 1);
+            }
           }
 
           return;

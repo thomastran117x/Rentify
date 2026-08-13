@@ -101,6 +101,8 @@ export class BookingMessageSocketServer {
   private io: SocketIoServer | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
   private adapterClients: Array<{ quit: () => Promise<unknown> }> = [];
+  /** Background work in flight, so shutdown can drain it before quitting Redis. */
+  private readonly pending = new Set<Promise<unknown>>();
 
   constructor() {
     this.logger = loggerFactory.forClass(BookingMessageSocketServer, "service");
@@ -132,11 +134,11 @@ export class BookingMessageSocketServer {
     });
 
     this.io.use((socket, next) => {
-      void this.authenticate(socket as BookingMessageSocket, next);
+      this.track(this.authenticate(socket as BookingMessageSocket, next));
     });
 
     this.io.on("connection", (socket) => {
-      void this.register(socket as BookingMessageSocket);
+      this.track(this.register(socket as BookingMessageSocket));
     });
 
     this.reauthorize = setInterval(
@@ -154,13 +156,25 @@ export class BookingMessageSocketServer {
     const io = this.io;
 
     if (io) {
-      // `this.io` stays set through this: closing disconnects every client, and
-      // those disconnect handlers publish the final offline presence. Clearing
-      // it first made `publish` a no-op through its optional chain, so during a
-      // rollout the other instances kept showing the departing side as online.
-      await new Promise<void>((resolve) => {
-        io.close(() => resolve());
-      });
+      // `local` is load-bearing: with the Redis adapter a bare
+      // `disconnectSockets()` is a cluster-wide broadcast, so shutting one
+      // instance down would disconnect every client on every other one.
+      io.local.disconnectSockets(true);
+
+      // `this.io` stays set while the disconnect handlers run, because they
+      // publish the final offline presence and `publish` reads it. Redis has to
+      // still be connected for those writes, which is why the adapter clients
+      // are quit after this rather than before.
+      await Promise.allSettled([...this.pending]);
+
+      // The engine, and deliberately *not* `io.close()`. That delegates to
+      // `httpServer.close(cb)`, which the process shutdown has already called;
+      // a second close registers its callback on a `close` event that never
+      // fires again while any request is still in flight — and a request in
+      // flight is the normal state during a rolling deploy. The await would
+      // hang forever, and `closeIdleConnections()` cannot rescue it, because a
+      // connection serving a request is not idle.
+      io.engine.close();
     }
 
     this.io = null;
@@ -169,6 +183,29 @@ export class BookingMessageSocketServer {
       this.adapterClients.map((client) => client.quit()),
     );
     this.adapterClients = [];
+  }
+
+  /**
+   * Keeps a handle on background work and swallows its failure.
+   *
+   * Every one of these runs from an event handler, so nothing awaits it: an
+   * `adapter.fetchSockets()` timing out during a rolling deploy would otherwise
+   * surface as an unhandled rejection, and this process installs no handler for
+   * those — one slow peer would take down an otherwise healthy node.
+   */
+  private track(work: Promise<unknown>): void {
+    const tracked = work.catch((error: unknown) => {
+      this.logger.error(
+        "Booking message socket work failed.",
+        undefined,
+        error,
+      );
+    });
+
+    this.pending.add(tracked);
+    void tracked.finally(() => {
+      this.pending.delete(tracked);
+    });
   }
 
   /** Open sockets on this instance. Used by tests and diagnostics. */
@@ -215,8 +252,12 @@ export class BookingMessageSocketServer {
       const publisher = getRedisClient().duplicate();
       const subscriber = publisher.duplicate();
 
-      await Promise.all([publisher.connect(), subscriber.connect()]);
+      // Recorded before connecting, not after. Assigning only on success meant
+      // that if the subscriber failed, the already-connected publisher was
+      // never referenced again and its connection leaked for the life of the
+      // process.
       this.adapterClients = [publisher, subscriber];
+      await Promise.all([publisher.connect(), subscriber.connect()]);
 
       return createAdapter(publisher, subscriber);
     } catch (error) {
@@ -296,13 +337,13 @@ export class BookingMessageSocketServer {
     ]);
 
     socket.on("typing", () => {
-      void this.handleTyping(socket);
+      this.track(this.handleTyping(socket));
     });
     socket.on("delivered", (payload: unknown) => {
-      void this.handleDelivered(socket, payload);
+      this.track(this.handleDelivered(socket, payload));
     });
     socket.on("disconnect", () => {
-      void this.handleDisconnect(socket);
+      this.track(this.handleDisconnect(socket));
     });
 
     socket.emit("ready", { type: "ready", bookingRequestId });
