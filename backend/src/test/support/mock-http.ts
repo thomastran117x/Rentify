@@ -1,4 +1,8 @@
-﻿import type { Request, Response } from "express";
+﻿import {
+  serialize as serializeCookie,
+  type SerializeOptions as CookieSerializeOptions,
+} from "cookie";
+import type { Request, Response } from "express";
 
 export interface MockRequestOptions {
   method?: string;
@@ -227,6 +231,7 @@ export function createMockResponse(): MockResponse {
   let sentBody: unknown;
   let finished = false;
   const headers: Record<string, string> = {};
+  const cookies: string[] = [];
 
   const response = {
     get statusCode() {
@@ -278,10 +283,26 @@ export function createMockResponse(): MockResponse {
       headers.vary = headers.vary ? `${headers.vary}, ${name}` : name;
       return response;
     },
-    cookie() {
+    cookie(name: string, value: string, options: CookieSerializeOptions = {}) {
+      // Serialised rather than swallowed. A handler that sets a cookie is
+      // usually setting it for its *attributes* — HttpOnly, Path, SameSite —
+      // and a stub recording nothing lets all of that pass untested. Express
+      // takes maxAge in milliseconds and emits Max-Age in seconds; the same
+      // conversion happens here so assertions see what the wire would carry.
+      cookies.push(
+        serializeCookie(name, value, {
+          ...options,
+          ...(options.maxAge === undefined
+            ? {}
+            : { maxAge: Math.floor(options.maxAge / 1000) }),
+        }),
+      );
+      headers["set-cookie"] = cookies.join(", ");
       return response;
     },
-    clearCookie() {
+    clearCookie(name: string, options: CookieSerializeOptions = {}) {
+      cookies.push(serializeCookie(name, "", { ...options, maxAge: 0 }));
+      headers["set-cookie"] = cookies.join(", ");
       return response;
     },
     on() {

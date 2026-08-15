@@ -50,6 +50,17 @@ export interface SendOrganizationInviteEmailInput {
   token: string;
 }
 
+/**
+ * Carries ids rather than a rendered recipient: the delivery worker hydrates
+ * the message, posting, author, and recipient address from the database when it
+ * processes the job, so the email always reflects current data.
+ */
+export interface SendBookingMessageNotificationEmailInput {
+  bookingRequestId: string;
+  recipientId: string;
+  messageId: string;
+}
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -87,5 +98,11 @@ export class EmailService {
     input: SendOrganizationInviteEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("organization_invite", input);
+  }
+
+  async sendBookingMessageNotificationEmail(
+    input: SendBookingMessageNotificationEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("booking_message", input);
   }
 }

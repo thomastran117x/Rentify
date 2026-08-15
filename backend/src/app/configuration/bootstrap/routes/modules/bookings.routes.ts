@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BookingsController } from "@/features/bookings/bookings.controller";
+import type { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const bookingsRouteModule: RouteModule = {
@@ -94,6 +95,48 @@ export const bookingsRouteModule: RouteModule = {
       resolveHandler<BookingsController>(
         containerTokens.bookingsController,
         "cancel",
+      ),
+    );
+    app.get(
+      "/booking-requests/:id/messages",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "list",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/messages",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "send",
+      ),
+    );
+    app.patch(
+      "/booking-requests/:id/messages/:messageId",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "edit",
+      ),
+    );
+    app.delete(
+      "/booking-requests/:id/messages/:messageId",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "remove",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/messages/read",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "markRead",
+      ),
+    );
+    app.post(
+      "/booking-requests/:id/messages/socket-ticket",
+      resolveHandler<BookingMessagesController>(
+        containerTokens.bookingMessagesController,
+        "socketTicket",
       ),
     );
   },

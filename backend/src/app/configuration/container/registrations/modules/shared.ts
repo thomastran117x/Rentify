@@ -30,8 +30,13 @@ export const sharedRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.emailDeliveryService,
       lifetime: "singleton",
-      dependencies: [],
-      resolve: () => new EmailDeliveryService(),
+      dependencies: [containerTokens.bookingMessageEmailComposer],
+      resolve: ({ resolve }) =>
+        new EmailDeliveryService({
+          bookingMessageEmailComposer: resolve(
+            containerTokens.bookingMessageEmailComposer,
+          ),
+        }),
     });
     container.register({
       token: containerTokens.emailService,

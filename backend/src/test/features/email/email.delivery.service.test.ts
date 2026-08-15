@@ -1,3 +1,4 @@
+import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 
 function createTransporterMock() {
@@ -7,11 +8,20 @@ function createTransporterMock() {
   };
 }
 
+function createComposerMock() {
+  return {
+    compose: jest.fn(),
+  };
+}
+
 function createService(
   transporter: ReturnType<typeof createTransporterMock>,
   overrides: Record<string, unknown> = {},
+  composer: ReturnType<typeof createComposerMock> = createComposerMock(),
 ) {
   return new EmailDeliveryService({
+    bookingMessageEmailComposer:
+      composer as unknown as BookingMessageEmailComposer,
     transporter: transporter as any,
     gmailUser: "gmail-user@example.com",
     gmailAppPassword: "app-password",
@@ -432,5 +442,98 @@ describe("EmailDeliveryService", () => {
     } finally {
       Math.random = originalRandom;
     }
+  });
+
+  describe("booking message notifications", () => {
+    const payload = {
+      jobId: "job-1",
+      kind: "booking_message" as const,
+      input: {
+        bookingRequestId: "booking-1",
+        recipientId: "user-1",
+        messageId: "message-1",
+      },
+      attempt: 0,
+      occurredAt: "2026-08-10T12:00:00.000Z",
+    };
+
+    it("delivers a hydrated payload that carries no recipient address", async () => {
+      const transporter = createTransporterMock();
+      transporter.sendMail.mockResolvedValue({ messageId: "smtp-1" });
+      const composer = createComposerMock();
+      composer.compose.mockResolvedValue({
+        to: "owner@example.com",
+        firstName: "Ada",
+        postingName: "Cargo van",
+        authorName: "Jordan Lee",
+        snippet: "Is the van available early?",
+        bookingRequestId: "booking-1",
+      });
+      const service = createService(transporter, {}, composer);
+
+      // The payload deliberately has no `input.to`; delivery must not
+      // dereference one before the composer resolves the recipient.
+      await expect(service.deliver(payload)).resolves.toBeUndefined();
+
+      expect(composer.compose).toHaveBeenCalledWith(payload.input);
+      expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+
+      const message = transporter.sendMail.mock.calls[0][0];
+      expect(message.to).toBe("owner@example.com");
+      expect(message.subject).toBe("New message about Cargo van");
+      expect(message.html).toContain(
+        "https://app.example.com/bookings/booking-1",
+      );
+      expect(message.html).toContain("Jordan Lee");
+      expect(message.text).toContain("Is the van available early?");
+    });
+
+    it("skips delivery when the referenced records no longer exist", async () => {
+      const transporter = createTransporterMock();
+      const composer = createComposerMock();
+      composer.compose.mockResolvedValue(null);
+      const service = createService(transporter, {}, composer);
+
+      await expect(service.deliver(payload)).resolves.toBeUndefined();
+      expect(transporter.sendMail).not.toHaveBeenCalled();
+    });
+
+    it("suppresses non-deliverable composed recipients", async () => {
+      const transporter = createTransporterMock();
+      const composer = createComposerMock();
+      composer.compose.mockResolvedValue({
+        to: "owner1@rentify.local",
+        postingName: "Cargo van",
+        authorName: "Jordan Lee",
+        snippet: "Hello",
+        bookingRequestId: "booking-1",
+      });
+      const service = createService(transporter, {}, composer);
+
+      await expect(service.deliver(payload)).resolves.toBeUndefined();
+      expect(transporter.sendMail).not.toHaveBeenCalled();
+    });
+
+    it("escapes composed content in the rendered html", async () => {
+      const transporter = createTransporterMock();
+      transporter.sendMail.mockResolvedValue({ messageId: "smtp-1" });
+      const composer = createComposerMock();
+      composer.compose.mockResolvedValue({
+        to: "owner@example.com",
+        postingName: "<script>alert(1)</script>",
+        authorName: "Jordan & Co",
+        snippet: "<b>bold</b>",
+        bookingRequestId: "booking-1",
+      });
+      const service = createService(transporter, {}, composer);
+
+      await service.deliver(payload);
+
+      const message = transporter.sendMail.mock.calls[0][0];
+      expect(message.html).not.toContain("<script>");
+      expect(message.html).toContain("&lt;script&gt;");
+      expect(message.html).toContain("Jordan &amp; Co");
+      expect(message.html).toContain("&lt;b&gt;bold&lt;/b&gt;");
+    });
   });
 });

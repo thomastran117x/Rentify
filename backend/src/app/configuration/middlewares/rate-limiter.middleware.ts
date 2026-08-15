@@ -216,6 +216,32 @@ function isPaymentMutationRoute(request: Request, pathname: string): boolean {
   );
 }
 
+function isBookingMessageWriteRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return (
+    request.method === "POST" &&
+    /^\/booking-requests\/[^/]+\/messages(?:\/read)?$/.test(pathname)
+  );
+}
+
+/**
+ * Ticket issuance is the throttle point for the socket transport. The upgrade
+ * itself never reaches this middleware — it is served off the raw Node server —
+ * so the only place a reconnect storm can be caught is where the ticket that
+ * makes a connection possible is minted.
+ */
+function isBookingMessageSocketTicketRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return (
+    request.method === "POST" &&
+    /^\/booking-requests\/[^/]+\/messages\/socket-ticket$/.test(pathname)
+  );
+}
+
 function isPaymentWebhookRoute(request: Request, pathname: string): boolean {
   return request.method === "POST" && pathname === "/payments/webhooks/square";
 }
@@ -272,6 +298,44 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
       windowSeconds: 60,
       bucketCapacity: 12,
       refillTokensPerSecond: 12 / 60,
+    });
+  }
+
+  if (isBookingMessageSocketTicketRoute(request, pathname)) {
+    // One ticket is minted per panel mount and per reconnect attempt, and a
+    // ticket is single-use, so this bucket is spent by ordinary navigation as
+    // well as by trouble. Sized for the former: opening a thread, reading it and
+    // moving to the next is a few seconds of work, and an owner triaging their
+    // inbox can reasonably do dozens in five minutes. A client in trouble is
+    // bounded separately — it gives up after five consecutive failures and falls
+    // back to polling — so this does not have to be the thing that stops a
+    // reconnect storm.
+    //
+    // It was 20, sized against a backoff ladder the client no longer implements;
+    // that left roughly twenty thread visits before a user was silently dropped
+    // to polling.
+    return createPolicy(request, {
+      id: "booking-messages-socket-ticket",
+      bucketKey: `${request.method}:booking-messages-socket-ticket`,
+      strategy: "sliding-window",
+      limit: 60,
+      windowSeconds: 300,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 60 / 300,
+    });
+  }
+
+  if (isBookingMessageWriteRoute(request, pathname)) {
+    // Sends and focus-triggered mark-reads share this bucket. Far above a
+    // human chat rate, and tighter than the 60/min default it replaces.
+    return createPolicy(request, {
+      id: "booking-messages-write",
+      bucketKey: `${request.method}:booking-messages-write`,
+      strategy: "sliding-window",
+      limit: 40,
+      windowSeconds: 60,
+      bucketCapacity: 40,
+      refillTokensPerSecond: 40 / 60,
     });
   }
 

@@ -260,7 +260,9 @@ services:
     image: rent-backend:local
     container_name: rent-email-worker
     restart: unless-stopped
-    depends_on: *rabbitmq-worker-depends-on
+    # Needs the database as well as the queue: the booking message notification
+    # job carries ids that delivery hydrates at send time.
+    depends_on: *recommendation-worker-depends-on
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/email/email-delivery.worker.js"]

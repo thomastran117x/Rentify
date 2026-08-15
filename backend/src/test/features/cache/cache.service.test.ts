@@ -14,6 +14,7 @@ function createRedisClientMock() {
     mSet: jest.fn(),
     scan: jest.fn(),
     eval: jest.fn(),
+    getDel: jest.fn(),
   };
 }
 
@@ -46,6 +47,27 @@ describe("CacheService", () => {
     await expect(service.getJson("good")).resolves.toEqual({ ok: true });
     await expect(service.getJson("bad")).resolves.toBeNull();
     expect(client.del).toHaveBeenCalledWith("bad");
+  });
+
+  it("reads and removes a key in one operation", async () => {
+    const client = createRedisClientMock();
+    client.getDel
+      .mockResolvedValueOnce(JSON.stringify({ userId: "user-1" }))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce("{bad json");
+    const service = new CacheService(client as any);
+
+    await expect(service.getDeleteJson("ticket-1")).resolves.toEqual({
+      userId: "user-1",
+    });
+    await expect(service.getDeleteJson("missing")).resolves.toBeNull();
+    await expect(service.getDeleteJson("malformed")).resolves.toBeNull();
+
+    // GETDEL, not GET-then-DEL: two callers racing on a single-use token must
+    // not both observe it.
+    expect(client.getDel).toHaveBeenCalledTimes(3);
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.del).not.toHaveBeenCalled();
   });
 
   it("supports JSON writes, NX writes, and lazy population helpers", async () => {

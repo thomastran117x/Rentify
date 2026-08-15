@@ -307,6 +307,9 @@ function createService(options?: {
         : null,
     ),
     assertCanManage: jest.fn(() => undefined),
+    canManage: jest.fn(
+      (role: string) => role === "primary_manager" || role === "manager",
+    ),
   } as unknown as OrganizationAccessService;
 
   const seasonalPricingRepository = {
@@ -377,6 +380,7 @@ function createService(options?: {
       requireMembership: jest.Mock;
       findMembership: jest.Mock;
       assertCanManage: jest.Mock;
+      canManage: jest.Mock;
     },
   };
 }

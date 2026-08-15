@@ -1,4 +1,5 @@
 import type {
+  SendBookingMessageNotificationEmailInput,
   SendLoginUnlockEmailInput,
   SendMfaStepUpEmailInput,
   SendNewDeviceEmailInput,
@@ -15,7 +16,8 @@ export type EmailJobKind =
   | "login_unlock"
   | "password_reset"
   | "username_reminder"
-  | "organization_invite";
+  | "organization_invite"
+  | "booking_message";
 
 export type EmailJobInputByKind = {
   verification: SendVerificationEmailInput;
@@ -25,6 +27,7 @@ export type EmailJobInputByKind = {
   password_reset: SendPasswordResetEmailInput;
   username_reminder: SendUsernameReminderEmailInput;
   organization_invite: SendOrganizationInviteEmailInput;
+  booking_message: SendBookingMessageNotificationEmailInput;
 };
 
 export type EmailJobPayload =
@@ -74,6 +77,13 @@ export type EmailJobPayload =
       jobId: string;
       kind: "organization_invite";
       input: SendOrganizationInviteEmailInput;
+      attempt: number;
+      occurredAt: string;
+    }
+  | {
+      jobId: string;
+      kind: "booking_message";
+      input: SendBookingMessageNotificationEmailInput;
       attempt: number;
       occurredAt: string;
     };

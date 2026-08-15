@@ -3,9 +3,11 @@ import {
   getOptionalEnvironmentVariable,
 } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
+import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import { isSuppressedRecipient } from "@/features/email/email-suppression";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
+  SendBookingMessageNotificationEmailInput,
   SendLoginUnlockEmailInput,
   SendMfaStepUpEmailInput,
   SendNewDeviceEmailInput,
@@ -17,6 +19,11 @@ import type {
 import nodemailer, { type Transporter } from "nodemailer";
 
 interface EmailDeliveryServiceOptions {
+  /**
+   * Required: the `booking_message` kind carries ids only, so delivery cannot
+   * render without a composer to hydrate them.
+   */
+  bookingMessageEmailComposer: BookingMessageEmailComposer;
   transporter?: Transporter;
   gmailUser?: string;
   gmailAppPassword?: string;
@@ -75,12 +82,15 @@ export class EmailDeliveryService {
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly appBaseUrl: string;
+  private readonly bookingMessageEmailComposer: BookingMessageEmailComposer;
   private readonly maxRetries: number;
   private readonly initialDelayMs: number;
   private readonly maxDelayMs: number;
   private readonly backoffMultiplier: number;
 
-  constructor(options: EmailDeliveryServiceOptions = {}) {
+  constructor(options: EmailDeliveryServiceOptions) {
+    this.bookingMessageEmailComposer = options.bookingMessageEmailComposer;
+
     const gmailUser = options.gmailUser ?? getEnvironmentVariable("GMAIL_USER");
     const gmailAppPassword =
       options.gmailAppPassword ?? getEnvironmentVariable("GMAIL_APP_PASSWORD");
@@ -117,6 +127,15 @@ export class EmailDeliveryService {
   }
 
   async deliver(payload: EmailJobPayload): Promise<void> {
+    // Hydrated kinds carry ids rather than a recipient address, so their
+    // suppression check has to run after the composer resolves one. Narrowing
+    // after this early return keeps `payload.input.to` valid for every other
+    // kind below.
+    if (payload.kind === "booking_message") {
+      await this.sendBookingMessageNotificationEmail(payload.input);
+      return;
+    }
+
     if (isSuppressedRecipient(payload.input.to)) {
       deliveryLogger.info(
         "Email delivery suppressed for non-deliverable recipient.",
@@ -416,6 +435,69 @@ export class EmailDeliveryService {
           `</div>`,
           this.buildCTAButton(escapedInviteUrl, "Accept Invitation"),
           `<p style="margin:16px 0 0;font-size:13px;color:#64748b;text-align:center;">This invitation expires in 7 days. You can also <a href="${escapedInviteUrl}" style="color:#7c3aed;font-weight:600;">open the invite link directly</a>.</p>`,
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendBookingMessageNotificationEmail(
+    input: SendBookingMessageNotificationEmailInput,
+  ): Promise<void> {
+    const content = await this.bookingMessageEmailComposer.compose(input);
+
+    if (!content) {
+      deliveryLogger.info(
+        "Booking message email skipped; the referenced records no longer exist.",
+        {
+          bookingRequestId: input.bookingRequestId,
+          messageId: input.messageId,
+        },
+      );
+      return;
+    }
+
+    if (isSuppressedRecipient(content.to)) {
+      deliveryLogger.info(
+        "Email delivery suppressed for non-deliverable recipient.",
+        {
+          kind: "booking_message",
+          bookingRequestId: input.bookingRequestId,
+        },
+      );
+      return;
+    }
+
+    const threadUrl = `${this.appBaseUrl}/bookings/${encodeURIComponent(content.bookingRequestId)}`;
+    const greetingName = this.resolveGreetingName(content.firstName);
+    const escapedAuthorName = escapeHtml(content.authorName);
+    const escapedPostingName = escapeHtml(content.postingName);
+    const escapedSnippet = escapeHtml(content.snippet);
+    const escapedThreadUrl = escapeHtml(threadUrl);
+
+    await this.sendWithRetry({
+      to: content.to,
+      subject: `New message about ${content.postingName}`,
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        `${content.authorName} sent you a message about ${content.postingName}.`,
+        "",
+        content.snippet,
+        "",
+        `Open the conversation: ${threadUrl}`,
+        "",
+        "Replying to this email will not reach the sender.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">You have a new message</h1>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)}, ${escapedAuthorName} sent you a message about <strong>${escapedPostingName}</strong>.</p>`,
+          this.buildValueBlock("Message", escapedSnippet),
+          this.buildCTAButton(escapedThreadUrl, "Open the conversation"),
+          this.buildAlertBox(
+            "Reply from the booking page &mdash; replying to this email won&rsquo;t reach the sender.",
+            "info",
+          ),
         ].join(""),
       ),
     });

@@ -79,6 +79,89 @@ The route registry currently groups the API into these main areas:
 - rentings
 - public posting discovery and detail routes
 
+## Realtime Transport
+
+Booking request message threads are the one realtime surface. They run on
+**Socket.IO**, mounted at `/ws/booking-messages` outside the versioned REST
+prefix, with the **Redis adapter** carrying events between API instances.
+
+The shape is: one room per thread, plus one room per _side_ of that thread.
+Messages go to the thread room; presence is answered by asking whether the side
+room has anyone in it. Both rooms are cluster-wide, because the adapter answers
+for every instance rather than just the local one.
+
+Four things are worth knowing before extending it:
+
+- **Deployment requires sticky sessions.** Transports keep Socket.IO's default
+  of polling first and upgrading to WebSocket. The polling handshake is several
+  HTTP requests that must reach the same instance, so a replicated API behind a
+  load balancer needs session affinity configured. Without it the handshake
+  fails in a way that looks like a flaky network. Choosing `transports:
+["websocket"]` would remove that requirement at the cost of failing outright
+  wherever WebSocket upgrades are blocked.
+- **Authentication is a two-step ticket exchange.** A browser cannot set an
+  `authorization` header on this handshake. The client posts to
+  `/booking-requests/{id}/messages/socket-ticket` with its bearer token and the
+  server replies with a single-use 30-second ticket in an HttpOnly cookie scoped
+  to the socket path, which the browser attaches to the handshake. A ticket in
+  the query string would land in proxy and access logs instead. Because a ticket
+  is single-use, Socket.IO's own reconnection is **disabled** on the client and
+  each retry mints a fresh one — reconnecting automatically would replay a
+  spent ticket.
+- **Authorization happens in the handshake, not after it.** The Socket.IO
+  middleware redeems the ticket _and_ resolves the participant's side and write
+  capability before the connection is accepted, so someone who lost access in
+  the ticket's window never reaches a room.
+- **A connection holds no request scope.** Each piece of work creates and
+  disposes its own container scope. A socket that pinned one would hold a
+  database connection for its entire lifetime.
+
+Access is re-checked every 60 seconds on two axes that are easy to conflate.
+**Membership** answers whether this user may still read this thread. **The
+session** answers whether they are still signed in at all — a logout, a password
+change, a token-version bump. Checking only the first leaves a signed-out user
+receiving message bodies over a connection that outlives their session while
+every REST call they make returns 401, so the ticket records the session that
+minted it and the sweep validates both.
+
+**Presence is room membership**, which is worth stating plainly because three
+hand-built designs preceded it and each failed a specific way:
+
+- A **flag per user** cannot answer the question actually being asked — "is
+  anyone from this organization watching" — without enumerating the members.
+- A **tally of one process's sockets** breaks once the API is replicated: each
+  instance sees only its own, so the last one to lose a manager announces the
+  side offline while a colleague sits connected elsewhere.
+- A **shared counter in Redis** fixes that but cannot expire a dead instance's
+  share, because any surviving socket refreshing the key renews every
+  contribution including the dead one's.
+
+Asking the adapter how many sockets are in a side room avoids all three: a dead
+instance's sockets leave the cluster's view on their own, and there is no
+separate bookkeeping that can drift from the connections it describes.
+
+**Online is announced on every arrival, not only the first.** Detecting the edge
+needs a room count, and that count is an asynchronous cluster round trip — two
+sockets joining the same side at once can each observe a size of two, each
+conclude it is not the first, and leave the counterpart stuck on offline.
+Presence is a state rather than an event, so re-announcing it is idempotent and
+race-free. Only the _offline_ transition needs a count, and that one is safe:
+an empty room is empty no matter who observed it. A connecting socket is also
+told the counterpart's current state directly, since their arrival was announced
+before that socket existed.
+
+The adapter has to be in place **before** the server accepts anything. Replacing
+it on a live server does not migrate the rooms of sockets that already joined
+through the in-memory one, so a client connecting during the Redis handshake
+would look healthy and silently stop receiving broadcasts. `attach` is
+asynchronous for that reason.
+
+Shutdown has to dispose the container before disconnecting Redis: that is what
+closes the sockets and lets their rooms empty. Skipping it makes every rollout
+look like an abrupt process death to the other party. The gateway also stays
+usable _through_ its own close, because the disconnect handlers that run during
+it are what publish the final offline presence to the other instances.
+
 ## Background Workers
 
 Workers currently cover:
@@ -107,14 +190,17 @@ This keeps the API focused on request-response work while heavier or asynchronou
 
 Connection pool size is a per-process cost, not a per-request one. The API and
 every worker that touches the database run as separate processes, and each owns
-its own pool. Fifteen processes in the Compose stack connect: the API plus
-fourteen workers. The email, SMS, and log-consumer workers are queue-only and
-never open a database connection.
+its own pool. Sixteen processes in the Compose stack connect: the API plus
+fifteen workers. The SMS and log-consumer workers are queue-only and never open
+a database connection. The email worker used to be queue-only too, but the
+booking message notification job carries ids rather than a rendered recipient,
+so delivery hydrates it from the database at send time.
 
 That makes the arithmetic worth checking before adding a service. The pool holds
 `DATABASE_POOL_MINIMUM_IDLE` connections at rest and grows to
-`DATABASE_POOL_CONNECTION_LIMIT` under load, so the stack costs roughly sixteen
-connections idle and eighty at its ceiling, against the 250 the local MySQL
+`DATABASE_POOL_CONNECTION_LIMIT` under load. Compose gives the API 2/10 and each
+worker 1/5, so the stack costs roughly seventeen connections idle and
+eighty-five at its ceiling, against the 250 the local MySQL
 container allows. A managed instance is usually stricter — connection caps there
 derive from instance size, and a small instance may allow only around 150 — so
 adding replicas of the API multiplies this cost rather than sharing it.
