@@ -8,6 +8,10 @@ import { OrganizationAnnouncementRepository } from "@/features/organizations/org
 import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
 import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
 import { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
+import { OrganizationBlogCommentsRepository } from "@/features/organizations/blog-comments/organization-blog-comments.repository";
+import { OrganizationBlogCommentsService } from "@/features/organizations/blog-comments/organization-blog-comments.service";
+import { OrganizationBlogCommentsController } from "@/features/organizations/blog-comments/organization-blog-comments.controller";
+import { OrganizationBlogCommentSocketServer } from "@/features/organizations/blog-comments/organization-blog-comment-socket.server";
 import { OrganizationReviewRepository } from "@/features/organizations/organization-review.repository";
 import { OrganizationReviewService } from "@/features/organizations/organization-review.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
@@ -84,6 +88,7 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.organizationAuditService,
         containerTokens.blobService,
         containerTokens.organizationBlogPublicSearchService,
+        containerTokens.organizationBlogCommentSocketServer,
       ],
       resolve: ({ resolve }) =>
         new OrganizationBlogService(
@@ -92,6 +97,54 @@ export const organizationsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.organizationAuditService),
           resolve(containerTokens.blobService),
           resolve(containerTokens.organizationBlogPublicSearchService),
+          resolve(containerTokens.organizationBlogCommentSocketServer),
+        ),
+    });
+    container.register({
+      token: containerTokens.organizationBlogCommentsRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new OrganizationBlogCommentsRepository(),
+    });
+    container.register({
+      // Singleton with a dispose hook: it owns the Socket.IO server, its Redis
+      // adapter connections and every open socket, so it must outlive any
+      // request scope. The service resolves it as its realtime seam, which is
+      // not a cycle: this constructor takes no dependencies.
+      token: containerTokens.organizationBlogCommentSocketServer,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new OrganizationBlogCommentSocketServer(),
+      dispose: (socketServer) => socketServer.close(),
+    });
+    container.register({
+      token: containerTokens.organizationBlogCommentsService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.organizationBlogCommentsRepository,
+        containerTokens.organizationAccessService,
+        containerTokens.contentSanitizationService,
+        containerTokens.cacheService,
+        containerTokens.tokenService,
+        containerTokens.organizationBlogCommentSocketServer,
+      ],
+      resolve: ({ resolve }) =>
+        new OrganizationBlogCommentsService(
+          resolve(containerTokens.organizationBlogCommentsRepository),
+          resolve(containerTokens.organizationAccessService),
+          resolve(containerTokens.contentSanitizationService),
+          resolve(containerTokens.cacheService),
+          resolve(containerTokens.tokenService),
+          resolve(containerTokens.organizationBlogCommentSocketServer),
+        ),
+    });
+    container.register({
+      token: containerTokens.organizationBlogCommentsController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.organizationBlogCommentsService],
+      resolve: ({ resolve }) =>
+        new OrganizationBlogCommentsController(
+          resolve(containerTokens.organizationBlogCommentsService),
         ),
     });
     container.register({

@@ -108,6 +108,23 @@ type ReportSubjectReview = {
   };
 };
 
+type ReportSubjectBlogComment = {
+  id: string;
+  body: string;
+  authorUserId: string;
+  deletedAt: Date | null;
+  author: UserSummaryPersistence;
+  post: {
+    id: string;
+    title: string;
+    slug: string;
+    organization: {
+      id: string;
+      name: string;
+    };
+  };
+};
+
 export class ReportsRepository extends BaseRepository {
   async findPostingSubject(
     postingId: string,
@@ -126,6 +143,50 @@ export class ReportsRepository extends BaseRepository {
             select: {
               id: true,
               name: true,
+            },
+          },
+        },
+      }),
+    );
+  }
+
+  async findOrganizationBlogCommentSubject(
+    commentId: string,
+  ): Promise<ReportSubjectBlogComment | null> {
+    return this.executeAsync(() =>
+      this.prisma.organizationBlogComment.findUnique({
+        where: {
+          id: commentId,
+        },
+        select: {
+          id: true,
+          body: true,
+          authorUserId: true,
+          deletedAt: true,
+          author: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              profile: {
+                select: {
+                  username: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+          post: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              organization: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },

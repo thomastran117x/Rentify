@@ -1281,6 +1281,7 @@ export function OrganizationWorkspaceProvider({
       coverImageUrl: post.coverImageUrl ?? "",
       coverImageBlobName: post.coverImageBlobName ?? "",
       status: post.status,
+      commentsEnabled: post.commentsEnabled,
     });
   }
 
@@ -1302,6 +1303,7 @@ export function OrganizationWorkspaceProvider({
         : null,
       coverImageBlobName: blogForm.coverImageBlobName || null,
       status: blogForm.status,
+      commentsEnabled: blogForm.commentsEnabled,
     };
   }
 

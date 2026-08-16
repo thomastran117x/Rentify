@@ -260,6 +260,46 @@ export class ReportsService {
           },
         };
       }
+      case "organization_blog_comment": {
+        const comment =
+          await this.reportsRepository.findOrganizationBlogCommentSubject(
+            input.subjectId,
+          );
+
+        // A tombstone is treated as gone: the text a reporter objected to is
+        // already removed, and a report about it would give a moderator nothing
+        // to act on.
+        if (!comment || comment.deletedAt) {
+          throw new ResourceNotFoundError("Comment could not be found.");
+        }
+
+        if (comment.authorUserId === input.reporterId) {
+          throw new ForbiddenError("You cannot report your own comment.");
+        }
+
+        const author = this.toUserSummary(comment.author);
+        const bodyExcerpt = comment.body.slice(0, 280) || undefined;
+
+        return {
+          subjectType: "organization_blog_comment",
+          summaryText:
+            `${comment.post.title} ${bodyExcerpt ?? ""} ${author.username ?? author.email}`.trim(),
+          comment: {
+            id: comment.id,
+            bodyExcerpt,
+            author,
+            post: {
+              id: comment.post.id,
+              title: comment.post.title,
+              slug: comment.post.slug,
+              organization: {
+                id: comment.post.organization.id,
+                name: comment.post.organization.name,
+              },
+            },
+          },
+        };
+      }
       case "user": {
         const user = await this.reportsRepository.findUserSubject(
           input.subjectId,

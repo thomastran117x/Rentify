@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { OrganizationsController } from "@/features/organizations/organizations.controller";
+import type { OrganizationBlogCommentsController } from "@/features/organizations/blog-comments/organization-blog-comments.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const organizationsRouteModule: RouteModule = {
@@ -134,6 +135,45 @@ export const organizationsRouteModule: RouteModule = {
       resolveHandler<OrganizationsController>(
         containerTokens.organizationsController,
         "getPublicBlogPost",
+      ),
+    );
+    // Blog comments on a published post. Reading is public; writing needs a
+    // signed-in user and an open thread.
+    app.get(
+      "/organizations/:id/blog/:slug/comments",
+      resolveHandler<OrganizationBlogCommentsController>(
+        containerTokens.organizationBlogCommentsController,
+        "list",
+      ),
+    );
+    app.post(
+      "/organizations/:id/blog/:slug/comments",
+      resolveHandler<OrganizationBlogCommentsController>(
+        containerTokens.organizationBlogCommentsController,
+        "create",
+      ),
+    );
+    // Registered before the `:commentId` routes below: Express matches in
+    // order, so `socket-ticket` would otherwise be read as a comment id.
+    app.post(
+      "/organizations/:id/blog/:slug/comments/socket-ticket",
+      resolveHandler<OrganizationBlogCommentsController>(
+        containerTokens.organizationBlogCommentsController,
+        "socketTicket",
+      ),
+    );
+    app.patch(
+      "/organizations/:id/blog/:slug/comments/:commentId",
+      resolveHandler<OrganizationBlogCommentsController>(
+        containerTokens.organizationBlogCommentsController,
+        "update",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/blog/:slug/comments/:commentId",
+      resolveHandler<OrganizationBlogCommentsController>(
+        containerTokens.organizationBlogCommentsController,
+        "remove",
       ),
     );
     // Authenticated, manager-gated blog management.

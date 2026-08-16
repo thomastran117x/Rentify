@@ -30,6 +30,7 @@ export interface BlogFormValue {
   coverImageUrl: string;
   coverImageBlobName: string;
   status: OrganizationBlogStatus;
+  commentsEnabled: boolean;
 }
 
 export function emptyBlogForm(): BlogFormValue {
@@ -42,6 +43,8 @@ export function emptyBlogForm(): BlogFormValue {
     coverImageUrl: "",
     coverImageBlobName: "",
     status: "draft",
+    // New posts accept comments unless a manager says otherwise.
+    commentsEnabled: true,
   };
 }
 
@@ -343,6 +346,33 @@ export function BlogPanel({
                 <option value="draft">Draft (private to your team)</option>
                 <option value="published">Published (public)</option>
               </select>
+            </div>
+
+            <div>
+              <label
+                htmlFor="blog-comments-enabled"
+                className="flex items-start gap-3"
+              >
+                <input
+                  id="blog-comments-enabled"
+                  type="checkbox"
+                  checked={form.commentsEnabled}
+                  onChange={(event) =>
+                    onFormChange({
+                      ...form,
+                      commentsEnabled: event.target.checked,
+                    })
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 dark:border-slate-700"
+                />
+                <span>
+                  <span className={labelClass}>Allow comments</span>
+                  <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                    Signed-in readers can reply to this post. Turning this off
+                    keeps existing comments visible but closes the thread.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

@@ -50,6 +50,8 @@ model User {
   organizationAuditLogs OrganizationAuditLog[] @relation("OrganizationAuditActor")
   organizationAnnouncements OrganizationAnnouncement[] @relation("OrganizationAnnouncementAuthor")
   organizationBlogPosts OrganizationBlogPost[] @relation("OrganizationBlogPostAuthor")
+  organizationBlogComments OrganizationBlogComment[] @relation("OrganizationBlogCommentAuthor")
+  moderatedBlogComments OrganizationBlogComment[] @relation("OrganizationBlogCommentModerator")
   organizationReviews OrganizationReview[] @relation("OrganizationReviewAuthor")
   organizationReviewReplies OrganizationReview[] @relation("OrganizationReviewResponder")
   mfaTotp                UserMfaTotp?
@@ -94,6 +96,7 @@ model Organization {
   auditLogs OrganizationAuditLog[]
   announcements OrganizationAnnouncement[]
   blogPosts OrganizationBlogPost[]
+  blogComments OrganizationBlogComment[]
   reviews OrganizationReview[]
   searchOutboxEntries OrganizationSearchOutbox[]
   slugReservations OrganizationSlugReservation[]
@@ -179,16 +182,54 @@ model OrganizationBlogPost {
   coverImageBlobName String?   @map("cover_image_blob_name") @db.VarChar(1024)
   tags               Json?
   status             String    @default("draft") @db.VarChar(20)
+  // Per post rather than per organization: closing comments is a per-thread
+  // moderation act, not an org-wide policy. An org-wide kill switch can later be
+  // ANDed on top of this; deriving per-post from per-org would be impossible.
+  commentsEnabled    Boolean   @default(true) @map("comments_enabled")
   publishedAt        DateTime? @map("published_at") @db.DateTime(6)
   createdAt          DateTime  @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
   organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   author             User?     @relation("OrganizationBlogPostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  comments           OrganizationBlogComment[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status, publishedAt])
   @@index([authorUserId, createdAt])
   @@map("organization_blog_posts")
+}
+
+model OrganizationBlogComment {
+  id              String    @id @db.VarChar(36)
+  blogPostId      String    @map("blog_post_id") @db.VarChar(36)
+  // Denormalized from the post. A post never changes organization, so this
+  // cannot drift, and it lets every authorization check and the socket
+  // handshake resolve the owning organization from the comment row alone.
+  organizationId  String    @map("organization_id") @db.VarChar(36)
+  authorUserId    String    @map("author_user_id") @db.VarChar(36)
+  // Plain text, not rich text: unlike the post body two elements above it in the
+  // page, this is a low-trust public write surface.
+  body            String    @db.VarChar(2000)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  editedAt        DateTime? @map("edited_at") @db.DateTime(6)
+  // Soft delete: the row survives so the flat list keeps its shape and any
+  // ContentReport pointing at it still resolves. Only the text is cleared.
+  deletedAt       DateTime? @map("deleted_at") @db.DateTime(6)
+  // Who tombstoned it. An author withdrawing their own comment and a manager
+  // removing it are otherwise indistinguishable in the row, and the UI has to
+  // label the two differently.
+  deletedByUserId String?   @map("deleted_by_user_id") @db.VarChar(36)
+  post            OrganizationBlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author          User      @relation("OrganizationBlogCommentAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  deletedBy       User?     @relation("OrganizationBlogCommentModerator", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+
+  // History paging: WHERE blog_post_id = ? ORDER BY created_at ASC.
+  @@index([blogPostId, createdAt])
+  @@index([authorUserId, createdAt])
+  // Manager moderation views spanning a whole organization.
+  @@index([organizationId, createdAt])
+  @@map("organization_blog_comments")
 }
 
 model OrganizationReview {
@@ -1264,6 +1305,9 @@ enum ReportSubjectType {
   posting
   posting_review
   user
+  // Appended, never inserted: MySQL stores ENUM values by ordinal, so reordering
+  // would silently rewrite the meaning of every existing content_reports row.
+  organization_blog_comment
 }
 
 enum OrganizationRole {

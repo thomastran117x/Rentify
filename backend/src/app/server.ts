@@ -25,12 +25,20 @@ async function bootstrap(): Promise<void> {
   // Express has no WebSocket story of its own, and routing an upgrade through
   // its middleware stack would mean faking a response object the stack could
   // write to — the upgrade is not a request/response exchange.
-  // Awaited: the gateway builds its Redis adapter before it accepts anything,
+  // Awaited: each gateway builds its Redis adapter before it accepts anything,
   // because swapping the adapter on a live server does not migrate the rooms of
   // sockets that already joined.
-  await getContainer()
-    .resolve(containerTokens.bookingMessageSocketServer)
-    .attach(server);
+  // Two servers on one HTTP server is safe: Engine.IO dispatches upgrades by
+  // `path`, and `/ws/booking-messages` and `/ws/blog-comments` are not in a
+  // prefix relationship, so neither claims the other's traffic.
+  await Promise.all([
+    getContainer()
+      .resolve(containerTokens.bookingMessageSocketServer)
+      .attach(server),
+    getContainer()
+      .resolve(containerTokens.organizationBlogCommentSocketServer)
+      .attach(server),
+  ]);
 
   let isShuttingDown = false;
 

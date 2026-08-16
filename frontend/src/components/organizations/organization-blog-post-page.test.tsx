@@ -19,6 +19,13 @@ vi.mock("@/components/organizations/blog-visuals", () => ({
   authorName: () => "Author",
   readingTimeMinutes: () => 3,
 }));
+// The comments panel needs an auth context and a socket; it has its own suite,
+// so this one stays about the post itself.
+vi.mock("@/components/organizations/blog-comments-panel", () => ({
+  BlogCommentsPanel: ({ blogPostId }: { blogPostId: string }) => (
+    <section data-testid="blog-comments" data-post-id={blogPostId} />
+  ),
+}));
 const post = {
   id: "post-1",
   organizationId: "org-1",

@@ -194,6 +194,7 @@ function BlogActionsHarness() {
             coverImageUrl: "",
             coverImageBlobName: "",
             status: "draft",
+            commentsEnabled: true,
           })
         }
       >

@@ -49,6 +49,7 @@ export const createOrganizationBlogSchema = z
     coverImageBlobName: coverImageBlobNameSchema.nullable().optional(),
     tags: tagsSchema.optional(),
     status: organizationBlogStatusSchema.default("draft"),
+    commentsEnabled: z.boolean().default(true),
   })
   .strict();
 
@@ -62,6 +63,7 @@ export const updateOrganizationBlogSchema = z
     coverImageBlobName: coverImageBlobNameSchema.nullable().optional(),
     tags: tagsSchema.optional(),
     status: organizationBlogStatusSchema.optional(),
+    commentsEnabled: z.boolean().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {
@@ -149,6 +151,8 @@ export interface OrganizationBlogPostRecord {
   coverImageBlobName?: string;
   tags: string[];
   status: OrganizationBlogStatus;
+  /** Whether readers may currently post comments on this post. */
+  commentsEnabled: boolean;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -232,9 +236,15 @@ export interface GetPublicOrganizationBlogPostInput {
 }
 
 export interface CreateOrganizationBlogPostInput
-  extends CreateOrganizationBlogBody {
+  extends Omit<CreateOrganizationBlogBody, "commentsEnabled"> {
   organizationId: string;
   actorUserId: string;
+  /**
+   * Optional at the service boundary even though the schema defaults it, so a
+   * caller that predates comments does not have to opt in explicitly. The
+   * service falls back to the same default the schema applies.
+   */
+  commentsEnabled?: boolean;
 }
 
 export interface UpdateOrganizationBlogPostInput
@@ -266,6 +276,7 @@ export interface CreateOrganizationBlogPostPersistence {
   coverImageBlobName: string | null;
   tags: string[];
   status: OrganizationBlogStatus;
+  commentsEnabled: boolean;
   publishedAt: Date | null;
 }
 
@@ -278,5 +289,6 @@ export interface UpdateOrganizationBlogPostPersistence {
   coverImageBlobName?: string | null;
   tags?: string[];
   status?: OrganizationBlogStatus;
+  commentsEnabled?: boolean;
   publishedAt?: Date | null;
 }

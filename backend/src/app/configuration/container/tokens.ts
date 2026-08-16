@@ -47,6 +47,10 @@ import { OrganizationAnnouncementRepository } from "@/features/organizations/org
 import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
 import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
 import { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
+import { OrganizationBlogCommentsRepository } from "@/features/organizations/blog-comments/organization-blog-comments.repository";
+import { OrganizationBlogCommentsService } from "@/features/organizations/blog-comments/organization-blog-comments.service";
+import { OrganizationBlogCommentsController } from "@/features/organizations/blog-comments/organization-blog-comments.controller";
+import { OrganizationBlogCommentSocketServer } from "@/features/organizations/blog-comments/organization-blog-comment-socket.server";
 import { OrganizationReviewRepository } from "@/features/organizations/organization-review.repository";
 import { OrganizationReviewService } from "@/features/organizations/organization-review.service";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
@@ -156,6 +160,22 @@ export const containerTokens = {
   organizationBlogService: createServiceToken<OrganizationBlogService>(
     "OrganizationBlogService",
   ),
+  organizationBlogCommentsRepository:
+    createServiceToken<OrganizationBlogCommentsRepository>(
+      "OrganizationBlogCommentsRepository",
+    ),
+  organizationBlogCommentsService:
+    createServiceToken<OrganizationBlogCommentsService>(
+      "OrganizationBlogCommentsService",
+    ),
+  organizationBlogCommentsController:
+    createServiceToken<OrganizationBlogCommentsController>(
+      "OrganizationBlogCommentsController",
+    ),
+  organizationBlogCommentSocketServer:
+    createServiceToken<OrganizationBlogCommentSocketServer>(
+      "OrganizationBlogCommentSocketServer",
+    ),
   organizationReviewRepository:
     createServiceToken<OrganizationReviewRepository>(
       "OrganizationReviewRepository",

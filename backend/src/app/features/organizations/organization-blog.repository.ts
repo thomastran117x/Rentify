@@ -120,6 +120,7 @@ export class OrganizationBlogRepository extends BaseRepository {
             coverImageBlobName: input.coverImageBlobName,
             tags: input.tags,
             status: input.status,
+            commentsEnabled: input.commentsEnabled,
             publishedAt: input.publishedAt,
           },
           include: this.includeAuthor(),
@@ -156,6 +157,9 @@ export class OrganizationBlogRepository extends BaseRepository {
               : {}),
             ...(input.tags !== undefined ? { tags: input.tags } : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
+            ...(input.commentsEnabled !== undefined
+              ? { commentsEnabled: input.commentsEnabled }
+              : {}),
             ...(input.publishedAt !== undefined
               ? { publishedAt: input.publishedAt }
               : {}),
@@ -1220,6 +1224,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       coverImageBlobName: row.coverImageBlobName ?? undefined,
       tags: this.parseTags(row.tags),
       status: row.status as OrganizationBlogStatus,
+      commentsEnabled: row.commentsEnabled,
       publishedAt: row.publishedAt?.toISOString() ?? undefined,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -1251,6 +1256,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       coverImageBlobName: row.coverImageBlobName ?? undefined,
       tags: this.parseTags(row.tags),
       status: row.status as OrganizationBlogStatus,
+      commentsEnabled: row.commentsEnabled,
       publishedAt: row.publishedAt?.toISOString() ?? undefined,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

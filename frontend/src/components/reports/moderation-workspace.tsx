@@ -32,6 +32,7 @@ const SUBJECT_TYPE_OPTIONS: Array<{
   { label: "Posting", value: "posting" },
   { label: "Review", value: "posting_review" },
   { label: "User", value: "user" },
+  { label: "Blog comment", value: "organization_blog_comment" },
 ];
 
 const REASON_OPTIONS: Array<{ label: string; value?: ReportReasonCode }> = [

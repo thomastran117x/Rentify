@@ -394,6 +394,16 @@ Messaging and booking updates will benefit from realtime support. Recommendation
     means a replicated deployment needs sticky sessions. Clients fall back to polling the
     REST endpoint after repeated connect failures. Booking status changes and notifications
     still poll.
+  - Done for organization blog comments: a second Socket.IO gateway at `/ws/blog-comments`,
+    following the same ticket exchange and room-per-entity shape. Two things differ, and both
+    follow from this being a public page rather than a private thread. Anonymous visitors are
+    admitted read-only, so a comment posted by a signed-in reader reaches a signed-out one
+    with no reload; they still mint a ticket, because that is what binds a socket to a post
+    server-side and it is the only point an anonymous connection can be throttled at. And
+    presence is a reader *count* rather than a per-side boolean, coalesced per post so a
+    burst of arrivals costs one cluster round trip rather than one each. Comments can be
+    closed per post by a manager, which broadcasts to open pages rather than waiting for a
+    reload. Notifications for new comments were deliberately left out of this pass.
 
 ## 10. Payment Strategy
 

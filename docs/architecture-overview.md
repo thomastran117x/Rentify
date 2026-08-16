@@ -81,16 +81,38 @@ The route registry currently groups the API into these main areas:
 
 ## Realtime Transport
 
-Booking request message threads are the one realtime surface. They run on
-**Socket.IO**, mounted at `/ws/booking-messages` outside the versioned REST
-prefix, with the **Redis adapter** carrying events between API instances.
+There are two realtime surfaces, both on **Socket.IO** with the **Redis
+adapter** carrying events between API instances, and both mounted outside the
+versioned REST prefix:
 
-The shape is: one room per thread, plus one room per _side_ of that thread.
-Messages go to the thread room; presence is answered by asking whether the side
-room has anyone in it. Both rooms are cluster-wide, because the adapter answers
-for every instance rather than just the local one.
+| Surface | Path | Audience |
+| --- | --- | --- |
+| Booking request message threads | `/ws/booking-messages` | The two participants of one booking |
+| Blog post comments | `/ws/blog-comments` | Anyone reading a published post, signed in or not |
 
-Four things are worth knowing before extending it:
+Each gateway is a feature-owned class registered as a singleton with a dispose
+hook and **no constructor dependencies**; the feature service depends on the
+gateway through a narrow `publish` seam, which is what keeps that edge from
+closing a cycle. There is no shared socket infrastructure, deliberately: the two
+differ in enough load-bearing ways (below) that a common base would be mostly
+branches.
+
+Both attach to the same Node HTTP server. That is safe because Engine.IO
+dispatches upgrades by `path` and the two paths are not in a prefix
+relationship, so neither claims the other's traffic. Two consequences worth
+knowing: each gateway duplicates its own pair of Redis connections (four in
+total for realtime), and on the **client** `socket.io-client` caches Managers by
+origin rather than by path — a second client on the same origin must pass
+`forceNew: true` or it can silently reuse the other gateway's transport.
+
+The booking shape is: one room per thread, plus one room per _side_ of that
+thread. Messages go to the thread room; presence is answered by asking whether
+the side room has anyone in it. Blog comments have no sides, so there is one
+room per post and presence is a **count** rather than a boolean (see below).
+All rooms are cluster-wide, because the adapter answers for every instance
+rather than just the local one.
+
+Four things are worth knowing before extending either:
 
 - **Deployment requires sticky sessions.** Transports keep Socket.IO's default
   of polling first and upgrading to WebSocket. The polling handshake is several
@@ -98,7 +120,9 @@ Four things are worth knowing before extending it:
   load balancer needs session affinity configured. Without it the handshake
   fails in a way that looks like a flaky network. Choosing `transports:
 ["websocket"]` would remove that requirement at the cost of failing outright
-  wherever WebSocket upgrades are blocked.
+  wherever WebSocket upgrades are blocked. Note this now applies to a **public
+  marketing page** as well: a misconfigured balancer degrades blog comments in
+  front of anonymous visitors, not just one authenticated panel.
 - **Authentication is a two-step ticket exchange.** A browser cannot set an
   `authorization` header on this handshake. The client posts to
   `/booking-requests/{id}/messages/socket-ticket` with its bearer token and the
@@ -115,6 +139,22 @@ Four things are worth knowing before extending it:
 - **A connection holds no request scope.** Each piece of work creates and
   disposes its own container scope. A socket that pinned one would hold a
   database connection for its entire lifetime.
+
+**Anonymous readers still mint a ticket.** Blog comments admit visitors with no
+session, read-only, and the ticket route uses optional rather than required
+auth. Skipping the ticket for them would have been simpler and is wrong three
+ways: the ticket is what lets the server choose the room, so a client never
+names one; it is the only throttle point an anonymous connection passes through,
+since the upgrade never reaches Express middleware; and it is where a draft post
+is rejected, before any connection exists. An anonymous identity carries no
+session, so the periodic sweep checks only the post for those sockets — calling
+the token service with a null user would fail closed and disconnect exactly the
+readers the surface exists to serve.
+
+**Per-viewer capabilities never enter a broadcast.** `canWrite`, and on blog
+comments `viewerCanModerate`, live on the REST list response, not on the
+streamed record. A capability computed for whoever triggered a write would be
+correct for them and wrong for every other member of the room.
 
 Access is re-checked every 60 seconds on two axes that are easy to conflate.
 **Membership** answers whether this user may still read this thread. **The
@@ -149,6 +189,17 @@ race-free. Only the _offline_ transition needs a count, and that one is safe:
 an empty room is empty no matter who observed it. A connecting socket is also
 told the counterpart's current state directly, since their arrival was announced
 before that socket existed.
+
+**Blog comment presence is a count, and the race is different.** The question a
+post asks is cardinality — "how many people are reading" — not the boolean a
+booking side asks. The transferable part is the principle, not the shape: ask
+the adapter, never keep a tally. The unconditional-announce trick above is
+_not_ needed here, because a stale observation is only a temporarily wrong
+number rather than a stuck state; every later join or leave recounts, so the
+last broadcast always reflects settled membership. What is needed instead is
+**coalescing**: each recount is a cluster round trip and a popular post can take
+dozens of joins a second, so broadcasts are debounced per post with a trailing
+edge, which bounds the fan-out rate while still emitting the settled count.
 
 The adapter has to be in place **before** the server accepts anything. Replacing
 it on a live server does not migrate the rooms of sockets that already joined

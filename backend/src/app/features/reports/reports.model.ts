@@ -5,6 +5,7 @@ export const reportSubjectTypeSchema = z.enum([
   "posting",
   "posting_review",
   "user",
+  "organization_blog_comment",
 ]);
 export const reportReasonCodeSchema = z.enum([
   "spam",
@@ -157,10 +158,27 @@ export interface UserReportSubjectSnapshot {
   user: ContentReportUserSummary;
 }
 
+export interface OrganizationBlogCommentReportSubjectSnapshot {
+  subjectType: "organization_blog_comment";
+  summaryText: string;
+  comment: {
+    id: string;
+    bodyExcerpt?: string;
+    author: ContentReportUserSummary;
+    post: {
+      id: string;
+      title: string;
+      slug: string;
+      organization: ContentReportOrganizationSummary;
+    };
+  };
+}
+
 export type ContentReportSubjectSnapshot =
   | PostingReportSubjectSnapshot
   | PostingReviewReportSubjectSnapshot
-  | UserReportSubjectSnapshot;
+  | UserReportSubjectSnapshot
+  | OrganizationBlogCommentReportSubjectSnapshot;
 
 export interface ContentReportEventRecord {
   id: string;

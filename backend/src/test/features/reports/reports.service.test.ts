@@ -98,6 +98,30 @@ function createService(overrides?: {
         name: "Studio Loft",
       },
     })),
+    findOrganizationBlogCommentSubject: jest.fn(async () => ({
+      id: "blog-comment-1",
+      body: "Buy cheap followers at example.test",
+      authorUserId: "user-2",
+      deletedAt: null,
+      author: {
+        id: "user-2",
+        email: "user2@example.com",
+        role: "user",
+        profile: {
+          username: "renter-two",
+          avatarUrl: null,
+        },
+      },
+      post: {
+        id: "blog-1",
+        title: "Introducing weekend stays",
+        slug: "introducing-weekend-stays",
+        organization: {
+          id: "org-1",
+          name: "Studio Loft Org",
+        },
+      },
+    })),
     findUserSubject: jest.fn(async () => ({
       id: "user-2",
       email: "user2@example.com",
@@ -292,6 +316,112 @@ describe("ReportsService", () => {
         }),
       }),
     );
+  });
+
+  it("creates blog comment reports with post and author details", async () => {
+    const { service, repository } = createService();
+
+    await service.create({
+      reporterId: "user-9",
+      subjectType: "organization_blog_comment",
+      subjectId: "blog-comment-1",
+      reasonCode: "spam",
+      title: "Spam comment",
+      description: "This comment is advertising a follower-selling service.",
+    });
+
+    expect(repository.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectType: "organization_blog_comment",
+      }),
+      expect.objectContaining({
+        subjectType: "organization_blog_comment",
+        comment: expect.objectContaining({
+          id: "blog-comment-1",
+          bodyExcerpt: "Buy cheap followers at example.test",
+          author: expect.objectContaining({
+            id: "user-2",
+            username: "renter-two",
+          }),
+          post: expect.objectContaining({
+            id: "blog-1",
+            slug: "introducing-weekend-stays",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects reporting your own comment", async () => {
+    const { service } = createService();
+
+    await expect(
+      service.create({
+        reporterId: "user-2",
+        subjectType: "organization_blog_comment",
+        subjectId: "blog-comment-1",
+        reasonCode: "spam",
+        title: "Spam comment",
+        description: "This is an invalid self-report attempt.",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects reporting a comment that is already a tombstone", async () => {
+    const { service } = createService({
+      repository: {
+        findOrganizationBlogCommentSubject: jest.fn(async () => ({
+          id: "blog-comment-1",
+          body: "",
+          authorUserId: "user-2",
+          deletedAt: new Date("2026-07-17T00:00:00.000Z"),
+          author: {
+            id: "user-2",
+            email: "user2@example.com",
+            role: "user",
+            profile: { username: "renter-two", avatarUrl: null },
+          },
+          post: {
+            id: "blog-1",
+            title: "Introducing weekend stays",
+            slug: "introducing-weekend-stays",
+            organization: { id: "org-1", name: "Studio Loft Org" },
+          },
+        })),
+      },
+    });
+
+    // The text the reporter objected to is already gone, so there is nothing
+    // for a moderator to act on.
+    await expect(
+      service.create({
+        reporterId: "user-9",
+        subjectType: "organization_blog_comment",
+        subjectId: "blog-comment-1",
+        reasonCode: "spam",
+        title: "Spam comment",
+        description: "This comment is advertising a follower-selling service.",
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  it("rejects reporting a comment that does not exist", async () => {
+    const { service } = createService({
+      repository: {
+        findOrganizationBlogCommentSubject: jest.fn(async () => null),
+      },
+    });
+
+    await expect(
+      service.create({
+        reporterId: "user-9",
+        subjectType: "organization_blog_comment",
+        subjectId: "missing",
+        reasonCode: "spam",
+        title: "Spam comment",
+        description: "This comment is advertising a follower-selling service.",
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("rejects reporting your own review", async () => {

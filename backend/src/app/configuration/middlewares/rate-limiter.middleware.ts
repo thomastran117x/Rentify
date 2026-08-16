@@ -242,6 +242,32 @@ function isBookingMessageSocketTicketRoute(
   );
 }
 
+/**
+ * The blog comment equivalent, and the only throttle an *anonymous* socket ever
+ * passes through: a reader who is not signed in still mints a ticket, and the
+ * upgrade that follows never reaches this middleware.
+ */
+function isBlogCommentSocketTicketRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return (
+    request.method === "POST" &&
+    /^\/organizations\/[^/]+\/blog\/[^/]+\/comments\/socket-ticket$/.test(
+      pathname,
+    )
+  );
+}
+
+function isBlogCommentWriteRoute(request: Request, pathname: string): boolean {
+  return (
+    (request.method === "POST" ||
+      request.method === "PATCH" ||
+      request.method === "DELETE") &&
+    /^\/organizations\/[^/]+\/blog\/[^/]+\/comments(?:\/[^/]+)?$/.test(pathname)
+  );
+}
+
 function isPaymentWebhookRoute(request: Request, pathname: string): boolean {
   return request.method === "POST" && pathname === "/payments/webhooks/square";
 }
@@ -336,6 +362,40 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
       windowSeconds: 60,
       bucketCapacity: 40,
       refillTokensPerSecond: 40 / 60,
+    });
+  }
+
+  // Checked before the write route below: `socket-ticket` also matches the
+  // write pattern's optional trailing segment, and the ticket budget has to be
+  // the one that applies.
+  if (isBlogCommentSocketTicketRoute(request, pathname)) {
+    // Double the booking budget. Every anonymous page view of a post mints a
+    // ticket, and this bucket is keyed by IP, so one office or mobile carrier
+    // behind a shared address spends it collectively rather than per person.
+    return createPolicy(request, {
+      id: "blog-comments-socket-ticket",
+      bucketKey: `${request.method}:blog-comments-socket-ticket`,
+      strategy: "sliding-window",
+      limit: 120,
+      windowSeconds: 300,
+      bucketCapacity: 120,
+      refillTokensPerSecond: 120 / 300,
+    });
+  }
+
+  if (isBlogCommentWriteRoute(request, pathname)) {
+    // Tighter than the booking equivalent: this is a public write surface, and
+    // a comment is a slower act than a chat message. A per-author budget is
+    // enforced separately in the service, because this bucket keys on IP and a
+    // shared address is the common case here.
+    return createPolicy(request, {
+      id: "blog-comments-write",
+      bucketKey: `${request.method}:blog-comments-write`,
+      strategy: "sliding-window",
+      limit: 20,
+      windowSeconds: 60,
+      bucketCapacity: 20,
+      refillTokensPerSecond: 20 / 60,
     });
   }
 
