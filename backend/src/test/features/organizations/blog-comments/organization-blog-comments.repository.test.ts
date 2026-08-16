@@ -105,7 +105,7 @@ describe("OrganizationBlogCommentsRepository", () => {
   });
 
   describe("listByPost", () => {
-    it("pages oldest-first with a stable tiebreak", async () => {
+    it("pages newest-first with a stable tiebreak", async () => {
       const findMany = jest.fn(async () => [buildRow()]);
       const count = jest.fn(async () => 25);
       const repository = new OrganizationBlogCommentsRepository(
@@ -122,9 +122,9 @@ describe("OrganizationBlogCommentsRepository", () => {
         expect.objectContaining({
           skip: 10,
           take: 10,
-          // Ascending because a comment section reads top-down, and `id` breaks
-          // ties so a shared DATETIME(6) cannot duplicate or drop rows.
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          // Newest first so page 1 holds the comments a reader sees; `id`
+          // breaks ties so a shared DATETIME(6) cannot duplicate or drop rows.
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         }),
       );
       expect(count).toHaveBeenCalledWith({

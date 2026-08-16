@@ -98,11 +98,16 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
           where,
           skip,
           take: input.pageSize,
-          // Ascending, unlike the booking thread: a comment section reads as a
-          // conversation from the top down. `id` breaks ties, because two
-          // comments can share a DATETIME(6) value and an unstable sort would
-          // duplicate or drop rows across pages.
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          // Newest first, so page 1 holds the comments a reader actually sees
+          // and paging walks backwards into history. A comment section renders
+          // oldest-to-newest, but ordering the *pages* that way would put the
+          // newest comments on the last page — a thread past one page would
+          // then show its oldest 50 and hide every recent reply.
+          //
+          // `id` breaks ties, because two comments can share a DATETIME(6)
+          // value and an unstable sort would duplicate or drop rows across
+          // pages.
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           include: AUTHOR_INCLUDE,
         }),
         this.prisma.organizationBlogComment.count({ where }),

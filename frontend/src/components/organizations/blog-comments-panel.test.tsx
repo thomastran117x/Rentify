@@ -544,6 +544,236 @@ describe("BlogCommentsPanel", () => {
     });
   });
 
+  it("keeps a live edit that lands while history is in flight", async () => {
+    // The response resolves only once the test releases it, so the events
+    // below are guaranteed to land inside the request window.
+    let release: (value: unknown) => void = () => {};
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    listMock.mockReturnValueOnce(pending.then(() => buildList()));
+
+    renderPanel();
+
+    // Created and then immediately edited, before the snapshot arrives — and
+    // the snapshot predates both.
+    streamEvent({
+      type: "comment.created",
+      blogPostId: "blog-1",
+      comment: buildComment({ id: "comment-7", body: "First version." }),
+    });
+    streamEvent({
+      type: "comment.updated",
+      blogPostId: "blog-1",
+      comment: buildComment({
+        id: "comment-7",
+        body: "Second version.",
+        editedAt: "now",
+      }),
+    });
+
+    release(null);
+
+    // The newer edit must win; the stale creation must not be reinstated.
+    expect(await screen.findByText("Second version.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("First version.")).toBeNull();
+    });
+  });
+
+  it("keeps a live deletion that lands while history is in flight", async () => {
+    let release: (value: unknown) => void = () => {};
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    listMock.mockReturnValueOnce(pending.then(() => buildList()));
+
+    renderPanel();
+
+    streamEvent({
+      type: "comment.created",
+      blogPostId: "blog-1",
+      comment: buildComment({ id: "comment-8", body: "Doomed." }),
+    });
+    streamEvent({
+      type: "comment.deleted",
+      blogPostId: "blog-1",
+      comment: buildComment({
+        id: "comment-8",
+        body: "",
+        deletedAt: "now",
+        deletedBy: "moderator",
+      }),
+    });
+
+    release(null);
+
+    // A deleted comment must not reappear because the snapshot predated it.
+    expect(
+      await screen.findByText("Removed by the organization."),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Doomed.")).toBeNull();
+    });
+  });
+
+  it("renders comments oldest-first regardless of response order", async () => {
+    listMock.mockResolvedValue(
+      buildList({
+        // The API pages newest-first, so a response arrives in that order.
+        comments: [
+          buildComment({
+            id: "b",
+            body: "Second.",
+            createdAt: "2026-07-16T00:00:02.000Z",
+          }),
+          buildComment({
+            id: "a",
+            body: "First.",
+            createdAt: "2026-07-16T00:00:01.000Z",
+          }),
+        ],
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("First.");
+
+    const rendered = screen
+      .getAllByTestId("blog-comment")
+      .map((node) => node.getAttribute("data-comment-id"));
+    expect(rendered).toEqual(["a", "b"]);
+  });
+
+  it("offers to load earlier comments when more history exists", async () => {
+    listMock.mockResolvedValueOnce(
+      buildList({
+        comments: [buildComment({ id: "recent", body: "Recent." })],
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: 60,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Recent.");
+
+    const loadEarlier = await screen.findByTestId("blog-comments-load-earlier");
+
+    listMock.mockResolvedValueOnce(
+      buildList({
+        comments: [
+          buildComment({
+            id: "old",
+            body: "Older.",
+            createdAt: "2020-01-01T00:00:00.000Z",
+          }),
+        ],
+        pagination: {
+          page: 2,
+          pageSize: 50,
+          total: 60,
+          totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      }),
+    );
+    await userEvent.click(loadEarlier);
+
+    // The older page is requested and merged in, not swapped for the newer one.
+    expect(listMock).toHaveBeenLastCalledWith("org-1", "my-post", {
+      page: 2,
+      pageSize: 50,
+    });
+    expect(await screen.findByText("Older.")).toBeInTheDocument();
+    expect(screen.getByText("Recent.")).toBeInTheDocument();
+
+    // Nothing older remains, so the control retires.
+    await waitFor(() => {
+      expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
+    });
+  });
+
+  it("hides the control when a single page holds every comment", async () => {
+    renderPanel();
+    await screen.findByText("Great post.");
+
+    expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
+  });
+
+  it("does not forget loaded history when the stream reconnects", async () => {
+    listMock.mockResolvedValueOnce(
+      buildList({
+        comments: [buildComment({ id: "recent", body: "Recent." })],
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: 60,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+
+    renderPanel();
+    await screen.findByText("Recent.");
+
+    listMock.mockResolvedValueOnce(
+      buildList({
+        comments: [
+          buildComment({
+            id: "old",
+            body: "Older.",
+            createdAt: "2020-01-01T00:00:00.000Z",
+          }),
+        ],
+        pagination: {
+          page: 2,
+          pageSize: 50,
+          total: 60,
+          totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      }),
+    );
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+    await screen.findByText("Older.");
+
+    // A reconnect refetches page 1 only; the earlier page stays on screen and
+    // its "nothing older" boundary is not reset by that newer page.
+    listMock.mockResolvedValueOnce(
+      buildList({
+        comments: [buildComment({ id: "recent", body: "Recent." })],
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: 60,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      }),
+    );
+    streamStatus("open");
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenLastCalledWith("org-1", "my-post", {
+        page: 1,
+        pageSize: 50,
+      });
+    });
+    expect(screen.getByText("Older.")).toBeInTheDocument();
+    expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
+  });
+
   it("closes the socket on unmount", async () => {
     const { unmount } = renderPanel();
     await screen.findByText("Great post.");

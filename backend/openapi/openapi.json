@@ -83,7 +83,9 @@
         "operationId": "getSystemRoot",
         "summary": "Get API root metadata",
         "description": "Returns the current API version and base path for discovery and local smoke checks.",
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -138,7 +140,9 @@
         "operationId": "getHealth",
         "summary": "Get service health",
         "description": "Returns application health with database status. This route is intended for local verification and service monitoring.",
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -228,7 +232,9 @@
         "operationId": "getOpenApiYaml",
         "summary": "Download the canonical OpenAPI YAML",
         "description": "Returns the same `backend/openapi/openapi.yaml` file that is committed to the repository and copied into the backend container.",
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -257,7 +263,9 @@
         "operationId": "getOpenApiJson",
         "summary": "Download the canonical OpenAPI JSON",
         "description": "Returns the same `backend/openapi/openapi.json` file that is committed to the repository and copied into the backend container.",
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -288,7 +296,9 @@
         "operationId": "localLogin",
         "summary": "Authenticate with username and password",
         "description": "Creates an authenticated session with local credentials. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -392,7 +402,9 @@
         "operationId": "localSignup",
         "summary": "Create a new local account",
         "description": "Begins local signup and sends a verification challenge to the supplied email address.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -481,7 +493,9 @@
         "operationId": "forgotPassword",
         "summary": "Request a password reset",
         "description": "Starts the password reset flow for a local account. The accepted response does not confirm whether the username exists.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -560,7 +574,9 @@
         "operationId": "resendForgotPassword",
         "summary": "Resend password reset instructions",
         "description": "Resends the password reset challenge for a local account if the flow is still eligible.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -639,7 +655,9 @@
         "operationId": "forgotUsername",
         "summary": "Recover a forgotten username",
         "description": "Emails the account username to the address on file. Useful for OAuth-created accounts whose username was auto-generated, and for any local account that forgot its username. The accepted response does not confirm whether an account exists for the email.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -718,7 +736,9 @@
         "operationId": "resetPassword",
         "summary": "Complete a password reset",
         "description": "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -823,7 +843,9 @@
         "operationId": "verifyEmail",
         "summary": "Verify a newly created email address",
         "description": "Validates the email verification code and returns an authenticated session.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -927,7 +949,9 @@
         "operationId": "resendVerificationEmail",
         "summary": "Resend email verification",
         "description": "Resends the pending signup verification email when the flow is still active.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1006,7 +1030,9 @@
         "operationId": "unlockLocalLogin",
         "summary": "Unlock a local login",
         "description": "Completes an account unlock flow for a temporarily locked local login.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1087,7 +1113,9 @@
         "operationId": "resendUnlockLocalLogin",
         "summary": "Resend a local login unlock code",
         "description": "Resends the unlock code for a local account that is currently in a locked state.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1166,7 +1194,9 @@
         "operationId": "verifyLocalSession",
         "summary": "Verify the current local session",
         "description": "Verifies the caller's bearer token and returns normalized auth and client information for the current session.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1249,7 +1279,9 @@
         "operationId": "changePassword",
         "summary": "Change the current local password",
         "description": "Changes the current signed-in user's password and returns a refreshed authenticated session.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1356,7 +1388,9 @@
         "operationId": "refreshSession",
         "summary": "Refresh an access token",
         "description": "Refreshes an access token using either the `refreshToken` request body field for native/API clients or the `refresh_token` cookie for browser clients. Browser clients must also send the `x-csrf-token` header when a CSRF cookie is present.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "refresh-token",
           "minimumRole": null,
@@ -1459,7 +1493,9 @@
         "operationId": "logoutSession",
         "summary": "Log out the current session",
         "description": "Logs out the current bearer-authenticated session. Browser clients should include the refresh-token cookie and matching CSRF header so the backend can clear them.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1532,7 +1568,9 @@
         "operationId": "googleAuthenticate",
         "summary": "Authenticate with Google OAuth",
         "description": "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token, depending on the client flow.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1641,7 +1679,9 @@
         "operationId": "microsoftAuthenticate",
         "summary": "Authenticate with Microsoft OAuth",
         "description": "Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1747,7 +1787,9 @@
         "operationId": "appleAuthenticate",
         "summary": "Authenticate with Apple OAuth",
         "description": "Authenticates with Apple using the same shared OAuth request shape used by the other providers.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -1852,7 +1894,9 @@
         "operationId": "listLinkedOauthProviders",
         "summary": "List linked OAuth providers",
         "description": "Returns the OAuth providers currently linked to the signed-in user account.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1930,7 +1974,9 @@
         "operationId": "linkOauthProvider",
         "summary": "Link an OAuth provider to the current account",
         "description": "Links the selected OAuth provider to the currently signed-in local account.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2041,7 +2087,9 @@
         "operationId": "unlinkOauthProvider",
         "summary": "Unlink an OAuth provider from the current account",
         "description": "Unlinks the selected OAuth provider from the currently signed-in account.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2134,7 +2182,9 @@
         "operationId": "verifyDevice",
         "summary": "Verify the current device",
         "description": "Marks the current device as verified for the signed-in session.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2203,7 +2253,9 @@
         "operationId": "listKnownDevices",
         "summary": "List known devices",
         "description": "Returns the signed-in user's known devices and current-device information.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2279,7 +2331,9 @@
         "operationId": "removeKnownDevice",
         "summary": "Remove a known device",
         "description": "Removes a previously known device from the signed-in user's account.",
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2363,7 +2417,9 @@
         "operationId": "getMfaVerificationOptions",
         "summary": "Get MFA step-up verification options",
         "description": "Returns whether the current session already holds a valid step-up proof for the requested scope, along with the factors available to the signed-in user. Requires a signed-in session; PAT authentication is rejected.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2382,7 +2438,10 @@
             "description": "Step-up verification scope.",
             "schema": {
               "type": "string",
-              "enum": ["mfa-management", "device-login"]
+              "enum": [
+                "mfa-management",
+                "device-login"
+              ]
             },
             "example": "mfa-management"
           }
@@ -2417,7 +2476,10 @@
                     "scope": "mfa-management",
                     "verified": false,
                     "verifiedUntil": null,
-                    "availableFactors": ["email", "totp"],
+                    "availableFactors": [
+                      "email",
+                      "totp"
+                    ],
                     "recommendedFactor": "totp"
                   },
                   "error": null,
@@ -2451,7 +2513,9 @@
         "operationId": "issueMfaVerificationChallenge",
         "summary": "Issue an MFA step-up challenge",
         "description": "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP factors signal the client to prompt for an authenticator code. Rate limited per user, session, scope, and factor.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2540,7 +2604,9 @@
         "operationId": "confirmMfaVerificationChallenge",
         "summary": "Confirm an MFA step-up challenge",
         "description": "Verifies a step-up challenge code and persists a short-lived MFA proof for the scope. Rate limited, with a temporary lockout after repeated failed attempts.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2630,7 +2696,9 @@
         "operationId": "previewMfaEmailOtp",
         "summary": "Preview the current MFA email OTP (development only)",
         "description": "Returns the active email step-up OTP for the signed-in session. This route is only registered in non-production environments to aid local testing and must not be relied upon in production.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2649,7 +2717,10 @@
             "description": "Step-up verification scope.",
             "schema": {
               "type": "string",
-              "enum": ["mfa-management", "device-login"]
+              "enum": [
+                "mfa-management",
+                "device-login"
+              ]
             },
             "example": "mfa-management"
           }
@@ -2717,7 +2788,9 @@
         "operationId": "getMfaTotpStatus",
         "summary": "Get authenticator (TOTP) status",
         "description": "Returns whether the signed-in user has an authenticator app (TOTP) enabled.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2785,7 +2858,9 @@
         "operationId": "beginMfaTotpEnrollment",
         "summary": "Begin authenticator (TOTP) enrollment",
         "description": "Starts authenticator enrollment and returns the shared secret and otpauth provisioning URI. Requires a recent MFA step-up verification for the management scope.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2870,7 +2945,9 @@
         "operationId": "confirmMfaTotpEnrollment",
         "summary": "Confirm authenticator (TOTP) enrollment",
         "description": "Confirms authenticator enrollment with a code from the authenticator app. Requires a recent MFA step-up verification for the management scope.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2954,7 +3031,9 @@
         "operationId": "disableMfaTotp",
         "summary": "Disable authenticator (TOTP)",
         "description": "Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3036,7 +3115,9 @@
         "operationId": "cancelMfaTotpEnrollment",
         "summary": "Cancel a pending authenticator (TOTP) enrollment",
         "description": "Cancels an in-progress, unconfirmed authenticator enrollment. Requires a recent MFA step-up verification for the management scope.",
-        "tags": ["mfa"],
+        "tags": [
+          "mfa"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3104,7 +3185,9 @@
         "operationId": "listPersonalAccessTokens",
         "summary": "List personal access tokens",
         "description": "Lists the current signed-in user's personal access tokens. This endpoint requires a signed-in session and does not accept PAT authentication.",
-        "tags": ["personal-access-tokens"],
+        "tags": [
+          "personal-access-tokens"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3147,7 +3230,10 @@
                         "id": "pat-1",
                         "name": "Rentify MCP",
                         "tokenPrefix": "rpat_live_",
-                        "scopes": ["mcp:read", "mcp:write"],
+                        "scopes": [
+                          "mcp:read",
+                          "mcp:write"
+                        ],
                         "lastUsedAt": "2026-05-24T08:00:00.000Z",
                         "expiresAt": "2026-08-01T00:00:00.000Z",
                         "createdAt": "2026-05-24T08:00:00.000Z",
@@ -3181,7 +3267,9 @@
         "operationId": "createPersonalAccessToken",
         "summary": "Create a personal access token",
         "description": "Creates a new PAT for MCP or API usage and returns the token secret exactly once.",
-        "tags": ["personal-access-tokens"],
+        "tags": [
+          "personal-access-tokens"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3201,7 +3289,10 @@
               },
               "example": {
                 "name": "Rentify MCP",
-                "scopes": ["mcp:read", "mcp:write"],
+                "scopes": [
+                  "mcp:read",
+                  "mcp:write"
+                ],
                 "expiresInDays": 30
               }
             }
@@ -3237,7 +3328,10 @@
                     "id": "pat-1",
                     "name": "Rentify MCP",
                     "tokenPrefix": "rpat_live_",
-                    "scopes": ["mcp:read", "mcp:write"],
+                    "scopes": [
+                      "mcp:read",
+                      "mcp:write"
+                    ],
                     "lastUsedAt": "2026-05-24T08:00:00.000Z",
                     "expiresAt": "2026-08-01T00:00:00.000Z",
                     "createdAt": "2026-05-24T08:00:00.000Z",
@@ -3278,7 +3372,9 @@
         "operationId": "revokePersonalAccessToken",
         "summary": "Revoke a personal access token",
         "description": "Revokes one of the current signed-in user's personal access tokens.",
-        "tags": ["personal-access-tokens"],
+        "tags": [
+          "personal-access-tokens"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3362,7 +3458,9 @@
         "operationId": "listPublicOrganizations",
         "summary": "List public organizations",
         "description": "Returns the public organization directory. Only organizations with at least one published posting are included.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -3488,7 +3586,9 @@
         "operationId": "createOrganization",
         "summary": "Create an organization",
         "description": "Creates a new organization and makes the signed-in user its primary manager. The new organization becomes the caller's active organization.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3586,7 +3686,9 @@
         "operationId": "listMyOrganizations",
         "summary": "List the caller's organizations",
         "description": "Returns organization memberships for the signed-in user together with the currently active organization summary.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3670,7 +3772,9 @@
         "operationId": "setActiveOrganization",
         "summary": "Set the active organization",
         "description": "Stores the signed-in user's active organization preference when they belong to more than one organization.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3762,7 +3866,9 @@
         "operationId": "previewOrganizationInvitation",
         "summary": "Preview an organization invitation",
         "description": "Loads organization invitation status and viewer eligibility details. Authentication is optional; when present it is used to show whether the current account can accept the invite.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3857,7 +3963,9 @@
         "operationId": "acceptOrganizationInvitation",
         "summary": "Accept an organization invitation",
         "description": "Accepts a pending organization invitation for the authenticated user when the invite email matches the verified account email.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -3960,7 +4068,9 @@
         "operationId": "getOrganizationWorkspaceById",
         "summary": "Get organization workspace detail",
         "description": "Returns organization profile, roster, and pending invitations for a signed-in member of the organization.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4091,7 +4201,9 @@
         "operationId": "resolveOrganizationBySlug",
         "summary": "Resolve a public organization URL slug",
         "description": "Maps a public URL slug onto an organization id. Retired slugs continue to resolve and report `matchedBy: \"alias\"`, so clients can redirect to `canonicalSlug`. The slug must be in canonical form; a non-canonical reference returns 400 and should be normalized and retried.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -4169,7 +4281,9 @@
         "operationId": "getPublicOrganizationById",
         "summary": "Get public organization detail",
         "description": "Returns the public organization profile and published posting count. Organizations without published postings return 404.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -4264,7 +4378,9 @@
         "operationId": "updateOrganization",
         "summary": "Rename an organization",
         "description": "Updates the organization name. Only the primary manager can rename the organization in this release.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4366,7 +4482,9 @@
         "operationId": "updateOrganizationSlug",
         "summary": "Change an organization's public URL",
         "description": "Adopts a new public URL slug and retires the previous one as a permanent alias, so existing links keep resolving. A slug held by another organization, including as one of its retired aliases, is rejected with 409. Only the primary manager can change the URL.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4471,7 +4589,9 @@
         "operationId": "createOrganizationInvitation",
         "summary": "Create or reissue an organization invitation",
         "description": "Creates a new invitation for the organization or reissues a pending invite for the same email.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4588,7 +4708,9 @@
         "operationId": "revokeOrganizationInvitation",
         "summary": "Revoke an organization invitation",
         "description": "Revokes a pending organization invitation when the caller has sufficient organization permissions.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4702,7 +4824,9 @@
         "operationId": "updateOrganizationMember",
         "summary": "Update an organization member role",
         "description": "Changes the role of an existing organization member within the v1 role restrictions.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4819,7 +4943,9 @@
         "operationId": "removeOrganizationMember",
         "summary": "Remove an organization member",
         "description": "Removes an organization membership when the caller has permission to manage that member role.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4919,7 +5045,9 @@
         "operationId": "listOrganizationAudit",
         "summary": "List organization audit trail",
         "description": "Returns a paginated, filterable audit timeline for organization managers. Operators receive 403 Forbidden and non-members receive not found behavior through the membership guard.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -4929,7 +5057,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -5101,7 +5232,9 @@
         "operationId": "restoreOrganizationAuditEntry",
         "summary": "Restore an audited organization version",
         "description": "Applies a manager-only compensating restore from a restorable audit snapshot. Restore never rewrites history; success creates a new restored audit entry. Conflict responses are returned when the target resource no longer exists or the restore would violate current business rules.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5111,7 +5244,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -5235,7 +5371,9 @@
         "operationId": "listOrganizationAnnouncements",
         "summary": "List organization announcements",
         "description": "Returns paginated announcements for organization members. Managers see drafts and published announcements; operators and read-only members only receive published announcements.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5245,7 +5383,11 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager", "operator"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager",
+            "operator"
+          ]
         },
         "parameters": [
           {
@@ -5388,7 +5530,9 @@
         "operationId": "createOrganizationAnnouncement",
         "summary": "Create an organization announcement",
         "description": "Creates a new announcement for the organization. Only primary managers and managers can create announcements.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5398,7 +5542,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -5503,7 +5650,9 @@
         "operationId": "updateOrganizationAnnouncement",
         "summary": "Update an organization announcement",
         "description": "Updates an existing announcement. Only primary managers and managers can update announcements. Changing status to published records a publish event in the audit trail.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5513,7 +5662,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -5624,7 +5776,9 @@
         "operationId": "deleteOrganizationAnnouncement",
         "summary": "Delete an organization announcement",
         "description": "Deletes an announcement. Only primary managers and managers can delete announcements.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5634,7 +5788,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -5722,7 +5879,9 @@
         "operationId": "searchPublicBlogFeed",
         "summary": "Search the global organization blog feed",
         "description": "Returns paginated, published blog posts across all organizations. This is a public, unauthenticated marketing endpoint backed by Elasticsearch (with a database fallback); each result carries a minimal organization summary. Draft posts are never returned.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -5783,7 +5942,11 @@
             "description": "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
             "schema": {
               "type": "string",
-              "enum": ["relevance", "newest", "oldest"]
+              "enum": [
+                "relevance",
+                "newest",
+                "oldest"
+              ]
             },
             "example": "relevance"
           }
@@ -5831,7 +5994,10 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                        "tags": ["announcement", "downtown"],
+                        "tags": [
+                          "announcement",
+                          "downtown"
+                        ],
                         "status": "published",
                         "commentsEnabled": true,
                         "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -5881,7 +6047,9 @@
         "operationId": "listPublicOrganizationBlogPosts",
         "summary": "List published organization blog posts",
         "description": "Returns paginated, published blog posts for an organization. This is a public, unauthenticated marketing endpoint; draft posts are never returned. Backed by Elasticsearch (with a database fallback) so an optional free-text query is supported.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -5952,7 +6120,11 @@
             "description": "Result ordering. 'relevance' only differs from 'newest' when a query is present.",
             "schema": {
               "type": "string",
-              "enum": ["relevance", "newest", "oldest"]
+              "enum": [
+                "relevance",
+                "newest",
+                "oldest"
+              ]
             },
             "example": "relevance"
           }
@@ -6000,7 +6172,10 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                        "tags": ["announcement", "downtown"],
+                        "tags": [
+                          "announcement",
+                          "downtown"
+                        ],
                         "status": "published",
                         "commentsEnabled": true,
                         "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -6053,7 +6228,9 @@
         "operationId": "getPublicOrganizationBlogPost",
         "summary": "Get a published organization blog post by slug",
         "description": "Returns a single published blog post by its slug. This is a public, unauthenticated marketing endpoint; draft posts return 404.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -6122,7 +6299,10 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                    "tags": ["announcement", "downtown"],
+                    "tags": [
+                      "announcement",
+                      "downtown"
+                    ],
                     "status": "published",
                     "commentsEnabled": true,
                     "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -6156,8 +6336,10 @@
       "get": {
         "operationId": "listOrganizationBlogComments",
         "summary": "List comments on a published blog post",
-        "description": "Returns paginated comments for a published blog post, oldest first. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.",
-        "tags": ["organizations"],
+        "description": "Returns paginated comments for a published blog post, newest first, so page 1 holds the most recent replies and paging walks backwards into history. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.",
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -6293,7 +6475,9 @@
         "operationId": "createOrganizationBlogComment",
         "summary": "Post a comment on a blog post",
         "description": "Posts a comment on a published blog post. Any signed-in user may comment. Returns 409 when comments are closed on the post, which applies to organization managers too, or when the author exceeds their per-account write budget. Bodies are plain text and are rejected if they contain markup.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6414,7 +6598,9 @@
         "operationId": "createOrganizationBlogCommentSocketTicket",
         "summary": "Issue a blog comment socket ticket",
         "description": "Issues a short-lived, single-use ticket for the blog comment WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the session is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/blog-comments`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use after 30 seconds. Authentication is optional: an unauthenticated caller receives a read-only ticket, which is what lets anonymous visitors receive comments live. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `comment.created`, `comment.updated`, `comment.deleted`, `typing`, `presence`, `comments.closed`, and `resync` frames, and accepts `typing` frames from signed-in clients. PAT bearer authentication is not allowed.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -6502,7 +6688,9 @@
         "operationId": "updateOrganizationBlogComment",
         "summary": "Edit your own blog comment",
         "description": "Edits a comment. Only its author may edit, and only within 15 minutes of posting; organization managers remove comments rather than rewriting them, and receive 403 here. Returns 409 when the window has closed, when the comment was deleted concurrently, or when comments are closed on the post.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6634,7 +6822,9 @@
         "operationId": "deleteOrganizationBlogComment",
         "summary": "Remove a blog comment",
         "description": "Soft-deletes a comment. The author may remove their own at any time; managers of the owning organization may remove any comment on their post. The row survives as a tombstone with an empty `body`, so the thread keeps its shape and any content report still resolves. A second delete returns 404.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6644,7 +6834,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -6752,7 +6945,9 @@
         "operationId": "listOrganizationBlogPosts",
         "summary": "List organization blog posts (management)",
         "description": "Returns paginated blog posts for organization members. Managers see drafts and published posts; operators and read-only members only receive published posts.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6762,7 +6957,11 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager", "operator"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager",
+            "operator"
+          ]
         },
         "parameters": [
           {
@@ -6864,7 +7063,10 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                        "tags": ["announcement", "downtown"],
+                        "tags": [
+                          "announcement",
+                          "downtown"
+                        ],
                         "status": "published",
                         "commentsEnabled": true,
                         "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -6921,7 +7123,9 @@
         "operationId": "createOrganizationBlogPost",
         "summary": "Create an organization blog post",
         "description": "Creates a new blog post. Only primary managers and managers can create posts. The body is sanitized rich-text HTML and a unique slug is derived from the title when not supplied.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6931,7 +7135,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -6956,7 +7163,10 @@
                 "title": "Introducing weekend stays at our downtown studios",
                 "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                 "excerpt": "Weekend bookings are now open across every downtown studio.",
-                "tags": ["announcement", "downtown"],
+                "tags": [
+                  "announcement",
+                  "downtown"
+                ],
                 "status": "published"
               }
             }
@@ -7003,7 +7213,10 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                    "tags": ["announcement", "downtown"],
+                    "tags": [
+                      "announcement",
+                      "downtown"
+                    ],
                     "status": "published",
                     "commentsEnabled": true,
                     "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -7044,7 +7257,9 @@
         "operationId": "updateOrganizationBlogPost",
         "summary": "Update an organization blog post",
         "description": "Updates an existing blog post. Only primary managers and managers can update posts. Changing status to published records a publish event in the audit trail.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7054,7 +7269,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -7132,7 +7350,10 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
-                    "tags": ["announcement", "downtown"],
+                    "tags": [
+                      "announcement",
+                      "downtown"
+                    ],
                     "status": "published",
                     "commentsEnabled": true,
                     "publishedAt": "2026-05-28T11:15:00.000Z",
@@ -7171,7 +7392,9 @@
         "operationId": "deleteOrganizationBlogPost",
         "summary": "Delete an organization blog post",
         "description": "Deletes a blog post. Only primary managers and managers can delete posts.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7181,7 +7404,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -7269,7 +7495,9 @@
         "operationId": "listOrganizationReviews",
         "summary": "List organization reviews",
         "description": "Returns paginated reviews and the aggregate rating summary for an organization. This is a public, unauthenticated endpoint.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -7411,7 +7639,9 @@
         "operationId": "createOrganizationReview",
         "summary": "Submit an organization review",
         "description": "Creates a review for an organization. The reviewer must be authenticated, must not be a member of the organization, and must have at least one completed, non-disputed rental with the organization. Each user may submit one review per organization.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7535,7 +7765,9 @@
         "operationId": "getOwnOrganizationReview",
         "summary": "Get your organization review",
         "description": "Returns the authenticated user's own review for the organization, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7636,7 +7868,9 @@
         "operationId": "updateOwnOrganizationReview",
         "summary": "Update your organization review",
         "description": "Updates the authenticated reviewer's existing review for the organization. The same eligibility rules as creation apply.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7755,7 +7989,9 @@
         "operationId": "deleteOwnOrganizationReview",
         "summary": "Delete your organization review",
         "description": "Deletes the authenticated reviewer's own review for the organization.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7842,7 +8078,9 @@
         "operationId": "replyToOrganizationReview",
         "summary": "Reply to an organization review",
         "description": "Adds or updates a public manager reply to a review. Only primary managers and managers can respond.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7852,7 +8090,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -7970,7 +8211,9 @@
         "operationId": "removeOrganizationReviewReply",
         "summary": "Remove a reply from an organization review",
         "description": "Removes the public manager reply from a review. Only primary managers and managers can remove replies.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7980,7 +8223,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -8079,7 +8325,9 @@
         "operationId": "deleteOrganizationReview",
         "summary": "Delete an organization review",
         "description": "Deletes a review as a moderation action. Only primary managers and managers can delete reviews.",
-        "tags": ["organizations"],
+        "tags": [
+          "organizations"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8089,7 +8337,10 @@
           "authMode": "session-bearer",
           "minimumRole": "user",
           "patAllowed": false,
-          "organizationRoles": ["primary_manager", "manager"]
+          "organizationRoles": [
+            "primary_manager",
+            "manager"
+          ]
         },
         "parameters": [
           {
@@ -8177,7 +8428,9 @@
         "operationId": "createBlobUploadUrl",
         "summary": "Create an upload URL for blob storage",
         "description": "Creates a short-lived signed upload target for authenticated users.",
-        "tags": ["blob"],
+        "tags": [
+          "blob"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8272,7 +8525,9 @@
         "operationId": "deleteBlob",
         "summary": "Delete a managed blob",
         "description": "Deletes a blob owned by the authenticated user. The target blob is identified by the `blobName` query parameter.",
-        "tags": ["blob"],
+        "tags": [
+          "blob"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8356,7 +8611,9 @@
         "operationId": "uploadLocalBlob",
         "summary": "Upload a blob payload to the local development fallback",
         "description": "Accepts a signed local-development upload URL generated by the blob upload target route. This route is only used when Azure Blob Storage is not configured in development.",
-        "tags": ["blob"],
+        "tags": [
+          "blob"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -8445,7 +8702,9 @@
         "operationId": "getLocalBlob",
         "summary": "Read a locally stored development blob",
         "description": "Returns a blob payload from the local development fallback store. This route is only used when Azure Blob Storage is not configured in development.",
-        "tags": ["blob"],
+        "tags": [
+          "blob"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -8507,7 +8766,9 @@
         "operationId": "listProfiles",
         "summary": "List public profiles",
         "description": "Returns public profile records with optional text search over usernames and names.",
-        "tags": ["profiles"],
+        "tags": [
+          "profiles"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -8618,7 +8879,9 @@
         "operationId": "getOwnProfile",
         "summary": "Get the current user's profile",
         "description": "Returns the full profile record for the authenticated user. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["profiles"],
+        "tags": [
+          "profiles"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8700,7 +8963,9 @@
         "operationId": "updateOwnProfile",
         "summary": "Update the current user's profile",
         "description": "Updates the authenticated user's editable profile fields.",
-        "tags": ["profiles"],
+        "tags": [
+          "profiles"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8806,7 +9071,9 @@
         "operationId": "startSearchReindex",
         "summary": "Start a search reindex run",
         "description": "Starts a full postings search reindex. Admin bearer authentication is required.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8886,7 +9153,9 @@
         "operationId": "getSearchReindexRun",
         "summary": "Get a search reindex run",
         "description": "Returns the specified reindex run, or `run: null` if the identifier does not exist.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8977,7 +9246,9 @@
         "operationId": "getSearchStatus",
         "summary": "Get search subsystem status",
         "description": "Returns alias status, queue lag, telemetry, and the latest/current reindex state.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9018,14 +9289,22 @@
                     "aliases": {
                       "read": "postings-read",
                       "write": "postings-write",
-                      "readTargets": ["postings_v3"],
-                      "writeTargets": ["postings_v3"],
+                      "readTargets": [
+                        "postings_v3"
+                      ],
+                      "writeTargets": [
+                        "postings_v3"
+                      ],
                       "health": {
                         "state": "ready",
                         "readAlias": "postings-read",
                         "writeAlias": "postings-write",
-                        "readTargets": ["postings_v3"],
-                        "writeTargets": ["postings_v3"]
+                        "readTargets": [
+                          "postings_v3"
+                        ],
+                        "writeTargets": [
+                          "postings_v3"
+                        ]
                       }
                     },
                     "elasticsearch": {
@@ -9147,7 +9426,9 @@
         "operationId": "replayDeadLetteredSearchOutbox",
         "summary": "Replay dead-lettered search outbox entries",
         "description": "Requeues dead-lettered search sync entries. The optional `limit` query controls how many items to revive.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9232,7 +9513,9 @@
         "operationId": "cleanupRetainedSearchIndices",
         "summary": "Delete retained search indices",
         "description": "Deletes retained search indices that are no longer needed after reindex completion.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9303,7 +9586,9 @@
         "operationId": "startOrganizationSearchReindex",
         "summary": "Start an organization search reindex run",
         "description": "Starts a full organization search reindex. Admin bearer authentication is required.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9383,7 +9668,9 @@
         "operationId": "getOrganizationSearchReindexRun",
         "summary": "Get an organization search reindex run",
         "description": "Returns the specified organization search reindex run, or `run: null` if the identifier does not exist.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9474,7 +9761,9 @@
         "operationId": "getOrganizationSearchStatus",
         "summary": "Get organization search subsystem status",
         "description": "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization search index.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9515,14 +9804,22 @@
                     "aliases": {
                       "read": "postings-read",
                       "write": "postings-write",
-                      "readTargets": ["postings_v3"],
-                      "writeTargets": ["postings_v3"],
+                      "readTargets": [
+                        "postings_v3"
+                      ],
+                      "writeTargets": [
+                        "postings_v3"
+                      ],
                       "health": {
                         "state": "ready",
                         "readAlias": "postings-read",
                         "writeAlias": "postings-write",
-                        "readTargets": ["postings_v3"],
-                        "writeTargets": ["postings_v3"]
+                        "readTargets": [
+                          "postings_v3"
+                        ],
+                        "writeTargets": [
+                          "postings_v3"
+                        ]
                       }
                     },
                     "elasticsearch": {
@@ -9644,7 +9941,9 @@
         "operationId": "replayDeadLetteredOrganizationSearchOutbox",
         "summary": "Replay dead-lettered organization search outbox entries",
         "description": "Requeues dead-lettered organization search sync entries. The optional `limit` query controls how many items to revive.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9729,7 +10028,9 @@
         "operationId": "cleanupRetainedOrganizationSearchIndices",
         "summary": "Delete retained organization search indices",
         "description": "Deletes retained organization search indices that are no longer needed after reindex completion.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9800,7 +10101,9 @@
         "operationId": "startOrganizationBlogSearchReindex",
         "summary": "Start an organization blog search reindex run",
         "description": "Starts a full organization blog search reindex. Admin bearer authentication is required.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9880,7 +10183,9 @@
         "operationId": "getOrganizationBlogSearchReindexRun",
         "summary": "Get an organization blog search reindex run",
         "description": "Returns the specified organization blog search reindex run, or `run: null` if the identifier does not exist.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -9971,7 +10276,9 @@
         "operationId": "getOrganizationBlogSearchStatus",
         "summary": "Get organization blog search subsystem status",
         "description": "Returns alias status, queue lag, telemetry, and the latest/current reindex state for the organization blog search index.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10012,14 +10319,22 @@
                     "aliases": {
                       "read": "postings-read",
                       "write": "postings-write",
-                      "readTargets": ["postings_v3"],
-                      "writeTargets": ["postings_v3"],
+                      "readTargets": [
+                        "postings_v3"
+                      ],
+                      "writeTargets": [
+                        "postings_v3"
+                      ],
                       "health": {
                         "state": "ready",
                         "readAlias": "postings-read",
                         "writeAlias": "postings-write",
-                        "readTargets": ["postings_v3"],
-                        "writeTargets": ["postings_v3"]
+                        "readTargets": [
+                          "postings_v3"
+                        ],
+                        "writeTargets": [
+                          "postings_v3"
+                        ]
                       }
                     },
                     "elasticsearch": {
@@ -10141,7 +10456,9 @@
         "operationId": "replayDeadLetteredOrganizationBlogSearchOutbox",
         "summary": "Replay dead-lettered organization blog search outbox entries",
         "description": "Requeues dead-lettered organization blog search sync entries. The optional `limit` query controls how many items to revive.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10226,7 +10543,9 @@
         "operationId": "cleanupRetainedOrganizationBlogSearchIndices",
         "summary": "Delete retained organization blog search indices",
         "description": "Deletes retained organization blog search indices that are no longer needed after reindex completion.",
-        "tags": ["admin-search"],
+        "tags": [
+          "admin-search"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10297,7 +10616,9 @@
         "operationId": "listFeatureFlags",
         "summary": "List resolved feature flags",
         "description": "Lists all resolved feature flags, merging database overrides, environment values, and code defaults. Admin bearer authentication is required.",
-        "tags": ["feature-flags"],
+        "tags": [
+          "feature-flags"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10316,7 +10637,10 @@
             "description": "Filter by resolved enabled state.",
             "schema": {
               "type": "string",
-              "enum": ["true", "false"]
+              "enum": [
+                "true",
+                "false"
+              ]
             },
             "example": "true"
           },
@@ -10411,7 +10735,9 @@
         "operationId": "setFeatureFlag",
         "summary": "Create or update a feature-flag override",
         "description": "Upserts a database override for the named feature flag, records an audit-log entry, and invalidates the flag cache. Admin bearer authentication is required.",
-        "tags": ["feature-flags"],
+        "tags": [
+          "feature-flags"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10511,7 +10837,9 @@
         "operationId": "deleteFeatureFlag",
         "summary": "Delete a feature-flag override",
         "description": "Removes the database override for the named feature flag so it falls back to the environment value or code default. The deletion is audit-logged. Admin bearer authentication is required.",
-        "tags": ["feature-flags"],
+        "tags": [
+          "feature-flags"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10597,7 +10925,9 @@
         "operationId": "createPosting",
         "summary": "Create a draft posting",
         "description": "Creates a draft posting owned by the authenticated owner. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -10635,7 +10965,10 @@
                     "position": 0
                   }
                 ],
-                "tags": ["workspace", "wifi"],
+                "tags": [
+                  "workspace",
+                  "wifi"
+                ],
                 "availabilityStatus": "available",
                 "availabilityNotes": "Best for weekday bookings.",
                 "maxBookingDurationDays": 30,
@@ -10654,7 +10987,10 @@
                 "details": {
                   "guest_capacity": 4,
                   "property_type": "loft",
-                  "amenities": ["wifi", "coffee"],
+                  "amenities": [
+                    "wifi",
+                    "coffee"
+                  ],
                   "parking": true
                 },
                 "availabilityBlocks": [
@@ -10731,11 +11067,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -10805,7 +11147,9 @@
         "operationId": "searchPostings",
         "summary": "Search public postings",
         "description": "Searches public postings with optional text, category, pricing, geo, availability, and dynamic `attr.<key>` attribute filters. JSON is the default output format; XML is also available with `?format=xml` or `Accept: application/xml`.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -10859,7 +11203,11 @@
             "description": "Posting family filter.",
             "schema": {
               "type": "string",
-              "enum": ["place", "equipment", "vehicle"]
+              "enum": [
+                "place",
+                "equipment",
+                "vehicle"
+              ]
             },
             "example": "place"
           },
@@ -10884,7 +11232,10 @@
                 "type": "string"
               }
             },
-            "example": ["workspace", "wifi"]
+            "example": [
+              "workspace",
+              "wifi"
+            ]
           },
           {
             "name": "availabilityStatus",
@@ -10893,7 +11244,11 @@
             "description": "Availability status filter.",
             "schema": {
               "type": "string",
-              "enum": ["available", "limited", "unavailable"]
+              "enum": [
+                "available",
+                "limited",
+                "unavailable"
+              ]
             },
             "example": "available"
           },
@@ -11006,7 +11361,11 @@
             "description": "Cancellation policy filter.",
             "schema": {
               "type": "string",
-              "enum": ["flexible", "moderate", "strict"]
+              "enum": [
+                "flexible",
+                "moderate",
+                "strict"
+              ]
             },
             "example": "flexible"
           },
@@ -11117,11 +11476,17 @@
                             "updatedAt": "2026-05-01T10:00:00.000Z"
                           }
                         ],
-                        "tags": ["workspace", "wifi"],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
                         "details": {
                           "guest_capacity": 4,
                           "property_type": "loft",
-                          "amenities": ["wifi", "coffee"],
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
                           "parking": true
                         },
                         "availabilityStatus": "available",
@@ -11216,7 +11581,9 @@
         "operationId": "listOwnPostings",
         "summary": "List the authenticated owner's postings",
         "description": "Returns the authenticated owner's postings with pagination and optional status filtering. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -11242,7 +11609,12 @@
             "description": "Optional posting status filter.",
             "schema": {
               "type": "string",
-              "enum": ["draft", "published", "paused", "archived"]
+              "enum": [
+                "draft",
+                "published",
+                "paused",
+                "archived"
+              ]
             },
             "example": "published"
           },
@@ -11324,11 +11696,17 @@
                             "updatedAt": "2026-05-01T10:00:00.000Z"
                           }
                         ],
-                        "tags": ["workspace", "wifi"],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
                         "details": {
                           "guest_capacity": 4,
                           "property_type": "loft",
-                          "amenities": ["wifi", "coffee"],
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
                           "parking": true
                         },
                         "availabilityStatus": "available",
@@ -11413,7 +11791,9 @@
         "operationId": "ownPostingsStatusSummary",
         "summary": "Count the owner's postings by status",
         "description": "Returns the total number of postings for the active organization and a per-status breakdown. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -11488,7 +11868,9 @@
         "operationId": "batchOwnPostings",
         "summary": "Fetch multiple owner postings by ID",
         "description": "Returns multiple owner postings by repeated or comma-separated `ids` query values. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -11512,7 +11894,10 @@
                 "type": "string"
               }
             },
-            "example": ["posting-1", "posting-2"]
+            "example": [
+              "posting-1",
+              "posting-2"
+            ]
           }
         ],
         "responses": {
@@ -11580,11 +11965,17 @@
                             "updatedAt": "2026-05-01T10:00:00.000Z"
                           }
                         ],
-                        "tags": ["workspace", "wifi"],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
                         "details": {
                           "guest_capacity": 4,
                           "property_type": "loft",
-                          "amenities": ["wifi", "coffee"],
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
                           "parking": true
                         },
                         "availabilityStatus": "available",
@@ -11620,7 +12011,9 @@
                         "updatedAt": "2026-05-20T09:00:00.000Z"
                       }
                     ],
-                    "missingIds": ["posting-missing"]
+                    "missingIds": [
+                      "posting-missing"
+                    ]
                   },
                   "error": null,
                   "meta": {
@@ -11653,7 +12046,9 @@
         "operationId": "updatePosting",
         "summary": "Update an owner posting",
         "description": "Updates an existing owner posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -11703,7 +12098,10 @@
                     "position": 0
                   }
                 ],
-                "tags": ["workspace", "wifi"],
+                "tags": [
+                  "workspace",
+                  "wifi"
+                ],
                 "availabilityStatus": "available",
                 "availabilityNotes": "Updated availability note.",
                 "maxBookingDurationDays": 21,
@@ -11722,7 +12120,10 @@
                 "details": {
                   "guest_capacity": 4,
                   "property_type": "loft",
-                  "amenities": ["wifi", "coffee"],
+                  "amenities": [
+                    "wifi",
+                    "coffee"
+                  ],
                   "parking": true
                 }
               }
@@ -11792,11 +12193,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -11869,7 +12276,9 @@
         "operationId": "getPostingById",
         "summary": "Get a public posting by ID",
         "description": "Returns a public posting record. Authentication is optional; if the viewer is not the owner, the request also records view analytics and recommendation activity.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -11957,11 +12366,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12027,7 +12442,9 @@
         "operationId": "duplicatePosting",
         "summary": "Duplicate an owner posting",
         "description": "Creates a new draft posting by duplicating the selected owner posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12114,11 +12531,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12187,7 +12610,9 @@
         "operationId": "publishPosting",
         "summary": "Publish an owner posting",
         "description": "Publishes a draft or paused owner posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12274,11 +12699,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12347,7 +12778,9 @@
         "operationId": "pausePosting",
         "summary": "Pause an owner posting",
         "description": "Pauses a published posting without archiving it. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12434,11 +12867,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12508,7 +12947,9 @@
         "operationId": "unpausePosting",
         "summary": "Unpause an owner posting",
         "description": "Moves a paused posting back to a published state. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12595,11 +13036,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12668,7 +13115,9 @@
         "operationId": "archivePosting",
         "summary": "Archive an owner posting",
         "description": "Archives a posting so it is no longer bookable or publicly visible. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12755,11 +13204,17 @@
                         "updatedAt": "2026-05-01T10:00:00.000Z"
                       }
                     ],
-                    "tags": ["workspace", "wifi"],
+                    "tags": [
+                      "workspace",
+                      "wifi"
+                    ],
                     "details": {
                       "guest_capacity": 4,
                       "property_type": "loft",
-                      "amenities": ["wifi", "coffee"],
+                      "amenities": [
+                        "wifi",
+                        "coffee"
+                      ],
                       "parking": true
                     },
                     "availabilityStatus": "available",
@@ -12829,7 +13284,9 @@
         "operationId": "getPostingAnalyticsSummary",
         "summary": "Get owner analytics summary",
         "description": "Returns owner-level analytics totals for the selected reporting window. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12849,7 +13306,11 @@
             "description": "Reporting window.",
             "schema": {
               "type": "string",
-              "enum": ["7d", "30d", "all"],
+              "enum": [
+                "7d",
+                "30d",
+                "all"
+              ],
               "default": "7d"
             },
             "example": "7d"
@@ -12956,7 +13417,9 @@
         "operationId": "listPostingAnalytics",
         "summary": "List posting analytics by posting",
         "description": "Returns paginated posting analytics rows for the authenticated owner. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -12982,7 +13445,11 @@
             "description": "Reporting window.",
             "schema": {
               "type": "string",
-              "enum": ["7d", "30d", "all"],
+              "enum": [
+                "7d",
+                "30d",
+                "all"
+              ],
               "default": "7d"
             },
             "example": "7d"
@@ -13113,7 +13580,9 @@
         "operationId": "exportPostingAnalytics",
         "summary": "Export owner analytics as CSV",
         "description": "Streams owner-level posting analytics for the selected reporting window as a downloadable CSV file. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13133,7 +13602,11 @@
             "description": "Reporting window.",
             "schema": {
               "type": "string",
-              "enum": ["7d", "30d", "all"],
+              "enum": [
+                "7d",
+                "30d",
+                "all"
+              ],
               "default": "7d"
             },
             "example": "7d"
@@ -13174,7 +13647,9 @@
         "operationId": "getPostingAnalyticsDetail",
         "summary": "Get analytics for a single posting",
         "description": "Returns detailed analytics buckets for a single owner posting. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13204,7 +13679,11 @@
             "description": "Reporting window.",
             "schema": {
               "type": "string",
-              "enum": ["7d", "30d", "all"],
+              "enum": [
+                "7d",
+                "30d",
+                "all"
+              ],
               "default": "7d"
             },
             "example": "7d"
@@ -13216,7 +13695,10 @@
             "description": "Bucket granularity.",
             "schema": {
               "type": "string",
-              "enum": ["hour", "day"],
+              "enum": [
+                "hour",
+                "day"
+              ],
               "default": "day"
             },
             "example": "day"
@@ -13362,7 +13844,9 @@
         "operationId": "listPostingReviews",
         "summary": "List reviews for a posting",
         "description": "Returns public reviews for the selected posting with pagination and rating summary.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -13476,7 +13960,9 @@
         "operationId": "createPostingReview",
         "summary": "Create a review for a posting",
         "description": "Creates a review for a posting as an authenticated renter. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13592,7 +14078,9 @@
         "operationId": "getOwnPostingReview",
         "summary": "Get the caller's review state for a posting",
         "description": "Returns whether the authenticated caller may review this posting and their existing review, or null if they have not reviewed it. Useful for deciding whether to create or edit a review regardless of pagination. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13688,7 +14176,9 @@
         "operationId": "updateOwnPostingReview",
         "summary": "Update the caller's review for a posting",
         "description": "Updates the authenticated user's own review for a posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13804,7 +14294,9 @@
         "operationId": "listSavedPostings",
         "summary": "List the caller's saved postings",
         "description": "Returns the authenticated caller's saved postings as public posting snapshots, newest save first. Postings that stopped being publicly viewable after they were saved are reported in `unavailablePostings`, with the name and the reason, instead of `postings`, so a page can contain fewer entries than `pageSize`. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -13889,11 +14381,17 @@
                             "updatedAt": "2026-05-01T10:00:00.000Z"
                           }
                         ],
-                        "tags": ["workspace", "wifi"],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
                         "details": {
                           "guest_capacity": 4,
                           "property_type": "loft",
-                          "amenities": ["wifi", "coffee"],
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
                           "parking": true
                         },
                         "availabilityStatus": "available",
@@ -13986,7 +14484,9 @@
         "operationId": "listSavedPostingIds",
         "summary": "List the caller's saved posting identifiers",
         "description": "Returns only the identifiers of the authenticated caller's saved postings so a client can render saved state across a list of postings with a single request. The set is capped; when `truncated` is true the caller has more saved postings than the response carries. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14025,7 +14525,10 @@
                   "success": true,
                   "message": "Request completed successfully.",
                   "data": {
-                    "postingIds": ["posting-1", "posting-2"],
+                    "postingIds": [
+                      "posting-1",
+                      "posting-2"
+                    ],
                     "truncated": false
                   },
                   "error": null,
@@ -14056,7 +14559,9 @@
         "operationId": "savePosting",
         "summary": "Save a posting",
         "description": "Adds a publicly visible posting to the authenticated caller's saved postings. The operation is idempotent: saving an already saved posting succeeds and preserves the original save time.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14142,7 +14647,9 @@
         "operationId": "unsavePosting",
         "summary": "Remove a posting from saved postings",
         "description": "Removes a posting from the authenticated caller's saved postings. The operation is idempotent and succeeds even when the posting was never saved, or is no longer publicly visible, so bookmarks cannot become stuck.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14230,7 +14737,9 @@
         "operationId": "createAppFeedback",
         "summary": "Submit app feedback",
         "description": "Creates an app feedback submission. Anonymous callers must include a valid `captchaToken`; signed-in callers may submit without captcha and will have their session user context attached automatically.",
-        "tags": ["feedback"],
+        "tags": [
+          "feedback"
+        ],
         "x-rentify-permissions": {
           "authMode": "public-or-session-bearer",
           "minimumRole": null,
@@ -14314,7 +14823,9 @@
         "operationId": "createReport",
         "summary": "Create a misconduct report",
         "description": "Creates a content report for a posting, posting review, or user. Browser bearer authentication is required.",
-        "tags": ["moderation"],
+        "tags": [
+          "moderation"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14444,7 +14955,9 @@
         "operationId": "listModerationReports",
         "summary": "List moderation reports",
         "description": "Returns the moderator report queue with filters, pagination, and source metadata.",
-        "tags": ["moderation"],
+        "tags": [
+          "moderation"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14472,7 +14985,12 @@
             "description": "Filter by report status.",
             "schema": {
               "type": "string",
-              "enum": ["open", "under_review", "resolved", "dismissed"]
+              "enum": [
+                "open",
+                "under_review",
+                "resolved",
+                "dismissed"
+              ]
             }
           },
           {
@@ -14542,7 +15060,11 @@
             "description": "Queue sort order.",
             "schema": {
               "type": "string",
-              "enum": ["newest", "oldest", "recentlyReviewed"],
+              "enum": [
+                "newest",
+                "oldest",
+                "recentlyReviewed"
+              ],
               "default": "newest"
             }
           }
@@ -14666,7 +15188,9 @@
         "operationId": "getModerationReport",
         "summary": "Get a moderation report",
         "description": "Returns a single report with its subject snapshot and event timeline.",
-        "tags": ["moderation"],
+        "tags": [
+          "moderation"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14815,7 +15339,9 @@
         "operationId": "assignModerationReport",
         "summary": "Assign or unassign a report",
         "description": "Assigns a moderation report to the current moderator, clears the assignment, or lets admins assign another moderator.",
-        "tags": ["moderation"],
+        "tags": [
+          "moderation"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -14953,7 +15479,9 @@
         "operationId": "updateModerationReportStatus",
         "summary": "Update moderation report status",
         "description": "Moves a report through moderation review states and optionally records a resolution and note.",
-        "tags": ["moderation"],
+        "tags": [
+          "moderation"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15097,7 +15625,9 @@
         "operationId": "getPostingAvailabilityCalendar",
         "summary": "Get a posting's availability calendar",
         "description": "Returns day-by-day availability for the requested month, combining posting availability status, advance notice, owner availability blocks, active booking holds, and confirmed rentings. The response maps each `YYYY-MM-DD` day (in the requested timezone) to its status. Authentication is optional; owners may preview the calendar of their own non-published posting.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15227,7 +15757,9 @@
         "operationId": "listPostingAvailabilityBlocks",
         "summary": "List owner availability blocks",
         "description": "Returns owner-managed availability blocks for the selected posting. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15318,7 +15850,9 @@
         "operationId": "createPostingAvailabilityBlock",
         "summary": "Create an availability block",
         "description": "Creates an owner-managed availability block for the selected posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15428,7 +15962,9 @@
         "operationId": "updatePostingAvailabilityBlock",
         "summary": "Update an availability block",
         "description": "Updates an owner-managed availability block for the selected posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15546,7 +16082,9 @@
         "operationId": "deletePostingAvailabilityBlock",
         "summary": "Delete an availability block",
         "description": "Deletes an owner-managed availability block for the selected posting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15610,7 +16148,9 @@
         "operationId": "listPostingSeasonalPricing",
         "summary": "List seasonal pricing rules",
         "description": "Returns all seasonal pricing rules for the selected posting.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15690,7 +16230,9 @@
         "operationId": "createPostingSeasonalPricingRule",
         "summary": "Create a seasonal pricing rule",
         "description": "Creates a seasonal pricing rule for the selected posting. Max 20 rules per posting.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15803,7 +16345,9 @@
         "operationId": "updatePostingSeasonalPricingRule",
         "summary": "Update a seasonal pricing rule",
         "description": "Updates a seasonal pricing rule for the selected posting.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15921,7 +16465,9 @@
         "operationId": "deletePostingSeasonalPricingRule",
         "summary": "Delete a seasonal pricing rule",
         "description": "Deletes a seasonal pricing rule for the selected posting.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -15982,7 +16528,9 @@
         "operationId": "trackPostingSearchClick",
         "summary": "Track a search-result click for a posting",
         "description": "Records a search click for recommendations and analytics. Authentication is optional; PAT bearer authentication with `mcp:read` is allowed when supplied.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -16090,7 +16638,9 @@
         "operationId": "autocompletePostings",
         "summary": "Autocomplete public postings",
         "description": "Returns autocomplete suggestions for posting names, tags, and locations.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -16116,7 +16666,11 @@
             "description": "Optional family filter.",
             "schema": {
               "type": "string",
-              "enum": ["place", "equipment", "vehicle"]
+              "enum": [
+                "place",
+                "equipment",
+                "vehicle"
+              ]
             },
             "example": "place"
           },
@@ -16212,7 +16766,9 @@
         "operationId": "listRecommendations",
         "summary": "List recommended postings",
         "description": "Returns personalized or fallback popular recommendations. Authentication is optional; when present it improves personalization.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -16238,7 +16794,11 @@
             "description": "Optional family filter.",
             "schema": {
               "type": "string",
-              "enum": ["place", "equipment", "vehicle"]
+              "enum": [
+                "place",
+                "equipment",
+                "vehicle"
+              ]
             },
             "example": "place"
           },
@@ -16372,11 +16932,17 @@
                               "updatedAt": "2026-05-01T10:00:00.000Z"
                             }
                           ],
-                          "tags": ["workspace", "wifi"],
+                          "tags": [
+                            "workspace",
+                            "wifi"
+                          ],
                           "details": {
                             "guest_capacity": 4,
                             "property_type": "loft",
-                            "amenities": ["wifi", "coffee"],
+                            "amenities": [
+                              "wifi",
+                              "coffee"
+                            ],
                             "parking": true
                           },
                           "availabilityStatus": "available",
@@ -16411,7 +16977,10 @@
                           "createdAt": "2026-05-01T09:00:00.000Z",
                           "updatedAt": "2026-05-20T09:00:00.000Z"
                         },
-                        "reasonCodes": ["similar_family", "nearby"]
+                        "reasonCodes": [
+                          "similar_family",
+                          "nearby"
+                        ]
                       }
                     ],
                     "pagination": {
@@ -16471,7 +17040,9 @@
         "operationId": "batchPublicPostings",
         "summary": "Fetch multiple public postings by ID",
         "description": "Returns multiple public postings by repeated or comma-separated `ids` query values.",
-        "tags": ["postings"],
+        "tags": [
+          "postings"
+        ],
         "x-rentify-permissions": {
           "authMode": "public",
           "minimumRole": null,
@@ -16489,7 +17060,10 @@
                 "type": "string"
               }
             },
-            "example": ["posting-1", "posting-2"]
+            "example": [
+              "posting-1",
+              "posting-2"
+            ]
           }
         ],
         "responses": {
@@ -16557,11 +17131,17 @@
                             "updatedAt": "2026-05-01T10:00:00.000Z"
                           }
                         ],
-                        "tags": ["workspace", "wifi"],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
                         "details": {
                           "guest_capacity": 4,
                           "property_type": "loft",
-                          "amenities": ["wifi", "coffee"],
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
                           "parking": true
                         },
                         "availabilityStatus": "available",
@@ -16597,7 +17177,9 @@
                         "updatedAt": "2026-05-20T09:00:00.000Z"
                       }
                     ],
-                    "missingIds": ["posting-missing"]
+                    "missingIds": [
+                      "posting-missing"
+                    ]
                   },
                   "error": null,
                   "meta": {
@@ -16624,7 +17206,9 @@
         "operationId": "createBookingRequest",
         "summary": "Create a booking request for a posting",
         "description": "Creates a booking request for the selected posting. On a standard posting the request starts in `pending` and awaits owner approval. On an instant-book posting it is auto-approved on creation and returned in `awaiting_payment` with `autoApproved: true`. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -16767,7 +17351,9 @@
         "operationId": "listPostingBookingRequests",
         "summary": "List booking requests for an owner posting",
         "description": "Returns booking requests for a specific owner posting. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -16939,7 +17525,9 @@
         "operationId": "quoteBookingRequest",
         "summary": "Quote a potential booking request",
         "description": "Returns bookability and pricing information for a potential booking request without creating it. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17055,7 +17643,9 @@
         "operationId": "listOwnBookingRequests",
         "summary": "List the caller's booking requests",
         "description": "Returns booking requests created by the authenticated renter. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17214,7 +17804,9 @@
         "operationId": "listOwnedBookingRequests",
         "summary": "List booking requests across the caller's postings",
         "description": "Returns booking requests across all postings owned by the authenticated owner. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17373,7 +17965,9 @@
         "operationId": "getRenterBookingDashboard",
         "summary": "Get the renter booking dashboard",
         "description": "Returns renter dashboard buckets, next actions, and pagination. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17399,7 +17993,10 @@
             "description": "Dashboard sort.",
             "schema": {
               "type": "string",
-              "enum": ["urgency", "start_at"],
+              "enum": [
+                "urgency",
+                "start_at"
+              ],
               "default": "urgency"
             },
             "example": "urgency"
@@ -17563,7 +18160,9 @@
         "operationId": "getOwnerBookingDashboard",
         "summary": "Get the owner booking dashboard",
         "description": "Returns owner dashboard items, summary, and posting filters. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17589,7 +18188,10 @@
             "description": "Dashboard sort.",
             "schema": {
               "type": "string",
-              "enum": ["urgency", "start_at"],
+              "enum": [
+                "urgency",
+                "start_at"
+              ],
               "default": "urgency"
             },
             "example": "urgency"
@@ -17769,7 +18371,9 @@
         "operationId": "getBookingRequestById",
         "summary": "Get a booking request by ID",
         "description": "Returns a booking request when the authenticated caller is allowed to access it. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -17887,7 +18491,9 @@
         "operationId": "updateOwnBookingRequest",
         "summary": "Update the caller's pending booking request",
         "description": "Updates the authenticated renter's own pending booking request. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18035,7 +18641,9 @@
         "operationId": "getBookingCancellationQuote",
         "summary": "Get a cancellation quote for a booking request",
         "description": "Returns cancellation eligibility and refund details for a booking request. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18128,7 +18736,9 @@
         "operationId": "approveBookingRequest",
         "summary": "Approve a booking request",
         "description": "Approves a booking request as the posting owner. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18267,7 +18877,9 @@
         "operationId": "declineBookingRequest",
         "summary": "Decline a booking request",
         "description": "Declines a booking request as the posting owner. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18406,7 +19018,9 @@
         "operationId": "cancelBookingRequest",
         "summary": "Cancel a booking request",
         "description": "Cancels a booking request as an authorized participant. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18547,7 +19161,9 @@
         "operationId": "listBookingMessages",
         "summary": "List booking request messages",
         "description": "Returns the paginated message thread for a booking request, newest first, plus the unread count for the requesting side. Readable by the renter and by any member of the owning organization. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18690,7 +19306,9 @@
         "operationId": "sendBookingMessage",
         "summary": "Send a booking request message",
         "description": "Sends a message on a booking request thread. Allowed for the renter and for organization managers; organization operators are read-only. Queues a notification email to the other party, throttled per thread. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18799,7 +19417,9 @@
         "operationId": "editBookingMessage",
         "summary": "Edit a booking request message",
         "description": "Edits the authenticated user's own message. Allowed within 15 minutes of sending, regardless of whether the other party has read it, and the edit is marked so the other side can see the message changed. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -18916,7 +19536,9 @@
         "operationId": "deleteBookingMessage",
         "summary": "Delete a booking request message",
         "description": "Deletes the authenticated user's own message within 15 minutes of sending. The message is soft deleted: its text is cleared but the row remains so the booking keeps a record that a message existed. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19022,7 +19644,9 @@
         "operationId": "markBookingMessagesRead",
         "summary": "Mark booking request messages as read",
         "description": "Marks every unread message addressed to the authenticated user's side of the thread as read. Read state is tracked per side, not per user, so an organization manager clears it for the whole organization. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19107,7 +19731,9 @@
         "operationId": "createBookingMessageSocketTicket",
         "summary": "Issue a booking message socket ticket",
         "description": "Issues a short-lived, single-use ticket for the booking message WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/booking-messages`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use after 30 seconds. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `message.created`, `message.updated`, `messages.read`, `messages.delivered`, `typing`, and `presence` frames, and accepts `typing`, `delivered`, and `ping` frames from the client. PAT bearer authentication is not allowed.",
-        "tags": ["booking-requests"],
+        "tags": [
+          "booking-requests"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19190,7 +19816,9 @@
         "operationId": "createPaymentSession",
         "summary": "Create a payment session for a booking request",
         "description": "Creates a Square payment session for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19322,7 +19950,9 @@
         "operationId": "handleSquareWebhook",
         "summary": "Handle a Square payment webhook",
         "description": "Processes a Square webhook event. The `x-square-hmacsha256-signature` header is required and verified against the raw request body.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "squareWebhookSignature": []
@@ -19415,7 +20045,9 @@
         "operationId": "handleTelnyxSmsWebhook",
         "summary": "Handle a Telnyx SMS webhook",
         "description": "Processes a Telnyx messaging webhook. The `telnyx-signature-ed25519` and `telnyx-timestamp` headers are required and verified against the raw request body.",
-        "tags": ["sms"],
+        "tags": [
+          "sms"
+        ],
         "security": [
           {
             "telnyxWebhookSignature": [],
@@ -19516,7 +20148,9 @@
         "operationId": "getPaymentById",
         "summary": "Get a payment by ID",
         "description": "Returns a payment record when the authenticated caller is allowed to access it.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19625,7 +20259,9 @@
         "operationId": "getPaymentByBookingRequest",
         "summary": "Get a payment by booking request ID",
         "description": "Returns the payment record associated with a booking request when the authenticated caller is allowed to access it.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19734,7 +20370,9 @@
         "operationId": "retryPayment",
         "summary": "Retry a failed payment",
         "description": "Retries payment session creation for a payment that can be retried. PAT bearer authentication is not allowed.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -19866,7 +20504,9 @@
         "operationId": "createPaymentRefund",
         "summary": "Create a payment refund",
         "description": "Creates a refund for an accessible payment. PAT bearer authentication is not allowed.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20013,7 +20653,9 @@
         "operationId": "reconcilePayment",
         "summary": "Reconcile a payment with the provider",
         "description": "Refreshes payment state from the provider and reconciles any required changes. PAT bearer authentication is not allowed.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20128,7 +20770,9 @@
         "operationId": "repairPayment",
         "summary": "Queue an admin payment repair",
         "description": "Queues an administrative payment repair task. Admin bearer authentication is required.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20214,7 +20858,9 @@
         "operationId": "listPayouts",
         "summary": "List the caller's payouts",
         "description": "Returns payouts for the authenticated owner. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["payments"],
+        "tags": [
+          "payments"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20240,7 +20886,11 @@
             "description": "Optional payout status filter.",
             "schema": {
               "type": "string",
-              "enum": ["scheduled", "released", "failed"]
+              "enum": [
+                "scheduled",
+                "released",
+                "failed"
+              ]
             },
             "example": "scheduled"
           }
@@ -20333,7 +20983,9 @@
         "operationId": "convertBookingRequestToRenting",
         "summary": "Convert an approved booking request into a renting",
         "description": "Creates a renting from an approved booking request. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20451,7 +21103,9 @@
         "operationId": "listOwnRentings",
         "summary": "List the caller's rentings",
         "description": "Returns rentings accessible to the authenticated user. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20602,7 +21256,9 @@
         "operationId": "updateRentingInstructions",
         "summary": "Update renting instructions",
         "description": "Updates pickup and return instructions for a renting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20737,7 +21393,9 @@
         "operationId": "markRentingCheckInReady",
         "summary": "Mark a renting as check-in ready",
         "description": "Marks a renting as ready for check-in. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20856,7 +21514,9 @@
         "operationId": "markRentingCheckInComplete",
         "summary": "Complete renting check-in",
         "description": "Marks a renting as checked in and active. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -20975,7 +21635,9 @@
         "operationId": "markRentingCompleted",
         "summary": "Complete a renting return",
         "description": "Marks a renting as returned and completed. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -21094,7 +21756,9 @@
         "operationId": "createRentingDispute",
         "summary": "Open a renting dispute",
         "description": "Creates a dispute for the selected renting. PAT bearer authentication with `mcp:write` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -21238,7 +21902,9 @@
         "operationId": "getRentingById",
         "summary": "Get a renting by ID",
         "description": "Returns a renting when the authenticated caller is allowed to access it. PAT bearer authentication with `mcp:read` is allowed.",
-        "tags": ["rentings"],
+        "tags": [
+          "rentings"
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -21397,7 +22063,9 @@
               "error": {
                 "code": "VALIDATION_ERROR",
                 "details": {
-                  "field": ["Required field is missing."]
+                  "field": [
+                    "Required field is missing."
+                  ]
                 }
               },
               "meta": {
@@ -21606,7 +22274,9 @@
     "schemas": {
       "ApiError": {
         "type": "object",
-        "required": ["code"],
+        "required": [
+          "code"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -21639,7 +22309,9 @@
       },
       "RequestMeta": {
         "type": "object",
-        "required": ["requestId"],
+        "required": [
+          "requestId"
+        ],
         "properties": {
           "requestId": {
             "type": "string"
@@ -21660,7 +22332,13 @@
       },
       "ApiSuccessEnvelope": {
         "type": "object",
-        "required": ["success", "message", "data", "error", "meta"],
+        "required": [
+          "success",
+          "message",
+          "data",
+          "error",
+          "meta"
+        ],
         "properties": {
           "success": {
             "type": "boolean",
@@ -21680,7 +22358,13 @@
       },
       "ApiErrorEnvelope": {
         "type": "object",
-        "required": ["success", "message", "data", "error", "meta"],
+        "required": [
+          "success",
+          "message",
+          "data",
+          "error",
+          "meta"
+        ],
         "properties": {
           "success": {
             "type": "boolean",
@@ -21710,7 +22394,10 @@
             "type": "string"
           }
         },
-        "required": ["apiVersion", "apiBasePath"]
+        "required": [
+          "apiVersion",
+          "apiBasePath"
+        ]
       },
       "HealthStatus": {
         "type": "object",
@@ -21726,7 +22413,11 @@
             "additionalProperties": true
           }
         },
-        "required": ["ok", "uptime", "checks"]
+        "required": [
+          "ok",
+          "uptime",
+          "checks"
+        ]
       },
       "ActionOkResult": {
         "type": "object",
@@ -21775,7 +22466,12 @@
           },
           "role": {
             "type": "string",
-            "enum": ["user", "owner", "moderator", "admin"]
+            "enum": [
+              "user",
+              "owner",
+              "moderator",
+              "admin"
+            ]
           },
           "activeOrganization": {
             "$ref": "#/components/schemas/OrganizationSummary"
@@ -21788,15 +22484,29 @@
       },
       "OrganizationRole": {
         "type": "string",
-        "enum": ["primary_manager", "manager", "operator"]
+        "enum": [
+          "primary_manager",
+          "manager",
+          "operator"
+        ]
       },
       "OrganizationInviteStatus": {
         "type": "string",
-        "enum": ["pending", "accepted", "revoked", "expired"]
+        "enum": [
+          "pending",
+          "accepted",
+          "revoked",
+          "expired"
+        ]
       },
       "OrganizationSummary": {
         "type": "object",
-        "required": ["id", "slug", "name", "role"],
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "role"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -21822,7 +22532,12 @@
       },
       "ResolvedOrganizationReference": {
         "type": "object",
-        "required": ["organizationId", "canonicalSlug", "name", "matchedBy"],
+        "required": [
+          "organizationId",
+          "canonicalSlug",
+          "name",
+          "matchedBy"
+        ],
         "properties": {
           "organizationId": {
             "type": "string"
@@ -21835,14 +22550,19 @@
           },
           "matchedBy": {
             "type": "string",
-            "enum": ["canonical-slug", "alias"],
+            "enum": [
+              "canonical-slug",
+              "alias"
+            ],
             "description": "`alias` means the request used a retired slug; clients should redirect to `canonicalSlug`."
           }
         }
       },
       "UpdateOrganizationSlugRequest": {
         "type": "object",
-        "required": ["slug"],
+        "required": [
+          "slug"
+        ],
         "properties": {
           "slug": {
             "$ref": "#/components/schemas/OrganizationSlug"
@@ -21856,7 +22576,11 @@
           },
           {
             "type": "object",
-            "required": ["membershipId", "joinedAt", "isActive"],
+            "required": [
+              "membershipId",
+              "joinedAt",
+              "isActive"
+            ],
             "properties": {
               "membershipId": {
                 "type": "string"
@@ -21874,7 +22598,9 @@
       },
       "OrganizationWorkspaceResult": {
         "type": "object",
-        "required": ["memberships"],
+        "required": [
+          "memberships"
+        ],
         "properties": {
           "memberships": {
             "type": "array",
@@ -21889,7 +22615,9 @@
       },
       "SetActiveOrganizationRequest": {
         "type": "object",
-        "required": ["organizationId"],
+        "required": [
+          "organizationId"
+        ],
         "properties": {
           "organizationId": {
             "type": "string"
@@ -21898,7 +22626,9 @@
       },
       "SetActiveOrganizationResult": {
         "type": "object",
-        "required": ["activeOrganization"],
+        "required": [
+          "activeOrganization"
+        ],
         "properties": {
           "activeOrganization": {
             "$ref": "#/components/schemas/OrganizationSummary"
@@ -21985,7 +22715,9 @@
         "allOf": [
           {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -22001,7 +22733,10 @@
       },
       "CreateOrganizationResult": {
         "type": "object",
-        "required": ["organization", "membership"],
+        "required": [
+          "organization",
+          "membership"
+        ],
         "properties": {
           "organization": {
             "$ref": "#/components/schemas/OrganizationSummary"
@@ -22015,7 +22750,9 @@
         "allOf": [
           {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -22091,7 +22828,9 @@
       },
       "PublicOrganizationStats": {
         "type": "object",
-        "required": ["publishedPostingCount"],
+        "required": [
+          "publishedPostingCount"
+        ],
         "properties": {
           "publishedPostingCount": {
             "type": "integer",
@@ -22142,7 +22881,10 @@
       },
       "PublicOrganizationListResult": {
         "type": "object",
-        "required": ["organizations", "pagination"],
+        "required": [
+          "organizations",
+          "pagination"
+        ],
         "properties": {
           "organizations": {
             "type": "array",
@@ -22160,7 +22902,10 @@
       },
       "PublicOrganizationDetailResult": {
         "type": "object",
-        "required": ["organization", "stats"],
+        "required": [
+          "organization",
+          "stats"
+        ],
         "properties": {
           "organization": {
             "$ref": "#/components/schemas/PublicOrganizationSummary"
@@ -22174,7 +22919,13 @@
         "allOf": [
           {
             "type": "object",
-            "required": ["id", "slug", "name", "createdAt", "updatedAt"],
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "createdAt",
+              "updatedAt"
+            ],
             "properties": {
               "id": {
                 "type": "string"
@@ -22245,7 +22996,11 @@
       },
       "OrganizationInvitationActorSummary": {
         "type": "object",
-        "required": ["id", "email", "username"],
+        "required": [
+          "id",
+          "email",
+          "username"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -22319,7 +23074,12 @@
       },
       "OrganizationWorkspaceDetailResult": {
         "type": "object",
-        "required": ["organization", "viewerRole", "members", "invitations"],
+        "required": [
+          "organization",
+          "viewerRole",
+          "members",
+          "invitations"
+        ],
         "properties": {
           "organization": {
             "$ref": "#/components/schemas/OrganizationWorkspaceDetailOrganization"
@@ -22343,7 +23103,10 @@
       },
       "CreateOrganizationInvitationRequest": {
         "type": "object",
-        "required": ["email", "role"],
+        "required": [
+          "email",
+          "role"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -22351,13 +23114,18 @@
           },
           "role": {
             "type": "string",
-            "enum": ["manager", "operator"]
+            "enum": [
+              "manager",
+              "operator"
+            ]
           }
         }
       },
       "CreateOrganizationInviteResult": {
         "type": "object",
-        "required": ["invitation"],
+        "required": [
+          "invitation"
+        ],
         "properties": {
           "invitation": {
             "$ref": "#/components/schemas/OrganizationInvitationRecord"
@@ -22366,17 +23134,25 @@
       },
       "UpdateOrganizationMemberRequest": {
         "type": "object",
-        "required": ["role"],
+        "required": [
+          "role"
+        ],
         "properties": {
           "role": {
             "type": "string",
-            "enum": ["manager", "operator", "primary_manager"]
+            "enum": [
+              "manager",
+              "operator",
+              "primary_manager"
+            ]
           }
         }
       },
       "UpdateOrganizationMemberResult": {
         "type": "object",
-        "required": ["member"],
+        "required": [
+          "member"
+        ],
         "properties": {
           "member": {
             "$ref": "#/components/schemas/OrganizationMemberRecord"
@@ -22385,7 +23161,10 @@
       },
       "RemoveOrganizationMemberResult": {
         "type": "object",
-        "required": ["removed", "membershipId"],
+        "required": [
+          "removed",
+          "membershipId"
+        ],
         "properties": {
           "removed": {
             "type": "boolean"
@@ -22397,7 +23176,10 @@
       },
       "OrganizationInvitePreviewResult": {
         "type": "object",
-        "required": ["invitation", "viewer"],
+        "required": [
+          "invitation",
+          "viewer"
+        ],
         "properties": {
           "invitation": {
             "type": "object",
@@ -22433,7 +23215,11 @@
           },
           "viewer": {
             "type": "object",
-            "required": ["authenticated", "matchesEmail", "canAccept"],
+            "required": [
+              "authenticated",
+              "matchesEmail",
+              "canAccept"
+            ],
             "properties": {
               "authenticated": {
                 "type": "boolean"
@@ -22457,7 +23243,11 @@
       },
       "AcceptOrganizationInviteResult": {
         "type": "object",
-        "required": ["accepted", "organization", "membership"],
+        "required": [
+          "accepted",
+          "organization",
+          "membership"
+        ],
         "properties": {
           "accepted": {
             "type": "boolean"
@@ -22528,7 +23318,11 @@
       },
       "OrganizationAuditActorSummary": {
         "type": "object",
-        "required": ["id", "email", "username"],
+        "required": [
+          "id",
+          "email",
+          "username"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -22548,7 +23342,11 @@
       },
       "OrganizationAuditChange": {
         "type": "object",
-        "required": ["field", "before", "after"],
+        "required": [
+          "field",
+          "before",
+          "after"
+        ],
         "properties": {
           "field": {
             "type": "string"
@@ -22622,7 +23420,10 @@
       },
       "OrganizationAuditListResult": {
         "type": "object",
-        "required": ["auditLogs", "pagination"],
+        "required": [
+          "auditLogs",
+          "pagination"
+        ],
         "properties": {
           "auditLogs": {
             "type": "array",
@@ -22637,7 +23438,10 @@
       },
       "RestoreOrganizationAuditResult": {
         "type": "object",
-        "required": ["restored", "auditLog"],
+        "required": [
+          "restored",
+          "auditLog"
+        ],
         "properties": {
           "restored": {
             "type": "boolean"
@@ -22649,11 +23453,18 @@
       },
       "OrganizationAnnouncementStatus": {
         "type": "string",
-        "enum": ["draft", "published"]
+        "enum": [
+          "draft",
+          "published"
+        ]
       },
       "OrganizationAnnouncementAuthorSummary": {
         "type": "object",
-        "required": ["id", "email", "username"],
+        "required": [
+          "id",
+          "email",
+          "username"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -22717,7 +23528,10 @@
       },
       "OrganizationAnnouncementListResult": {
         "type": "object",
-        "required": ["announcements", "pagination"],
+        "required": [
+          "announcements",
+          "pagination"
+        ],
         "properties": {
           "announcements": {
             "type": "array",
@@ -22732,7 +23546,10 @@
       },
       "CreateOrganizationAnnouncementRequest": {
         "type": "object",
-        "required": ["title", "body"],
+        "required": [
+          "title",
+          "body"
+        ],
         "properties": {
           "title": {
             "type": "string",
@@ -22769,7 +23586,10 @@
       },
       "DeleteOrganizationAnnouncementResult": {
         "type": "object",
-        "required": ["deleted", "announcementId"],
+        "required": [
+          "deleted",
+          "announcementId"
+        ],
         "properties": {
           "deleted": {
             "type": "boolean"
@@ -22781,11 +23601,18 @@
       },
       "OrganizationBlogStatus": {
         "type": "string",
-        "enum": ["draft", "published"]
+        "enum": [
+          "draft",
+          "published"
+        ]
       },
       "OrganizationBlogAuthorSummary": {
         "type": "object",
-        "required": ["id", "email", "username"],
+        "required": [
+          "id",
+          "email",
+          "username"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -22805,7 +23632,11 @@
       },
       "OrganizationBlogOrganizationSummary": {
         "type": "object",
-        "required": ["id", "slug", "name"],
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -22902,7 +23733,10 @@
       },
       "OrganizationBlogPostListResult": {
         "type": "object",
-        "required": ["posts", "pagination"],
+        "required": [
+          "posts",
+          "pagination"
+        ],
         "properties": {
           "posts": {
             "type": "array",
@@ -22915,7 +23749,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["elasticsearch", "database"],
+            "enum": [
+              "elasticsearch",
+              "database"
+            ],
             "description": "Which backend served the result. Present only on public, Elasticsearch-backed reads."
           },
           "query": {
@@ -22926,7 +23763,10 @@
       },
       "CreateOrganizationBlogPostRequest": {
         "type": "object",
-        "required": ["title", "body"],
+        "required": [
+          "title",
+          "body"
+        ],
         "properties": {
           "title": {
             "type": "string",
@@ -23023,7 +23863,10 @@
       },
       "OrganizationBlogCommentAuthorSummary": {
         "type": "object",
-        "required": ["id", "username"],
+        "required": [
+          "id",
+          "username"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -23085,7 +23928,10 @@
           },
           "deletedBy": {
             "type": "string",
-            "enum": ["author", "moderator"],
+            "enum": [
+              "author",
+              "moderator"
+            ],
             "nullable": true,
             "description": "Who removed the comment, in the only terms a public reader needs. Never a user id: naming the manager who removed a comment would expose staff to the person they moderated."
           }
@@ -23131,7 +23977,9 @@
       },
       "CreateOrganizationBlogCommentRequest": {
         "type": "object",
-        "required": ["body"],
+        "required": [
+          "body"
+        ],
         "properties": {
           "body": {
             "type": "string",
@@ -23142,7 +23990,9 @@
       },
       "UpdateOrganizationBlogCommentRequest": {
         "type": "object",
-        "required": ["body"],
+        "required": [
+          "body"
+        ],
         "properties": {
           "body": {
             "type": "string",
@@ -23153,7 +24003,9 @@
       },
       "OrganizationBlogCommentSocketTicket": {
         "type": "object",
-        "required": ["expiresInSeconds"],
+        "required": [
+          "expiresInSeconds"
+        ],
         "properties": {
           "expiresInSeconds": {
             "type": "integer",
@@ -23163,7 +24015,10 @@
       },
       "DeleteOrganizationBlogPostResult": {
         "type": "object",
-        "required": ["deleted", "blogPostId"],
+        "required": [
+          "deleted",
+          "blogPostId"
+        ],
         "properties": {
           "deleted": {
             "type": "boolean"
@@ -23187,7 +24042,10 @@
       },
       "OrganizationReviewResponse": {
         "type": "object",
-        "required": ["body", "respondedAt"],
+        "required": [
+          "body",
+          "respondedAt"
+        ],
         "properties": {
           "body": {
             "type": "string"
@@ -23198,7 +24056,9 @@
           },
           "author": {
             "type": "object",
-            "required": ["id"],
+            "required": [
+              "id"
+            ],
             "properties": {
               "id": {
                 "type": "string"
@@ -23269,7 +24129,10 @@
       },
       "OrganizationReviewSummary": {
         "type": "object",
-        "required": ["averageRating", "reviewCount"],
+        "required": [
+          "averageRating",
+          "reviewCount"
+        ],
         "properties": {
           "averageRating": {
             "type": "number"
@@ -23281,7 +24144,11 @@
       },
       "OrganizationReviewListResult": {
         "type": "object",
-        "required": ["reviews", "summary", "pagination"],
+        "required": [
+          "reviews",
+          "summary",
+          "pagination"
+        ],
         "properties": {
           "reviews": {
             "type": "array",
@@ -23299,7 +24166,9 @@
       },
       "CreateOrganizationReviewRequest": {
         "type": "object",
-        "required": ["rating"],
+        "required": [
+          "rating"
+        ],
         "properties": {
           "rating": {
             "type": "integer",
@@ -23322,7 +24191,9 @@
       },
       "UpdateOrganizationReviewRequest": {
         "type": "object",
-        "required": ["rating"],
+        "required": [
+          "rating"
+        ],
         "properties": {
           "rating": {
             "type": "integer",
@@ -23345,7 +24216,9 @@
       },
       "ReplyOrganizationReviewRequest": {
         "type": "object",
-        "required": ["body"],
+        "required": [
+          "body"
+        ],
         "properties": {
           "body": {
             "type": "string",
@@ -23356,7 +24229,10 @@
       },
       "DeleteOrganizationReviewResult": {
         "type": "object",
-        "required": ["deleted", "reviewId"],
+        "required": [
+          "deleted",
+          "reviewId"
+        ],
         "properties": {
           "deleted": {
             "type": "boolean"
@@ -23368,7 +24244,11 @@
       },
       "AuthSessionResponseData": {
         "type": "object",
-        "required": ["accessToken", "device", "user"],
+        "required": [
+          "accessToken",
+          "device",
+          "user"
+        ],
         "properties": {
           "accessToken": {
             "type": "string"
@@ -23378,7 +24258,10 @@
           },
           "device": {
             "type": "object",
-            "required": ["known", "knownByIp"],
+            "required": [
+              "known",
+              "knownByIp"
+            ],
             "properties": {
               "deviceId": {
                 "type": "string"
@@ -23402,7 +24285,11 @@
       },
       "SignupVerificationPendingResult": {
         "type": "object",
-        "required": ["verificationRequired", "email", "alreadyPending"],
+        "required": [
+          "verificationRequired",
+          "email",
+          "alreadyPending"
+        ],
         "properties": {
           "verificationRequired": {
             "type": "boolean"
@@ -23422,7 +24309,10 @@
       },
       "LinkedOAuthProvidersResult": {
         "type": "object",
-        "required": ["hasPassword", "providers"],
+        "required": [
+          "hasPassword",
+          "providers"
+        ],
         "properties": {
           "hasPassword": {
             "type": "boolean"
@@ -23431,14 +24321,23 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["id", "provider", "emailVerified", "linkedAt"],
+              "required": [
+                "id",
+                "provider",
+                "emailVerified",
+                "linkedAt"
+              ],
               "properties": {
                 "id": {
                   "type": "string"
                 },
                 "provider": {
                   "type": "string",
-                  "enum": ["google", "microsoft", "apple"]
+                  "enum": [
+                    "google",
+                    "microsoft",
+                    "apple"
+                  ]
                 },
                 "providerEmail": {
                   "type": "string",
@@ -23470,11 +24369,17 @@
             }
           }
         },
-        "required": ["devices"]
+        "required": [
+          "devices"
+        ]
       },
       "LocalAuthenticateRequest": {
         "type": "object",
-        "required": ["username", "password", "captchaToken"],
+        "required": [
+          "username",
+          "password",
+          "captchaToken"
+        ],
         "properties": {
           "username": {
             "type": "string",
@@ -23498,7 +24403,12 @@
       },
       "LocalSignupRequest": {
         "type": "object",
-        "required": ["username", "email", "password", "captchaToken"],
+        "required": [
+          "username",
+          "email",
+          "password",
+          "captchaToken"
+        ],
         "properties": {
           "username": {
             "type": "string",
@@ -23529,7 +24439,10 @@
       },
       "ForgotPasswordRequest": {
         "type": "object",
-        "required": ["username", "captchaToken"],
+        "required": [
+          "username",
+          "captchaToken"
+        ],
         "properties": {
           "username": {
             "type": "string"
@@ -23541,7 +24454,10 @@
       },
       "ForgotUsernameRequest": {
         "type": "object",
-        "required": ["email", "captchaToken"],
+        "required": [
+          "email",
+          "captchaToken"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -23554,7 +24470,10 @@
       },
       "ResendVerificationEmailRequest": {
         "type": "object",
-        "required": ["email", "captchaToken"],
+        "required": [
+          "email",
+          "captchaToken"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -23567,7 +24486,10 @@
       },
       "UnlockLocalLoginRequest": {
         "type": "object",
-        "required": ["email", "code"],
+        "required": [
+          "email",
+          "code"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -23581,7 +24503,10 @@
       },
       "ResendUnlockLocalLoginRequest": {
         "type": "object",
-        "required": ["email", "captchaToken"],
+        "required": [
+          "email",
+          "captchaToken"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -23594,7 +24519,10 @@
       },
       "VerifyEmailRequest": {
         "type": "object",
-        "required": ["email", "code"],
+        "required": [
+          "email",
+          "code"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -23611,7 +24539,11 @@
       },
       "ResetPasswordRequest": {
         "type": "object",
-        "required": ["username", "code", "newPassword"],
+        "required": [
+          "username",
+          "code",
+          "newPassword"
+        ],
         "properties": {
           "username": {
             "type": "string"
@@ -23630,7 +24562,10 @@
       },
       "ChangePasswordRequest": {
         "type": "object",
-        "required": ["currentPassword", "newPassword"],
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
         "properties": {
           "currentPassword": {
             "type": "string"
@@ -23642,7 +24577,9 @@
       },
       "OAuthAuthenticateRequest": {
         "type": "object",
-        "required": ["nonce"],
+        "required": [
+          "nonce"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -23680,7 +24617,9 @@
       },
       "RemoveKnownDeviceRequest": {
         "type": "object",
-        "required": ["deviceId"],
+        "required": [
+          "deviceId"
+        ],
         "properties": {
           "deviceId": {
             "type": "string"
@@ -23697,7 +24636,9 @@
             }
           }
         },
-        "required": ["tokens"]
+        "required": [
+          "tokens"
+        ]
       },
       "PersonalAccessTokenSummary": {
         "type": "object",
@@ -23723,7 +24664,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["mcp:read", "mcp:write"]
+              "enum": [
+                "mcp:read",
+                "mcp:write"
+              ]
             }
           },
           "lastUsedAt": {
@@ -23750,7 +24694,10 @@
       },
       "CreatePersonalAccessTokenRequest": {
         "type": "object",
-        "required": ["name", "scopes"],
+        "required": [
+          "name",
+          "scopes"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -23759,7 +24706,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["mcp:read", "mcp:write"]
+              "enum": [
+                "mcp:read",
+                "mcp:write"
+              ]
             }
           },
           "expiresAt": {
@@ -23780,7 +24730,9 @@
           },
           {
             "type": "object",
-            "required": ["token"],
+            "required": [
+              "token"
+            ],
             "properties": {
               "token": {
                 "type": "string"
@@ -23791,7 +24743,10 @@
       },
       "RevokePersonalAccessTokenResult": {
         "type": "object",
-        "required": ["revoked", "tokenId"],
+        "required": [
+          "revoked",
+          "tokenId"
+        ],
         "properties": {
           "revoked": {
             "type": "boolean"
@@ -23803,7 +24758,10 @@
       },
       "CreateBlobUploadUrlRequest": {
         "type": "object",
-        "required": ["filename", "contentType"],
+        "required": [
+          "filename",
+          "contentType"
+        ],
         "properties": {
           "filename": {
             "type": "string"
@@ -23860,7 +24818,9 @@
       },
       "BlobDeleteResult": {
         "type": "object",
-        "required": ["deleted"],
+        "required": [
+          "deleted"
+        ],
         "properties": {
           "deleted": {
             "type": "boolean",
@@ -23870,16 +24830,26 @@
       },
       "MfaVerificationScope": {
         "type": "string",
-        "enum": ["mfa-management", "device-login"],
+        "enum": [
+          "mfa-management",
+          "device-login"
+        ],
         "description": "Step-up verification scope."
       },
       "MfaVerificationFactor": {
         "type": "string",
-        "enum": ["email", "totp", "sms"]
+        "enum": [
+          "email",
+          "totp",
+          "sms"
+        ]
       },
       "MfaVerificationChallengeFactor": {
         "type": "string",
-        "enum": ["email", "totp"]
+        "enum": [
+          "email",
+          "totp"
+        ]
       },
       "MfaVerificationOptionsResult": {
         "type": "object",
@@ -23910,14 +24880,21 @@
           },
           "recommendedFactor": {
             "type": "string",
-            "enum": ["email", "totp", "sms"],
+            "enum": [
+              "email",
+              "totp",
+              "sms"
+            ],
             "nullable": true
           }
         }
       },
       "MfaVerificationChallengeRequest": {
         "type": "object",
-        "required": ["scope", "factor"],
+        "required": [
+          "scope",
+          "factor"
+        ],
         "properties": {
           "scope": {
             "$ref": "#/components/schemas/MfaVerificationScope"
@@ -23931,7 +24908,12 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["scope", "factor", "challengeId", "cooldownUntil"],
+            "required": [
+              "scope",
+              "factor",
+              "challengeId",
+              "cooldownUntil"
+            ],
             "properties": {
               "scope": {
                 "$ref": "#/components/schemas/MfaVerificationScope"
@@ -23951,7 +24933,12 @@
           },
           {
             "type": "object",
-            "required": ["scope", "factor", "challengeId", "prompt"],
+            "required": [
+              "scope",
+              "factor",
+              "challengeId",
+              "prompt"
+            ],
             "properties": {
               "scope": {
                 "$ref": "#/components/schemas/MfaVerificationScope"
@@ -23973,7 +24960,11 @@
       },
       "MfaVerificationConfirmRequest": {
         "type": "object",
-        "required": ["scope", "factor", "code"],
+        "required": [
+          "scope",
+          "factor",
+          "code"
+        ],
         "properties": {
           "scope": {
             "$ref": "#/components/schemas/MfaVerificationScope"
@@ -23989,7 +24980,12 @@
       },
       "MfaVerificationConfirmResult": {
         "type": "object",
-        "required": ["verified", "scope", "factor", "verifiedUntil"],
+        "required": [
+          "verified",
+          "scope",
+          "factor",
+          "verifiedUntil"
+        ],
         "properties": {
           "verified": {
             "type": "boolean",
@@ -24009,7 +25005,12 @@
       },
       "MfaVerificationPreviewResult": {
         "type": "object",
-        "required": ["scope", "factor", "code", "expiresInSeconds"],
+        "required": [
+          "scope",
+          "factor",
+          "code",
+          "expiresInSeconds"
+        ],
         "properties": {
           "scope": {
             "$ref": "#/components/schemas/MfaVerificationScope"
@@ -24028,7 +25029,9 @@
       },
       "MfaTotpStatusResult": {
         "type": "object",
-        "required": ["enabled"],
+        "required": [
+          "enabled"
+        ],
         "properties": {
           "enabled": {
             "type": "boolean"
@@ -24046,7 +25049,10 @@
       },
       "MfaTotpBeginResult": {
         "type": "object",
-        "required": ["secret", "uri"],
+        "required": [
+          "secret",
+          "uri"
+        ],
         "properties": {
           "secret": {
             "type": "string"
@@ -24058,7 +25064,9 @@
       },
       "MfaTotpConfirmRequest": {
         "type": "object",
-        "required": ["code"],
+        "required": [
+          "code"
+        ],
         "properties": {
           "code": {
             "type": "string",
@@ -24068,7 +25076,9 @@
       },
       "MfaTotpConfirmResult": {
         "type": "object",
-        "required": ["confirmed"],
+        "required": [
+          "confirmed"
+        ],
         "properties": {
           "confirmed": {
             "type": "boolean",
@@ -24082,7 +25092,9 @@
       },
       "MfaTotpDisableResult": {
         "type": "object",
-        "required": ["disabled"],
+        "required": [
+          "disabled"
+        ],
         "properties": {
           "disabled": {
             "type": "boolean",
@@ -24092,7 +25104,9 @@
       },
       "MfaTotpPendingCancelResult": {
         "type": "object",
-        "required": ["cancelled"],
+        "required": [
+          "cancelled"
+        ],
         "properties": {
           "cancelled": {
             "type": "boolean",
@@ -24102,11 +25116,20 @@
       },
       "FeatureFlagSource": {
         "type": "string",
-        "enum": ["db", "env", "default"]
+        "enum": [
+          "db",
+          "env",
+          "default"
+        ]
       },
       "ResolvedFeatureFlag": {
         "type": "object",
-        "required": ["name", "enabled", "source", "group"],
+        "required": [
+          "name",
+          "enabled",
+          "source",
+          "group"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -24135,7 +25158,9 @@
       },
       "SetFeatureFlagRequest": {
         "type": "object",
-        "required": ["enabled"],
+        "required": [
+          "enabled"
+        ],
         "properties": {
           "enabled": {
             "type": "boolean"
@@ -24200,11 +25225,16 @@
             "type": "string"
           }
         },
-        "required": ["profiles", "pagination"]
+        "required": [
+          "profiles",
+          "pagination"
+        ]
       },
       "UpdateProfileRequest": {
         "type": "object",
-        "required": ["username"],
+        "required": [
+          "username"
+        ],
         "properties": {
           "username": {
             "type": "string"
@@ -24252,7 +25282,12 @@
       },
       "CreateAppFeedbackRequest": {
         "type": "object",
-        "required": ["name", "email", "category", "message"],
+        "required": [
+          "name",
+          "email",
+          "category",
+          "message"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -24279,7 +25314,11 @@
       },
       "AppFeedbackSubmissionReceipt": {
         "type": "object",
-        "required": ["id", "category", "createdAt"],
+        "required": [
+          "id",
+          "category",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -24348,18 +25387,29 @@
             "type": "string"
           }
         },
-        "required": ["postings", "pagination"]
+        "required": [
+          "postings",
+          "pagination"
+        ]
       },
       "OwnerPostingsStatusSummary": {
         "type": "object",
-        "required": ["total", "byStatus"],
+        "required": [
+          "total",
+          "byStatus"
+        ],
         "properties": {
           "total": {
             "type": "integer"
           },
           "byStatus": {
             "type": "object",
-            "required": ["draft", "published", "paused", "archived"],
+            "required": [
+              "draft",
+              "published",
+              "paused",
+              "archived"
+            ],
             "properties": {
               "draft": {
                 "type": "integer"
@@ -24393,7 +25443,10 @@
             }
           }
         },
-        "required": ["postings", "missingIds"]
+        "required": [
+          "postings",
+          "missingIds"
+        ]
       },
       "BatchPublicPostingsResult": {
         "type": "object",
@@ -24411,7 +25464,10 @@
             }
           }
         },
-        "required": ["postings", "missingIds"]
+        "required": [
+          "postings",
+          "missingIds"
+        ]
       },
       "SearchPostingsResult": {
         "type": "object",
@@ -24427,7 +25483,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["elasticsearch", "database"]
+            "enum": [
+              "elasticsearch",
+              "database"
+            ]
           },
           "query": {
             "type": "string"
@@ -24447,7 +25506,11 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "required": ["id", "name", "slug"],
+                  "required": [
+                    "id",
+                    "name",
+                    "slug"
+                  ],
                   "properties": {
                     "id": {
                       "type": "string",
@@ -24467,10 +25530,17 @@
                 "description": "True when more organizations matched the name than were applied to the filter."
               }
             },
-            "required": ["matches", "truncated"]
+            "required": [
+              "matches",
+              "truncated"
+            ]
           }
         },
-        "required": ["postings", "pagination", "source"]
+        "required": [
+          "postings",
+          "pagination",
+          "source"
+        ]
       },
       "PostingAutocompleteResult": {
         "type": "object",
@@ -24482,24 +25552,38 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["value", "kind"],
+              "required": [
+                "value",
+                "kind"
+              ],
               "properties": {
                 "value": {
                   "type": "string"
                 },
                 "kind": {
                   "type": "string",
-                  "enum": ["name", "tag", "location"]
+                  "enum": [
+                    "name",
+                    "tag",
+                    "location"
+                  ]
                 }
               }
             }
           },
           "source": {
             "type": "string",
-            "enum": ["elasticsearch", "database"]
+            "enum": [
+              "elasticsearch",
+              "database"
+            ]
           }
         },
-        "required": ["query", "suggestions", "source"]
+        "required": [
+          "query",
+          "suggestions",
+          "source"
+        ]
       },
       "RecommendationQueryResult": {
         "type": "object",
@@ -24508,7 +25592,10 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["posting", "reasonCodes"],
+              "required": [
+                "posting",
+                "reasonCodes"
+              ],
               "properties": {
                 "posting": {
                   "$ref": "#/components/schemas/PublicPostingRecord"
@@ -24527,7 +25614,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["personalized", "popular"]
+            "enum": [
+              "personalized",
+              "popular"
+            ]
           },
           "fallback": {
             "type": "boolean"
@@ -24545,7 +25635,12 @@
             "format": "date-time"
           }
         },
-        "required": ["items", "pagination", "mode", "fallback"]
+        "required": [
+          "items",
+          "pagination",
+          "mode",
+          "fallback"
+        ]
       },
       "UpsertPostingRequest": {
         "type": "object",
@@ -24561,7 +25656,9 @@
       },
       "AvailabilityBlockListResult": {
         "type": "object",
-        "required": ["availabilityBlocks"],
+        "required": [
+          "availabilityBlocks"
+        ],
         "properties": {
           "availabilityBlocks": {
             "type": "array",
@@ -24573,11 +25670,18 @@
       },
       "AvailabilityCalendarDay": {
         "type": "object",
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["available", "blocked", "booked", "unavailable"]
+            "enum": [
+              "available",
+              "blocked",
+              "booked",
+              "unavailable"
+            ]
           },
           "reason": {
             "type": "string"
@@ -24596,7 +25700,10 @@
       },
       "OwnerAvailabilityBlockRequest": {
         "type": "object",
-        "required": ["startAt", "endAt"],
+        "required": [
+          "startAt",
+          "endAt"
+        ],
         "properties": {
           "startAt": {
             "type": "string",
@@ -24623,7 +25730,12 @@
       },
       "SeasonalPricingRuleRequest": {
         "type": "object",
-        "required": ["name", "startDate", "endDate", "dailyAmount"],
+        "required": [
+          "name",
+          "startDate",
+          "endDate",
+          "dailyAmount"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -24643,7 +25755,9 @@
       },
       "CreatePostingReviewRequest": {
         "type": "object",
-        "required": ["rating"],
+        "required": [
+          "rating"
+        ],
         "properties": {
           "rating": {
             "type": "integer",
@@ -24670,7 +25784,10 @@
       },
       "GetOwnPostingReviewResult": {
         "type": "object",
-        "required": ["eligible", "review"],
+        "required": [
+          "eligible",
+          "review"
+        ],
         "properties": {
           "eligible": {
             "type": "boolean",
@@ -24701,17 +25818,28 @@
                 "type": "integer"
               }
             },
-            "required": ["averageRating", "reviewCount"]
+            "required": [
+              "averageRating",
+              "reviewCount"
+            ]
           },
           "pagination": {
             "$ref": "#/components/schemas/Pagination"
           }
         },
-        "required": ["reviews", "summary", "pagination"]
+        "required": [
+          "reviews",
+          "summary",
+          "pagination"
+        ]
       },
       "SavedPostingState": {
         "type": "object",
-        "required": ["postingId", "saved", "savedAt"],
+        "required": [
+          "postingId",
+          "saved",
+          "savedAt"
+        ],
         "properties": {
           "postingId": {
             "type": "string"
@@ -24735,7 +25863,9 @@
           },
           {
             "type": "object",
-            "required": ["savedAt"],
+            "required": [
+              "savedAt"
+            ],
             "properties": {
               "savedAt": {
                 "type": "string",
@@ -24747,7 +25877,12 @@
       },
       "UnavailableSavedPosting": {
         "type": "object",
-        "required": ["postingId", "name", "reason", "savedAt"],
+        "required": [
+          "postingId",
+          "name",
+          "reason",
+          "savedAt"
+        ],
         "properties": {
           "postingId": {
             "type": "string"
@@ -24759,7 +25894,10 @@
           },
           "reason": {
             "type": "string",
-            "enum": ["paused", "unavailable"],
+            "enum": [
+              "paused",
+              "unavailable"
+            ],
             "description": "`paused` can be reversed by the owner; `unavailable` covers archived, unpublished, and removed postings."
           },
           "savedAt": {
@@ -24770,7 +25908,11 @@
       },
       "ListSavedPostingsResult": {
         "type": "object",
-        "required": ["postings", "pagination", "unavailablePostings"],
+        "required": [
+          "postings",
+          "pagination",
+          "unavailablePostings"
+        ],
         "properties": {
           "postings": {
             "type": "array",
@@ -24792,7 +25934,10 @@
       },
       "ListSavedPostingIdsResult": {
         "type": "object",
-        "required": ["postingIds", "truncated"],
+        "required": [
+          "postingIds",
+          "truncated"
+        ],
         "properties": {
           "postingIds": {
             "type": "array",
@@ -24857,7 +26002,11 @@
       },
       "ContentReportUserSummary": {
         "type": "object",
-        "required": ["id", "email", "role"],
+        "required": [
+          "id",
+          "email",
+          "role"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -24875,13 +26024,21 @@
           },
           "role": {
             "type": "string",
-            "enum": ["user", "owner", "moderator", "admin"]
+            "enum": [
+              "user",
+              "owner",
+              "moderator",
+              "admin"
+            ]
           }
         }
       },
       "ContentReportSubjectSnapshot": {
         "type": "object",
-        "required": ["subjectType", "summaryText"],
+        "required": [
+          "subjectType",
+          "summaryText"
+        ],
         "properties": {
           "subjectType": {
             "type": "string",
@@ -24958,22 +26115,42 @@
       },
       "ContentReportEventRecord": {
         "type": "object",
-        "required": ["id", "eventType", "actor", "createdAt"],
+        "required": [
+          "id",
+          "eventType",
+          "actor",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
           "eventType": {
             "type": "string",
-            "enum": ["created", "assigned", "status_changed", "note_added"]
+            "enum": [
+              "created",
+              "assigned",
+              "status_changed",
+              "note_added"
+            ]
           },
           "fromStatus": {
             "type": "string",
-            "enum": ["open", "under_review", "resolved", "dismissed"]
+            "enum": [
+              "open",
+              "under_review",
+              "resolved",
+              "dismissed"
+            ]
           },
           "toStatus": {
             "type": "string",
-            "enum": ["open", "under_review", "resolved", "dismissed"]
+            "enum": [
+              "open",
+              "under_review",
+              "resolved",
+              "dismissed"
+            ]
           },
           "assignmentUserId": {
             "type": "string"
@@ -25048,7 +26225,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open", "under_review", "resolved", "dismissed"]
+            "enum": [
+              "open",
+              "under_review",
+              "resolved",
+              "dismissed"
+            ]
           },
           "resolutionCode": {
             "type": "string",
@@ -25092,7 +26274,9 @@
           },
           {
             "type": "object",
-            "required": ["events"],
+            "required": [
+              "events"
+            ],
             "properties": {
               "events": {
                 "type": "array",
@@ -25106,7 +26290,11 @@
       },
       "ListContentReportsResult": {
         "type": "object",
-        "required": ["reports", "pagination", "source"],
+        "required": [
+          "reports",
+          "pagination",
+          "source"
+        ],
         "properties": {
           "reports": {
             "type": "array",
@@ -25119,7 +26307,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["elasticsearch", "database"]
+            "enum": [
+              "elasticsearch",
+              "database"
+            ]
           },
           "query": {
             "type": "string"
@@ -25143,11 +26334,18 @@
       },
       "UpdateContentReportStatusRequest": {
         "type": "object",
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["open", "under_review", "resolved", "dismissed"]
+            "enum": [
+              "open",
+              "under_review",
+              "resolved",
+              "dismissed"
+            ]
           },
           "resolutionCode": {
             "type": "string",
@@ -25218,7 +26416,12 @@
       },
       "CreateBookingRequest": {
         "type": "object",
-        "required": ["startAt", "endAt", "contactName", "contactEmail"],
+        "required": [
+          "startAt",
+          "endAt",
+          "contactName",
+          "contactEmail"
+        ],
         "properties": {
           "startAt": {
             "type": "string",
@@ -25250,7 +26453,10 @@
       },
       "BookingQuoteRequest": {
         "type": "object",
-        "required": ["startAt", "endAt"],
+        "required": [
+          "startAt",
+          "endAt"
+        ],
         "properties": {
           "startAt": {
             "type": "string",
@@ -25292,7 +26498,9 @@
       },
       "SendBookingMessageRequest": {
         "type": "object",
-        "required": ["body"],
+        "required": [
+          "body"
+        ],
         "properties": {
           "body": {
             "type": "string",
@@ -25329,7 +26537,10 @@
           },
           "authorSide": {
             "type": "string",
-            "enum": ["renter", "owner"],
+            "enum": [
+              "renter",
+              "owner"
+            ],
             "description": "Which side of the booking authored the message, derived from the booking's renter."
           },
           "authorUsername": {
@@ -25346,22 +26557,34 @@
             "format": "date-time"
           },
           "readAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
             "description": "When the recipient side read this message, or null while unread."
           },
           "deliveredAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
             "description": "When the recipient's client acknowledged receipt over the socket. Weaker than readAt: the bytes arrived, which can happen while the thread sits unopened."
           },
           "editedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
             "description": "When the author last edited the message."
           },
           "deletedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
             "description": "When the author deleted the message. The row is kept as a tombstone so the booking retains a record that a message existed."
           }
@@ -25402,14 +26625,19 @@
           },
           "viewerSide": {
             "type": "string",
-            "enum": ["renter", "owner"],
+            "enum": [
+              "renter",
+              "owner"
+            ],
             "description": "Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing."
           }
         }
       },
       "BookingMessageSocketTicket": {
         "type": "object",
-        "required": ["expiresInSeconds"],
+        "required": [
+          "expiresInSeconds"
+        ],
         "description": "The ticket itself is delivered as an HttpOnly cookie scoped to the socket path, never in this body.",
         "properties": {
           "expiresInSeconds": {
@@ -25420,7 +26648,11 @@
       },
       "MarkBookingMessagesReadResult": {
         "type": "object",
-        "required": ["bookingRequestId", "markedCount", "readAt"],
+        "required": [
+          "bookingRequestId",
+          "markedCount",
+          "readAt"
+        ],
         "properties": {
           "bookingRequestId": {
             "type": "string"
@@ -25451,7 +26683,10 @@
             "type": "string"
           }
         },
-        "required": ["bookingRequests", "pagination"]
+        "required": [
+          "bookingRequests",
+          "pagination"
+        ]
       },
       "BookingQuoteResult": {
         "type": "object",
@@ -25479,7 +26714,9 @@
       },
       "CreateRefundRequest": {
         "type": "object",
-        "required": ["amount"],
+        "required": [
+          "amount"
+        ],
         "properties": {
           "amount": {
             "type": "number",
@@ -25514,7 +26751,10 @@
             "type": "string"
           }
         },
-        "required": ["payouts", "pagination"]
+        "required": [
+          "payouts",
+          "pagination"
+        ]
       },
       "RentingRecord": {
         "type": "object",
@@ -25536,11 +26776,17 @@
             "type": "string"
           }
         },
-        "required": ["rentings", "pagination"]
+        "required": [
+          "rentings",
+          "pagination"
+        ]
       },
       "UpdateRentingInstructionsRequest": {
         "type": "object",
-        "required": ["pickupInstructions", "returnInstructions"],
+        "required": [
+          "pickupInstructions",
+          "returnInstructions"
+        ],
         "properties": {
           "pickupInstructions": {
             "type": "string"
@@ -25552,7 +26798,9 @@
       },
       "CreateRentingDisputeRequest": {
         "type": "object",
-        "required": ["reason"],
+        "required": [
+          "reason"
+        ],
         "properties": {
           "reason": {
             "type": "string"
@@ -25580,7 +26828,9 @@
             ]
           }
         },
-        "required": ["run"]
+        "required": [
+          "run"
+        ]
       },
       "SearchStatusResult": {
         "type": "object",
@@ -25593,7 +26843,9 @@
             "type": "integer"
           }
         },
-        "required": ["revived"]
+        "required": [
+          "revived"
+        ]
       },
       "CleanupRetainedSearchIndicesResult": {
         "type": "object",
@@ -25602,7 +26854,9 @@
             "type": "integer"
           }
         },
-        "required": ["deleted"]
+        "required": [
+          "deleted"
+        ]
       }
     }
   }

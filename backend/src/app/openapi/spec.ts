@@ -3312,7 +3312,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "listOrganizationBlogComments",
       summary: "List comments on a published blog post",
       description:
-        "Returns paginated comments for a published blog post, oldest first. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.",
+        "Returns paginated comments for a published blog post, newest first, so page 1 holds the most recent replies and paging walks backwards into history. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.",
       tags: ["organizations"],
       permissions: {
         authMode: "public",

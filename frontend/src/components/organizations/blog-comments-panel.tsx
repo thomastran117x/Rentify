@@ -49,6 +49,34 @@ function tombstoneLabel(comment: BlogCommentRecord): string {
     : "This comment was deleted.";
 }
 
+/**
+ * Folds records into an existing list by id and returns them in display order.
+ *
+ * Later entries win, so callers order their inputs oldest-information-first.
+ * The sort mirrors the server's tiebreak: two comments can share a timestamp,
+ * and without the id the two would swap places between renders. ISO-8601 UTC
+ * strings compare lexicographically, so no date parsing is needed.
+ *
+ * Display is oldest-first even though the API pages newest-first, because a
+ * comment section reads as a conversation from the top down.
+ */
+function mergeComments(
+  existing: BlogCommentRecord[],
+  incoming: Iterable<BlogCommentRecord>,
+): BlogCommentRecord[] {
+  const byId = new Map(existing.map((comment) => [comment.id, comment]));
+
+  for (const comment of incoming) {
+    byId.set(comment.id, comment);
+  }
+
+  return [...byId.values()].sort((left, right) => {
+    const byCreatedAt = left.createdAt.localeCompare(right.createdAt);
+
+    return byCreatedAt !== 0 ? byCreatedAt : left.id.localeCompare(right.id);
+  });
+}
+
 export function BlogCommentsPanel({
   organizationId,
   slug,
@@ -67,6 +95,8 @@ export function BlogCommentsPanel({
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [hasEarlier, setHasEarlier] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState("");
@@ -86,32 +116,29 @@ export function BlogCommentsPanel({
   const socketRef = useRef<BlogCommentSocketHandle | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   /**
-   * Events that land while a history request is in flight. The response is a
-   * snapshot taken before they happened, so replaying them over it is what
-   * stops a freshly-posted comment vanishing on the next refetch.
+   * Events that landed while a history request was in flight, keyed by comment
+   * so the newest one for a given comment wins. The response is a snapshot
+   * taken before they happened, so replaying them over it is what stops a
+   * freshly-posted comment vanishing on the next refetch.
+   *
+   * One map rather than separate arrival and update queues: a comment can be
+   * created *and* then edited or deleted inside a single request window, and
+   * keeping those apart made the stale creation win over the newer edit.
    */
-  const inFlightArrivalsRef = useRef<BlogCommentRecord[]>([]);
-  const inFlightUpdatesRef = useRef(new Map<string, BlogCommentRecord>());
+  const pendingEventsRef = useRef(new Map<string, BlogCommentRecord>());
   const loadTokenRef = useRef(0);
+  /** Comments already on screen, read during a load without becoming a dep. */
+  const commentsRef = useRef<BlogCommentRecord[]>([]);
+  /** How far back into history has been paged. Page 1 is the newest. */
+  const deepestPageRef = useRef(1);
 
   const applyComment = useCallback((incoming: BlogCommentRecord) => {
-    setComments((previous) => {
-      const index = previous.findIndex((item) => item.id === incoming.id);
-
-      // Deduped by id, which is what lets the socket echo of a comment this
-      // client just posted land harmlessly on top of the REST response.
-      if (index === -1) {
-        return [...previous, incoming];
-      }
-
-      const next = [...previous];
-      next[index] = incoming;
-      return next;
-    });
+    setComments((previous) => mergeComments(previous, [incoming]));
   }, []);
 
   const loadComments = useCallback(
-    async (silent = false) => {
+    async (options: { silent?: boolean; page?: number } = {}) => {
+      const { silent = false, page = 1 } = options;
       loadTokenRef.current += 1;
       const token = loadTokenRef.current;
 
@@ -119,12 +146,11 @@ export function BlogCommentsPanel({
         setLoading(true);
       }
 
-      inFlightArrivalsRef.current = [];
-      inFlightUpdatesRef.current.clear();
+      pendingEventsRef.current.clear();
 
       try {
         const result = await blogCommentsApi.list(organizationId, slug, {
-          page: 1,
+          page,
           pageSize: PAGE_SIZE,
         });
 
@@ -133,27 +159,32 @@ export function BlogCommentsPanel({
           return;
         }
 
-        const merged = [...result.comments];
-        const byId = new Map(merged.map((comment) => [comment.id, comment]));
-
-        for (const [id, updated] of inFlightUpdatesRef.current) {
-          if (byId.has(id)) {
-            merged[merged.findIndex((item) => item.id === id)] = updated;
-          }
-        }
-
-        for (const arrival of inFlightArrivalsRef.current) {
-          if (!byId.has(arrival.id)) {
-            merged.push(arrival);
-          }
-        }
-
-        setComments(merged);
+        // Existing rows first, then the response, then anything that landed
+        // while it was in flight — so the freshest version of each comment
+        // wins regardless of whether the snapshot contained it at all.
+        //
+        // Keeping the existing rows is what makes paging additive. Nothing is
+        // ever removed server-side (a delete is a tombstone that keeps its
+        // row), so a merged window cannot accumulate rows that no longer
+        // exist.
+        setComments(
+          mergeComments(commentsRef.current, [
+            ...result.comments,
+            ...pendingEventsRef.current.values(),
+          ]),
+        );
         setCommentsEnabled(result.commentsEnabled);
         setViewerCanComment(result.viewerCanComment);
         setViewerCanModerate(result.viewerCanModerate);
         setViewerUserId(result.viewerUserId);
         setError(null);
+
+        // Only a request that reached new history moves the boundary; a silent
+        // refresh of page 1 must not forget that older pages were loaded.
+        if (page >= deepestPageRef.current) {
+          deepestPageRef.current = page;
+          setHasEarlier(result.pagination.hasNextPage);
+        }
       } catch (cause) {
         if (token === loadTokenRef.current) {
           setError(
@@ -173,6 +204,16 @@ export function BlogCommentsPanel({
     [organizationId, slug],
   );
 
+  const loadEarlier = useCallback(async () => {
+    setLoadingEarlier(true);
+
+    try {
+      await loadComments({ silent: true, page: deepestPageRef.current + 1 });
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }, [loadComments]);
+
   // Refs so the socket effect below depends only on the post identity. Making
   // it depend on these callbacks tore the connection down and reopened it on
   // the first list response, which burned the ticket rate limit.
@@ -180,6 +221,7 @@ export function BlogCommentsPanel({
   const applyCommentRef = useRef(applyComment);
   loadCommentsRef.current = loadComments;
   applyCommentRef.current = applyComment;
+  commentsRef.current = comments;
 
   useEffect(() => {
     void loadComments();
@@ -196,7 +238,7 @@ export function BlogCommentsPanel({
         if (next === "open") {
           // The stream is not a durable log: anything published while this
           // client was away was never queued for it.
-          void loadCommentsRef.current(true);
+          void loadCommentsRef.current({ silent: true });
         }
       },
       onEvent: (event: BlogCommentStreamEvent) => {
@@ -204,12 +246,9 @@ export function BlogCommentsPanel({
           case "comment.created":
           case "comment.updated":
           case "comment.deleted": {
-            if (loadTokenRef.current > 0 && event.type === "comment.created") {
-              inFlightArrivalsRef.current.push(event.comment);
-            } else {
-              inFlightUpdatesRef.current.set(event.comment.id, event.comment);
-            }
-
+            // Recorded unconditionally and keyed by id, so the last event for a
+            // comment is the one replayed over an in-flight history response.
+            pendingEventsRef.current.set(event.comment.id, event.comment);
             applyCommentRef.current(event.comment);
             break;
           }
@@ -238,11 +277,11 @@ export function BlogCommentsPanel({
             setCommentsEnabled(event.commentsEnabled);
             // The list response is the authority on whether this viewer may
             // post, so re-read it rather than inferring.
-            void loadCommentsRef.current(true);
+            void loadCommentsRef.current({ silent: true });
             break;
           }
           case "resync": {
-            void loadCommentsRef.current(true);
+            void loadCommentsRef.current({ silent: true });
             break;
           }
         }
@@ -271,7 +310,7 @@ export function BlogCommentsPanel({
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void loadCommentsRef.current(true);
+        void loadCommentsRef.current({ silent: true });
       }
     }, FALLBACK_POLL_INTERVAL_MS);
 
@@ -523,153 +562,169 @@ export function BlogCommentsPanel({
           Be the first to comment on this post.
         </p>
       ) : (
-        <ul className="mt-6 space-y-5">
-          {comments.map((comment) => {
-            const isOwn = comment.author.id === viewerUserId;
-            const canEdit =
-              isOwn &&
-              !comment.deletedAt &&
-              commentsEnabled &&
-              isWithinEditWindow(comment);
-            const canRemove =
-              !comment.deletedAt && (isOwn || viewerCanModerate);
+        <>
+          {hasEarlier ? (
+            <button
+              type="button"
+              onClick={() => void loadEarlier()}
+              disabled={loadingEarlier}
+              data-testid="blog-comments-load-earlier"
+              className="mt-6 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:text-slate-300 dark:hover:text-white"
+            >
+              {loadingEarlier ? "Loading…" : "Load earlier comments"}
+            </button>
+          ) : null}
 
-            return (
-              <li
-                key={comment.id}
-                data-testid="blog-comment"
-                data-comment-id={comment.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60"
-              >
-                <div className="flex items-start gap-3">
-                  {/*
+          <ul className="mt-6 space-y-5">
+            {comments.map((comment) => {
+              const isOwn = comment.author.id === viewerUserId;
+              const canEdit =
+                isOwn &&
+                !comment.deletedAt &&
+                commentsEnabled &&
+                isWithinEditWindow(comment);
+              const canRemove =
+                !comment.deletedAt && (isOwn || viewerCanModerate);
+
+              return (
+                <li
+                  key={comment.id}
+                  data-testid="blog-comment"
+                  data-comment-id={comment.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60"
+                >
+                  <div className="flex items-start gap-3">
+                    {/*
                     The avatar helper is typed against the blog post author,
                     which carries an email. A comment author deliberately does
                     not, so an empty string stands in for the initials
                     fallback — it never reaches the rendered output because a
                     username is always present.
                   */}
-                  <AuthorAvatar
-                    author={{ ...comment.author, email: "" }}
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {comment.author.username}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {formatOrganizationDate(comment.createdAt)}
-                      </span>
-                      {comment.editedAt && !comment.deletedAt ? (
-                        <span className="text-xs text-slate-400 dark:text-slate-500">
-                          (edited)
+                    <AuthorAvatar
+                      author={{ ...comment.author, email: "" }}
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {comment.author.username}
                         </span>
-                      ) : null}
-                    </div>
-
-                    {comment.deletedAt ? (
-                      <p
-                        className="mt-2 text-sm italic text-slate-500 dark:text-slate-400"
-                        data-testid="blog-comment-tombstone"
-                        data-deleted-by={comment.deletedBy ?? ""}
-                      >
-                        {tombstoneLabel(comment)}
-                      </p>
-                    ) : editingId === comment.id ? (
-                      <div className="mt-2">
-                        <textarea
-                          value={editDraft}
-                          onChange={(event) => setEditDraft(event.target.value)}
-                          maxLength={MAX_BLOG_COMMENT_LENGTH}
-                          rows={3}
-                          data-testid="blog-comment-edit-input"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-white"
-                        />
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            type="button"
-                            disabled={savingEdit}
-                            onClick={() => void handleSaveEdit(comment.id)}
-                            data-testid="blog-comment-edit-save"
-                            className="rounded-full bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:opacity-60"
-                          >
-                            {savingEdit ? "Saving…" : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditDraft("");
-                            }}
-                            className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
-                          >
-                            Cancel
-                          </button>
-                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {formatOrganizationDate(comment.createdAt)}
+                        </span>
+                        {comment.editedAt && !comment.deletedAt ? (
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
+                            (edited)
+                          </span>
+                        ) : null}
                       </div>
-                    ) : (
-                      /*
+
+                      {comment.deletedAt ? (
+                        <p
+                          className="mt-2 text-sm italic text-slate-500 dark:text-slate-400"
+                          data-testid="blog-comment-tombstone"
+                          data-deleted-by={comment.deletedBy ?? ""}
+                        >
+                          {tombstoneLabel(comment)}
+                        </p>
+                      ) : editingId === comment.id ? (
+                        <div className="mt-2">
+                          <textarea
+                            value={editDraft}
+                            onChange={(event) =>
+                              setEditDraft(event.target.value)
+                            }
+                            maxLength={MAX_BLOG_COMMENT_LENGTH}
+                            rows={3}
+                            data-testid="blog-comment-edit-input"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-white"
+                          />
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={() => void handleSaveEdit(comment.id)}
+                              data-testid="blog-comment-edit-save"
+                              className="rounded-full bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:opacity-60"
+                            >
+                              {savingEdit ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(null);
+                                setEditDraft("");
+                              }}
+                              className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /*
                         Rendered as text, never as HTML — unlike the post body
                         above it, this is untrusted input from any signed-in
                         user.
                       */
-                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">
-                        {comment.body}
-                      </p>
-                    )}
+                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">
+                          {comment.body}
+                        </p>
+                      )}
 
-                    {!comment.deletedAt && editingId !== comment.id ? (
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(comment.id);
-                              setEditDraft(comment.body);
-                            }}
-                            data-testid="blog-comment-edit"
-                            className="inline-flex items-center gap-1 font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                          >
-                            <Pencil
-                              className="h-3.5 w-3.5"
-                              aria-hidden="true"
+                      {!comment.deletedAt && editingId !== comment.id ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(comment.id);
+                                setEditDraft(comment.body);
+                              }}
+                              data-testid="blog-comment-edit"
+                              className="inline-flex items-center gap-1 font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                            >
+                              <Pencil
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              Edit
+                            </button>
+                          ) : null}
+                          {canRemove ? (
+                            <button
+                              type="button"
+                              disabled={removingId === comment.id}
+                              onClick={() => void handleRemove(comment.id)}
+                              data-testid="blog-comment-remove"
+                              className="inline-flex items-center gap-1 font-medium text-slate-500 transition hover:text-rose-600 disabled:opacity-60 dark:text-slate-400 dark:hover:text-rose-400"
+                            >
+                              <Trash2
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              {isOwn ? "Delete" : "Remove"}
+                            </button>
+                          ) : null}
+                          {!isOwn ? (
+                            <ReportDialog
+                              subjectType="organization_blog_comment"
+                              subjectId={comment.id}
+                              subjectLabel="Comment"
+                              triggerLabel="Report"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                             />
-                            Edit
-                          </button>
-                        ) : null}
-                        {canRemove ? (
-                          <button
-                            type="button"
-                            disabled={removingId === comment.id}
-                            onClick={() => void handleRemove(comment.id)}
-                            data-testid="blog-comment-remove"
-                            className="inline-flex items-center gap-1 font-medium text-slate-500 transition hover:text-rose-600 disabled:opacity-60 dark:text-slate-400 dark:hover:text-rose-400"
-                          >
-                            <Trash2
-                              className="h-3.5 w-3.5"
-                              aria-hidden="true"
-                            />
-                            {isOwn ? "Delete" : "Remove"}
-                          </button>
-                        ) : null}
-                        {!isOwn ? (
-                          <ReportDialog
-                            subjectType="organization_blog_comment"
-                            subjectId={comment.id}
-                            subjectLabel="Comment"
-                            triggerLabel="Report"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </section>
   );
