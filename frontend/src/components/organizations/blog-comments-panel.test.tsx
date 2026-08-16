@@ -707,10 +707,12 @@ describe("BlogCommentsPanel", () => {
     expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
   });
 
-  it("does not forget loaded history when the stream reconnects", async () => {
-    listMock.mockResolvedValueOnce(
+  it("reconciles every loaded page when the stream reconnects", async () => {
+    // A page-aware mock, so a reconnect that re-reads several pages is
+    // distinguishable from one that only re-reads the newest.
+    const pageOne = (body: string) =>
       buildList({
-        comments: [buildComment({ id: "recent", body: "Recent." })],
+        comments: [buildComment({ id: "recent", body })],
         pagination: {
           page: 1,
           pageSize: 50,
@@ -719,21 +721,10 @@ describe("BlogCommentsPanel", () => {
           hasNextPage: true,
           hasPreviousPage: false,
         },
-      }),
-    );
-
-    renderPanel();
-    await screen.findByText("Recent.");
-
-    listMock.mockResolvedValueOnce(
+      });
+    const pageTwo = (comment: Record<string, unknown>) =>
       buildList({
-        comments: [
-          buildComment({
-            id: "old",
-            body: "Older.",
-            createdAt: "2020-01-01T00:00:00.000Z",
-          }),
-        ],
+        comments: [comment],
         pagination: {
           page: 2,
           pageSize: 50,
@@ -742,35 +733,63 @@ describe("BlogCommentsPanel", () => {
           hasNextPage: false,
           hasPreviousPage: true,
         },
-      }),
+      });
+
+    const older = {
+      id: "old",
+      body: "Older.",
+      createdAt: "2020-01-01T00:00:00.000Z",
+    };
+    listMock.mockImplementation(
+      (_org: string, _slug: string, input: { page: number }) =>
+        Promise.resolve(
+          input.page === 1 ? pageOne("Recent.") : pageTwo(buildComment(older)),
+        ),
     );
-    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+
+    renderPanel();
+    await screen.findByText("Recent.");
+    await userEvent.click(
+      await screen.findByTestId("blog-comments-load-earlier"),
+    );
     await screen.findByText("Older.");
 
-    // A reconnect refetches page 1 only; the earlier page stays on screen and
-    // its "nothing older" boundary is not reset by that newer page.
-    listMock.mockResolvedValueOnce(
-      buildList({
-        comments: [buildComment({ id: "recent", body: "Recent." })],
-        pagination: {
-          page: 1,
-          pageSize: 50,
-          total: 60,
-          totalPages: 2,
-          hasNextPage: true,
-          hasPreviousPage: false,
-        },
-      }),
+    // While the socket was down the older comment was moderated away. A
+    // reconnect that only re-read page 1 would never learn that.
+    listMock.mockImplementation(
+      (_org: string, _slug: string, input: { page: number }) =>
+        Promise.resolve(
+          input.page === 1
+            ? pageOne("Recent.")
+            : pageTwo(
+                buildComment({
+                  ...older,
+                  body: "",
+                  deletedAt: "now",
+                  deletedBy: "moderator",
+                }),
+              ),
+        ),
     );
+    listMock.mockClear();
     streamStatus("open");
 
+    // Both loaded pages are re-read, not just the newest.
     await waitFor(() => {
-      expect(listMock).toHaveBeenLastCalledWith("org-1", "my-post", {
-        page: 1,
-        pageSize: 50,
-      });
+      expect(listMock.mock.calls.map((call) => call[2].page).sort()).toEqual([
+        1, 2,
+      ]);
     });
-    expect(screen.getByText("Older.")).toBeInTheDocument();
+
+    expect(
+      await screen.findByText("Removed by the organization."),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Older.")).toBeNull();
+    });
+    // Still one contiguous window, and the boundary still comes from the
+    // deepest page rather than page 1's "there is more".
+    expect(screen.getByText("Recent.")).toBeInTheDocument();
     expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
   });
 

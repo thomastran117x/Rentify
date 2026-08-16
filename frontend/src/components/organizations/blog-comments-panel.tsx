@@ -136,9 +136,23 @@ export function BlogCommentsPanel({
     setComments((previous) => mergeComments(previous, [incoming]));
   }, []);
 
+  /**
+   * Reads a set of pages and folds them into the list as one operation.
+   *
+   * `extend` distinguishes the two callers. Paging backwards adds a page to
+   * the window, so it keeps what is already on screen. A refresh re-reads
+   * *every* page the reader has loaded and rebuilds the window from the
+   * responses — anything less would leave an edit or a removal that happened
+   * to an older comment while the socket was down permanently stale, because
+   * the merge would keep preferring the copy already in state.
+   */
   const loadComments = useCallback(
-    async (options: { silent?: boolean; page?: number } = {}) => {
-      const { silent = false, page = 1 } = options;
+    async (options: {
+      silent?: boolean;
+      pages?: number[];
+      extend?: boolean;
+    }) => {
+      const { silent = false, pages = [1], extend = false } = options;
       loadTokenRef.current += 1;
       const token = loadTokenRef.current;
 
@@ -149,42 +163,46 @@ export function BlogCommentsPanel({
       pendingEventsRef.current.clear();
 
       try {
-        const result = await blogCommentsApi.list(organizationId, slug, {
-          page,
-          pageSize: PAGE_SIZE,
-        });
+        const results = await Promise.all(
+          pages.map((page) =>
+            blogCommentsApi.list(organizationId, slug, {
+              page,
+              pageSize: PAGE_SIZE,
+            }),
+          ),
+        );
 
         // A newer load superseded this one while it was in flight.
         if (token !== loadTokenRef.current) {
           return;
         }
 
-        // Existing rows first, then the response, then anything that landed
-        // while it was in flight — so the freshest version of each comment
-        // wins regardless of whether the snapshot contained it at all.
-        //
-        // Keeping the existing rows is what makes paging additive. Nothing is
-        // ever removed server-side (a delete is a tombstone that keeps its
-        // row), so a merged window cannot accumulate rows that no longer
-        // exist.
+        // Responses first, then anything that landed while they were in
+        // flight, so the freshest version of each comment wins regardless of
+        // whether a snapshot contained it at all.
         setComments(
-          mergeComments(commentsRef.current, [
-            ...result.comments,
+          mergeComments(extend ? commentsRef.current : [], [
+            ...results.flatMap((result) => result.comments),
             ...pendingEventsRef.current.values(),
           ]),
         );
-        setCommentsEnabled(result.commentsEnabled);
-        setViewerCanComment(result.viewerCanComment);
-        setViewerCanModerate(result.viewerCanModerate);
-        setViewerUserId(result.viewerUserId);
+
+        // Every response carries the same viewer state; the newest page is as
+        // good a source as any.
+        const [newest] = results;
+        setCommentsEnabled(newest.commentsEnabled);
+        setViewerCanComment(newest.viewerCanComment);
+        setViewerCanModerate(newest.viewerCanModerate);
+        setViewerUserId(newest.viewerUserId);
         setError(null);
 
-        // Only a request that reached new history moves the boundary; a silent
-        // refresh of page 1 must not forget that older pages were loaded.
-        if (page >= deepestPageRef.current) {
-          deepestPageRef.current = page;
-          setHasEarlier(result.pagination.hasNextPage);
-        }
+        // The boundary belongs to the deepest page read, not the newest one:
+        // a refresh that re-reads pages 1-3 must not adopt page 1's "there is
+        // more" and offer history the reader already has.
+        const deepest = Math.max(...pages);
+        const deepestResult = results[pages.indexOf(deepest)];
+        deepestPageRef.current = Math.max(deepestPageRef.current, deepest);
+        setHasEarlier(deepestResult.pagination.hasNextPage);
       } catch (cause) {
         if (token === loadTokenRef.current) {
           setError(
@@ -204,11 +222,28 @@ export function BlogCommentsPanel({
     [organizationId, slug],
   );
 
+  /** Re-reads every page the reader has loaded. Usually just page 1. */
+  const refreshLoadedPages = useCallback(
+    (silent = true) =>
+      loadComments({
+        silent,
+        pages: Array.from(
+          { length: deepestPageRef.current },
+          (_, index) => index + 1,
+        ),
+      }),
+    [loadComments],
+  );
+
   const loadEarlier = useCallback(async () => {
     setLoadingEarlier(true);
 
     try {
-      await loadComments({ silent: true, page: deepestPageRef.current + 1 });
+      await loadComments({
+        silent: true,
+        pages: [deepestPageRef.current + 1],
+        extend: true,
+      });
     } finally {
       setLoadingEarlier(false);
     }
@@ -217,14 +252,14 @@ export function BlogCommentsPanel({
   // Refs so the socket effect below depends only on the post identity. Making
   // it depend on these callbacks tore the connection down and reopened it on
   // the first list response, which burned the ticket rate limit.
-  const loadCommentsRef = useRef(loadComments);
+  const refreshRef = useRef(refreshLoadedPages);
   const applyCommentRef = useRef(applyComment);
-  loadCommentsRef.current = loadComments;
+  refreshRef.current = refreshLoadedPages;
   applyCommentRef.current = applyComment;
   commentsRef.current = comments;
 
   useEffect(() => {
-    void loadComments();
+    void loadComments({ pages: [1] });
   }, [loadComments]);
 
   useEffect(() => {
@@ -238,7 +273,7 @@ export function BlogCommentsPanel({
         if (next === "open") {
           // The stream is not a durable log: anything published while this
           // client was away was never queued for it.
-          void loadCommentsRef.current({ silent: true });
+          void refreshRef.current();
         }
       },
       onEvent: (event: BlogCommentStreamEvent) => {
@@ -277,11 +312,11 @@ export function BlogCommentsPanel({
             setCommentsEnabled(event.commentsEnabled);
             // The list response is the authority on whether this viewer may
             // post, so re-read it rather than inferring.
-            void loadCommentsRef.current({ silent: true });
+            void refreshRef.current();
             break;
           }
           case "resync": {
-            void loadCommentsRef.current({ silent: true });
+            void refreshRef.current();
             break;
           }
         }
@@ -310,7 +345,7 @@ export function BlogCommentsPanel({
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void loadCommentsRef.current({ silent: true });
+        void refreshRef.current();
       }
     }, FALLBACK_POLL_INTERVAL_MS);
 
@@ -551,7 +586,7 @@ export function BlogCommentsPanel({
           <p role="alert">{error}</p>
           <button
             type="button"
-            onClick={() => void loadComments()}
+            onClick={() => void loadComments({ pages: [1] })}
             className="mt-2 text-sm font-semibold underline"
           >
             Try again

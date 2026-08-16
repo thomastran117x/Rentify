@@ -406,6 +406,23 @@ describe("OrganizationBlogCommentSocketServer", () => {
     await expect(typing).resolves.toMatchObject({ username: "renter-one" });
   });
 
+  it("does not echo a typing frame back to its sender", async () => {
+    installFakeContainer();
+    const author = await connected("good");
+    const reader = await connected("anonymous");
+
+    const seen: unknown[] = [];
+    author.on("typing", (event: unknown) => seen.push(event));
+
+    const relayed = nextEvent(reader, "typing");
+    author.emit("typing");
+    await relayed;
+    await settle();
+
+    // Otherwise the author watches themselves type under their own name.
+    expect(seen).toHaveLength(0);
+  });
+
   it("drops a typing frame from an anonymous reader", async () => {
     const fakes = installFakeContainer();
     const signedIn = await connected("good");

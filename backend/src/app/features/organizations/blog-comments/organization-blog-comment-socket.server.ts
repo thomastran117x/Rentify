@@ -414,14 +414,23 @@ export class OrganizationBlogCommentSocketServer {
       const authRepository = scope.resolve(containerTokens.authRepository);
       const user = await authRepository.findUserById(userId);
 
-      this.publish({
+      const event: OrganizationBlogCommentStreamEvent = {
         type: "typing",
         blogPostId: state.identity.blogPostId,
         username: user?.profile?.username ?? "Someone",
         expiresAt: new Date(
           Date.now() + BLOG_COMMENT_TYPING_TTL_SECONDS * 1_000,
         ).toISOString(),
-      });
+      };
+
+      // Broadcast rather than `publish`: this is the one event whose author is
+      // in the room it goes to, and a plain room emit would come straight back
+      // to them as "you are typing…" under their own name. `broadcast` still
+      // crosses instances through the Redis adapter; it only excludes the
+      // socket that sent the frame.
+      socket.broadcast
+        .to(postRoom(state.identity.blogPostId))
+        .emit(event.type, event);
     });
   }
 
