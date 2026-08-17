@@ -209,6 +209,36 @@ describe("Profiles persistence integration", () => {
       );
     });
 
+    it("lets only one of two concurrent renames through", async () => {
+      // Both requests read the same eligible row before either writes. The
+      // eligibility test lives in the UPDATE's WHERE clause, so the database
+      // arbitrates and the loser changes nothing.
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+
+      const [first, second] = await Promise.all([
+        updateUsername(user, "renter-one-race-a"),
+        updateUsername(user, "renter-one-race-b"),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+      expect(statuses).toEqual([200, 429]);
+
+      const stored = await persistenceApp.prisma.profile.findUniqueOrThrow({
+        where: { userId: user.userId },
+      });
+      expect(["renter-one-race-a", "renter-one-race-b"]).toContain(
+        stored.username,
+      );
+      expect(stored.usernameChangedAt).not.toBeNull();
+
+      // And the account is now genuinely locked.
+      expect((await updateUsername(user, "renter-one-race-c")).status).toBe(
+        429,
+      );
+    });
+
     it("reports the cooldown state for a user seeded inside the window", async () => {
       const user = await createAuthenticatedRequestContext({
         email: "user2@rentify.local",

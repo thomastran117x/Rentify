@@ -68,20 +68,22 @@ async function login(page: Page) {
 test("saving the profile tab preserves the phone number", async ({ page }) => {
   await login(page);
 
-  const seededPhone = await page
-    .waitForResponse(
-      (response) =>
-        response.url().includes("/api/v1/profile/me") &&
-        response.request().method() === "GET",
-      { timeout: 15000 },
-    )
-    .then(async (response) => {
-      const body = (await response.json()) as {
-        data: { phoneNumber?: string | null };
-      };
-      return body.data.phoneNumber ?? null;
-    })
-    .catch(() => null);
+  // Subscribe before the request that answers it. The account page fires
+  // getMine() as soon as its authenticated effect runs, so listening only after
+  // login() returned would race the response that has already arrived; a reload
+  // makes the GET happen after the listener is attached.
+  const loadedProfile = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/profile/me") &&
+      response.request().method() === "GET",
+    { timeout: 15000 },
+  );
+  await page.reload();
+
+  const body = (await (await loadedProfile).json()) as {
+    data: { phoneNumber?: string | null };
+  };
+  const seededPhone = body.data.phoneNumber ?? null;
 
   // The fixture is seeded with a phone number; without one this test would
   // pass vacuously.
@@ -96,11 +98,11 @@ test("saving the profile tab preserves the phone number", async ({ page }) => {
 
   await page.getByRole("button", { name: "Save profile" }).click();
 
-  const body = (await (await savedResponse).json()) as {
+  const saved = (await (await savedResponse).json()) as {
     data: { phoneNumber?: string | null; username: string };
   };
 
-  expect(body.data.username).toBe(USERNAME);
-  expect(body.data.phoneNumber ?? null).toBe(seededPhone);
+  expect(saved.data.username).toBe(USERNAME);
+  expect(saved.data.phoneNumber ?? null).toBe(seededPhone);
   await expect(page.getByText("Profile saved.")).toBeVisible();
 });
