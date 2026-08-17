@@ -137,19 +137,7 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
   ): Promise<OrganizationBlogCommentRecord | null> {
     const created = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
-        const rows = await transaction.$queryRaw<
-          Array<{ status: string; comments_enabled: number | boolean }>
-        >(
-          Prisma.sql`
-            SELECT status, comments_enabled
-            FROM organization_blog_posts
-            WHERE id = ${input.blogPostId}
-            FOR UPDATE
-          `,
-        );
-        const post = rows[0];
-
-        if (!post || post.status !== "published" || !post.comments_enabled) {
+        if (!(await this.isPostOpenForWrites(transaction, input.blogPostId))) {
           return null;
         }
 
@@ -197,24 +185,65 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
     editedAt: Date;
     notBefore: Date;
   }): Promise<OrganizationBlogCommentRecord | null> {
-    const result = await this.executeAsync(() =>
-      this.prisma.organizationBlogComment.updateMany({
-        where: {
-          id: input.commentId,
-          blogPostId: input.blogPostId,
-          authorUserId: input.authorUserId,
-          deletedAt: null,
-          createdAt: { gte: input.notBefore },
-        },
-        data: { body: input.body, editedAt: input.editedAt },
+    const updated = await this.executeAsync(() =>
+      this.prisma.$transaction(async (transaction) => {
+        // The same locking re-read the insert does, for the same reason: the
+        // service checked the thread was open, and a manager can close it
+        // before this write lands. Editing a comment on a closed thread would
+        // otherwise succeed while the API told everyone else it was closed.
+        if (!(await this.isPostOpenForWrites(transaction, input.blogPostId))) {
+          return null;
+        }
+
+        const result = await transaction.organizationBlogComment.updateMany({
+          where: {
+            id: input.commentId,
+            blogPostId: input.blogPostId,
+            authorUserId: input.authorUserId,
+            deletedAt: null,
+            createdAt: { gte: input.notBefore },
+          },
+          data: { body: input.body, editedAt: input.editedAt },
+        });
+
+        return result.count === 0 ? null : true;
       }),
     );
 
-    if (result.count === 0) {
+    if (!updated) {
       return null;
     }
 
     return this.findById(input.commentId);
+  }
+
+  /**
+   * Locking re-read of the post a write is about to touch.
+   *
+   * `FOR UPDATE` rather than a plain select: InnoDB's default REPEATABLE READ
+   * would serve the snapshot from the transaction's start, which is exactly the
+   * stale value being guarded against. A locking read sees the latest committed
+   * row and blocks a concurrent close until this transaction commits.
+   */
+  private async isPostOpenForWrites(
+    transaction: Pick<typeof this.prisma, "$queryRaw">,
+    blogPostId: string,
+  ): Promise<boolean> {
+    const rows = await transaction.$queryRaw<
+      Array<{ status: string; comments_enabled: number | boolean }>
+    >(
+      Prisma.sql`
+        SELECT status, comments_enabled
+        FROM organization_blog_posts
+        WHERE id = ${blogPostId}
+        FOR UPDATE
+      `,
+    );
+    const post = rows[0];
+
+    return Boolean(
+      post && post.status === "published" && post.comments_enabled,
+    );
   }
 
   /**

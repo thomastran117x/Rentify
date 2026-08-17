@@ -285,6 +285,33 @@ describe("OrganizationBlogCommentsRepository", () => {
       expect(result).toMatchObject({ body: "Edited." });
     });
 
+    it("refuses to edit once comments were closed", async () => {
+      const updateMany = jest.fn();
+      const repository = new OrganizationBlogCommentsRepository(
+        buildPrisma(
+          { updateMany, findUnique: jest.fn() },
+          {},
+          {
+            lockedPost: { status: "published", comments_enabled: 0 },
+          },
+        ),
+      );
+
+      const result = await repository.updateBodyIfEligible({
+        commentId: "comment-1",
+        blogPostId: "blog-1",
+        authorUserId: "user-2",
+        body: "Too late.",
+        editedAt: new Date(),
+        notBefore: new Date(),
+      });
+
+      // Same window the insert guards: the service checked, then a manager
+      // closed the thread before this write landed.
+      expect(result).toBeNull();
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
     it("returns null when nothing was eligible", async () => {
       const findUnique = jest.fn();
       const repository = new OrganizationBlogCommentsRepository(

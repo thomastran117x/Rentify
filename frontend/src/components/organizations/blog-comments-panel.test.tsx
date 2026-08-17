@@ -690,6 +690,7 @@ describe("BlogCommentsPanel", () => {
     expect(listMock).toHaveBeenLastCalledWith("org-1", "my-post", {
       page: 2,
       pageSize: 50,
+      authenticated: true,
     });
     expect(await screen.findByText("Older.")).toBeInTheDocument();
     expect(screen.getByText("Recent.")).toBeInTheDocument();

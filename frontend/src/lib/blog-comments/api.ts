@@ -1,4 +1,5 @@
-import { authenticatedJson, optionalAuthJson } from "@/lib/api/client";
+import { authenticatedJson, publicJson } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/types";
 import type {
   BlogCommentListResult,
   BlogCommentRecord,
@@ -14,14 +15,20 @@ function commentsPath(
 
 export const blogCommentsApi = {
   /**
-   * Optional auth rather than public: reading works while signed out, but a
-   * signed-in reader's capabilities come back in the same envelope, so sending
-   * the token when there is one saves a second call.
+   * Reads a page of comments.
+   *
+   * The path depends on who is asking, which matters more than it looks.
+   * `optionalAuthJson` retries a 401 *without* the token rather than
+   * refreshing it, so a signed-in reader whose 15-minute access token had
+   * expired would silently get the anonymous envelope back — the panel would
+   * offer "Sign in to comment" while the header still showed them signed in.
+   * A signed-in reader therefore takes the refresh-capable path, and only a
+   * genuinely failed refresh falls back to the public one.
    */
-  list(
+  async list(
     organizationId: string,
     slug: string,
-    input?: { page?: number; pageSize?: number },
+    input?: { page?: number; pageSize?: number; authenticated?: boolean },
   ): Promise<BlogCommentListResult> {
     const query = new URLSearchParams();
 
@@ -34,11 +41,24 @@ export const blogCommentsApi = {
     }
 
     const suffix = query.toString() ? `?${query.toString()}` : "";
+    const path = commentsPath(organizationId, slug, suffix);
 
-    return optionalAuthJson<BlogCommentListResult>(
-      "GET",
-      commentsPath(organizationId, slug, suffix),
-    );
+    if (!input?.authenticated) {
+      return publicJson<BlogCommentListResult>("GET", path);
+    }
+
+    try {
+      return await authenticatedJson<BlogCommentListResult>("GET", path);
+    } catch (error) {
+      // The refresh itself failed, so this reader really is signed out. Read
+      // the post as a guest rather than showing them an error on a page that
+      // is public to everyone else.
+      if (error instanceof ApiError && error.status === 401) {
+        return publicJson<BlogCommentListResult>("GET", path);
+      }
+
+      throw error;
+    }
   },
   create(
     organizationId: string,

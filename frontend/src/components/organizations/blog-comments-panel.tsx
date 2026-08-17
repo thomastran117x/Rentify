@@ -85,6 +85,7 @@ export function BlogCommentsPanel({
 }: BlogCommentsPanelProps) {
   const { status } = useAuth();
   const pathname = usePathname();
+  const isAuthenticated = status === "authenticated";
 
   const [comments, setComments] = useState<BlogCommentRecord[]>([]);
   const [commentsEnabled, setCommentsEnabled] = useState(
@@ -131,6 +132,9 @@ export function BlogCommentsPanel({
   const commentsRef = useRef<BlogCommentRecord[]>([]);
   /** How far back into history has been paged. Page 1 is the newest. */
   const deepestPageRef = useRef(1);
+  /** Read during a load without making every request depend on auth state. */
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
 
   const applyComment = useCallback((incoming: BlogCommentRecord) => {
     setComments((previous) => mergeComments(previous, [incoming]));
@@ -168,6 +172,10 @@ export function BlogCommentsPanel({
             blogCommentsApi.list(organizationId, slug, {
               page,
               pageSize: PAGE_SIZE,
+              // Signed-in readers take the refresh-capable path, so an expired
+              // access token cannot silently downgrade them to the anonymous
+              // envelope and hide their own composer.
+              authenticated: isAuthenticatedRef.current,
             }),
           ),
         );
@@ -260,7 +268,10 @@ export function BlogCommentsPanel({
 
   useEffect(() => {
     void loadComments({ pages: [1] });
-  }, [loadComments]);
+    // `isAuthenticated` is a dependency because the session is restored
+    // asynchronously: the first load can run before it resolves, and the
+    // envelope it returns decides whether this reader is offered a composer.
+  }, [loadComments, isAuthenticated]);
 
   useEffect(() => {
     const handle = openBlogCommentSocket({
@@ -456,7 +467,6 @@ export function BlogCommentsPanel({
     [applyComment, organizationId, slug],
   );
 
-  const isAuthenticated = status === "authenticated";
   /**
    * The list response is authoritative once it lands. Before then — and if it
    * failed — fall back to the same rule the server applies, so a signed-in
