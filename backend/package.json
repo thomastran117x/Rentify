@@ -63,6 +63,9 @@
     "node": ">=24",
     "npm": ">=11.16.0"
   },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
+  },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
     "@prisma/adapter-mariadb": "^7.9.1",
