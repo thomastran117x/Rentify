@@ -14,7 +14,10 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 import { createMockRequest, createMockResponse } from "../../support/mock-http";
 
 const mockRequireJwtAuth = jest.fn();
-const mockGetOptionalJwtAuth = jest.fn(async () => null);
+// Declared without a signature, like mockRequireJwtAuth above, so the module
+// mock can forward its rest args. Returning undefined by default reads the same
+// as "no bearer token" at the call site.
+const mockGetOptionalJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
 const mockGetCookie = jest.fn();
 const mockSetCookie = jest.fn();
