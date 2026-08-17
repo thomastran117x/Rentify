@@ -21,12 +21,12 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@tiptap/extension-image": "^3.29.2",
-    "@tiptap/extension-link": "^3.29.2",
-    "@tiptap/pm": "^3.29.2",
-    "@tiptap/react": "^3.29.2",
-    "@tiptap/starter-kit": "^3.29.2",
-    "lucide-react": "^1.30.0",
+    "@tiptap/extension-image": "^3.30.1",
+    "@tiptap/extension-link": "^3.30.1",
+    "@tiptap/pm": "^3.30.1",
+    "@tiptap/react": "^3.30.1",
+    "@tiptap/starter-kit": "^3.30.1",
+    "lucide-react": "^1.31.0",
     "next": "16.3.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
