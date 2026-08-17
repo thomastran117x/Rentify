@@ -56,6 +56,7 @@ function createClient() {
 function createService(overrides?: {
   findUserByEmail?: (email: string) => Promise<AuthUserRecord | null>;
   findUserByUsername?: (username: string) => Promise<AuthUserRecord | null>;
+  findUserIdByUsername?: (username: string) => Promise<string | null>;
   findUserById?: (userId: string) => Promise<AuthUserRecord | null>;
   createLocalUser?: (
     input: {
@@ -234,14 +235,27 @@ function createService(overrides?: {
     key: string,
     ttlInMs: number,
   ) => Promise<{ release: () => Promise<boolean> } | null>;
+  usernameBloomCheck?: (
+    username: string,
+  ) => "definitely-absent" | "possibly-present" | "unknown";
+  usernameBloomAdd?: (usernames: string | string[]) => Promise<void>;
 }) {
   const cacheJsonStore = new Map<
     string,
     { value: unknown; ttlSeconds?: number }
   >();
+  const findUserByUsername =
+    overrides?.findUserByUsername ?? (async () => null);
   const authRepository = {
     findUserByEmail: overrides?.findUserByEmail ?? (async () => null),
-    findUserByUsername: overrides?.findUserByUsername ?? (async () => null),
+    findUserByUsername,
+    // Availability checks use this cheaper probe. Derived from
+    // findUserByUsername so a test that stubs only the latter still describes a
+    // taken username.
+    findUserIdByUsername:
+      overrides?.findUserIdByUsername ??
+      (async (username: string) =>
+        (await findUserByUsername(username))?.id ?? null),
     findUserById: overrides?.findUserById ?? (async () => null),
     findUserByOAuthIdentity:
       overrides?.findUserByOAuthIdentity ?? (async () => null),
@@ -449,6 +463,19 @@ function createService(overrides?: {
     }),
   };
 
+  // Defaults to "unknown" so every existing expectation still exercises the
+  // authoritative database path; tests that care about the filter opt in.
+  const usernameBloomService = {
+    check: jest.fn((username: string) =>
+      overrides?.usernameBloomCheck
+        ? overrides.usernameBloomCheck(username)
+        : ("unknown" as const),
+    ),
+    add: jest.fn(async (usernames: string | string[]) => {
+      await overrides?.usernameBloomAdd?.(usernames);
+    }),
+  };
+
   const service = new AuthService(
     authRepository as any,
     tokenService as any,
@@ -460,6 +487,7 @@ function createService(overrides?: {
     appleOAuthService as any,
     cacheService as any,
     mfaTotpService as any,
+    usernameBloomService as any,
   );
 
   return service;
@@ -2145,6 +2173,192 @@ describe("AuthService", () => {
         role: "manager",
       },
       organizationMembershipCount: 2,
+    });
+  });
+
+  describe("isUsernameAvailable", () => {
+    it("reports an unused username as available and normalizes it", async () => {
+      const service = createService();
+
+      await expect(
+        service.isUsernameAvailable("  Casey-Doe  "),
+      ).resolves.toEqual({
+        username: "casey-doe",
+        available: true,
+        reason: null,
+      });
+    });
+
+    it("reports a username held by another account as taken", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => "user-2",
+      });
+
+      await expect(service.isUsernameAvailable("casey-doe")).resolves.toEqual({
+        username: "casey-doe",
+        available: false,
+        reason: "taken",
+      });
+    });
+
+    it("exempts the caller's own username so settings does not flag it", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => "user-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable("casey-doe", "user-1"),
+      ).resolves.toMatchObject({ available: true, reason: null });
+    });
+
+    it("reports a username reserved by an unverified signup as taken", async () => {
+      const service = createService();
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: "device-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable("casey-doe"),
+      ).resolves.toMatchObject({ available: false, reason: "taken" });
+    });
+
+    it("exempts the pending signup's own email from its reservation", async () => {
+      const service = createService();
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: "device-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable(
+          "casey-doe",
+          undefined,
+          "pending@example.com",
+        ),
+      ).resolves.toMatchObject({ available: true });
+    });
+
+    it("always consults the database, even when the filter has an opinion", async () => {
+      // Write paths call this method. Letting the filter short-circuit them
+      // would trade a clear "that username is taken" for a unique-constraint
+      // violation surfaced later.
+      const findUserIdByUsername = jest.fn(async () => null);
+      const service = createService({
+        findUserIdByUsername,
+        usernameBloomCheck: () => "definitely-absent",
+      });
+
+      await service.isUsernameAvailable("casey-doe");
+
+      expect(findUserIdByUsername).toHaveBeenCalledWith("casey-doe");
+    });
+  });
+
+  describe("resolveUsernameAvailabilityHint", () => {
+    it("answers from the filter without touching the database", async () => {
+      const findUserIdByUsername = jest.fn(async () => null);
+      const service = createService({
+        findUserIdByUsername,
+        usernameBloomCheck: () => "definitely-absent",
+      });
+
+      await expect(
+        service.resolveUsernameAvailabilityHint("  Casey-Doe  "),
+      ).resolves.toEqual({
+        username: "casey-doe",
+        available: true,
+        reason: null,
+      });
+      expect(findUserIdByUsername).not.toHaveBeenCalled();
+    });
+
+    it("normalizes before consulting the filter", async () => {
+      const usernameBloomCheck = jest.fn(() => "definitely-absent" as const);
+      const service = createService({ usernameBloomCheck });
+
+      await service.resolveUsernameAvailabilityHint("  Casey-Doe  ");
+
+      expect(usernameBloomCheck).toHaveBeenCalledWith("casey-doe");
+    });
+
+    it("falls through to the database when the filter cannot rule the name out", async () => {
+      // A false positive has to stay correct: it costs one query and still
+      // returns the right verdict.
+      const findUserIdByUsername = jest.fn(async () => "user-2");
+      const service = createService({
+        findUserIdByUsername,
+        usernameBloomCheck: () => "possibly-present",
+      });
+
+      await expect(
+        service.resolveUsernameAvailabilityHint("casey-doe"),
+      ).resolves.toEqual({
+        username: "casey-doe",
+        available: false,
+        reason: "taken",
+      });
+      expect(findUserIdByUsername).toHaveBeenCalledWith("casey-doe");
+    });
+
+    it("returns available when the filter was wrong and the row does not exist", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => null,
+        usernameBloomCheck: () => "possibly-present",
+      });
+
+      await expect(
+        service.resolveUsernameAvailabilityHint("casey-doe"),
+      ).resolves.toMatchObject({ available: true, reason: null });
+    });
+
+    it("reproduces the old behaviour when the filter is unavailable", async () => {
+      const findUserIdByUsername = jest.fn(async () => "user-2");
+      const service = createService({
+        findUserIdByUsername,
+        usernameBloomCheck: () => "unknown",
+      });
+
+      await expect(
+        service.resolveUsernameAvailabilityHint("casey-doe"),
+      ).resolves.toMatchObject({ available: false, reason: "taken" });
+      expect(findUserIdByUsername).toHaveBeenCalled();
+    });
+
+    it("still exempts the caller's own username on the fallback path", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => "user-1",
+        usernameBloomCheck: () => "possibly-present",
+      });
+
+      await expect(
+        service.resolveUsernameAvailabilityHint("casey-doe", "user-1"),
+      ).resolves.toMatchObject({ available: true });
+    });
+  });
+
+  describe("username bloom write-through", () => {
+    it("records a username reserved by a pending signup", async () => {
+      const usernameBloomAdd = jest.fn(async () => undefined);
+      const service = createService({ usernameBloomAdd });
+
+      await service.localSignup({
+        client: createClient(),
+        username: "Casey-Doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: "device-1",
+      });
+
+      expect(usernameBloomAdd).toHaveBeenCalledWith("Casey-Doe");
     });
   });
 });

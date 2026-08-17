@@ -49,6 +49,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.appleOAuthService,
         containerTokens.cacheService,
         containerTokens.mfaTotpService,
+        containerTokens.usernameBloomService,
       ],
       resolve: ({ resolve }) =>
         new AuthService(
@@ -62,6 +63,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.appleOAuthService),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.mfaTotpService),
+          resolve(containerTokens.usernameBloomService),
         ),
     });
     container.register({

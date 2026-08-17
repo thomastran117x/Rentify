@@ -24,11 +24,16 @@ import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
+  ApiClientError,
   type KnownDeviceRecord,
   type LinkedOAuthProvidersResult,
   type OAuthProvider as LinkedOAuthProvider,
   type PersonalAccessTokenSummary,
 } from "@/lib/auth/types";
+import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
+import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
+import { FieldErrorMessage } from "@/components/errors";
 import {
   mfaVerificationApi,
   type MfaVerificationOptionsResult,
@@ -63,6 +68,43 @@ export function formatDateTime(value?: string): string {
   }).format(new Date(value));
 }
 
+/** Date only — the cooldown is measured in days, so an exact time is noise. */
+export function formatCooldownDate(value?: string): string {
+  if (!value) {
+    return "soon";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+/**
+ * The rename cooldown is a 429, and `getApiErrorMessage` collapses every 429
+ * into generic rate-limit copy. Branch on the code first so the user is told
+ * what actually happened and when they can retry.
+ */
+export function getProfileSaveErrorMessage(error: unknown): string {
+  if (
+    error instanceof ApiClientError &&
+    error.code === "USERNAME_CHANGE_COOLDOWN"
+  ) {
+    const details = error.details as { availableAt?: string } | undefined;
+
+    return `You can only change your username once every 30 days. You can change it again on ${formatCooldownDate(details?.availableAt)}.`;
+  }
+
+  return getApiErrorMessage(error, {
+    action: "save your profile",
+    // Surfaces the backend's own 409 text for a taken username, which the
+    // generic fallback used to swallow.
+    preserveClientMessage: true,
+    fallback: "We couldn't save your profile right now. Please try again.",
+  });
+}
+
 export function deviceLabel(device: KnownDeviceRecord): string {
   if (device.label) return device.label;
   const parts = [device.type, device.platform].filter(Boolean);
@@ -94,6 +136,17 @@ export default function AccountPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [profilePending, setProfilePending] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileMessageTone, setProfileMessageTone] = useState<
+    "success" | "error"
+  >("success");
+  const [profileUsernameError, setProfileUsernameError] = useState<
+    string | undefined
+  >(undefined);
+  const usernameLocked = profile ? !profile.canChangeUsername : false;
+  const usernameAvailability = useUsernameAvailability(profileUsername, {
+    currentUsername: profile?.username,
+    enabled: !usernameLocked,
+  });
 
   // Security — password (managed by HomePasswordPanel internally)
 
@@ -271,10 +324,16 @@ export default function AccountPage() {
   }
 
   async function handleSaveProfile() {
-    const normalizedUsername = profileUsername.trim();
+    const formatError = validateUsernameFormat(profileUsername);
+    const takenError =
+      usernameAvailability.status === "taken"
+        ? "That username is already taken."
+        : undefined;
+    const usernameError = formatError ?? takenError;
 
-    if (!normalizedUsername) {
-      setProfileMessage("Username is required.");
+    setProfileUsernameError(usernameError);
+
+    if (usernameError) {
       return;
     }
 
@@ -283,7 +342,7 @@ export default function AccountPage() {
 
     try {
       const result = await profilesApi.updateMine({
-        username: normalizedUsername,
+        username: normalizeUsername(profileUsername),
         isPrivate: profileIsPrivate,
         recommendationPersonalizationEnabled: profilePersonalization,
       });
@@ -291,15 +350,11 @@ export default function AccountPage() {
       setProfileUsername(result.username);
       setProfileIsPrivate(result.isPrivate);
       setProfilePersonalization(result.recommendationPersonalizationEnabled);
+      setProfileMessageTone("success");
       setProfileMessage("Profile saved.");
     } catch (error) {
-      setProfileMessage(
-        getApiErrorMessage(error, {
-          action: "save your profile",
-          fallback:
-            "We couldn't save your profile right now. Please try again.",
-        }),
-      );
+      setProfileMessageTone("error");
+      setProfileMessage(getProfileSaveErrorMessage(error));
     } finally {
       setProfilePending(false);
     }
@@ -560,29 +615,75 @@ export default function AccountPage() {
             </div>
 
             {profileMessage ? (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
+              <div
+                role="status"
+                className={`rounded-xl border px-4 py-3 text-sm ${
+                  profileMessageTone === "error"
+                    ? "border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200"
+                    : "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200"
+                }`}
+              >
                 {profileMessage}
               </div>
             ) : null}
 
-            <label className="grid gap-2 text-sm">
-              <span className="font-medium text-slate-700 dark:text-slate-200">
+            <div className="grid gap-2 text-sm">
+              <label
+                htmlFor="account-username"
+                className="font-medium text-slate-700 dark:text-slate-200"
+              >
                 Username
-              </span>
+              </label>
               <input
+                id="account-username"
+                name="username"
+                autoComplete="username"
                 value={profileUsername}
-                onChange={(e) => setProfileUsername(e.target.value)}
+                onChange={(e) => {
+                  setProfileUsername(e.target.value);
+                  setProfileUsernameError(undefined);
+                }}
+                disabled={usernameLocked}
+                aria-invalid={Boolean(profileUsernameError)}
+                aria-describedby={
+                  profileUsernameError
+                    ? "account-username-error"
+                    : "account-username-hint"
+                }
                 placeholder={profile?.username ?? "username"}
-                className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400"
+                className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white outline-none transition focus:border-slate-950 dark:focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-500 dark:disabled:text-slate-400"
               />
+
+              {profileUsernameError ? (
+                <FieldErrorMessage
+                  id="account-username-error"
+                  message={profileUsernameError}
+                />
+              ) : usernameLocked ? (
+                <span
+                  id="account-username-hint"
+                  className="text-xs leading-5 text-amber-700 dark:text-amber-300"
+                >
+                  You can only change your username once every 30 days. You can
+                  change it again on{" "}
+                  {formatCooldownDate(profile?.usernameChangeAvailableAt)}.
+                </span>
+              ) : (
+                <UsernameAvailabilityHint
+                  id="account-username-hint"
+                  availability={usernameAvailability}
+                />
+              )}
+
               <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
                 This is how you sign in and how you recover your account. If you
                 signed up with Google or Microsoft, this username was generated
-                for you &mdash; change it here any time. Forgot it? Use &ldquo;I
+                for you &mdash; changing it the first time is free. After that
+                you can change it once every 30 days. Forgot it? Use &ldquo;I
                 can&apos;t log in&rdquo; on the sign-in page to have it emailed
                 to you.
               </span>
-            </label>
+            </div>
 
             <button
               type="button"

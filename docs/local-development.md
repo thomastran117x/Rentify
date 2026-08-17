@@ -91,6 +91,11 @@ Useful browser sign-in accounts:
 - `renter-one` / `user1@rentify.local` / `Rentify123!` for manager organization flows
 - `renter-two` / `user2@rentify.local` / `Rentify123!` for operator and read-only organization flows
 
+`renter-two` is also seeded 5 days into the 30-day username change cooldown
+(`usernameChangedAtDaysAgo` in `backend/src/app/seeds/fixtures/users.ts`), so the locked
+state of **Account → Profile** is reachable without waiting. `owner-one` and `renter-one`
+have no cooldown and are the accounts to use for the rename happy path.
+
 Additional fixture accounts:
 
 - `owner1@rentify.local` / `Rentify123!`

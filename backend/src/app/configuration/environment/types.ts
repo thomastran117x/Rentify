@@ -128,6 +128,14 @@ export type RawEnvironmentValues = {
   TOKEN_AUDIENCE?: string;
   TOKEN_ISSUER?: string;
   TRUST_PROXY_HEADERS?: string;
+  USERNAME_BLOOM_ENABLED?: string;
+  USERNAME_BLOOM_CAPACITY?: string;
+  USERNAME_BLOOM_FALSE_POSITIVE_RATE?: string;
+  USERNAME_BLOOM_RELOAD_INTERVAL_MS?: string;
+  USERNAME_BLOOM_MAX_STALENESS_MS?: string;
+  USERNAME_BLOOM_REBUILD_INTERVAL_MS?: string;
+  USERNAME_BLOOM_REBUILD_BATCH_SIZE?: string;
+  USERNAME_BLOOM_REBUILD_LOCK_TTL_MS?: string;
 };
 
 export type EnvironmentVariableName = keyof RawEnvironmentValues;
@@ -290,6 +298,16 @@ export interface AppEnvironment {
     followerPollIntervalMs: number;
     negativeTtlSeconds: number;
     ttlJitterRatio: number;
+  };
+  usernameBloom: {
+    enabled: boolean;
+    capacity: number;
+    falsePositiveRate: number;
+    reloadIntervalMs: number;
+    maxStalenessMs: number;
+    rebuildIntervalMs: number;
+    rebuildBatchSize: number;
+    rebuildLockTtlMs: number;
   };
   blobStorage: {
     connectionString?: string;

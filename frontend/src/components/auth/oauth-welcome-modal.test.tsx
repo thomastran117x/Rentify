@@ -4,13 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OAuthWelcomeModal } from "./oauth-welcome-modal";
 import { ApiClientError } from "@/lib/auth/types";
 
-const { updateMineMock } = vi.hoisted(() => ({
+const { updateMineMock, checkUsernameAvailabilityMock } = vi.hoisted(() => ({
   updateMineMock: vi.fn(),
+  checkUsernameAvailabilityMock: vi.fn(),
 }));
 
 vi.mock("@/lib/profiles/api", () => ({
   profilesApi: {
     updateMine: updateMineMock,
+  },
+}));
+
+vi.mock("@/lib/auth/api", () => ({
+  authApi: {
+    checkUsernameAvailability: checkUsernameAvailabilityMock,
   },
 }));
 
@@ -37,6 +44,11 @@ function renderModal(overrides?: {
 describe("OAuthWelcomeModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "jane-doe",
+      available: true,
+      reason: null,
+    });
   });
 
   it("renders nothing when closed", () => {

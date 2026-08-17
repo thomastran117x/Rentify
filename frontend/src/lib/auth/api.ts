@@ -1,5 +1,6 @@
 import {
   authenticatedJson,
+  buildPathWithQuery,
   hasRefreshCookieHint,
   optionalAuthJson,
   publicJson,
@@ -18,6 +19,7 @@ import type {
   RevokePersonalAccessTokenResult,
   SessionVerificationResult,
   SignupVerificationPendingResult,
+  UsernameAvailabilityResult,
 } from "@/lib/auth/types";
 import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
 
@@ -286,6 +288,26 @@ export const authApi = {
       "POST",
       "/auth/local/username/forgot",
       input,
+    );
+  },
+  /**
+   * Sent with optional auth: when the caller is signed in, the backend exempts
+   * their own current username so settings does not report it as taken.
+   */
+  checkUsernameAvailability(
+    username: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<UsernameAvailabilityResult> {
+    if (options.signal?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
+
+    return optionalAuthJson<UsernameAvailabilityResult>(
+      "GET",
+      buildPathWithQuery("/auth/username/available", { username }),
+      undefined,
+      undefined,
+      options.signal,
     );
   },
   resetPassword(input: ResetPasswordInput): Promise<AuthResponseBody> {

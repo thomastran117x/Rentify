@@ -85,6 +85,9 @@ const BASE_SEED_USERS: SeedUserFixture[] = [
     emailVerified: true,
     phoneNumber: "+14165550112",
     trustworthinessScore: 81,
+    // Renamed recently, so this account starts inside the 30-day rename
+    // cooldown and the locked-out settings UI is reachable locally.
+    usernameChangedAtDaysAgo: 5,
     organizationMemberships: [
       {
         ownerEmail: "owner1@rentify.local",

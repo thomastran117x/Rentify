@@ -67,6 +67,10 @@ export const authUsernameSchema = usernameSchema.transform((value) =>
   value.trim().toLowerCase(),
 );
 
+export const usernameAvailabilityQuerySchema = z.object({
+  username: authUsernameSchema,
+});
+
 export const localSignupRequestSchema = z.object({
   username: authUsernameSchema,
   email: z.email().transform((value) => value.trim().toLowerCase()),
@@ -204,6 +208,16 @@ export const removeKnownDeviceRequestSchema = z.object({
 });
 
 export type LocalSignupRequestBody = z.infer<typeof localSignupRequestSchema>;
+
+export type UsernameAvailabilityQuery = z.infer<
+  typeof usernameAvailabilityQuerySchema
+>;
+
+export interface UsernameAvailabilityResult {
+  username: string;
+  available: boolean;
+  reason: "taken" | null;
+}
 
 export type LocalAuthenticateRequestBody = z.infer<
   typeof localAuthenticateRequestSchema

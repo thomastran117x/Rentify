@@ -14,6 +14,10 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 import { createMockRequest, createMockResponse } from "../../support/mock-http";
 
 const mockRequireJwtAuth = jest.fn();
+// Declared without a signature, like mockRequireJwtAuth above, so the module
+// mock can forward its rest args. Returning undefined by default reads the same
+// as "no bearer token" at the call site.
+const mockGetOptionalJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
 const mockGetCookie = jest.fn();
 const mockSetCookie = jest.fn();
@@ -21,6 +25,7 @@ const mockDeleteCookie = jest.fn();
 
 jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
+  getOptionalJwtAuth: (...args: unknown[]) => mockGetOptionalJwtAuth(...args),
 }));
 
 jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
@@ -193,6 +198,10 @@ function createController(overrides?: {
   localSignup?: (input: unknown) => Promise<unknown>;
   forgotPassword?: (input: unknown) => Promise<unknown>;
   forgotUsername?: (input: unknown) => Promise<unknown>;
+  resolveUsernameAvailabilityHint?: (
+    username: string,
+    allowedUserId?: string,
+  ) => Promise<unknown>;
   resendForgotPassword?: (input: unknown) => Promise<unknown>;
   resetPassword?: (input: unknown) => Promise<AuthSessionResult>;
   verifyEmail?: (input: unknown) => Promise<AuthSessionResult>;
@@ -238,6 +247,14 @@ function createController(overrides?: {
       overrides?.forgotUsername ??
         (async () => ({
           accepted: true,
+        })),
+    ),
+    resolveUsernameAvailabilityHint: jest.fn(
+      overrides?.resolveUsernameAvailabilityHint ??
+        (async (username: string) => ({
+          username,
+          available: true,
+          reason: null,
         })),
     ),
     resendForgotPassword: jest.fn(
@@ -866,6 +883,58 @@ describe("AuthController", () => {
       deviceId: "device-1",
     });
     expect(response.status).toBe(202);
+  });
+
+  it("checkUsernameAvailability normalizes the query and returns the verdict", async () => {
+    const { controller, authService } = createController({
+      resolveUsernameAvailabilityHint: async () => ({
+        username: "taken-name",
+        available: false,
+        reason: "taken",
+      }),
+    });
+
+    const response = await invoke(
+      controller.checkUsernameAvailability,
+      createContext({ url: "/auth/username/available?username=Taken-Name" }),
+    );
+
+    expect(authService.resolveUsernameAvailabilityHint).toHaveBeenCalledWith(
+      "taken-name",
+      undefined,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { username: "taken-name", available: false, reason: "taken" },
+    });
+  });
+
+  it("checkUsernameAvailability exempts a signed-in caller's own account", async () => {
+    const { controller, authService } = createController();
+    mockGetOptionalJwtAuth.mockResolvedValueOnce({ sub: "user-1" } as never);
+
+    await invoke(
+      controller.checkUsernameAvailability,
+      createContext({ url: "/auth/username/available?username=casey-doe" }),
+    );
+
+    expect(authService.resolveUsernameAvailabilityHint).toHaveBeenCalledWith(
+      "casey-doe",
+      "user-1",
+    );
+  });
+
+  it("checkUsernameAvailability rejects a malformed username with a validation error", async () => {
+    const { controller, authService } = createController();
+
+    await expect(
+      invoke(
+        controller.checkUsernameAvailability,
+        createContext({ url: "/auth/username/available?username=no" }),
+      ),
+    ).rejects.toBeInstanceOf(RequestValidationError);
+
+    expect(authService.resolveUsernameAvailabilityHint).not.toHaveBeenCalled();
   });
 
   it("localSignup rejects html in profile fields before calling the auth service", async () => {

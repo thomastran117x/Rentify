@@ -51,6 +51,15 @@ export const authLocalRouteModule: RouteModule = {
         "forgotUsername",
       ),
     );
+    // Not under /auth/local: OAuth users renaming themselves in account
+    // settings check availability through this endpoint too.
+    app.get(
+      "/auth/username/available",
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "checkUsernameAvailability",
+      ),
+    );
     app.post(
       "/auth/local/email/verify",
       resolveHandler<AuthController>(

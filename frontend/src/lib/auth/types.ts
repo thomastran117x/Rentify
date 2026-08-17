@@ -66,6 +66,13 @@ export interface ForgotPasswordAcceptedResult {
 
 export type AuthEmailAcceptedResult = ForgotPasswordAcceptedResult;
 
+export interface UsernameAvailabilityResult {
+  /** The normalized (trimmed, lowercased) username that was checked. */
+  username: string;
+  available: boolean;
+  reason: "taken" | null;
+}
+
 export interface LinkedOAuthProvidersResult {
   hasPassword: boolean;
   providers: Array<{

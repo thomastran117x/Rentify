@@ -771,6 +771,49 @@ describe("Auth persistence integration", () => {
     expect(resendVerificationResponse.status).toBe(202);
   });
 
+  it("reports username availability for free, taken, and malformed values", async () => {
+    const free = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=brand-new-name")}`,
+      { headers: { origin: ORIGIN } },
+    );
+    expect(free.status).toBe(200);
+    await expect(free.json()).resolves.toMatchObject({
+      data: { username: "brand-new-name", available: true, reason: null },
+    });
+
+    // Seeded account, and the query is uppercased to prove normalization.
+    const taken = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=Renter-One")}`,
+      { headers: { origin: ORIGIN } },
+    );
+    expect(taken.status).toBe(200);
+    await expect(taken.json()).resolves.toMatchObject({
+      data: { username: "renter-one", available: false, reason: "taken" },
+    });
+
+    const malformed = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=no")}`,
+      { headers: { origin: ORIGIN } },
+    );
+    expect(malformed.status).toBe(400);
+  });
+
+  it("exempts a signed-in caller's own username from the availability check", async () => {
+    const user = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=renter-one")}`,
+      { headers: { ...user.headers(), origin: ORIGIN } },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { username: "renter-one", available: true, reason: null },
+    });
+  });
+
   it("locks a local login after repeated failures and unlocks it with an emailed code", async () => {
     const email = "user1@rentify.local";
     const username = "renter-one";

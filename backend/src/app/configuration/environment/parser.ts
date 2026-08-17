@@ -27,6 +27,7 @@ import { buildFeaturesConfig } from "@/configuration/environment/domains/feature
 import {
   buildPostingsCacheConfig,
   buildRateLimiterConfig,
+  buildUsernameBloomConfig,
   buildWorkerConfig,
   parseRateLimiterStrategy,
   validateRuntimeConfig,
@@ -127,6 +128,7 @@ export function parseEnvironmentState(
     rateLimiter: buildRateLimiterConfig(raw, errors, rateLimiterStrategy),
     workers: buildWorkerConfig(raw, errors),
     postingsCache: buildPostingsCacheConfig(raw, errors),
+    usernameBloom: buildUsernameBloomConfig(raw, errors),
     blobStorage: buildBlobStorageConfig(raw, errors),
     logging: buildLoggingConfig(raw, nodeEnv),
     routeModules: buildRouteModulesConfig(raw, errors),

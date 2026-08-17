@@ -156,6 +156,31 @@ describe("resolveRateLimitPolicy", () => {
     });
   });
 
+  it("assigns a dedicated policy to the username availability check", () => {
+    const policy = resolveRateLimitPolicy(
+      policyRequest("http://rent.test/auth/username/available?username=casey", {
+        method: "GET",
+      }),
+    );
+
+    expect(policy).toMatchObject({
+      id: "username-availability",
+      strategy: "sliding-window",
+      limit: 60,
+      bucketKey: "GET:username-availability",
+    });
+  });
+
+  it("does not apply the availability policy to other methods on that path", () => {
+    const policy = resolveRateLimitPolicy(
+      policyRequest("http://rent.test/auth/username/available", {
+        method: "POST",
+      }),
+    );
+
+    expect(policy.id).toBe("default");
+  });
+
   it("assigns a stable payment-write bucket to dynamic payment mutation routes", () => {
     const firstPolicy = resolveRateLimitPolicy(
       policyRequest("http://rent.test/payments/payment-1/refunds", {

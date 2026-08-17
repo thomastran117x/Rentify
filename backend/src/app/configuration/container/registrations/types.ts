@@ -5,6 +5,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "sms",
   "security",
   "blob",
+  "username-bloom",
   "profile",
   "feedbacks",
   "auth-otp",

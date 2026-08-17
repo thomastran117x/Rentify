@@ -15,6 +15,9 @@ import {
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
+import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { AuthResponseBody } from "@/lib/auth/types";
 import { ApiClientError } from "@/lib/auth/types";
@@ -40,7 +43,6 @@ function validateSignup(values: {
   captchaToken: string;
 }): SignupErrors {
   const errors: SignupErrors = {};
-  const normalizedUsername = values.username.trim();
 
   if (!values.firstName.trim()) {
     errors.firstName = "First name is required.";
@@ -50,15 +52,10 @@ function validateSignup(values: {
     errors.lastName = "Last name is required.";
   }
 
-  if (!normalizedUsername) {
-    errors.username = "Username is required.";
-  } else if (
-    normalizedUsername.length < 3 ||
-    normalizedUsername.length > 50 ||
-    !/^[a-z0-9._-]+$/i.test(normalizedUsername)
-  ) {
-    errors.username =
-      "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
+  const usernameError = validateUsernameFormat(values.username);
+
+  if (usernameError) {
+    errors.username = usernameError;
   }
 
   if (!values.email.trim()) {
@@ -362,6 +359,8 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       ? persistedAuthFlow
       : null;
   const authFlowRestorePending = persistedAuthFlow === undefined;
+  const usernameAvailability = useUsernameAvailability(username);
+  const usernameTaken = usernameAvailability.status === "taken";
 
   useEffect(() => {
     if (status === "authenticated" && !welcomeSession) {
@@ -406,6 +405,12 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       captchaToken,
     });
 
+    // The availability check already told the user this name is gone; there is
+    // nothing to gain from a round trip that can only fail.
+    if (usernameTaken) {
+      nextErrors.username = "That username is already taken.";
+    }
+
     setErrors(nextErrors);
     setGeneralError(null);
 
@@ -419,7 +424,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       const result = await authApi.signup({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        username: username.trim().toLowerCase(),
+        username: normalizeUsername(username),
         email: email.trim().toLowerCase(),
         password,
         captchaToken,
@@ -602,34 +607,47 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
           </div>
 
           <div className="space-y-5">
-            <SignupField
-              id="username"
-              label="Username"
-              error={errors.username}
-              errorId="signup-username-error"
-              hasValue={usernameHasValue}
-              activeClassName={theme.auth.fieldActive}
-              icon={
-                <div className={theme.auth.fieldIcon}>
-                  <UserIcon />
-                </div>
-              }
-            >
-              <input
+            <div className="space-y-2">
+              <SignupField
                 id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                placeholder="jane-doe"
-                aria-invalid={Boolean(errors.username)}
-                aria-describedby={
-                  errors.username ? "signup-username-error" : undefined
+                label="Username"
+                error={errors.username}
+                errorId="signup-username-error"
+                hasValue={usernameHasValue}
+                activeClassName={theme.auth.fieldActive}
+                icon={
+                  <div className={theme.auth.fieldIcon}>
+                    <UserIcon />
+                  </div>
                 }
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                className={theme.auth.fieldInput}
-              />
-            </SignupField>
+              >
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="jane-doe"
+                  aria-invalid={Boolean(errors.username) || usernameTaken}
+                  aria-describedby={
+                    errors.username
+                      ? "signup-username-error"
+                      : "signup-username-availability"
+                  }
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  className={theme.auth.fieldInput}
+                />
+              </SignupField>
+
+              {/* Suppressed while a format error is showing, so the field never
+                  carries two competing messages. */}
+              {errors.username ? null : (
+                <UsernameAvailabilityHint
+                  id="signup-username-availability"
+                  availability={usernameAvailability}
+                />
+              )}
+            </div>
 
             <SignupField
               id="email"

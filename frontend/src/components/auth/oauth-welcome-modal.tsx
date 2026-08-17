@@ -10,7 +10,10 @@ import {
 } from "react";
 import { PartyPopper, UserRound, X } from "lucide-react";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
+import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { profilesApi } from "@/lib/profiles/api";
+import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
+import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { theme } from "@/styles/theme";
 
@@ -31,24 +34,6 @@ interface OAuthWelcomeModalContentProps {
   username: string;
   onUsernameSaved: (username: string) => void;
   onClose: () => void;
-}
-
-function validateUsername(value: string): string | undefined {
-  const normalized = value.trim();
-
-  if (!normalized) {
-    return "Username is required.";
-  }
-
-  if (
-    normalized.length < 3 ||
-    normalized.length > 50 ||
-    !/^[a-z0-9._-]+$/i.test(normalized)
-  ) {
-    return "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
-  }
-
-  return undefined;
 }
 
 function getFocusableElements(root: HTMLElement) {
@@ -72,14 +57,21 @@ function OAuthWelcomeModalContent({
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const trimmed = value.trim().toLowerCase();
+  const trimmed = normalizeUsername(value);
   const isUnchanged = useMemo(
-    () => trimmed === username.trim().toLowerCase(),
+    () => trimmed === normalizeUsername(username),
     [trimmed, username],
   );
+  const availability = useUsernameAvailability(value, {
+    currentUsername: username,
+  });
 
   async function handleSave() {
-    const nextError = validateUsername(value);
+    const nextError =
+      validateUsernameFormat(value) ??
+      (availability.status === "taken"
+        ? "That username is already taken."
+        : undefined);
     setFieldError(nextError);
     setGeneralError(null);
 
@@ -96,10 +88,8 @@ function OAuthWelcomeModalContent({
     setPending(true);
 
     try {
-      // Sends only the username. PUT /profile/me coerces omitted phoneNumber and
-      // avatar fields to null, but a just-created OAuth account has neither yet,
-      // so nothing is lost here. If OAuth signup is ever extended to store a
-      // provider phone/avatar, pass those through (or load the profile first).
+      // Sends only the username. PUT /profile/me is a partial update, so the
+      // omitted phone and avatar fields are left as they are.
       const result = await profilesApi.updateMine({ username: trimmed });
       onUsernameSaved(result.username);
       onClose();
@@ -200,6 +190,11 @@ function OAuthWelcomeModalContent({
               <FieldErrorMessage
                 id="oauth-welcome-username-error"
                 message={fieldError}
+              />
+            ) : availability.status !== "idle" ? (
+              <UsernameAvailabilityHint
+                id="oauth-welcome-username-hint"
+                availability={availability}
               />
             ) : (
               <p

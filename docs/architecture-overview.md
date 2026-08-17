@@ -227,13 +227,14 @@ Workers currently cover:
 - recommendation activity and precompute
 - report search indexing
 - search maintenance and indexing
+- username availability filter rebuilds
 
 This keeps the API focused on request-response work while heavier or asynchronous processing can be handled off the main server path.
 
 ## Data and Infrastructure Responsibilities
 
 - MySQL: source of truth for product and transactional data
-- Redis: cache and concurrency helpers such as booking-related locking
+- Redis: cache and concurrency helpers such as booking-related locking, plus the shared username availability bloom filter
 - Elasticsearch: search indexes and query acceleration
 - RabbitMQ: queue backbone for worker-driven async jobs
 
@@ -241,8 +242,8 @@ This keeps the API focused on request-response work while heavier or asynchronou
 
 Connection pool size is a per-process cost, not a per-request one. The API and
 every worker that touches the database run as separate processes, and each owns
-its own pool. Sixteen processes in the Compose stack connect: the API plus
-fifteen workers. The SMS and log-consumer workers are queue-only and never open
+its own pool. Seventeen processes in the Compose stack connect: the API plus
+sixteen workers. The SMS and log-consumer workers are queue-only and never open
 a database connection. The email worker used to be queue-only too, but the
 booking message notification job carries ids rather than a rendered recipient,
 so delivery hydrates it from the database at send time.
@@ -250,8 +251,8 @@ so delivery hydrates it from the database at send time.
 That makes the arithmetic worth checking before adding a service. The pool holds
 `DATABASE_POOL_MINIMUM_IDLE` connections at rest and grows to
 `DATABASE_POOL_CONNECTION_LIMIT` under load. Compose gives the API 2/10 and each
-worker 1/5, so the stack costs roughly seventeen connections idle and
-eighty-five at its ceiling, against the 250 the local MySQL
+worker 1/5, so the stack costs roughly eighteen connections idle and
+ninety at its ceiling, against the 250 the local MySQL
 container allows. A managed instance is usually stricter — connection caps there
 derive from instance size, and a small instance may allow only around 150 — so
 adding replicas of the API multiplies this cost rather than sharing it.
@@ -271,5 +272,6 @@ Browser sessions use cookie-backed refresh tokens plus CSRF protection, while no
 ## Design Deep Dives
 
 - booking concurrency: [booking-locking-tradeoffs.md](./booking-locking-tradeoffs.md)
+- username availability: [username-bloom-filter.md](./username-bloom-filter.md)
 - recommendation rollout: [recommendations-phase-1-activity-capture.md](./recommendations-phase-1-activity-capture.md), [recommendations-phase-2-precompute-worker.md](./recommendations-phase-2-precompute-worker.md), [recommendations-phase-3-query-api.md](./recommendations-phase-3-query-api.md)
 - product and system direction: [rentify-plan.md](./rentify-plan.md)

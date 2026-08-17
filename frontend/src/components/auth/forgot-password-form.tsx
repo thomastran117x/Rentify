@@ -14,6 +14,7 @@ import {
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
+import { validateUsernameFormat } from "@/lib/auth/username";
 import { theme } from "@/styles/theme";
 
 interface RequestErrors {
@@ -33,17 +34,10 @@ function validateRequest(values: {
   captchaToken: string;
 }): RequestErrors {
   const errors: RequestErrors = {};
-  const normalizedUsername = values.username.trim();
+  const usernameError = validateUsernameFormat(values.username);
 
-  if (!normalizedUsername) {
-    errors.username = "Username is required.";
-  } else if (
-    normalizedUsername.length < 3 ||
-    normalizedUsername.length > 50 ||
-    !/^[a-z0-9._-]+$/i.test(normalizedUsername)
-  ) {
-    errors.username =
-      "Use 3-50 letters, numbers, periods, underscores, or hyphens.";
+  if (usernameError) {
+    errors.username = usernameError;
   }
 
   if (!values.captchaToken.trim()) {
