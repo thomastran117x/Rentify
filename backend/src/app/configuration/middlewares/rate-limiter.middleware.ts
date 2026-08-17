@@ -195,6 +195,13 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   return false;
 }
 
+function isUsernameAvailabilityRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return request.method === "GET" && pathname === "/auth/username/available";
+}
+
 function isAuthSessionRoute(request: Request, pathname: string): boolean {
   return (
     (request.method === "POST" &&
@@ -288,6 +295,22 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
       windowSeconds: 60,
       bucketCapacity: 10,
       refillTokensPerSecond: 10 / 60,
+    });
+  }
+
+  if (isUsernameAvailabilityRoute(request, pathname)) {
+    // Spent by debounced typing on the signup and account forms — a single form
+    // fill costs a handful of requests. Well above that, and bounded enough to
+    // matter for an unauthenticated caller, which keys by IP and so is shared
+    // across everyone behind one office or carrier address.
+    return createPolicy(request, {
+      id: "username-availability",
+      bucketKey: `${request.method}:username-availability`,
+      strategy: "sliding-window",
+      limit: 60,
+      windowSeconds: 60,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 1,
     });
   }
 

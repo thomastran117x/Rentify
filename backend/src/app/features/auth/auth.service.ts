@@ -31,10 +31,12 @@ import {
   type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
   type UnlinkOAuthProviderInput,
+  type UsernameAvailabilityResult,
   type VerifyEmailInput,
   type UnlockLocalLoginInput,
   isStrongPassword,
 } from "@/features/auth/auth.model";
+import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
@@ -78,8 +80,6 @@ const LOCAL_PASSWORD_RESET_OTP_PURPOSE = "local-password-reset";
 const USERNAME_REMINDER_RATE_LIMIT_PURPOSE = "username-reminder";
 const EMAIL_VERIFICATION_OTP_PURPOSE = "email-verification";
 const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
-const PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX =
-  "auth:pending-signup-username";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX = "auth:pending-signup-verify";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS = 10_000;
 const PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS = 60 * 60;
@@ -1205,7 +1205,7 @@ export class AuthService {
   }
 
   private getPendingLocalSignupUsernameKey(username: string): string {
-    return `${PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX}:${username.toLowerCase()}`;
+    return getPendingSignupUsernameKey(username);
   }
 
   private getPendingLocalSignupVerifyLockKey(email: string): string {
@@ -1434,23 +1434,58 @@ export class AuthService {
     );
   }
 
+  /**
+   * Whether `username` can be claimed. A name is taken when it belongs to
+   * another account, or when it is soft-reserved by another person's
+   * not-yet-verified signup.
+   *
+   * `allowedUserId` / `allowedPendingEmail` exempt the caller's own claim, so a
+   * signed-in user checking their current username is told it is available
+   * rather than taken.
+   */
+  async isUsernameAvailable(
+    username: string,
+    allowedUserId?: string,
+    allowedPendingEmail?: string,
+  ): Promise<UsernameAvailabilityResult> {
+    const normalizedUsername = username.trim().toLowerCase();
+    const existingUserId =
+      await this.authRepository.findUserIdByUsername(normalizedUsername);
+
+    if (existingUserId && existingUserId !== allowedUserId) {
+      return {
+        username: normalizedUsername,
+        available: false,
+        reason: "taken",
+      };
+    }
+
+    const pendingSignupEmail =
+      await this.readPendingSignupEmailByUsername(normalizedUsername);
+
+    if (pendingSignupEmail && pendingSignupEmail !== allowedPendingEmail) {
+      return {
+        username: normalizedUsername,
+        available: false,
+        reason: "taken",
+      };
+    }
+
+    return { username: normalizedUsername, available: true, reason: null };
+  }
+
   private async assertUsernameIsAvailable(
     username: string,
     allowedUserId?: string,
     allowedPendingEmail?: string,
   ): Promise<void> {
-    const existingUser = await this.authRepository.findUserByUsername(username);
+    const result = await this.isUsernameAvailable(
+      username,
+      allowedUserId,
+      allowedPendingEmail,
+    );
 
-    if (existingUser && existingUser.id !== allowedUserId) {
-      throw new ConflictError("That username is already taken.", {
-        field: "username",
-      });
-    }
-
-    const pendingSignupEmail =
-      await this.readPendingSignupEmailByUsername(username);
-
-    if (pendingSignupEmail && pendingSignupEmail !== allowedPendingEmail) {
+    if (!result.available) {
       throw new ConflictError("That username is already taken.", {
         field: "username",
       });

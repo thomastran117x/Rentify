@@ -100,4 +100,85 @@ describe("Profiles persistence integration", () => {
 
     expect(response.status).toBe(401);
   });
+
+  describe("username change cooldown", () => {
+    async function updateUsername(
+      user: Awaited<ReturnType<typeof createAuthenticatedRequestContext>>,
+      username: string,
+      extra: Record<string, unknown> = {},
+    ): Promise<Response> {
+      return request("/profile/me", {
+        method: "PUT",
+        headers: user.headers(),
+        body: JSON.stringify({ username, ...extra }),
+      });
+    }
+
+    it("allows the first rename and then blocks a second one", async () => {
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+
+      expect((await updateUsername(user, "renter-one-first")).status).toBe(200);
+
+      const second = await updateUsername(user, "renter-one-second");
+      expect(second.status).toBe(429);
+      const body = (await second.json()) as {
+        error: { code: string; details: { cooldownDays: number } };
+      };
+      expect(body.error.code).toBe("USERNAME_CHANGE_COOLDOWN");
+      expect(body.error.details.cooldownDays).toBe(30);
+
+      // The rejected rename must not have been written.
+      expect(
+        await persistenceApp.prisma.profile.findUniqueOrThrow({
+          where: { userId: user.userId },
+        }),
+      ).toMatchObject({ username: "renter-one-first" });
+    });
+
+    it("does not spend the cooldown when the username is resent unchanged", async () => {
+      // The PUT body always carries a username, so an ordinary profile save
+      // must leave the allowance intact.
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+
+      expect(
+        (await updateUsername(user, "renter-one", { isPrivate: true })).status,
+      ).toBe(200);
+
+      const profile = await persistenceApp.prisma.profile.findUniqueOrThrow({
+        where: { userId: user.userId },
+      });
+      expect(profile.usernameChangedAt).toBeNull();
+
+      // Still free to rename afterwards.
+      expect((await updateUsername(user, "renter-one-renamed")).status).toBe(
+        200,
+      );
+    });
+
+    it("reports the cooldown state for a user seeded inside the window", async () => {
+      const user = await createAuthenticatedRequestContext({
+        email: "user2@rentify.local",
+      });
+
+      const response = await request("/profile/me", {
+        headers: user.headers(),
+      });
+
+      const data = await readData<{
+        username: string;
+        canChangeUsername: boolean;
+        usernameChangeAvailableAt: string;
+      }>(response);
+
+      expect(data.username).toBe("renter-two");
+      expect(data.canChangeUsername).toBe(false);
+      expect(
+        new Date(data.usernameChangeAvailableAt).getTime(),
+      ).toBeGreaterThan(Date.now());
+    });
+  });
 });

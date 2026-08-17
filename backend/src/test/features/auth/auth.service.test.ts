@@ -56,6 +56,7 @@ function createClient() {
 function createService(overrides?: {
   findUserByEmail?: (email: string) => Promise<AuthUserRecord | null>;
   findUserByUsername?: (username: string) => Promise<AuthUserRecord | null>;
+  findUserIdByUsername?: (username: string) => Promise<string | null>;
   findUserById?: (userId: string) => Promise<AuthUserRecord | null>;
   createLocalUser?: (
     input: {
@@ -239,9 +240,18 @@ function createService(overrides?: {
     string,
     { value: unknown; ttlSeconds?: number }
   >();
+  const findUserByUsername =
+    overrides?.findUserByUsername ?? (async () => null);
   const authRepository = {
     findUserByEmail: overrides?.findUserByEmail ?? (async () => null),
-    findUserByUsername: overrides?.findUserByUsername ?? (async () => null),
+    findUserByUsername,
+    // Availability checks use this cheaper probe. Derived from
+    // findUserByUsername so a test that stubs only the latter still describes a
+    // taken username.
+    findUserIdByUsername:
+      overrides?.findUserIdByUsername ??
+      (async (username: string) =>
+        (await findUserByUsername(username))?.id ?? null),
     findUserById: overrides?.findUserById ?? (async () => null),
     findUserByOAuthIdentity:
       overrides?.findUserByOAuthIdentity ?? (async () => null),
@@ -2145,6 +2155,78 @@ describe("AuthService", () => {
         role: "manager",
       },
       organizationMembershipCount: 2,
+    });
+  });
+
+  describe("isUsernameAvailable", () => {
+    it("reports an unused username as available and normalizes it", async () => {
+      const service = createService();
+
+      await expect(
+        service.isUsernameAvailable("  Casey-Doe  "),
+      ).resolves.toEqual({
+        username: "casey-doe",
+        available: true,
+        reason: null,
+      });
+    });
+
+    it("reports a username held by another account as taken", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => "user-2",
+      });
+
+      await expect(service.isUsernameAvailable("casey-doe")).resolves.toEqual({
+        username: "casey-doe",
+        available: false,
+        reason: "taken",
+      });
+    });
+
+    it("exempts the caller's own username so settings does not flag it", async () => {
+      const service = createService({
+        findUserIdByUsername: async () => "user-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable("casey-doe", "user-1"),
+      ).resolves.toMatchObject({ available: true, reason: null });
+    });
+
+    it("reports a username reserved by an unverified signup as taken", async () => {
+      const service = createService();
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: "device-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable("casey-doe"),
+      ).resolves.toMatchObject({ available: false, reason: "taken" });
+    });
+
+    it("exempts the pending signup's own email from its reservation", async () => {
+      const service = createService();
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: "device-1",
+      });
+
+      await expect(
+        service.isUsernameAvailable(
+          "casey-doe",
+          undefined,
+          "pending@example.com",
+        ),
+      ).resolves.toMatchObject({ available: true });
     });
   });
 });

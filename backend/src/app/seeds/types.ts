@@ -20,6 +20,12 @@ export interface SeedUserFixture {
   phoneNumber?: string;
   avatarUrl?: string;
   trustworthinessScore?: number;
+  /**
+   * Seeds `username_changed_at` this many days in the past, so the rename
+   * cooldown UI is reachable locally without waiting 30 days. Omit to leave the
+   * account free to rename.
+   */
+  usernameChangedAtDaysAgo?: number;
   organizationMemberships?: Array<{
     ownerEmail: string;
     role: "manager" | "operator";

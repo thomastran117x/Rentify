@@ -13,12 +13,14 @@ const {
   useAuthMock,
   useAuthCaptchaTokenMock,
   signupMock,
+  checkUsernameAvailabilityMock,
   clearCaptchaTokenMock,
   oauthSuccessSessionMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   signupMock: vi.fn(),
+  checkUsernameAvailabilityMock: vi.fn(),
   clearCaptchaTokenMock: vi.fn(),
   oauthSuccessSessionMock: vi.fn(),
 }));
@@ -40,6 +42,7 @@ vi.mock("@/lib/auth/captcha-store", () => ({
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
     signup: signupMock,
+    checkUsernameAvailability: checkUsernameAvailabilityMock,
   },
 }));
 
@@ -93,6 +96,13 @@ describe("SignupForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    // Default: every username is free, so tests that are not about
+    // availability are unaffected by the debounced background check.
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "jane-doe",
+      available: true,
+      reason: null,
+    });
     useAuthMock.mockReturnValue({
       status: "anonymous",
       setSession: vi.fn(),
@@ -338,6 +348,59 @@ describe("SignupForm", () => {
     expect(
       await screen.findAllByText("That username is already taken."),
     ).toHaveLength(2);
+  });
+
+  it("confirms an available username as the user types", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Username"), "jane-doe");
+
+    expect(
+      await screen.findByText("jane-doe is available."),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(checkUsernameAvailabilityMock).toHaveBeenCalledWith(
+        "jane-doe",
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("blocks submission of a username the availability check reported taken", async () => {
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "taken-name",
+      available: false,
+      reason: "taken",
+    });
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("First name"), "Jane");
+    await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "taken-name");
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+
+    expect(
+      await screen.findByText("That username is already taken."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    // Nothing to gain from a round trip that can only fail.
+    expect(signupMock).not.toHaveBeenCalled();
+  });
+
+  it("does not check availability for a username that fails the format rule", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Username"), "no");
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(checkUsernameAvailabilityMock).not.toHaveBeenCalled();
   });
 
   it("maps captcha failures and server failures to user-facing messages", async () => {

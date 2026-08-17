@@ -192,12 +192,15 @@ export const usersSeedModule: SeedModule = {
 
       state.userIdsByEmail.set(fixtureUser.email, user.id);
 
+      const usernameChangedAt = resolveUsernameChangedAt(fixtureUser);
+
       await prisma.profile.upsert({
         where: {
           userId: user.id,
         },
         update: {
           username: fixtureUser.username,
+          usernameChangedAt,
           phoneNumber: fixtureUser.phoneNumber ?? null,
           avatarUrl: fixtureUser.avatarUrl ?? null,
           isPrivate: false,
@@ -208,6 +211,7 @@ export const usersSeedModule: SeedModule = {
           id: randomUUID(),
           userId: user.id,
           username: fixtureUser.username,
+          usernameChangedAt,
           phoneNumber: fixtureUser.phoneNumber ?? null,
           avatarUrl: fixtureUser.avatarUrl ?? null,
           isPrivate: false,
@@ -879,6 +883,23 @@ const SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
   ...BASE_SEED_ORGANIZATION_PROFILES,
   ...ADDITIONAL_SEED_ORGANIZATION_PROFILES,
 ];
+
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Anchored to seed time rather than a fixed date, so a fixture that is meant to
+ * sit inside the rename cooldown stays inside it however long ago the seed data
+ * was written.
+ */
+function resolveUsernameChangedAt(fixtureUser: SeedUserFixture): Date | null {
+  if (fixtureUser.usernameChangedAtDaysAgo === undefined) {
+    return null;
+  }
+
+  return new Date(
+    Date.now() - fixtureUser.usernameChangedAtDaysAgo * MILLISECONDS_PER_DAY,
+  );
+}
 
 function buildOrganizationProfile(index: number): SeedOrganizationProfile {
   const sample =

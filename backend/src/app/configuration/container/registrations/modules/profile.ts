@@ -19,11 +19,13 @@ export const profileRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.profileRepository,
         containerTokens.blobService,
+        containerTokens.cacheService,
       ],
       resolve: ({ resolve }) =>
         new ProfileService(
           resolve(containerTokens.profileRepository),
           resolve(containerTokens.blobService),
+          resolve(containerTokens.cacheService),
         ),
     });
     container.register({

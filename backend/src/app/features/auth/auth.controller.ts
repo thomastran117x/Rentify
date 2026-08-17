@@ -7,7 +7,10 @@ import {
   readCookie,
   writeCookie,
 } from "@/configuration/http/request";
-import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
+import {
+  getOptionalJwtAuth,
+  requireJwtAuth,
+} from "@/configuration/middlewares/jwt-middleware";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { RequestValidationError } from "@/configuration/validation/request";
@@ -55,6 +58,7 @@ import type {
   UnlinkOAuthProviderInput,
   UnlockLocalLoginInput,
   UnlockLocalLoginRequestBody,
+  UsernameAvailabilityQuery,
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
@@ -73,6 +77,7 @@ import {
   resetPasswordRequestSchema,
   resendVerificationEmailRequestSchema,
   unlockLocalLoginRequestSchema,
+  usernameAvailabilityQuerySchema,
   verifyEmailRequestSchema,
 } from "@/features/auth/auth.model";
 import { ZodError } from "zod";
@@ -116,6 +121,23 @@ export class AuthController {
     accepted(response, result, {
       message: "Signup verification is pending.",
     });
+  };
+
+  checkUsernameAvailability = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const query = this.parseUsernameAvailabilityQuery(request);
+    // Public endpoint, but a signed-in caller's own username must report as
+    // available rather than taken so the settings form does not flag the value
+    // it was seeded with.
+    const auth = await getOptionalJwtAuth(request);
+    const result = await this.authService.isUsernameAvailable(
+      query.username,
+      auth?.sub,
+    );
+
+    ok(response, result);
   };
 
   forgotPassword = async (
@@ -521,6 +543,28 @@ export class AuthController {
       provider: this.requireOAuthProviderParam(request),
       userId: request.auth.sub,
     };
+  }
+
+  private parseUsernameAvailabilityQuery(
+    request: Request,
+  ): UsernameAvailabilityQuery {
+    try {
+      return usernameAvailabilityQuerySchema.parse({
+        username: getQuery(request).username,
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new RequestValidationError(
+          "Request query validation failed.",
+          error.issues.map((issue) => ({
+            path: "username",
+            message: issue.message,
+          })),
+        );
+      }
+
+      throw error;
+    }
   }
 
   private requireOAuthProviderParam(request: Request): OAuthProvider {
