@@ -345,7 +345,7 @@ describe("ProfileRepository", () => {
   });
 
   it("omits nullable columns the caller did not send", async () => {
-    const update = jest.fn(async () => createProfilePersistence());
+    const update = createUpdateMock();
     const repository = new ProfileRepository({
       profile: { update },
     } as any);
@@ -356,7 +356,7 @@ describe("ProfileRepository", () => {
       isPrivate: true,
     });
 
-    const data = update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    const data = update.mock.calls[0]?.[0].data ?? {};
     expect(data).toMatchObject({ username: "casey-doe", isPrivate: true });
     expect(data).not.toHaveProperty("phoneNumber");
     expect(data).not.toHaveProperty("avatarUrl");

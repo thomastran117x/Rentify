@@ -269,7 +269,7 @@ describe("ProfileService", () => {
   });
 
   it("allows clearing avatar fields together without blob storage checks", async () => {
-    const update = jest.fn(async () =>
+    const update = createUpdateMock(
       createProfile({
         avatarUrl: undefined,
         avatarBlobName: undefined,
@@ -298,7 +298,7 @@ describe("ProfileService", () => {
       avatarBlobName: null,
     });
     // ...but the omitted phone number is not touched.
-    expect(update.mock.calls[0]?.[0]).not.toHaveProperty("phoneNumber");
+    expect(firstUpdateInput(update)).not.toHaveProperty("phoneNumber");
   });
 
   it("rejects avatar uploads when blob storage is not configured", async () => {
@@ -354,7 +354,7 @@ describe("ProfileService", () => {
     it("leaves an omitted phone number and avatar untouched", async () => {
       // The account page's "Save profile" sends only these three fields. It used
       // to silently wipe the saved phone number and avatar.
-      const update = jest.fn(async () => createProfile());
+      const update = createUpdateMock();
       const { service } = createService({ update });
 
       await service.update({
@@ -364,7 +364,7 @@ describe("ProfileService", () => {
         recommendationPersonalizationEnabled: false,
       });
 
-      const data = update.mock.calls[0]?.[0] as Record<string, unknown>;
+      const data = firstUpdateInput(update);
       expect(data).not.toHaveProperty("phoneNumber");
       expect(data).not.toHaveProperty("avatarUrl");
       expect(data).not.toHaveProperty("avatarBlobName");
@@ -372,7 +372,7 @@ describe("ProfileService", () => {
     });
 
     it("clears a phone number when it is explicitly null", async () => {
-      const update = jest.fn(async () => createProfile());
+      const update = createUpdateMock();
       const { service } = createService({ update });
 
       await service.update({
@@ -387,7 +387,7 @@ describe("ProfileService", () => {
     });
 
     it("clears a phone number when it is sent blank", async () => {
-      const update = jest.fn(async () => createProfile());
+      const update = createUpdateMock();
       const { service } = createService({ update });
 
       await service.update({
@@ -403,7 +403,7 @@ describe("ProfileService", () => {
 
     it("still saves a phone number without disturbing the avatar", async () => {
       // The account page's separate phone save, which omits the avatar pair.
-      const update = jest.fn(async () => createProfile());
+      const update = createUpdateMock();
       const { service } = createService({ update });
 
       await service.update({
@@ -412,7 +412,7 @@ describe("ProfileService", () => {
         phoneNumber: "  +1 555 0199  ",
       });
 
-      const data = update.mock.calls[0]?.[0] as Record<string, unknown>;
+      const data = firstUpdateInput(update);
       expect(data.phoneNumber).toBe("+1 555 0199");
       expect(data).not.toHaveProperty("avatarUrl");
       expect(data).not.toHaveProperty("avatarBlobName");
