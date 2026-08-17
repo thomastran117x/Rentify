@@ -30,9 +30,22 @@ Because the threshold lives in the npm script rather than the workflow, `npm run
 
 ## The CI Gate
 
-The `Dependency audit` job in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs as a matrix across all three workspaces on every pull request and every push to `main`. `fail-fast: false` means one workspace's failure does not hide the other two.
+The `Dependency audit` job lives in its own workflow, [`.github/workflows/dependency-audit.yml`](../.github/workflows/dependency-audit.yml), and runs as a matrix across all three workspaces on four triggers: every pull request, every push to `main`, a weekday schedule, and manual `workflow_dispatch`. `fail-fast: false` means one workspace's failure does not hide the other two.
+
+It is deliberately separate from [`ci.yml`](../.github/workflows/ci.yml) so the schedule can run the audit alone. Adding a `schedule` trigger to `ci.yml` would either drag the full build, unit, and service-backed integration suite along every night or require an `if: github.event_name != 'schedule'` guard on all seven other jobs.
 
 The job runs `npm ci` before auditing. This is partly to populate the tree, but it also gives a free lockfile-drift check: `npm ci` hard-fails when `package.json` and `package-lock.json` disagree, which is the exact failure a Dependabot PR or a hand-edited version pin can introduce.
+
+### The Scheduled Run
+
+`npm audit` reports the advisory database as of the moment it runs, so a commit-triggered gate says nothing about a dependency that was clean when it merged. The workflow therefore also runs on `cron: "0 5 * * 1-5"` — 05:00 UTC, Monday through Friday — against `main`. That is one hour ahead of Dependabot's Monday 06:00 UTC window, so Monday's run reports the advisory state just before the update PRs arrive. Weekends are skipped because nobody would act on a Saturday finding before Monday anyway.
+
+A failing scheduled run blocks nothing, and unlike a PR failure it has no red check sitting on a change to draw attention. GitHub only emails whoever last edited the workflow file. The `report-failure` job closes that gap: on a scheduled failure only, it opens an issue titled **Scheduled dependency audit failed**, labelled `dependencies` and `ci`, or comments on the existing open one so a multi-day outage does not file an issue per day. It takes job-scoped `issues: write`; the workflow-level default stays `contents: read`.
+
+Two operational notes:
+
+- **The schedule only runs from the default branch.** A change to the cron expression has no effect until it is merged to `main`.
+- **GitHub disables scheduled workflows after 60 days of no commit activity in the repository.** If the daily run silently stops, check that first — re-enable it from the Actions tab. `workflow_dispatch` is enabled so the audit can be triggered by hand at any time (`gh workflow run dependency-audit.yml`).
 
 ### Severity Policy
 

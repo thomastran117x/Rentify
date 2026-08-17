@@ -1,0 +1,88 @@
+name: Dependency audit
+
+# Advisories are published continuously, so a gate that only fires on commit
+# activity cannot see one filed against a dependency that is already merged.
+# The pull_request / push triggers keep the blocking merge gate; the schedule
+# re-runs the same matrix against main so a quiet week is not a blind spot.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    # 05:00 UTC, Monday-Friday. One hour ahead of Dependabot's Monday 06:00 UTC
+    # window, so Monday's run reports the advisory state just before the update
+    # PRs land. Scheduled runs only fire from the default branch.
+    - cron: "0 5 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  audit:
+    name: Dependency audit (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - backend
+          - frontend
+          - mcp
+    defaults:
+      run:
+        working-directory: ${{ matrix.workspace }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm run audit
+
+      - name: Verify registry signatures
+        run: npm run audit:signatures
+
+  report-failure:
+    name: Report scheduled audit failure
+    # A failed pull_request or push run is already visible as a red check on the
+    # change that caused it. A failed *scheduled* run has no such home: GitHub
+    # only emails whoever last edited this file, so it needs a tracking issue.
+    needs: audit
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="Scheduled dependency audit failed"
+          # Reuse one open issue so a multi-day outage does not file one per day.
+          existing="$(gh issue list --state open --search "$title in:title" \
+            --json number --jq 'first | .number // empty')"
+          body="$(printf 'The scheduled dependency audit failed on %s.\n\nRun: %s\n\nSee `docs/dependency-security.md` for the remediation runbook.' \
+            "$(date -u +%Y-%m-%d)" "$RUN_URL")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label dependencies --label ci
+          fi
