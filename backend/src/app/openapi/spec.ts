@@ -4186,7 +4186,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOwnProfile",
       summary: "Update the current user's profile",
       description:
-        "Updates the authenticated user's editable profile fields. `username` is required on every call; resending the current value is a no-op. Changing it is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
+        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op. Changing it is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
       tags: ["profiles"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -9858,11 +9858,27 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Changing this value is limited to once every 30 days. Resending the current username is always accepted and does not spend the cooldown.",
           },
-          phoneNumber: { type: "string" },
+          phoneNumber: {
+            type: "string",
+            nullable: true,
+            description:
+              "Omit to leave the stored phone number unchanged. Send `null` or an empty string to clear it.",
+          },
           isPrivate: { type: "boolean" },
           recommendationPersonalizationEnabled: { type: "boolean" },
-          avatarUrl: { type: "string", format: "uri" },
-          avatarBlobName: { type: "string" },
+          avatarUrl: {
+            type: "string",
+            format: "uri",
+            nullable: true,
+            description:
+              "Omit to leave the stored avatar unchanged. Must be sent together with `avatarBlobName`; send both as `null` to clear the avatar.",
+          },
+          avatarBlobName: {
+            type: "string",
+            nullable: true,
+            description:
+              "Omit to leave the stored avatar unchanged. Must be sent together with `avatarUrl`.",
+          },
           trustworthinessScore: { type: "integer", minimum: 1, maximum: 5 },
           rentPostingsCount: { type: "integer", minimum: 0 },
           availableRentPostingsCount: { type: "integer", minimum: 0 },

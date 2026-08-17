@@ -334,6 +334,25 @@ describe("ProfileRepository", () => {
     );
   });
 
+  it("omits nullable columns the caller did not send", async () => {
+    const update = jest.fn(async () => createProfilePersistence());
+    const repository = new ProfileRepository({
+      profile: { update },
+    } as any);
+
+    await repository.update({
+      userId: "user-1",
+      username: "casey-doe",
+      isPrivate: true,
+    });
+
+    const data = update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toMatchObject({ username: "casey-doe", isPrivate: true });
+    expect(data).not.toHaveProperty("phoneNumber");
+    expect(data).not.toHaveProperty("avatarUrl");
+    expect(data).not.toHaveProperty("avatarBlobName");
+  });
+
   it("omits the cooldown columns from the update when the service did not set them", async () => {
     const update = jest.fn(async () => createProfilePersistence());
     const repository = new ProfileRepository({

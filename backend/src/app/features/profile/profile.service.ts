@@ -67,9 +67,19 @@ export class ProfileService {
       ...(isRename
         ? await this.resolveUsernameChange(existingProfile, username)
         : {}),
-      phoneNumber: input.phoneNumber?.trim() || null,
-      avatarUrl: input.avatarUrl?.trim() || null,
-      avatarBlobName: input.avatarBlobName?.trim() || null,
+      // An omitted field (`undefined`) means "not part of this update" and must
+      // leave the stored value alone. Only an explicit `null` or a blank string
+      // clears it. Collapsing the two used to make the account page's "Save
+      // profile" — which sends neither — wipe the saved phone number and avatar.
+      ...(input.phoneNumber !== undefined
+        ? { phoneNumber: input.phoneNumber?.trim() || null }
+        : {}),
+      ...(input.avatarUrl !== undefined
+        ? { avatarUrl: input.avatarUrl?.trim() || null }
+        : {}),
+      ...(input.avatarBlobName !== undefined
+        ? { avatarBlobName: input.avatarBlobName?.trim() || null }
+        : {}),
     });
   }
 

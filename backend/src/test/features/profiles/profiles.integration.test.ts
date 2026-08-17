@@ -101,6 +101,56 @@ describe("Profiles persistence integration", () => {
     expect(response.status).toBe(401);
   });
 
+  describe("partial profile updates", () => {
+    it("preserves an omitted phone number and clears it only on an explicit null", async () => {
+      // `renter-one` is seeded with a phone number. The account page's "Save
+      // profile" sends only username/isPrivate/personalization, and used to
+      // silently wipe it.
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+
+      const seeded = await persistenceApp.prisma.profile.findUniqueOrThrow({
+        where: { userId: user.userId },
+      });
+      expect(seeded.phoneNumber).not.toBeNull();
+
+      const saveProfile = await request("/profile/me", {
+        method: "PUT",
+        headers: user.headers(),
+        body: JSON.stringify({
+          username: "renter-one",
+          isPrivate: true,
+          recommendationPersonalizationEnabled: false,
+        }),
+      });
+      expect(saveProfile.status).toBe(200);
+
+      expect(
+        await persistenceApp.prisma.profile.findUniqueOrThrow({
+          where: { userId: user.userId },
+        }),
+      ).toMatchObject({
+        phoneNumber: seeded.phoneNumber,
+        isPrivate: true,
+      });
+
+      // An explicit null still clears it.
+      const clearPhone = await request("/profile/me", {
+        method: "PUT",
+        headers: user.headers(),
+        body: JSON.stringify({ username: "renter-one", phoneNumber: null }),
+      });
+      expect(clearPhone.status).toBe(200);
+
+      expect(
+        await persistenceApp.prisma.profile.findUniqueOrThrow({
+          where: { userId: user.userId },
+        }),
+      ).toMatchObject({ phoneNumber: null });
+    });
+  });
+
   describe("username change cooldown", () => {
     async function updateUsername(
       user: Awaited<ReturnType<typeof createAuthenticatedRequestContext>>,
