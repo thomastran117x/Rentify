@@ -10,6 +10,7 @@ import type { BlobService } from "@/features/blob/blob.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
 import type { OrganizationBlogPublicSearchService } from "@/features/organizations/blog-search/public-search.service";
+import type { OrganizationBlogCommentRealtimeGateway } from "@/features/organizations/blog-comments/organization-blog-comments.service";
 import type {
   CreateOrganizationBlogPostInput,
   DeleteOrganizationBlogPostInput,
@@ -52,6 +53,7 @@ export class OrganizationBlogService {
     private readonly organizationAuditService: OrganizationAuditService,
     private readonly blobService: BlobService,
     private readonly publicSearchService: OrganizationBlogPublicSearchService,
+    private readonly blogCommentRealtimeGateway: OrganizationBlogCommentRealtimeGateway,
   ) {}
 
   async list(
@@ -133,6 +135,7 @@ export class OrganizationBlogService {
       coverImageBlobName: input.coverImageBlobName ?? null,
       tags: input.tags ?? [],
       status: input.status,
+      commentsEnabled: input.commentsEnabled ?? true,
       publishedAt: input.status === "published" ? new Date() : null,
     });
 
@@ -210,9 +213,38 @@ export class OrganizationBlogService {
         coverImageBlobName: input.coverImageBlobName,
         tags: input.tags,
         status: input.status,
+        commentsEnabled: input.commentsEnabled,
         publishedAt,
       },
     );
+
+    // Only when the value actually moved. A manager saving an unrelated edit
+    // must not tell every open page to re-evaluate its composer, and a client
+    // that hears "closed" for a thread that was already closed would flicker.
+    //
+    // Best-effort, like every other publish in this feature: the update has
+    // already committed, and the cover-image cleanup and audit record below
+    // have not run yet. Letting a Redis or gateway fault escape here would turn
+    // a persisted change into a 500, orphan the replaced cover image, and skip
+    // the audit trail for something that did happen.
+    if (existing.commentsEnabled !== updated.commentsEnabled) {
+      try {
+        this.blogCommentRealtimeGateway.publish({
+          type: "comments.closed",
+          blogPostId: updated.id,
+          commentsEnabled: updated.commentsEnabled,
+        });
+      } catch (error) {
+        this.logger.error(
+          "Failed to publish a blog comment availability change.",
+          {
+            blogPostId: updated.id,
+            commentsEnabled: updated.commentsEnabled,
+          },
+          error,
+        );
+      }
+    }
 
     await this.cleanupReplacedCoverImage(input.actorUserId, existing, updated);
 
@@ -350,6 +382,7 @@ export class OrganizationBlogService {
       coverImageBlobName: post.coverImageBlobName ?? null,
       tags: post.tags,
       status: post.status,
+      commentsEnabled: post.commentsEnabled,
       publishedAt: post.publishedAt ?? null,
     };
   }

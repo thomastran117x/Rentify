@@ -44,6 +44,7 @@ function buildRow(overrides: Record<string, unknown> = {}) {
     coverImageBlobName: "organizations/org-1/blog/c.png",
     tags: ["news", "update"],
     status: "published",
+    commentsEnabled: true,
     publishedAt: new Date("2026-07-16T00:00:00.000Z"),
     createdAt: new Date("2026-07-16T00:00:00.000Z"),
     updatedAt: new Date("2026-07-16T00:00:00.000Z"),
@@ -68,6 +69,7 @@ describe("OrganizationBlogRepository", () => {
       coverImageBlobName: "organizations/org-1/blog/c.png",
       tags: ["news", "update"],
       status: "published",
+      commentsEnabled: true,
       publishedAt: new Date("2026-07-16T00:00:00.000Z"),
     });
 
@@ -98,6 +100,7 @@ describe("OrganizationBlogRepository", () => {
       coverImageBlobName: "organizations/org-1/blog/c.png",
       tags: ["news", "update"],
       status: "published",
+      commentsEnabled: true,
       publishedAt: "2026-07-16T00:00:00.000Z",
       createdAt: "2026-07-16T00:00:00.000Z",
       updatedAt: "2026-07-16T00:00:00.000Z",

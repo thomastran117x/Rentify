@@ -3942,6 +3942,7 @@ paths:
                         - announcement
                         - downtown
                       status: published
+                      commentsEnabled: true
                       publishedAt: '2026-05-28T11:15:00.000Z'
                       createdAt: '2026-05-28T11:15:00.000Z'
                       updatedAt: '2026-05-28T11:15:00.000Z'
@@ -4069,6 +4070,7 @@ paths:
                         - announcement
                         - downtown
                       status: published
+                      commentsEnabled: true
                       publishedAt: '2026-05-28T11:15:00.000Z'
                       createdAt: '2026-05-28T11:15:00.000Z'
                       updatedAt: '2026-05-28T11:15:00.000Z'
@@ -4158,6 +4160,7 @@ paths:
                     - announcement
                     - downtown
                   status: published
+                  commentsEnabled: true
                   publishedAt: '2026-05-28T11:15:00.000Z'
                   createdAt: '2026-05-28T11:15:00.000Z'
                   updatedAt: '2026-05-28T11:15:00.000Z'
@@ -4166,6 +4169,413 @@ paths:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog/{slug}/comments':
+    get:
+      operationId: listOrganizationBlogComments
+      summary: List comments on a published blog post
+      description: 'Returns paginated comments for a published blog post, newest first, so page 1 holds the most recent replies and paging walks backwards into history. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.'
+      tags:
+        - organizations
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+        - name: page
+          in: query
+          required: false
+          description: Page number to return.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of comments per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogCommentListResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  comments:
+                    - id: blog-comment-1
+                      blogPostId: blog-1
+                      organizationId: org-1
+                      author:
+                        id: user-2
+                        username: renter-one
+                        avatarUrl: 'https://cdn.rentify.local/avatars/renter-1.png'
+                      body: This is exactly what we needed for the weekend.
+                      createdAt: '2026-05-29T09:00:00.000Z'
+                      editedAt: null
+                      deletedAt: null
+                      deletedBy: null
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    total: 1
+                    totalPages: 1
+                    hasNextPage: false
+                    hasPreviousPage: false
+                  commentsEnabled: true
+                  viewerCanComment: true
+                  viewerCanModerate: false
+                  viewerUserId: user-2
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createOrganizationBlogComment
+      summary: Post a comment on a blog post
+      description: 'Posts a comment on a published blog post. Any signed-in user may comment. Returns 409 when comments are closed on the post, which applies to organization managers too, or when the author exceeds their per-account write budget. Bodies are plain text and are rejected if they contain markup.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationBlogCommentRequest'
+            example:
+              body: This is exactly what we needed for the weekend.
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogCommentRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Comment posted successfully.
+                data:
+                  id: blog-comment-1
+                  blogPostId: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-2
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/renter-1.png'
+                  body: This is exactly what we needed for the weekend.
+                  createdAt: '2026-05-29T09:00:00.000Z'
+                  editedAt: null
+                  deletedAt: null
+                  deletedBy: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog/{slug}/comments/socket-ticket':
+    post:
+      operationId: createOrganizationBlogCommentSocketTicket
+      summary: Issue a blog comment socket ticket
+      description: 'Issues a short-lived, single-use ticket for the blog comment WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the session is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/blog-comments`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use after 30 seconds. Authentication is optional: an unauthenticated caller receives a read-only ticket, which is what lets anonymous visitors receive comments live. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `comment.created`, `comment.updated`, `comment.deleted`, `typing`, `presence`, `comments.closed`, and `resync` frames, and accepts `typing` frames from signed-in clients. PAT bearer authentication is not allowed.'
+      tags:
+        - organizations
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogCommentSocketTicket'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Socket ticket issued successfully.
+                data:
+                  expiresInSeconds: 30
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/organizations/{id}/blog/{slug}/comments/{commentId}':
+    patch:
+      operationId: updateOrganizationBlogComment
+      summary: Edit your own blog comment
+      description: 'Edits a comment. Only its author may edit, and only within 15 minutes of posting; organization managers remove comments rather than rewriting them, and receive 403 here. Returns 409 when the window has closed, when the comment was deleted concurrently, or when comments are closed on the post.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+        - name: commentId
+          in: path
+          required: true
+          description: Comment identifier.
+          schema:
+            type: string
+          example: blog-comment-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationBlogCommentRequest'
+            example:
+              body: This is exactly what we needed for the weekend. Thank you!
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogCommentRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Comment updated successfully.
+                data:
+                  id: blog-comment-1
+                  blogPostId: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-2
+                    username: renter-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/renter-1.png'
+                  body: This is exactly what we needed for the weekend.
+                  createdAt: '2026-05-29T09:00:00.000Z'
+                  editedAt: null
+                  deletedAt: null
+                  deletedBy: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: deleteOrganizationBlogComment
+      summary: Remove a blog comment
+      description: 'Soft-deletes a comment. The author may remove their own at any time; managers of the owning organization may remove any comment on their post. The row survives as a tombstone with an empty `body`, so the thread keeps its shape and any content report still resolves. A second delete returns 404.'
+      tags:
+        - organizations
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        organizationRoles:
+          - primary_manager
+          - manager
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Organization identifier.
+          schema:
+            type: string
+          example: org-1
+        - name: slug
+          in: path
+          required: true
+          description: Blog post slug.
+          schema:
+            type: string
+          example: introducing-weekend-stays
+        - name: commentId
+          in: path
+          required: true
+          description: Comment identifier.
+          schema:
+            type: string
+          example: blog-comment-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrganizationBlogCommentRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Comment removed successfully.
+                data:
+                  id: blog-comment-2
+                  blogPostId: blog-1
+                  organizationId: org-1
+                  author:
+                    id: user-3
+                    username: renter-two
+                  body: ''
+                  createdAt: '2026-05-29T09:05:00.000Z'
+                  editedAt: null
+                  deletedAt: '2026-05-29T10:00:00.000Z'
+                  deletedBy: moderator
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -4266,6 +4676,7 @@ paths:
                         - announcement
                         - downtown
                       status: published
+                      commentsEnabled: true
                       publishedAt: '2026-05-28T11:15:00.000Z'
                       createdAt: '2026-05-28T11:15:00.000Z'
                       updatedAt: '2026-05-28T11:15:00.000Z'
@@ -4370,6 +4781,7 @@ paths:
                     - announcement
                     - downtown
                   status: published
+                  commentsEnabled: true
                   publishedAt: '2026-05-28T11:15:00.000Z'
                   createdAt: '2026-05-28T11:15:00.000Z'
                   updatedAt: '2026-05-28T11:15:00.000Z'
@@ -4462,6 +4874,7 @@ paths:
                     - announcement
                     - downtown
                   status: published
+                  commentsEnabled: true
                   publishedAt: '2026-05-28T11:15:00.000Z'
                   createdAt: '2026-05-28T11:15:00.000Z'
                   updatedAt: '2026-05-28T11:15:00.000Z'
@@ -9686,6 +10099,7 @@ paths:
               - posting
               - posting_review
               - user
+              - organization_blog_comment
         - name: reasonCode
           in: query
           required: false
@@ -15689,6 +16103,9 @@ components:
             type: string
         status:
           $ref: '#/components/schemas/OrganizationBlogStatus'
+        commentsEnabled:
+          type: boolean
+          description: Whether readers may currently post comments on this post. Managers toggle this per post.
         publishedAt:
           type: string
           format: date-time
@@ -15759,6 +16176,9 @@ components:
           maxItems: 10
         status:
           $ref: '#/components/schemas/OrganizationBlogStatus'
+        commentsEnabled:
+          type: boolean
+          default: true
     UpdateOrganizationBlogPostRequest:
       type: object
       properties:
@@ -15792,6 +16212,120 @@ components:
           maxItems: 10
         status:
           $ref: '#/components/schemas/OrganizationBlogStatus'
+        commentsEnabled:
+          type: boolean
+          default: true
+    OrganizationBlogCommentAuthorSummary:
+      type: object
+      required:
+        - id
+        - username
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+          description: 'Falls back to a generic label when the account has no profile username. An email address is never exposed here, because this record is served on a public page.'
+        avatarUrl:
+          type: string
+          format: uri
+    OrganizationBlogCommentRecord:
+      type: object
+      required:
+        - id
+        - blogPostId
+        - organizationId
+        - author
+        - body
+        - createdAt
+        - editedAt
+        - deletedAt
+        - deletedBy
+      properties:
+        id:
+          type: string
+        blogPostId:
+          type: string
+        organizationId:
+          type: string
+        author:
+          $ref: '#/components/schemas/OrganizationBlogCommentAuthorSummary'
+        body:
+          type: string
+          maxLength: 2000
+          description: 'Plain text. Empty once the comment has been deleted — the tombstone is the record, not the text.'
+        createdAt:
+          type: string
+          format: date-time
+        editedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          enum:
+            - author
+            - moderator
+          nullable: true
+          description: 'Who removed the comment, in the only terms a public reader needs. Never a user id: naming the manager who removed a comment would expose staff to the person they moderated.'
+    OrganizationBlogCommentListResult:
+      type: object
+      required:
+        - comments
+        - pagination
+        - commentsEnabled
+        - viewerCanComment
+        - viewerCanModerate
+        - viewerUserId
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationBlogCommentRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        commentsEnabled:
+          type: boolean
+        viewerCanComment:
+          type: boolean
+          description: 'Whether the requesting user may post. False while anonymous and false once comments are closed, which applies to managers too.'
+        viewerCanModerate:
+          type: boolean
+          description: Whether the requesting user manages the owning organization and may therefore remove any comment on this post.
+        viewerUserId:
+          type: string
+          nullable: true
+          description: 'The requesting user''s id, or null while anonymous. Lets a client resolve which comments are its own without a second call.'
+    CreateOrganizationBlogCommentRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    UpdateOrganizationBlogCommentRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    OrganizationBlogCommentSocketTicket:
+      type: object
+      required:
+        - expiresInSeconds
+      properties:
+        expiresInSeconds:
+          type: integer
+          description: Lifetime of the ticket. The ticket itself is delivered as an HttpOnly cookie scoped to the socket path and never appears in this body.
     DeleteOrganizationBlogPostResult:
       type: object
       required:
@@ -17158,6 +17692,7 @@ components:
             - posting
             - posting_review
             - user
+            - organization_blog_comment
         subjectId:
           type: string
         reasonCode:
@@ -17217,6 +17752,7 @@ components:
             - posting
             - posting_review
             - user
+            - organization_blog_comment
         summaryText:
           type: string
         posting:
@@ -17257,6 +17793,32 @@ components:
                   type: string
         user:
           $ref: '#/components/schemas/ContentReportUserSummary'
+        comment:
+          type: object
+          description: Present when `subjectType` is `organization_blog_comment`.
+          properties:
+            id:
+              type: string
+            bodyExcerpt:
+              type: string
+            author:
+              $ref: '#/components/schemas/ContentReportUserSummary'
+            post:
+              type: object
+              properties:
+                id:
+                  type: string
+                title:
+                  type: string
+                slug:
+                  type: string
+                organization:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
     ContentReportEventRecord:
       type: object
       required:
@@ -17323,6 +17885,7 @@ components:
             - posting
             - posting_review
             - user
+            - organization_blog_comment
         subjectId:
           type: string
         reasonCode:

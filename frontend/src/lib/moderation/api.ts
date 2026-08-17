@@ -1,7 +1,11 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
 
-export type ReportSubjectType = "posting" | "posting_review" | "user";
+export type ReportSubjectType =
+  | "posting"
+  | "posting_review"
+  | "user"
+  | "organization_blog_comment";
 export type ReportReasonCode =
   | "spam"
   | "fraud_or_scam"
@@ -56,6 +60,17 @@ export interface ContentReportSubjectSnapshot {
     };
   };
   user?: ContentReportUserSummary;
+  comment?: {
+    id: string;
+    bodyExcerpt?: string;
+    author: ContentReportUserSummary;
+    post: {
+      id: string;
+      title: string;
+      slug: string;
+      organization: ContentReportOrganizationSummary;
+    };
+  };
 }
 
 export interface ContentReportEventRecord {

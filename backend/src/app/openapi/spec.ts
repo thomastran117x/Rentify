@@ -288,9 +288,54 @@ const organizationBlogPostExample = {
   coverImageBlobName: "organizations/org-1/blog/cover-1.png",
   tags: ["announcement", "downtown"],
   status: "published",
+  commentsEnabled: true,
   publishedAt: "2026-05-28T11:15:00.000Z",
   createdAt: "2026-05-28T11:15:00.000Z",
   updatedAt: "2026-05-28T11:15:00.000Z",
+};
+const organizationBlogCommentExample = {
+  id: "blog-comment-1",
+  blogPostId: "blog-1",
+  organizationId: "org-1",
+  author: {
+    id: "user-2",
+    username: "renter-one",
+    avatarUrl: "https://cdn.rentify.local/avatars/renter-1.png",
+  },
+  body: "This is exactly what we needed for the weekend.",
+  createdAt: "2026-05-29T09:00:00.000Z",
+  editedAt: null,
+  deletedAt: null,
+  deletedBy: null,
+};
+const organizationBlogCommentTombstoneExample = {
+  id: "blog-comment-2",
+  blogPostId: "blog-1",
+  organizationId: "org-1",
+  author: {
+    id: "user-3",
+    username: "renter-two",
+  },
+  body: "",
+  createdAt: "2026-05-29T09:05:00.000Z",
+  editedAt: null,
+  deletedAt: "2026-05-29T10:00:00.000Z",
+  deletedBy: "moderator",
+};
+const organizationBlogCommentListExample = {
+  comments: [organizationBlogCommentExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+  commentsEnabled: true,
+  viewerCanComment: true,
+  viewerCanModerate: false,
+  viewerUserId: "user-2",
 };
 const organizationBlogPostListExample = {
   posts: [organizationBlogPostExample],
@@ -3263,6 +3308,165 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "get",
+      path: "/organizations/:id/blog/:slug/comments",
+      operationId: "listOrganizationBlogComments",
+      summary: "List comments on a published blog post",
+      description:
+        "Returns paginated comments for a published blog post, newest first, so page 1 holds the most recent replies and paging walks backwards into history. This is a public, unauthenticated endpoint; draft posts return 404. Authentication is optional and only affects the envelope: a signed-in reader receives `viewerCanComment`, `viewerCanModerate`, and `viewerUserId` resolved for them. Deleted comments are returned as tombstones with an empty `body` and a `deletedBy` of `author` or `moderator`.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+        queryParam(
+          "page",
+          { type: "integer", minimum: 1, default: 1 },
+          "Page number to return.",
+          1,
+        ),
+        queryParam(
+          "pageSize",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Number of comments per page.",
+          20,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "OrganizationBlogCommentListResult",
+          organizationBlogCommentListExample,
+        ),
+        ...commonErrors([400, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/blog/:slug/comments",
+      operationId: "createOrganizationBlogComment",
+      summary: "Post a comment on a blog post",
+      description:
+        "Posts a comment on a published blog post. Any signed-in user may comment. Returns 409 when comments are closed on the post, which applies to organization managers too, or when the author exceeds their per-account write budget. Bodies are plain text and are rejected if they contain markup.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+      ],
+      requestBody: requestBody("CreateOrganizationBlogCommentRequest", {
+        body: "This is exactly what we needed for the weekend.",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Comment posted successfully.",
+          "OrganizationBlogCommentRecord",
+          organizationBlogCommentExample,
+        ),
+        ...commonErrors([400, 401, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/organizations/:id/blog/:slug/comments/socket-ticket",
+      operationId: "createOrganizationBlogCommentSocketTicket",
+      summary: "Issue a blog comment socket ticket",
+      description:
+        "Issues a short-lived, single-use ticket for the blog comment WebSocket. A browser `WebSocket` cannot send an `authorization` header, so the session is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/blog-comments`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use after 30 seconds. Authentication is optional: an unauthenticated caller receives a read-only ticket, which is what lets anonymous visitors receive comments live. The socket itself is not an HTTP operation and is therefore not described here; it emits `ready`, `comment.created`, `comment.updated`, `comment.deleted`, `typing`, `presence`, `comments.closed`, and `resync` frames, and accepts `typing` frames from signed-in clients. PAT bearer authentication is not allowed.",
+      tags: ["organizations"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+      ],
+      responses: {
+        "201": successResponse(
+          201,
+          "Socket ticket issued successfully.",
+          "OrganizationBlogCommentSocketTicket",
+          { expiresInSeconds: 30 },
+        ),
+        ...commonErrors([400, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/organizations/:id/blog/:slug/comments/:commentId",
+      operationId: "updateOrganizationBlogComment",
+      summary: "Edit your own blog comment",
+      description:
+        "Edits a comment. Only its author may edit, and only within 15 minutes of posting; organization managers remove comments rather than rewriting them, and receive 403 here. Returns 409 when the window has closed, when the comment was deleted concurrently, or when comments are closed on the post.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+        routePathParam("commentId", "Comment identifier.", "blog-comment-1"),
+      ],
+      requestBody: requestBody("UpdateOrganizationBlogCommentRequest", {
+        body: "This is exactly what we needed for the weekend. Thank you!",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Comment updated successfully.",
+          "OrganizationBlogCommentRecord",
+          organizationBlogCommentExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/organizations/:id/blog/:slug/comments/:commentId",
+      operationId: "deleteOrganizationBlogComment",
+      summary: "Remove a blog comment",
+      description:
+        "Soft-deletes a comment. The author may remove their own at any time; managers of the owning organization may remove any comment on their post. The row survives as a tombstone with an empty `body`, so the thread keeps its shape and any content report still resolves. A second delete returns 404.",
+      tags: ["organizations"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        organizationRoles: ["primary_manager", "manager"],
+      },
+      parameters: [
+        routePathParam("id", "Organization identifier.", "org-1"),
+        routePathParam("slug", "Blog post slug.", "introducing-weekend-stays"),
+        routePathParam("commentId", "Comment identifier.", "blog-comment-1"),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Comment removed successfully.",
+          "OrganizationBlogCommentRecord",
+          organizationBlogCommentTombstoneExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "get",
       path: "/organizations/:id/blog-posts",
       operationId: "listOrganizationBlogPosts",
       summary: "List organization blog posts (management)",
@@ -5375,7 +5579,12 @@ function buildOperations(): OperationDefinition[] {
           "subjectType",
           {
             type: "string",
-            enum: ["posting", "posting_review", "user"],
+            enum: [
+              "posting",
+              "posting_review",
+              "user",
+              "organization_blog_comment",
+            ],
           },
           "Filter by report subject type.",
         ),
@@ -8713,6 +8922,11 @@ function buildComponents(): Record<string, unknown> {
           coverImageBlobName: { type: "string" },
           tags: { type: "array", items: { type: "string" } },
           status: schemaRef("OrganizationBlogStatus"),
+          commentsEnabled: {
+            type: "boolean",
+            description:
+              "Whether readers may currently post comments on this post. Managers toggle this per post.",
+          },
           publishedAt: { type: "string", format: "date-time" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
@@ -8761,6 +8975,7 @@ function buildComponents(): Record<string, unknown> {
             maxItems: 10,
           },
           status: schemaRef("OrganizationBlogStatus"),
+          commentsEnabled: { type: "boolean", default: true },
         },
       },
       UpdateOrganizationBlogPostRequest: {
@@ -8778,6 +8993,116 @@ function buildComponents(): Record<string, unknown> {
             maxItems: 10,
           },
           status: schemaRef("OrganizationBlogStatus"),
+          commentsEnabled: { type: "boolean", default: true },
+        },
+      },
+      OrganizationBlogCommentAuthorSummary: {
+        type: "object",
+        required: ["id", "username"],
+        properties: {
+          id: { type: "string" },
+          username: {
+            type: "string",
+            description:
+              "Falls back to a generic label when the account has no profile username. An email address is never exposed here, because this record is served on a public page.",
+          },
+          avatarUrl: { type: "string", format: "uri" },
+        },
+      },
+      OrganizationBlogCommentRecord: {
+        type: "object",
+        required: [
+          "id",
+          "blogPostId",
+          "organizationId",
+          "author",
+          "body",
+          "createdAt",
+          "editedAt",
+          "deletedAt",
+          "deletedBy",
+        ],
+        properties: {
+          id: { type: "string" },
+          blogPostId: { type: "string" },
+          organizationId: { type: "string" },
+          author: schemaRef("OrganizationBlogCommentAuthorSummary"),
+          body: {
+            type: "string",
+            maxLength: 2000,
+            description:
+              "Plain text. Empty once the comment has been deleted — the tombstone is the record, not the text.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+          editedAt: { type: "string", format: "date-time", nullable: true },
+          deletedAt: { type: "string", format: "date-time", nullable: true },
+          deletedBy: {
+            type: "string",
+            enum: ["author", "moderator"],
+            nullable: true,
+            description:
+              "Who removed the comment, in the only terms a public reader needs. Never a user id: naming the manager who removed a comment would expose staff to the person they moderated.",
+          },
+        },
+      },
+      OrganizationBlogCommentListResult: {
+        type: "object",
+        required: [
+          "comments",
+          "pagination",
+          "commentsEnabled",
+          "viewerCanComment",
+          "viewerCanModerate",
+          "viewerUserId",
+        ],
+        properties: {
+          comments: {
+            type: "array",
+            items: schemaRef("OrganizationBlogCommentRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+          commentsEnabled: { type: "boolean" },
+          viewerCanComment: {
+            type: "boolean",
+            description:
+              "Whether the requesting user may post. False while anonymous and false once comments are closed, which applies to managers too.",
+          },
+          viewerCanModerate: {
+            type: "boolean",
+            description:
+              "Whether the requesting user manages the owning organization and may therefore remove any comment on this post.",
+          },
+          viewerUserId: {
+            type: "string",
+            nullable: true,
+            description:
+              "The requesting user's id, or null while anonymous. Lets a client resolve which comments are its own without a second call.",
+          },
+        },
+      },
+      CreateOrganizationBlogCommentRequest: {
+        type: "object",
+        required: ["body"],
+        properties: {
+          body: { type: "string", minLength: 1, maxLength: 2000 },
+        },
+      },
+      UpdateOrganizationBlogCommentRequest: {
+        type: "object",
+        required: ["body"],
+        properties: {
+          body: { type: "string", minLength: 1, maxLength: 2000 },
+        },
+      },
+      OrganizationBlogCommentSocketTicket: {
+        type: "object",
+        required: ["expiresInSeconds"],
+        properties: {
+          expiresInSeconds: {
+            type: "integer",
+            description:
+              "Lifetime of the ticket. The ticket itself is delivered as an HttpOnly cookie scoped to the socket path and never appears in this body.",
+          },
         },
       },
       DeleteOrganizationBlogPostResult: {
@@ -9899,7 +10224,12 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           subjectType: {
             type: "string",
-            enum: ["posting", "posting_review", "user"],
+            enum: [
+              "posting",
+              "posting_review",
+              "user",
+              "organization_blog_comment",
+            ],
           },
           subjectId: { type: "string" },
           reasonCode: {
@@ -9941,7 +10271,12 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           subjectType: {
             type: "string",
-            enum: ["posting", "posting_review", "user"],
+            enum: [
+              "posting",
+              "posting_review",
+              "user",
+              "organization_blog_comment",
+            ],
           },
           summaryText: { type: "string" },
           posting: {
@@ -9977,6 +10312,31 @@ function buildComponents(): Record<string, unknown> {
             },
           },
           user: schemaRef("ContentReportUserSummary"),
+          comment: {
+            type: "object",
+            description:
+              "Present when `subjectType` is `organization_blog_comment`.",
+            properties: {
+              id: { type: "string" },
+              bodyExcerpt: { type: "string" },
+              author: schemaRef("ContentReportUserSummary"),
+              post: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  title: { type: "string" },
+                  slug: { type: "string" },
+                  organization: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       ContentReportEventRecord: {
@@ -10023,7 +10383,12 @@ function buildComponents(): Record<string, unknown> {
           reporterId: { type: "string" },
           subjectType: {
             type: "string",
-            enum: ["posting", "posting_review", "user"],
+            enum: [
+              "posting",
+              "posting_review",
+              "user",
+              "organization_blog_comment",
+            ],
           },
           subjectId: { type: "string" },
           reasonCode: {

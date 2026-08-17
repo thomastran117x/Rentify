@@ -27,6 +27,7 @@ const post = {
   body: "Body",
   tags: ["release"],
   status: "published" as const,
+  commentsEnabled: true,
   createdAt: "2026-01-01",
   updatedAt: "2026-01-01",
 };
@@ -152,6 +153,24 @@ describe("BlogPanel", () => {
     expect(p.onFormChange).toHaveBeenCalledWith(
       expect.objectContaining({ status: "published" }),
     );
+  });
+
+  it("toggles comments on a post", () => {
+    const p = props({ form: { ...emptyBlogForm(), commentsEnabled: true } });
+    render(<BlogPanel {...p} />);
+
+    fireEvent.click(screen.getByLabelText(/allow comments/i));
+
+    expect(p.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ commentsEnabled: false }),
+    );
+  });
+
+  it("defaults a new post to accepting comments", () => {
+    const p = props();
+    render(<BlogPanel {...p} />);
+
+    expect(screen.getByLabelText(/allow comments/i)).toBeChecked();
   });
 
   it("handles tag separators, blanks, duplicates, and the tag limit", () => {

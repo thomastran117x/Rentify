@@ -226,6 +226,8 @@ export interface OrganizationBlogPostRecord {
   coverImageBlobName?: string;
   tags: string[];
   status: OrganizationBlogStatus;
+  /** Whether readers may currently post comments on this post. */
+  commentsEnabled: boolean;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -257,6 +259,7 @@ export interface CreateOrganizationBlogInput {
   coverImageBlobName?: string | null;
   tags?: string[];
   status?: OrganizationBlogStatus;
+  commentsEnabled?: boolean;
 }
 
 export interface UpdateOrganizationBlogInput {
@@ -268,6 +271,7 @@ export interface UpdateOrganizationBlogInput {
   coverImageBlobName?: string | null;
   tags?: string[];
   status?: OrganizationBlogStatus;
+  commentsEnabled?: boolean;
 }
 
 export interface ListPublicBlogInput {

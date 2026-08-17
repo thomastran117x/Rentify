@@ -21,6 +21,7 @@ function createPost(
     body: "<p>Body</p>",
     tags: ["news"],
     status: "draft",
+    commentsEnabled: true,
     createdAt: "2026-07-16T00:00:00.000Z",
     updatedAt: "2026-07-16T00:00:00.000Z",
     ...overrides,
@@ -101,6 +102,9 @@ function createService(options?: {
         ...(input.status !== undefined
           ? { status: input.status as OrganizationBlogPostRecord["status"] }
           : {}),
+        ...(input.commentsEnabled !== undefined
+          ? { commentsEnabled: input.commentsEnabled as boolean }
+          : {}),
       }),
     ),
     delete: jest.fn(async () => undefined),
@@ -136,6 +140,10 @@ function createService(options?: {
     searchByOrganization: jest.fn(async () => createListResult()),
     searchGlobal: jest.fn(async () => createListResult()),
   };
+  const blogCommentGateway = {
+    publish: jest.fn(),
+    countReaders: jest.fn(async () => 0),
+  };
 
   return {
     repository,
@@ -143,12 +151,14 @@ function createService(options?: {
     organizationAuditService,
     blobService,
     publicSearchService,
+    blogCommentGateway,
     service: new OrganizationBlogService(
       repository as never,
       organizationAccessService as never,
       organizationAuditService as never,
       blobService as never,
       publicSearchService as never,
+      blogCommentGateway as never,
     ),
   };
 }
@@ -522,6 +532,112 @@ describe("OrganizationBlogService", () => {
         unknown
       >;
       expect(createArgs.coverImageBlobName).toBeNull();
+    });
+  });
+
+  describe("comments toggle", () => {
+    it("records the comment setting in the audit snapshot", async () => {
+      const { service, organizationAuditService } = createService({
+        existing: createPost({ commentsEnabled: true }),
+      });
+
+      await service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        blogPostId: "blog-1",
+        commentsEnabled: false,
+      });
+
+      expect(organizationAuditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          afterSnapshot: expect.objectContaining({ commentsEnabled: false }),
+          beforeSnapshot: expect.objectContaining({ commentsEnabled: true }),
+        }),
+      );
+    });
+
+    it("tells open pages when comments are closed", async () => {
+      const { service, blogCommentGateway } = createService({
+        existing: createPost({ commentsEnabled: true }),
+      });
+
+      await service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        blogPostId: "blog-1",
+        commentsEnabled: false,
+      });
+
+      expect(blogCommentGateway.publish).toHaveBeenCalledWith({
+        type: "comments.closed",
+        blogPostId: "blog-1",
+        commentsEnabled: false,
+      });
+    });
+
+    it("stays quiet when an unrelated field changes", async () => {
+      const { service, blogCommentGateway } = createService({
+        existing: createPost({ commentsEnabled: true }),
+      });
+
+      await service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        blogPostId: "blog-1",
+        title: "A new title",
+      });
+
+      // A manager saving an unrelated edit must not make every open page
+      // re-evaluate its composer.
+      expect(blogCommentGateway.publish).not.toHaveBeenCalled();
+    });
+
+    it("stays quiet when the setting is re-saved unchanged", async () => {
+      const { service, blogCommentGateway } = createService({
+        existing: createPost({ commentsEnabled: false }),
+      });
+
+      await service.update({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        blogPostId: "blog-1",
+        commentsEnabled: false,
+      });
+
+      expect(blogCommentGateway.publish).not.toHaveBeenCalled();
+    });
+
+    it("defaults new posts to open comments", async () => {
+      const { service, repository } = createService();
+
+      await service.create({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        title: "New post",
+        body: "<p>Body</p>",
+        status: "draft",
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ commentsEnabled: true }),
+      );
+    });
+
+    it("honours an explicit comment setting on create", async () => {
+      const { service, repository } = createService();
+
+      await service.create({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        title: "New post",
+        body: "<p>Body</p>",
+        status: "draft",
+        commentsEnabled: false,
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ commentsEnabled: false }),
+      );
     });
   });
 

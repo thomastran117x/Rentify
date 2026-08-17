@@ -204,6 +204,30 @@ Useful runtime URLs:
 - backend API: `http://localhost:8040/api/v1`
 - health: `http://localhost:8040/api/v1/health`
 
+## Testing Realtime Surfaces
+
+Socket.IO gateways are covered at three levels, and each answers a different
+question:
+
+- **Unit** (`*-socket.server.test.ts`) spins a real `node:http` server and a
+  real `socket.io-client` against the gateway, with a fake container standing in
+  for its services and no Redis adapter. This is where handshake rejection,
+  room fan-out, throttling, presence and teardown are asserted.
+- **Integration** (`*-socket.integration.test.ts`) resolves the gateway **from
+  the persistence app's container** — a second instance would never see the
+  REST handlers' events — and drives it with real HTTP calls. This is where the
+  ticket exchange and end-to-end delivery are asserted.
+- **Playwright** opens several browser contexts at once, because the point of a
+  socket is what one party sees while another acts. `blog-comments.spec.ts`
+  keeps one context signed out throughout, which is the only way to cover live
+  delivery to anonymous readers.
+
+Two gotchas when writing these: pass `forceNew: true` to every client, since
+`socket.io-client` caches Managers by origin rather than by path and the two
+gateways share an origin; and anchor Playwright locators on `data-comment-id`
+rather than body text where a removal is involved, because a soft delete blanks
+the body and a text locator goes stale exactly when it is needed.
+
 ## Choosing the Right Level
 
 - Use frontend unit tests for component logic, formatting, and client-side state transitions.

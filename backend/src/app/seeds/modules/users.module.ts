@@ -23,8 +23,56 @@ interface OrganizationBlogPostSeed {
   body: string;
   tags: string[];
   status: "draft" | "published";
+  commentsEnabled: boolean;
   publishedDaysAgo: number | null;
 }
+
+/**
+ * Comments seeded onto the first published post, one per render state the UI
+ * has to handle: a plain comment, an edited one, an author tombstone and a
+ * manager tombstone. Authored by renters rather than the organization owner, so
+ * the moderation controls are demonstrably cross-account.
+ */
+interface OrganizationBlogCommentSeed {
+  /** Index into `SEED_USERS`-derived emails, resolved through seed state. */
+  authorEmail: string;
+  body: string;
+  createdDaysAgo: number;
+  editedDaysAgo?: number;
+  /** Whose tombstone this is; omitted for a live comment. */
+  deletedBy?: "author" | "moderator";
+}
+
+const ORGANIZATION_BLOG_COMMENT_SEEDS: OrganizationBlogCommentSeed[] = [
+  {
+    authorEmail: "user1@rentify.local",
+    body: "This is exactly what we needed for the weekend. Booked already!",
+    createdDaysAgo: 2,
+  },
+  {
+    authorEmail: "user2@rentify.local",
+    body: "Does the flexible check-in apply to the studios on the north side too?",
+    createdDaysAgo: 1,
+  },
+  {
+    authorEmail: "user1@rentify.local",
+    body: "Update: the curated local guide is genuinely good. The coffee list alone was worth it.",
+    createdDaysAgo: 1,
+    editedDaysAgo: 1,
+  },
+  {
+    authorEmail: "user2@rentify.local",
+    body: "",
+    createdDaysAgo: 1,
+    deletedBy: "author",
+  },
+  {
+    authorEmail: "user1@rentify.local",
+    body: "",
+    createdDaysAgo: 1,
+    deletedBy: "moderator",
+  },
+];
 
 // Seeded once per owner organization. Slugs only need to be unique within an
 // organization, so the same set is reused across seeded orgs. Ordered newest to
@@ -38,6 +86,7 @@ const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
     body: "<h2>Weekend stays are here</h2><p>We are excited to open <strong>weekend bookings</strong> across all of our downtown studios. Each stay now includes flexible check-in and a curated guide to the neighborhood.</p><ul><li>Flexible check-in and check-out</li><li>Curated local recommendations</li><li>Weekend-only pricing</li></ul>",
     tags: ["announcement", "downtown", "weekend"],
     status: "published",
+    commentsEnabled: true,
     publishedDaysAgo: 2,
   },
   {
@@ -48,6 +97,9 @@ const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
     body: "<h2>Settle in faster</h2><p>Whether you are staying for a weekend or a month, these small touches help every space feel like home.</p><ol><li>Unpack into the closet on day one</li><li>Find your nearest coffee shop</li><li>Set the lighting for the evening</li><li>Stock the kitchen essentials</li><li>Say hello to your host</li></ol><p><em>Have a tip of your own? We would love to hear it.</em></p>",
     tags: ["tips", "guests"],
     status: "published",
+    // Seeded closed on purpose, so the "comments are closed" state is
+    // demoable locally without a manager having to toggle it first.
+    commentsEnabled: false,
     publishedDaysAgo: 9,
   },
   {
@@ -58,6 +110,7 @@ const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
     body: "<h2>The people behind your stay</h2><p>Every booking is supported by a dedicated team of hosts, cleaners, and local guides. We sat down with a few of them to learn what makes a stay special.</p><blockquote>Great hospitality is in the details you never notice.</blockquote><p>Want to join the team? Reach out through our contact page.</p>",
     tags: ["team", "behind-the-scenes"],
     status: "published",
+    commentsEnabled: true,
     publishedDaysAgo: 21,
   },
   {
@@ -68,6 +121,7 @@ const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
     body: "<h2>How seasonal pricing works</h2><p>Rates shift with demand across the year. Booking early during peak seasons and staying midweek are the two easiest ways to find better value.</p><p>Check individual listings for current seasonal rates.</p>",
     tags: ["pricing", "guide"],
     status: "published",
+    commentsEnabled: true,
     publishedDaysAgo: 34,
   },
   {
@@ -78,6 +132,7 @@ const ORGANIZATION_BLOG_POST_SEEDS: OrganizationBlogPostSeed[] = [
     body: "<p>This post is still a work in progress. We will share the full behind-the-scenes checklist soon.</p>",
     tags: ["behind-the-scenes"],
     status: "draft",
+    commentsEnabled: true,
     publishedDaysAgo: null,
   },
 ];
@@ -98,6 +153,10 @@ export const usersSeedModule: SeedModule = {
   async run({ logger, prisma, refresh, state }) {
     const passwordHashes = await hashPasswords();
     let ownerOrganizationIndex = 1;
+    const commentTargets: Array<{
+      blogPostId: string;
+      organizationId: string;
+    }> = [];
 
     for (const fixtureUser of SEED_USERS) {
       const passwordHash = passwordHashes.get(fixtureUser.password);
@@ -308,7 +367,18 @@ export const usersSeedModule: SeedModule = {
 
           await prisma.organizationBlogPost.upsert({
             where: { id: blogPostId },
-            update: {},
+            // A plain reseed leaves an existing post alone, so content edited
+            // while developing locally survives. A refresh restores the two
+            // fields the fixtures use to stage demo states — without this, a
+            // database seeded before comments existed keeps the column default
+            // and the "comments are closed" post is indistinguishable from the
+            // open one.
+            update: refresh
+              ? {
+                  status: seed.status,
+                  commentsEnabled: seed.commentsEnabled,
+                }
+              : {},
             create: {
               id: blogPostId,
               organizationId,
@@ -321,6 +391,7 @@ export const usersSeedModule: SeedModule = {
               coverImageBlobName: null,
               tags: seed.tags,
               status: seed.status,
+              commentsEnabled: seed.commentsEnabled,
               publishedAt:
                 seed.status === "published" && seed.publishedDaysAgo !== null
                   ? new Date(
@@ -329,7 +400,75 @@ export const usersSeedModule: SeedModule = {
                   : null,
             },
           });
+
+          // Only the first post of each organization carries comments: one
+          // populated thread is enough to demonstrate every render state, and
+          // an empty second thread exercises the empty state.
+          if (slotIndex === 0) {
+            commentTargets.push({ blogPostId, organizationId });
+          }
         }
+      }
+    }
+
+    // Deliberately after the user loop above: comment authors are renters, and
+    // a renter's id only lands in `state` when the loop reaches them. Seeding
+    // inline would depend on fixture ordering.
+    for (const target of commentTargets) {
+      for (const [
+        commentIndex,
+        seed,
+      ] of ORGANIZATION_BLOG_COMMENT_SEEDS.entries()) {
+        const authorUserId = state.userIdsByEmail.get(seed.authorEmail);
+
+        if (!authorUserId) {
+          throw new Error(
+            `Missing user for blog comment seed ${seed.authorEmail}.`,
+          );
+        }
+
+        const commentId = createFixtureId(
+          1092,
+          commentTargets.indexOf(target) *
+            ORGANIZATION_BLOG_COMMENT_SEEDS.length +
+            commentIndex,
+        );
+        const createdAt = new Date(
+          Date.now() - seed.createdDaysAgo * 24 * 60 * 60 * 1000,
+        );
+
+        // A moderator tombstone needs a manager as the remover. The owning
+        // organization's blog author is the manager on every seeded org, and
+        // `deletedByUserId` matching the author is exactly what the repository
+        // reads as an author tombstone — so the two must not collide.
+        const moderatorUserId = state.userIdsByEmail.get(
+          "owner1@rentify.local",
+        );
+
+        await prisma.organizationBlogComment.upsert({
+          where: { id: commentId },
+          update: {},
+          create: {
+            id: commentId,
+            blogPostId: target.blogPostId,
+            organizationId: target.organizationId,
+            authorUserId,
+            body: seed.body,
+            createdAt,
+            editedAt:
+              seed.editedDaysAgo !== undefined
+                ? new Date(
+                    Date.now() - seed.editedDaysAgo * 12 * 60 * 60 * 1000,
+                  )
+                : null,
+            deletedAt: seed.deletedBy ? new Date() : null,
+            deletedByUserId: seed.deletedBy
+              ? seed.deletedBy === "author"
+                ? authorUserId
+                : (moderatorUserId ?? authorUserId)
+              : null,
+          },
+        });
       }
     }
 

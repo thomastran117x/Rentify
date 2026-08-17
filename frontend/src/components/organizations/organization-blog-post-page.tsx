@@ -15,6 +15,7 @@ import {
   authorName,
   readingTimeMinutes,
 } from "@/components/organizations/blog-visuals";
+import { BlogCommentsPanel } from "@/components/organizations/blog-comments-panel";
 import { theme } from "@/styles/theme";
 
 interface OrganizationBlogPostPageProps {
@@ -231,6 +232,17 @@ export function OrganizationBlogPostPage({
             Back to all posts
           </Link>
         </footer>
+
+        {/*
+          After the byline rather than inside the article, so the post and its
+          author read as one unit and the conversation starts below it.
+        */}
+        <BlogCommentsPanel
+          organizationId={id}
+          slug={slug}
+          blogPostId={post.id}
+          commentsEnabled={post.commentsEnabled}
+        />
       </div>
     </PageChrome>
   );
