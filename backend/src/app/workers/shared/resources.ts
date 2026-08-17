@@ -10,6 +10,7 @@ import {
   connectRabbitMq,
   disconnectRabbitMq,
 } from "@/configuration/resources/rabbitmq";
+import { connectRedis, disconnectRedis } from "@/configuration/resources/redis";
 import type { WorkerResource } from "@/workers/shared/worker-runtime";
 
 export const databaseWorkerResource: WorkerResource = {
@@ -25,6 +26,11 @@ export const elasticsearchWorkerResource: WorkerResource = {
 export const rabbitMqWorkerResource: WorkerResource = {
   connect: connectRabbitMq,
   disconnect: disconnectRabbitMq,
+};
+
+export const redisWorkerResource: WorkerResource = {
+  connect: connectRedis,
+  disconnect: disconnectRedis,
 };
 
 export const searchBrokerWorkerResources = [

@@ -18,7 +18,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 - postings, reviews, availability, analytics, thumbnails, and public search
 - booking requests, payments, and renting lifecycle endpoints
 - moderation reports, admin search tools, profiles, and blob upload support
-- background workers for analytics, booking expiry, email, SMS, logging, payments, recommendations, reports, search, and thumbnails
+- background workers for analytics, booking expiry, email, SMS, logging, payments, recommendations, reports, search, thumbnails, and username availability filter rebuilds
 
 ## Architecture Notes
 
@@ -86,6 +86,7 @@ npm run dev:email-worker
 npm run dev:sms-worker
 npm run dev:search-worker
 npm run dev:recommendation-precompute-worker
+npm run dev:username-bloom-worker
 ```
 
 ## API Endpoints and Docs
