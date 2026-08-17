@@ -88,6 +88,13 @@ type AuthProfilePersistence = {
   updatedAt: Date;
 };
 
+/**
+ * Screens generated username candidates. True means "believed taken, do not
+ * bother probing"; false covers both "believed free" and "no opinion", so an
+ * unavailable filter simply restores the unscreened behaviour.
+ */
+export type UsernameLikelyTakenPredicate = (candidate: string) => boolean;
+
 export class AuthRepository extends BaseRepository {
   async findSessionValidationByUserId(
     userId: string,
@@ -264,8 +271,14 @@ export class AuthRepository extends BaseRepository {
     return this.mapUser(user);
   }
 
-  async createOAuthUser(input: VerifiedOAuthProfile): Promise<AuthUserRecord> {
-    const username = await this.generateAvailableUsername(input.email);
+  async createOAuthUser(
+    input: VerifiedOAuthProfile,
+    isLikelyTaken?: UsernameLikelyTakenPredicate,
+  ): Promise<AuthUserRecord> {
+    const username = await this.generateAvailableUsername(
+      input.email,
+      isLikelyTaken,
+    );
 
     const user = await this.executeAsync(() =>
       this.prisma.user.create({
@@ -546,13 +559,37 @@ export class AuthRepository extends BaseRepository {
     };
   }
 
-  private async generateAvailableUsername(email: string): Promise<string> {
+  /**
+   * Finds an unclaimed username derived from the email local part.
+   *
+   * `isLikelyTaken` lets a caller pre-screen candidates against the username
+   * bloom filter so the obviously-taken ones cost nothing — a popular local
+   * part like `john` could previously spend 25 sequential queries walking
+   * `john`, `john2`, `john3`… on a single OAuth signup.
+   *
+   * The predicate must be true only when the filter positively believes the
+   * name is taken. An "I do not know" answer has to read as false, or an
+   * unavailable filter would skip every candidate and push every new OAuth user
+   * onto the random-suffix fallback below.
+   *
+   * The confirming probe is deliberately kept: this is a write path, and the
+   * filter's freshness is a cache property rather than a guarantee.
+   */
+  private async generateAvailableUsername(
+    email: string,
+    isLikelyTaken?: UsernameLikelyTakenPredicate,
+  ): Promise<string> {
     const [localPart] = email.toLowerCase().split("@");
     const baseUsername = this.sanitizeUsername(localPart || "user");
 
     for (let attempt = 0; attempt < 25; attempt += 1) {
       const suffix = attempt === 0 ? "" : `${attempt + 1}`;
       const candidate = `${baseUsername}${suffix}`.slice(0, 50);
+
+      if (isLikelyTaken?.(candidate)) {
+        continue;
+      }
+
       const existingProfile = await this.executeAsync(() =>
         this.prisma.profile.findUnique({
           where: {

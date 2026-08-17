@@ -1,6 +1,11 @@
 import { createApplication } from "@/configuration/bootstrap/application";
-import { initializeContainer } from "@/configuration/bootstrap/container";
+import {
+  getContainer,
+  initializeContainer,
+} from "@/configuration/bootstrap/container";
+import { containerTokens } from "@/configuration/container/tokens";
 import { environment, loadEnvironment } from "@/configuration/environment";
+import { loggerFactory } from "@/configuration/logging";
 import {
   connectElasticsearch,
   disconnectElasticsearch,
@@ -27,6 +32,32 @@ export interface StartupDependencies {
   isRabbitMqEnabled(): boolean;
   loadEnvironment(): ReturnType<typeof loadEnvironment>;
   runAutoSeedsIfNeeded(): Promise<unknown>;
+  warmUsernameBloomFilter(): Promise<unknown>;
+}
+
+/**
+ * Loads the username availability filter into this process before it serves
+ * traffic.
+ *
+ * Deliberately non-fatal. The filter is an optimization over a database lookup
+ * that still works, so a Redis problem here should cost speed rather than
+ * boot — and an uninitialized filter reports `unknown` for every check, which
+ * routes callers straight back to that lookup.
+ */
+async function warmUsernameBloomFilter(): Promise<void> {
+  const logger = loggerFactory.forComponent("username-bloom", "app");
+
+  try {
+    await getContainer()
+      .resolve(containerTokens.usernameBloomService)
+      .initialize();
+  } catch (error) {
+    logger.warn(
+      "Could not warm the username bloom filter; availability checks will query the database until it loads.",
+      undefined,
+      error,
+    );
+  }
 }
 
 const defaultDependencies: StartupDependencies = {
@@ -39,6 +70,7 @@ const defaultDependencies: StartupDependencies = {
   isRabbitMqEnabled,
   loadEnvironment,
   runAutoSeedsIfNeeded,
+  warmUsernameBloomFilter,
 };
 
 export async function initializeServerApplication(
@@ -64,6 +96,7 @@ export async function initializeServerApplication(
   }
 
   dependencies.initializeContainer();
+  await dependencies.warmUsernameBloomFilter();
   const app = dependencies.createApplication();
 
   return {

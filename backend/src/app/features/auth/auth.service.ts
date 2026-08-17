@@ -37,6 +37,7 @@ import {
   isStrongPassword,
 } from "@/features/auth/auth.model";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
+import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
@@ -123,6 +124,7 @@ export class AuthService {
     private readonly appleOAuthService: AppleOAuthService,
     private readonly cacheService: CacheService,
     private readonly mfaTotpService: MfaTotpService,
+    private readonly usernameBloomService: UsernameBloomService,
   ) {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
@@ -412,6 +414,11 @@ export class AuthService {
       }
 
       await this.deletePendingLocalSignup(input.email);
+
+      // The name was already recorded when it was reserved. Recording it again
+      // as it becomes a durable row covers the case where that earlier write
+      // did not reach Redis, since the reservation key is now gone.
+      await this.usernameBloomService.add(pendingSignup.username);
 
       const resolvedDeviceId = input.deviceId ?? pendingSignup.deviceId;
       const deviceStatus =
@@ -967,7 +974,12 @@ export class AuthService {
       );
     }
 
-    const user = await this.authRepository.createOAuthUser(profile);
+    const user = await this.authRepository.createOAuthUser(
+      profile,
+      (candidate) =>
+        this.usernameBloomService.check(candidate) === "possibly-present",
+    );
+    await this.usernameBloomService.add(user.profile.username);
     const session = await this.authenticateVerifiedUser(user, input);
     return { ...session, isNewUser: true };
   }
@@ -1234,6 +1246,11 @@ export class AuthService {
       signup.email,
       ttlInSeconds,
     );
+
+    // A reservation makes the name unavailable just as surely as a row does, and
+    // a bloom miss skips the reservation lookup too. Leaving it out would let
+    // the endpoint report a reserved name as free.
+    await this.usernameBloomService.add(signup.username);
   }
 
   private async readPendingLocalSignup(
@@ -1472,6 +1489,45 @@ export class AuthService {
     }
 
     return { username: normalizedUsername, available: true, reason: null };
+  }
+
+  /**
+   * The availability endpoint's entry point, as opposed to
+   * {@link isUsernameAvailable} which every write path uses.
+   *
+   * Typing into a username field fires one of these per keystroke, and the
+   * answer is "free" almost every time. The bloom filter settles that common
+   * case from memory; anything it cannot rule out falls through to the
+   * authoritative lookup below, so a false positive costs a query rather than a
+   * wrong answer.
+   *
+   * Write paths deliberately do not come through here. Skipping their database
+   * check would trade a clear "that username is taken" for a unique-constraint
+   * violation surfaced later, which is a worse error for the same saving.
+   */
+  async resolveUsernameAvailabilityHint(
+    username: string,
+    allowedUserId?: string,
+    allowedPendingEmail?: string,
+  ): Promise<UsernameAvailabilityResult> {
+    const normalizedUsername = username.trim().toLowerCase();
+
+    if (
+      this.usernameBloomService.check(normalizedUsername) ===
+      "definitely-absent"
+    ) {
+      return {
+        username: normalizedUsername,
+        available: true,
+        reason: null,
+      };
+    }
+
+    return this.isUsernameAvailable(
+      normalizedUsername,
+      allowedUserId,
+      allowedPendingEmail,
+    );
   }
 
   private async assertUsernameIsAvailable(

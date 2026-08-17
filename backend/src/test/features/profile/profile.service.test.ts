@@ -111,15 +111,21 @@ function createService(options?: {
   const cacheService = {
     getJson: options?.getJson ?? jest.fn(async () => null),
   };
+  const usernameBloomService = {
+    check: jest.fn(() => "unknown" as const),
+    add: jest.fn(async () => undefined),
+  };
 
   return {
     profileRepository,
     blobService,
     cacheService,
+    usernameBloomService,
     service: new ProfileService(
       profileRepository as any,
       blobService as any,
       cacheService as any,
+      usernameBloomService as any,
     ),
   };
 }
@@ -508,6 +514,37 @@ describe("ProfileService", () => {
           usernameChangedAt: expect.any(Date),
         }),
       );
+    });
+
+    it("records a completed rename in the username filter", async () => {
+      const { service, usernameBloomService } = createService({
+        findByUserId: jest.fn(async () =>
+          createProfile({
+            username: "casey-doe",
+            usernameChangedAt: new Date(
+              Date.now() - (USERNAME_CHANGE_COOLDOWN_MS + 1000),
+            ).toISOString(),
+          }),
+        ),
+        update: createUpdateMock(),
+      });
+
+      await service.update({ userId: "user-1", username: "Casey-Two" });
+
+      expect(usernameBloomService.add).toHaveBeenCalledWith("casey-two");
+    });
+
+    it("leaves the filter alone when the username was resent unchanged", async () => {
+      const { service, usernameBloomService } = createService({
+        findByUserId: jest.fn(async () =>
+          createProfile({ username: "casey-doe" }),
+        ),
+        update: createUpdateMock(),
+      });
+
+      await service.update({ userId: "user-1", username: "casey-doe" });
+
+      expect(usernameBloomService.add).not.toHaveBeenCalled();
     });
 
     it("claims an auto-generated username without starting the cooldown", async () => {

@@ -198,7 +198,7 @@ function createController(overrides?: {
   localSignup?: (input: unknown) => Promise<unknown>;
   forgotPassword?: (input: unknown) => Promise<unknown>;
   forgotUsername?: (input: unknown) => Promise<unknown>;
-  isUsernameAvailable?: (
+  resolveUsernameAvailabilityHint?: (
     username: string,
     allowedUserId?: string,
   ) => Promise<unknown>;
@@ -249,8 +249,8 @@ function createController(overrides?: {
           accepted: true,
         })),
     ),
-    isUsernameAvailable: jest.fn(
-      overrides?.isUsernameAvailable ??
+    resolveUsernameAvailabilityHint: jest.fn(
+      overrides?.resolveUsernameAvailabilityHint ??
         (async (username: string) => ({
           username,
           available: true,
@@ -887,7 +887,7 @@ describe("AuthController", () => {
 
   it("checkUsernameAvailability normalizes the query and returns the verdict", async () => {
     const { controller, authService } = createController({
-      isUsernameAvailable: async () => ({
+      resolveUsernameAvailabilityHint: async () => ({
         username: "taken-name",
         available: false,
         reason: "taken",
@@ -899,7 +899,7 @@ describe("AuthController", () => {
       createContext({ url: "/auth/username/available?username=Taken-Name" }),
     );
 
-    expect(authService.isUsernameAvailable).toHaveBeenCalledWith(
+    expect(authService.resolveUsernameAvailabilityHint).toHaveBeenCalledWith(
       "taken-name",
       undefined,
     );
@@ -918,7 +918,7 @@ describe("AuthController", () => {
       createContext({ url: "/auth/username/available?username=casey-doe" }),
     );
 
-    expect(authService.isUsernameAvailable).toHaveBeenCalledWith(
+    expect(authService.resolveUsernameAvailabilityHint).toHaveBeenCalledWith(
       "casey-doe",
       "user-1",
     );
@@ -934,7 +934,7 @@ describe("AuthController", () => {
       ),
     ).rejects.toBeInstanceOf(RequestValidationError);
 
-    expect(authService.isUsernameAvailable).not.toHaveBeenCalled();
+    expect(authService.resolveUsernameAvailabilityHint).not.toHaveBeenCalled();
   });
 
   it("localSignup rejects html in profile fields before calling the auth service", async () => {

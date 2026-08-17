@@ -68,6 +68,9 @@ import type { PaymentProviderAdapter } from "@/features/payments/payment-provide
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { PaymentsService } from "@/features/payments/payments.service";
+import { UsernameBloomRepository } from "@/features/auth/username-bloom/username-bloom.repository";
+import { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 import { ProfileService } from "@/features/profile/profile.service";
@@ -295,6 +298,14 @@ export const containerTokens = {
   paymentsService: createServiceToken<PaymentsService>("PaymentsService"),
   paymentsController:
     createServiceToken<PaymentsController>("PaymentsController"),
+  usernameBloomStore:
+    createServiceToken<UsernameBloomStore>("UsernameBloomStore"),
+  usernameBloomRepository: createServiceToken<UsernameBloomRepository>(
+    "UsernameBloomRepository",
+  ),
+  usernameBloomService: createServiceToken<UsernameBloomService>(
+    "UsernameBloomService",
+  ),
   profileRepository: createServiceToken<ProfileRepository>("ProfileRepository"),
   profileService: createServiceToken<ProfileService>("ProfileService"),
   profileController: createServiceToken<ProfileController>("ProfileController"),

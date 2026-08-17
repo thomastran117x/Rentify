@@ -29,6 +29,7 @@ import { searchRegistrationModule } from "@/configuration/container/registration
 import { securityRegistrationModule } from "@/configuration/container/registrations/modules/security";
 import { sharedRegistrationModule } from "@/configuration/container/registrations/modules/shared";
 import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
+import { usernameBloomRegistrationModule } from "@/configuration/container/registrations/modules/username-bloom";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 
 export { CONTAINER_REGISTRATION_MODULE_IDS } from "@/configuration/container/registrations/types";
@@ -42,6 +43,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   smsRegistrationModule,
   securityRegistrationModule,
   blobRegistrationModule,
+  usernameBloomRegistrationModule,
   profileRegistrationModule,
   feedbacksRegistrationModule,
   authOtpRegistrationModule,

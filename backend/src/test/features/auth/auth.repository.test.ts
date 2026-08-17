@@ -504,4 +504,93 @@ describe("AuthRepository", () => {
     );
     expect(fallbackUsername).toMatch(/^very\.long-alias-[a-f0-9]{8}$/);
   });
+
+  describe("generateAvailableUsername screening", () => {
+    function createGenerator(findUnique: jest.Mock) {
+      return new AuthRepository({
+        profile: { findUnique },
+      } as any) as unknown as {
+        generateAvailableUsername: (
+          email: string,
+          isLikelyTaken?: (candidate: string) => boolean,
+        ) => Promise<string>;
+      };
+    }
+
+    it("probes every candidate in turn without a screen", async () => {
+      // The unscreened walk this replaces: nine taken names plus the free one
+      // cost ten queries on a single OAuth signup.
+      const taken = new Set([
+        "john",
+        ...Array.from({ length: 8 }, (_, index) => `john${index + 2}`),
+      ]);
+      const findUnique = jest.fn(async ({ where }: any) =>
+        taken.has(where.username) ? { id: "taken" } : null,
+      );
+      const repository = createGenerator(findUnique);
+
+      await expect(
+        repository.generateAvailableUsername("john@example.com"),
+      ).resolves.toBe("john10");
+      expect(findUnique).toHaveBeenCalledTimes(10);
+    });
+
+    it("skips screened-out candidates and confirms the first survivor once", async () => {
+      const taken = new Set([
+        "john",
+        ...Array.from({ length: 8 }, (_, index) => `john${index + 2}`),
+      ]);
+      const findUnique = jest.fn(async ({ where }: any) =>
+        taken.has(where.username) ? { id: "taken" } : null,
+      );
+      const repository = createGenerator(findUnique);
+
+      await expect(
+        repository.generateAvailableUsername("john@example.com", (candidate) =>
+          taken.has(candidate),
+        ),
+      ).resolves.toBe("john10");
+      // One confirming probe instead of ten.
+      expect(findUnique).toHaveBeenCalledTimes(1);
+      expect(findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { username: "john10" } }),
+      );
+    });
+
+    it("still confirms against the database, since the screen is only a cache", async () => {
+      const findUnique = jest
+        .fn()
+        .mockResolvedValueOnce({ id: "taken" })
+        .mockResolvedValueOnce(null);
+      const repository = createGenerator(findUnique);
+
+      await expect(
+        repository.generateAvailableUsername("john@example.com", () => false),
+      ).resolves.toBe("john2");
+      expect(findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it("probes normally when the screen has no opinion", async () => {
+      // An unavailable filter must read as "no opinion", not "taken" — treating
+      // it as taken would skip every candidate and push each new OAuth user
+      // onto the random-suffix fallback.
+      const findUnique = jest.fn(async () => null);
+      const repository = createGenerator(findUnique);
+
+      await expect(
+        repository.generateAvailableUsername("john@example.com", () => false),
+      ).resolves.toBe("john");
+      expect(findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to a random suffix when the screen rejects every candidate", async () => {
+      const findUnique = jest.fn(async () => null);
+      const repository = createGenerator(findUnique);
+
+      await expect(
+        repository.generateAvailableUsername("john@example.com", () => true),
+      ).resolves.toMatch(/^john-[a-f0-9]{8}$/);
+      expect(findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

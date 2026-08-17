@@ -50,6 +50,14 @@ x-backend-environment: &backend-environment
   MFA_TOTP_ENCRYPTION_KEY: ${MFA_TOTP_ENCRYPTION_KEY}
   AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
   AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME}
+  USERNAME_BLOOM_ENABLED: ${USERNAME_BLOOM_ENABLED:-true}
+  USERNAME_BLOOM_CAPACITY: ${USERNAME_BLOOM_CAPACITY:-200000}
+  USERNAME_BLOOM_FALSE_POSITIVE_RATE: ${USERNAME_BLOOM_FALSE_POSITIVE_RATE:-0.01}
+  USERNAME_BLOOM_RELOAD_INTERVAL_MS: ${USERNAME_BLOOM_RELOAD_INTERVAL_MS:-60000}
+  USERNAME_BLOOM_MAX_STALENESS_MS: ${USERNAME_BLOOM_MAX_STALENESS_MS:-300000}
+  USERNAME_BLOOM_REBUILD_INTERVAL_MS: ${USERNAME_BLOOM_REBUILD_INTERVAL_MS:-21600000}
+  USERNAME_BLOOM_REBUILD_BATCH_SIZE: ${USERNAME_BLOOM_REBUILD_BATCH_SIZE:-5000}
+  USERNAME_BLOOM_REBUILD_LOCK_TTL_MS: ${USERNAME_BLOOM_REBUILD_LOCK_TTL_MS:-60000}
 
 # Every process that connects to MySQL owns its own connection pool, so pool
 # size is a per-process cost paid against the server's max_connections budget.
@@ -93,6 +101,14 @@ x-db-worker-depends-on: &db-worker-depends-on
   backend-migrate:
     condition: service_completed_successfully
   mysql:
+    condition: service_healthy
+
+x-db-redis-worker-depends-on: &db-redis-worker-depends-on
+  backend-migrate:
+    condition: service_completed_successfully
+  mysql:
+    condition: service_healthy
+  redis:
     condition: service_healthy
 
 x-search-worker-depends-on: &search-worker-depends-on
@@ -244,6 +260,19 @@ services:
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/bookings/booking-expiry.worker.js"]
+
+  # Rebuilds the username availability bloom filter from the profiles table.
+  # Needs Redis as well as MySQL: the filter itself lives in a Redis bitmap that
+  # every API instance loads and subscribes to.
+  username-bloom-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-username-bloom-worker
+    restart: unless-stopped
+    depends_on: *db-redis-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/auth/username-bloom.worker.js"]
 
   posting-thumbnail-worker:
     build: *backend-build
