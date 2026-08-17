@@ -440,6 +440,27 @@ describe("OrganizationBlogCommentSocketServer", () => {
     expect(fakes.findUserById).not.toHaveBeenCalled();
   });
 
+  it("resolves the typing username once per connection", async () => {
+    const fakes = installFakeContainer();
+    const author = await connected("good");
+    const reader = await connected("anonymous");
+
+    // Two frames, spaced past the server throttle. The username cannot change
+    // under a socket, so the second must not cost another container scope and
+    // database round trip.
+    const first = nextEvent(reader, "typing");
+    author.emit("typing");
+    await first;
+
+    await new Promise((resolve) => setTimeout(resolve, 2_100));
+
+    const second = nextEvent(reader, "typing");
+    author.emit("typing");
+    await second;
+
+    expect(fakes.findUserById).toHaveBeenCalledTimes(1);
+  }, 15_000);
+
   it("throttles typing frames server-side", async () => {
     const fakes = installFakeContainer();
     const author = await connected("good");

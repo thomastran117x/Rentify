@@ -207,12 +207,27 @@ export function BlogCommentsPanel({
         // The boundary belongs to the deepest page read, not the newest one:
         // a refresh that re-reads pages 1-3 must not adopt page 1's "there is
         // more" and offer history the reader already has.
+        //
+        // It is only carried forward when the load extended the window. A
+        // non-extending load rebuilt the list from the pages it just read, so
+        // the boundary has to follow it back down — otherwise a mount effect
+        // or a retry that re-reads page 1 would leave the boundary at 3 and
+        // "Load earlier" would jump to page 4, skipping the pages it just
+        // discarded with no way to reach them again.
         const deepest = Math.max(...pages);
         const deepestResult = results[pages.indexOf(deepest)];
-        deepestPageRef.current = Math.max(deepestPageRef.current, deepest);
+        deepestPageRef.current = extend
+          ? Math.max(deepestPageRef.current, deepest)
+          : deepest;
         setHasEarlier(deepestResult.pagination.hasNextPage);
       } catch (cause) {
-        if (token === loadTokenRef.current) {
+        // Only a load the reader asked for may replace the thread with an
+        // error. Silent loads run off a timer or a socket event, and the list
+        // already on screen is still valid — swapping it for an error box on
+        // one blip would leave the thread blank until a manual retry, because
+        // nothing re-runs while the socket stays healthy. The next resync or
+        // poll picks the failure up instead.
+        if (token === loadTokenRef.current && !silent) {
           setError(
             getApiErrorMessage(cause, {
               action: "load comments",

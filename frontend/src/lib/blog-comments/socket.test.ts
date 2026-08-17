@@ -231,6 +231,7 @@ describe("openBlogCommentSocket", () => {
   });
 
   it("reconnects when the server admits it to the wrong post", async () => {
+    vi.useFakeTimers();
     const handle = openBlogCommentSocket({
       ...OPTIONS,
       onEvent: vi.fn(),
@@ -249,9 +250,17 @@ describe("openBlogCommentSocket", () => {
     await flush();
 
     expect(socket.disconnected).toBeGreaterThan(0);
+    // Backed off rather than immediate, so two tabs cannot ping-pong over the
+    // shared cookie without pause.
+    expect(FakeSocket.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await flush();
+
     expect(FakeSocket.instances.length).toBeGreaterThan(1);
 
     handle.close();
+    vi.useRealTimers();
   });
 
   it("stays connected when ready names the right post", async () => {
@@ -301,6 +310,7 @@ describe("openBlogCommentSocket", () => {
   });
 
   it("mints a fresh ticket for every attempt", async () => {
+    vi.useFakeTimers();
     const handle = openBlogCommentSocket({
       ...OPTIONS,
       onEvent: vi.fn(),
@@ -312,13 +322,17 @@ describe("openBlogCommentSocket", () => {
 
     const socket = FakeSocket.instances[0];
     socket.open();
+    socket.fire("ready", { type: "ready", blogPostId: "blog-1" });
     socket.fire("disconnect", "transport close");
+    await flush();
+    await vi.advanceTimersByTimeAsync(2_000);
     await flush();
 
     // A ticket is single-use, so a reconnect cannot replay the old one.
     expect(optionalAuthJsonMock).toHaveBeenCalledTimes(2);
 
     handle.close();
+    vi.useRealTimers();
   });
 
   it("gives up after a bounded number of failures", async () => {
@@ -370,6 +384,83 @@ describe("openBlogCommentSocket", () => {
     expect(socket.emitted.filter((f) => f.event === "typing")).toHaveLength(1);
 
     handle.close();
+  });
+
+  it("counts a room mismatch as a failure and eventually gives up", async () => {
+    vi.useFakeTimers();
+    const onStatus = vi.fn();
+    const handle = openBlogCommentSocket({
+      ...OPTIONS,
+      onEvent: vi.fn(),
+      onStatus,
+    });
+
+    // Every attempt connects successfully and is then rejected for landing in
+    // the wrong room. Without counting these the two tabs would ping-pong
+    // forever, with no backoff and no path to the polling fallback.
+    for (
+      let attempt = 0;
+      attempt < MAX_CONSECUTIVE_SOCKET_FAILURES;
+      attempt++
+    ) {
+      await flush();
+      const socket = FakeSocket.instances.at(-1);
+
+      if (!socket) {
+        break;
+      }
+
+      socket.open();
+      socket.fire("ready", { type: "ready", blogPostId: "blog-other" });
+      await flush();
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    await flush();
+
+    expect(onStatus).toHaveBeenCalledWith("failed");
+
+    handle.close();
+    vi.useRealTimers();
+  });
+
+  it("resets the failure budget only once the room is confirmed", async () => {
+    vi.useFakeTimers();
+    const onStatus = vi.fn();
+    const handle = openBlogCommentSocket({
+      ...OPTIONS,
+      onEvent: vi.fn(),
+      onStatus,
+    });
+
+    // Two mismatches, then a good one: the budget must clear so a later
+    // unrelated blip does not inherit them.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await flush();
+      const socket = FakeSocket.instances.at(-1);
+      socket?.open();
+      socket?.fire("ready", { type: "ready", blogPostId: "blog-other" });
+      await flush();
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    await flush();
+    const good = FakeSocket.instances.at(-1);
+    good?.open();
+    good?.fire("ready", { type: "ready", blogPostId: "blog-1" });
+    await flush();
+
+    onStatus.mockClear();
+    good?.fire("disconnect", "transport close");
+    await flush();
+
+    // First failure after a confirmed connection, so it reconnects rather than
+    // giving up on an inherited count.
+    expect(onStatus).toHaveBeenCalledWith("reconnecting");
+    expect(onStatus).not.toHaveBeenCalledWith("failed");
+
+    handle.close();
+    vi.useRealTimers();
   });
 
   it("stops reconnecting once closed", async () => {

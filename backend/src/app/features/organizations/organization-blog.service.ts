@@ -221,12 +221,29 @@ export class OrganizationBlogService {
     // Only when the value actually moved. A manager saving an unrelated edit
     // must not tell every open page to re-evaluate its composer, and a client
     // that hears "closed" for a thread that was already closed would flicker.
+    //
+    // Best-effort, like every other publish in this feature: the update has
+    // already committed, and the cover-image cleanup and audit record below
+    // have not run yet. Letting a Redis or gateway fault escape here would turn
+    // a persisted change into a 500, orphan the replaced cover image, and skip
+    // the audit trail for something that did happen.
     if (existing.commentsEnabled !== updated.commentsEnabled) {
-      this.blogCommentRealtimeGateway.publish({
-        type: "comments.closed",
-        blogPostId: updated.id,
-        commentsEnabled: updated.commentsEnabled,
-      });
+      try {
+        this.blogCommentRealtimeGateway.publish({
+          type: "comments.closed",
+          blogPostId: updated.id,
+          commentsEnabled: updated.commentsEnabled,
+        });
+      } catch (error) {
+        this.logger.error(
+          "Failed to publish a blog comment availability change.",
+          {
+            blogPostId: updated.id,
+            commentsEnabled: updated.commentsEnabled,
+          },
+          error,
+        );
+      }
     }
 
     await this.cleanupReplacedCoverImage(input.actorUserId, existing, updated);

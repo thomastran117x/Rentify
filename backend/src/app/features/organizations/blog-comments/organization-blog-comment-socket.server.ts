@@ -49,6 +49,16 @@ interface SocketState {
   canWrite: boolean;
   canModerate: boolean;
   lastTypingAt: number;
+  /**
+   * Resolved on the first typing frame and reused for the life of the
+   * connection. A username does not change under a socket, so looking it up
+   * per frame put a container scope and a database round trip on a hot path
+   * that scales with the number of people composing at once.
+   *
+   * Cached lazily rather than at handshake time so a reader who never types —
+   * which is almost all of them on a public post — costs no query at all.
+   */
+  username?: string;
 }
 
 type BlogCommentSocket = Socket & { state?: SocketState };
@@ -410,28 +420,34 @@ export class OrganizationBlogCommentSocketServer {
     state.lastTypingAt = now;
     const userId = state.identity.userId;
 
-    await this.withScope(async (scope) => {
-      const authRepository = scope.resolve(containerTokens.authRepository);
-      const user = await authRepository.findUserById(userId);
+    if (state.username === undefined) {
+      await this.withScope(async (scope) => {
+        const authRepository = scope.resolve(containerTokens.authRepository);
+        const user = await authRepository.findUserById(userId);
 
-      const event: OrganizationBlogCommentStreamEvent = {
-        type: "typing",
-        blogPostId: state.identity.blogPostId,
-        username: user?.profile?.username ?? "Someone",
-        expiresAt: new Date(
-          Date.now() + BLOG_COMMENT_TYPING_TTL_SECONDS * 1_000,
-        ).toISOString(),
-      };
+        state.username = user?.profile?.username ?? "Someone";
+      });
+    }
 
-      // Broadcast rather than `publish`: this is the one event whose author is
-      // in the room it goes to, and a plain room emit would come straight back
-      // to them as "you are typing…" under their own name. `broadcast` still
-      // crosses instances through the Redis adapter; it only excludes the
-      // socket that sent the frame.
-      socket.broadcast
-        .to(postRoom(state.identity.blogPostId))
-        .emit(event.type, event);
-    });
+    const event: OrganizationBlogCommentStreamEvent = {
+      type: "typing",
+      blogPostId: state.identity.blogPostId,
+      // Falls back if the lookup above failed outright, so a transient
+      // database fault costs the name rather than the indicator.
+      username: state.username ?? "Someone",
+      expiresAt: new Date(
+        Date.now() + BLOG_COMMENT_TYPING_TTL_SECONDS * 1_000,
+      ).toISOString(),
+    };
+
+    // Broadcast rather than `publish`: this is the one event whose author is
+    // in the room it goes to, and a plain room emit would come straight back
+    // to them as "you are typing…" under their own name. `broadcast` still
+    // crosses instances through the Redis adapter; it only excludes the
+    // socket that sent the frame.
+    socket.broadcast
+      .to(postRoom(state.identity.blogPostId))
+      .emit(event.type, event);
   }
 
   private async handleDisconnect(socket: BlogCommentSocket): Promise<void> {

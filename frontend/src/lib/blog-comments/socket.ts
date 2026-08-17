@@ -92,6 +92,24 @@ export function openBlogCommentSocket(options: {
     onStatus("reconnecting");
   }
 
+  /**
+   * The one way back to `connect`. Every reconnect path routes through here so
+   * each attempt is counted and spaced.
+   *
+   * A room mismatch counts as a failure like any other. It looks like a success
+   * from the transport's point of view — the socket connects, then turns out to
+   * be in the wrong room — so without this two tabs racing over the shared
+   * ticket cookie could hand each other tickets indefinitely, with no backoff,
+   * burning the per-IP ticket budget and never degrading to polling.
+   */
+  function retry(): void {
+    handleFailure();
+
+    if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
+      window.setTimeout(() => void connect(), 1_000 * failures);
+    }
+  }
+
   async function connect(): Promise<void> {
     if (closed) {
       return;
@@ -100,13 +118,8 @@ export function openBlogCommentSocket(options: {
     onStatus("connecting");
 
     if (!(await mintTicket())) {
-      handleFailure();
-
-      if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
-        // No socket exists yet, so nothing else will retry for us.
-        window.setTimeout(() => void connect(), 1_000 * failures);
-      }
-
+      // No socket exists yet, so nothing else will retry for us.
+      retry();
       return;
     }
 
@@ -130,8 +143,9 @@ export function openBlogCommentSocket(options: {
 
     socket = next;
 
+    // Deliberately does not reset `failures`: the transport being up is not
+    // yet evidence that this socket landed in the right room. `ready` is.
     next.on("connect", () => {
-      failures = 0;
       onStatus("open");
     });
 
@@ -143,7 +157,7 @@ export function openBlogCommentSocket(options: {
         // this tab would render another post's comments.
         if (event?.blogPostId !== blogPostId) {
           next.disconnect();
-          void connect();
+          retry();
           return;
         }
 
@@ -161,25 +175,27 @@ export function openBlogCommentSocket(options: {
     next.on("ready", (event: { blogPostId?: string }) => {
       if (event?.blogPostId !== blogPostId) {
         next.disconnect();
-        void connect();
+        retry();
+        return;
       }
+
+      // Confirmed in the right room, so the attempt genuinely succeeded and the
+      // budget resets here rather than on `connect`.
+      failures = 0;
     });
 
     next.on("connect_error", () => {
-      handleFailure();
-
-      if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
-        window.setTimeout(() => void connect(), 1_000 * failures);
-      }
+      retry();
     });
 
     next.on("disconnect", (reason) => {
+      // A mismatch guard above disconnects deliberately and has already
+      // scheduled its own retry.
       if (closed || reason === "io client disconnect") {
         return;
       }
 
-      onStatus("reconnecting");
-      void connect();
+      retry();
     });
   }
 

@@ -794,6 +794,150 @@ describe("BlogCommentsPanel", () => {
     expect(screen.queryByTestId("blog-comments-load-earlier")).toBeNull();
   });
 
+  it("walks the boundary back when the window is rebuilt", async () => {
+    const pageOne = buildList({
+      comments: [buildComment({ id: "recent", body: "Recent." })],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 200,
+        totalPages: 4,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+    const olderPage = (page: number, id: string, body: string) =>
+      buildList({
+        comments: [
+          buildComment({
+            id,
+            body,
+            createdAt: `20${20 - page}-01-01T00:00:00.000Z`,
+          }),
+        ],
+        pagination: {
+          page,
+          pageSize: 50,
+          total: 200,
+          totalPages: 4,
+          hasNextPage: true,
+          hasPreviousPage: true,
+        },
+      });
+
+    listMock.mockImplementation(
+      (_org: string, _slug: string, input: { page: number }) =>
+        Promise.resolve(
+          input.page === 1
+            ? pageOne
+            : olderPage(input.page, `p${input.page}`, `Page ${input.page}.`),
+        ),
+    );
+
+    renderPanel();
+    await screen.findByText("Recent.");
+
+    // Page back twice, so the boundary sits at 3.
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+    await screen.findByText("Page 2.");
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+    await screen.findByText("Page 3.");
+
+    // A non-extending load rebuilds the window from page 1 alone. The error
+    // retry is the reachable version of this; the mount effect does the same
+    // when the session resolves late.
+    listMock.mockClear();
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+    await screen.findByText("Page 4.");
+    expect(listMock.mock.calls.at(-1)?.[2].page).toBe(4);
+  });
+
+  it("does not skip history after a rebuild discards loaded pages", async () => {
+    const pageOne = buildList({
+      comments: [buildComment({ id: "recent", body: "Recent." })],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        total: 200,
+        totalPages: 4,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    listMock.mockImplementation(
+      (_org: string, _slug: string, input: { page: number }) =>
+        Promise.resolve(
+          input.page === 1
+            ? pageOne
+            : buildList({
+                comments: [
+                  buildComment({
+                    id: `p${input.page}`,
+                    body: `Page ${input.page}.`,
+                    createdAt: "2020-01-01T00:00:00.000Z",
+                  }),
+                ],
+                pagination: {
+                  page: input.page,
+                  pageSize: 50,
+                  total: 200,
+                  totalPages: 4,
+                  hasNextPage: true,
+                  hasPreviousPage: true,
+                },
+              }),
+        ),
+    );
+
+    renderPanel();
+    await screen.findByText("Recent.");
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+    await screen.findByText("Page 2.");
+
+    // Force a non-extending reload: the retry path re-reads page 1 only and
+    // throws the window away.
+    listMock.mockImplementationOnce(() => Promise.reject(new Error("boom")));
+    streamEvent({ type: "resync", blogPostId: "blog-1" });
+    await waitFor(() => {
+      expect(screen.getByText("Page 2.")).toBeInTheDocument();
+    });
+
+    // Now a real rebuild via the mount-style path.
+    await userEvent.click(screen.getByTestId("blog-comments-load-earlier"));
+
+    // The next page requested must follow the rebuilt window rather than the
+    // stale high-water mark, or pages in between become unreachable.
+    const requested = listMock.mock.calls.map((call) => call[2].page);
+    expect(requested).not.toContain(5);
+  });
+
+  it("keeps a loaded thread on screen when a silent refresh fails", async () => {
+    renderPanel();
+    await screen.findByText("Great post.");
+
+    // A resync landing on one blip must not swap a healthy thread for an error
+    // box: nothing re-runs while the socket stays up, so it would stay blank.
+    listMock.mockRejectedValueOnce(new Error("boom"));
+    streamEvent({ type: "resync", blogPostId: "blog-1" });
+
+    await waitFor(() => {
+      expect(listMock.mock.calls.length).toBeGreaterThan(1);
+    });
+    expect(screen.getByText("Great post.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+
+  it("still surfaces a failure the reader asked for", async () => {
+    listMock.mockRejectedValueOnce(new Error("boom"));
+
+    renderPanel();
+
+    expect(
+      await screen.findByRole("button", { name: /try again/i }),
+    ).toBeInTheDocument();
+  });
+
   it("closes the socket on unmount", async () => {
     const { unmount } = renderPanel();
     await screen.findByText("Great post.");

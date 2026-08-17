@@ -10312,6 +10312,31 @@ function buildComponents(): Record<string, unknown> {
             },
           },
           user: schemaRef("ContentReportUserSummary"),
+          comment: {
+            type: "object",
+            description:
+              "Present when `subjectType` is `organization_blog_comment`.",
+            properties: {
+              id: { type: "string" },
+              bodyExcerpt: { type: "string" },
+              author: schemaRef("ContentReportUserSummary"),
+              post: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  title: { type: "string" },
+                  slug: { type: "string" },
+                  organization: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       ContentReportEventRecord: {
