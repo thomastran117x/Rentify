@@ -40,6 +40,7 @@ interface Options {
   comment?: OrganizationBlogCommentRecord | null;
   membershipRole?: "primary_manager" | "manager" | "operator" | null;
   rateCount?: number;
+  rateTtl?: number;
   violations?: Array<{ path: string; message: string }>;
 }
 
@@ -68,7 +69,7 @@ function createService(options: Options = {}) {
         hasPreviousPage: false,
       },
     })),
-    create: jest.fn(async () => createComment()),
+    createIfCommentsOpen: jest.fn(async () => createComment()),
     findById: jest.fn(async () =>
       options.comment === undefined ? createComment() : options.comment,
     ),
@@ -104,6 +105,8 @@ function createService(options: Options = {}) {
     getDeleteJson: jest.fn(async () => null),
     increment: jest.fn(async () => options.rateCount ?? 1),
     expire: jest.fn(async () => true),
+    // Positive by default: an existing counter already carries its window.
+    ttl: jest.fn(async () => options.rateTtl ?? 30),
   };
 
   const tokenService = {
@@ -251,7 +254,7 @@ describe("OrganizationBlogCommentsService", () => {
 
       const result = await service.create(createInput);
 
-      expect(repository.create).toHaveBeenCalledWith({
+      expect(repository.createIfCommentsOpen).toHaveBeenCalledWith({
         blogPostId: POST_ID,
         organizationId: ORG_ID,
         authorUserId: AUTHOR_ID,
@@ -303,7 +306,7 @@ describe("OrganizationBlogCommentsService", () => {
       await expect(service.create(createInput)).rejects.toBeInstanceOf(
         BadRequestError,
       );
-      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.createIfCommentsOpen).not.toHaveBeenCalled();
     });
 
     it("409s once the author exceeds their own budget", async () => {
@@ -314,7 +317,7 @@ describe("OrganizationBlogCommentsService", () => {
       await expect(service.create(createInput)).rejects.toBeInstanceOf(
         ConflictError,
       );
-      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.createIfCommentsOpen).not.toHaveBeenCalled();
     });
 
     it("sets the budget window only on the first write", async () => {
@@ -334,6 +337,45 @@ describe("OrganizationBlogCommentsService", () => {
       expect(cacheService.expire).not.toHaveBeenCalled();
     });
 
+    it("409s when the thread closed during the write", async () => {
+      const { service, repository } = createService();
+      // The post was open when the service checked, and closed by the time the
+      // insert re-read it under its row lock.
+      repository.createIfCommentsOpen.mockResolvedValue(null as never);
+
+      await expect(service.create(createInput)).rejects.toBeInstanceOf(
+        ConflictError,
+      );
+    });
+
+    it("repairs a budget counter that lost its expiry", async () => {
+      // The increment landed but the expiry that should have followed did not,
+      // so the key would otherwise never expire and lock this author out for
+      // good once the count passed the limit.
+      const { service, cacheService } = createService({
+        rateCount: 4,
+        rateTtl: -1,
+      });
+
+      await service.create(createInput);
+
+      expect(cacheService.expire).toHaveBeenCalledWith(
+        expect.stringContaining("blog-comments:rate:"),
+        60,
+      );
+    });
+
+    it("leaves a healthy budget window alone", async () => {
+      const { service, cacheService } = createService({
+        rateCount: 4,
+        rateTtl: 42,
+      });
+
+      await service.create(createInput);
+
+      expect(cacheService.expire).not.toHaveBeenCalled();
+    });
+
     it("still posts when the budget store is unreachable", async () => {
       const { service, cacheService, repository } = createService();
       cacheService.increment.mockRejectedValue(new Error("redis down"));
@@ -341,7 +383,7 @@ describe("OrganizationBlogCommentsService", () => {
       await expect(service.create(createInput)).resolves.toBeDefined();
       // The IP-keyed middleware limiter still applies, so failing open here
       // degrades the budget rather than removing every bound.
-      expect(repository.create).toHaveBeenCalled();
+      expect(repository.createIfCommentsOpen).toHaveBeenCalled();
     });
 
     it("returns the comment even when fan-out throws", async () => {

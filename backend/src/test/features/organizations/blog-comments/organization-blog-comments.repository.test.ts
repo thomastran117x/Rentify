@@ -26,11 +26,26 @@ function buildRow(overrides: Record<string, unknown> = {}) {
 function buildPrisma(
   commentMethods: Record<string, jest.Mock> = {},
   postMethods: Record<string, jest.Mock> = {},
+  options: { lockedPost?: unknown } = {},
 ) {
-  return {
+  const client: Record<string, unknown> = {
     organizationBlogComment: commentMethods,
     organizationBlogPost: postMethods,
-  } as never;
+    // The locking re-read of the post row. Defaults to an open, published post
+    // so the common path needs no setup.
+    $queryRaw: jest.fn(async () =>
+      options.lockedPost === undefined
+        ? [{ status: "published", comments_enabled: 1 }]
+        : options.lockedPost === null
+          ? []
+          : [options.lockedPost],
+    ),
+  };
+  client.$transaction = jest.fn(
+    async (run: (tx: typeof client) => Promise<unknown>) => run(client),
+  );
+
+  return client as never;
 }
 
 describe("OrganizationBlogCommentsRepository", () => {
@@ -371,14 +386,14 @@ describe("OrganizationBlogCommentsRepository", () => {
     });
   });
 
-  describe("create", () => {
+  describe("createIfCommentsOpen", () => {
     it("persists the denormalized organization alongside the post", async () => {
       const create = jest.fn(async () => buildRow());
       const repository = new OrganizationBlogCommentsRepository(
         buildPrisma({ create }),
       );
 
-      const result = await repository.create({
+      const result = await repository.createIfCommentsOpen({
         blogPostId: "blog-1",
         organizationId: "org-1",
         authorUserId: "user-2",
@@ -396,6 +411,71 @@ describe("OrganizationBlogCommentsRepository", () => {
         }),
       );
       expect(result).toMatchObject({ id: "comment-1", deletedAt: null });
+    });
+
+    it("refuses to insert once comments were closed", async () => {
+      const create = jest.fn();
+      const repository = new OrganizationBlogCommentsRepository(
+        buildPrisma(
+          { create },
+          {},
+          {
+            lockedPost: { status: "published", comments_enabled: 0 },
+          },
+        ),
+      );
+
+      const result = await repository.createIfCommentsOpen({
+        blogPostId: "blog-1",
+        organizationId: "org-1",
+        authorUserId: "user-2",
+        body: "Too late.",
+      });
+
+      // The service checked before its rate-limit round trip; a manager can
+      // close the thread inside that window.
+      expect(result).toBeNull();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("refuses to insert once the post was unpublished", async () => {
+      const create = jest.fn();
+      const repository = new OrganizationBlogCommentsRepository(
+        buildPrisma(
+          { create },
+          {},
+          {
+            lockedPost: { status: "draft", comments_enabled: 1 },
+          },
+        ),
+      );
+
+      await expect(
+        repository.createIfCommentsOpen({
+          blogPostId: "blog-1",
+          organizationId: "org-1",
+          authorUserId: "user-2",
+          body: "Too late.",
+        }),
+      ).resolves.toBeNull();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("refuses to insert when the post disappeared", async () => {
+      const create = jest.fn();
+      const repository = new OrganizationBlogCommentsRepository(
+        buildPrisma({ create }, {}, { lockedPost: null }),
+      );
+
+      await expect(
+        repository.createIfCommentsOpen({
+          blogPostId: "blog-1",
+          organizationId: "org-1",
+          authorUserId: "user-2",
+          body: "Too late.",
+        }),
+      ).resolves.toBeNull();
+      expect(create).not.toHaveBeenCalled();
     });
   });
 });

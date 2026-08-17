@@ -120,23 +120,53 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
     };
   }
 
-  async create(
+  /**
+   * Inserts a comment only if the post is still open to them, returning null
+   * when it is not.
+   *
+   * The service already checked, but that check and this write are separated by
+   * a rate-limit round trip, and a manager can close comments in between. The
+   * post row is re-read `FOR UPDATE` inside the transaction rather than with a
+   * plain read: InnoDB's default REPEATABLE READ would serve the snapshot from
+   * the transaction's start, which is exactly the stale value being guarded
+   * against. A locking read sees the latest committed row and blocks a
+   * concurrent close until this insert commits.
+   */
+  async createIfCommentsOpen(
     input: CreateOrganizationBlogCommentPersistence,
-  ): Promise<OrganizationBlogCommentRecord> {
+  ): Promise<OrganizationBlogCommentRecord | null> {
     const created = await this.executeAsync(() =>
-      this.prisma.organizationBlogComment.create({
-        data: {
-          id: randomUUID(),
-          blogPostId: input.blogPostId,
-          organizationId: input.organizationId,
-          authorUserId: input.authorUserId,
-          body: input.body,
-        },
-        include: AUTHOR_INCLUDE,
+      this.prisma.$transaction(async (transaction) => {
+        const rows = await transaction.$queryRaw<
+          Array<{ status: string; comments_enabled: number | boolean }>
+        >(
+          Prisma.sql`
+            SELECT status, comments_enabled
+            FROM organization_blog_posts
+            WHERE id = ${input.blogPostId}
+            FOR UPDATE
+          `,
+        );
+        const post = rows[0];
+
+        if (!post || post.status !== "published" || !post.comments_enabled) {
+          return null;
+        }
+
+        return transaction.organizationBlogComment.create({
+          data: {
+            id: randomUUID(),
+            blogPostId: input.blogPostId,
+            organizationId: input.organizationId,
+            authorUserId: input.authorUserId,
+            body: input.body,
+          },
+          include: AUTHOR_INCLUDE,
+        });
       }),
     );
 
-    return this.mapComment(created);
+    return created ? this.mapComment(created) : null;
   }
 
   async findById(

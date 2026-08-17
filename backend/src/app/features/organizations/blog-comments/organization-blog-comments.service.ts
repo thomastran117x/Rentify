@@ -99,12 +99,20 @@ export class OrganizationBlogCommentsService {
     this.assertSafeBody(input.body);
     await this.assertAuthorCooldown(input.actorUserId);
 
-    const record = await this.repository.create({
+    // Re-asserted inside the write: the check above and this insert are
+    // separated by a rate-limit round trip, and a manager can close comments in
+    // between. Without it the API would accept a comment on a thread it had
+    // already told everyone else was closed.
+    const record = await this.repository.createIfCommentsOpen({
       blogPostId: post.id,
       organizationId: post.organizationId,
       authorUserId: input.actorUserId,
       body: input.body,
     });
+
+    if (!record) {
+      throw new ConflictError("Comments are closed on this post.");
+    }
 
     await this.publishEvent({
       type: "comment.created",
@@ -459,6 +467,16 @@ export class OrganizationBlogCommentsService {
         // Only the first write in a window sets the expiry, so the window is
         // fixed from the first comment rather than sliding forward with every
         // subsequent one — which would never expire under sustained load.
+        await this.cacheService.expire(
+          key,
+          BLOG_COMMENT_AUTHOR_RATE_WINDOW_SECONDS,
+        );
+      } else if ((await this.cacheService.ttl(key)) < 0) {
+        // The counter exists with no expiry, which means the increment landed
+        // but the expiry that should have followed it did not. Left alone the
+        // key would never expire and this account would be locked out of
+        // commenting permanently once the count passed the limit, so the
+        // window is re-established from here.
         await this.cacheService.expire(
           key,
           BLOG_COMMENT_AUTHOR_RATE_WINDOW_SECONDS,

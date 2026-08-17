@@ -151,8 +151,19 @@ export function openBlogCommentSocket(options: {
       });
     }
 
-    // `ready` only confirms the subscription; the panel re-syncs off `open`.
-    next.on("ready", () => undefined);
+    // `ready` names the room the server actually put this socket in, and that
+    // is the only prompt evidence of a ticket mix-up. Two tabs on one origin
+    // share the ticket cookie, so a tab can redeem the other's ticket and land
+    // on the wrong post. The per-event guard below catches it only once the
+    // wrong room happens to publish something — until then the connection
+    // looks healthy, the fallback poll never starts, and this tab quietly
+    // misses everything for the post it is actually showing.
+    next.on("ready", (event: { blogPostId?: string }) => {
+      if (event?.blogPostId !== blogPostId) {
+        next.disconnect();
+        void connect();
+      }
+    });
 
     next.on("connect_error", () => {
       handleFailure();

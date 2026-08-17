@@ -230,6 +230,50 @@ describe("openBlogCommentSocket", () => {
     handle.close();
   });
 
+  it("reconnects when the server admits it to the wrong post", async () => {
+    const handle = openBlogCommentSocket({
+      ...OPTIONS,
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await flush();
+    const socket = FakeSocket.instances[0];
+    socket.open();
+
+    // Two tabs share the ticket cookie, so this socket can redeem the other's
+    // ticket. `ready` names the room it actually joined, and it is the only
+    // prompt evidence — waiting for a mismatched event would leave this tab
+    // silently missing everything for the post it is showing.
+    socket.fire("ready", { type: "ready", blogPostId: "blog-other" });
+    await flush();
+
+    expect(socket.disconnected).toBeGreaterThan(0);
+    expect(FakeSocket.instances.length).toBeGreaterThan(1);
+
+    handle.close();
+  });
+
+  it("stays connected when ready names the right post", async () => {
+    const handle = openBlogCommentSocket({
+      ...OPTIONS,
+      onEvent: vi.fn(),
+      onStatus: vi.fn(),
+    });
+
+    await flush();
+    const socket = FakeSocket.instances[0];
+    socket.open();
+
+    socket.fire("ready", { type: "ready", blogPostId: "blog-1" });
+    await flush();
+
+    expect(socket.disconnected).toBe(0);
+    expect(FakeSocket.instances).toHaveLength(1);
+
+    handle.close();
+  });
+
   it("reconnects rather than rendering another post's comments", async () => {
     const onEvent = vi.fn();
     const handle = openBlogCommentSocket({
