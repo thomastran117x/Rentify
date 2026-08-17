@@ -132,7 +132,10 @@ export class AuthController {
     // available rather than taken so the settings form does not flag the value
     // it was seeded with.
     const auth = await getOptionalJwtAuth(request);
-    const result = await this.authService.isUsernameAvailable(
+    // Bloom-filter backed: a name nobody has claimed is answered from memory,
+    // and anything the filter cannot rule out falls through to the same
+    // database lookup this used to call directly.
+    const result = await this.authService.resolveUsernameAvailabilityHint(
       query.username,
       auth?.sub,
     );

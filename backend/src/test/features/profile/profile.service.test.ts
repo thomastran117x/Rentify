@@ -111,15 +111,21 @@ function createService(options?: {
   const cacheService = {
     getJson: options?.getJson ?? jest.fn(async () => null),
   };
+  const usernameBloomService = {
+    check: jest.fn(() => "unknown" as const),
+    add: jest.fn(async () => undefined),
+  };
 
   return {
     profileRepository,
     blobService,
     cacheService,
+    usernameBloomService,
     service: new ProfileService(
       profileRepository as any,
       blobService as any,
       cacheService as any,
+      usernameBloomService as any,
     ),
   };
 }
@@ -271,7 +277,7 @@ describe("ProfileService", () => {
   });
 
   it("allows clearing avatar fields together without blob storage checks", async () => {
-    const update = jest.fn(async () =>
+    const update = createUpdateMock(
       createProfile({
         avatarUrl: undefined,
         avatarBlobName: undefined,
@@ -296,10 +302,12 @@ describe("ProfileService", () => {
       // Renames away from the seeded "casey-doe", so the clock starts.
       usernameChangedAt: expect.any(Date),
       usernameChangeGuardAt: expect.any(Date),
+      // Explicit nulls clear the avatar...
       avatarUrl: null,
       avatarBlobName: null,
-      phoneNumber: null,
     });
+    // ...but the omitted phone number is not touched.
+    expect(firstUpdateInput(update)).not.toHaveProperty("phoneNumber");
   });
 
   it("rejects avatar uploads when blob storage is not configured", async () => {
@@ -349,6 +357,78 @@ describe("ProfileService", () => {
         username: "owner-one",
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  describe("partial updates", () => {
+    it("leaves an omitted phone number and avatar untouched", async () => {
+      // The account page's "Save profile" sends only these three fields. It used
+      // to silently wipe the saved phone number and avatar.
+      const update = createUpdateMock();
+      const { service } = createService({ update });
+
+      await service.update({
+        userId: "user-1",
+        username: "casey-doe",
+        isPrivate: true,
+        recommendationPersonalizationEnabled: false,
+      });
+
+      const data = firstUpdateInput(update);
+      expect(data).not.toHaveProperty("phoneNumber");
+      expect(data).not.toHaveProperty("avatarUrl");
+      expect(data).not.toHaveProperty("avatarBlobName");
+      expect(data).toMatchObject({ isPrivate: true });
+    });
+
+    it("clears a phone number when it is explicitly null", async () => {
+      const update = createUpdateMock();
+      const { service } = createService({ update });
+
+      await service.update({
+        userId: "user-1",
+        username: "casey-doe",
+        phoneNumber: null,
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ phoneNumber: null }),
+      );
+    });
+
+    it("normalizes a blank phone number to null defensively", async () => {
+      // Not reachable through the API — `updateProfileRequestSchema` trims and
+      // then enforces a 7-character minimum, so a blank value is rejected with
+      // a 400 before the service sees it. `null` is the documented clear.
+      const update = createUpdateMock();
+      const { service } = createService({ update });
+
+      await service.update({
+        userId: "user-1",
+        username: "casey-doe",
+        phoneNumber: "   ",
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ phoneNumber: null }),
+      );
+    });
+
+    it("still saves a phone number without disturbing the avatar", async () => {
+      // The account page's separate phone save, which omits the avatar pair.
+      const update = createUpdateMock();
+      const { service } = createService({ update });
+
+      await service.update({
+        userId: "user-1",
+        username: "casey-doe",
+        phoneNumber: "  +1 555 0199  ",
+      });
+
+      const data = firstUpdateInput(update);
+      expect(data.phoneNumber).toBe("+1 555 0199");
+      expect(data).not.toHaveProperty("avatarUrl");
+      expect(data).not.toHaveProperty("avatarBlobName");
+    });
   });
 
   describe("username change cooldown", () => {
@@ -434,6 +514,37 @@ describe("ProfileService", () => {
           usernameChangedAt: expect.any(Date),
         }),
       );
+    });
+
+    it("records a completed rename in the username filter", async () => {
+      const { service, usernameBloomService } = createService({
+        findByUserId: jest.fn(async () =>
+          createProfile({
+            username: "casey-doe",
+            usernameChangedAt: new Date(
+              Date.now() - (USERNAME_CHANGE_COOLDOWN_MS + 1000),
+            ).toISOString(),
+          }),
+        ),
+        update: createUpdateMock(),
+      });
+
+      await service.update({ userId: "user-1", username: "Casey-Two" });
+
+      expect(usernameBloomService.add).toHaveBeenCalledWith("casey-two");
+    });
+
+    it("leaves the filter alone when the username was resent unchanged", async () => {
+      const { service, usernameBloomService } = createService({
+        findByUserId: jest.fn(async () =>
+          createProfile({ username: "casey-doe" }),
+        ),
+        update: createUpdateMock(),
+      });
+
+      await service.update({ userId: "user-1", username: "casey-doe" });
+
+      expect(usernameBloomService.add).not.toHaveBeenCalled();
     });
 
     it("claims an auto-generated username without starting the cooldown", async () => {

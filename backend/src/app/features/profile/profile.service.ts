@@ -3,6 +3,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import UsernameChangeCooldownError from "@/errors/http/username-change-cooldown.error";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
+import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type {
@@ -24,6 +25,7 @@ export class ProfileService {
     private readonly profileRepository: ProfileRepository,
     private readonly blobService: BlobService,
     private readonly cacheService: CacheService,
+    private readonly usernameBloomService: UsernameBloomService,
   ) {}
 
   async list(input: ListProfilesInput): Promise<ListProfilesResult> {
@@ -67,15 +69,32 @@ export class ProfileService {
       ...(isRename
         ? await this.resolveUsernameChange(existingProfile, username)
         : {}),
-      phoneNumber: input.phoneNumber?.trim() || null,
-      avatarUrl: input.avatarUrl?.trim() || null,
-      avatarBlobName: input.avatarBlobName?.trim() || null,
+      // An omitted field (`undefined`) means "not part of this update" and must
+      // leave the stored value alone. Only an explicit `null` or a blank string
+      // clears it. Collapsing the two used to make the account page's "Save
+      // profile" — which sends neither — wipe the saved phone number and avatar.
+      ...(input.phoneNumber !== undefined
+        ? { phoneNumber: input.phoneNumber?.trim() || null }
+        : {}),
+      ...(input.avatarUrl !== undefined
+        ? { avatarUrl: input.avatarUrl?.trim() || null }
+        : {}),
+      ...(input.avatarBlobName !== undefined
+        ? { avatarBlobName: input.avatarBlobName?.trim() || null }
+        : {}),
     });
 
     if (!updated) {
       // The guarded write matched no row: a concurrent rename won the race and
       // stamped the clock between our read and our write.
       throw await this.buildLostRaceError(input.userId);
+    }
+
+    if (isRename) {
+      // Only the new name is recorded. The old one stays in the filter because
+      // a bloom filter cannot forget, which costs one wasted query for whoever
+      // tries to claim it until the next rebuild drops it.
+      await this.usernameBloomService.add(username);
     }
 
     return updated;

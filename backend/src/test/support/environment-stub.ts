@@ -73,6 +73,17 @@ const smsConfig = {
   },
 };
 
+const usernameBloomConfig = {
+  enabled: true,
+  capacity: 200_000,
+  falsePositiveRate: 0.01,
+  reloadIntervalMs: 60_000,
+  maxStalenessMs: 300_000,
+  rebuildIntervalMs: 21_600_000,
+  rebuildBatchSize: 5_000,
+  rebuildLockTtlMs: 60_000,
+};
+
 function readBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value == null) {
     return fallback;
@@ -235,6 +246,9 @@ export const environment = {
   getRateLimiterConfig() {
     return rateLimiterConfig;
   },
+  getUsernameBloomConfig() {
+    return usernameBloomConfig;
+  },
   getLoggingConfig() {
     return readLoggingConfig();
   },
@@ -271,6 +285,7 @@ export const environment = {
         isProduction: readNodeEnvironment() === "production",
       },
       square: squareConfig,
+      usernameBloom: usernameBloomConfig,
     };
   },
   get() {

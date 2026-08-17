@@ -184,6 +184,10 @@ export class EnvironmentManager {
     return this.get().postingsCache;
   }
 
+  getUsernameBloomConfig(): AppEnvironment["usernameBloom"] {
+    return this.get().usernameBloom;
+  }
+
   getBlobStorageConfig(): AppEnvironment["blobStorage"] {
     return this.get().blobStorage;
   }

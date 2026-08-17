@@ -9046,7 +9046,7 @@
       "put": {
         "operationId": "updateOwnProfile",
         "summary": "Update the current user's profile",
-        "description": "Updates the authenticated user's editable profile fields. `username` is required on every call; resending the current value is a no-op. Changing it is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
+        "description": "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op. Changing it is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
         "tags": [
           "profiles"
         ],
@@ -25358,7 +25358,11 @@
             "description": "Trimmed and lowercased before it is stored, so casing is not significant. Changing this value is limited to once every 30 days. Resending the current username is always accepted and does not spend the cooldown."
           },
           "phoneNumber": {
-            "type": "string"
+            "type": "string",
+            "nullable": true,
+            "minLength": 7,
+            "maxLength": 32,
+            "description": "Omit to leave the stored phone number unchanged. Send `null` to clear it — an empty string is rejected by the length rule rather than treated as a clear."
           },
           "isPrivate": {
             "type": "boolean"
@@ -25368,10 +25372,14 @@
           },
           "avatarUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "nullable": true,
+            "description": "Omit to leave the stored avatar unchanged. Must be sent together with `avatarBlobName`; send both as `null` to clear the avatar."
           },
           "avatarBlobName": {
-            "type": "string"
+            "type": "string",
+            "nullable": true,
+            "description": "Omit to leave the stored avatar unchanged. Must be sent together with `avatarUrl`."
           },
           "trustworthinessScore": {
             "type": "integer",

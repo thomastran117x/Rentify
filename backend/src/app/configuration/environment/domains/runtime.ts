@@ -6,6 +6,13 @@ import {
   DEFAULT_POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS,
   DEFAULT_POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS,
   DEFAULT_POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO,
+  DEFAULT_USERNAME_BLOOM_CAPACITY,
+  DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE,
+  DEFAULT_USERNAME_BLOOM_MAX_STALENESS_MS,
+  DEFAULT_USERNAME_BLOOM_REBUILD_BATCH_SIZE,
+  DEFAULT_USERNAME_BLOOM_REBUILD_INTERVAL_MS,
+  DEFAULT_USERNAME_BLOOM_REBUILD_LOCK_TTL_MS,
+  DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS,
 } from "@/configuration/environment/constants";
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
 import type {
@@ -465,8 +472,90 @@ export function buildPostingsCacheConfig(
   };
 }
 
+export function buildUsernameBloomConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["usernameBloom"] {
+  return {
+    enabled: parseBoolean(raw.USERNAME_BLOOM_ENABLED, true),
+    capacity: parseNumber(
+      raw,
+      "USERNAME_BLOOM_CAPACITY",
+      DEFAULT_USERNAME_BLOOM_CAPACITY,
+      errors,
+      {
+        integer: true,
+        min: 1,
+      },
+    ),
+    falsePositiveRate: parseNumber(
+      raw,
+      "USERNAME_BLOOM_FALSE_POSITIVE_RATE",
+      DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE,
+      errors,
+      {
+        // A rate of 0 would demand an infinite bitmap and a rate of 1 would
+        // make every answer useless, so both ends are excluded by the
+        // validation below rather than by the bounds here.
+        min: 0,
+        max: 1,
+      },
+    ),
+    reloadIntervalMs: parseNumber(
+      raw,
+      "USERNAME_BLOOM_RELOAD_INTERVAL_MS",
+      DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS,
+      errors,
+      {
+        integer: true,
+        min: 1_000,
+      },
+    ),
+    maxStalenessMs: parseNumber(
+      raw,
+      "USERNAME_BLOOM_MAX_STALENESS_MS",
+      DEFAULT_USERNAME_BLOOM_MAX_STALENESS_MS,
+      errors,
+      {
+        integer: true,
+        min: 1_000,
+      },
+    ),
+    rebuildIntervalMs: parseNumber(
+      raw,
+      "USERNAME_BLOOM_REBUILD_INTERVAL_MS",
+      DEFAULT_USERNAME_BLOOM_REBUILD_INTERVAL_MS,
+      errors,
+      {
+        integer: true,
+        min: 1_000,
+      },
+    ),
+    rebuildBatchSize: parseNumber(
+      raw,
+      "USERNAME_BLOOM_REBUILD_BATCH_SIZE",
+      DEFAULT_USERNAME_BLOOM_REBUILD_BATCH_SIZE,
+      errors,
+      {
+        integer: true,
+        min: 1,
+      },
+    ),
+    rebuildLockTtlMs: parseNumber(
+      raw,
+      "USERNAME_BLOOM_REBUILD_LOCK_TTL_MS",
+      DEFAULT_USERNAME_BLOOM_REBUILD_LOCK_TTL_MS,
+      errors,
+      {
+        integer: true,
+        min: 1_000,
+      },
+    ),
+  };
+}
+
 export function validateRuntimeConfig(
-  config: Pick<AppEnvironment, "postingsCache">,
+  config: Pick<AppEnvironment, "postingsCache" | "usernameBloom">,
   errors: string[],
 ): void {
   if (
@@ -488,5 +577,25 @@ export function validateRuntimeConfig(
 
   if (config.postingsCache.ttlJitterRatio >= 1) {
     errors.push("POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO must be less than 1.");
+  }
+
+  if (
+    config.usernameBloom.falsePositiveRate <= 0 ||
+    config.usernameBloom.falsePositiveRate >= 1
+  ) {
+    errors.push(
+      "USERNAME_BLOOM_FALSE_POSITIVE_RATE must be greater than 0 and less than 1.",
+    );
+  }
+
+  // The staleness gate is what stops a wedged instance from answering out of a
+  // bit array nobody has refreshed. Setting it below the reload interval would
+  // trip it on every healthy cycle and disable the filter entirely.
+  if (
+    config.usernameBloom.maxStalenessMs <= config.usernameBloom.reloadIntervalMs
+  ) {
+    errors.push(
+      "USERNAME_BLOOM_MAX_STALENESS_MS must be greater than USERNAME_BLOOM_RELOAD_INTERVAL_MS.",
+    );
   }
 }
