@@ -203,6 +203,10 @@ export const changePasswordRequestSchema = z.object({
   newPassword: strongPasswordSchema,
 });
 
+export const setPasswordRequestSchema = z.object({
+  newPassword: strongPasswordSchema,
+});
+
 export const removeKnownDeviceRequestSchema = z.object({
   deviceId: z.string().trim().min(1, "Device ID is required."),
 });
@@ -272,6 +276,8 @@ export type ResetPasswordRequestBody = z.infer<
 export type ChangePasswordRequestBody = z.infer<
   typeof changePasswordRequestSchema
 >;
+
+export type SetPasswordRequestBody = z.infer<typeof setPasswordRequestSchema>;
 
 export interface LocalAuthenticateInput {
   client: ClientRequestContext;
@@ -379,6 +385,13 @@ export interface ChangePasswordInput {
   userId: string;
   client: ClientRequestContext;
   currentPassword: string;
+  newPassword: string;
+  deviceId?: string;
+}
+
+export interface SetPasswordInput {
+  userId: string;
+  client: ClientRequestContext;
   newPassword: string;
   deviceId?: string;
 }

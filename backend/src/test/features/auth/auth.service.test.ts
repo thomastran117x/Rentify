@@ -1986,6 +1986,127 @@ describe("AuthService", () => {
     expect(result.accessToken).toBe("access-token");
   });
 
+  describe("setPassword", () => {
+    function createOAuthOnlyUser(): AuthUserRecord {
+      return {
+        ...createUser(),
+        passwordHash: undefined,
+        oauthIdentities: [
+          {
+            id: "oauth-identity-1",
+            userId: "user-1",
+            provider: "google",
+            providerUserId: "google-user-1",
+            providerEmail: "user@example.com",
+            emailVerified: true,
+            linkedAt: "2026-01-01T00:00:00.000Z",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      };
+    }
+
+    it("adds a first password to a social-only account and rotates the token version", async () => {
+      const user = createOAuthOnlyUser();
+      let updatedPasswordHash: string | undefined;
+      let rotatedUserId: string | undefined;
+      let clearedKey: string | undefined;
+      const service = createService({
+        findUserById: async () => user,
+        updatePasswordHash: async (_userId, nextPasswordHash) => {
+          updatedPasswordHash = nextPasswordHash;
+        },
+        rotateTokenVersion: async (userId) => {
+          rotatedUserId = userId;
+          return 3;
+        },
+        cacheDelete: async (key) => {
+          clearedKey = key;
+        },
+      });
+
+      const result = await service.setPassword({
+        userId: user.id,
+        client: createClient(),
+        newPassword: "AnotherStrongPassword1!",
+        deviceId: "device-1",
+      });
+
+      await expect(
+        bcrypt.compare("AnotherStrongPassword1!", updatedPasswordHash ?? ""),
+      ).resolves.toBe(true);
+      expect(rotatedUserId).toBe(user.id);
+      expect(clearedKey).toBe("auth:local-login-attempts:test-user");
+      expect(result.accessToken).toBe("access-token");
+    });
+
+    it("rejects accounts that already have a local password", async () => {
+      const user = {
+        ...createUser(),
+        passwordHash: await bcrypt.hash("CorrectHorseBatteryStaple1!", 4),
+      };
+      let updateCalled = false;
+      const service = createService({
+        findUserById: async () => user,
+        updatePasswordHash: async () => {
+          updateCalled = true;
+        },
+      });
+
+      await expect(
+        service.setPassword({
+          userId: user.id,
+          client: createClient(),
+          newPassword: "AnotherStrongPassword1!",
+          deviceId: "device-1",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(updateCalled).toBe(false);
+    });
+
+    it("rejects accounts whose email is not verified", async () => {
+      const user = { ...createOAuthOnlyUser(), emailVerified: false };
+      const service = createService({ findUserById: async () => user });
+
+      await expect(
+        service.setPassword({
+          userId: user.id,
+          client: createClient(),
+          newPassword: "AnotherStrongPassword1!",
+          deviceId: "device-1",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("rejects passwordless accounts with no linked provider", async () => {
+      const user = { ...createOAuthOnlyUser(), oauthIdentities: [] };
+      const service = createService({ findUserById: async () => user });
+
+      await expect(
+        service.setPassword({
+          userId: user.id,
+          client: createClient(),
+          newPassword: "AnotherStrongPassword1!",
+          deviceId: "device-1",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("rejects a missing user", async () => {
+      const service = createService({ findUserById: async () => null });
+
+      await expect(
+        service.setPassword({
+          userId: "missing-user",
+          client: createClient(),
+          newPassword: "AnotherStrongPassword1!",
+          deviceId: "device-1",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestError);
+    });
+  });
+
   it("activates an existing unverified user from pending signup state during email verification", async () => {
     const pendingPasswordHash = await bcrypt.hash(
       "CorrectHorseBatteryStaple1!",

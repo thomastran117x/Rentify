@@ -30,6 +30,7 @@ import {
   type ResendForgotPasswordInput,
   type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
+  type SetPasswordInput,
   type UnlinkOAuthProviderInput,
   type UsernameAvailabilityResult,
   type VerifyEmailInput,
@@ -499,6 +500,37 @@ export class AuthService {
     await this.rejectIfPasswordMatchesCurrent(
       input.newPassword,
       user.passwordHash,
+    );
+
+    const passwordHash = await this.hashPassword(input.newPassword);
+    await this.authRepository.updatePasswordHash(user.id, passwordHash);
+    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
+      user.id,
+    );
+    await this.clearLocalLoginAttemptRecord(user.profile.username);
+
+    const updatedUser: AuthUserRecord = {
+      ...user,
+      passwordHash,
+      tokenVersion: nextTokenVersion,
+    };
+    const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
+      updatedUser,
+      input.client,
+      input.deviceId,
+    );
+
+    return this.issueTokensForUser(updatedUser, deviceStatus, input.deviceId);
+  }
+
+  /**
+   * Adds local password sign-in to an account that only has social providers.
+   * There is no current password to re-enter, so the caller must have already
+   * satisfied the `mfa-management` step-up guard.
+   */
+  async setPassword(input: SetPasswordInput): Promise<AuthSessionResult> {
+    const user = this.requirePasswordlessLinkedUser(
+      await this.authRepository.findUserById(input.userId),
     );
 
     const passwordHash = await this.hashPassword(input.newPassword);
@@ -1617,6 +1649,37 @@ export class AuthService {
       throw new ConflictError(
         "Please verify your email address before managing your password.",
       );
+    }
+
+    return user;
+  }
+
+  /**
+   * Inverse of {@link requireEligibleLocalPasswordUser}: accepts only accounts
+   * that have no local password yet but do own a linked social identity, i.e.
+   * the accounts that can add password sign-in alongside their provider.
+   */
+  private requirePasswordlessLinkedUser(
+    user: AuthUserRecord | null,
+  ): AuthUserRecord {
+    if (!user) {
+      throw new BadRequestError("This account cannot set a password.");
+    }
+
+    if (this.isLocalPasswordAccount(user)) {
+      throw new ConflictError(
+        "This account already has a password. Use the change password option instead.",
+      );
+    }
+
+    if (!user.emailVerified) {
+      throw new ConflictError(
+        "Please verify your email address before managing your password.",
+      );
+    }
+
+    if (user.oauthIdentities.length === 0) {
+      throw new ConflictError("This account cannot set a password.");
     }
 
     return user;

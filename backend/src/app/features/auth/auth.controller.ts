@@ -54,6 +54,8 @@ import type {
   ResendUnlockLocalLoginRequestBody,
   ResendVerificationEmailInput,
   ResendVerificationEmailRequestBody,
+  SetPasswordInput,
+  SetPasswordRequestBody,
   SignupVerificationPendingResult,
   UnlinkOAuthProviderInput,
   UnlockLocalLoginInput,
@@ -76,6 +78,7 @@ import {
   resendUnlockLocalLoginRequestSchema,
   resetPasswordRequestSchema,
   resendVerificationEmailRequestSchema,
+  setPasswordRequestSchema,
   unlockLocalLoginRequestSchema,
   usernameAvailabilityQuerySchema,
   verifyEmailRequestSchema,
@@ -243,6 +246,21 @@ export class AuthController {
     );
     this.json(request, response, result, {
       message: "Password changed successfully.",
+    });
+  };
+
+  setPassword = async (request: Request, response: Response): Promise<void> => {
+    await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
+    const input = await parseRequestBody(request, setPasswordRequestSchema);
+    const result = await this.authService.setPassword(
+      this.toSetPasswordInput(request, input),
+    );
+    this.json(request, response, result, {
+      message: "Password set successfully.",
     });
   };
 
@@ -715,6 +733,18 @@ export class AuthController {
       userId: request.auth.sub,
       client: request.client,
       currentPassword: input.currentPassword,
+      newPassword: input.newPassword,
+      deviceId: request.auth.deviceId ?? request.client.device.id,
+    };
+  }
+
+  private toSetPasswordInput(
+    request: Request,
+    input: SetPasswordRequestBody,
+  ): SetPasswordInput {
+    return {
+      userId: request.auth.sub,
+      client: request.client,
       newPassword: input.newPassword,
       deviceId: request.auth.deviceId ?? request.client.device.id,
     };

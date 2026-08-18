@@ -802,7 +802,18 @@ export default function AccountPage() {
                   </p>
                 </div>
               </div>
-              <HomePasswordPanel />
+              <HomePasswordPanel
+                hasPassword={providers?.hasPassword}
+                onPasswordSet={() => {
+                  void authApi
+                    .linkedOAuthProviders()
+                    .then(setProviders)
+                    .catch(() => {
+                      // The password itself was set; a stale caption here is not
+                      // worth an error banner.
+                    });
+                }}
+              />
             </div>
 
             {/* Login methods */}
