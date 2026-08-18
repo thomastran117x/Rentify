@@ -2023,6 +2023,7 @@ describe("AuthService", () => {
         },
         cacheDelete: async (key) => {
           clearedKey = key;
+          return true;
         },
       });
 
