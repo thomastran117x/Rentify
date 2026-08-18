@@ -469,6 +469,30 @@ export class AuthRepository extends BaseRepository {
     );
   }
 
+  /**
+   * Writes a first password only while the account still has none, so two
+   * concurrent set-password requests cannot both succeed. Returns false when
+   * another request won the race and the caller should report a conflict.
+   */
+  async setPasswordHashIfUnset(
+    userId: string,
+    passwordHash: string,
+  ): Promise<boolean> {
+    const result = await this.executeAsync(() =>
+      this.prisma.user.updateMany({
+        where: {
+          id: userId,
+          passwordHash: null,
+        },
+        data: {
+          passwordHash,
+        },
+      }),
+    );
+
+    return result.count === 1;
+  }
+
   async rotateTokenVersion(userId: string): Promise<number> {
     const user = await this.executeAsync(() =>
       this.prisma.user.update({

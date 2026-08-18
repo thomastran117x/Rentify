@@ -103,6 +103,27 @@ describe("HomePasswordPanel", () => {
     expect(changePasswordMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a password the backend's unsafe-input rule would refuse", async () => {
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    // Passes the character-class rule -- "<" counts as a special character --
+    // but the backend rejects it via containsUnsafeAuthInput.
+    await user.type(screen.getByLabelText("New password"), "Valid123<tag>");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "Valid123<tag>",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      screen.getByText("Input contains unsupported HTML or script content."),
+    ).toBeInTheDocument();
+    expect(changePasswordMock).not.toHaveBeenCalled();
+  });
+
   it("updates the password, stores the session, and shows success feedback", async () => {
     const user = userEvent.setup();
     const setSession = vi.fn();

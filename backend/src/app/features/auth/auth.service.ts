@@ -534,7 +534,20 @@ export class AuthService {
     );
 
     const passwordHash = await this.hashPassword(input.newPassword);
-    await this.authRepository.updatePasswordHash(user.id, passwordHash);
+    // The guard above is advisory: this conditional write is what actually
+    // decides the race, so concurrent submissions cannot both rotate the token
+    // version and strand each other's session.
+    const created = await this.authRepository.setPasswordHashIfUnset(
+      user.id,
+      passwordHash,
+    );
+
+    if (!created) {
+      throw new ConflictError(
+        "This account already has a password. Use the change password option instead.",
+      );
+    }
+
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       user.id,
     );

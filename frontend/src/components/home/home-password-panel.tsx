@@ -7,7 +7,7 @@ import { authApi } from "@/lib/auth/api";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError } from "@/lib/auth/types";
-import { STRONG_PASSWORD_MESSAGE, isStrongPassword } from "@/lib/auth/password";
+import { getPasswordStrengthError } from "@/lib/auth/password";
 import {
   type MfaVerificationOptionsResult,
   type MfaVerificationScope,
@@ -45,8 +45,12 @@ function validatePasswordChange(
 
   if (!values.newPassword) {
     errors.newPassword = "New password is required.";
-  } else if (!isStrongPassword(values.newPassword)) {
-    errors.newPassword = STRONG_PASSWORD_MESSAGE;
+  } else {
+    const strengthError = getPasswordStrengthError(values.newPassword);
+
+    if (strengthError) {
+      errors.newPassword = strengthError;
+    }
   }
 
   if (!values.confirmPassword) {

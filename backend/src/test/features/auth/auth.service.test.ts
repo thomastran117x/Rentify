@@ -119,6 +119,10 @@ function createService(overrides?: {
     },
   ) => Promise<AuthUserRecord>;
   updatePasswordHash?: (userId: string, passwordHash: string) => Promise<void>;
+  setPasswordHashIfUnset?: (
+    userId: string,
+    passwordHash: string,
+  ) => Promise<boolean>;
   rotateTokenVersion?: (userId: string) => Promise<number>;
   verifyRefreshToken?: (token: string) => Promise<{
     sub: string;
@@ -326,6 +330,8 @@ function createService(overrides?: {
         },
       })),
     updatePasswordHash: overrides?.updatePasswordHash ?? (async () => {}),
+    setPasswordHashIfUnset:
+      overrides?.setPasswordHashIfUnset ?? (async () => true),
     rotateTokenVersion: overrides?.rotateTokenVersion ?? (async () => 3),
   };
   const tokenService = {
@@ -2014,8 +2020,9 @@ describe("AuthService", () => {
       let clearedKey: string | undefined;
       const service = createService({
         findUserById: async () => user,
-        updatePasswordHash: async (_userId, nextPasswordHash) => {
+        setPasswordHashIfUnset: async (_userId, nextPasswordHash) => {
           updatedPasswordHash = nextPasswordHash;
+          return true;
         },
         rotateTokenVersion: async (userId) => {
           rotatedUserId = userId;
@@ -2042,6 +2049,30 @@ describe("AuthService", () => {
       expect(result.accessToken).toBe("access-token");
     });
 
+    it("conflicts without rotating the token version when a concurrent request won the race", async () => {
+      const user = createOAuthOnlyUser();
+      let rotateCalled = false;
+      const service = createService({
+        findUserById: async () => user,
+        // The guard passed on a stale read, but the conditional write lost.
+        setPasswordHashIfUnset: async () => false,
+        rotateTokenVersion: async () => {
+          rotateCalled = true;
+          return 3;
+        },
+      });
+
+      await expect(
+        service.setPassword({
+          userId: user.id,
+          client: createClient(),
+          newPassword: "AnotherStrongPassword1!",
+          deviceId: "device-1",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(rotateCalled).toBe(false);
+    });
+
     it("rejects accounts that already have a local password", async () => {
       const user = {
         ...createUser(),
@@ -2050,8 +2081,9 @@ describe("AuthService", () => {
       let updateCalled = false;
       const service = createService({
         findUserById: async () => user,
-        updatePasswordHash: async () => {
+        setPasswordHashIfUnset: async () => {
           updateCalled = true;
+          return true;
         },
       });
 

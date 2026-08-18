@@ -395,6 +395,37 @@ describe("AuthRepository", () => {
     ).rejects.toThrow("This OAuth provider is already linked to an account.");
   });
 
+  it("writes a first password only while the account has none", async () => {
+    const updateMany = jest
+      .fn()
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    const repository = new AuthRepository({
+      user: {
+        updateMany,
+      },
+    } as any);
+
+    await expect(
+      repository.setPasswordHashIfUnset("user-1", "first-hash"),
+    ).resolves.toBe(true);
+    // A concurrent request already set one, so the conditional write matches
+    // no rows and the caller must report a conflict.
+    await expect(
+      repository.setPasswordHashIfUnset("user-1", "second-hash"),
+    ).resolves.toBe(false);
+
+    expect(updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "user-1",
+        passwordHash: null,
+      },
+      data: {
+        passwordHash: "first-hash",
+      },
+    });
+  });
+
   it("unlinks identities and updates email verification, passwords, and token versions", async () => {
     const deleteMany = jest.fn(async () => ({
       count: 1,
