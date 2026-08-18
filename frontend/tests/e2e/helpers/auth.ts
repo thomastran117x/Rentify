@@ -29,6 +29,24 @@ export const SEEDED_USERS = {
     password: SEEDED_PASSWORD,
     roleLabel: "Operator + read-only org flows",
   },
+  "viewer-one": {
+    username: "viewer-one",
+    email: "viewer1@rentify.local",
+    password: SEEDED_PASSWORD,
+    roleLabel: "Site role: user, no organization membership",
+  },
+  "admin-one": {
+    username: "admin-one",
+    email: "admin1@rentify.local",
+    password: SEEDED_PASSWORD,
+    roleLabel: "Site role: admin (owner + moderator privileges, no org)",
+  },
+  "mod-one": {
+    username: "mod-one",
+    email: "moderator1@rentify.local",
+    password: SEEDED_PASSWORD,
+    roleLabel: "Site role: moderator, no org",
+  },
 } as const satisfies Record<string, SeededUser>;
 
 export type SeededUsername = keyof typeof SEEDED_USERS;

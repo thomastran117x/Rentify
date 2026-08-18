@@ -95,6 +95,16 @@ describe("PostingDashboardDetail", () => {
       screen.getByText("No analytics found for this posting"),
     ).toBeInTheDocument();
   });
+  it("shows the restricted state immediately for a viewer who never had posting-read permission", () => {
+    authMock.mockReturnValue({
+      status: "authenticated",
+      session: { user: {} },
+    });
+    canReadMock.mockReturnValue(false);
+    render(<PostingDashboardDetail postingId="posting-1" />);
+    expect(screen.getByText("Restricted")).toBeInTheDocument();
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
+  });
   it("shows an API error after loading", async () => {
     authMock.mockReturnValue({
       status: "authenticated",

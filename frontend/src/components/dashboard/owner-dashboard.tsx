@@ -293,11 +293,7 @@ export function OwnerDashboard() {
     );
   }, [listing]);
 
-  if (
-    status === "loading" ||
-    (status === "anonymous" && !session) ||
-    loadingOverview
-  ) {
+  if (status === "loading" || (status === "anonymous" && !session)) {
     return <LoadingDashboard />;
   }
 
@@ -307,6 +303,10 @@ export function OwnerDashboard() {
 
   if (!canReadDashboard) {
     return <RestrictedState />;
+  }
+
+  if (loadingOverview) {
+    return <LoadingDashboard />;
   }
 
   return (

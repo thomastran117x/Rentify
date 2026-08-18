@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { SEEDED_USERS, login } from "./auth";
+import { SEEDED_USERS, login, type LoginOptions } from "./auth";
 
 /**
  * Refresh tokens are single-use and rotate on every /auth/refresh call, with
@@ -17,15 +17,19 @@ interface AuthFixtures {
   ownerPage: Page;
   managerPage: Page;
   operatorPage: Page;
+  adminPage: Page;
+  modPage: Page;
+  viewerPage: Page;
 }
 
 async function createAuthenticatedPage(
   browser: import("@playwright/test").Browser,
   username: string,
+  options?: LoginOptions,
 ): Promise<{ page: Page; close: () => Promise<void> }> {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await login(page, username);
+  await login(page, username, options);
   return { page, close: () => context.close() };
 }
 
@@ -57,6 +61,42 @@ export const test = base.extend<object, AuthFixtures>({
       const { page, close } = await createAuthenticatedPage(
         browser,
         SEEDED_USERS["renter-two"].username,
+      );
+      await use(page);
+      await close();
+    },
+    { scope: "worker" },
+  ],
+  adminPage: [
+    async ({ browser }, use) => {
+      const { page, close } = await createAuthenticatedPage(
+        browser,
+        SEEDED_USERS["admin-one"].username,
+        { nextPath: "/account" },
+      );
+      await use(page);
+      await close();
+    },
+    { scope: "worker" },
+  ],
+  modPage: [
+    async ({ browser }, use) => {
+      const { page, close } = await createAuthenticatedPage(
+        browser,
+        SEEDED_USERS["mod-one"].username,
+        { nextPath: "/account" },
+      );
+      await use(page);
+      await close();
+    },
+    { scope: "worker" },
+  ],
+  viewerPage: [
+    async ({ browser }, use) => {
+      const { page, close } = await createAuthenticatedPage(
+        browser,
+        SEEDED_USERS["viewer-one"].username,
+        { nextPath: "/account" },
       );
       await use(page);
       await close();

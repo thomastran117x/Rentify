@@ -159,6 +159,19 @@ describe("OwnerDashboard", () => {
     expect(screen.getByText("Restricted")).toBeInTheDocument();
   });
 
+  it("shows the restricted state immediately for a viewer who never had posting-read permission", () => {
+    canReadMock.mockReturnValue(false);
+    authMock.mockReturnValue({
+      status: "authenticated",
+      session: { user: {} },
+    });
+
+    render(<OwnerDashboard />);
+
+    expect(screen.getByText("Restricted")).toBeInTheDocument();
+    expect(screen.queryByText("Loading analytics")).not.toBeInTheDocument();
+  });
+
   it("surfaces overview failures and empty posting analytics", async () => {
     canReadMock.mockReturnValue(true);
     authMock.mockReturnValue({

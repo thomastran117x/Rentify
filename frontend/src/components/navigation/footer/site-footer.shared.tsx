@@ -55,6 +55,7 @@ export const footerLinkGroups: ReadonlyArray<FooterLinkGroupData> = [
     title: "Marketplace",
     links: [
       { href: "/postings", label: "Browse rentals" },
+      { href: "/organizations", label: "Browse organizations" },
       { href: "/how-it-works", label: "How it works" },
       { href: "/services", label: "Services" },
     ],
