@@ -28,7 +28,7 @@ test("homepage renders without backend auth dependencies", async ({ page }) => {
     page.getByRole("banner").getByRole("link", { name: "Browse" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "How it works" }),
+    page.getByRole("banner").getByRole("link", { name: "Blog" }),
   ).toBeVisible();
   await expect(
     page.getByPlaceholder("What are you looking for?"),

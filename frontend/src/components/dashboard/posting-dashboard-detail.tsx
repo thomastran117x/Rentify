@@ -158,7 +158,7 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
     }
   }
 
-  if (status === "loading" || loading) {
+  if (status === "loading") {
     return <LoadingDashboard />;
   }
 
@@ -168,6 +168,10 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
 
   if (!canReadDashboard) {
     return <RestrictedState />;
+  }
+
+  if (loading) {
+    return <LoadingDashboard />;
   }
 
   return (
