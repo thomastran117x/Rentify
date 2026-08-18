@@ -16,22 +16,6 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: ["authenticated/**"],
-      use: {
-        ...devices["Desktop Chrome"],
-      },
-    },
-    {
-      name: "setup",
-      testMatch: /.*\.setup\.ts$/,
-      use: {
-        ...devices["Desktop Chrome"],
-      },
-    },
-    {
-      name: "chromium-authenticated",
-      testMatch: /authenticated\/.*\.spec\.ts$/,
-      dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
       },

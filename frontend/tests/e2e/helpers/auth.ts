@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
@@ -33,29 +32,6 @@ export const SEEDED_USERS = {
 } as const satisfies Record<string, SeededUser>;
 
 export type SeededUsername = keyof typeof SEEDED_USERS;
-
-export const DEFAULT_SEEDED_ROLES: readonly SeededUsername[] = [
-  "owner-one",
-  "renter-one",
-  "renter-two",
-];
-
-const AUTH_STATE_DIR = path.join(
-  __dirname,
-  "..",
-  "..",
-  "..",
-  "playwright",
-  ".auth",
-);
-
-export function authStateDir(): string {
-  return AUTH_STATE_DIR;
-}
-
-export function authFile(role: SeededUsername): string {
-  return path.join(AUTH_STATE_DIR, `${role}.json`);
-}
 
 export async function ensureCaptchaToken(page: Page): Promise<void> {
   const readCaptchaToken = async () =>
