@@ -209,6 +209,7 @@ function createController(overrides?: {
   unlockLocalLogin?: (input: unknown) => Promise<unknown>;
   resendUnlockLocalLogin?: (input: unknown) => Promise<unknown>;
   changePassword?: (input: unknown) => Promise<AuthSessionResult>;
+  setPassword?: (input: unknown) => Promise<AuthSessionResult>;
   googleAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
   microsoftAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
   appleAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
@@ -303,6 +304,14 @@ function createController(overrides?: {
           createSessionResult({
             accessToken: "changed-access-token",
             refreshToken: "changed-refresh-token",
+          })),
+    ),
+    setPassword: jest.fn(
+      overrides?.setPassword ??
+        (async () =>
+          createSessionResult({
+            accessToken: "set-access-token",
+            refreshToken: "set-refresh-token",
           })),
     ),
     googleAuthenticate: jest.fn(
@@ -1029,6 +1038,49 @@ describe("AuthController", () => {
       currentPassword: "OldPassword1!",
       newPassword: "NewPassword1!",
       deviceId: "token-device-9",
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("setPassword requires a recent MFA verification and omits any current password", async () => {
+    const auth = createClaims({
+      sub: "user-11",
+      deviceId: "token-device-11",
+    });
+    mockRequireRecentMfaVerification.mockImplementation(
+      async (request: TestContext["request"]) => {
+        request.auth = auth;
+        return auth;
+      },
+    );
+    const { controller, authService } = createController();
+    const context = createContext({
+      client: createClient({
+        device: {
+          id: "client-device-5",
+          type: "desktop",
+          isMobile: false,
+          userAgent: "desktop-agent",
+          platform: "Windows",
+        },
+      }),
+      body: {
+        newPassword: "NewPassword1!",
+      },
+    });
+
+    const response = await invoke(controller.setPassword, context);
+
+    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
+      context.request,
+      expect.any(Object),
+      "mfa-management",
+    );
+    expect(authService.setPassword).toHaveBeenCalledWith({
+      userId: "user-11",
+      client: context.get("client"),
+      newPassword: "NewPassword1!",
+      deviceId: "token-device-11",
     });
     expect(response.status).toBe(200);
   });

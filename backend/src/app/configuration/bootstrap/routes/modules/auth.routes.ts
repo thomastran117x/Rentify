@@ -103,6 +103,13 @@ export const authLocalRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/auth/local/password/set",
+      resolveHandler<AuthController>(
+        containerTokens.authController,
+        "setPassword",
+      ),
+    );
+    app.post(
       "/auth/refresh",
       resolveHandler<AuthController>(containerTokens.authController, "refresh"),
     );

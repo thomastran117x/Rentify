@@ -120,6 +120,7 @@ describe("auth API request contracts", () => {
       captchaToken: "c",
     });
     authApi.changePassword({ currentPassword: "old", newPassword: "new" });
+    authApi.setPassword({ newPassword: "new" });
     authApi.verifyDevice();
     authApi.listKnownDevices();
     authApi.removeKnownDevice("device-2");
@@ -146,6 +147,11 @@ describe("auth API request contracts", () => {
       expiresInDays: 30,
       scopes: ["mcp:read"],
     });
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/local/password/set",
+      { newPassword: "new", deviceId: "device-1" },
+    );
     expect(tokenRevokeMock).toHaveBeenCalledWith("token-1");
     expect(refreshMock).toHaveBeenCalledOnce();
     expect(hintMock).toHaveBeenCalledOnce();

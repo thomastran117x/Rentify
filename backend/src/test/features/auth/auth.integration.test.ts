@@ -423,6 +423,77 @@ describe("Auth persistence integration", () => {
     expect(staleRefresh.status).toBe(401);
   });
 
+  it("sets a first password on a social-only account and enables local login", async () => {
+    const username = "renter-one";
+    const originalPassword = "Rentify123!";
+    const newPassword = "SetFirstPassword1!";
+
+    const session = await login({ username, password: originalPassword });
+    expect(session.status).toBe(200);
+
+    // Turn the seeded local account into the OAuth-only shape `createOAuthUser`
+    // writes: no password hash, one linked provider.
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+      select: { id: true },
+    });
+    await persistenceApp.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: null },
+    });
+    await persistenceApp.prisma.oAuthIdentity.create({
+      data: {
+        id: "oauth-identity-set-password",
+        userId: user.id,
+        provider: "google",
+        providerUserId: "google-set-password-fixture",
+        providerEmail: "user1@rentify.local",
+        emailVerified: true,
+      },
+    });
+
+    // Without a password there is nothing to log in with locally.
+    expect((await login({ username, password: originalPassword })).status).toBe(
+      401,
+    );
+
+    const setResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/password/set")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ newPassword }),
+      },
+    );
+    expect(setResponse.status).toBe(200);
+
+    const newSession = await login({ username, password: newPassword });
+    expect(newSession.status).toBe(200);
+
+    // Setting a password rotates the token version, so the pre-set refresh
+    // token must be dead.
+    const staleRefresh = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/refresh")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      },
+    );
+    expect(staleRefresh.status).toBe(401);
+
+    // A second attempt now conflicts: the account already has a password.
+    const repeatResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/password/set")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(newSession),
+        body: JSON.stringify({ newPassword: "YetAnotherPassword1!" }),
+      },
+    );
+    expect(repeatResponse.status).toBe(409);
+  });
+
   it("creates and revokes real auth sessions through login and logout", async () => {
     const loginResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/local/login")}`,

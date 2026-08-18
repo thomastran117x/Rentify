@@ -172,7 +172,7 @@ function createDefaultPolicy(request: Request): RateLimitPolicy {
 function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   if (
     request.method === "POST" &&
-    (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|username\/forgot|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
+    (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|password\/set|username\/forgot|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
       pathname,
     ) ||
       /^\/auth\/oauth\/(google|microsoft|apple)$/.test(pathname))

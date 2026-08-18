@@ -100,6 +100,11 @@ interface ChangePasswordInput {
   deviceId?: string;
 }
 
+interface SetPasswordInput {
+  newPassword: string;
+  deviceId?: string;
+}
+
 interface CreatePersonalAccessTokenInput {
   name: string;
   expiresInDays: number;
@@ -343,6 +348,15 @@ export const authApi = {
   changePassword(input: ChangePasswordInput): Promise<AuthResponseBody> {
     return postAuthenticatedJson<AuthResponseBody, ChangePasswordInput>(
       "/auth/local/password/change",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
+  },
+  setPassword(input: SetPasswordInput): Promise<AuthResponseBody> {
+    return postAuthenticatedJson<AuthResponseBody, SetPasswordInput>(
+      "/auth/local/password/set",
       {
         ...input,
         deviceId: input.deviceId ?? getDeviceId(),

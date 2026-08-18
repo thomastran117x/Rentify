@@ -964,6 +964,77 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/local/password/set:
+    post:
+      operationId: setPassword
+      summary: Set a first local password
+      description: 'Adds local password sign-in to an account that currently authenticates only through a linked social provider. Requires a recent multi-factor verification for the `mfa-management` scope, and returns a refreshed authenticated session. Accounts that already have a password must use the change-password operation instead.'
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPasswordRequest'
+            example:
+              newPassword: NewRentify123!
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthSessionResponseData'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Password set successfully.
+                data:
+                  accessToken: access-token-1
+                  refreshToken: refresh-token-1
+                  device:
+                    deviceId: device-1
+                    known: true
+                    knownByIp: true
+                  user:
+                    id: user-1
+                    email: owner1@rentify.local
+                    username: owner-one
+                    avatarUrl: 'https://cdn.rentify.local/avatars/owner-1.png'
+                    role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/refresh:
     post:
       operationId: refreshSession
@@ -16779,6 +16850,13 @@ components:
       properties:
         currentPassword:
           type: string
+        newPassword:
+          type: string
+    SetPasswordRequest:
+      type: object
+      required:
+        - newPassword
+      properties:
         newPassword:
           type: string
     OAuthAuthenticateRequest:

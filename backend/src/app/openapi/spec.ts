@@ -1801,6 +1801,33 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/auth/local/password/set",
+      operationId: "setPassword",
+      summary: "Set a first local password",
+      description:
+        "Adds local password sign-in to an account that currently authenticates only through a linked social provider. Requires a recent multi-factor verification for the `mfa-management` scope, and returns a refreshed authenticated session. Accounts that already have a password must use the change-password operation instead.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("SetPasswordRequest", {
+        newPassword: "NewRentify123!",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Password set successfully.",
+          "AuthSessionResponseData",
+          authSessionExample,
+        ),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
       path: "/auth/refresh",
       operationId: "refreshSession",
       summary: "Refresh an access token",
@@ -9460,6 +9487,13 @@ function buildComponents(): Record<string, unknown> {
         required: ["currentPassword", "newPassword"],
         properties: {
           currentPassword: { type: "string" },
+          newPassword: { type: "string" },
+        },
+      },
+      SetPasswordRequest: {
+        type: "object",
+        required: ["newPassword"],
+        properties: {
           newPassword: { type: "string" },
         },
       },
