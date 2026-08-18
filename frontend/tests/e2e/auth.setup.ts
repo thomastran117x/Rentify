@@ -1,5 +1,10 @@
 import { expect, test as setup } from "@playwright/test";
-import { DEFAULT_SEEDED_ROLES, SEEDED_USERS, authFile, login } from "./helpers/auth";
+import {
+  DEFAULT_SEEDED_ROLES,
+  SEEDED_USERS,
+  authFile,
+  login,
+} from "./helpers/auth";
 
 for (const role of DEFAULT_SEEDED_ROLES) {
   setup(`authenticate as ${role}`, async ({ page }) => {
