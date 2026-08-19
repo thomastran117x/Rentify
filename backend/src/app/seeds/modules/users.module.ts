@@ -271,6 +271,18 @@ export const usersSeedModule: SeedModule = {
             }),
           ]);
         } else {
+          // Read before the upsert: an existing organization keeps its
+          // current slug below, which can now differ from the freshly
+          // computed `organizationSlug` (e.g. the profile-derived name
+          // changed). Reserving the fixture slug in that case would create a
+          // reservation for a slug the organization never actually has,
+          // silently redirecting it away from itself and blocking a real
+          // rename to that slug later.
+          const existingOrganization = await prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { slug: true },
+          });
+
           await prisma.organization.upsert({
             where: {
               id: organizationId,
@@ -285,11 +297,16 @@ export const usersSeedModule: SeedModule = {
             },
           });
 
-          // Newly created fixtures need their slug reserved too.
+          const currentSlug = existingOrganization?.slug ?? organizationSlug;
+
+          // Newly created fixtures need their slug reserved too. Existing
+          // ones already have a reservation for `currentSlug` from when they
+          // were first created (or from a real rename); this upsert is then
+          // a no-op.
           await prisma.organizationSlugReservation.upsert({
-            where: { slug: organizationSlug },
+            where: { slug: currentSlug },
             update: {},
-            create: { slug: organizationSlug, organizationId },
+            create: { slug: currentSlug, organizationId },
           });
         }
 
