@@ -3,15 +3,15 @@ import { expect, test, type Page } from "@playwright/test";
 // Read-only assertions run against organization one, which is never renamed.
 const MANAGER_USERNAME = "renter-one";
 const PASSWORD = "Rentify123!";
-const ORGANIZATION_NAME = "Maya Santos Organization";
-const ORGANIZATION_SLUG = "maya-santos-organization";
+const ORGANIZATION_NAME = "Harbor Loft Rentals";
+const ORGANIZATION_SLUG = "harbor-loft-rentals";
 const ORGANIZATION_UUID = "00000000-0000-0000-1040-000000000001";
 
 // Renames are destructive and permanent -- a retired slug can never be reused,
 // so the mutating tests use a separate organization and a fresh slug each run,
 // and never assert a hardcoded starting slug for it.
 const RENAME_OWNER_USERNAME = "owner-two";
-const RENAME_ORGANIZATION_NAME = "Elliot Chen Organization";
+const RENAME_ORGANIZATION_NAME = "Alpine Stays";
 
 // Slug edits mutate shared seed state, so these must not interleave.
 test.describe.configure({ mode: "serial" });

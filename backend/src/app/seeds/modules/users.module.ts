@@ -231,12 +231,12 @@ export const usersSeedModule: SeedModule = {
 
       if (fixtureUser.role === "owner") {
         const organizationId = createFixtureId(1040, ownerOrganizationIndex);
-        const organizationName = buildOrganizationName(fixtureUser);
-        const organizationSlug = buildOrganizationSlug(
-          organizationName,
+        const organizationProfile = buildOrganizationProfile(
           ownerOrganizationIndex,
         );
-        const organizationProfile = buildOrganizationProfile(
+        const organizationName = organizationProfile.name;
+        const organizationSlug = buildOrganizationSlug(
+          organizationName,
           ownerOrganizationIndex,
         );
         ownerOrganizationIndex += 1;
@@ -257,14 +257,12 @@ export const usersSeedModule: SeedModule = {
             prisma.organization.upsert({
               where: { id: organizationId },
               update: {
-                name: organizationName,
                 slug: organizationSlug,
                 ...organizationProfile,
               },
               create: {
                 id: organizationId,
                 slug: organizationSlug,
-                name: organizationName,
                 ...organizationProfile,
               },
             }),
@@ -273,27 +271,42 @@ export const usersSeedModule: SeedModule = {
             }),
           ]);
         } else {
+          // Read before the upsert: an existing organization keeps its
+          // current slug below, which can now differ from the freshly
+          // computed `organizationSlug` (e.g. the profile-derived name
+          // changed). Reserving the fixture slug in that case would create a
+          // reservation for a slug the organization never actually has,
+          // silently redirecting it away from itself and blocking a real
+          // rename to that slug later.
+          const existingOrganization = await prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { slug: true },
+          });
+
           await prisma.organization.upsert({
             where: {
               id: organizationId,
             },
             update: {
-              name: organizationName,
               ...organizationProfile,
             },
             create: {
               id: organizationId,
               slug: organizationSlug,
-              name: organizationName,
               ...organizationProfile,
             },
           });
 
-          // Newly created fixtures need their slug reserved too.
+          const currentSlug = existingOrganization?.slug ?? organizationSlug;
+
+          // Newly created fixtures need their slug reserved too. Existing
+          // ones already have a reservation for `currentSlug` from when they
+          // were first created (or from a real rename); this upsert is then
+          // a no-op.
           await prisma.organizationSlugReservation.upsert({
-            where: { slug: organizationSlug },
+            where: { slug: currentSlug },
             update: {},
-            create: { slug: organizationSlug, organizationId },
+            create: { slug: currentSlug, organizationId },
           });
         }
 
@@ -633,6 +646,7 @@ export const usersSeedModule: SeedModule = {
 };
 
 interface SeedOrganizationProfile {
+  name: string;
   description: string;
   websiteUrl: string;
   contactEmail: string;
@@ -650,6 +664,7 @@ interface SeedOrganizationProfile {
 // to query and filter against, not just names.
 const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
   {
+    name: "Harbor Loft Rentals",
     description:
       "Boutique short-term rental group specializing in downtown loft apartments and design-forward studios.",
     websiteUrl: "https://harbor-loft-rentals.example.com",
@@ -663,6 +678,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2016", "Property type": "Urban lofts" },
   },
   {
+    name: "Alpine Stays",
     description:
       "Family-run holiday home network across the Alps offering ski chalets and lakeside cabins.",
     websiteUrl: "https://alpine-stays.example.com",
@@ -676,6 +692,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2009", Specialty: "Ski chalets" },
   },
   {
+    name: "Byron Coastal Rentals",
     description:
       "Coastal vacation rentals with beachfront villas and surf bungalows along the east coast.",
     websiteUrl: "https://byron-coastal.example.com",
@@ -689,6 +706,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2018", Specialty: "Beachfront villas" },
   },
   {
+    name: "Maple Corporate Housing",
     description:
       "Serviced apartments and corporate housing for long-stay business travelers.",
     websiteUrl: "https://maple-corporate-housing.example.com",
@@ -702,6 +720,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2012", Specialty: "Corporate housing" },
   },
   {
+    name: "Grachten Rentals",
     description:
       "Heritage townhouses and canal-side flats for city breaks and extended stays.",
     websiteUrl: "https://grachten-rentals.example.com",
@@ -715,6 +734,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2014", "Property type": "Heritage townhouses" },
   },
   {
+    name: "Nova Co-Living",
     description:
       "Modern co-living residences and furnished studios near the tech district.",
     websiteUrl: "https://nova-coliving.example.com",
@@ -731,6 +751,7 @@ const BASE_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
 
 const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
   {
+    name: "Prairie Production Rentals",
     description:
       "Prairie production and maker rentals for pop-up kitchens, workshops, and flexible studio bookings.",
     websiteUrl: "https://prairie-production.example.com",
@@ -744,6 +765,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2015", Specialty: "Maker studios" },
   },
   {
+    name: "Riverfront Creative Rentals",
     description:
       "Riverfront creative rentals with compact studios, tool bays, and flexible loading access for small teams.",
     websiteUrl: "https://riverfront-creative.example.com",
@@ -757,6 +779,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2017", Specialty: "Tool bays" },
   },
   {
+    name: "Warehouse South Productions",
     description:
       "Warehouse-adjacent rentals built for fabrication, rehearsal, and local commercial production days.",
     websiteUrl: "https://warehouse-south.example.com",
@@ -770,6 +793,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2013", Specialty: "Warehouse shoots" },
   },
   {
+    name: "Orchard Retreats",
     description:
       "Okanagan venue and equipment rentals focused on branded retreats, tastings, and content capture.",
     websiteUrl: "https://orchard-retreats.example.com",
@@ -783,6 +807,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2019", Specialty: "Retreat venues" },
   },
   {
+    name: "Crosswind Logistics",
     description:
       "Cross-border logistics rentals with storage, vans, and staging rooms for moving crews and events.",
     websiteUrl: "https://crosswind-logistics.example.com",
@@ -796,6 +821,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2011", Specialty: "Logistics hubs" },
   },
   {
+    name: "Forge Bay Studios",
     description:
       "Industrial-style studios and gear lockers tailored to product teams, builders, and short design sprints.",
     websiteUrl: "https://forge-bay.example.com",
@@ -809,6 +835,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2014", Specialty: "Industrial studios" },
   },
   {
+    name: "Limestone Works",
     description:
       "Historic downtown rentals mixing heritage suites with practical production rooms and tidy storage.",
     websiteUrl: "https://limestone-works.example.com",
@@ -822,6 +849,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2010", Specialty: "Heritage suites" },
   },
   {
+    name: "Tidehouse Rentals",
     description:
       "Maritime rentals for tasting events, remote crews, and small retail activations near the bay.",
     websiteUrl: "https://tidehouse-rentals.example.com",
@@ -835,6 +863,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2018", Specialty: "Retail activations" },
   },
   {
+    name: "Harbour Signal Rentals",
     description:
       "Compact coastal rentals for boardwalk pop-ups, market crews, and short family stays.",
     websiteUrl: "https://harbour-signal.example.com",
@@ -848,6 +877,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2016", Specialty: "Boardwalk pop-ups" },
   },
   {
+    name: "Signal Hill Supply",
     description:
       "Atlantic-facing equipment and venue rentals optimized for documentary crews and weather-flexible stays.",
     websiteUrl: "https://signal-hill-supply.example.com",
@@ -861,6 +891,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2012", Specialty: "Documentary crews" },
   },
   {
+    name: "Northlight Base",
     description:
       "Northern rentals for expedition teams, remote workshops, and practical crew housing with gear capacity.",
     websiteUrl: "https://northlight-base.example.com",
@@ -874,6 +905,7 @@ const ADDITIONAL_SEED_ORGANIZATION_PROFILES: SeedOrganizationProfile[] = [
     customFields: { Founded: "2021", Specialty: "Expedition teams" },
   },
   {
+    name: "Midnight Sun Rentals",
     description:
       "Remote-ready rentals pairing rugged vehicles, bright spaces, and gear lockers for northern travel.",
     websiteUrl: "https://midnight-sun.example.com",
@@ -914,24 +946,6 @@ function buildOrganizationProfile(index: number): SeedOrganizationProfile {
   const sample =
     SEED_ORGANIZATION_PROFILES[(index - 1) % SEED_ORGANIZATION_PROFILES.length];
   return sample ?? SEED_ORGANIZATION_PROFILES[0]!;
-}
-
-function buildOrganizationName(fixtureUser: SeedUserFixture): string {
-  const fullName = [fixtureUser.firstName, fixtureUser.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  if (fullName) {
-    return `${fullName} Organization`;
-  }
-
-  if (fixtureUser.username.trim()) {
-    return `${fixtureUser.username.trim()} Organization`;
-  }
-
-  const [localPart] = fixtureUser.email.split("@");
-  return `${(localPart ?? "owner").trim()} Organization`;
 }
 
 /**

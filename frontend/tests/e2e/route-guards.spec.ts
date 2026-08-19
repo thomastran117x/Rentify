@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/fixtures";
 
-const ORGANIZATION_NAME = "Maya Santos Organization";
+const ORGANIZATION_NAME = "Harbor Loft Rentals";
 
 function sidebarLink(page: Page, name: RegExp) {
   return page
