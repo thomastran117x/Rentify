@@ -302,17 +302,20 @@ describe("posting expiry persistence", () => {
 
     const startAt = new Date(Date.now() + 10 * DAY_IN_MS);
     const endAt = new Date(Date.now() + 12 * DAY_IN_MS);
-    const bookingResponse = await request(`/postings/${postingId}/booking-requests`, {
-      method: "POST",
-      headers: renter.headers(),
-      body: JSON.stringify({
-        startAt: startAt.toISOString(),
-        endAt: endAt.toISOString(),
-        contactName: "Renter One",
-        contactEmail: "user5@rentify.local",
-        guestCount: 2,
-      }),
-    });
+    const bookingResponse = await request(
+      `/postings/${postingId}/booking-requests`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+          contactName: "Renter One",
+          contactEmail: "user5@rentify.local",
+          guestCount: 2,
+        }),
+      },
+    );
     expect(bookingResponse.status).toBe(201);
     const booking = (await bookingResponse.json()) as {
       data: { id: string };
@@ -322,17 +325,20 @@ describe("posting expiry persistence", () => {
     await resolveExpiryService().expireDuePostings(10);
 
     // A new request is refused: the posting is paused.
-    const newBooking = await request(`/postings/${postingId}/booking-requests`, {
-      method: "POST",
-      headers: renter.headers(),
-      body: JSON.stringify({
-        startAt: new Date(Date.now() + 20 * DAY_IN_MS).toISOString(),
-        endAt: new Date(Date.now() + 22 * DAY_IN_MS).toISOString(),
-        contactName: "Renter One",
-        contactEmail: "user5@rentify.local",
-        guestCount: 2,
-      }),
-    });
+    const newBooking = await request(
+      `/postings/${postingId}/booking-requests`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          startAt: new Date(Date.now() + 20 * DAY_IN_MS).toISOString(),
+          endAt: new Date(Date.now() + 22 * DAY_IN_MS).toISOString(),
+          contactName: "Renter One",
+          contactEmail: "user5@rentify.local",
+          guestCount: 2,
+        }),
+      },
+    );
     expect(newBooking.status).toBeGreaterThanOrEqual(400);
 
     // The request that already existed can still be settled — stranding a

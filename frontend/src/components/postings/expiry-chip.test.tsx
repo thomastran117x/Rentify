@@ -50,9 +50,7 @@ describe("ExpiryChip", () => {
       <ExpiryChip posting={{ status: "published", expiresAt: futureIso(4) }} />,
     );
 
-    const title = screen
-      .getByText(/Expires in \d+ days/)
-      .getAttribute("title");
+    const title = screen.getByText(/Expires in \d+ days/).getAttribute("title");
 
     expect(title).toMatch(/^Expires \w+ \d+, \d{4}$/);
   });

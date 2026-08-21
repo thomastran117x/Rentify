@@ -105,12 +105,12 @@ describe("describeExpiry", () => {
   });
 
   it("marks the current day as expiring today", () => {
-    expect(describeExpiry("2026-08-19T23:59:59.999Z", "published", now)).toEqual(
-      {
-        label: "Expires today",
-        tone: "warning",
-      },
-    );
+    expect(
+      describeExpiry("2026-08-19T23:59:59.999Z", "published", now),
+    ).toEqual({
+      label: "Expires today",
+      tone: "warning",
+    });
   });
 
   it("warns inside the lead window", () => {
