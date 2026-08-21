@@ -18,6 +18,7 @@ import {
   MAX_BOOKING_DURATION_DAYS_LIMIT,
   MIN_BOOKING_DURATION_DAYS_LIMIT,
   MAX_ADVANCE_NOTICE_DAYS_LIMIT,
+  MAX_POSTING_EXPIRY_HORIZON_DAYS,
   MAX_POSTING_PHOTOS,
   MAX_SEARCH_ORGANIZATION_MATCHES,
   MAX_SEARCH_RESULT_WINDOW,
@@ -1115,6 +1116,10 @@ export class PostingsService {
       advanceNoticeDays: posting.advanceNoticeDays ?? null,
       cancellationPolicy: posting.cancellationPolicy ?? null,
       cancellationPolicyNotes: posting.cancellationPolicyNotes ?? null,
+      instantBooking: posting.instantBooking,
+      // A duplicate is a fresh draft: an inherited expiry may already have
+      // passed, which would make the duplicate unpublishable on arrival.
+      expiresAt: null,
       availabilityBlocks: availabilityBlocks.map((block) => ({
         startAt: block.startAt,
         endAt: block.endAt,
@@ -1298,6 +1303,12 @@ export class PostingsService {
       throw new BadRequestError("Only draft postings can be published.");
     }
 
+    if (this.hasPassedExpiry(posting)) {
+      throw new BadRequestError(
+        "This posting's expiry date has passed. Set a new expiry date before publishing.",
+      );
+    }
+
     if (
       posting.photos.length < 1 ||
       posting.photos.length > MAX_POSTING_PHOTOS
@@ -1336,6 +1347,26 @@ export class PostingsService {
     if (posting.status !== "paused") {
       throw new BadRequestError("Only paused postings can be unpaused.");
     }
+
+    // Allowing this would let the sweeper re-pause the posting within one poll,
+    // so the owner watches it flip back. Silently clearing the date instead
+    // would turn a deliberately time-boxed listing into a permanent one behind
+    // their back — the exact failure expiry exists to prevent.
+    if (this.hasPassedExpiry(posting)) {
+      throw new BadRequestError(
+        "This posting's expiry date has passed. Set a new expiry date before unpausing.",
+      );
+    }
+  }
+
+  private hasPassedExpiry(posting: PostingRecord): boolean {
+    if (!posting.expiresAt) {
+      return false;
+    }
+
+    const parsed = Date.parse(posting.expiresAt);
+
+    return !Number.isNaN(parsed) && parsed <= Date.now();
   }
 
   private assertCanArchive(posting: PostingRecord): void {
@@ -1406,6 +1437,42 @@ export class PostingsService {
     ) {
       throw new BadRequestError(
         `Advance notice must be an integer between 0 and ${MAX_ADVANCE_NOTICE_DAYS_LIMIT} days.`,
+      );
+    }
+
+    this.assertValidExpiry(input.expiresAt);
+  }
+
+  /**
+   * An expiry is optional, but a supplied one must be a usable future instant.
+   *
+   * A past date on write is always a typo — accepting one would either publish
+   * a listing the sweeper immediately pauses, or silently retire a live one. The
+   * horizon catches year typos that would otherwise park a row in the expiry
+   * index indefinitely; anything genuinely longer-lived wants no expiry at all.
+   */
+  private assertValidExpiry(expiresAt: string | null | undefined): void {
+    if (expiresAt === undefined || expiresAt === null) {
+      return;
+    }
+
+    const parsed = Date.parse(expiresAt);
+
+    if (Number.isNaN(parsed)) {
+      throw new BadRequestError("Expiry date is not a valid date.");
+    }
+
+    const now = Date.now();
+
+    if (parsed <= now) {
+      throw new BadRequestError("Expiry date must be in the future.");
+    }
+
+    const horizon = now + MAX_POSTING_EXPIRY_HORIZON_DAYS * 24 * 60 * 60 * 1000;
+
+    if (parsed > horizon) {
+      throw new BadRequestError(
+        `Expiry date cannot be more than ${MAX_POSTING_EXPIRY_HORIZON_DAYS} days away. Leave it blank for a listing that should stay live indefinitely.`,
       );
     }
   }

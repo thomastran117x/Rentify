@@ -671,6 +671,7 @@ export class PostingsController {
       cancellationPolicy: body.cancellationPolicy ?? null,
       cancellationPolicyNotes: body.cancellationPolicyNotes ?? null,
       instantBooking: body.instantBooking ?? false,
+      expiresAt: body.expiresAt ?? null,
       availabilityBlocks,
       location: {
         latitude: body.location.latitude,

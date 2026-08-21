@@ -3308,3 +3308,178 @@ describe("PostingsService availability calendar", () => {
     expect(Object.keys(calendar)).toHaveLength(31);
   });
 });
+
+describe("PostingsService posting expiry", () => {
+  const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const PAST = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  it("accepts a future expiry date on create", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await service.createDraft("owner-1", {
+      ...createValidInput(),
+      expiresAt: FUTURE,
+    });
+
+    expect(repository.lastCreateInput?.expiresAt).toBe(FUTURE);
+  });
+
+  it("accepts an omitted expiry date, meaning the listing never expires", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await service.createDraft("owner-1", createValidInput());
+
+    expect(repository.createCalls).toBe(1);
+  });
+
+  it("rejects an expiry date in the past on create", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await expect(
+      service.createDraft("owner-1", {
+        ...createValidInput(),
+        expiresAt: PAST,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repository.createCalls).toBe(0);
+  });
+
+  it("rejects an expiry date beyond the supported horizon", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const farFuture = new Date(
+      Date.now() + 800 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    await expect(
+      service.createDraft("owner-1", {
+        ...createValidInput(),
+        expiresAt: farFuture,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects an unparseable expiry date", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+
+    await expect(
+      service.createDraft("owner-1", {
+        ...createValidInput(),
+        expiresAt: "not-a-date",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("refuses to publish a draft whose expiry date has already passed", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      status: "draft",
+      expiresAt: PAST,
+    };
+    const service = createService(repository);
+
+    await expect(
+      service.publish("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repository.publishCalls).toBe(0);
+  });
+
+  it("publishes a draft whose expiry date is still ahead", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      status: "draft",
+      expiresAt: FUTURE,
+    };
+    const service = createService(repository);
+
+    const published = await service.publish("posting-1", "owner-1");
+
+    expect(published.status).toBe("published");
+  });
+
+  it("refuses to unpause a posting whose expiry date has passed", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      status: "paused",
+      expiresAt: PAST,
+    };
+    const service = createService(repository);
+
+    // Allowing this would let the sweeper re-pause it within one poll.
+    await expect(
+      service.unpause("posting-1", "owner-1"),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repository.unpauseCalls).toBe(0);
+  });
+
+  it("unpauses once the owner has moved the expiry date forward", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      status: "paused",
+      expiresAt: FUTURE,
+    };
+    const service = createService(repository);
+
+    const unpaused = await service.unpause("posting-1", "owner-1");
+
+    expect(unpaused.status).toBe("published");
+  });
+
+  it("unpauses a posting that has no expiry date at all", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      status: "paused",
+      expiresAt: undefined,
+    };
+    const service = createService(repository);
+
+    await expect(
+      service.unpause("posting-1", "owner-1"),
+    ).resolves.toMatchObject({
+      status: "published",
+    });
+  });
+
+  it("does not carry an expiry date onto a duplicate", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      expiresAt: PAST,
+    };
+    const service = createService(repository);
+
+    await service.duplicate("posting-1", "owner-1");
+
+    // A past date would otherwise make the fresh draft unpublishable on arrival.
+    expect(repository.lastCreateInput?.expiresAt).toBeNull();
+  });
+
+  it("carries instant booking onto a duplicate", async () => {
+    const repository = new FakePostingsRepository();
+    repository.posting = {
+      ...repository.posting,
+      id: "posting-1",
+      instantBooking: true,
+    };
+    const service = createService(repository);
+
+    await service.duplicate("posting-1", "owner-1");
+
+    expect(repository.lastCreateInput?.instantBooking).toBe(true);
+  });
+});

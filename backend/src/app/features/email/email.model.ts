@@ -5,6 +5,7 @@ import type {
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
+  SendPostingExpiringSoonEmailInput,
   SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
@@ -17,7 +18,8 @@ export type EmailJobKind =
   | "password_reset"
   | "username_reminder"
   | "organization_invite"
-  | "booking_message";
+  | "booking_message"
+  | "posting_expiring_soon";
 
 export type EmailJobInputByKind = {
   verification: SendVerificationEmailInput;
@@ -28,6 +30,7 @@ export type EmailJobInputByKind = {
   username_reminder: SendUsernameReminderEmailInput;
   organization_invite: SendOrganizationInviteEmailInput;
   booking_message: SendBookingMessageNotificationEmailInput;
+  posting_expiring_soon: SendPostingExpiringSoonEmailInput;
 };
 
 export type EmailJobPayload =
@@ -84,6 +87,13 @@ export type EmailJobPayload =
       jobId: string;
       kind: "booking_message";
       input: SendBookingMessageNotificationEmailInput;
+      attempt: number;
+      occurredAt: string;
+    }
+  | {
+      jobId: string;
+      kind: "posting_expiring_soon";
+      input: SendPostingExpiringSoonEmailInput;
       attempt: number;
       occurredAt: string;
     };

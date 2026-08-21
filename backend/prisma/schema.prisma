@@ -425,6 +425,8 @@ model Posting {
   publishedAt       DateTime?                  @map("published_at") @db.DateTime(6)
   pausedAt          DateTime?                  @map("paused_at") @db.DateTime(6)
   archivedAt        DateTime?                  @map("archived_at") @db.DateTime(6)
+  expiresAt         DateTime?                  @map("expires_at") @db.DateTime(6)
+  expiryReminderSentAt DateTime?               @map("expiry_reminder_sent_at") @db.DateTime(6)
   createdAt         DateTime                   @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt         DateTime                   @updatedAt @map("updated_at") @db.DateTime(6)
   organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -446,6 +448,7 @@ model Posting {
   @@index([organizationId, status])
   @@index([status, publishedAt])
   @@index([status, family, subtype, publishedAt])
+  @@index([status, expiresAt])
   @@index([country, region, city])
   @@map("postings")
 }

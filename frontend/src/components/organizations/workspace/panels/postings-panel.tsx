@@ -8,6 +8,7 @@ import {
   rowActionPrimaryClass,
 } from "@/components/organizations/shared/styles";
 import { PostingStatusBadge } from "@/components/organizations/shared/badges";
+import { ExpiryChip } from "@/components/postings/expiry-chip";
 import { formatPostingVariant } from "@/components/organizations/shared/format";
 import { SectionCard } from "@/components/organizations/shared/primitives";
 import { useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
@@ -116,6 +117,7 @@ export function PostingsPanel() {
                     {posting.name}
                   </p>
                   <PostingStatusBadge status={posting.status} />
+                  <ExpiryChip posting={posting} />
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {formatPostingVariant(posting)} / {posting.location.city},{" "}

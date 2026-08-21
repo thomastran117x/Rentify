@@ -88,6 +88,7 @@ export interface PublicPostingDetail {
   publishedAt?: string;
   pausedAt?: string;
   archivedAt?: string;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
   viewerReviewState?: {

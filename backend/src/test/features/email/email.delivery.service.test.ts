@@ -1,4 +1,5 @@
 import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
+import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 
 function createTransporterMock() {
@@ -18,10 +19,15 @@ function createService(
   transporter: ReturnType<typeof createTransporterMock>,
   overrides: Record<string, unknown> = {},
   composer: ReturnType<typeof createComposerMock> = createComposerMock(),
+  postingExpiryComposer: ReturnType<
+    typeof createComposerMock
+  > = createComposerMock(),
 ) {
   return new EmailDeliveryService({
     bookingMessageEmailComposer:
       composer as unknown as BookingMessageEmailComposer,
+    postingExpiryEmailComposer:
+      postingExpiryComposer as unknown as PostingExpiryEmailComposer,
     transporter: transporter as any,
     gmailUser: "gmail-user@example.com",
     gmailAppPassword: "app-password",

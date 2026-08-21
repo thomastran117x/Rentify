@@ -137,6 +137,7 @@ export interface UpsertPostingInput {
   cancellationPolicy?: PostingCancellationPolicy | null;
   cancellationPolicyNotes?: string | null;
   instantBooking?: boolean;
+  expiresAt?: string | null;
   location: PostingLocationInput;
   variant: PostingVariant;
   details: Record<string, PostingDetailValue>;
@@ -149,6 +150,7 @@ export interface PostingLifecycleRecord {
   publishedAt?: string;
   pausedAt?: string;
   archivedAt?: string;
+  expiresAt?: string;
   updatedAt: string;
 }
 

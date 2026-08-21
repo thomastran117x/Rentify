@@ -5,6 +5,7 @@ import {
 import { loggerFactory } from "@/configuration/logging";
 import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import { isSuppressedRecipient } from "@/features/email/email-suppression";
+import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendBookingMessageNotificationEmailInput,
@@ -13,6 +14,7 @@ import type {
   SendNewDeviceEmailInput,
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
+  SendPostingExpiringSoonEmailInput,
   SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
@@ -24,6 +26,11 @@ interface EmailDeliveryServiceOptions {
    * render without a composer to hydrate them.
    */
   bookingMessageEmailComposer: BookingMessageEmailComposer;
+  /**
+   * Required: the `posting_expiring_soon` kind carries ids only, so delivery
+   * cannot render without a composer to hydrate them.
+   */
+  postingExpiryEmailComposer: PostingExpiryEmailComposer;
   transporter?: Transporter;
   gmailUser?: string;
   gmailAppPassword?: string;
@@ -83,6 +90,7 @@ export class EmailDeliveryService {
   private readonly fromName: string;
   private readonly appBaseUrl: string;
   private readonly bookingMessageEmailComposer: BookingMessageEmailComposer;
+  private readonly postingExpiryEmailComposer: PostingExpiryEmailComposer;
   private readonly maxRetries: number;
   private readonly initialDelayMs: number;
   private readonly maxDelayMs: number;
@@ -90,6 +98,7 @@ export class EmailDeliveryService {
 
   constructor(options: EmailDeliveryServiceOptions) {
     this.bookingMessageEmailComposer = options.bookingMessageEmailComposer;
+    this.postingExpiryEmailComposer = options.postingExpiryEmailComposer;
 
     const gmailUser = options.gmailUser ?? getEnvironmentVariable("GMAIL_USER");
     const gmailAppPassword =
@@ -133,6 +142,11 @@ export class EmailDeliveryService {
     // kind below.
     if (payload.kind === "booking_message") {
       await this.sendBookingMessageNotificationEmail(payload.input);
+      return;
+    }
+
+    if (payload.kind === "posting_expiring_soon") {
+      await this.sendPostingExpiringSoonEmail(payload.input);
       return;
     }
 
@@ -500,6 +514,82 @@ export class EmailDeliveryService {
           ),
         ].join(""),
       ),
+    });
+  }
+
+  async sendPostingExpiringSoonEmail(
+    input: SendPostingExpiringSoonEmailInput,
+  ): Promise<void> {
+    const content = await this.postingExpiryEmailComposer.compose(input);
+
+    if (!content) {
+      deliveryLogger.info(
+        "Posting expiry reminder skipped; the posting is no longer expiring on this date.",
+        {
+          postingId: input.postingId,
+          expiresAt: input.expiresAt,
+        },
+      );
+      return;
+    }
+
+    if (isSuppressedRecipient(content.to)) {
+      deliveryLogger.info(
+        "Email delivery suppressed for non-deliverable recipient.",
+        {
+          kind: "posting_expiring_soon",
+          postingId: input.postingId,
+        },
+      );
+      return;
+    }
+
+    const manageUrl = `${this.appBaseUrl}/postings/manage`;
+    const greetingName = this.resolveGreetingName(content.firstName);
+    const expiresOn = this.formatExpiryDate(content.expiresAt);
+    const escapedPostingName = escapeHtml(content.postingName);
+    const escapedManageUrl = escapeHtml(manageUrl);
+
+    await this.sendWithRetry({
+      to: content.to,
+      subject: `${content.postingName} expires on ${expiresOn}`,
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        `Your listing ${content.postingName} is set to expire on ${expiresOn}.`,
+        "",
+        "When it does, it is paused automatically: it stops appearing in search and stops taking new booking requests. Bookings you have already accepted are not affected.",
+        "",
+        "If you want to keep it live, open the listing and set a new expiry date.",
+        "",
+        `Manage your listings: ${manageUrl}`,
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">A listing is about to expire</h1>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)}, your listing <strong>${escapedPostingName}</strong> is set to expire soon.</p>`,
+          this.buildValueBlock("Expires on", escapeHtml(expiresOn)),
+          this.buildCTAButton(escapedManageUrl, "Manage your listings"),
+          this.buildAlertBox(
+            "On that date the listing is paused automatically &mdash; it stops appearing in search and stops taking new booking requests. Bookings you have already accepted are not affected. Set a new expiry date to keep it live.",
+            "info",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  /**
+   * Renders the deadline as a plain UTC calendar date. The owner picked a day in
+   * their own timezone and the client stored the end of it, so naming the day is
+   * both what they expect and the only part of the instant that is meaningful.
+   */
+  private formatExpiryDate(expiresAt: string): string {
+    return new Date(expiresAt).toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   }
 

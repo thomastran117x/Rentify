@@ -61,6 +61,19 @@ export interface SendBookingMessageNotificationEmailInput {
   messageId: string;
 }
 
+/**
+ * Carries ids rather than a rendered recipient: the delivery worker hydrates the
+ * posting, its expiry and the recipient address when it processes the job. That
+ * matters more here than elsewhere — a reminder can sit behind a queue backlog
+ * while the owner pushes the date out, and an "expiring soon" email about a
+ * posting that is no longer expiring is actively misleading.
+ */
+export interface SendPostingExpiringSoonEmailInput {
+  postingId: string;
+  recipientId: string;
+  expiresAt: string;
+}
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -104,5 +117,14 @@ export class EmailService {
     input: SendBookingMessageNotificationEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("booking_message", input);
+  }
+
+  async sendPostingExpiringSoonEmail(
+    input: SendPostingExpiringSoonEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob(
+      "posting_expiring_soon",
+      input,
+    );
   }
 }

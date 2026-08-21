@@ -8767,6 +8767,7 @@ function buildComponents(): Record<string, unknown> {
           "posting.paused",
           "posting.unpaused",
           "posting.archived",
+          "posting.expired",
           "posting.restored",
           "posting_availability.created",
           "posting_availability.updated",

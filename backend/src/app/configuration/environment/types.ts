@@ -65,6 +65,9 @@ export type RawEnvironmentValues = {
   MICROSOFT_OAUTH_TENANT?: string;
   NODE_ENV?: string;
   PORT?: string;
+  POSTING_EXPIRY_BATCH_SIZE?: string;
+  POSTING_EXPIRY_POLL_INTERVAL_MS?: string;
+  POSTING_EXPIRY_REMINDER_LEAD_DAYS?: string;
   POSTINGS_ANALYTICS_OUTBOX_BATCH_SIZE?: string;
   POSTINGS_ANALYTICS_OUTBOX_POLL_INTERVAL_MS?: string;
   RECOMMENDATIONS_PRECOMPUTE_BATCH_SIZE?: string;
@@ -276,6 +279,11 @@ export interface AppEnvironment {
     bookingExpiry: {
       pollIntervalMs: number;
       batchSize: number;
+    };
+    postingExpiry: {
+      pollIntervalMs: number;
+      batchSize: number;
+      reminderLeadDays: number;
     };
     paymentsRetry: {
       pollIntervalMs: number;

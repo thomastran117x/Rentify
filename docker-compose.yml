@@ -28,6 +28,9 @@ x-backend-environment: &backend-environment
   SMS_FROM_NUMBER: ${SMS_FROM_NUMBER:-}
   SMS_WEBHOOK_PUBLIC_URL: ${SMS_WEBHOOK_PUBLIC_URL:-http://127.0.0.1:8040/api/v1/sms/webhooks/telnyx}
   SMS_WORKER_PREFETCH: ${SMS_WORKER_PREFETCH:-10}
+  POSTING_EXPIRY_POLL_INTERVAL_MS: ${POSTING_EXPIRY_POLL_INTERVAL_MS:-60000}
+  POSTING_EXPIRY_BATCH_SIZE: ${POSTING_EXPIRY_BATCH_SIZE:-50}
+  POSTING_EXPIRY_REMINDER_LEAD_DAYS: ${POSTING_EXPIRY_REMINDER_LEAD_DAYS:-3}
   SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-8}
   TELNYX_API_KEY: ${TELNYX_API_KEY:-}
   TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
@@ -109,6 +112,16 @@ x-db-redis-worker-depends-on: &db-redis-worker-depends-on
   mysql:
     condition: service_healthy
   redis:
+    condition: service_healthy
+
+x-db-redis-rabbitmq-worker-depends-on: &db-redis-rabbitmq-worker-depends-on
+  backend-migrate:
+    condition: service_completed_successfully
+  mysql:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
     condition: service_healthy
 
 x-search-worker-depends-on: &search-worker-depends-on
@@ -260,6 +273,20 @@ services:
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/bookings/booking-expiry.worker.js"]
+
+  # Pauses postings whose owner-set expiry date has passed, and sends the single
+  # "expiring soon" reminder a few days ahead of it. Needs Redis for the booking
+  # window flow lock and the public projection cache, and RabbitMQ to enqueue the
+  # reminder emails.
+  posting-expiry-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-posting-expiry-worker
+    restart: unless-stopped
+    depends_on: *db-redis-rabbitmq-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/postings/posting-expiry.worker.js"]
 
   # Rebuilds the username availability bloom filter from the profiles table.
   # Needs Redis as well as MySQL: the filter itself lives in a Redis bitmap that
