@@ -102,7 +102,7 @@ from the unique index afterwards.
 - Public, because the signup form has no session, and rate-limited under the
   `username-availability` policy (60/min, keyed by user when signed in and by IP otherwise).
   Usernames are already public identifiers, so enumeration is not a new exposure.
-- It reuses `AuthService.isUsernameAvailable`, which checks the `profiles.username` unique
+- It reuses `UsernameService.isUsernameAvailable`, which checks the `profiles.username` unique
   index **and** the pending-signup reservation (`auth:pending-signup-username:*`) that an
   unverified signup holds. Both signup and the profile rename path honour the same
   reservation, so all three agree on what "taken" means.

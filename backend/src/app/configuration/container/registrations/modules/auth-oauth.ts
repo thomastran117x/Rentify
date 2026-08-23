@@ -1,5 +1,7 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
+import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -33,6 +35,36 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
       lifetime: "transient",
       dependencies: [],
       resolve: () => new AppleOAuthService(),
+    });
+    container.register({
+      token: containerTokens.oauthAccountsService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.authRepository,
+        containerTokens.googleOAuthService,
+        containerTokens.microsoftOAuthService,
+        containerTokens.appleOAuthService,
+        containerTokens.usernameBloomService,
+        containerTokens.mfaTotpService,
+        containerTokens.authSessionService,
+      ],
+      resolve: ({ resolve }) =>
+        new OAuthAccountsService(
+          resolve(containerTokens.authRepository),
+          resolve(containerTokens.googleOAuthService),
+          resolve(containerTokens.microsoftOAuthService),
+          resolve(containerTokens.appleOAuthService),
+          resolve(containerTokens.usernameBloomService),
+          resolve(containerTokens.mfaTotpService),
+          resolve(containerTokens.authSessionService),
+        ),
+    });
+    container.register({
+      token: containerTokens.oauthController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.oauthAccountsService],
+      resolve: ({ resolve }) =>
+        new OAuthController(resolve(containerTokens.oauthAccountsService)),
     });
   },
 };

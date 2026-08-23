@@ -1,6 +1,12 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
-import type { AuthController } from "@/features/auth/auth.controller";
+import type { LocalAuthController } from "@/features/auth/local/local-auth.controller";
+import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
+import type { AuthSessionController } from "@/features/auth/session/session.controller";
+import type { UsernameController } from "@/features/auth/username/username.controller";
+import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
+import type { PasswordController } from "@/features/auth/password/password.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -11,43 +17,43 @@ export const authLocalRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/local/login",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "localAuthenticate",
       ),
     );
     app.post(
       "/auth/local/signup",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "localSignup",
       ),
     );
     app.post(
       "/auth/local/password/forgot",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "forgotPassword",
       ),
     );
     app.post(
       "/auth/local/password/forgot/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "resendForgotPassword",
       ),
     );
     app.post(
       "/auth/local/password/reset",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "resetPassword",
       ),
     );
     app.post(
       "/auth/local/username/forgot",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<UsernameController>(
+        containerTokens.usernameController,
         "forgotUsername",
       ),
     );
@@ -55,67 +61,73 @@ export const authLocalRouteModule: RouteModule = {
     // settings check availability through this endpoint too.
     app.get(
       "/auth/username/available",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<UsernameController>(
+        containerTokens.usernameController,
         "checkUsernameAvailability",
       ),
     );
     app.post(
       "/auth/local/email/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "verifyEmail",
       ),
     );
     app.post(
       "/auth/local/email/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "resendVerificationEmail",
       ),
     );
     app.post(
       "/auth/local/unlock",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LoginLockoutController>(
+        containerTokens.loginLockoutController,
         "unlockLocalLogin",
       ),
     );
     app.post(
       "/auth/local/unlock/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LoginLockoutController>(
+        containerTokens.loginLockoutController,
         "resendUnlockLocalLogin",
       ),
     );
     app.post(
       "/auth/local/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
         "localVerify",
       ),
     );
     app.post(
       "/auth/local/password/change",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "changePassword",
       ),
     );
     app.post(
       "/auth/local/password/set",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "setPassword",
       ),
     );
     app.post(
       "/auth/refresh",
-      resolveHandler<AuthController>(containerTokens.authController, "refresh"),
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "refresh",
+      ),
     );
     app.post(
       "/auth/logout",
-      resolveHandler<AuthController>(containerTokens.authController, "logout"),
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "logout",
+      ),
     );
   },
 };
@@ -125,43 +137,43 @@ export const authOauthRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/oauth/google",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "googleAuthenticate",
       ),
     );
     app.post(
       "/auth/oauth/microsoft",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "microsoftAuthenticate",
       ),
     );
     app.post(
       "/auth/oauth/apple",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "appleAuthenticate",
       ),
     );
     app.get(
       "/auth/oauth/providers",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "linkedOAuthProviders",
       ),
     );
     app.post(
       "/auth/oauth/:provider/link",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "linkOAuthProvider",
       ),
     );
     app.delete(
       "/auth/oauth/:provider",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "unlinkOAuthProvider",
       ),
     );
@@ -173,19 +185,22 @@ export const authDevicesRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/device/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
         "deviceVerify",
       ),
     );
     app.get(
       "/auth/devices",
-      resolveHandler<AuthController>(containerTokens.authController, "devices"),
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
+        "devices",
+      ),
     );
     app.delete(
       "/auth/devices/remove",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
         "removeKnownDevice",
       ),
     );

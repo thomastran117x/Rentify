@@ -1,8 +1,8 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
-import { AuthController } from "@/features/auth/auth.controller";
 import { AuthRepository } from "@/features/auth/auth.repository";
-import { AuthService } from "@/features/auth/auth.service";
+import { AuthSessionService } from "@/features/auth/session/session.service";
+import { AuthSessionController } from "@/features/auth/session/session.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
@@ -36,52 +36,26 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         }),
     });
     container.register({
-      token: containerTokens.authService,
+      token: containerTokens.authSessionService,
       lifetime: "scoped",
       dependencies: [
         containerTokens.authRepository,
         containerTokens.tokenService,
-        containerTokens.otpService,
         containerTokens.deviceService,
-        containerTokens.emailService,
-        containerTokens.googleOAuthService,
-        containerTokens.microsoftOAuthService,
-        containerTokens.appleOAuthService,
-        containerTokens.cacheService,
-        containerTokens.mfaTotpService,
-        containerTokens.usernameBloomService,
       ],
       resolve: ({ resolve }) =>
-        new AuthService(
+        new AuthSessionService(
           resolve(containerTokens.authRepository),
           resolve(containerTokens.tokenService),
-          resolve(containerTokens.otpService),
           resolve(containerTokens.deviceService),
-          resolve(containerTokens.emailService),
-          resolve(containerTokens.googleOAuthService),
-          resolve(containerTokens.microsoftOAuthService),
-          resolve(containerTokens.appleOAuthService),
-          resolve(containerTokens.cacheService),
-          resolve(containerTokens.mfaTotpService),
-          resolve(containerTokens.usernameBloomService),
         ),
     });
     container.register({
-      token: containerTokens.authController,
+      token: containerTokens.authSessionController,
       lifetime: "scoped",
-      dependencies: [
-        containerTokens.authService,
-        containerTokens.captchaService,
-        containerTokens.tokenService,
-        containerTokens.mfaVerificationService,
-      ],
+      dependencies: [containerTokens.authSessionService],
       resolve: ({ resolve }) =>
-        new AuthController(
-          resolve(containerTokens.authService),
-          resolve(containerTokens.captchaService),
-          resolve(containerTokens.tokenService),
-          resolve(containerTokens.mfaVerificationService),
-        ),
+        new AuthSessionController(resolve(containerTokens.authSessionService)),
     });
   },
 };

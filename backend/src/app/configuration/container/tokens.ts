@@ -2,10 +2,11 @@ import { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-c
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
 import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
-import { AuthController } from "@/features/auth/auth.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
@@ -14,11 +15,18 @@ import { TotpService } from "@/features/auth/mfa/totp/totp.service";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
+import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
+import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { AuthRepository } from "@/features/auth/auth.repository";
-import { AuthService } from "@/features/auth/auth.service";
+import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
+import { LocalAuthService } from "@/features/auth/local/local-auth.service";
+import { AuthSessionService } from "@/features/auth/session/session.service";
+import { AuthSessionController } from "@/features/auth/session/session.controller";
+import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
+import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
@@ -70,6 +78,12 @@ import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { PaymentsService } from "@/features/payments/payments.service";
 import { UsernameBloomRepository } from "@/features/auth/username-bloom/username-bloom.repository";
 import { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
+import { PasswordController } from "@/features/auth/password/password.controller";
+import { PasswordService } from "@/features/auth/password/password.service";
+import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import { UsernameController } from "@/features/auth/username/username.controller";
+import { UsernameService } from "@/features/auth/username/username.service";
 import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { ProfileRepository } from "@/features/profile/profile.repository";
@@ -254,8 +268,18 @@ export const containerTokens = {
     "MicrosoftOAuthService",
   ),
   appleOAuthService: createServiceToken<AppleOAuthService>("AppleOAuthService"),
+  oauthAccountsService: createServiceToken<OAuthAccountsService>(
+    "OAuthAccountsService",
+  ),
+  oauthController: createServiceToken<OAuthController>("OAuthController"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
+  deviceManagementService: createServiceToken<DeviceManagementService>(
+    "DeviceManagementService",
+  ),
+  deviceManagementController: createServiceToken<DeviceManagementController>(
+    "DeviceManagementController",
+  ),
   tokenService: createServiceToken<TokenService>("TokenService"),
   authRepository: createServiceToken<AuthRepository>("AuthRepository"),
   personalAccessTokenRepository:
@@ -265,8 +289,30 @@ export const containerTokens = {
   personalAccessTokenService: createServiceToken<PersonalAccessTokenService>(
     "PersonalAccessTokenService",
   ),
-  authService: createServiceToken<AuthService>("AuthService"),
-  authController: createServiceToken<AuthController>("AuthController"),
+  authSessionService:
+    createServiceToken<AuthSessionService>("AuthSessionService"),
+  authSessionController: createServiceToken<AuthSessionController>(
+    "AuthSessionController",
+  ),
+  pendingSignupStore:
+    createServiceToken<PendingSignupStore>("PendingSignupStore"),
+  publicOtpService: createServiceToken<PublicOtpService>("PublicOtpService"),
+  passwordService: createServiceToken<PasswordService>("PasswordService"),
+  passwordController:
+    createServiceToken<PasswordController>("PasswordController"),
+  loginLockoutService: createServiceToken<LoginLockoutService>(
+    "LoginLockoutService",
+  ),
+  loginLockoutController: createServiceToken<LoginLockoutController>(
+    "LoginLockoutController",
+  ),
+  usernameService: createServiceToken<UsernameService>("UsernameService"),
+  usernameController:
+    createServiceToken<UsernameController>("UsernameController"),
+  localAuthService: createServiceToken<LocalAuthService>("LocalAuthService"),
+  localAuthController: createServiceToken<LocalAuthController>(
+    "LocalAuthController",
+  ),
   personalAccessTokenController:
     createServiceToken<PersonalAccessTokenController>(
       "PersonalAccessTokenController",
