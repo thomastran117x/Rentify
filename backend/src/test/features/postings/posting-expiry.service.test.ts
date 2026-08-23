@@ -83,8 +83,13 @@ class FakeCacheService {
 
 class FakePublicCacheService {
   invalidated: string[] = [];
+  shouldThrow = false;
 
   async invalidatePublic(postingId: string) {
+    if (this.shouldThrow) {
+      throw new Error("redis unavailable");
+    }
+
     this.invalidated.push(postingId);
   }
 }
@@ -221,6 +226,19 @@ describe("PostingExpiryService.expireDuePostings", () => {
     expect(processed).toBe(2);
     expect(repository.expireCalls).toEqual(["posting-2"]);
     expect(publicCache.invalidated).toEqual(["posting-2"]);
+  });
+
+  it("still records the audit entry when cache invalidation fails", async () => {
+    const { service, repository, audit, publicCache } = createService();
+    repository.dueCandidates = [buildCandidate()];
+    repository.expireResults.set("posting-1", buildPaused());
+    publicCache.shouldThrow = true;
+
+    await expect(service.expireDuePostings(10)).resolves.toBe(1);
+
+    // The posting is already paused, so the sweep will never revisit it. If a
+    // Redis blip could skip the audit write, that entry would be lost for good.
+    expect(audit.records).toHaveLength(1);
   });
 
   it("still completes the transition when the audit sink fails", async () => {

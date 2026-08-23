@@ -32,6 +32,14 @@ const DAY_IN_MS = 24 * 60 * 60 * 1000;
  */
 export const EXPIRY_WARNING_DAYS = 7;
 
+/**
+ * Mirrors MAX_POSTING_EXPIRY_HORIZON_DAYS in the backend posting model. Types
+ * here are hand-written rather than generated, so this constant has to be kept
+ * in step by hand; without it the wizard happily accepts a date the API then
+ * rejects on save.
+ */
+export const MAX_EXPIRY_HORIZON_DAYS = 730;
+
 export const EXPIRY_TONE_STYLES: Record<ExpiryTone, string> = {
   neutral: "border-slate-200 bg-slate-50 text-slate-600",
   warning: "border-amber-200 bg-amber-50 text-amber-700",
@@ -103,6 +111,19 @@ export function isExpiryInPast(value: string, now = Date.now()): boolean {
  * Formats a stored expiry as its calendar day. Reads UTC for the same reason
  * `toExpiryInputValue` does: the displayed day must be the day that was picked.
  */
+export function isExpiryBeyondHorizon(
+  value: string,
+  now = Date.now(),
+): boolean {
+  const iso = toExpiryIsoValue(value);
+
+  if (!iso) {
+    return false;
+  }
+
+  return new Date(iso).getTime() > now + MAX_EXPIRY_HORIZON_DAYS * DAY_IN_MS;
+}
+
 export function formatExpiryDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, {
     timeZone: "UTC",

@@ -432,8 +432,21 @@ describe("posting expiry in the wizard", () => {
     });
   });
 
+  it("rejects an expiry date beyond the backend horizon", () => {
+    const form = { ...createDefaultFormState(), expiresAt: "2099-01-01" };
+
+    // The API rejects these too; catching it here keeps the user out of a
+    // server error on save.
+    expect(validateStep("availability", form, 1).expiresAt).toMatch(
+      /cannot be more than 730 days away/,
+    );
+  });
+
   it("accepts a future expiry date and a blank one", () => {
-    const future = { ...createDefaultFormState(), expiresAt: "2099-01-01" };
+    const withinHorizon = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const future = { ...createDefaultFormState(), expiresAt: withinHorizon };
     const blank = createDefaultFormState();
 
     expect(validateStep("availability", future, 1)).toEqual({});

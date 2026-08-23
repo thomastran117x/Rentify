@@ -3310,8 +3310,29 @@ describe("PostingsService availability calendar", () => {
 });
 
 describe("PostingsService posting expiry", () => {
-  const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const PAST = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+  function endOfUtcDay(offsetDays: number): string {
+    const date = new Date(Date.now() + offsetDays * DAY_IN_MS);
+
+    return new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    ).toISOString();
+  }
+
+  const FUTURE = endOfUtcDay(30);
+  // "Past" now means a day that has already ended, not merely an instant
+  // before now: inputs are snapped to their UTC day boundary before the future
+  // check, so an instant from earlier today is still a live deadline.
+  const PAST = endOfUtcDay(-2);
 
   it("accepts a future expiry date on create", async () => {
     const repository = new FakePostingsRepository();
@@ -3452,6 +3473,62 @@ describe("PostingsService posting expiry", () => {
     ).resolves.toMatchObject({
       status: "published",
     });
+  });
+
+  it("snaps an API-supplied expiry to the end of its UTC day", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const midday = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    midday.setUTCHours(12, 30, 0, 0);
+
+    await service.createDraft("owner-1", {
+      ...createValidInput(),
+      expiresAt: midday.toISOString(),
+    });
+
+    // Storing an unsnapped instant would reintroduce drift: the wizard reduces
+    // it to a date on open, then the next save expands it back to end-of-day.
+    const expected = new Date(
+      Date.UTC(
+        midday.getUTCFullYear(),
+        midday.getUTCMonth(),
+        midday.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    ).toISOString();
+    expect(repository.lastCreateInput?.expiresAt).toBe(expected);
+  });
+
+  it("accepts an instant earlier today because its day has not ended", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const earlierToday = new Date();
+    earlierToday.setUTCHours(0, 0, 1, 0);
+
+    // Normalizing before the future check is deliberate: the client means
+    // "expire at the end of this day", which is still ahead.
+    await service.createDraft("owner-1", {
+      ...createValidInput(),
+      expiresAt: earlierToday.toISOString(),
+    });
+
+    expect(repository.createCalls).toBe(1);
+  });
+
+  it("still rejects an instant on a day that has fully passed", async () => {
+    const repository = new FakePostingsRepository();
+    const service = createService(repository);
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    await expect(
+      service.createDraft("owner-1", {
+        ...createValidInput(),
+        expiresAt: lastWeek.toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 
   it("does not carry an expiry date onto a duplicate", async () => {

@@ -82,11 +82,13 @@ export class PostingExpiryService {
           return;
         }
 
-        await invalidatePublicPostingProjection(
-          this.postingsPublicCacheService,
-          expired.id,
-        );
+        // Post-commit side effects, each isolated on purpose. The transition
+        // is already durable and the posting is no longer `published`, so this
+        // candidate will never be selected again: letting one failure abort the
+        // rest would drop them permanently rather than defer them. The audit
+        // entry goes first because it is the only one with no other backstop.
         await this.recordExpiryAudit(candidate, expired);
+        await this.invalidateProjection(expired.id, candidate.organizationId);
 
         this.logger.info("Posting expired and was paused.", {
           postingId: expired.id,
@@ -177,6 +179,38 @@ export class PostingExpiryService {
       recipientId,
       expiresAt: candidate.expiresAt,
     });
+  }
+
+  /**
+   * Drops the cached public projection for a posting that has just expired.
+   *
+   * Swallows failures deliberately. The row is already paused, so the sweep
+   * will not revisit it, and the search index was updated inside the expiry
+   * transaction via the outbox. A failure here therefore degrades to the
+   * projection serving a stale listing until its own stale TTL elapses, rather
+   * than to lasting inconsistency, and it must not be allowed to skip the audit
+   * entry or abort the rest of the batch. It is logged at error level because
+   * the staleness window is user-visible and worth alerting on.
+   */
+  private async invalidateProjection(
+    postingId: string,
+    organizationId: string,
+  ): Promise<void> {
+    try {
+      await invalidatePublicPostingProjection(
+        this.postingsPublicCacheService,
+        postingId,
+      );
+    } catch (error) {
+      this.logger.error(
+        "Failed to invalidate the public projection for an expired posting; it will serve stale until its cache TTL elapses.",
+        {
+          postingId,
+          organizationId,
+        },
+        error,
+      );
+    }
   }
 
   private async recordExpiryAudit(

@@ -14,6 +14,8 @@ import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
 import {
+  MAX_EXPIRY_HORIZON_DAYS,
+  isExpiryBeyondHorizon,
   isExpiryInPast,
   toExpiryInputValue,
   toExpiryIsoValue,
@@ -444,8 +446,14 @@ export function validateStep(
         errors[key as string] = `${label} must be a whole number.`;
       }
     }
-    if (form.expiresAt.trim() && isExpiryInPast(form.expiresAt)) {
-      errors.expiresAt = "Expiry date must be in the future.";
+    if (form.expiresAt.trim()) {
+      if (isExpiryInPast(form.expiresAt)) {
+        errors.expiresAt = "Expiry date must be in the future.";
+      } else if (isExpiryBeyondHorizon(form.expiresAt)) {
+        // Mirrors the backend horizon so the field explains itself here rather
+        // than failing with a server error on save.
+        errors.expiresAt = `Expiry date cannot be more than ${MAX_EXPIRY_HORIZON_DAYS} days away. Leave it blank to keep this listing live indefinitely.`;
+      }
     }
   } else if (stepId === "details") {
     if (photoCount < 1) {

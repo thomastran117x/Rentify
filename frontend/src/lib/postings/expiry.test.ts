@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_EXPIRY_HORIZON_DAYS,
   describeExpiry,
   formatExpiryDate,
+  isExpiryBeyondHorizon,
   isExpiryInPast,
   toExpiryInputValue,
   toExpiryIsoValue,
@@ -146,5 +148,34 @@ describe("formatExpiryDate", () => {
     expect(formatted).toContain("2026");
     expect(formatted).toMatch(/Sep/i);
     expect(formatted).toMatch(/Sep 1, 2026/);
+  });
+});
+
+describe("isExpiryBeyondHorizon", () => {
+  const now = new Date("2026-08-23T12:00:00.000Z").getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  function dayOffsetFromNow(days: number): string {
+    return new Date(now + days * dayMs).toISOString().slice(0, 10);
+  }
+
+  it("accepts a date inside the supported horizon", () => {
+    expect(isExpiryBeyondHorizon(dayOffsetFromNow(365), now)).toBe(false);
+  });
+
+  it("rejects a date past the horizon", () => {
+    // Guards the gap the wizard had: the backend rejects these, so the field
+    // has to say so before submission rather than failing on save.
+    expect(
+      isExpiryBeyondHorizon(
+        dayOffsetFromNow(MAX_EXPIRY_HORIZON_DAYS + 30),
+        now,
+      ),
+    ).toBe(true);
+    expect(isExpiryBeyondHorizon("2099-01-01", now)).toBe(true);
+  });
+
+  it("treats a blank value as within the horizon", () => {
+    expect(isExpiryBeyondHorizon("", now)).toBe(false);
   });
 });

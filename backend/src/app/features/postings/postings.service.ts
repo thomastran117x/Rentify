@@ -941,6 +941,7 @@ export class PostingsService {
       advanceNoticeDays: input.advanceNoticeDays ?? null,
       cancellationPolicy: input.cancellationPolicy ?? null,
       cancellationPolicyNotes: input.cancellationPolicyNotes?.trim() || null,
+      expiresAt: this.normalizeExpiry(input.expiresAt),
       availabilityBlocks: normalizedBlocks,
       location: {
         ...input.location,
@@ -1441,6 +1442,48 @@ export class PostingsService {
     }
 
     this.assertValidExpiry(input.expiresAt);
+  }
+
+  /**
+   * Snaps a supplied expiry to the end of its UTC calendar day.
+   *
+   * The contract defines an expiry as a calendar day, and the dashboard only
+   * ever sends day boundaries. An API client is free to send any valid ISO
+   * instant though, and storing one unsnapped reintroduces exactly the drift
+   * the UTC anchoring removed: the wizard reduces the instant to a date when
+   * the posting is opened, then the next unrelated save expands it back to
+   * end-of-day and silently moves the deadline while re-arming the reminder.
+   * Normalizing on the way in means every client observes the same semantics.
+   *
+   * Normalizing before validation is deliberate: a client sending midday on a
+   * day that is still running means "expire at the end of that day", so the
+   * snapped value is what the future check should see.
+   */
+  private normalizeExpiry(expiresAt: string | null | undefined): string | null {
+    if (!expiresAt) {
+      return null;
+    }
+
+    const parsed = Date.parse(expiresAt);
+
+    if (Number.isNaN(parsed)) {
+      // Left for assertValidExpiry to reject with a useful message.
+      return expiresAt;
+    }
+
+    const date = new Date(parsed);
+
+    return new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    ).toISOString();
   }
 
   /**

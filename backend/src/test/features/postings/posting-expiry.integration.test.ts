@@ -131,13 +131,32 @@ describe("posting expiry persistence", () => {
     });
     expect(pastResponse.status).toBe(400);
 
-    const expiresAt = new Date(Date.now() + 30 * DAY_IN_MS).toISOString();
-    const postingId = await createPublishedPosting(owner, expiresAt);
+    // Deliberately not a day boundary: the API must snap whatever instant a
+    // client sends to the end of its UTC day, so every client observes the same
+    // calendar-day semantics the contract documents.
+    const requested = new Date(Date.now() + 30 * DAY_IN_MS);
+    requested.setUTCHours(9, 15, 0, 0);
+    const postingId = await createPublishedPosting(
+      owner,
+      requested.toISOString(),
+    );
 
     const stored = await persistenceApp.prisma.posting.findUniqueOrThrow({
       where: { id: postingId },
     });
-    expect(stored.expiresAt?.toISOString()).toBe(expiresAt);
+    expect(stored.expiresAt?.toISOString()).toBe(
+      new Date(
+        Date.UTC(
+          requested.getUTCFullYear(),
+          requested.getUTCMonth(),
+          requested.getUTCDate(),
+          23,
+          59,
+          59,
+          999,
+        ),
+      ).toISOString(),
+    );
     expect(stored.status).toBe("published");
   }, 120_000);
 
