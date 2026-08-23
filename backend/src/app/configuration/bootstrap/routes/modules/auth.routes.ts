@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import type { AuthController } from "@/features/auth/auth.controller";
+import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -173,19 +174,22 @@ export const authDevicesRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/device/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
         "deviceVerify",
       ),
     );
     app.get(
       "/auth/devices",
-      resolveHandler<AuthController>(containerTokens.authController, "devices"),
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
+        "devices",
+      ),
     );
     app.delete(
       "/auth/devices/remove",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
         "removeKnownDevice",
       ),
     );

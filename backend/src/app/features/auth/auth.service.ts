@@ -10,6 +10,7 @@ import { EmailService } from "@/features/email/email.service";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import {
   type AuthActiveOrganizationSummary,
+  type AuthRequestContext,
   type AuthSessionResult,
   type SignupVerificationPendingResult,
   type AuthUserProfile,
@@ -25,7 +26,6 @@ import {
   type OAuthProvider,
   type RefreshInput,
   type ResetPasswordInput,
-  type RemoveKnownDeviceInput,
   type ResendForgotPasswordInput,
   type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
@@ -77,12 +77,6 @@ import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
-
-interface AuthRequestContext {
-  auth: AuthPrincipal;
-  client: ClientRequestContext;
-  refreshToken?: string;
-}
 
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
@@ -828,91 +822,6 @@ export class AuthService {
         deviceId: context.auth.deviceId,
       },
       client: context.client,
-    };
-  }
-
-  async deviceVerify(context: AuthRequestContext): Promise<{
-    verified: true;
-    device: ClientRequestContext["device"] & {
-      known: boolean;
-      knownByIp: boolean;
-      deviceId?: string;
-    };
-    auth: {
-      userId: string;
-      tokenDeviceId?: string;
-    };
-  }> {
-    const user = await requireExistingUser(this.authRepository, context.auth.sub);
-    const deviceStatus = await this.deviceService.registerKnownDevice(
-      user,
-      context.client,
-      context.auth.deviceId ?? context.client.device.id,
-    );
-
-    return {
-      verified: true,
-      device: {
-        ...context.client.device,
-        known: deviceStatus.known,
-        knownByIp: deviceStatus.knownByIp,
-        deviceId: deviceStatus.deviceId,
-      },
-      auth: {
-        userId: context.auth.sub,
-        tokenDeviceId: context.auth.deviceId,
-      },
-    };
-  }
-
-  async devices(context: AuthRequestContext): Promise<{
-    devices: Array<{
-      id: string;
-      current: boolean;
-      deviceId: string;
-      type: string;
-      platform?: string;
-      userAgent?: string;
-      lastIpAddress?: string;
-      firstSeenAt: string;
-      lastSeenAt: string;
-      verifiedAt: string;
-    }>;
-  }> {
-    const knownDevices = await this.deviceService.listKnownDevices(
-      context.auth.sub,
-      context.auth.deviceId,
-    );
-
-    return {
-      devices: knownDevices.map((device) => ({
-        id: device.id,
-        current: device.current,
-        deviceId: device.deviceId,
-        type: device.type,
-        platform: device.platform,
-        userAgent: device.userAgent,
-        lastIpAddress: device.lastIpAddress,
-        firstSeenAt: device.firstSeenAt,
-        lastSeenAt: device.lastSeenAt,
-        verifiedAt: device.verifiedAt,
-      })),
-    };
-  }
-
-  async removeKnownDevice(input: RemoveKnownDeviceInput): Promise<{
-    removed: true;
-    deviceId: string;
-  }> {
-    await this.deviceService.removeKnownDevice(input.userId, input.deviceId);
-    await this.tokenService.revokeSessionsForDevice(
-      input.userId,
-      input.deviceId,
-    );
-
-    return {
-      removed: true,
-      deviceId: input.deviceId,
     };
   }
 

@@ -1,4 +1,5 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 
@@ -207,10 +208,6 @@ export const setPasswordRequestSchema = z.object({
   newPassword: strongPasswordSchema,
 });
 
-export const removeKnownDeviceRequestSchema = z.object({
-  deviceId: z.string().trim().min(1, "Device ID is required."),
-});
-
 export type LocalSignupRequestBody = z.infer<typeof localSignupRequestSchema>;
 
 export type UsernameAvailabilityQuery = z.infer<
@@ -252,10 +249,6 @@ export type ResendUnlockLocalLoginRequestBody = z.infer<
 >;
 
 export type RefreshRequestBody = z.infer<typeof refreshRequestSchema>;
-
-export type RemoveKnownDeviceRequestBody = z.infer<
-  typeof removeKnownDeviceRequestSchema
->;
 
 export type ForgotPasswordRequestBody = z.infer<
   typeof forgotPasswordRequestSchema
@@ -350,9 +343,10 @@ export interface RefreshInput {
   refreshToken?: string;
 }
 
-export interface RemoveKnownDeviceInput {
-  userId: string;
-  deviceId: string;
+export interface AuthRequestContext {
+  auth: AuthPrincipal;
+  client: ClientRequestContext;
+  refreshToken?: string;
 }
 
 export interface ForgotPasswordInput {

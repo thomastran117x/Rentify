@@ -1181,43 +1181,6 @@ describe("AuthController", () => {
     });
   });
 
-  it("removeKnownDevice authenticates first and maps the route input to the authenticated user id", async () => {
-    const auth = createClaims({
-      sub: "user-12",
-    });
-    mockRequireRecentMfaVerification.mockImplementation(
-      async (request: TestContext["request"]) => {
-        request.auth = auth;
-        return auth;
-      },
-    );
-    const { controller, authService } = createController();
-    const context = createContext({
-      body: {
-        deviceId: "device-99",
-      },
-    });
-
-    const response = await invoke(controller.removeKnownDevice, context);
-
-    expect(authService.removeKnownDevice).toHaveBeenCalledWith({
-      userId: "user-12",
-      deviceId: "device-99",
-    });
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      data: {
-        removed: true,
-        deviceId: "device-2",
-      },
-      error: null,
-      message: "Known device removed successfully.",
-      meta: {
-        requestId: "request-test",
-      },
-    });
-  });
-
   it("covers oauth authentication, linking, provider listing, and unlinking", async () => {
     const auth = createClaims({
       sub: "user-15",
@@ -1417,44 +1380,5 @@ describe("AuthController", () => {
     );
 
     expect(authService.unlinkOAuthProvider).not.toHaveBeenCalled();
-  });
-
-  it("covers device verification and known-device listing routes", async () => {
-    const auth = createClaims({
-      sub: "user-44",
-      deviceId: "trusted-device-44",
-    });
-    mockRequireJwtAuth.mockImplementation(
-      async (request: TestContext["request"]) => {
-        request.auth = auth;
-        return auth;
-      },
-    );
-    mockRequireRecentMfaVerification.mockResolvedValue(undefined);
-    const { controller, authService } = createController();
-
-    const verifyResponse = await invoke(
-      controller.deviceVerify,
-      createContext({
-        auth,
-      }),
-    );
-    const devicesResponse = await invoke(
-      controller.devices,
-      createContext({
-        auth,
-      }),
-    );
-
-    expect(authService.deviceVerify).toHaveBeenCalledWith({
-      auth,
-      client: expect.any(Object),
-    });
-    expect(authService.devices).toHaveBeenCalledWith({
-      auth,
-      client: expect.any(Object),
-    });
-    expect(verifyResponse.status).toBe(200);
-    expect(devicesResponse.status).toBe(200);
   });
 });

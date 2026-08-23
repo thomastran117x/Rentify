@@ -6,6 +6,8 @@ import { AuthController } from "@/features/auth/auth.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
@@ -259,6 +261,12 @@ export const containerTokens = {
   appleOAuthService: createServiceToken<AppleOAuthService>("AppleOAuthService"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
+  deviceManagementService: createServiceToken<DeviceManagementService>(
+    "DeviceManagementService",
+  ),
+  deviceManagementController: createServiceToken<DeviceManagementController>(
+    "DeviceManagementController",
+  ),
   tokenService: createServiceToken<TokenService>("TokenService"),
   authRepository: createServiceToken<AuthRepository>("AuthRepository"),
   personalAccessTokenRepository:

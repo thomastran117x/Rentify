@@ -23,7 +23,6 @@ import {
   toLocalSignupInput,
   toOAuthAuthenticateInput,
   toRefreshInput,
-  toRemoveKnownDeviceInput,
   toResendForgotPasswordInput,
   toResendUnlockLocalLoginInput,
   toResendVerificationEmailInput,
@@ -41,7 +40,6 @@ import {
   localSignupRequestSchema,
   oauthAuthenticateRequestSchema,
   refreshRequestSchema,
-  removeKnownDeviceRequestSchema,
   resendForgotPasswordRequestSchema,
   resendUnlockLocalLoginRequestSchema,
   resetPasswordRequestSchema,
@@ -383,54 +381,6 @@ export class AuthController {
 
     ok(response, result, {
       message: "Logged out successfully.",
-    });
-  };
-
-  deviceVerify = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireJwtAuth(request);
-    const result = await this.authService.deviceVerify({
-      auth: request.auth,
-      client: request.client,
-    });
-    ok(response, result, {
-      message: "Device verified successfully.",
-    });
-  };
-
-  devices = async (request: Request, response: Response): Promise<void> => {
-    await requireRecentMfaVerification(
-      request,
-      this.mfaVerificationService,
-      MFA_MANAGEMENT_SCOPE,
-    );
-    const result = await this.authService.devices({
-      auth: request.auth,
-      client: request.client,
-    });
-    ok(response, result);
-  };
-
-  removeKnownDevice = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireRecentMfaVerification(
-      request,
-      this.mfaVerificationService,
-      MFA_MANAGEMENT_SCOPE,
-    );
-    const input = await parseRequestBody(
-      request,
-      removeKnownDeviceRequestSchema,
-    );
-    const result = await this.authService.removeKnownDevice(
-      toRemoveKnownDeviceInput(request, input),
-    );
-    ok(response, result, {
-      message: "Known device removed successfully.",
     });
   };
 

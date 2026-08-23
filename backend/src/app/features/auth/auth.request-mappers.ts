@@ -21,8 +21,6 @@ import type {
   OAuthProvider,
   RefreshInput,
   RefreshRequestBody,
-  RemoveKnownDeviceInput,
-  RemoveKnownDeviceRequestBody,
   ResendForgotPasswordInput,
   ResendForgotPasswordRequestBody,
   ResendUnlockLocalLoginInput,
@@ -40,6 +38,10 @@ import type {
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
+import type {
+  RemoveKnownDeviceInput,
+  RemoveKnownDeviceRequestBody,
+} from "@/features/auth/device/device-management.model";
 import {
   oauthProviderSchema,
   usernameAvailabilityQuerySchema,
