@@ -265,13 +265,3 @@ Two consequences to keep in mind:
   leaves every query waiting for the acquire timeout
 - connections above the minimum are reaped only after the driver's 30-minute
   idle timeout, so a traffic burst holds its peak for a while before decaying
-
-## Auth Model
-
-Browser sessions use cookie-backed refresh tokens plus CSRF protection, while non-browser clients use refresh tokens in JSON bodies and bearer access tokens. For the full details, read [auth-session-model.md](./auth-session-model.md).
-
-## Design Deep Dives
-
-- booking concurrency: [booking-locking-tradeoffs.md](./booking-locking-tradeoffs.md)
-- recommendation rollout: [recommendations-phase-1-activity-capture.md](./recommendations-phase-1-activity-capture.md), [recommendations-phase-2-precompute-worker.md](./recommendations-phase-2-precompute-worker.md), [recommendations-phase-3-query-api.md](./recommendations-phase-3-query-api.md)
-- product and system direction: [rentify-plan.md](./rentify-plan.md)
