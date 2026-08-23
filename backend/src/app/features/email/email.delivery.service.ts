@@ -524,7 +524,7 @@ export class EmailDeliveryService {
 
     if (!content) {
       deliveryLogger.info(
-        "Posting expiry reminder skipped; the posting is no longer expiring on this date.",
+        "Posting expiry reminder skipped; the deadline is no longer upcoming for this posting.",
         {
           postingId: input.postingId,
           expiresAt: input.expiresAt,

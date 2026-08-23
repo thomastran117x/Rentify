@@ -4,7 +4,15 @@ import { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-e
 import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 
-const EXPIRES_AT = "2026-08-24T23:59:59.999Z";
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Relative rather than a fixed date: the composer now refuses deadlines that
+ * have already passed, so a hard-coded literal would quietly start failing the
+ * happy-path cases once real time moved past it.
+ */
+const EXPIRES_AT = new Date(Date.now() + 3 * DAY_IN_MS).toISOString();
+const ALREADY_PASSED = new Date(Date.now() - DAY_IN_MS).toISOString();
 
 function buildPosting(overrides: Partial<PostingRecord> = {}): PostingRecord {
   return {
@@ -111,10 +119,26 @@ describe("PostingExpiryEmailComposer", () => {
 
   it("skips when the owner moved the expiry date while the job waited", async () => {
     const composer = createComposer({
-      posting: buildPosting({ expiresAt: "2026-12-01T23:59:59.999Z" }),
+      posting: buildPosting({
+        expiresAt: new Date(Date.now() + 30 * DAY_IN_MS).toISOString(),
+      }),
     });
 
     await expect(composer.compose(input)).resolves.toBeNull();
+  });
+
+  it("skips when the deadline has already passed", async () => {
+    // The sweeper that pauses expired postings runs in its own worker. If it is
+    // stopped or lagging, the posting is still `published` on its original
+    // instant and every other guard passes, so without this check the owner
+    // gets an "about to expire" email naming a day that has already gone.
+    const composer = createComposer({
+      posting: buildPosting({ expiresAt: ALREADY_PASSED }),
+    });
+
+    await expect(
+      composer.compose({ ...input, expiresAt: ALREADY_PASSED }),
+    ).resolves.toBeNull();
   });
 
   it("skips when the recipient has lost their organization membership", async () => {

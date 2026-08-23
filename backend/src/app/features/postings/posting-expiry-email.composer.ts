@@ -58,6 +58,15 @@ export class PostingExpiryEmailComposer {
       return null;
     }
 
+    // The deadline itself must still be ahead. Matching the instant is not
+    // enough: the sweeper that pauses expired postings runs in its own worker,
+    // so if it is stopped or lagging the posting stays `published` past its
+    // date and every check above still passes. Sending then would announce
+    // that a listing is "about to expire" on a day that has already gone.
+    if (Date.parse(posting.expiresAt) <= Date.now()) {
+      return null;
+    }
+
     // Re-checked at send time, never trusted from the job. The recipient was
     // the organization's primary manager when the reminder was claimed; by now
     // they may have been removed or replaced, and this email names a listing
