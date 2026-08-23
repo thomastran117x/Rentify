@@ -202,7 +202,9 @@ describe("UsernameService.resolveUsernameAvailabilityHint", () => {
 
     await harness.service.resolveUsernameAvailabilityHint("  Casey-Doe  ");
 
-    expect(harness.usernameBloomService.check).toHaveBeenCalledWith("casey-doe");
+    expect(harness.usernameBloomService.check).toHaveBeenCalledWith(
+      "casey-doe",
+    );
   });
 
   it("falls through to the database when the filter cannot rule the name out", async () => {
@@ -325,7 +327,9 @@ describe("UsernameService.forgotUsername", () => {
         email: "nobody@example.com",
       }),
     ).resolves.toEqual({ accepted: true });
-    expect(harness.emailService.sendUsernameReminderEmail).not.toHaveBeenCalled();
+    expect(
+      harness.emailService.sendUsernameReminderEmail,
+    ).not.toHaveBeenCalled();
   });
 
   it("still reports acceptance when the request is rate limited", async () => {
@@ -342,6 +346,8 @@ describe("UsernameService.forgotUsername", () => {
         email: "user@example.com",
       }),
     ).resolves.toEqual({ accepted: true });
-    expect(harness.emailService.sendUsernameReminderEmail).not.toHaveBeenCalled();
+    expect(
+      harness.emailService.sendUsernameReminderEmail,
+    ).not.toHaveBeenCalled();
   });
 });

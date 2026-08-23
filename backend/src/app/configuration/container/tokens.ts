@@ -268,8 +268,9 @@ export const containerTokens = {
     "MicrosoftOAuthService",
   ),
   appleOAuthService: createServiceToken<AppleOAuthService>("AppleOAuthService"),
-  oauthAccountsService:
-    createServiceToken<OAuthAccountsService>("OAuthAccountsService"),
+  oauthAccountsService: createServiceToken<OAuthAccountsService>(
+    "OAuthAccountsService",
+  ),
   oauthController: createServiceToken<OAuthController>("OAuthController"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
@@ -290,25 +291,28 @@ export const containerTokens = {
   ),
   authSessionService:
     createServiceToken<AuthSessionService>("AuthSessionService"),
-  authSessionController:
-    createServiceToken<AuthSessionController>("AuthSessionController"),
-  pendingSignupStore: createServiceToken<PendingSignupStore>(
-    "PendingSignupStore",
+  authSessionController: createServiceToken<AuthSessionController>(
+    "AuthSessionController",
   ),
+  pendingSignupStore:
+    createServiceToken<PendingSignupStore>("PendingSignupStore"),
   publicOtpService: createServiceToken<PublicOtpService>("PublicOtpService"),
   passwordService: createServiceToken<PasswordService>("PasswordService"),
   passwordController:
     createServiceToken<PasswordController>("PasswordController"),
-  loginLockoutService:
-    createServiceToken<LoginLockoutService>("LoginLockoutService"),
-  loginLockoutController:
-    createServiceToken<LoginLockoutController>("LoginLockoutController"),
+  loginLockoutService: createServiceToken<LoginLockoutService>(
+    "LoginLockoutService",
+  ),
+  loginLockoutController: createServiceToken<LoginLockoutController>(
+    "LoginLockoutController",
+  ),
   usernameService: createServiceToken<UsernameService>("UsernameService"),
   usernameController:
     createServiceToken<UsernameController>("UsernameController"),
   localAuthService: createServiceToken<LocalAuthService>("LocalAuthService"),
-  localAuthController:
-    createServiceToken<LocalAuthController>("LocalAuthController"),
+  localAuthController: createServiceToken<LocalAuthController>(
+    "LocalAuthController",
+  ),
   personalAccessTokenController:
     createServiceToken<PersonalAccessTokenController>(
       "PersonalAccessTokenController",

@@ -238,11 +238,13 @@ describe("PublicOtpService email delivery", () => {
     await harness.service.sendUsernameReminder(createUser());
 
     expect(harness.otpService.issue).not.toHaveBeenCalled();
-    expect(harness.emailService.sendUsernameReminderEmail).toHaveBeenCalledWith({
-      to: "user@example.com",
-      username: "test-user",
-      firstName: "Test",
-    });
+    expect(harness.emailService.sendUsernameReminderEmail).toHaveBeenCalledWith(
+      {
+        to: "user@example.com",
+        username: "test-user",
+        firstName: "Test",
+      },
+    );
   });
 
   it("sends a login unlock code", async () => {

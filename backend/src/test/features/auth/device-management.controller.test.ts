@@ -81,7 +81,10 @@ describe("DeviceManagementController.deviceVerify", () => {
   it("does not require an MFA step-up", async () => {
     const { controller } = createController();
 
-    await invoke(controller.deviceVerify, createContext({ auth: createClaims() }));
+    await invoke(
+      controller.deviceVerify,
+      createContext({ auth: createClaims() }),
+    );
 
     expect(mockRequireRecentMfaVerification).not.toHaveBeenCalled();
   });
@@ -92,10 +95,7 @@ describe("DeviceManagementController.devices", () => {
     const auth = createClaims({ sub: "user-7" });
     const { controller, deviceManagementService } = createController();
 
-    const response = await invoke(
-      controller.devices,
-      createContext({ auth }),
-    );
+    const response = await invoke(controller.devices, createContext({ auth }));
 
     expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
       expect.anything(),

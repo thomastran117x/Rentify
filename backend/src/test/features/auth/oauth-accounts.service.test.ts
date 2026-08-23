@@ -216,9 +216,9 @@ describe("OAuthAccountsService sign-in", () => {
       emailVerified: false,
     });
 
-    await expect(harness.service.googleAuthenticate(oauthInput)).rejects.toThrow(
-      "OAuth account email must be verified.",
-    );
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).rejects.toThrow("OAuth account email must be verified.");
   });
 
   it("enforces the login MFA gate on a linked account", async () => {
@@ -360,7 +360,10 @@ describe("OAuthAccountsService.linkedOAuthProviders", () => {
   it("reports no password for a social-only account", async () => {
     const harness = createHarness();
     harness.authRepository.findUserById.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     await expect(
@@ -373,7 +376,10 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
   it("blocks unlinking the last usable sign-in method", async () => {
     const harness = createHarness();
     harness.authRepository.findUserById.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     await expect(

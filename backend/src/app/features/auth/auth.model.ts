@@ -208,4 +208,3 @@ export interface AuthResponseBody {
    */
   isNewUser?: boolean;
 }
-

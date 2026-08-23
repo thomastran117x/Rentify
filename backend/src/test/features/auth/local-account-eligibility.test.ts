@@ -1,6 +1,9 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
-import type { AuthUserRecord, OAuthIdentityRecord } from "@/features/auth/auth.model";
+import type {
+  AuthUserRecord,
+  OAuthIdentityRecord,
+} from "@/features/auth/auth.model";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -8,7 +11,8 @@ import {
   requirePasswordlessLinkedUser,
 } from "@/features/auth/local-account-eligibility";
 
-const BCRYPT_HASH = "$2b$12$1M7NQyWNh5v3NFg4cTQdUeVUI5BvR9f0vAOVeI3E1FQfQ0rFJz0Vy";
+const BCRYPT_HASH =
+  "$2b$12$1M7NQyWNh5v3NFg4cTQdUeVUI5BvR9f0vAOVeI3E1FQfQ0rFJz0Vy";
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
@@ -55,7 +59,9 @@ describe("isLocalPasswordAccount", () => {
   });
 
   it("rejects an account with no hash", () => {
-    expect(isLocalPasswordAccount(createUser({ passwordHash: "" }))).toBe(false);
+    expect(isLocalPasswordAccount(createUser({ passwordHash: "" }))).toBe(
+      false,
+    );
   });
 
   it("rejects an account whose hash is not bcrypt", () => {

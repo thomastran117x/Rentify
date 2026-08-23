@@ -27,7 +27,10 @@ import {
   toUnlockLocalLoginInput,
   toVerifyEmailInput,
 } from "@/features/auth/auth.request-mappers";
-import { createMockRequest, type MockRequestOptions } from "../../support/mock-http";
+import {
+  createMockRequest,
+  type MockRequestOptions,
+} from "../../support/mock-http";
 
 const client = {
   ip: "203.0.113.10",

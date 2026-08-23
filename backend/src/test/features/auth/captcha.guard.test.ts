@@ -12,9 +12,11 @@ function createRequest() {
   });
 }
 
-function createCaptchaService(
-  result: { success: boolean; failOpen?: boolean; errors?: string[] },
-): CaptchaService {
+function createCaptchaService(result: {
+  success: boolean;
+  failOpen?: boolean;
+  errors?: string[];
+}): CaptchaService {
   return {
     verify: jest.fn().mockResolvedValue(result),
   } as unknown as CaptchaService;

@@ -23,7 +23,10 @@ export class LoginLockoutController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    const input = await parseRequestBody(request, unlockLocalLoginRequestSchema);
+    const input = await parseRequestBody(
+      request,
+      unlockLocalLoginRequestSchema,
+    );
     const result = await this.loginLockoutService.unlockLocalLogin(
       toUnlockLocalLoginInput(input),
     );

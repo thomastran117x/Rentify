@@ -78,9 +78,9 @@ describe("PendingSignupStore", () => {
     expect(harness.cacheService.delete).toHaveBeenCalledWith(
       "auth:pending-signup-username:test-user",
     );
-    expect(
-      harness.store.get("auth:pending-signup-username:renamed-user"),
-    ).toBe("User@Example.com");
+    expect(harness.store.get("auth:pending-signup-username:renamed-user")).toBe(
+      "User@Example.com",
+    );
   });
 
   it("keeps the username reservation when the name is unchanged", async () => {

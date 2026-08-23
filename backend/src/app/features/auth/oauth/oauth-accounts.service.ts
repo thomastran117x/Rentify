@@ -101,10 +101,7 @@ export class OAuthAccountsService {
   async linkedOAuthProviders(context: {
     userId: string;
   }): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(
-      this.authRepository,
-      context.userId,
-    );
+    const user = await requireExistingUser(this.authRepository, context.userId);
     return this.listLinkedOAuthProvidersForUser(user);
   }
 

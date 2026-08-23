@@ -97,4 +97,3 @@ export interface SignupVerificationPendingResult {
   email: string;
   alreadyPending: boolean;
 }
-

@@ -130,9 +130,7 @@ export class LoginLockoutService {
     }
 
     const user = await this.authRepository.findUserByEmail(input.email);
-    const isLocked = user
-      ? await this.isLocked(user.profile.username)
-      : false;
+    const isLocked = user ? await this.isLocked(user.profile.username) : false;
 
     // Only a locked account gets a code. Sending one regardless would let the
     // endpoint mail anybody on demand.

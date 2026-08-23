@@ -49,16 +49,13 @@ import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
-import {
-  EMAIL_VERIFICATION_OTP_PURPOSE,
-} from "@/features/auth/otp/otp-purposes";
+import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
-
 
 export class LocalAuthService {
   private readonly logger: Logger;
@@ -102,9 +99,8 @@ export class LocalAuthService {
     }
 
     if (!user || !isPasswordValid) {
-      const updatedAttemptRecord = await this.loginLockoutService.recordFailedAttempt(
-        input.username,
-      );
+      const updatedAttemptRecord =
+        await this.loginLockoutService.recordFailedAttempt(input.username);
 
       if (updatedAttemptRecord.lockedAt) {
         await this.loginLockoutService.sendUnlockCode(user);
@@ -125,7 +121,12 @@ export class LocalAuthService {
       );
     }
 
-    await requireLoginMfa(this.mfaTotpService, user.id, user.email, input.totpCode);
+    await requireLoginMfa(
+      this.mfaTotpService,
+      user.id,
+      user.email,
+      input.totpCode,
+    );
 
     return this.authSessionService.authenticateVerifiedUser(user, input);
   }

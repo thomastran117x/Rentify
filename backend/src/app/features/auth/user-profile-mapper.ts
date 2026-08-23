@@ -19,7 +19,8 @@ function resolveActiveOrganization(
   const organizationMemberships = readOrganizationMemberships(user);
   const activeMembership =
     organizationMemberships.find(
-      (membership) => membership.organizationId === user.preferredOrganizationId,
+      (membership) =>
+        membership.organizationId === user.preferredOrganizationId,
     ) ?? organizationMemberships[0];
 
   if (!activeMembership) {

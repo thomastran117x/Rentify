@@ -4,9 +4,7 @@ import { getQuery, readCookie } from "@/configuration/http/request";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import { REFRESH_TOKEN_COOKIE_NAME } from "@/features/auth/auth.cookies";
-import type {
-  OAuthProvider,
-} from "@/features/auth/auth.model";
+import type { OAuthProvider } from "@/features/auth/auth.model";
 import type {
   RefreshInput,
   RefreshRequestBody,

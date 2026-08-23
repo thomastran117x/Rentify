@@ -173,7 +173,10 @@ describe("PasswordService.forgotPassword", () => {
   it("does not reveal a social-only account", async () => {
     const harness = createHarness();
     harness.authRepository.findUserByUsername.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     await expect(
@@ -287,7 +290,10 @@ describe("PasswordService.resetPassword", () => {
   it("rejects a social-only account", async () => {
     const harness = createHarness();
     harness.authRepository.findUserByUsername.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     await expect(
@@ -368,7 +374,10 @@ describe("PasswordService.changePassword", () => {
   it("rejects an account with no local password", async () => {
     const harness = createHarness();
     harness.authRepository.findUserById.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     await expect(
@@ -386,7 +395,10 @@ describe("PasswordService.setPassword", () => {
   it("adds a first password to a social-only account", async () => {
     const harness = createHarness();
     harness.authRepository.findUserById.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
 
     const session = await harness.service.setPassword({
@@ -407,7 +419,10 @@ describe("PasswordService.setPassword", () => {
     // of two concurrent submissions wins.
     const harness = createHarness();
     harness.authRepository.findUserById.mockResolvedValue(
-      createUser({ passwordHash: undefined, oauthIdentities: [googleIdentity] }),
+      createUser({
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
     );
     harness.authRepository.setPasswordHashIfUnset.mockResolvedValue(false);
 

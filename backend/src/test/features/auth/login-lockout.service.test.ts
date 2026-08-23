@@ -257,9 +257,12 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
     const harness = createHarness();
     harness.authRepository.findUserByEmail.mockResolvedValue(createUser());
     harness.store.set(LOCK_KEY, { failedAttempts: 5, lockedAt: "2026-01-02" });
-    harness.store.set("auth:otp-rate:local-login-unlock:email:user@example.com", {
-      count: 5,
-    });
+    harness.store.set(
+      "auth:otp-rate:local-login-unlock:email:user@example.com",
+      {
+        count: 5,
+      },
+    );
 
     await expect(
       harness.service.resendUnlockLocalLogin({

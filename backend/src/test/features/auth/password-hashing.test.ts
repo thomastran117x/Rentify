@@ -19,12 +19,9 @@ describe("isBcryptHash", () => {
     },
   );
 
-  it.each(["", "plaintext", "$1$12$x", "$2b$x$x"])(
-    "rejects %s",
-    (value) => {
-      expect(isBcryptHash(value)).toBe(false);
-    },
-  );
+  it.each(["", "plaintext", "$1$12$x", "$2b$x$x"])("rejects %s", (value) => {
+    expect(isBcryptHash(value)).toBe(false);
+  });
 });
 
 describe("assertValidPassword", () => {

@@ -62,7 +62,12 @@ describe("requireLoginMfa", () => {
     } as Partial<MfaTotpService>);
 
     await expect(
-      requireLoginMfa(mfaTotpService, "user-1", "bypass@rentify.local", undefined),
+      requireLoginMfa(
+        mfaTotpService,
+        "user-1",
+        "bypass@rentify.local",
+        undefined,
+      ),
     ).resolves.toBeUndefined();
     expect(mfaTotpService.isEnabled).not.toHaveBeenCalled();
   });

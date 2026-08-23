@@ -165,17 +165,23 @@ describe("writeAuthSessionResponse", () => {
     const recorder = createMockResponse();
     (recorder.response as { req?: unknown }).req = request;
 
-    writeAuthSessionResponse(request, recorder.response, createSessionResult(), {
-      message: "Authenticated successfully.",
-    });
+    writeAuthSessionResponse(
+      request,
+      recorder.response,
+      createSessionResult(),
+      {
+        message: "Authenticated successfully.",
+      },
+    );
 
     expect(recorder.status()).toBe(200);
     expect(recorder.json()).toMatchObject({
       message: "Authenticated successfully.",
       data: { accessToken: "access-token" },
     });
-    expect((recorder.json() as { data: Record<string, unknown> }).data
-      .refreshToken).toBeUndefined();
+    expect(
+      (recorder.json() as { data: Record<string, unknown> }).data.refreshToken,
+    ).toBeUndefined();
     expect(recorder.headers()["set-cookie"]).toContain("refresh_token=");
   });
 

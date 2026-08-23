@@ -12,9 +12,7 @@ import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.servi
 import { oauthAuthenticateRequestSchema } from "@/features/auth/oauth/oauth-accounts.model";
 
 export class OAuthController {
-  constructor(
-    private readonly oauthAccountsService: OAuthAccountsService,
-  ) {}
+  constructor(private readonly oauthAccountsService: OAuthAccountsService) {}
 
   googleAuthenticate = async (
     request: Request,

@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
-import type { AuthUserProfile, AuthSessionResult } from "@/features/auth/auth.model";
+import type {
+  AuthUserProfile,
+  AuthSessionResult,
+} from "@/features/auth/auth.model";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";

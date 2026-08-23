@@ -379,7 +379,9 @@ describe("AuthSessionService.logout", () => {
     expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
       "refresh-token-1",
     );
-    expect(harness.tokenService.revokeSession).toHaveBeenCalledWith("session-1");
+    expect(harness.tokenService.revokeSession).toHaveBeenCalledWith(
+      "session-1",
+    );
   });
 
   it("still ends the session when the refresh token cannot be revoked", async () => {

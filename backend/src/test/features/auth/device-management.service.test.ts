@@ -1,5 +1,8 @@
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { AuthRequestContext, AuthUserRecord } from "@/features/auth/auth.model";
+import type {
+  AuthRequestContext,
+  AuthUserRecord,
+} from "@/features/auth/auth.model";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 
 function createUser(): AuthUserRecord {
@@ -127,20 +130,20 @@ describe("DeviceManagementService.deviceVerify", () => {
   it("returns the device verdict alongside the principal", async () => {
     const harness = createHarness();
 
-    await expect(harness.service.deviceVerify(createContext())).resolves.toEqual(
-      {
-        verified: true,
-        device: {
-          id: "device-1",
-          type: "desktop",
-          isMobile: false,
-          known: true,
-          knownByIp: true,
-          deviceId: "device-1",
-        },
-        auth: { userId: "user-1", tokenDeviceId: "device-1" },
+    await expect(
+      harness.service.deviceVerify(createContext()),
+    ).resolves.toEqual({
+      verified: true,
+      device: {
+        id: "device-1",
+        type: "desktop",
+        isMobile: false,
+        known: true,
+        knownByIp: true,
+        deviceId: "device-1",
       },
-    );
+      auth: { userId: "user-1", tokenDeviceId: "device-1" },
+    });
   });
 
   it("rejects a token whose account no longer exists", async () => {
