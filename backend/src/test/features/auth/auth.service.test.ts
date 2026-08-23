@@ -2203,7 +2203,7 @@ describe("AuthService", () => {
     expect(result.user.username).toBe("pending-user");
   });
 
-  it("covers auth helper branches for provider verification, cooldown swallowing, and user profile mapping", async () => {
+  it("covers provider verification and OTP cooldown swallowing", async () => {
     const service = createService();
     Object.assign(service as object, {
       microsoftOAuthService: {
@@ -2230,12 +2230,6 @@ describe("AuthService", () => {
       }): Promise<void>;
       sendPasswordResetCode(user: AuthUserRecord): Promise<void>;
       sendLocalLoginUnlockCode(user: AuthUserRecord | null): Promise<void>;
-      requireEligibleLocalPasswordUser(
-        user: AuthUserRecord | null,
-        defaultMessage: string,
-      ): AuthUserRecord;
-      redactEmail(email: string): string;
-      toUserProfile(user: AuthUserRecord): Record<string, unknown>;
     };
     const cooldownError = Object.assign(new Error("Cooldown"), {
       name: "TooManyRequestError",
@@ -2299,35 +2293,6 @@ describe("AuthService", () => {
     await expect(
       helper.sendLocalLoginUnlockCode(null),
     ).resolves.toBeUndefined();
-    expect(() =>
-      helper.requireEligibleLocalPasswordUser(null, "Missing account."),
-    ).toThrow(BadRequestError);
-    expect(helper.redactEmail("invalid-email-without-domain")).toBe("redacted");
-    expect(
-      helper.toUserProfile({
-        ...createUser(),
-        preferredOrganizationId: "org-2",
-        organizationMemberships: [
-          {
-            organizationId: "org-1",
-            organizationName: "Northwind",
-            role: "operator",
-          },
-          {
-            organizationId: "org-2",
-            organizationName: "Acme",
-            role: "manager",
-          },
-        ],
-      } as AuthUserRecord),
-    ).toMatchObject({
-      activeOrganization: {
-        id: "org-2",
-        name: "Acme",
-        role: "manager",
-      },
-      organizationMembershipCount: 2,
-    });
   });
 
   describe("isUsernameAvailable", () => {

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import bcrypt from "bcrypt";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
@@ -38,10 +37,34 @@ import {
   isStrongPassword,
 } from "@/features/auth/auth.model";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
+import {
+  isEligibleForLocalPasswordManagement,
+  isLocalPasswordAccount,
+  requireEligibleLocalPasswordUser,
+  requirePasswordlessLinkedUser,
+  type LocalPasswordAuthUserRecord,
+} from "@/features/auth/local-account-eligibility";
+import {
+  hashPassword,
+  isBcryptHash,
+  rejectIfPasswordMatchesCurrent,
+  verifyPassword,
+  DUMMY_PASSWORD_HASH,
+  verifyPasswordAgainstFakeHash,
+} from "@/features/auth/password-hashing";
+import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
+import { requireExistingUser } from "@/features/auth/require-existing-user";
+import { redactEmail } from "@/features/auth/redact-email";
+import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import {
+  EMAIL_VERIFICATION_OTP_PURPOSE,
+  LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
+  LOCAL_PASSWORD_RESET_OTP_PURPOSE,
+  USERNAME_REMINDER_RATE_LIMIT_PURPOSE,
+} from "@/features/auth/otp/otp-purposes";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
-import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -71,16 +94,9 @@ interface VerificationRecipient {
   firstName?: string;
 }
 
-const BCRYPT_SALT_ROUNDS = 12;
-const DUMMY_PASSWORD_HASH =
-  "$2b$12$1M7NQyWNh5v3NFg4cTQdUeVUI5BvR9f0vAOVeI3E1FQfQ0rFJz0Vy";
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
 const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
-const LOCAL_LOGIN_UNLOCK_OTP_PURPOSE = "local-login-unlock";
-const LOCAL_PASSWORD_RESET_OTP_PURPOSE = "local-password-reset";
-const USERNAME_REMINDER_RATE_LIMIT_PURPOSE = "username-reminder";
-const EMAIL_VERIFICATION_OTP_PURPOSE = "email-verification";
 const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX = "auth:pending-signup-verify";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS = 10_000;
@@ -107,10 +123,6 @@ type PublicOtpRateLimitResult = {
   scope?: "email" | "ip" | "device";
 };
 
-type LocalPasswordAuthUserRecord = AuthUserRecord & {
-  passwordHash: string;
-};
-
 export class AuthService {
   private readonly logger: Logger;
 
@@ -134,7 +146,7 @@ export class AuthService {
     input: LocalAuthenticateInput,
   ): Promise<AuthSessionResult> {
     const user = await this.authRepository.findUserByUsername(input.username);
-    const isPasswordValid = await this.verifyPassword(
+    const isPasswordValid = await verifyPassword(
       input.password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
@@ -174,7 +186,7 @@ export class AuthService {
       );
     }
 
-    await this.requireMfaIfEnabled(user.id, user.email, input.totpCode);
+    await requireLoginMfa(this.mfaTotpService, user.id, user.email, input.totpCode);
 
     return this.authenticateVerifiedUser(user, input);
   }
@@ -197,7 +209,7 @@ export class AuthService {
       };
     }
 
-    const passwordHash = await this.hashPassword(input.password);
+    const passwordHash = await hashPassword(input.password);
     await this.writePendingLocalSignup(
       {
         username: input.username,
@@ -242,7 +254,7 @@ export class AuthService {
 
     const user = await this.authRepository.findUserByUsername(input.username);
 
-    if (user && this.isEligibleForLocalPasswordManagement(user)) {
+    if (user && isEligibleForLocalPasswordManagement(user)) {
       await this.sendPasswordResetCode(user);
     }
 
@@ -271,7 +283,7 @@ export class AuthService {
 
     const user = await this.authRepository.findUserByUsername(input.username);
 
-    if (user && this.isEligibleForLocalPasswordManagement(user)) {
+    if (user && isEligibleForLocalPasswordManagement(user)) {
       await this.sendPasswordResetCode(user);
     }
 
@@ -318,13 +330,13 @@ export class AuthService {
       code: input.code,
     });
 
-    const eligibleUser = this.requireEligibleLocalPasswordUser(
+    const eligibleUser = requireEligibleLocalPasswordUser(
       user,
       "This account cannot reset a password.",
     );
-    const passwordHash = await this.hashPassword(input.newPassword);
+    const passwordHash = await hashPassword(input.newPassword);
 
-    await this.rejectIfPasswordMatchesCurrent(
+    await rejectIfPasswordMatchesCurrent(
       input.newPassword,
       eligibleUser.passwordHash,
     );
@@ -484,11 +496,11 @@ export class AuthService {
   }
 
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
-    const user = this.requireEligibleLocalPasswordUser(
+    const user = requireEligibleLocalPasswordUser(
       await this.authRepository.findUserById(input.userId),
       "This account cannot change a password.",
     );
-    const isPasswordValid = await this.verifyPassword(
+    const isPasswordValid = await verifyPassword(
       input.currentPassword,
       user.passwordHash,
     );
@@ -497,12 +509,12 @@ export class AuthService {
       throw new UnauthorizedError("Current password is incorrect.");
     }
 
-    await this.rejectIfPasswordMatchesCurrent(
+    await rejectIfPasswordMatchesCurrent(
       input.newPassword,
       user.passwordHash,
     );
 
-    const passwordHash = await this.hashPassword(input.newPassword);
+    const passwordHash = await hashPassword(input.newPassword);
     await this.authRepository.updatePasswordHash(user.id, passwordHash);
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       user.id,
@@ -529,11 +541,11 @@ export class AuthService {
    * satisfied the `mfa-management` step-up guard.
    */
   async setPassword(input: SetPasswordInput): Promise<AuthSessionResult> {
-    const user = this.requirePasswordlessLinkedUser(
+    const user = requirePasswordlessLinkedUser(
       await this.authRepository.findUserById(input.userId),
     );
 
-    const passwordHash = await this.hashPassword(input.newPassword);
+    const passwordHash = await hashPassword(input.newPassword);
     // The guard above is advisory: this conditional write is what actually
     // decides the race, so concurrent submissions cannot both rotate the token
     // version and strand each other's session.
@@ -669,7 +681,7 @@ export class AuthService {
   async linkOAuthProvider(
     input: LinkOAuthProviderInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    const user = await this.requireExistingUser(input.userId);
+    const user = await requireExistingUser(this.authRepository, input.userId);
     const profile = await this.verifyOAuthInput(input.provider, input);
 
     this.requireVerifiedOAuthProfile(profile);
@@ -714,14 +726,14 @@ export class AuthService {
     input: { userId: string } | AuthUserRecord,
   ): Promise<LinkedOAuthProvidersResult> {
     const user =
-      "email" in input ? input : await this.requireExistingUser(input.userId);
+      "email" in input ? input : await requireExistingUser(this.authRepository, input.userId);
     return this.listLinkedOAuthProvidersForUser(user);
   }
 
   async unlinkOAuthProvider(
     input: UnlinkOAuthProviderInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    const user = await this.requireExistingUser(input.userId);
+    const user = await requireExistingUser(this.authRepository, input.userId);
 
     if (
       !user.oauthIdentities.some(
@@ -732,7 +744,7 @@ export class AuthService {
     }
 
     if (
-      !this.isLocalPasswordAccount(user) &&
+      !isLocalPasswordAccount(user) &&
       user.oauthIdentities.length <= 1
     ) {
       throw new ConflictError(
@@ -757,7 +769,7 @@ export class AuthService {
     const claims = await this.tokenService.verifyRefreshToken(
       input.refreshToken,
     );
-    const user = await this.requireExistingUser(claims.sub);
+    const user = await requireExistingUser(this.authRepository, claims.sub);
     const deviceId = claims.deviceId ?? input.client.device.id;
     const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
       user,
@@ -823,7 +835,7 @@ export class AuthService {
       refreshToken,
       refreshTokenExpiresInSeconds,
       device: deviceStatus,
-      user: this.toUserProfile(user),
+      user: toAuthUserProfile(user),
     };
   }
 
@@ -871,7 +883,7 @@ export class AuthService {
       tokenDeviceId?: string;
     };
   }> {
-    const user = await this.requireExistingUser(context.auth.sub);
+    const user = await requireExistingUser(this.authRepository, context.auth.sub);
     const deviceStatus = await this.deviceService.registerKnownDevice(
       user,
       context.client,
@@ -989,7 +1001,7 @@ export class AuthService {
       refreshToken,
       refreshTokenExpiresInSeconds,
       device: deviceStatus,
-      user: this.toUserProfile(user),
+      user: toAuthUserProfile(user),
     };
   }
 
@@ -1005,7 +1017,7 @@ export class AuthService {
     );
 
     if (linkedUser) {
-      await this.requireMfaIfEnabled(
+      await requireLoginMfa(this.mfaTotpService, 
         linkedUser.id,
         linkedUser.email,
         input.totpCode,
@@ -1048,79 +1060,6 @@ export class AuthService {
     if (!profile.emailVerified) {
       throw new Error("OAuth account email must be verified.");
     }
-  }
-
-  private async hashPassword(password: string): Promise<string> {
-    this.assertValidPassword(password);
-    return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-  }
-
-  private async verifyPassword(
-    password: string,
-    passwordHash: string,
-  ): Promise<boolean> {
-    return this.isBcryptHash(passwordHash)
-      ? bcrypt.compare(password, passwordHash)
-      : this.verifyPasswordAgainstFakeHash(password);
-  }
-
-  private async verifyPasswordAgainstFakeHash(
-    password: string,
-  ): Promise<boolean> {
-    return bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-  }
-
-  private async rejectIfPasswordMatchesCurrent(
-    password: string,
-    passwordHash: string,
-  ): Promise<void> {
-    const matchesCurrentPassword = await this.verifyPassword(
-      password,
-      passwordHash,
-    );
-
-    if (matchesCurrentPassword) {
-      throw new ConflictError(
-        "New password must be different from the current password.",
-      );
-    }
-  }
-
-  private assertValidPassword(password: string): void {
-    if (!isStrongPassword(password)) {
-      throw new Error(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      );
-    }
-  }
-
-  private isBcryptHash(passwordHash: string): boolean {
-    return /^\$2[aby]\$\d{2}\$/.test(passwordHash);
-  }
-
-  private toUserProfile(user: AuthUserRecord): AuthUserProfile {
-    const activeOrganization = this.resolveActiveOrganization(user);
-    const organizationMemberships = this.readOrganizationMemberships(user);
-
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      username: user.profile.username,
-      phoneNumber: user.profile.phoneNumber,
-      avatarUrl: user.profile.avatarUrl,
-      isPrivate: user.profile.isPrivate,
-      recommendationPersonalizationEnabled:
-        user.profile.recommendationPersonalizationEnabled,
-      trustworthinessScore: user.profile.trustworthinessScore,
-      rentPostingsCount: user.profile.rentPostingsCount,
-      availableRentPostingsCount: user.profile.availableRentPostingsCount,
-      role: user.role,
-      emailVerified: user.emailVerified,
-      activeOrganization,
-      organizationMembershipCount: organizationMemberships.length,
-    };
   }
 
   private async sendVerificationCode(
@@ -1202,36 +1141,6 @@ export class AuthService {
       username: user.profile.username,
       firstName: user.firstName,
     });
-  }
-
-  private async requireMfaIfEnabled(
-    userId: string,
-    email: string,
-    totpCode: string | undefined,
-  ): Promise<void> {
-    if (isMfaBypassEligible(email)) {
-      this.logger.info("MFA bypass used", {
-        userId,
-        email: this.redactEmail(email),
-        result: "bypass",
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    const mfaEnabled = await this.mfaTotpService.isEnabled(userId);
-
-    if (!mfaEnabled) {
-      return;
-    }
-
-    if (!totpCode) {
-      throw new UnauthorizedError("Authenticator code is required.", {
-        mfaRequired: true,
-      });
-    }
-
-    await this.mfaTotpService.verifyCode(userId, totpCode);
   }
 
   private async authenticateVerifiedUser(
@@ -1472,20 +1381,10 @@ export class AuthService {
     this.logger.warn("Suspicious public OTP activity", {
       flow: result.flow,
       purpose: result.purpose,
-      subject: this.redactEmail(result.subject),
+      subject: redactEmail(result.subject),
       reason: result.reason,
       scope: result.scope,
     });
-  }
-
-  private redactEmail(email: string): string {
-    const [localPart, domain] = email.toLowerCase().split("@");
-
-    if (!localPart || !domain) {
-      return "redacted";
-    }
-
-    return `${localPart.slice(0, 1)}***@${domain}`;
   }
 
   private async readPendingSignupEmailByUsername(
@@ -1634,75 +1533,11 @@ export class AuthService {
     }
   }
 
-  private isEligibleForLocalPasswordManagement(user: AuthUserRecord): boolean {
-    return user.emailVerified && this.isLocalPasswordAccount(user);
-  }
-
-  private isLocalPasswordAccount(
-    user: AuthUserRecord,
-  ): user is LocalPasswordAuthUserRecord {
-    return Boolean(user.passwordHash && this.isBcryptHash(user.passwordHash));
-  }
-
-  private requireEligibleLocalPasswordUser(
-    user: AuthUserRecord | null,
-    defaultMessage: string,
-  ): LocalPasswordAuthUserRecord {
-    if (!user) {
-      throw new BadRequestError(defaultMessage);
-    }
-
-    if (!this.isLocalPasswordAccount(user)) {
-      throw new ConflictError(
-        "This account uses a social sign-in provider. Use that provider to access your account.",
-      );
-    }
-
-    if (!user.emailVerified) {
-      throw new ConflictError(
-        "Please verify your email address before managing your password.",
-      );
-    }
-
-    return user;
-  }
-
-  /**
-   * Inverse of {@link requireEligibleLocalPasswordUser}: accepts only accounts
-   * that have no local password yet but do own a linked social identity, i.e.
-   * the accounts that can add password sign-in alongside their provider.
-   */
-  private requirePasswordlessLinkedUser(
-    user: AuthUserRecord | null,
-  ): AuthUserRecord {
-    if (!user) {
-      throw new BadRequestError("This account cannot set a password.");
-    }
-
-    if (this.isLocalPasswordAccount(user)) {
-      throw new ConflictError(
-        "This account already has a password. Use the change password option instead.",
-      );
-    }
-
-    if (!user.emailVerified) {
-      throw new ConflictError(
-        "Please verify your email address before managing your password.",
-      );
-    }
-
-    if (user.oauthIdentities.length === 0) {
-      throw new ConflictError("This account cannot set a password.");
-    }
-
-    return user;
-  }
-
   private listLinkedOAuthProvidersForUser(
     user: AuthUserRecord,
   ): LinkedOAuthProvidersResult {
     return {
-      hasPassword: this.isLocalPasswordAccount(user),
+      hasPassword: isLocalPasswordAccount(user),
       providers: user.oauthIdentities.map((identity) => ({
         id: identity.id,
         provider: identity.provider,
@@ -1714,40 +1549,4 @@ export class AuthService {
     };
   }
 
-  private async requireExistingUser(userId: string): Promise<AuthUserRecord> {
-    const user = await this.authRepository.findUserById(userId);
-
-    if (!user) {
-      throw new BadRequestError("User account could not be found.");
-    }
-
-    return user;
-  }
-
-  private resolveActiveOrganization(
-    user: AuthUserRecord,
-  ): AuthActiveOrganizationSummary | undefined {
-    const organizationMemberships = this.readOrganizationMemberships(user);
-    const activeMembership =
-      organizationMemberships.find(
-        (membership) =>
-          membership.organizationId === user.preferredOrganizationId,
-      ) ?? organizationMemberships[0];
-
-    if (!activeMembership) {
-      return undefined;
-    }
-
-    return {
-      id: activeMembership.organizationId,
-      name: activeMembership.organizationName,
-      role: activeMembership.role,
-    };
-  }
-
-  private readOrganizationMemberships(user: AuthUserRecord) {
-    return Array.isArray(user.organizationMemberships)
-      ? user.organizationMemberships
-      : [];
-  }
 }
