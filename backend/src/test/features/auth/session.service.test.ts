@@ -1,5 +1,9 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
-import type { AuthUserRecord } from "@/features/auth/auth.model";
+import UnauthorizedError from "@/errors/http/unauthorized.error";
+import type {
+  AuthRequestContext,
+  AuthUserRecord,
+} from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 
 function createClient(): ClientRequestContext {
@@ -38,7 +42,28 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   };
 }
 
+function createAuthContext(
+  overrides: Partial<AuthRequestContext> = {},
+): AuthRequestContext {
+  return {
+    auth: {
+      authMethod: "jwt",
+      sub: "user-1",
+      deviceId: "device-1",
+      sessionId: "session-1",
+      iat: 1,
+      exp: 999_999,
+    },
+    client: createClient(),
+    ...overrides,
+  } as AuthRequestContext;
+}
+
 function createHarness() {
+  const authRepository = {
+    findUserById: jest.fn(async () => createUser()),
+    rotateTokenVersion: jest.fn(async () => 8),
+  };
   const tokenService = {
     createAccessToken: jest.fn(() => "access-token"),
     createRefreshToken: jest.fn(async () => "refresh-token"),
@@ -46,6 +71,15 @@ function createHarness() {
     getRefreshTokenExpiresInSeconds: jest.fn((rememberMe: boolean) =>
       rememberMe ? 7_776_000 : 2_592_000,
     ),
+    verifyRefreshToken: jest.fn(async () => ({
+      sub: "user-1",
+      deviceId: "device-1",
+      rememberMe: true,
+      sessionId: "session-1",
+    })),
+    rotateRefreshToken: jest.fn(async () => "rotated-refresh-token"),
+    revokeRefreshToken: jest.fn(async () => true),
+    revokeSession: jest.fn(async () => true),
   };
   const deviceService = {
     evaluateSuccessfulAuthentication: jest.fn(async () => ({
@@ -61,9 +95,11 @@ function createHarness() {
   };
 
   return {
+    authRepository,
     tokenService,
     deviceService,
     service: new AuthSessionService(
+      authRepository as never,
       tokenService as never,
       deviceService as never,
     ),
@@ -215,5 +251,171 @@ describe("AuthSessionService.reissueSessionForUser", () => {
       expect.objectContaining({ tokenVersion: 9 }),
       expect.anything(),
     );
+  });
+});
+
+describe("AuthSessionService.localVerify", () => {
+  it("echoes the principal and client without any I/O", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.localVerify(
+        createAuthContext({
+          auth: {
+            authMethod: "jwt",
+            sub: "user-1",
+            role: "owner",
+            deviceId: "device-99",
+            iat: 1,
+            exp: 999_999,
+          } as AuthRequestContext["auth"],
+        }),
+      ),
+    ).resolves.toMatchObject({
+      verified: true,
+      auth: { userId: "user-1", deviceId: "device-99", role: "owner" },
+    });
+    expect(harness.authRepository.findUserById).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthSessionService.refresh", () => {
+  it("rejects a request with no refresh token", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.refresh({ client: createClient() }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("rotates the token and preserves rememberMe", async () => {
+    const harness = createHarness();
+
+    const session = await harness.service.refresh({
+      client: createClient(),
+      refreshToken: "incoming-refresh-token",
+    });
+
+    expect(session.refreshToken).toBe("rotated-refresh-token");
+    expect(session.refreshTokenExpiresInSeconds).toBe(7_776_000);
+    expect(harness.tokenService.rotateRefreshToken).toHaveBeenCalledWith(
+      "incoming-refresh-token",
+      expect.objectContaining({ rememberMe: true, sessionId: "session-1" }),
+      { expiresInSeconds: 7_776_000 },
+    );
+  });
+
+  it("back-fills a session for a legacy sessionless token", async () => {
+    // Tokens minted before sessions existed carry no sessionId. Rejecting them
+    // would sign those users out, so the refresh creates the missing session
+    // and retires the old token instead.
+    const harness = createHarness();
+    harness.tokenService.verifyRefreshToken.mockResolvedValue({
+      sub: "user-1",
+      deviceId: "device-1",
+      rememberMe: false,
+      sessionId: undefined,
+    } as never);
+
+    const session = await harness.service.refresh({
+      client: createClient(),
+      refreshToken: "legacy-refresh-token",
+    });
+
+    expect(harness.tokenService.createSession).toHaveBeenCalled();
+    expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
+      "legacy-refresh-token",
+    );
+    expect(harness.tokenService.rotateRefreshToken).not.toHaveBeenCalled();
+    expect(session.refreshToken).toBe("refresh-token");
+  });
+
+  it("falls back to the request device when the token carries none", async () => {
+    const harness = createHarness();
+    harness.tokenService.verifyRefreshToken.mockResolvedValue({
+      sub: "user-1",
+      rememberMe: false,
+      sessionId: "session-1",
+    } as never);
+
+    await harness.service.refresh({
+      client: createClient(),
+      refreshToken: "incoming-refresh-token",
+    });
+
+    expect(harness.tokenService.createAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "device-1" }),
+    );
+  });
+
+  it("rejects a token whose account no longer exists", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(
+      null as unknown as AuthUserRecord,
+    );
+
+    await expect(
+      harness.service.refresh({
+        client: createClient(),
+        refreshToken: "incoming-refresh-token",
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("AuthSessionService.logout", () => {
+  it("revokes the refresh token and the current session", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.logout(
+        createAuthContext({ refreshToken: "refresh-token-1" }),
+      ),
+    ).resolves.toMatchObject({
+      loggedOut: true,
+      auth: { userId: "user-1", deviceId: "device-1" },
+    });
+
+    expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
+      "refresh-token-1",
+    );
+    expect(harness.tokenService.revokeSession).toHaveBeenCalledWith("session-1");
+  });
+
+  it("still ends the session when the refresh token cannot be revoked", async () => {
+    const harness = createHarness();
+    harness.tokenService.revokeRefreshToken.mockRejectedValue(
+      new Error("already revoked"),
+    );
+
+    await expect(
+      harness.service.logout(
+        createAuthContext({ refreshToken: "refresh-token-1" }),
+      ),
+    ).resolves.toMatchObject({ loggedOut: true });
+    expect(harness.tokenService.revokeSession).toHaveBeenCalled();
+  });
+
+  it("rotates the token version for a personal access token", async () => {
+    // A PAT has no session record, so bumping the token version is the only way
+    // to invalidate it.
+    const harness = createHarness();
+
+    await harness.service.logout(
+      createAuthContext({
+        auth: {
+          authMethod: "pat",
+          sub: "user-1",
+          scopes: ["auth:read"],
+          personalAccessTokenId: "pat-1",
+          personalAccessTokenName: "CI token",
+        } satisfies AuthRequestContext["auth"],
+      }),
+    );
+
+    expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalledWith(
+      "user-1",
+    );
+    expect(harness.tokenService.revokeSession).not.toHaveBeenCalled();
   });
 });

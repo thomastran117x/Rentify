@@ -24,6 +24,7 @@ import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { AuthService } from "@/features/auth/auth.service";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import { AuthSessionController } from "@/features/auth/session/session.controller";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -283,6 +284,8 @@ export const containerTokens = {
   ),
   authSessionService:
     createServiceToken<AuthSessionService>("AuthSessionService"),
+  authSessionController:
+    createServiceToken<AuthSessionController>("AuthSessionController"),
   pendingSignupStore: createServiceToken<PendingSignupStore>(
     "PendingSignupStore",
   ),

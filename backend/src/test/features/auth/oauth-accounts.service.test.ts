@@ -139,7 +139,11 @@ function createHarness() {
       appleOAuthService as never,
       usernameBloomService as never,
       mfaTotpService as never,
-      new AuthSessionService(tokenService as never, deviceService as never),
+      new AuthSessionService(
+        authRepository as never,
+        tokenService as never,
+        deviceService as never,
+      ),
     ),
   };
 }

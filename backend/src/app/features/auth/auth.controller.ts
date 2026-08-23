@@ -2,17 +2,12 @@ import type { Request, Response } from "express";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
-import { readCookie } from "@/configuration/http/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { AuthService } from "@/features/auth/auth.service";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
-import { REFRESH_TOKEN_COOKIE_NAME } from "@/features/auth/auth.cookies";
-import {
-  clearBrowserSessionCookies,
-  writeAuthSessionResponse,
-} from "@/features/auth/auth.response";
+import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
   parseUsernameAvailabilityQuery,
   toChangePasswordInput,
@@ -20,7 +15,6 @@ import {
   toForgotUsernameInput,
   toLocalAuthenticateInput,
   toLocalSignupInput,
-  toRefreshInput,
   toResendForgotPasswordInput,
   toResendUnlockLocalLoginInput,
   toResendVerificationEmailInput,
@@ -35,7 +29,6 @@ import {
   forgotUsernameRequestSchema,
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
-  refreshRequestSchema,
   resendForgotPasswordRequestSchema,
   resendUnlockLocalLoginRequestSchema,
   resetPasswordRequestSchema,
@@ -256,39 +249,4 @@ export class AuthController {
       message: "Unlock email has been re-sent.",
     });
   };
-
-  localVerify = async (request: Request, response: Response): Promise<void> => {
-    await requireJwtAuth(request);
-    const result = await this.authService.localVerify({
-      auth: request.auth,
-      client: request.client,
-    });
-    ok(response, result);
-  };
-
-  refresh = async (request: Request, response: Response): Promise<void> => {
-    const input = await parseRequestBody(request, refreshRequestSchema);
-    const result = await this.authService.refresh(
-      toRefreshInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Session refreshed successfully.",
-    });
-  };
-
-  logout = async (request: Request, response: Response): Promise<void> => {
-    await requireJwtAuth(request);
-    const result = await this.authService.logout({
-      auth: request.auth,
-      client: request.client,
-      refreshToken: readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
-    });
-
-    clearBrowserSessionCookies(response);
-
-    ok(response, result, {
-      message: "Logged out successfully.",
-    });
-  };
-
 }

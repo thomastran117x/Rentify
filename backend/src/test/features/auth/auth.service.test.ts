@@ -490,6 +490,7 @@ function createService(overrides?: {
   // emailService.send*, tokenService.create*) rather than a mock of the
   // collaborator.
   const authSessionService = new AuthSessionService(
+    authRepository as any,
     tokenService as any,
     deviceService as any,
   );
@@ -891,16 +892,6 @@ describe("AuthService", () => {
     expect(lookupCount).toBe(20);
   });
 
-  it("rejects refresh when no refresh token is provided", async () => {
-    const service = createService();
-
-    await expect(
-      service.refresh({
-        client: createClient(),
-      }),
-    ).rejects.toBeInstanceOf(UnauthorizedError);
-  });
-
   it("issues a long-lived refresh token when remember me is enabled", async () => {
     const user = createUser();
     user.passwordHash = await bcrypt.hash("CorrectHorseBatteryStaple1!", 4);
@@ -930,41 +921,6 @@ describe("AuthService", () => {
     expect(session.refreshTokenExpiresInSeconds).toBe(2_592_000);
     expect(issuedRememberMe).toBe(true);
     expect(issuedRefreshOptions?.expiresInSeconds).toBe(2_592_000);
-  });
-
-  it("preserves remember me when rotating refresh tokens", async () => {
-    const user = createUser();
-    let issuedRememberMe: boolean | undefined;
-    let issuedRefreshOptions: { expiresInSeconds?: number } | undefined;
-    let rotatedRefreshToken: string | undefined;
-    const service = createService({
-      findUserById: async () => user,
-      verifyRefreshToken: async () => ({
-        sub: user.id,
-        deviceId: "device-1",
-        rememberMe: true,
-        sessionId: "session-1",
-      }),
-      rotateRefreshToken: async (token, payload, options) => {
-        rotatedRefreshToken = token;
-        issuedRememberMe = (payload as { rememberMe?: boolean }).rememberMe;
-        issuedRefreshOptions = options;
-        return "rotated-refresh-token";
-      },
-      getRefreshTokenExpiresInSeconds: (rememberMe = false) =>
-        rememberMe ? 2_592_000 : 86_400,
-    });
-
-    const session = await service.refresh({
-      client: createClient(),
-      refreshToken: "incoming-refresh-token",
-    });
-
-    expect(session.refreshToken).toBe("rotated-refresh-token");
-    expect(session.refreshTokenExpiresInSeconds).toBe(2_592_000);
-    expect(issuedRememberMe).toBe(true);
-    expect(issuedRefreshOptions?.expiresInSeconds).toBe(2_592_000);
-    expect(rotatedRefreshToken).toBe("incoming-refresh-token");
   });
 
   it("rejects change password when the current password is incorrect", async () => {
@@ -1016,72 +972,6 @@ describe("AuthService", () => {
         deviceId: "device-1",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
-  });
-
-  it("returns verified auth details for localVerify", async () => {
-    const service = createService();
-
-    await expect(
-      service.localVerify({
-        client: createClient(),
-        auth: {
-          authMethod: "jwt",
-          sub: "user-1",
-          role: "owner",
-          deviceId: "device-99",
-          iat: 1,
-          exp: 999999,
-        },
-      }),
-    ).resolves.toEqual({
-      verified: true,
-      auth: {
-        userId: "user-1",
-        deviceId: "device-99",
-        role: "owner",
-      },
-      client: createClient(),
-    });
-  });
-
-  it("logs out by revoking the refresh token and current session", async () => {
-    let revokedToken: string | undefined;
-    let revokedSessionId: string | undefined;
-    const service = createService({
-      revokeRefreshToken: async (token) => {
-        revokedToken = token;
-        return true;
-      },
-      revokeSession: async (sessionId) => {
-        revokedSessionId = sessionId;
-        return true;
-      },
-    });
-
-    await expect(
-      service.logout({
-        client: createClient(),
-        auth: {
-          authMethod: "jwt",
-          sub: "user-1",
-          deviceId: "device-1",
-          sessionId: "session-1",
-          iat: 1,
-          exp: 999999,
-        },
-        refreshToken: "refresh-token-1",
-      }),
-    ).resolves.toEqual({
-      loggedOut: true,
-      auth: {
-        userId: "user-1",
-        deviceId: "device-1",
-      },
-      client: createClient(),
-    });
-
-    expect(revokedToken).toBe("refresh-token-1");
-    expect(revokedSessionId).toBe("session-1");
   });
 
   it("stores pending signup state in cache and sends verification during signup", async () => {

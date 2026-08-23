@@ -16,8 +16,6 @@ import type {
   LocalSignupInput,
   LocalSignupRequestBody,
   OAuthProvider,
-  RefreshInput,
-  RefreshRequestBody,
   ResendForgotPasswordInput,
   ResendForgotPasswordRequestBody,
   ResendUnlockLocalLoginInput,
@@ -34,6 +32,10 @@ import type {
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
+import type {
+  RefreshInput,
+  RefreshRequestBody,
+} from "@/features/auth/session/session.model";
 import type {
   LinkOAuthProviderInput,
   OAuthAuthenticateInput,

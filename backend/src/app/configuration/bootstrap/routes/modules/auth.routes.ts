@@ -3,6 +3,7 @@ import { environment } from "@/configuration/environment";
 import type { AuthController } from "@/features/auth/auth.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
+import type { AuthSessionController } from "@/features/auth/session/session.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -92,8 +93,8 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
         "localVerify",
       ),
     );
@@ -113,11 +114,17 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/refresh",
-      resolveHandler<AuthController>(containerTokens.authController, "refresh"),
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "refresh",
+      ),
     );
     app.post(
       "/auth/logout",
-      resolveHandler<AuthController>(containerTokens.authController, "logout"),
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "logout",
+      ),
     );
   },
 };
