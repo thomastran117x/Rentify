@@ -17,15 +17,6 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 - [dependency-security.md](./dependency-security.md): dependency auditing, the CI severity gate, install-script allowlists, Socket.dev, and the remediation runbook
 
-## Auth, Booking, and Recommendations Deep Dives
-
-- [auth-session-model.md](./auth-session-model.md): browser versus API/mobile session model and CSRF behavior
-- [username-bloom-filter.md](./username-bloom-filter.md): how username availability checks answer without querying MySQL, and how the filter fails safe
-- [booking-locking-tradeoffs.md](./booking-locking-tradeoffs.md): current booking-window locking strategy and why it is intentionally conservative
-- [recommendations-phase-1-activity-capture.md](./recommendations-phase-1-activity-capture.md): recommendation event ingestion design
-- [recommendations-phase-2-precompute-worker.md](./recommendations-phase-2-precompute-worker.md): recommendation precompute job design
-- [recommendations-phase-3-query-api.md](./recommendations-phase-3-query-api.md): recommendation query API direction
-
 ## Code and API References
 
 - [../backend/README.md](../backend/README.md): backend scripts, workers, seeds, and API notes

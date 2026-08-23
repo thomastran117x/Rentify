@@ -147,6 +147,9 @@ export const DEFAULT_POSTINGS_PUBLIC_CACHE_FOLLOWER_WAIT_TIMEOUT_MS = 150;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_FOLLOWER_POLL_INTERVAL_MS = 15;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_NEGATIVE_TTL_SECONDS = 10;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO = 0.1;
+// At the default capacity and target rate the derived filter uses 1,917,016
+// bits (about 234 KiB) and seven probes. Exceeding capacity raises the number of
+// safe database fallbacks; it cannot turn a false positive into a wrong answer.
 export const DEFAULT_USERNAME_BLOOM_CAPACITY = 200_000;
 export const DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE = 0.01;
 export const DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS = 60_000;

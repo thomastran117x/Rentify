@@ -169,6 +169,9 @@ export class OAuthAccountsService {
 
     const user = await this.authRepository.createOAuthUser(
       profile,
+      // This callback is a screening hint, not an availability guarantee.
+      // `unknown` must remain false or an unavailable filter would reject every
+      // normal candidate; the repository still confirms the selected username.
       (candidate) =>
         this.usernameBloomService.check(candidate) === "possibly-present",
     );
