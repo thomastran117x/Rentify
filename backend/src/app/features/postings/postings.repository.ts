@@ -916,17 +916,34 @@ export class PostingsRepository extends BaseRepository {
   }
 
   /**
-   * Claims the single "expiring soon" reminder for a posting.
+   * Claims the single "expiring soon" reminder for one specific deadline.
    *
    * The `IS NULL` predicate is the send-once latch: two sweeps racing the same
    * row produce exactly one winner, and the loser returns false and enqueues
    * nothing.
+   *
+   * `expiresAt` has to be part of the predicate, not just the payload. If an
+   * owner moves the deadline between the sweep's read and this write, their
+   * update clears the latch and a bare `IS NULL` claim would immediately stamp
+   * it again for a deadline the job does not describe. The queued job still
+   * carries the old date, so the composer discards it as stale, and the new
+   * date never gets a reminder because its latch is already set. Matching the
+   * exact instant makes that case a lost claim instead, and the next sweep
+   * picks the new deadline up cleanly.
+   *
+   * `status` is in the predicate for the same reason: a posting paused or
+   * archived in that window should not burn its latch.
    */
-  async markExpiryReminderSent(id: string): Promise<boolean> {
+  async markExpiryReminderSent(
+    id: string,
+    expiresAt: string,
+  ): Promise<boolean> {
     const { count } = await this.executeAsync(() =>
       this.prisma.posting.updateMany({
         where: {
           id,
+          status: "published",
+          expiresAt: new Date(expiresAt),
           expiryReminderSentAt: null,
         },
         data: {

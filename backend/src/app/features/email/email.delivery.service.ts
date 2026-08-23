@@ -580,9 +580,12 @@ export class EmailDeliveryService {
   }
 
   /**
-   * Renders the deadline as a plain UTC calendar date. The owner picked a day in
-   * their own timezone and the client stored the end of it, so naming the day is
-   * both what they expect and the only part of the instant that is meaningful.
+   * Renders the deadline as its calendar date.
+   *
+   * Expiries are stored as the end of the chosen day in UTC (see the frontend
+   * lib/postings/expiry module), so reading the instant back in UTC yields
+   * exactly the day the owner picked. Formatting in any other zone would name a
+   * different day to the one the UI accepted.
    */
   private formatExpiryDate(expiresAt: string): string {
     return new Date(expiresAt).toLocaleDateString("en-US", {

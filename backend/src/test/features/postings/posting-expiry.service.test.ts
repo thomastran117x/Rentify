@@ -38,7 +38,7 @@ class FakeRepository {
   reminderCandidates: PostingExpiryCandidate[] = [];
   expireResults = new Map<string, PostingRecord | null>();
   expireCalls: string[] = [];
-  markCalls: string[] = [];
+  markCalls: Array<{ id: string; expiresAt: string }> = [];
   markResult = true;
   lastReminderWindow: Date | null = null;
 
@@ -56,8 +56,8 @@ class FakeRepository {
     return this.expireResults.get(id) ?? null;
   }
 
-  async markExpiryReminderSent(id: string) {
-    this.markCalls.push(id);
+  async markExpiryReminderSent(id: string, expiresAt: string) {
+    this.markCalls.push({ id, expiresAt });
     return this.markResult;
   }
 }
@@ -243,7 +243,10 @@ describe("PostingExpiryService.sendDueExpiryReminders", () => {
     const processed = await service.sendDueExpiryReminders(10, 3);
 
     expect(processed).toBe(1);
-    expect(repository.markCalls).toEqual([candidate.id]);
+    // Claimed against the deadline the job describes, not just the id.
+    expect(repository.markCalls).toEqual([
+      { id: candidate.id, expiresAt: candidate.expiresAt },
+    ]);
     expect(email.sent).toEqual([
       {
         postingId: candidate.id,
@@ -266,6 +269,20 @@ describe("PostingExpiryService.sendDueExpiryReminders", () => {
     );
   });
 
+  it("sends nothing when the owner moved the deadline mid-sweep", async () => {
+    const { service, repository, email } = createService();
+    repository.reminderCandidates = [buildCandidate()];
+    // The claim is scoped to the exact deadline, so an owner edit in this
+    // window loses the claim rather than burning the latch for a date the job
+    // does not describe. The next sweep then picks the new deadline up.
+    repository.markResult = false;
+
+    await service.sendDueExpiryReminders(10, 3);
+
+    expect(repository.markCalls).toHaveLength(1);
+    expect(email.sent).toEqual([]);
+  });
+
   it("sends nothing when another sweep already claimed the reminder", async () => {
     const { service, repository, email } = createService();
     repository.reminderCandidates = [buildCandidate()];
@@ -285,7 +302,9 @@ describe("PostingExpiryService.sendDueExpiryReminders", () => {
 
     // Stamped anyway: leaving the latch open would re-select this orphaned row
     // on every poll.
-    expect(repository.markCalls).toEqual(["posting-1"]);
+    expect(repository.markCalls).toEqual([
+      { id: "posting-1", expiresAt: "2026-08-18T23:59:59.999Z" },
+    ]);
     expect(email.sent).toEqual([]);
   });
 

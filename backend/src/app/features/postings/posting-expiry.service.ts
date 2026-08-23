@@ -141,8 +141,13 @@ export class PostingExpiryService {
 
     if (!recipientId) {
       // Stamp anyway. Leaving the latch open would re-select this orphaned row
-      // on every poll for as long as it remains published.
-      await this.postingsRepository.markExpiryReminderSent(candidate.id);
+      // on every poll for as long as it remains published. Still claimed
+      // against the exact deadline, so an owner who moves the date in this
+      // window keeps their reminder.
+      await this.postingsRepository.markExpiryReminderSent(
+        candidate.id,
+        candidate.expiresAt,
+      );
       this.logger.warn(
         "Skipped posting expiry reminder; the organization has no primary manager.",
         {
@@ -160,6 +165,7 @@ export class PostingExpiryService {
     // failures. For a courtesy notification, under-delivery beats double.
     const claimed = await this.postingsRepository.markExpiryReminderSent(
       candidate.id,
+      candidate.expiresAt,
     );
 
     if (!claimed) {

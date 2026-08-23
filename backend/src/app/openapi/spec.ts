@@ -578,6 +578,7 @@ const postingExample = {
   publishedAt: "2026-05-01T10:00:00.000Z",
   pausedAt: undefined,
   archivedAt: undefined,
+  expiresAt: "2026-09-01T23:59:59.999Z",
   createdAt: "2026-05-01T09:00:00.000Z",
   updatedAt: "2026-05-20T09:00:00.000Z",
 };
@@ -4808,6 +4809,7 @@ function buildOperations(): OperationDefinition[] {
         availabilityStatus: "available",
         availabilityNotes: "Best for weekday bookings.",
         maxBookingDurationDays: 30,
+        expiresAt: "2026-09-01T23:59:59.999Z",
         location: postingExample.location,
         variant: postingExample.variant,
         details: postingExample.details,
@@ -4982,6 +4984,7 @@ function buildOperations(): OperationDefinition[] {
         availabilityStatus: "available",
         availabilityNotes: "Updated availability note.",
         maxBookingDurationDays: 21,
+        expiresAt: "2026-09-01T23:59:59.999Z",
         location: postingExample.location,
         variant: postingExample.variant,
         details: postingExample.details,
@@ -9970,10 +9973,28 @@ function buildComponents(): Record<string, unknown> {
       },
       PostingRecord: {
         type: "object",
+        properties: {
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            description:
+              "Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.",
+          },
+        },
         additionalProperties: true,
       },
       PublicPostingRecord: {
         type: "object",
+        properties: {
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            description:
+              "Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.",
+          },
+        },
         additionalProperties: true,
       },
       ListOwnerPostingsResult: {
@@ -10134,10 +10155,28 @@ function buildComponents(): Record<string, unknown> {
       },
       UpsertPostingRequest: {
         type: "object",
+        properties: {
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            description:
+              "Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.",
+          },
+        },
         additionalProperties: true,
       },
       UpdatePostingRequest: {
         type: "object",
+        properties: {
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            description:
+              "Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.",
+          },
+        },
         additionalProperties: true,
       },
       PostingAvailabilityBlockRecord: {

@@ -7414,6 +7414,7 @@ paths:
               availabilityStatus: available
               availabilityNotes: Best for weekday bookings.
               maxBookingDurationDays: 30
+              expiresAt: '2026-09-01T23:59:59.999Z'
               location:
                 city: Toronto
                 region: Ontario
@@ -7515,6 +7516,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -7806,6 +7808,7 @@ paths:
                         eligible: true
                         hasOwnReview: false
                       publishedAt: '2026-05-01T10:00:00.000Z'
+                      expiresAt: '2026-09-01T23:59:59.999Z'
                       createdAt: '2026-05-01T09:00:00.000Z'
                       updatedAt: '2026-05-20T09:00:00.000Z'
                   pagination:
@@ -7962,6 +7965,7 @@ paths:
                         eligible: true
                         hasOwnReview: false
                       publishedAt: '2026-05-01T10:00:00.000Z'
+                      expiresAt: '2026-09-01T23:59:59.999Z'
                       createdAt: '2026-05-01T09:00:00.000Z'
                       updatedAt: '2026-05-20T09:00:00.000Z'
                   pagination:
@@ -8148,6 +8152,7 @@ paths:
                         eligible: true
                         hasOwnReview: false
                       publishedAt: '2026-05-01T10:00:00.000Z'
+                      expiresAt: '2026-09-01T23:59:59.999Z'
                       createdAt: '2026-05-01T09:00:00.000Z'
                       updatedAt: '2026-05-20T09:00:00.000Z'
                   missingIds:
@@ -8212,6 +8217,7 @@ paths:
               availabilityStatus: available
               availabilityNotes: Updated availability note.
               maxBookingDurationDays: 21
+              expiresAt: '2026-09-01T23:59:59.999Z'
               location:
                 city: Toronto
                 region: Ontario
@@ -8309,6 +8315,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -8432,6 +8439,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -8549,6 +8557,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -8668,6 +8677,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -8788,6 +8798,7 @@ paths:
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
                   pausedAt: '2026-05-25T16:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -8907,6 +8918,7 @@ paths:
                     eligible: true
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -9027,6 +9039,7 @@ paths:
                     hasOwnReview: false
                   publishedAt: '2026-05-01T10:00:00.000Z'
                   archivedAt: '2026-05-25T17:00:00.000Z'
+                  expiresAt: '2026-09-01T23:59:59.999Z'
                   createdAt: '2026-05-01T09:00:00.000Z'
                   updatedAt: '2026-05-20T09:00:00.000Z'
                 error: null
@@ -9846,6 +9859,7 @@ paths:
                         eligible: true
                         hasOwnReview: false
                       publishedAt: '2026-05-01T10:00:00.000Z'
+                      expiresAt: '2026-09-01T23:59:59.999Z'
                       createdAt: '2026-05-01T09:00:00.000Z'
                       updatedAt: '2026-05-20T09:00:00.000Z'
                       savedAt: '2026-08-01T12:00:00.000Z'
@@ -11565,6 +11579,7 @@ paths:
                           eligible: true
                           hasOwnReview: false
                         publishedAt: '2026-05-01T10:00:00.000Z'
+                        expiresAt: '2026-09-01T23:59:59.999Z'
                         createdAt: '2026-05-01T09:00:00.000Z'
                         updatedAt: '2026-05-20T09:00:00.000Z'
                       reasonCodes:
@@ -11709,6 +11724,7 @@ paths:
                         eligible: true
                         hasOwnReview: false
                       publishedAt: '2026-05-01T10:00:00.000Z'
+                      expiresAt: '2026-09-01T23:59:59.999Z'
                       createdAt: '2026-05-01T09:00:00.000Z'
                       updatedAt: '2026-05-20T09:00:00.000Z'
                   missingIds:
@@ -17441,9 +17457,21 @@ components:
           type: boolean
     PostingRecord:
       type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 'Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.'
       additionalProperties: true
     PublicPostingRecord:
       type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 'Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.'
       additionalProperties: true
     ListOwnerPostingsResult:
       type: object
@@ -17634,9 +17662,21 @@ components:
         - fallback
     UpsertPostingRequest:
       type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 'Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.'
       additionalProperties: true
     UpdatePostingRequest:
       type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 'Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.'
       additionalProperties: true
     PostingAvailabilityBlockRecord:
       type: object

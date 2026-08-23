@@ -343,7 +343,7 @@ describe("PostingsRepository expiry sweeps", () => {
     expect(transaction.postingSearchOutbox.createMany).not.toHaveBeenCalled();
   });
 
-  it("claims the reminder latch exactly once", async () => {
+  it("claims the reminder latch against the exact deadline", async () => {
     const updateMany = jest.fn(async (_args: Record<string, unknown>) => ({
       count: 1,
     }));
@@ -351,22 +351,31 @@ describe("PostingsRepository expiry sweeps", () => {
       posting: { updateMany },
     } as never);
 
-    await expect(repository.markExpiryReminderSent("posting-1")).resolves.toBe(
-      true,
-    );
-    expect(updateMany.mock.calls[0][0]).toMatchObject({
-      where: { id: "posting-1", expiryReminderSentAt: null },
+    await expect(
+      repository.markExpiryReminderSent("posting-1", EXISTING.toISOString()),
+    ).resolves.toBe(true);
+
+    const args = updateMany.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+    };
+    // Pinning the deadline and the status is what stops an owner's concurrent
+    // edit from burning the latch for a date the job does not describe.
+    expect(args.where).toMatchObject({
+      id: "posting-1",
+      status: "published",
+      expiryReminderSentAt: null,
     });
+    expect(args.where.expiresAt).toEqual(EXISTING);
   });
 
-  it("reports a lost race for the reminder latch", async () => {
+  it("reports a lost claim when the deadline moved under it", async () => {
     const repository = new PostingsRepository({
       posting: { updateMany: jest.fn(async () => ({ count: 0 })) },
     } as never);
 
-    await expect(repository.markExpiryReminderSent("posting-1")).resolves.toBe(
-      false,
-    );
+    await expect(
+      repository.markExpiryReminderSent("posting-1", EXISTING.toISOString()),
+    ).resolves.toBe(false);
   });
 
   it("maps the expiry date onto the posting record", async () => {

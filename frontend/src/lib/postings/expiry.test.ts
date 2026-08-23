@@ -8,17 +8,10 @@ import {
 } from "@/lib/postings/expiry";
 
 describe("toExpiryIsoValue", () => {
-  it("maps a picked day to the end of that day in the viewer's timezone", () => {
-    const iso = toExpiryIsoValue("2026-09-01");
-
-    expect(iso).not.toBeNull();
-    const date = new Date(iso as string);
-    // The whole point: the listing stays live through the entire chosen day.
-    expect(date.getFullYear()).toBe(2026);
-    expect(date.getMonth()).toBe(8);
-    expect(date.getDate()).toBe(1);
-    expect(date.getHours()).toBe(23);
-    expect(date.getMinutes()).toBe(59);
+  it("maps a picked day to the end of that day in UTC", () => {
+    // Anchored to UTC rather than the picker's zone so the value round-trips
+    // to the same calendar day for every viewer.
+    expect(toExpiryIsoValue("2026-09-01")).toBe("2026-09-01T23:59:59.999Z");
   });
 
   it("treats a blank value as no expiry", () => {
@@ -39,18 +32,34 @@ describe("toExpiryInputValue", () => {
     expect(toExpiryInputValue(iso)).toBe("2026-09-01");
   });
 
-  it("round-trips across a spring-forward boundary", () => {
-    // 2026-03-08 is the US DST transition; the local end-of-day still belongs to
-    // the same calendar day when read back.
-    const iso = toExpiryIsoValue("2026-03-08");
-
-    expect(toExpiryInputValue(iso)).toBe("2026-03-08");
+  it.each([
+    ["spring-forward", "2026-03-08"],
+    ["fall-back", "2026-11-01"],
+    ["leap day", "2028-02-29"],
+    ["year end", "2026-12-31"],
+  ])("round-trips across a %s boundary", (_label, day) => {
+    expect(toExpiryInputValue(toExpiryIsoValue(day))).toBe(day);
   });
 
-  it("round-trips across a fall-back boundary", () => {
-    const iso = toExpiryIsoValue("2026-11-01");
+  it("reads back the picked day for viewers on either side of UTC", () => {
+    // The regression this guards: with a local-zone anchor, an owner west of
+    // UTC stored the *next* UTC day, so a teammate east of them saw a different
+    // date and every save walked it forward again.
+    const stored = toExpiryIsoValue("2026-09-01") as string;
+    const asUtcDay = new Date(stored).toISOString().slice(0, 10);
 
-    expect(toExpiryInputValue(iso)).toBe("2026-11-01");
+    expect(asUtcDay).toBe("2026-09-01");
+    expect(toExpiryInputValue(stored)).toBe("2026-09-01");
+  });
+
+  it("is stable under repeated edit-and-save cycles", () => {
+    let value = "2026-09-01";
+
+    for (let index = 0; index < 5; index += 1) {
+      value = toExpiryInputValue(toExpiryIsoValue(value));
+    }
+
+    expect(value).toBe("2026-09-01");
   });
 
   it("returns a blank string for missing or invalid input", () => {
@@ -129,12 +138,13 @@ describe("describeExpiry", () => {
 });
 
 describe("formatExpiryDate", () => {
-  it("renders a readable calendar date", () => {
+  it("renders the picked calendar day, not the viewer's local day", () => {
     const formatted = formatExpiryDate(
       toExpiryIsoValue("2026-09-01") as string,
     );
 
     expect(formatted).toContain("2026");
     expect(formatted).toMatch(/Sep/i);
+    expect(formatted).toMatch(/Sep 1, 2026/);
   });
 });

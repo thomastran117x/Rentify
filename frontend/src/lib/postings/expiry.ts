@@ -1,10 +1,19 @@
 import type { PostingStatus } from "@/lib/postings/api";
 
 /**
- * An expiry is stored as a UTC instant but chosen as a calendar day. The owner
- * picks a date in their own timezone and means "keep this live through the whole
- * of that day", so the conversion between the two lives here, on the client that
- * actually knows the timezone. The server never interprets one.
+ * An expiry is a calendar day, anchored to UTC.
+ *
+ * The owner picks a day and means "keep this live through the whole of it". We
+ * store the end of that day *in UTC* rather than in the picker's own timezone,
+ * so the stored instant always maps back to exactly the day that was chosen no
+ * matter who opens the listing next. Anchoring to the picker's local zone looks
+ * friendlier but does not round-trip: an owner in Los Angeles picking Sept 1
+ * stores Sept 2 UTC, a teammate in Toronto opens it and sees Sept 2, and every
+ * subsequent save walks the date forward another day and re-arms the reminder.
+ *
+ * The cost is that the deadline lands at 00:00 UTC rather than local midnight,
+ * so the listing goes down a few hours early or late depending on the viewer.
+ * That is a fixed, predictable offset; silent per-edit drift is not.
  */
 
 export type ExpiryTone = "neutral" | "warning" | "expired";
@@ -34,7 +43,10 @@ function padDatePart(value: number): string {
 }
 
 /**
- * Renders a stored instant as the local calendar day for an `<input type="date">`.
+ * Renders a stored instant as the calendar day for an `<input type="date">`.
+ *
+ * Reads UTC parts so the day shown is the day that was picked, regardless of
+ * the viewer's timezone.
  */
 export function toExpiryInputValue(value?: string | null): string {
   if (!value) {
@@ -48,15 +60,14 @@ export function toExpiryInputValue(value?: string | null): string {
   }
 
   return [
-    date.getFullYear(),
-    padDatePart(date.getMonth() + 1),
-    padDatePart(date.getDate()),
+    date.getUTCFullYear(),
+    padDatePart(date.getUTCMonth() + 1),
+    padDatePart(date.getUTCDate()),
   ].join("-");
 }
 
 /**
- * Converts a picked calendar day to the instant it ends at in the viewer's
- * timezone, so a listing stays live for the whole of the day the owner chose.
+ * Converts a picked calendar day to the instant that day ends at in UTC.
  */
 export function toExpiryIsoValue(value: string): string | null {
   if (!value.trim()) {
@@ -69,13 +80,13 @@ export function toExpiryIsoValue(value: string): string | null {
     return null;
   }
 
-  const date = new Date(year, month - 1, day, 23, 59, 59, 999);
+  const timestamp = Date.UTC(year, month - 1, day, 23, 59, 59, 999);
 
-  if (Number.isNaN(date.getTime())) {
+  if (Number.isNaN(timestamp)) {
     return null;
   }
 
-  return date.toISOString();
+  return new Date(timestamp).toISOString();
 }
 
 export function isExpiryInPast(value: string, now = Date.now()): boolean {
@@ -88,8 +99,13 @@ export function isExpiryInPast(value: string, now = Date.now()): boolean {
   return new Date(iso).getTime() <= now;
 }
 
+/**
+ * Formats a stored expiry as its calendar day. Reads UTC for the same reason
+ * `toExpiryInputValue` does: the displayed day must be the day that was picked.
+ */
 export function formatExpiryDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, {
+    timeZone: "UTC",
     year: "numeric",
     month: "short",
     day: "numeric",
