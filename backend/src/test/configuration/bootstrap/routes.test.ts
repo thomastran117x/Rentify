@@ -118,12 +118,19 @@ describe("mountRoutes", () => {
 
   it("disabling one module does not affect neighboring modules", async () => {
     process.env.DISABLED_ROUTE_MODULES = "auth-local";
-    const authController = {
-      linkedOAuthProviders: respond({ providers: ["google"] }),
-      localAuthenticate: respond({ ok: true }),
-    };
+    // The two handlers live on different controllers now, which is what makes
+    // this a real test of one module being disabled without its neighbour.
     const app = createApp(
-      new Map([[containerTokens.authController, authController]]),
+      new Map<unknown, unknown>([
+        [
+          containerTokens.authController,
+          { localAuthenticate: respond({ ok: true }) },
+        ],
+        [
+          containerTokens.oauthController,
+          { linkedOAuthProviders: respond({ providers: ["google"] }) },
+        ],
+      ]),
     );
 
     const disabledResponse = await app.request(

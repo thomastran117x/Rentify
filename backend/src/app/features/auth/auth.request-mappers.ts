@@ -11,13 +11,10 @@ import type {
   ForgotPasswordRequestBody,
   ForgotUsernameInput,
   ForgotUsernameRequestBody,
-  LinkOAuthProviderInput,
   LocalAuthenticateInput,
   LocalAuthenticateRequestBody,
   LocalSignupInput,
   LocalSignupRequestBody,
-  OAuthAuthenticateInput,
-  OAuthAuthenticateRequestBody,
   OAuthProvider,
   RefreshInput,
   RefreshRequestBody,
@@ -31,13 +28,18 @@ import type {
   ResetPasswordRequestBody,
   SetPasswordInput,
   SetPasswordRequestBody,
-  UnlinkOAuthProviderInput,
   UnlockLocalLoginInput,
   UnlockLocalLoginRequestBody,
   UsernameAvailabilityQuery,
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
+import type {
+  LinkOAuthProviderInput,
+  OAuthAuthenticateInput,
+  OAuthAuthenticateRequestBody,
+  UnlinkOAuthProviderInput,
+} from "@/features/auth/oauth/oauth-accounts.model";
 import type {
   RemoveKnownDeviceInput,
   RemoveKnownDeviceRequestBody,

@@ -18,17 +18,14 @@ import {
   toChangePasswordInput,
   toForgotPasswordInput,
   toForgotUsernameInput,
-  toLinkOAuthProviderInput,
   toLocalAuthenticateInput,
   toLocalSignupInput,
-  toOAuthAuthenticateInput,
   toRefreshInput,
   toResendForgotPasswordInput,
   toResendUnlockLocalLoginInput,
   toResendVerificationEmailInput,
   toResetPasswordInput,
   toSetPasswordInput,
-  toUnlinkOAuthProviderInput,
   toUnlockLocalLoginInput,
   toVerifyEmailInput,
 } from "@/features/auth/auth.request-mappers";
@@ -38,7 +35,6 @@ import {
   forgotUsernameRequestSchema,
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
-  oauthAuthenticateRequestSchema,
   refreshRequestSchema,
   resendForgotPasswordRequestSchema,
   resendUnlockLocalLoginRequestSchema,
@@ -268,95 +264,6 @@ export class AuthController {
       client: request.client,
     });
     ok(response, result);
-  };
-
-  googleAuthenticate = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      oauthAuthenticateRequestSchema,
-    );
-    const result = await this.authService.googleAuthenticate(
-      toOAuthAuthenticateInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Authenticated successfully.",
-    });
-  };
-
-  microsoftAuthenticate = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      oauthAuthenticateRequestSchema,
-    );
-    const result = await this.authService.microsoftAuthenticate(
-      toOAuthAuthenticateInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Authenticated successfully.",
-    });
-  };
-
-  appleAuthenticate = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      oauthAuthenticateRequestSchema,
-    );
-    const result = await this.authService.appleAuthenticate(
-      toOAuthAuthenticateInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Authenticated successfully.",
-    });
-  };
-
-  linkOAuthProvider = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireJwtAuth(request);
-    const input = await parseRequestBody(
-      request,
-      oauthAuthenticateRequestSchema,
-    );
-    const result = await this.authService.linkOAuthProvider(
-      toLinkOAuthProviderInput(request, input),
-    );
-    ok(response, result, {
-      message: "OAuth provider linked successfully.",
-    });
-  };
-
-  linkedOAuthProviders = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireJwtAuth(request);
-    const result = await this.authService.linkedOAuthProviders({
-      userId: request.auth.sub,
-    });
-    ok(response, result);
-  };
-
-  unlinkOAuthProvider = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireJwtAuth(request);
-    const result = await this.authService.unlinkOAuthProvider(
-      toUnlinkOAuthProviderInput(request),
-    );
-    ok(response, result, {
-      message: "OAuth provider unlinked successfully.",
-    });
   };
 
   refresh = async (request: Request, response: Response): Promise<void> => {

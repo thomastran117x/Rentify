@@ -12,7 +12,7 @@ function containsUnsafeAuthInput(value: string): boolean {
   return UNSAFE_AUTH_INPUT_PATTERN.test(value);
 }
 
-const safeTrimmedString = z
+export const safeTrimmedString = z
   .string()
   .trim()
   .min(1)
@@ -21,7 +21,7 @@ const safeTrimmedString = z
     UNSAFE_AUTH_INPUT_MESSAGE,
   );
 
-const requiredSafeTrimmedString = (requiredMessage: string) =>
+export const requiredSafeTrimmedString = (requiredMessage: string) =>
   z
     .string()
     .trim()
@@ -31,7 +31,7 @@ const requiredSafeTrimmedString = (requiredMessage: string) =>
       UNSAFE_AUTH_INPUT_MESSAGE,
     );
 
-const optionalTrimmedString = safeTrimmedString.optional();
+export const optionalTrimmedString = safeTrimmedString.optional();
 export const appRoleSchema = z.enum(["user", "owner", "moderator", "admin"]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 export const DEFAULT_APP_ROLE: AppRole = "user";
@@ -97,45 +97,7 @@ export const localAuthenticateRequestSchema = z.object({
   totpCode: z.string().optional(),
 });
 
-export const oauthAuthenticateRequestSchema = z
-  .object({
-    code: optionalTrimmedString,
-    codeVerifier: optionalTrimmedString,
-    idToken: optionalTrimmedString,
-    nonce: requiredSafeTrimmedString("Nonce is required."),
-    rememberMe: z.boolean().optional(),
-    deviceId: optionalTrimmedString,
-    firstName: optionalTrimmedString,
-    lastName: optionalTrimmedString,
-    totpCode: z.string().optional(),
-  })
-  .superRefine((input, context) => {
-    if (input.idToken) {
-      return;
-    }
-
-    if (!input.code) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Authorization code is required.",
-        path: ["code"],
-      });
-    }
-
-    if (!input.codeVerifier) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Code verifier is required.",
-        path: ["codeVerifier"],
-      });
-    }
-  });
-
 export const oauthProviderSchema = z.enum(["google", "microsoft", "apple"]);
-
-export const unlinkOAuthProviderRequestSchema = z.object({
-  provider: oauthProviderSchema,
-});
 
 export const verifyEmailRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
@@ -224,15 +186,7 @@ export type LocalAuthenticateRequestBody = z.infer<
   typeof localAuthenticateRequestSchema
 >;
 
-export type OAuthAuthenticateRequestBody = z.infer<
-  typeof oauthAuthenticateRequestSchema
->;
-
 export type OAuthProvider = z.infer<typeof oauthProviderSchema>;
-
-export type UnlinkOAuthProviderRequestBody = z.infer<
-  typeof unlinkOAuthProviderRequestSchema
->;
 
 export type VerifyEmailRequestBody = z.infer<typeof verifyEmailRequestSchema>;
 
@@ -289,29 +243,6 @@ export interface LocalSignupInput {
   firstName?: string;
   lastName?: string;
   deviceId?: string;
-}
-
-export interface OAuthAuthenticateInput {
-  client: ClientRequestContext;
-  code?: string;
-  codeVerifier?: string;
-  idToken?: string;
-  nonce: string;
-  rememberMe?: boolean;
-  deviceId?: string;
-  firstName?: string;
-  lastName?: string;
-  totpCode?: string;
-}
-
-export interface LinkOAuthProviderInput extends OAuthAuthenticateInput {
-  userId: string;
-  provider: OAuthProvider;
-}
-
-export interface UnlinkOAuthProviderInput {
-  userId: string;
-  provider: OAuthProvider;
 }
 
 export interface VerifyEmailInput {
@@ -527,14 +458,3 @@ export interface SignupVerificationPendingResult {
   alreadyPending: boolean;
 }
 
-export interface LinkedOAuthProvidersResult {
-  hasPassword: boolean;
-  providers: Array<{
-    id: string;
-    provider: OAuthProvider;
-    providerEmail?: string;
-    emailVerified: boolean;
-    displayName?: string;
-    linkedAt: string;
-  }>;
-}

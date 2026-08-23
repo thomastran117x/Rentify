@@ -16,6 +16,8 @@ import { TotpService } from "@/features/auth/mfa/totp/totp.service";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
+import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
+import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
@@ -259,6 +261,9 @@ export const containerTokens = {
     "MicrosoftOAuthService",
   ),
   appleOAuthService: createServiceToken<AppleOAuthService>("AppleOAuthService"),
+  oauthAccountsService:
+    createServiceToken<OAuthAccountsService>("OAuthAccountsService"),
+  oauthController: createServiceToken<OAuthController>("OAuthController"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
   deviceManagementService: createServiceToken<DeviceManagementService>(

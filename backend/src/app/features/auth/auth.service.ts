@@ -18,19 +18,14 @@ import {
   type ChangePasswordInput,
   type ForgotPasswordInput,
   type ForgotUsernameInput,
-  type LinkedOAuthProvidersResult,
-  type LinkOAuthProviderInput,
   type LocalAuthenticateInput,
   type LocalSignupInput,
-  type OAuthAuthenticateInput,
-  type OAuthProvider,
   type RefreshInput,
   type ResetPasswordInput,
   type ResendForgotPasswordInput,
   type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
   type SetPasswordInput,
-  type UnlinkOAuthProviderInput,
   type UsernameAvailabilityResult,
   type VerifyEmailInput,
   type UnlockLocalLoginInput,
@@ -70,10 +65,6 @@ import {
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
-import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
-import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
-import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
-import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
@@ -96,9 +87,6 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly deviceService: DeviceService,
     private readonly emailService: EmailService,
-    private readonly googleOAuthService: GoogleOAuthService,
-    private readonly microsoftOAuthService: MicrosoftOAuthService,
-    private readonly appleOAuthService: AppleOAuthService,
     private readonly cacheService: CacheService,
     private readonly mfaTotpService: MfaTotpService,
     private readonly usernameBloomService: UsernameBloomService,
@@ -611,110 +599,6 @@ export class AuthService {
     };
   }
 
-  async googleAuthenticate(
-    input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult> {
-    const profile = await this.googleOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
-  }
-
-  async microsoftAuthenticate(
-    input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult> {
-    const profile = await this.microsoftOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
-  }
-
-  async appleAuthenticate(
-    input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult> {
-    const profile = await this.appleOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
-  }
-
-  async linkOAuthProvider(
-    input: LinkOAuthProviderInput,
-  ): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.authRepository, input.userId);
-    const profile = await this.verifyOAuthInput(input.provider, input);
-
-    this.requireVerifiedOAuthProfile(profile);
-
-    const existingProviderUser =
-      await this.authRepository.findUserByOAuthIdentity(
-        profile.provider,
-        profile.providerUserId,
-      );
-
-    if (existingProviderUser && existingProviderUser.id !== user.id) {
-      throw new ConflictError(
-        "This OAuth provider is already linked to another account.",
-      );
-    }
-
-    if (
-      existingProviderUser?.id === user.id ||
-      user.oauthIdentities.some(
-        (identity) => identity.provider === profile.provider,
-      )
-    ) {
-      return this.listLinkedOAuthProvidersForUser(user);
-    }
-
-    await this.authRepository.linkOAuthIdentity(user.id, profile);
-    return this.linkedOAuthProviders({
-      ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
-        user.id,
-      ),
-    });
-  }
-
-  async linkedOAuthProviders(context: {
-    userId: string;
-  }): Promise<LinkedOAuthProvidersResult>;
-  async linkedOAuthProviders(
-    user: AuthUserRecord,
-  ): Promise<LinkedOAuthProvidersResult>;
-  async linkedOAuthProviders(
-    input: { userId: string } | AuthUserRecord,
-  ): Promise<LinkedOAuthProvidersResult> {
-    const user =
-      "email" in input ? input : await requireExistingUser(this.authRepository, input.userId);
-    return this.listLinkedOAuthProvidersForUser(user);
-  }
-
-  async unlinkOAuthProvider(
-    input: UnlinkOAuthProviderInput,
-  ): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.authRepository, input.userId);
-
-    if (
-      !user.oauthIdentities.some(
-        (identity) => identity.provider === input.provider,
-      )
-    ) {
-      return this.listLinkedOAuthProvidersForUser(user);
-    }
-
-    if (
-      !isLocalPasswordAccount(user) &&
-      user.oauthIdentities.length <= 1
-    ) {
-      throw new ConflictError(
-        "Add another sign-in method before unlinking this provider.",
-      );
-    }
-
-    await this.authRepository.unlinkOAuthIdentity(user.id, input.provider);
-    return this.linkedOAuthProviders({
-      ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
-        user.id,
-      ),
-    });
-  }
-
   async refresh(input: RefreshInput): Promise<AuthSessionResult> {
     if (!input.refreshToken) {
       throw new UnauthorizedError("Refresh token is required.");
@@ -823,63 +707,6 @@ export class AuthService {
       },
       client: context.client,
     };
-  }
-
-  private async authenticateOAuthProfile(
-    profile: VerifiedOAuthProfile,
-    input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult> {
-    this.requireVerifiedOAuthProfile(profile);
-
-    const linkedUser = await this.authRepository.findUserByOAuthIdentity(
-      profile.provider,
-      profile.providerUserId,
-    );
-
-    if (linkedUser) {
-      await requireLoginMfa(this.mfaTotpService, 
-        linkedUser.id,
-        linkedUser.email,
-        input.totpCode,
-      );
-      return this.authSessionService.authenticateVerifiedUser(linkedUser, input);
-    }
-
-    if (await this.authRepository.findUserByEmail(profile.email)) {
-      throw new ConflictError(
-        "An account with this email already exists. Sign in with the original method before linking a social provider.",
-      );
-    }
-
-    const user = await this.authRepository.createOAuthUser(
-      profile,
-      (candidate) =>
-        this.usernameBloomService.check(candidate) === "possibly-present",
-    );
-    await this.usernameBloomService.add(user.profile.username);
-    const session = await this.authSessionService.authenticateVerifiedUser(user, input);
-    return { ...session, isNewUser: true };
-  }
-
-  private async verifyOAuthInput(
-    provider: OAuthProvider,
-    input: OAuthAuthenticateInput,
-  ): Promise<VerifiedOAuthProfile> {
-    if (provider === "google") {
-      return this.googleOAuthService.verify(input);
-    }
-
-    if (provider === "microsoft") {
-      return this.microsoftOAuthService.verify(input);
-    }
-
-    return this.appleOAuthService.verify(input);
-  }
-
-  private requireVerifiedOAuthProfile(profile: VerifiedOAuthProfile): void {
-    if (!profile.emailVerified) {
-      throw new Error("OAuth account email must be verified.");
-    }
   }
 
   private resolvePasswordResetOtpSubject(
@@ -1039,21 +866,4 @@ export class AuthService {
       unlockRequired: true,
     };
   }
-
-  private listLinkedOAuthProvidersForUser(
-    user: AuthUserRecord,
-  ): LinkedOAuthProvidersResult {
-    return {
-      hasPassword: isLocalPasswordAccount(user),
-      providers: user.oauthIdentities.map((identity) => ({
-        id: identity.id,
-        provider: identity.provider,
-        providerEmail: identity.providerEmail,
-        emailVerified: identity.emailVerified,
-        displayName: identity.displayName,
-        linkedAt: identity.linkedAt,
-      })),
-    };
-  }
-
 }

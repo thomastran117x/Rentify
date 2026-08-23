@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import type { AuthController } from "@/features/auth/auth.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -126,43 +127,43 @@ export const authOauthRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/oauth/google",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "googleAuthenticate",
       ),
     );
     app.post(
       "/auth/oauth/microsoft",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "microsoftAuthenticate",
       ),
     );
     app.post(
       "/auth/oauth/apple",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "appleAuthenticate",
       ),
     );
     app.get(
       "/auth/oauth/providers",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "linkedOAuthProviders",
       ),
     );
     app.post(
       "/auth/oauth/:provider/link",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "linkOAuthProvider",
       ),
     );
     app.delete(
       "/auth/oauth/:provider",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
         "unlinkOAuthProvider",
       ),
     );
