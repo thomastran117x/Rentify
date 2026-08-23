@@ -21,7 +21,16 @@ import {
   searchAdminRouteModule,
 } from "@/configuration/bootstrap/routes/modules/misc.routes";
 import { feedbacksRouteModule } from "@/configuration/bootstrap/routes/modules/feedbacks.routes";
-import { organizationsRouteModule } from "@/configuration/bootstrap/routes/modules/organizations.routes";
+import {
+  organizationsAnnouncementsRouteModule,
+  organizationsAuditRouteModule,
+  organizationsBlogRouteModule,
+  organizationsBlogCommentsRouteModule,
+  organizationsInvitationsRouteModule,
+  organizationsMembersRouteModule,
+  organizationsProfileRouteModule,
+  organizationsReviewsRouteModule,
+} from "@/configuration/bootstrap/routes/modules/organizations.routes";
 import { paymentsRouteModule } from "@/configuration/bootstrap/routes/modules/payments.routes";
 import { smsRouteModule } from "@/configuration/bootstrap/routes/modules/sms.routes";
 import {
@@ -57,7 +66,17 @@ export const routeModuleRegistry: RouteModule[] = [
   authPersonalAccessTokensRouteModule,
   authMfaVerificationRouteModule,
   authMfaTotpRouteModule,
-  organizationsRouteModule,
+  organizationsInvitationsRouteModule,
+  organizationsAuditRouteModule,
+  organizationsAnnouncementsRouteModule,
+  organizationsBlogRouteModule,
+  organizationsBlogCommentsRouteModule,
+  organizationsReviewsRouteModule,
+  // Must precede organizationsProfileRouteModule: both define depth-2
+  // GET/POST routes under /organizations/* ("me" vs ":id"), and Express
+  // matches registration order, so ":id" would otherwise shadow "me".
+  organizationsMembersRouteModule,
+  organizationsProfileRouteModule,
   blobRouteModule,
   profilesRouteModule,
   feedbacksRouteModule,

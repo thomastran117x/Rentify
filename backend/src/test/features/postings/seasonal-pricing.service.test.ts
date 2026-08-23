@@ -5,7 +5,7 @@ import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/sea
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
 
 function buildRule(

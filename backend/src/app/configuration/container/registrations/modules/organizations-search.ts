@@ -1,9 +1,9 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
-import { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
+import { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
 import { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
 import { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
-import { OrganizationsSearchService } from "@/features/organizations/search/organizations-search.service";
+import { OrganizationsSearchService } from "@/features/organizations/search/search.service";
 import { SearchQueueService } from "@/features/search/search.queue.service";
 
 export const organizationsSearchRegistrationModule: ContainerRegistrationModule =

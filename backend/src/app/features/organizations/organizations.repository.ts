@@ -3,7 +3,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
   maskEmailAddress,
-  type ListPublicOrganizationsInput,
   type OrganizationInvitationRecord,
   type OrganizationMemberRecord,
   type OrganizationMembershipSummary,
@@ -13,13 +12,16 @@ import {
   type OrganizationSearchDocument,
   type OrganizationSearchOutboxRecord,
   type OrganizationSummary,
-  type OrganizationWorkspaceDetailResult,
-  type PublicOrganizationDetailResult,
-  type PublicOrganizationListResult,
-  type PublicOrganizationProfileFields,
-  type PublicOrganizationSummary,
   type ResolvedOrganizationReference,
 } from "@/features/organizations/organizations.model";
+import type {
+  ListPublicOrganizationsInput,
+  OrganizationWorkspaceDetailResult,
+  PublicOrganizationDetailResult,
+  PublicOrganizationListResult,
+  PublicOrganizationProfileFields,
+  PublicOrganizationSummary,
+} from "@/features/organizations/profile/profile.model";
 import type {
   SearchOutboxLagMetrics,
   SearchReindexRunRecord,

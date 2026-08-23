@@ -206,14 +206,18 @@ describe("mountRoutes", () => {
 
   it("preserves static-before-dynamic organization route behavior", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
-    const organizationsController = {
+    const organizationMembersController = {
       listMine: respond({ route: "listMine" }),
-      previewInvitation: async (request: any, response: any) => {
+    };
+    const organizationInvitationsController = {
+      preview: async (request: any, response: any) => {
         response.status(200).json({
           route: "previewInvitation",
           token: request.params.token,
         });
       },
+    };
+    const organizationProfileController = {
       getWorkspaceById: async (request: any, response: any) => {
         response.status(200).json({
           route: "getWorkspaceById",
@@ -225,8 +229,19 @@ describe("mountRoutes", () => {
       },
     };
     const app = createApp(
-      new Map([
-        [containerTokens.organizationsController, organizationsController],
+      new Map<unknown, unknown>([
+        [
+          containerTokens.organizationMembersController,
+          organizationMembersController,
+        ],
+        [
+          containerTokens.organizationInvitationsController,
+          organizationInvitationsController,
+        ],
+        [
+          containerTokens.organizationProfileController,
+          organizationProfileController,
+        ],
       ]),
     );
 

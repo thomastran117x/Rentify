@@ -1,142 +1,202 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
-import type { OrganizationsController } from "@/features/organizations/organizations.controller";
-import type { OrganizationBlogCommentsController } from "@/features/organizations/blog-comments/organization-blog-comments.controller";
+import type { OrganizationProfileController } from "@/features/organizations/profile/profile.controller";
+import type { OrganizationMembersController } from "@/features/organizations/members/members.controller";
+import type { OrganizationInvitationsController } from "@/features/organizations/invitations/invitations.controller";
+import type { OrganizationAuditController } from "@/features/organizations/audit/audit.controller";
+import type { OrganizationAnnouncementsController } from "@/features/organizations/announcements/announcements.controller";
+import type { OrganizationBlogController } from "@/features/organizations/blog/blog.controller";
+import type { OrganizationBlogCommentsController } from "@/features/organizations/blog/comments/comments.controller";
+import type { OrganizationReviewsController } from "@/features/organizations/reviews/reviews.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
-export const organizationsRouteModule: RouteModule = {
-  id: "organizations",
+// `/organizations/me` and `/organizations/me/active` are depth-2 GETs/POSTs
+// under `/organizations/*`, the same depth as `GET/PATCH /organizations/:id`
+// registered by organizationsProfileRouteModule below. This module must stay
+// registered before that one (see registry.ts) or `:id` would shadow `me`.
+export const organizationsMembersRouteModule: RouteModule = {
+  id: "organizations-members",
   register(app, { resolveHandler }) {
     app.get(
-      "/organizations",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "list",
-      ),
-    );
-    app.post(
-      "/organizations",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "create",
-      ),
-    );
-    app.get(
       "/organizations/me",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
+      resolveHandler<OrganizationMembersController>(
+        containerTokens.organizationMembersController,
         "listMine",
       ),
     );
     app.post(
       "/organizations/me/active",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
+      resolveHandler<OrganizationMembersController>(
+        containerTokens.organizationMembersController,
         "setActive",
       ),
     );
-    // Two literal segments, so this cannot be shadowed by the single-segment
-    // "/organizations/:id" route below.
-    app.get(
-      "/organizations/by-slug/:slug",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "resolveBySlug",
+    app.patch(
+      "/organizations/:id/members/:memberId",
+      resolveHandler<OrganizationMembersController>(
+        containerTokens.organizationMembersController,
+        "updateRole",
       ),
     );
+    app.delete(
+      "/organizations/:id/members/:memberId",
+      resolveHandler<OrganizationMembersController>(
+        containerTokens.organizationMembersController,
+        "remove",
+      ),
+    );
+  },
+};
+
+export const organizationsInvitationsRouteModule: RouteModule = {
+  id: "organizations-invitations",
+  register(app, { resolveHandler }) {
     app.get(
       "/organizations/invitations/:token",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "previewInvitation",
+      resolveHandler<OrganizationInvitationsController>(
+        containerTokens.organizationInvitationsController,
+        "preview",
       ),
     );
     app.post(
       "/organizations/invitations/:token/accept",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "acceptInvitation",
+      resolveHandler<OrganizationInvitationsController>(
+        containerTokens.organizationInvitationsController,
+        "accept",
       ),
     );
-    app.get(
-      "/organizations/:id/workspace",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "getWorkspaceById",
+    app.post(
+      "/organizations/:id/invitations",
+      resolveHandler<OrganizationInvitationsController>(
+        containerTokens.organizationInvitationsController,
+        "create",
       ),
     );
-    app.get(
-      "/organizations/:id",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "getById",
+    app.delete(
+      "/organizations/:id/invitations/:inviteId",
+      resolveHandler<OrganizationInvitationsController>(
+        containerTokens.organizationInvitationsController,
+        "revoke",
       ),
     );
+  },
+};
+
+export const organizationsAuditRouteModule: RouteModule = {
+  id: "organizations-audit",
+  register(app, { resolveHandler }) {
     app.get(
       "/organizations/:id/audit",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "listAudit",
+      resolveHandler<OrganizationAuditController>(
+        containerTokens.organizationAuditController,
+        "list",
       ),
     );
     app.post(
       "/organizations/:id/audit/:auditId/restore",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "restoreAuditEntry",
+      resolveHandler<OrganizationAuditController>(
+        containerTokens.organizationAuditController,
+        "restoreVersion",
       ),
     );
+  },
+};
+
+export const organizationsAnnouncementsRouteModule: RouteModule = {
+  id: "organizations-announcements",
+  register(app, { resolveHandler }) {
     app.get(
       "/organizations/:id/announcements",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "listAnnouncements",
+      resolveHandler<OrganizationAnnouncementsController>(
+        containerTokens.organizationAnnouncementsController,
+        "list",
       ),
     );
     app.post(
       "/organizations/:id/announcements",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "createAnnouncement",
+      resolveHandler<OrganizationAnnouncementsController>(
+        containerTokens.organizationAnnouncementsController,
+        "create",
       ),
     );
     app.patch(
       "/organizations/:id/announcements/:announcementId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "updateAnnouncement",
+      resolveHandler<OrganizationAnnouncementsController>(
+        containerTokens.organizationAnnouncementsController,
+        "update",
       ),
     );
     app.delete(
       "/organizations/:id/announcements/:announcementId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "deleteAnnouncement",
+      resolveHandler<OrganizationAnnouncementsController>(
+        containerTokens.organizationAnnouncementsController,
+        "delete",
       ),
     );
+  },
+};
+
+export const organizationsBlogRouteModule: RouteModule = {
+  id: "organizations-blog",
+  register(app, { resolveHandler }) {
     // Public, unauthenticated global blog feed/search across all organizations
     // (Elasticsearch-backed, published posts only).
     app.get(
       "/blog",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "searchPublicBlogFeed",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "searchGlobal",
       ),
     );
     // Public, unauthenticated per-organization blog reads (published posts only).
     app.get(
       "/organizations/:id/blog",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "listPublicBlogPosts",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "listPublished",
       ),
     );
     app.get(
       "/organizations/:id/blog/:slug",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "getPublicBlogPost",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "getPublished",
       ),
     );
+    // Authenticated, manager-gated blog management.
+    app.get(
+      "/organizations/:id/blog-posts",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "list",
+      ),
+    );
+    app.post(
+      "/organizations/:id/blog-posts",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "create",
+      ),
+    );
+    app.patch(
+      "/organizations/:id/blog-posts/:blogPostId",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "update",
+      ),
+    );
+    app.delete(
+      "/organizations/:id/blog-posts/:blogPostId",
+      resolveHandler<OrganizationBlogController>(
+        containerTokens.organizationBlogController,
+        "delete",
+      ),
+    );
+  },
+};
+
+export const organizationsBlogCommentsRouteModule: RouteModule = {
+  id: "organizations-blog-comments",
+  register(app, { resolveHandler }) {
     // Blog comments on a published post. Reading is public; writing needs a
     // signed-in user and an open thread.
     app.get(
@@ -176,98 +236,123 @@ export const organizationsRouteModule: RouteModule = {
         "remove",
       ),
     );
-    // Authenticated, manager-gated blog management.
-    app.get(
-      "/organizations/:id/blog-posts",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "listBlogPosts",
-      ),
-    );
-    app.post(
-      "/organizations/:id/blog-posts",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "createBlogPost",
-      ),
-    );
-    app.patch(
-      "/organizations/:id/blog-posts/:blogPostId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "updateBlogPost",
-      ),
-    );
-    app.delete(
-      "/organizations/:id/blog-posts/:blogPostId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "deleteBlogPost",
-      ),
-    );
+  },
+};
+
+export const organizationsReviewsRouteModule: RouteModule = {
+  id: "organizations-reviews",
+  register(app, { resolveHandler }) {
     // Public, unauthenticated review reads.
     app.get(
       "/organizations/:id/reviews",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "listReviews",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "list",
       ),
     );
     // Authenticated reviewer submission (renters with a completed rental).
     app.get(
       "/organizations/:id/reviews/me",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "getOwnReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "getOwn",
       ),
     );
     app.post(
       "/organizations/:id/reviews",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "createReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "create",
       ),
     );
     app.put(
       "/organizations/:id/reviews/me",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "updateOwnReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "updateOwn",
       ),
     );
     app.delete(
       "/organizations/:id/reviews/me",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "deleteOwnReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "deleteOwn",
       ),
     );
     // Manager-gated review moderation.
     app.put(
       "/organizations/:id/reviews/:reviewId/reply",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "replyToReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "reply",
       ),
     );
     app.delete(
       "/organizations/:id/reviews/:reviewId/reply",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "removeReviewReply",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "removeReply",
       ),
     );
     app.delete(
       "/organizations/:id/reviews/:reviewId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "deleteReview",
+      resolveHandler<OrganizationReviewsController>(
+        containerTokens.organizationReviewsController,
+        "delete",
+      ),
+    );
+  },
+};
+
+// Owns `GET /organizations`, `POST /organizations`, `GET/PATCH
+// /organizations/:id`, and `/organizations/:id/slug` and `/workspace`. Must
+// stay registered after organizationsMembersRouteModule (see that module's
+// comment) since `GET /organizations/:id` would otherwise shadow `GET
+// /organizations/me`.
+export const organizationsProfileRouteModule: RouteModule = {
+  id: "organizations-profile",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/organizations",
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
+        "list",
+      ),
+    );
+    app.post(
+      "/organizations",
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
+        "create",
+      ),
+    );
+    // Two literal segments, so this cannot be shadowed by the single-segment
+    // "/organizations/:id" route below.
+    app.get(
+      "/organizations/by-slug/:slug",
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
+        "resolveBySlug",
+      ),
+    );
+    app.get(
+      "/organizations/:id/workspace",
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
+        "getWorkspaceById",
+      ),
+    );
+    app.get(
+      "/organizations/:id",
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
+        "getById",
       ),
     );
     app.patch(
       "/organizations/:id",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
         "update",
       ),
     );
@@ -275,37 +360,9 @@ export const organizationsRouteModule: RouteModule = {
     // consequences a routine profile save should never trigger.
     app.patch(
       "/organizations/:id/slug",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
+      resolveHandler<OrganizationProfileController>(
+        containerTokens.organizationProfileController,
         "updateSlug",
-      ),
-    );
-    app.post(
-      "/organizations/:id/invitations",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "createInvitation",
-      ),
-    );
-    app.delete(
-      "/organizations/:id/invitations/:inviteId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "revokeInvitation",
-      ),
-    );
-    app.patch(
-      "/organizations/:id/members/:memberId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "updateMemberRole",
-      ),
-    );
-    app.delete(
-      "/organizations/:id/members/:memberId",
-      resolveHandler<OrganizationsController>(
-        containerTokens.organizationsController,
-        "removeMember",
       ),
     );
   },

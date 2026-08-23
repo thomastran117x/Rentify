@@ -4,8 +4,8 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
-import { createAuditChanges } from "@/features/organizations/organization-audit.model";
+import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
+import { createAuditChanges } from "@/features/organizations/audit/audit.model";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type {
   SeasonalPricingRecord,

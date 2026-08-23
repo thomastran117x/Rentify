@@ -1,6 +1,6 @@
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
-import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import type {
   PostingExpiryCandidate,

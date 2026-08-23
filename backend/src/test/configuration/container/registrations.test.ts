@@ -29,7 +29,13 @@ import { ReportsController } from "@/features/reports/reports.controller";
 import { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import { SearchController } from "@/features/search/search.controller";
-import { OrganizationsController } from "@/features/organizations/organizations.controller";
+import { OrganizationProfileController } from "@/features/organizations/profile/profile.controller";
+import { OrganizationMembersController } from "@/features/organizations/members/members.controller";
+import { OrganizationInvitationsController } from "@/features/organizations/invitations/invitations.controller";
+import { OrganizationAuditController } from "@/features/organizations/audit/audit.controller";
+import { OrganizationAnnouncementsController } from "@/features/organizations/announcements/announcements.controller";
+import { OrganizationBlogController } from "@/features/organizations/blog/blog.controller";
+import { OrganizationReviewsController } from "@/features/organizations/reviews/reviews.controller";
 
 jest.mock("@/configuration/resources/database", () => ({
   getDatabaseClient: () => ({}),
@@ -115,9 +121,30 @@ describe("container registrations", () => {
       expect(scope.resolve(containerTokens.profileController)).toBeInstanceOf(
         ProfileController,
       );
+      // Organizations was split into 7 domain controllers -- checking one is
+      // not enough to prove the others are wired, so each gets its own
+      // assertion here.
       expect(
-        scope.resolve(containerTokens.organizationsController),
-      ).toBeInstanceOf(OrganizationsController);
+        scope.resolve(containerTokens.organizationProfileController),
+      ).toBeInstanceOf(OrganizationProfileController);
+      expect(
+        scope.resolve(containerTokens.organizationMembersController),
+      ).toBeInstanceOf(OrganizationMembersController);
+      expect(
+        scope.resolve(containerTokens.organizationInvitationsController),
+      ).toBeInstanceOf(OrganizationInvitationsController);
+      expect(
+        scope.resolve(containerTokens.organizationAuditController),
+      ).toBeInstanceOf(OrganizationAuditController);
+      expect(
+        scope.resolve(containerTokens.organizationAnnouncementsController),
+      ).toBeInstanceOf(OrganizationAnnouncementsController);
+      expect(
+        scope.resolve(containerTokens.organizationBlogController),
+      ).toBeInstanceOf(OrganizationBlogController);
+      expect(
+        scope.resolve(containerTokens.organizationReviewsController),
+      ).toBeInstanceOf(OrganizationReviewsController);
       expect(scope.resolve(containerTokens.blobController)).toBeInstanceOf(
         BlobController,
       );

@@ -3,11 +3,11 @@ import {
   getElasticsearchClient,
   type ElasticsearchClient,
 } from "@/configuration/resources/elasticsearch";
+import type { OrganizationSearchSource } from "@/features/organizations/organizations.model";
 import type {
   ListPublicOrganizationsInput,
-  OrganizationSearchSource,
   PublicOrganizationListResult,
-} from "@/features/organizations/organizations.model";
+} from "@/features/organizations/profile/profile.model";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import type { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
 import type { SearchFallbackReason } from "@/features/search/search.model";

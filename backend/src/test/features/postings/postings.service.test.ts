@@ -30,7 +30,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
