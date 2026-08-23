@@ -1,6 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
-import type { AuthController } from "@/features/auth/auth.controller";
+import type { LocalAuthController } from "@/features/auth/local/local-auth.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
@@ -17,15 +17,15 @@ export const authLocalRouteModule: RouteModule = {
   register(app, { resolveHandler }) {
     app.post(
       "/auth/local/login",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "localAuthenticate",
       ),
     );
     app.post(
       "/auth/local/signup",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "localSignup",
       ),
     );
@@ -68,15 +68,15 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/email/verify",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "verifyEmail",
       ),
     );
     app.post(
       "/auth/local/email/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LocalAuthController>(
+        containerTokens.localAuthController,
         "resendVerificationEmail",
       ),
     );

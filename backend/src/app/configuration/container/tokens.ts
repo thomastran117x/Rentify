@@ -2,7 +2,6 @@ import { FeatureFlagCacheService } from "@/features/feature-flags/feature-flag-c
 import { FeatureFlagController } from "@/features/feature-flags/feature-flag.controller";
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
 import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
-import { AuthController } from "@/features/auth/auth.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
@@ -22,7 +21,8 @@ import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { AuthRepository } from "@/features/auth/auth.repository";
-import { AuthService } from "@/features/auth/auth.service";
+import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
+import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { AuthSessionController } from "@/features/auth/session/session.controller";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
@@ -306,8 +306,9 @@ export const containerTokens = {
   usernameService: createServiceToken<UsernameService>("UsernameService"),
   usernameController:
     createServiceToken<UsernameController>("UsernameController"),
-  authService: createServiceToken<AuthService>("AuthService"),
-  authController: createServiceToken<AuthController>("AuthController"),
+  localAuthService: createServiceToken<LocalAuthService>("LocalAuthService"),
+  localAuthController:
+    createServiceToken<LocalAuthController>("LocalAuthController"),
   personalAccessTokenController:
     createServiceToken<PersonalAccessTokenController>(
       "PersonalAccessTokenController",

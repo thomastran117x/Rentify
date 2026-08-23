@@ -4,7 +4,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
-import { AuthService } from "@/features/auth/auth.service";
+import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
@@ -520,7 +520,7 @@ function createService(overrides?: {
     publicOtpService,
   );
 
-  const service = new AuthService(
+  const service = new LocalAuthService(
     authRepository as any,
     tokenService as any,
     otpService as any,
@@ -539,7 +539,7 @@ function createService(overrides?: {
   return service;
 }
 
-describe("AuthService", () => {
+describe("LocalAuthService", () => {
   it("returns a pending verification response when signup email already exists but is unverified", async () => {
     const existingUser = {
       ...createUser(),
@@ -887,6 +887,306 @@ describe("AuthService", () => {
     expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
     expect(result.user.emailVerified).toBe(true);
     expect(result.user.username).toBe("pending-user");
+  });
+
+  it("stores pending signup state in cache and sends verification during signup", async () => {
+    let createLocalUserCalled = false;
+    let verificationEmailSentTo: string | undefined;
+    const cacheWrites: Array<{
+      key: string;
+      value: unknown;
+      ttlSeconds?: number;
+    }> = [];
+    const hashSpy = jest
+      .spyOn(bcrypt, "hash")
+      .mockResolvedValue(FAST_TEST_PASSWORD_HASH);
+    const service = createService({
+      findUserByEmail: async () => null,
+      createLocalUser: async () => {
+        createLocalUserCalled = true;
+        return createUser();
+      },
+      otpTtlInSeconds: 600,
+      cacheSetJson: async (key, value, ttlSeconds) => {
+        cacheWrites.push({ key, value, ttlSeconds });
+      },
+      sendVerificationEmail: async (input) => {
+        verificationEmailSentTo = input.to;
+      },
+    });
+
+    try {
+      const result = await service.localSignup({
+        client: createClient(),
+        username: "new-user",
+        email: "new-user@example.com",
+        password: "CorrectHorseBatteryStaple1!",
+        firstName: "New",
+        lastName: "User",
+        deviceId: "device-1",
+      });
+
+      expect(createLocalUserCalled).toBe(false);
+      expect(cacheWrites).toHaveLength(2);
+      expect(cacheWrites[0]).toMatchObject({
+        key: "auth:pending-signup:new-user@example.com",
+        ttlSeconds: 600,
+        value: {
+          username: "new-user",
+          email: "new-user@example.com",
+          firstName: "New",
+          lastName: "User",
+          deviceId: "device-1",
+          createdAt: expect.any(String),
+        },
+      });
+      await expect(
+        bcrypt.compare(
+          "CorrectHorseBatteryStaple1!",
+          (cacheWrites[0]?.value as { passwordHash?: string }).passwordHash ??
+            "",
+        ),
+      ).resolves.toBe(true);
+      expect(cacheWrites[1]).toEqual({
+        key: "auth:pending-signup-username:new-user",
+        value: "new-user@example.com",
+        ttlSeconds: 600,
+      });
+      expect(verificationEmailSentTo).toBe("new-user@example.com");
+      expect(result).toEqual({
+        verificationRequired: true,
+        email: "new-user@example.com",
+        alreadyPending: false,
+      });
+    } finally {
+      hashSpy.mockRestore();
+    }
+  });
+
+  it("accepts resend verification email without revealing that the user is already verified", async () => {
+    const service = createService({
+      findUserByEmail: async () => createUser(),
+    });
+
+    await expect(
+      service.resendVerificationEmail({
+        client: createClient(),
+        email: "user@example.com",
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({
+      accepted: true,
+    });
+  });
+
+  it("creates a real user from pending signup state during email verification", async () => {
+    const pendingPasswordHash = await bcrypt.hash(
+      "CorrectHorseBatteryStaple1!",
+      4,
+    );
+    const createdUser = {
+      ...createUser(),
+      email: "pending@example.com",
+      firstName: "Pending",
+      lastName: "User",
+      emailVerified: false,
+    };
+    let createdInput: {
+      username: string;
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      passwordHash: string;
+    } | null = null;
+    let markedVerifiedUserId: string | undefined;
+    let deletedPendingKey: string | undefined;
+    const service = createService({
+      findUserByEmail: async () => null,
+      cacheGetJson: async (key) => {
+        if (key === "auth:pending-signup-username:pending-user") {
+          return "pending@example.com";
+        }
+
+        return {
+          username: "pending-user",
+          email: "pending@example.com",
+          passwordHash: pendingPasswordHash,
+          firstName: "Pending",
+          lastName: "User",
+          deviceId: "device-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        };
+      },
+      createLocalUser: async (input, passwordHash) => {
+        createdInput = {
+          ...input,
+          passwordHash,
+        };
+        return createdUser;
+      },
+      markEmailVerified: async (userId) => {
+        markedVerifiedUserId = userId;
+      },
+      cacheDelete: async (key) => {
+        deletedPendingKey = key;
+        return true;
+      },
+    });
+
+    await expect(
+      service.verifyEmail({
+        client: createClient(),
+        email: "pending@example.com",
+        code: "123456",
+        deviceId: "device-1",
+      }),
+    ).resolves.toMatchObject({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      user: {
+        email: "pending@example.com",
+        emailVerified: true,
+      },
+    });
+
+    expect(createdInput).toEqual({
+      username: "pending-user",
+      email: "pending@example.com",
+      firstName: "Pending",
+      lastName: "User",
+      passwordHash: pendingPasswordHash,
+    });
+    expect(markedVerifiedUserId).toBe("user-1");
+    expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
+  });
+
+  it("rejects verifyEmail when pending signup state is missing", async () => {
+    const service = createService({
+      cacheGetJson: async () => null,
+    });
+
+    await expect(
+      service.verifyEmail({
+        client: createClient(),
+        email: "missing@example.com",
+        code: "123456",
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects verifyEmail when the pending-signup verification lock cannot be acquired", async () => {
+    const service = createService({
+      acquireLock: async () => null,
+    });
+
+    await expect(
+      service.verifyEmail({
+        client: createClient(),
+        email: "locked@example.com",
+        code: "123456",
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("rejects invalid username sign-in attempts and records the normalized username lock key", async () => {
+    const cacheWrites: Array<{
+      key: string;
+      value: unknown;
+      ttlSeconds?: number;
+    }> = [];
+    const service = createService({
+      cacheGetJson: async () => null,
+      cacheSetJson: async (key, value, ttlSeconds) => {
+        cacheWrites.push({
+          key,
+          value,
+          ttlSeconds,
+        });
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: "Missing-User",
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("Invalid username or password.");
+    expect(cacheWrites).toContainEqual({
+      key: "auth:local-login-attempts:missing-user",
+      value: {
+        failedAttempts: 1,
+      },
+      ttlSeconds: 15 * 60,
+    });
+  });
+
+  it("locks local sign-in immediately when a locked attempt record already exists", async () => {
+    const service = createService({
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? {
+              failedAttempts: 5,
+              lockedAt: "2026-01-02T00:00:00.000Z",
+            }
+          : null,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: "missing-user",
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("This sign-in is locked.");
+  });
+
+  it("sends an unlock code when a failed local sign-in reaches the lock threshold", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    let unlockEmailInput:
+      | {
+          to: string;
+          unlockCode: string;
+          firstName?: string;
+        }
+      | undefined;
+    const service = createService({
+      findUserByUsername: async () => user,
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? {
+              failedAttempts: 4,
+            }
+          : null,
+      issueOtp: async () => ({
+        code: "654321",
+      }),
+      sendLoginUnlockEmail: async (input) => {
+        unlockEmailInput = input;
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "WrongPassword1!",
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("This sign-in is locked.");
+
+    expect(unlockEmailInput).toEqual({
+      to: user.email,
+      unlockCode: "654321",
+      firstName: user.firstName,
+    });
   });
 
   describe("username bloom write-through", () => {

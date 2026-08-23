@@ -123,7 +123,7 @@ describe("mountRoutes", () => {
     const app = createApp(
       new Map<unknown, unknown>([
         [
-          containerTokens.authController,
+          containerTokens.localAuthController,
           { localAuthenticate: respond({ ok: true }) },
         ],
         [

@@ -11,7 +11,13 @@ import {
   containerRegistrationModules,
   registerApplicationServices,
 } from "@/configuration/container/registrations";
-import { AuthController } from "@/features/auth/auth.controller";
+import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
+import { AuthSessionController } from "@/features/auth/session/session.controller";
+import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
+import { OAuthController } from "@/features/auth/oauth/oauth.controller";
+import { PasswordController } from "@/features/auth/password/password.controller";
+import { UsernameController } from "@/features/auth/username/username.controller";
 import { BlobController } from "@/features/blob/blob.controller";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
@@ -55,9 +61,30 @@ describe("container registrations", () => {
     const scope = container.createScope();
 
     try {
-      expect(scope.resolve(containerTokens.authController)).toBeInstanceOf(
-        AuthController,
+      // The auth surface is spread across seven controllers, so each one is
+      // resolved here rather than trusting that one of them standing in proves
+      // the others are wired.
+      expect(scope.resolve(containerTokens.localAuthController)).toBeInstanceOf(
+        LocalAuthController,
       );
+      expect(scope.resolve(containerTokens.passwordController)).toBeInstanceOf(
+        PasswordController,
+      );
+      expect(
+        scope.resolve(containerTokens.loginLockoutController),
+      ).toBeInstanceOf(LoginLockoutController);
+      expect(scope.resolve(containerTokens.usernameController)).toBeInstanceOf(
+        UsernameController,
+      );
+      expect(scope.resolve(containerTokens.oauthController)).toBeInstanceOf(
+        OAuthController,
+      );
+      expect(
+        scope.resolve(containerTokens.authSessionController),
+      ).toBeInstanceOf(AuthSessionController);
+      expect(
+        scope.resolve(containerTokens.deviceManagementController),
+      ).toBeInstanceOf(DeviceManagementController);
       expect(scope.resolve(containerTokens.reportsController)).toBeInstanceOf(
         ReportsController,
       );
@@ -106,9 +133,9 @@ describe("container registrations", () => {
     const secondScope = container.createScope();
 
     try {
-      const first = firstScope.resolve(containerTokens.authController);
-      const second = firstScope.resolve(containerTokens.authController);
-      const third = secondScope.resolve(containerTokens.authController);
+      const first = firstScope.resolve(containerTokens.localAuthController);
+      const second = firstScope.resolve(containerTokens.localAuthController);
+      const third = secondScope.resolve(containerTokens.localAuthController);
 
       expect(first).toBe(second);
       expect(first).not.toBe(third);

@@ -1,5 +1,5 @@
 ﻿import BadRequestError from "@/errors/http/bad-request.error";
-import { AuthController } from "@/features/auth/auth.controller";
+import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
 import type {
   AuthSessionResult,
   AuthUserProfile,
@@ -412,7 +412,7 @@ function createController(overrides?: {
   };
 
   return {
-    controller: new AuthController(
+    controller: new LocalAuthController(
       authService as any,
       captchaService as any,
     ),
@@ -421,7 +421,7 @@ function createController(overrides?: {
   };
 }
 
-describe("AuthController", () => {
+describe("LocalAuthController", () => {
   beforeEach(() => {
     mockRequireJwtAuth.mockReset();
     mockRequireRecentMfaVerification.mockReset();

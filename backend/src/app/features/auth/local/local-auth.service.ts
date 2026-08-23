@@ -11,15 +11,17 @@ import { AuthRepository } from "@/features/auth/auth.repository";
 import {
   type AuthActiveOrganizationSummary,
   type AuthSessionResult,
-  type SignupVerificationPendingResult,
   type AuthUserProfile,
   type AuthUserRecord,
-  type LocalAuthenticateInput,
-  type LocalSignupInput,
-  type ResendVerificationEmailInput,
-  type VerifyEmailInput,
   isStrongPassword,
 } from "@/features/auth/auth.model";
+import type {
+  LocalAuthenticateInput,
+  LocalSignupInput,
+  ResendVerificationEmailInput,
+  SignupVerificationPendingResult,
+  VerifyEmailInput,
+} from "@/features/auth/local/local-auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import {
   PendingSignupStore,
@@ -58,7 +60,7 @@ import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 
 
-export class AuthService {
+export class LocalAuthService {
   private readonly logger: Logger;
 
   constructor(
@@ -76,7 +78,7 @@ export class AuthService {
     private readonly usernameService: UsernameService,
     private readonly loginLockoutService: LoginLockoutService,
   ) {
-    this.logger = loggerFactory.forClass(AuthService, "service");
+    this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
 
   async localAuthenticate(
