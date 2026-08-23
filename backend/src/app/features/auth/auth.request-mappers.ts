@@ -5,23 +5,13 @@ import { RequestValidationError } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
 import { REFRESH_TOKEN_COOKIE_NAME } from "@/features/auth/auth.cookies";
 import type {
-  ChangePasswordInput,
-  ChangePasswordRequestBody,
-  ForgotPasswordInput,
-  ForgotPasswordRequestBody,
   LocalAuthenticateInput,
   LocalAuthenticateRequestBody,
   LocalSignupInput,
   LocalSignupRequestBody,
   OAuthProvider,
-  ResendForgotPasswordInput,
-  ResendForgotPasswordRequestBody,
   ResendVerificationEmailInput,
   ResendVerificationEmailRequestBody,
-  ResetPasswordInput,
-  ResetPasswordRequestBody,
-  SetPasswordInput,
-  SetPasswordRequestBody,
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
@@ -40,6 +30,18 @@ import type {
   RemoveKnownDeviceRequestBody,
 } from "@/features/auth/device/device-management.model";
 import { oauthProviderSchema } from "@/features/auth/auth.model";
+import type {
+  ChangePasswordInput,
+  ChangePasswordRequestBody,
+  ForgotPasswordInput,
+  ForgotPasswordRequestBody,
+  ResendForgotPasswordInput,
+  ResendForgotPasswordRequestBody,
+  ResetPasswordInput,
+  ResetPasswordRequestBody,
+  SetPasswordInput,
+  SetPasswordRequestBody,
+} from "@/features/auth/password/password.model";
 import type {
   ResendUnlockLocalLoginInput,
   ResendUnlockLocalLoginRequestBody,

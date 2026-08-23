@@ -6,6 +6,7 @@ import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
 import type { UsernameController } from "@/features/auth/username/username.controller";
 import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
+import type { PasswordController } from "@/features/auth/password/password.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -30,22 +31,22 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/password/forgot",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "forgotPassword",
       ),
     );
     app.post(
       "/auth/local/password/forgot/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "resendForgotPassword",
       ),
     );
     app.post(
       "/auth/local/password/reset",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "resetPassword",
       ),
     );
@@ -102,15 +103,15 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/password/change",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "changePassword",
       ),
     );
     app.post(
       "/auth/local/password/set",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
         "setPassword",
       ),
     );

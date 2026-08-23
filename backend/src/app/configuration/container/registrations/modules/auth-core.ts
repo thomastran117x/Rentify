@@ -100,15 +100,11 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.authService,
         containerTokens.captchaService,
-        containerTokens.tokenService,
-        containerTokens.mfaVerificationService,
       ],
       resolve: ({ resolve }) =>
         new AuthController(
           resolve(containerTokens.authService),
           resolve(containerTokens.captchaService),
-          resolve(containerTokens.tokenService),
-          resolve(containerTokens.mfaVerificationService),
         ),
     });
   },

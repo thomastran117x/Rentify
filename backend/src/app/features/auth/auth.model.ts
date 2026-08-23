@@ -3,12 +3,12 @@ import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 
-const UNSAFE_AUTH_INPUT_MESSAGE =
+export const UNSAFE_AUTH_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
 const UNSAFE_AUTH_INPUT_PATTERN =
   /<[^>]*>|&lt;|&gt;|javascript:|data:text\/html|on[a-z]+\s*=|<\/?script\b/i;
 
-function containsUnsafeAuthInput(value: string): boolean {
+export function containsUnsafeAuthInput(value: string): boolean {
   return UNSAFE_AUTH_INPUT_PATTERN.test(value);
 }
 
@@ -109,41 +109,6 @@ export const resendVerificationEmailRequestSchema = z.object({
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
-export const forgotPasswordRequestSchema = z.object({
-  username: authUsernameSchema,
-  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
-});
-
-export const resendForgotPasswordRequestSchema = z.object({
-  username: authUsernameSchema,
-  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
-});
-
-export const resetPasswordRequestSchema = z.object({
-  username: authUsernameSchema,
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "Reset code must be 6 digits."),
-  newPassword: strongPasswordSchema,
-  deviceId: optionalTrimmedString,
-});
-
-export const changePasswordRequestSchema = z.object({
-  currentPassword: z
-    .string()
-    .min(1, "Current password is required.")
-    .refine(
-      (value) => !containsUnsafeAuthInput(value),
-      UNSAFE_AUTH_INPUT_MESSAGE,
-    ),
-  newPassword: strongPasswordSchema,
-});
-
-export const setPasswordRequestSchema = z.object({
-  newPassword: strongPasswordSchema,
-});
-
 export type LocalSignupRequestBody = z.infer<typeof localSignupRequestSchema>;
 
 export type LocalAuthenticateRequestBody = z.infer<
@@ -157,24 +122,6 @@ export type VerifyEmailRequestBody = z.infer<typeof verifyEmailRequestSchema>;
 export type ResendVerificationEmailRequestBody = z.infer<
   typeof resendVerificationEmailRequestSchema
 >;
-
-export type ForgotPasswordRequestBody = z.infer<
-  typeof forgotPasswordRequestSchema
->;
-
-export type ResendForgotPasswordRequestBody = z.infer<
-  typeof resendForgotPasswordRequestSchema
->;
-
-export type ResetPasswordRequestBody = z.infer<
-  typeof resetPasswordRequestSchema
->;
-
-export type ChangePasswordRequestBody = z.infer<
-  typeof changePasswordRequestSchema
->;
-
-export type SetPasswordRequestBody = z.infer<typeof setPasswordRequestSchema>;
 
 export interface LocalAuthenticateInput {
   client: ClientRequestContext;
@@ -212,41 +159,6 @@ export interface AuthRequestContext {
   auth: AuthPrincipal;
   client: ClientRequestContext;
   refreshToken?: string;
-}
-
-export interface ForgotPasswordInput {
-  client: ClientRequestContext;
-  username: string;
-  deviceId?: string;
-}
-
-export interface ResendForgotPasswordInput {
-  client: ClientRequestContext;
-  username: string;
-  deviceId?: string;
-}
-
-export interface ResetPasswordInput {
-  client: ClientRequestContext;
-  username: string;
-  code: string;
-  newPassword: string;
-  deviceId?: string;
-}
-
-export interface ChangePasswordInput {
-  userId: string;
-  client: ClientRequestContext;
-  currentPassword: string;
-  newPassword: string;
-  deviceId?: string;
-}
-
-export interface SetPasswordInput {
-  userId: string;
-  client: ClientRequestContext;
-  newPassword: string;
-  deviceId?: string;
 }
 
 export interface CreateLocalUserInput {

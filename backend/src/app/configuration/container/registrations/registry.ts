@@ -3,6 +3,7 @@ import { authDeviceRegistrationModule } from "@/configuration/container/registra
 import { authLocalRegistrationModule } from "@/configuration/container/registrations/modules/auth-local";
 import { authUsernameRegistrationModule } from "@/configuration/container/registrations/modules/auth-username";
 import { authLockoutRegistrationModule } from "@/configuration/container/registrations/modules/auth-lockout";
+import { authPasswordRegistrationModule } from "@/configuration/container/registrations/modules/auth-password";
 import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
 import { authMfaVerificationRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-verification";
 import { authOauthRegistrationModule } from "@/configuration/container/registrations/modules/auth-oauth";
@@ -58,6 +59,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authLocalRegistrationModule,
   authUsernameRegistrationModule,
   authLockoutRegistrationModule,
+  authPasswordRegistrationModule,
   authPersonalAccessTokensRegistrationModule,
   organizationsRegistrationModule,
   organizationsSearchRegistrationModule,

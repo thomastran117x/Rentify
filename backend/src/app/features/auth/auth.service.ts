@@ -14,14 +14,9 @@ import {
   type SignupVerificationPendingResult,
   type AuthUserProfile,
   type AuthUserRecord,
-  type ChangePasswordInput,
-  type ForgotPasswordInput,
   type LocalAuthenticateInput,
   type LocalSignupInput,
-  type ResetPasswordInput,
-  type ResendForgotPasswordInput,
   type ResendVerificationEmailInput,
-  type SetPasswordInput,
   type VerifyEmailInput,
   isStrongPassword,
 } from "@/features/auth/auth.model";
@@ -54,7 +49,6 @@ import { redactEmail } from "@/features/auth/redact-email";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
 import {
   EMAIL_VERIFICATION_OTP_PURPOSE,
-  LOCAL_PASSWORD_RESET_OTP_PURPOSE,
 } from "@/features/auth/otp/otp-purposes";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
@@ -175,101 +169,6 @@ export class AuthService {
       email: input.email,
       alreadyPending: false,
     };
-  }
-
-  async forgotPassword(input: ForgotPasswordInput): Promise<{
-    accepted: true;
-  }> {
-    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
-      purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: input.username,
-      client: input.client,
-      deviceId: input.deviceId,
-      flow: "forgot-password",
-    });
-
-    if (!rateLimitResult.allowed) {
-      this.publicOtpService.logSuspicious(rateLimitResult);
-      return {
-        accepted: true,
-      };
-    }
-
-    const user = await this.authRepository.findUserByUsername(input.username);
-
-    if (user && isEligibleForLocalPasswordManagement(user)) {
-      await this.publicOtpService.sendPasswordResetCode(user);
-    }
-
-    return {
-      accepted: true,
-    };
-  }
-
-  async resendForgotPassword(input: ResendForgotPasswordInput): Promise<{
-    accepted: true;
-  }> {
-    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
-      purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: input.username,
-      client: input.client,
-      deviceId: input.deviceId,
-      flow: "resend-forgot-password",
-    });
-
-    if (!rateLimitResult.allowed) {
-      this.publicOtpService.logSuspicious(rateLimitResult);
-      return {
-        accepted: true,
-      };
-    }
-
-    const user = await this.authRepository.findUserByUsername(input.username);
-
-    if (user && isEligibleForLocalPasswordManagement(user)) {
-      await this.publicOtpService.sendPasswordResetCode(user);
-    }
-
-    return {
-      accepted: true,
-    };
-  }
-
-  async resetPassword(input: ResetPasswordInput): Promise<AuthSessionResult> {
-    const user = await this.authRepository.findUserByUsername(input.username);
-
-    await this.otpService.verify({
-      purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-      subject: this.resolvePasswordResetOtpSubject(user, input.username),
-      code: input.code,
-    });
-
-    const eligibleUser = requireEligibleLocalPasswordUser(
-      user,
-      "This account cannot reset a password.",
-    );
-    const passwordHash = await hashPassword(input.newPassword);
-
-    await rejectIfPasswordMatchesCurrent(
-      input.newPassword,
-      eligibleUser.passwordHash,
-    );
-    await this.authRepository.updatePasswordHash(eligibleUser.id, passwordHash);
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
-      eligibleUser.id,
-    );
-    await this.loginLockoutService.clearAttemptRecord(eligibleUser.profile.username);
-
-    const updatedUser: AuthUserRecord = {
-      ...eligibleUser,
-      passwordHash,
-      tokenVersion: nextTokenVersion,
-    };
-    return this.authSessionService.reissueSessionForUser(
-      updatedUser,
-      input.client,
-      input.deviceId,
-    );
   }
 
   async verifyEmail(input: VerifyEmailInput): Promise<AuthSessionResult> {
@@ -398,92 +297,5 @@ export class AuthService {
     return {
       accepted: true,
     };
-  }
-
-  async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
-    const user = requireEligibleLocalPasswordUser(
-      await this.authRepository.findUserById(input.userId),
-      "This account cannot change a password.",
-    );
-    const isPasswordValid = await verifyPassword(
-      input.currentPassword,
-      user.passwordHash,
-    );
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedError("Current password is incorrect.");
-    }
-
-    await rejectIfPasswordMatchesCurrent(
-      input.newPassword,
-      user.passwordHash,
-    );
-
-    const passwordHash = await hashPassword(input.newPassword);
-    await this.authRepository.updatePasswordHash(user.id, passwordHash);
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
-      user.id,
-    );
-    await this.loginLockoutService.clearAttemptRecord(user.profile.username);
-
-    const updatedUser: AuthUserRecord = {
-      ...user,
-      passwordHash,
-      tokenVersion: nextTokenVersion,
-    };
-    return this.authSessionService.reissueSessionForUser(
-      updatedUser,
-      input.client,
-      input.deviceId,
-    );
-  }
-
-  /**
-   * Adds local password sign-in to an account that only has social providers.
-   * There is no current password to re-enter, so the caller must have already
-   * satisfied the `mfa-management` step-up guard.
-   */
-  async setPassword(input: SetPasswordInput): Promise<AuthSessionResult> {
-    const user = requirePasswordlessLinkedUser(
-      await this.authRepository.findUserById(input.userId),
-    );
-
-    const passwordHash = await hashPassword(input.newPassword);
-    // The guard above is advisory: this conditional write is what actually
-    // decides the race, so concurrent submissions cannot both rotate the token
-    // version and strand each other's session.
-    const created = await this.authRepository.setPasswordHashIfUnset(
-      user.id,
-      passwordHash,
-    );
-
-    if (!created) {
-      throw new ConflictError(
-        "This account already has a password. Use the change password option instead.",
-      );
-    }
-
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
-      user.id,
-    );
-    await this.loginLockoutService.clearAttemptRecord(user.profile.username);
-
-    const updatedUser: AuthUserRecord = {
-      ...user,
-      passwordHash,
-      tokenVersion: nextTokenVersion,
-    };
-    return this.authSessionService.reissueSessionForUser(
-      updatedUser,
-      input.client,
-      input.deviceId,
-    );
-  }
-
-  private resolvePasswordResetOtpSubject(
-    user: AuthUserRecord | null,
-    username: string,
-  ): string {
-    return user?.email ?? `auth:missing-password-reset:${username}`;
   }
 }

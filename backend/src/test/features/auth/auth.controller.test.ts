@@ -415,8 +415,6 @@ function createController(overrides?: {
     controller: new AuthController(
       authService as any,
       captchaService as any,
-      tokenService as any,
-      mfaVerificationService as any,
     ),
     authService,
     captchaService,
@@ -680,7 +678,7 @@ describe("AuthController", () => {
     });
   });
 
-  it("covers signup and recovery flows with their expected service inputs", async () => {
+  it("covers signup and email verification with their expected service inputs", async () => {
     const { controller, authService } = createController();
 
     const signupResponse = await invoke(
@@ -697,35 +695,6 @@ describe("AuthController", () => {
         },
         headers: {
           "x-request-id": "signup-request",
-        },
-      }),
-    );
-    const forgotResponse = await invoke(
-      controller.forgotPassword,
-      createContext({
-        body: {
-          username: "OWNER-ONE",
-          captchaToken: "forgot-captcha",
-        },
-      }),
-    );
-    const resendForgotResponse = await invoke(
-      controller.resendForgotPassword,
-      createContext({
-        body: {
-          username: "OWNER-ONE",
-          captchaToken: "resend-forgot-captcha",
-        },
-      }),
-    );
-    const resetResponse = await invoke(
-      controller.resetPassword,
-      createContext({
-        body: {
-          username: "OWNER-ONE",
-          code: "123456",
-          newPassword: "ResetPassword1!",
-          deviceId: "reset-device",
         },
       }),
     );
@@ -758,23 +727,6 @@ describe("AuthController", () => {
       lastName: "User",
       deviceId: "signup-device",
     });
-    expect(authService.forgotPassword).toHaveBeenCalledWith({
-      client: expect.any(Object),
-      username: "owner-one",
-      deviceId: "device-1",
-    });
-    expect(authService.resendForgotPassword).toHaveBeenCalledWith({
-      client: expect.any(Object),
-      username: "owner-one",
-      deviceId: "device-1",
-    });
-    expect(authService.resetPassword).toHaveBeenCalledWith({
-      client: expect.any(Object),
-      username: "owner-one",
-      code: "123456",
-      newPassword: "ResetPassword1!",
-      deviceId: "reset-device",
-    });
     expect(authService.verifyEmail).toHaveBeenCalledWith({
       client: expect.any(Object),
       email: "user@example.com",
@@ -787,28 +739,13 @@ describe("AuthController", () => {
       deviceId: "device-1",
     });
     expect(signupResponse.status).toBe(202);
-    expect(forgotResponse.status).toBe(202);
-    expect(resendForgotResponse.status).toBe(202);
-    expect(resetResponse.status).toBe(200);
     expect(verifyResponse.status).toBe(200);
     expect(resendVerifyResponse.status).toBe(202);
   });
 
-  it("public resend actions verify captcha before calling the auth service", async () => {
+  it("resendVerificationEmail verifies captcha before calling the auth service", async () => {
     const { controller, authService, captchaService } = createController();
 
-    await invoke(
-      controller.resendForgotPassword,
-      createContext({
-        body: {
-          username: "owner-one",
-          captchaToken: "resend-forgot-captcha",
-        },
-        headers: {
-          "x-request-id": "req-forgot",
-        },
-      }),
-    );
     await invoke(
       controller.resendVerificationEmail,
       createContext({
@@ -822,8 +759,7 @@ describe("AuthController", () => {
       }),
     );
 
-    expect(captchaService.verify).toHaveBeenCalledTimes(2);
-    expect(authService.resendForgotPassword).toHaveBeenCalledTimes(1);
+    expect(captchaService.verify).toHaveBeenCalledTimes(1);
     expect(authService.resendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 
@@ -876,93 +812,5 @@ describe("AuthController", () => {
     });
     expect(captchaService.verify).not.toHaveBeenCalled();
     expect(authService.localAuthenticate).not.toHaveBeenCalled();
-  });
-
-  it("changePassword authenticates first and prefers the auth device id when building service input", async () => {
-    const auth = createClaims({
-      sub: "user-9",
-      deviceId: "token-device-9",
-    });
-    mockRequireRecentMfaVerification.mockImplementation(
-      async (request: TestContext["request"]) => {
-        request.auth = auth;
-        return auth;
-      },
-    );
-    const { controller, authService } = createController();
-    const context = createContext({
-      client: createClient({
-        device: {
-          id: "client-device-3",
-          type: "desktop",
-          isMobile: false,
-          userAgent: "desktop-agent",
-          platform: "Windows",
-        },
-      }),
-      body: {
-        currentPassword: "OldPassword1!",
-        newPassword: "NewPassword1!",
-      },
-    });
-
-    const response = await invoke(controller.changePassword, context);
-
-    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
-      context.request,
-      expect.any(Object),
-      "mfa-management",
-    );
-    expect(authService.changePassword).toHaveBeenCalledWith({
-      userId: "user-9",
-      client: context.get("client"),
-      currentPassword: "OldPassword1!",
-      newPassword: "NewPassword1!",
-      deviceId: "token-device-9",
-    });
-    expect(response.status).toBe(200);
-  });
-
-  it("setPassword requires a recent MFA verification and omits any current password", async () => {
-    const auth = createClaims({
-      sub: "user-11",
-      deviceId: "token-device-11",
-    });
-    mockRequireRecentMfaVerification.mockImplementation(
-      async (request: TestContext["request"]) => {
-        request.auth = auth;
-        return auth;
-      },
-    );
-    const { controller, authService } = createController();
-    const context = createContext({
-      client: createClient({
-        device: {
-          id: "client-device-5",
-          type: "desktop",
-          isMobile: false,
-          userAgent: "desktop-agent",
-          platform: "Windows",
-        },
-      }),
-      body: {
-        newPassword: "NewPassword1!",
-      },
-    });
-
-    const response = await invoke(controller.setPassword, context);
-
-    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
-      context.request,
-      expect.any(Object),
-      "mfa-management",
-    );
-    expect(authService.setPassword).toHaveBeenCalledWith({
-      userId: "user-11",
-      client: context.get("client"),
-      newPassword: "NewPassword1!",
-      deviceId: "token-device-11",
-    });
-    expect(response.status).toBe(200);
   });
 });

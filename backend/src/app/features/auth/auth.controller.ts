@@ -4,41 +4,25 @@ import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { AuthService } from "@/features/auth/auth.service";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
-import { TokenService } from "@/features/auth/token/token.service";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
-  toChangePasswordInput,
-  toForgotPasswordInput,
   toLocalAuthenticateInput,
   toLocalSignupInput,
-  toResendForgotPasswordInput,
   toResendVerificationEmailInput,
-  toResetPasswordInput,
-  toSetPasswordInput,
   toVerifyEmailInput,
 } from "@/features/auth/auth.request-mappers";
 import {
-  changePasswordRequestSchema,
-  forgotPasswordRequestSchema,
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
-  resendForgotPasswordRequestSchema,
-  resetPasswordRequestSchema,
   resendVerificationEmailRequestSchema,
-  setPasswordRequestSchema,
   verifyEmailRequestSchema,
 } from "@/features/auth/auth.model";
-import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
-import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
-import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly captchaService: CaptchaService,
-    private readonly tokenService: TokenService,
-    private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
   localAuthenticate = async (
@@ -71,50 +55,6 @@ export class AuthController {
     });
   };
 
-  forgotPassword = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(request, forgotPasswordRequestSchema);
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
-    const result = await this.authService.forgotPassword(
-      toForgotPasswordInput(request, input),
-    );
-    accepted(response, result, {
-      message: "Password reset instructions have been accepted.",
-    });
-  };
-
-  resendForgotPassword = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      resendForgotPasswordRequestSchema,
-    );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
-    const result = await this.authService.resendForgotPassword(
-      toResendForgotPasswordInput(request, input),
-    );
-    accepted(response, result, {
-      message: "Password reset instructions have been re-sent.",
-    });
-  };
-
-  resetPassword = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(request, resetPasswordRequestSchema);
-    const result = await this.authService.resetPassword(
-      toResetPasswordInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Password reset successfully.",
-    });
-  };
-
   verifyEmail = async (request: Request, response: Response): Promise<void> => {
     const input = await parseRequestBody(request, verifyEmailRequestSchema);
     const result = await this.authService.verifyEmail(
@@ -139,39 +79,6 @@ export class AuthController {
     );
     accepted(response, result, {
       message: "Verification email has been re-sent.",
-    });
-  };
-
-  changePassword = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireRecentMfaVerification(
-      request,
-      this.mfaVerificationService,
-      MFA_MANAGEMENT_SCOPE,
-    );
-    const input = await parseRequestBody(request, changePasswordRequestSchema);
-    const result = await this.authService.changePassword(
-      toChangePasswordInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Password changed successfully.",
-    });
-  };
-
-  setPassword = async (request: Request, response: Response): Promise<void> => {
-    await requireRecentMfaVerification(
-      request,
-      this.mfaVerificationService,
-      MFA_MANAGEMENT_SCOPE,
-    );
-    const input = await parseRequestBody(request, setPasswordRequestSchema);
-    const result = await this.authService.setPassword(
-      toSetPasswordInput(request, input),
-    );
-    writeAuthSessionResponse(request, response, result, {
-      message: "Password set successfully.",
     });
   };
 }
