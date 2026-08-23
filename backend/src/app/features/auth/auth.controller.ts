@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
-import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { AuthService } from "@/features/auth/auth.service";
@@ -9,10 +8,8 @@ import { TokenService } from "@/features/auth/token/token.service";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
-  parseUsernameAvailabilityQuery,
   toChangePasswordInput,
   toForgotPasswordInput,
-  toForgotUsernameInput,
   toLocalAuthenticateInput,
   toLocalSignupInput,
   toResendForgotPasswordInput,
@@ -26,7 +23,6 @@ import {
 import {
   changePasswordRequestSchema,
   forgotPasswordRequestSchema,
-  forgotUsernameRequestSchema,
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
   resendForgotPasswordRequestSchema,
@@ -79,26 +75,6 @@ export class AuthController {
     });
   };
 
-  checkUsernameAvailability = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const query = parseUsernameAvailabilityQuery(request);
-    // Public endpoint, but a signed-in caller's own username must report as
-    // available rather than taken so the settings form does not flag the value
-    // it was seeded with.
-    const auth = await getOptionalJwtAuth(request);
-    // Bloom-filter backed: a name nobody has claimed is answered from memory,
-    // and anything the filter cannot rule out falls through to the same
-    // database lookup this used to call directly.
-    const result = await this.authService.resolveUsernameAvailabilityHint(
-      query.username,
-      auth?.sub,
-    );
-
-    ok(response, result);
-  };
-
   forgotPassword = async (
     request: Request,
     response: Response,
@@ -127,20 +103,6 @@ export class AuthController {
     );
     accepted(response, result, {
       message: "Password reset instructions have been re-sent.",
-    });
-  };
-
-  forgotUsername = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(request, forgotUsernameRequestSchema);
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
-    const result = await this.authService.forgotUsername(
-      toForgotUsernameInput(request, input),
-    );
-    accepted(response, result, {
-      message: "Username reminder instructions have been accepted.",
     });
   };
 

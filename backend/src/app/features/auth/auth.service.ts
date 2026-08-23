@@ -16,7 +16,6 @@ import {
   type AuthUserRecord,
   type ChangePasswordInput,
   type ForgotPasswordInput,
-  type ForgotUsernameInput,
   type LocalAuthenticateInput,
   type LocalSignupInput,
   type ResetPasswordInput,
@@ -24,7 +23,6 @@ import {
   type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
   type SetPasswordInput,
-  type UsernameAvailabilityResult,
   type VerifyEmailInput,
   type UnlockLocalLoginInput,
   isStrongPassword,
@@ -35,6 +33,7 @@ import {
   type PendingLocalSignupRecord,
 } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
+import { UsernameService } from "@/features/auth/username/username.service";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -58,7 +57,6 @@ import {
   EMAIL_VERIFICATION_OTP_PURPOSE,
   LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
   LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-  USERNAME_REMINDER_RATE_LIMIT_PURPOSE,
 } from "@/features/auth/otp/otp-purposes";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
@@ -91,6 +89,7 @@ export class AuthService {
     private readonly authSessionService: AuthSessionService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
+    private readonly usernameService: UsernameService,
   ) {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
@@ -148,7 +147,7 @@ export class AuthService {
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
     const existingUser = await this.authRepository.findUserByEmail(input.email);
-    await this.assertUsernameIsAvailable(
+    await this.usernameService.assertUsernameIsAvailable(
       input.username,
       existingUser?.id,
       input.email,
@@ -245,35 +244,6 @@ export class AuthService {
     };
   }
 
-  async forgotUsername(input: ForgotUsernameInput): Promise<{
-    accepted: true;
-  }> {
-    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
-      purpose: USERNAME_REMINDER_RATE_LIMIT_PURPOSE,
-      subject: input.email,
-      client: input.client,
-      deviceId: input.deviceId,
-      flow: "forgot-username",
-    });
-
-    if (!rateLimitResult.allowed) {
-      this.publicOtpService.logSuspicious(rateLimitResult);
-      return {
-        accepted: true,
-      };
-    }
-
-    const user = await this.authRepository.findUserByEmail(input.email);
-
-    if (user) {
-      await this.publicOtpService.sendUsernameReminder(user);
-    }
-
-    return {
-      accepted: true,
-    };
-  }
-
   async resetPassword(input: ResetPasswordInput): Promise<AuthSessionResult> {
     const user = await this.authRepository.findUserByUsername(input.username);
 
@@ -338,7 +308,7 @@ export class AuthService {
       );
       let verifiedUser: AuthUserRecord;
 
-      await this.assertUsernameIsAvailable(
+      await this.usernameService.assertUsernameIsAvailable(
         pendingSignup.username,
         existingUser?.id,
         pendingSignup.email,
@@ -629,103 +599,6 @@ export class AuthService {
   private async isLocalLoginLocked(username: string): Promise<boolean> {
     const record = await this.getLocalLoginAttemptRecord(username);
     return Boolean(record?.lockedAt);
-  }
-
-  /**
-   * Whether `username` can be claimed. A name is taken when it belongs to
-   * another account, or when it is soft-reserved by another person's
-   * not-yet-verified signup.
-   *
-   * `allowedUserId` / `allowedPendingEmail` exempt the caller's own claim, so a
-   * signed-in user checking their current username is told it is available
-   * rather than taken.
-   */
-  async isUsernameAvailable(
-    username: string,
-    allowedUserId?: string,
-    allowedPendingEmail?: string,
-  ): Promise<UsernameAvailabilityResult> {
-    const normalizedUsername = username.trim().toLowerCase();
-    const existingUserId =
-      await this.authRepository.findUserIdByUsername(normalizedUsername);
-
-    if (existingUserId && existingUserId !== allowedUserId) {
-      return {
-        username: normalizedUsername,
-        available: false,
-        reason: "taken",
-      };
-    }
-
-    const pendingSignupEmail =
-      await this.pendingSignupStore.readEmailByUsername(normalizedUsername);
-
-    if (pendingSignupEmail && pendingSignupEmail !== allowedPendingEmail) {
-      return {
-        username: normalizedUsername,
-        available: false,
-        reason: "taken",
-      };
-    }
-
-    return { username: normalizedUsername, available: true, reason: null };
-  }
-
-  /**
-   * The availability endpoint's entry point, as opposed to
-   * {@link isUsernameAvailable} which every write path uses.
-   *
-   * Typing into a username field fires one of these per keystroke, and the
-   * answer is "free" almost every time. The bloom filter settles that common
-   * case from memory; anything it cannot rule out falls through to the
-   * authoritative lookup below, so a false positive costs a query rather than a
-   * wrong answer.
-   *
-   * Write paths deliberately do not come through here. Skipping their database
-   * check would trade a clear "that username is taken" for a unique-constraint
-   * violation surfaced later, which is a worse error for the same saving.
-   */
-  async resolveUsernameAvailabilityHint(
-    username: string,
-    allowedUserId?: string,
-    allowedPendingEmail?: string,
-  ): Promise<UsernameAvailabilityResult> {
-    const normalizedUsername = username.trim().toLowerCase();
-
-    if (
-      this.usernameBloomService.check(normalizedUsername) ===
-      "definitely-absent"
-    ) {
-      return {
-        username: normalizedUsername,
-        available: true,
-        reason: null,
-      };
-    }
-
-    return this.isUsernameAvailable(
-      normalizedUsername,
-      allowedUserId,
-      allowedPendingEmail,
-    );
-  }
-
-  private async assertUsernameIsAvailable(
-    username: string,
-    allowedUserId?: string,
-    allowedPendingEmail?: string,
-  ): Promise<void> {
-    const result = await this.isUsernameAvailable(
-      username,
-      allowedUserId,
-      allowedPendingEmail,
-    );
-
-    if (!result.available) {
-      throw new ConflictError("That username is already taken.", {
-        field: "username",
-      });
-    }
   }
 
   private buildLockedLoginDetails(user: AuthUserRecord | null) {

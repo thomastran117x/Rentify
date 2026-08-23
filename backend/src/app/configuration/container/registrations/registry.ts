@@ -1,6 +1,7 @@
 import { authCoreRegistrationModule } from "@/configuration/container/registrations/modules/auth-core";
 import { authDeviceRegistrationModule } from "@/configuration/container/registrations/modules/auth-device";
 import { authLocalRegistrationModule } from "@/configuration/container/registrations/modules/auth-local";
+import { authUsernameRegistrationModule } from "@/configuration/container/registrations/modules/auth-username";
 import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
 import { authMfaVerificationRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-verification";
 import { authOauthRegistrationModule } from "@/configuration/container/registrations/modules/auth-oauth";
@@ -54,6 +55,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authOauthRegistrationModule,
   authDeviceRegistrationModule,
   authLocalRegistrationModule,
+  authUsernameRegistrationModule,
   authPersonalAccessTokensRegistrationModule,
   organizationsRegistrationModule,
   organizationsSearchRegistrationModule,

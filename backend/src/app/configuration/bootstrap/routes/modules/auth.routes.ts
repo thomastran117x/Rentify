@@ -4,6 +4,7 @@ import type { AuthController } from "@/features/auth/auth.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
+import type { UsernameController } from "@/features/auth/username/username.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -49,8 +50,8 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/username/forgot",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<UsernameController>(
+        containerTokens.usernameController,
         "forgotUsername",
       ),
     );
@@ -58,8 +59,8 @@ export const authLocalRouteModule: RouteModule = {
     // settings check availability through this endpoint too.
     app.get(
       "/auth/username/available",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<UsernameController>(
+        containerTokens.usernameController,
         "checkUsernameAvailability",
       ),
     );

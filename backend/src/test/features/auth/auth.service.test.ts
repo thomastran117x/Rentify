@@ -9,6 +9,7 @@ import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
+import { UsernameService } from "@/features/auth/username/username.service";
 
 const FAST_TEST_PASSWORD_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
@@ -504,6 +505,13 @@ function createService(overrides?: {
     emailService as any,
   );
 
+  const usernameService = new UsernameService(
+    authRepository as any,
+    usernameBloomService as any,
+    pendingSignupStore,
+    publicOtpService,
+  );
+
   const service = new AuthService(
     authRepository as any,
     tokenService as any,
@@ -516,6 +524,7 @@ function createService(overrides?: {
     authSessionService,
     pendingSignupStore,
     publicOtpService,
+    usernameService,
   );
 
   return service;
@@ -636,121 +645,6 @@ describe("AuthService", () => {
     });
 
     expect(resetEmailSent).toBe(false);
-  });
-
-  it("sends a username reminder to the email on file", async () => {
-    let reminder: { to: string; username: string } | undefined;
-    const service = createService({
-      findUserByEmail: async () => ({
-        ...createUser(),
-        email: "owner@example.com",
-        profile: {
-          ...createUser().profile,
-          username: "owner-one",
-        },
-      }),
-      sendUsernameReminderEmail: async (input) => {
-        reminder = { to: input.to, username: input.username };
-      },
-    });
-
-    await expect(
-      service.forgotUsername({
-        client: createClient(),
-        email: "owner@example.com",
-        deviceId: "device-1",
-      }),
-    ).resolves.toEqual({ accepted: true });
-
-    expect(reminder).toEqual({
-      to: "owner@example.com",
-      username: "owner-one",
-    });
-  });
-
-  it("reminds OAuth-only accounts of their auto-generated username", async () => {
-    let reminder: { username: string } | undefined;
-    const service = createService({
-      findUserByEmail: async () => ({
-        ...createUser(),
-        email: "social@example.com",
-        passwordHash: undefined,
-        profile: {
-          ...createUser().profile,
-          username: "social",
-        },
-        oauthIdentities: [
-          {
-            id: "oauth-identity-1",
-            userId: "user-1",
-            provider: "google",
-            providerUserId: "provider-user-1",
-            providerEmail: "social@example.com",
-            emailVerified: true,
-            linkedAt: "2026-01-01T00:00:00.000Z",
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          },
-        ],
-      }),
-      sendUsernameReminderEmail: async (input) => {
-        reminder = { username: input.username };
-      },
-    });
-
-    await expect(
-      service.forgotUsername({
-        client: createClient(),
-        email: "social@example.com",
-        deviceId: "device-1",
-      }),
-    ).resolves.toEqual({ accepted: true });
-
-    expect(reminder).toEqual({ username: "social" });
-  });
-
-  it("accepts username reminder requests without sending email for unknown accounts", async () => {
-    let reminderSent = false;
-    const service = createService({
-      findUserByEmail: async () => null,
-      sendUsernameReminderEmail: async () => {
-        reminderSent = true;
-      },
-    });
-
-    await expect(
-      service.forgotUsername({
-        client: createClient(),
-        email: "missing@example.com",
-        deviceId: "device-1",
-      }),
-    ).resolves.toEqual({ accepted: true });
-
-    expect(reminderSent).toBe(false);
-  });
-
-  it("does not send a username reminder when the request is rate limited", async () => {
-    let reminderSent = false;
-    const service = createService({
-      cacheGetJson: async (key: string) =>
-        key.includes("username-reminder") ? { count: 999 } : null,
-      findUserByEmail: async () => {
-        throw new Error("Lookup should not run when rate limited.");
-      },
-      sendUsernameReminderEmail: async () => {
-        reminderSent = true;
-      },
-    });
-
-    await expect(
-      service.forgotUsername({
-        client: createClient(),
-        email: "owner@example.com",
-        deviceId: "device-1",
-      }),
-    ).resolves.toEqual({ accepted: true });
-
-    expect(reminderSent).toBe(false);
   });
 
   it("accepts unknown verification resend requests without sending email", async () => {
@@ -1752,175 +1646,6 @@ describe("AuthService", () => {
     expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
     expect(result.user.emailVerified).toBe(true);
     expect(result.user.username).toBe("pending-user");
-  });
-
-  describe("isUsernameAvailable", () => {
-    it("reports an unused username as available and normalizes it", async () => {
-      const service = createService();
-
-      await expect(
-        service.isUsernameAvailable("  Casey-Doe  "),
-      ).resolves.toEqual({
-        username: "casey-doe",
-        available: true,
-        reason: null,
-      });
-    });
-
-    it("reports a username held by another account as taken", async () => {
-      const service = createService({
-        findUserIdByUsername: async () => "user-2",
-      });
-
-      await expect(service.isUsernameAvailable("casey-doe")).resolves.toEqual({
-        username: "casey-doe",
-        available: false,
-        reason: "taken",
-      });
-    });
-
-    it("exempts the caller's own username so settings does not flag it", async () => {
-      const service = createService({
-        findUserIdByUsername: async () => "user-1",
-      });
-
-      await expect(
-        service.isUsernameAvailable("casey-doe", "user-1"),
-      ).resolves.toMatchObject({ available: true, reason: null });
-    });
-
-    it("reports a username reserved by an unverified signup as taken", async () => {
-      const service = createService();
-
-      await service.localSignup({
-        client: createClient(),
-        username: "casey-doe",
-        email: "pending@example.com",
-        password: "StrongPassw0rd!",
-        deviceId: "device-1",
-      });
-
-      await expect(
-        service.isUsernameAvailable("casey-doe"),
-      ).resolves.toMatchObject({ available: false, reason: "taken" });
-    });
-
-    it("exempts the pending signup's own email from its reservation", async () => {
-      const service = createService();
-
-      await service.localSignup({
-        client: createClient(),
-        username: "casey-doe",
-        email: "pending@example.com",
-        password: "StrongPassw0rd!",
-        deviceId: "device-1",
-      });
-
-      await expect(
-        service.isUsernameAvailable(
-          "casey-doe",
-          undefined,
-          "pending@example.com",
-        ),
-      ).resolves.toMatchObject({ available: true });
-    });
-
-    it("always consults the database, even when the filter has an opinion", async () => {
-      // Write paths call this method. Letting the filter short-circuit them
-      // would trade a clear "that username is taken" for a unique-constraint
-      // violation surfaced later.
-      const findUserIdByUsername = jest.fn(async () => null);
-      const service = createService({
-        findUserIdByUsername,
-        usernameBloomCheck: () => "definitely-absent",
-      });
-
-      await service.isUsernameAvailable("casey-doe");
-
-      expect(findUserIdByUsername).toHaveBeenCalledWith("casey-doe");
-    });
-  });
-
-  describe("resolveUsernameAvailabilityHint", () => {
-    it("answers from the filter without touching the database", async () => {
-      const findUserIdByUsername = jest.fn(async () => null);
-      const service = createService({
-        findUserIdByUsername,
-        usernameBloomCheck: () => "definitely-absent",
-      });
-
-      await expect(
-        service.resolveUsernameAvailabilityHint("  Casey-Doe  "),
-      ).resolves.toEqual({
-        username: "casey-doe",
-        available: true,
-        reason: null,
-      });
-      expect(findUserIdByUsername).not.toHaveBeenCalled();
-    });
-
-    it("normalizes before consulting the filter", async () => {
-      const usernameBloomCheck = jest.fn(() => "definitely-absent" as const);
-      const service = createService({ usernameBloomCheck });
-
-      await service.resolveUsernameAvailabilityHint("  Casey-Doe  ");
-
-      expect(usernameBloomCheck).toHaveBeenCalledWith("casey-doe");
-    });
-
-    it("falls through to the database when the filter cannot rule the name out", async () => {
-      // A false positive has to stay correct: it costs one query and still
-      // returns the right verdict.
-      const findUserIdByUsername = jest.fn(async () => "user-2");
-      const service = createService({
-        findUserIdByUsername,
-        usernameBloomCheck: () => "possibly-present",
-      });
-
-      await expect(
-        service.resolveUsernameAvailabilityHint("casey-doe"),
-      ).resolves.toEqual({
-        username: "casey-doe",
-        available: false,
-        reason: "taken",
-      });
-      expect(findUserIdByUsername).toHaveBeenCalledWith("casey-doe");
-    });
-
-    it("returns available when the filter was wrong and the row does not exist", async () => {
-      const service = createService({
-        findUserIdByUsername: async () => null,
-        usernameBloomCheck: () => "possibly-present",
-      });
-
-      await expect(
-        service.resolveUsernameAvailabilityHint("casey-doe"),
-      ).resolves.toMatchObject({ available: true, reason: null });
-    });
-
-    it("reproduces the old behaviour when the filter is unavailable", async () => {
-      const findUserIdByUsername = jest.fn(async () => "user-2");
-      const service = createService({
-        findUserIdByUsername,
-        usernameBloomCheck: () => "unknown",
-      });
-
-      await expect(
-        service.resolveUsernameAvailabilityHint("casey-doe"),
-      ).resolves.toMatchObject({ available: false, reason: "taken" });
-      expect(findUserIdByUsername).toHaveBeenCalled();
-    });
-
-    it("still exempts the caller's own username on the fallback path", async () => {
-      const service = createService({
-        findUserIdByUsername: async () => "user-1",
-        usernameBloomCheck: () => "possibly-present",
-      });
-
-      await expect(
-        service.resolveUsernameAvailabilityHint("casey-doe", "user-1"),
-      ).resolves.toMatchObject({ available: true });
-    });
   });
 
   describe("username bloom write-through", () => {

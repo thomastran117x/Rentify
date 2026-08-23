@@ -74,6 +74,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authSessionService,
         containerTokens.pendingSignupStore,
         containerTokens.publicOtpService,
+        containerTokens.usernameService,
       ],
       resolve: ({ resolve }) =>
         new AuthService(
@@ -88,6 +89,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.pendingSignupStore),
           resolve(containerTokens.publicOtpService),
+          resolve(containerTokens.usernameService),
         ),
     });
     container.register({

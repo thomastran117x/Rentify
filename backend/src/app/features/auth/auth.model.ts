@@ -68,10 +68,6 @@ export const authUsernameSchema = usernameSchema.transform((value) =>
   value.trim().toLowerCase(),
 );
 
-export const usernameAvailabilityQuerySchema = z.object({
-  username: authUsernameSchema,
-});
-
 export const localSignupRequestSchema = z.object({
   username: authUsernameSchema,
   email: z.email().transform((value) => value.trim().toLowerCase()),
@@ -136,11 +132,6 @@ export const resendForgotPasswordRequestSchema = z.object({
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
-export const forgotUsernameRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
-  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
-});
-
 export const resetPasswordRequestSchema = z.object({
   username: authUsernameSchema,
   code: z
@@ -168,16 +159,6 @@ export const setPasswordRequestSchema = z.object({
 
 export type LocalSignupRequestBody = z.infer<typeof localSignupRequestSchema>;
 
-export type UsernameAvailabilityQuery = z.infer<
-  typeof usernameAvailabilityQuerySchema
->;
-
-export interface UsernameAvailabilityResult {
-  username: string;
-  available: boolean;
-  reason: "taken" | null;
-}
-
 export type LocalAuthenticateRequestBody = z.infer<
   typeof localAuthenticateRequestSchema
 >;
@@ -204,10 +185,6 @@ export type ForgotPasswordRequestBody = z.infer<
 
 export type ResendForgotPasswordRequestBody = z.infer<
   typeof resendForgotPasswordRequestSchema
->;
-
-export type ForgotUsernameRequestBody = z.infer<
-  typeof forgotUsernameRequestSchema
 >;
 
 export type ResetPasswordRequestBody = z.infer<
@@ -278,12 +255,6 @@ export interface ForgotPasswordInput {
 export interface ResendForgotPasswordInput {
   client: ClientRequestContext;
   username: string;
-  deviceId?: string;
-}
-
-export interface ForgotUsernameInput {
-  client: ClientRequestContext;
-  email: string;
   deviceId?: string;
 }
 

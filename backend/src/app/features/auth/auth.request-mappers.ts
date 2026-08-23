@@ -9,8 +9,6 @@ import type {
   ChangePasswordRequestBody,
   ForgotPasswordInput,
   ForgotPasswordRequestBody,
-  ForgotUsernameInput,
-  ForgotUsernameRequestBody,
   LocalAuthenticateInput,
   LocalAuthenticateRequestBody,
   LocalSignupInput,
@@ -28,7 +26,6 @@ import type {
   SetPasswordRequestBody,
   UnlockLocalLoginInput,
   UnlockLocalLoginRequestBody,
-  UsernameAvailabilityQuery,
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
@@ -46,10 +43,13 @@ import type {
   RemoveKnownDeviceInput,
   RemoveKnownDeviceRequestBody,
 } from "@/features/auth/device/device-management.model";
+import { oauthProviderSchema } from "@/features/auth/auth.model";
 import {
-  oauthProviderSchema,
   usernameAvailabilityQuerySchema,
-} from "@/features/auth/auth.model";
+  type ForgotUsernameInput,
+  type ForgotUsernameRequestBody,
+  type UsernameAvailabilityQuery,
+} from "@/features/auth/username/username.model";
 
 /**
  * An explicit body value wins over the fingerprinted device so a client that

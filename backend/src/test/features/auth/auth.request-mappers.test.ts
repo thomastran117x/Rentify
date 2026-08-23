@@ -3,10 +3,8 @@ import { containerTokens } from "@/configuration/container/tokens";
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
-import {
-  oauthProviderSchema,
-  usernameAvailabilityQuerySchema,
-} from "@/features/auth/auth.model";
+import { oauthProviderSchema } from "@/features/auth/auth.model";
+import { usernameAvailabilityQuerySchema } from "@/features/auth/username/username.model";
 import {
   parseUsernameAvailabilityQuery,
   requireOAuthProviderParam,
