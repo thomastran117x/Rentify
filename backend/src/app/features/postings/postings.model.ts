@@ -22,6 +22,12 @@ export const DEFAULT_MAX_BOOKING_DURATION_DAYS = 30;
 export const MAX_BOOKING_DURATION_DAYS_LIMIT = 365;
 export const MIN_BOOKING_DURATION_DAYS_LIMIT = 365;
 export const MAX_ADVANCE_NOTICE_DAYS_LIMIT = 365;
+/**
+ * Upper bound on how far into the future an owner may set a posting expiry.
+ * Guards against year typos parking a row in the expiry index indefinitely;
+ * anything genuinely longer-lived should simply have no expiry at all.
+ */
+export const MAX_POSTING_EXPIRY_HORIZON_DAYS = 730;
 
 export const postingCancellationPolicySchema = z.enum([
   "flexible",
@@ -329,6 +335,11 @@ const sharedUpsertPostingRequestShape = {
     z.string().trim().max(500).nullable().optional(),
   ),
   instantBooking: z.boolean().default(false),
+  expiresAt: z
+    .string()
+    .datetime("Expiry must be an ISO datetime.")
+    .nullable()
+    .optional(),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -728,6 +739,7 @@ export interface PostingRecord {
   publishedAt?: string;
   pausedAt?: string;
   archivedAt?: string;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -825,8 +837,21 @@ export interface UpsertPostingInput {
   cancellationPolicy?: PostingCancellationPolicy | null;
   cancellationPolicyNotes?: string | null;
   instantBooking?: boolean | null;
+  expiresAt?: string | null;
   availabilityBlocks: PostingAvailabilityBlockInput[];
   location: PostingLocationRecord;
+}
+
+/**
+ * Minimal projection the expiry sweeps select. Deliberately not a full
+ * PostingRecord: the sweeps read thousands of rows and only need enough to
+ * identify the posting, address the audit entry and render the reminder.
+ */
+export interface PostingExpiryCandidate {
+  id: string;
+  organizationId: string;
+  name: string;
+  expiresAt: string;
 }
 
 export interface ListOwnerPostingsInput {

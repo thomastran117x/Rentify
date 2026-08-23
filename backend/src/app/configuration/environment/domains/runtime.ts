@@ -344,6 +344,34 @@ export function buildWorkerConfig(
         },
       ),
     },
+    postingExpiry: {
+      // Expiry is a date-granularity concern, so there is no reason to poll at
+      // the booking-hold worker's five-second cadence.
+      pollIntervalMs: parseNumber(
+        raw,
+        "POSTING_EXPIRY_POLL_INTERVAL_MS",
+        60_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      batchSize: parseNumber(raw, "POSTING_EXPIRY_BATCH_SIZE", 50, errors, {
+        integer: true,
+        min: 1,
+      }),
+      reminderLeadDays: parseNumber(
+        raw,
+        "POSTING_EXPIRY_REMINDER_LEAD_DAYS",
+        3,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
     paymentsRetry: {
       pollIntervalMs: parseNumber(
         raw,

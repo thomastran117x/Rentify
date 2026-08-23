@@ -13,6 +13,13 @@ import {
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
+import {
+  MAX_EXPIRY_HORIZON_DAYS,
+  isExpiryBeyondHorizon,
+  isExpiryInPast,
+  toExpiryInputValue,
+  toExpiryIsoValue,
+} from "@/lib/postings/expiry";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError } from "@/lib/api/types";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
@@ -60,6 +67,7 @@ interface PostingFormState {
   cancellationPolicy: string;
   cancellationPolicyNotes: string;
   instantBooking: boolean;
+  expiresAt: string;
   city: string;
   region: string;
   country: string;
@@ -157,6 +165,7 @@ export function createDefaultFormState(): PostingFormState {
     currency: "CAD",
     tags: ["workspace", "wifi"],
     availabilityStatus: "available",
+    expiresAt: "",
     availabilityNotes: "",
     maxBookingDurationDays: "14",
     minBookingDurationDays: "",
@@ -200,6 +209,7 @@ export function toFormState(posting: PostingRecord): PostingFormState {
     currency: posting.pricing.currency,
     tags: posting.tags,
     availabilityStatus: posting.availabilityStatus,
+    expiresAt: toExpiryInputValue(posting.expiresAt),
     availabilityNotes: posting.availabilityNotes ?? "",
     maxBookingDurationDays: posting.maxBookingDurationDays
       ? String(posting.maxBookingDurationDays)
@@ -275,6 +285,7 @@ export function buildPayload(
       (form.cancellationPolicy as "flexible" | "moderate" | "strict") || null,
     cancellationPolicyNotes: form.cancellationPolicyNotes.trim() || null,
     instantBooking: form.instantBooking,
+    expiresAt: toExpiryIsoValue(form.expiresAt),
     location: {
       city: form.city.trim(),
       region: form.region.trim(),
@@ -433,6 +444,15 @@ export function validateStep(
       const value = Number(raw);
       if (!Number.isInteger(value) || value < 0) {
         errors[key as string] = `${label} must be a whole number.`;
+      }
+    }
+    if (form.expiresAt.trim()) {
+      if (isExpiryInPast(form.expiresAt)) {
+        errors.expiresAt = "Expiry date must be in the future.";
+      } else if (isExpiryBeyondHorizon(form.expiresAt)) {
+        // Mirrors the backend horizon so the field explains itself here rather
+        // than failing with a server error on save.
+        errors.expiresAt = `Expiry date cannot be more than ${MAX_EXPIRY_HORIZON_DAYS} days away. Leave it blank to keep this listing live indefinitely.`;
       }
     }
   } else if (stepId === "details") {
@@ -2044,6 +2064,15 @@ export function PostingManagementWorkspace() {
               error={stepErrors.advanceNoticeDays}
             />
           </div>
+          <TextField
+            label="Expiry date (optional)"
+            value={form.expiresAt}
+            onChange={(value) => updateField("expiresAt", value)}
+            disabled={disabled}
+            type="date"
+            hint="Leave blank to keep this listing live indefinitely. It pauses automatically at the end of the day you pick, and bookings you have already accepted are not affected."
+            error={stepErrors.expiresAt}
+          />
           <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
             <input
               type="checkbox"

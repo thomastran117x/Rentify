@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/lib/api/types";
 import type { PostingRecord } from "@/lib/postings/api";
+import { toExpiryIsoValue } from "@/lib/postings/expiry";
 
 const { createUploadUrlMock } = vi.hoisted(() => ({
   createUploadUrlMock: vi.fn(),
@@ -373,5 +374,82 @@ describe("posting management helpers", () => {
     expect(safeFormatPrice("10", "c")).toBe("10 C");
     expect(safeFormatPrice("10", "CAD")).toContain("10");
     expect(safeFormatPrice("", "")).toBe("0");
+  });
+});
+
+describe("posting expiry in the wizard", () => {
+  it("defaults to no expiry so listings stay live indefinitely", () => {
+    expect(createDefaultFormState().expiresAt).toBe("");
+  });
+
+  it("reads an existing expiry back into the date input", () => {
+    const iso = toExpiryIsoValue("2026-09-01") as string;
+
+    expect(toFormState(posting({ expiresAt: iso })).expiresAt).toBe(
+      "2026-09-01",
+    );
+  });
+
+  it("normalizes an absent expiry to a blank input", () => {
+    expect(toFormState(posting()).expiresAt).toBe("");
+  });
+
+  it("sends null when the owner leaves the expiry blank", () => {
+    const form = createDefaultFormState();
+    const photos = [
+      {
+        id: "photo-1",
+        blobUrl: "https://example.test/photo-1.jpg",
+        blobName: "postings/photo-1.jpg",
+        position: 0,
+      },
+    ];
+
+    expect(buildPayload(form, photos).expiresAt).toBeNull();
+  });
+
+  it("sends the end of the picked day when the owner sets an expiry", () => {
+    const form = { ...createDefaultFormState(), expiresAt: "2026-09-01" };
+    const photos = [
+      {
+        id: "photo-1",
+        blobUrl: "https://example.test/photo-1.jpg",
+        blobName: "postings/photo-1.jpg",
+        position: 0,
+      },
+    ];
+
+    expect(buildPayload(form, photos).expiresAt).toBe(
+      toExpiryIsoValue("2026-09-01"),
+    );
+  });
+
+  it("rejects an expiry date in the past on the availability step", () => {
+    const form = { ...createDefaultFormState(), expiresAt: "2020-01-01" };
+
+    expect(validateStep("availability", form, 1)).toMatchObject({
+      expiresAt: "Expiry date must be in the future.",
+    });
+  });
+
+  it("rejects an expiry date beyond the backend horizon", () => {
+    const form = { ...createDefaultFormState(), expiresAt: "2099-01-01" };
+
+    // The API rejects these too; catching it here keeps the user out of a
+    // server error on save.
+    expect(validateStep("availability", form, 1).expiresAt).toMatch(
+      /cannot be more than 730 days away/,
+    );
+  });
+
+  it("accepts a future expiry date and a blank one", () => {
+    const withinHorizon = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const future = { ...createDefaultFormState(), expiresAt: withinHorizon };
+    const blank = createDefaultFormState();
+
+    expect(validateStep("availability", future, 1)).toEqual({});
+    expect(validateStep("availability", blank, 1)).toEqual({});
   });
 });

@@ -48,6 +48,9 @@ const BASE_SEED_POSTINGS: SeedPostingFixture[] = [
     name: "Downtown Toronto Loft",
     description:
       "A bright furnished loft set up for short stays and local photo shoots.",
+    // Expiring soon on purpose: exercises the dashboard chip, the reminder
+    // sweep and the browser flow without anyone having to edit a row by hand.
+    expiresInDays: 5,
     pricingCurrency: "CAD",
     pricing: {
       currency: "CAD",

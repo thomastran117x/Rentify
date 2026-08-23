@@ -38,6 +38,18 @@ function buildLifecycleTimestamps(
   };
 }
 
+function buildExpiryTimestamp(expiresInDays?: number | null): Date | null {
+  if (expiresInDays == null) {
+    return null;
+  }
+
+  const expiresAt = new Date();
+  expiresAt.setUTCDate(expiresAt.getUTCDate() + expiresInDays);
+  expiresAt.setUTCHours(23, 59, 59, 999);
+
+  return expiresAt;
+}
+
 function toPostingDetailsColumns(
   family: "place" | "equipment" | "vehicle",
   details: Record<string, unknown>,
@@ -146,6 +158,7 @@ export const postingsSeedModule: SeedModule = {
         index + 1,
         fixturePosting.status,
       );
+      const expiresAt = buildExpiryTimestamp(fixturePosting.expiresInDays);
 
       await prisma.posting.upsert({
         where: {
@@ -177,6 +190,8 @@ export const postingsSeedModule: SeedModule = {
           publishedAt,
           pausedAt,
           archivedAt: null,
+          expiresAt,
+          expiryReminderSentAt: null,
         },
         create: {
           id: fixturePosting.id,
@@ -205,6 +220,8 @@ export const postingsSeedModule: SeedModule = {
           publishedAt,
           pausedAt,
           archivedAt: null,
+          expiresAt,
+          expiryReminderSentAt: null,
         },
       });
 

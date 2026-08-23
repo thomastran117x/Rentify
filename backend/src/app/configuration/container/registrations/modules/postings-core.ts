@@ -3,6 +3,8 @@ import type { ContainerRegistrationModule } from "@/configuration/container/regi
 import { PostingsController } from "@/features/postings/postings.controller";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 import { PostingsService } from "@/features/postings/postings.service";
+import { PostingExpiryService } from "@/features/postings/posting-expiry.service";
+import { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 
@@ -14,6 +16,42 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [],
       resolve: () => new PostingsRepository(),
+    });
+    container.register({
+      token: containerTokens.postingExpiryEmailComposer,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.postingsRepository,
+        containerTokens.authRepository,
+        containerTokens.organizationAccessService,
+      ],
+      resolve: ({ resolve }) =>
+        new PostingExpiryEmailComposer(
+          resolve(containerTokens.postingsRepository),
+          resolve(containerTokens.authRepository),
+          resolve(containerTokens.organizationAccessService),
+        ),
+    });
+    container.register({
+      token: containerTokens.postingExpiryService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.postingsRepository,
+        containerTokens.postingsPublicCacheService,
+        containerTokens.cacheService,
+        containerTokens.organizationAuditService,
+        containerTokens.organizationsRepository,
+        containerTokens.emailService,
+      ],
+      resolve: ({ resolve }) =>
+        new PostingExpiryService(
+          resolve(containerTokens.postingsRepository),
+          resolve(containerTokens.postingsPublicCacheService),
+          resolve(containerTokens.cacheService),
+          resolve(containerTokens.organizationAuditService),
+          resolve(containerTokens.organizationsRepository),
+          resolve(containerTokens.emailService),
+        ),
     });
     container.register({
       token: containerTokens.postingsService,

@@ -35,6 +35,7 @@ import {
   formatPublishedDate,
   humanizePostingValue,
 } from "@/lib/postings/public-format";
+import { formatExpiryDate } from "@/lib/postings/expiry";
 import { organizationHref } from "@/lib/organizations/urls";
 import { theme } from "@/styles/theme";
 
@@ -486,6 +487,11 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
                   ) : null}
                   <InstantBookBadge instantBooking={posting.instantBooking} />
                 </div>
+                {posting.expiresAt ? (
+                  <p className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
+                    Available until {formatExpiryDate(posting.expiresAt)}
+                  </p>
+                ) : null}
                 {posting.availabilityNotes ? (
                   <p className="rounded-[1.25rem] border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-4 py-3">
                     {posting.availabilityNotes}

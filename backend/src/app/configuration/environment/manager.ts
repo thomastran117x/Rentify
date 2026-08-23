@@ -168,6 +168,10 @@ export class EnvironmentManager {
     return this.get().workers.bookingExpiry;
   }
 
+  getPostingExpiryWorkerConfig(): AppEnvironment["workers"]["postingExpiry"] {
+    return this.get().workers.postingExpiry;
+  }
+
   getPaymentsRetryWorkerConfig(): AppEnvironment["workers"]["paymentsRetry"] {
     return this.get().workers.paymentsRetry;
   }

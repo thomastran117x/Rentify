@@ -28,6 +28,7 @@ import type {
   PostingAvailabilityStatus,
   PostingDetails,
   PostingCancellationPolicy,
+  PostingExpiryCandidate,
   PostingPhotoRecord,
   PostingPricing,
   PostingRecord,
@@ -246,6 +247,7 @@ export class PostingsRepository extends BaseRepository {
             data: this.toUpdateData(
               input,
               this.mergePhotosWithExisting(existing.photos, input.photos),
+              existing.expiresAt,
             ),
             include: postingInclude,
           });
@@ -802,6 +804,157 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
+  async listPostingsDueForExpiry(
+    limit: number,
+  ): Promise<PostingExpiryCandidate[]> {
+    const now = new Date();
+    const rows = await this.executeAsync(() =>
+      this.prisma.posting.findMany({
+        where: {
+          status: "published",
+          expiresAt: {
+            lte: now,
+          },
+        },
+        orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
+        take: limit,
+        select: {
+          id: true,
+          organizationId: true,
+          name: true,
+          expiresAt: true,
+        },
+      }),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      organizationId: row.organizationId,
+      name: row.name,
+      expiresAt: (row.expiresAt as Date).toISOString(),
+    }));
+  }
+
+  async listPostingsDueForExpiryReminder(
+    limit: number,
+    windowEndsAt: Date,
+  ): Promise<PostingExpiryCandidate[]> {
+    const now = new Date();
+    const rows = await this.executeAsync(() =>
+      this.prisma.posting.findMany({
+        where: {
+          status: "published",
+          expiryReminderSentAt: null,
+          expiresAt: {
+            gt: now,
+            lte: windowEndsAt,
+          },
+        },
+        orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
+        take: limit,
+        select: {
+          id: true,
+          organizationId: true,
+          name: true,
+          expiresAt: true,
+        },
+      }),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      organizationId: row.organizationId,
+      name: row.name,
+      expiresAt: (row.expiresAt as Date).toISOString(),
+    }));
+  }
+
+  /**
+   * Moves a due posting to `paused`, or returns null if it is no longer due.
+   *
+   * The status/expiry predicate is the point: `pause()` writes unconditionally,
+   * so an owner who archived or unpublished the posting between the sweep's read
+   * and this write would see it resurrected. Making the transition a
+   * compare-and-swap keeps the sweep correct without a read-modify-write, and a
+   * zero row count simply means somebody got there first.
+   */
+  async expireIfDue(id: string): Promise<PostingRecord | null> {
+    return this.executeAsync(async () => {
+      const posting = await this.prisma.$transaction(async (transaction) => {
+        const now = new Date();
+        const { count } = await transaction.posting.updateMany({
+          where: {
+            id,
+            status: "published",
+            expiresAt: {
+              lte: now,
+            },
+          },
+          data: {
+            status: "paused",
+            pausedAt: now,
+            archivedAt: null,
+          },
+        });
+
+        if (count === 0) {
+          return null;
+        }
+
+        await this.enqueueOutbox(transaction, id, "delete");
+
+        return transaction.posting.findUnique({
+          where: {
+            id,
+          },
+          include: postingInclude,
+        });
+      });
+
+      return posting ? this.mapPosting(posting) : null;
+    });
+  }
+
+  /**
+   * Claims the single "expiring soon" reminder for one specific deadline.
+   *
+   * The `IS NULL` predicate is the send-once latch: two sweeps racing the same
+   * row produce exactly one winner, and the loser returns false and enqueues
+   * nothing.
+   *
+   * `expiresAt` has to be part of the predicate, not just the payload. If an
+   * owner moves the deadline between the sweep's read and this write, their
+   * update clears the latch and a bare `IS NULL` claim would immediately stamp
+   * it again for a deadline the job does not describe. The queued job still
+   * carries the old date, so the composer discards it as stale, and the new
+   * date never gets a reminder because its latch is already set. Matching the
+   * exact instant makes that case a lost claim instead, and the next sweep
+   * picks the new deadline up cleanly.
+   *
+   * `status` is in the predicate for the same reason: a posting paused or
+   * archived in that window should not burn its latch.
+   */
+  async markExpiryReminderSent(
+    id: string,
+    expiresAt: string,
+  ): Promise<boolean> {
+    const { count } = await this.executeAsync(() =>
+      this.prisma.posting.updateMany({
+        where: {
+          id,
+          status: "published",
+          expiresAt: new Date(expiresAt),
+          expiryReminderSentAt: null,
+        },
+        data: {
+          expiryReminderSentAt: new Date(),
+        },
+      }),
+    );
+
+    return count === 1;
+  }
+
   async restoreFromSnapshot(snapshot: unknown): Promise<PostingRecord | null> {
     const posting = snapshot as PostingRecord | null | undefined;
 
@@ -870,12 +1023,16 @@ export class PostingsRepository extends BaseRepository {
                   cancellationPolicyNotes:
                     posting.cancellationPolicyNotes ?? null,
                   instantBooking: posting.instantBooking,
+                  expiresAt: posting.expiresAt ?? null,
                   availabilityBlocks: [],
                   location: posting.location,
                 },
                 posting.photos,
               ),
               status: posting.status,
+              // A restore is a discontinuity: whatever reminder state the row
+              // carried belongs to the version being replaced, so re-arm.
+              expiryReminderSentAt: null,
               publishedAt: posting.publishedAt
                 ? new Date(posting.publishedAt)
                 : null,
@@ -2803,6 +2960,7 @@ export class PostingsRepository extends BaseRepository {
       cancellationPolicy: input.cancellationPolicy ?? null,
       cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
       instantBooking: input.instantBooking ?? false,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -2831,9 +2989,31 @@ export class PostingsRepository extends BaseRepository {
     };
   }
 
+  /**
+   * Resolves the expiry columns for a write.
+   *
+   * Moving, setting or clearing `expiresAt` re-arms the "expiring soon" email by
+   * clearing its idempotency latch, so pushing the date out sends exactly one
+   * new reminder. Leaving the date untouched must NOT clear the latch, or every
+   * unrelated edit would re-send. Returning the latch key only when the value
+   * actually changed keeps that decision atomic with the update rather than
+   * leaving it to callers.
+   */
+  private toExpiryColumns(
+    next: string | null | undefined,
+    current: Date | null | undefined,
+  ): { expiresAt: Date | null; expiryReminderSentAt?: null } {
+    const expiresAt = next ? new Date(next) : null;
+    const changed =
+      (expiresAt?.getTime() ?? null) !== (current?.getTime() ?? null);
+
+    return changed ? { expiresAt, expiryReminderSentAt: null } : { expiresAt };
+  }
+
   private toUpdateData(
     input: UpsertPostingInput,
     photos: ManagedPostingPhotoInput[] = input.photos,
+    currentExpiresAt?: Date | null,
   ): Prisma.PostingUpdateInput {
     return {
       organization: {
@@ -2857,6 +3037,7 @@ export class PostingsRepository extends BaseRepository {
       cancellationPolicy: input.cancellationPolicy ?? null,
       cancellationPolicyNotes: input.cancellationPolicyNotes ?? null,
       instantBooking: input.instantBooking ?? false,
+      ...this.toExpiryColumns(input.expiresAt, currentExpiresAt),
       latitude: input.location.latitude,
       longitude: input.location.longitude,
       city: input.location.city,
@@ -3036,6 +3217,7 @@ export class PostingsRepository extends BaseRepository {
       publishedAt: posting.publishedAt?.toISOString(),
       pausedAt: posting.pausedAt?.toISOString(),
       archivedAt: posting.archivedAt?.toISOString(),
+      expiresAt: posting.expiresAt?.toISOString(),
       createdAt: posting.createdAt.toISOString(),
       updatedAt: posting.updatedAt.toISOString(),
     };

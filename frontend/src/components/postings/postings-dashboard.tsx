@@ -14,6 +14,7 @@ import { Pagination } from "@/components/common/pagination";
 import { useErrorToast } from "@/components/errors";
 import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ExpiryChip } from "@/components/postings/expiry-chip";
 import {
   canManageOrganizationPostings,
   canReadOrganizationPostings,
@@ -570,6 +571,7 @@ export function PostingsDashboard() {
                       >
                         {posting.status}
                       </span>
+                      <ExpiryChip posting={posting} />
                     </div>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       {formatVariant(posting)} · {posting.location.city},{" "}

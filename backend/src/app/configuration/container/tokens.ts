@@ -103,6 +103,8 @@ import { PostingsSearchIndexService } from "@/features/postings/search/index.ser
 import { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
 import { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
 import { PostingsService } from "@/features/postings/postings.service";
+import { PostingExpiryService } from "@/features/postings/posting-expiry.service";
+import { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import { PostingThumbnailService } from "@/features/postings/thumbnail/thumbnail.service";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import { RentingsRepository } from "@/features/rentings/rentings.repository";
@@ -408,6 +410,12 @@ export const containerTokens = {
     "ContentSanitizationService",
   ),
   postingsService: createServiceToken<PostingsService>("PostingsService"),
+  postingExpiryService: createServiceToken<PostingExpiryService>(
+    "PostingExpiryService",
+  ),
+  postingExpiryEmailComposer: createServiceToken<PostingExpiryEmailComposer>(
+    "PostingExpiryEmailComposer",
+  ),
   postingsController:
     createServiceToken<PostingsController>("PostingsController"),
   featureFlagRepository: createServiceToken<FeatureFlagRepository>(

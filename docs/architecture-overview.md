@@ -219,6 +219,7 @@ Workers currently cover:
 
 - postings analytics
 - booking expiry
+- posting expiry and expiry reminders
 - email delivery
 - SMS delivery and webhook processing
 - log consumption
@@ -242,8 +243,8 @@ This keeps the API focused on request-response work while heavier or asynchronou
 
 Connection pool size is a per-process cost, not a per-request one. The API and
 every worker that touches the database run as separate processes, and each owns
-its own pool. Seventeen processes in the Compose stack connect: the API plus
-sixteen workers. The SMS and log-consumer workers are queue-only and never open
+its own pool. Eighteen processes in the Compose stack connect: the API plus
+seventeen workers. The SMS and log-consumer workers are queue-only and never open
 a database connection. The email worker used to be queue-only too, but the
 booking message notification job carries ids rather than a rendered recipient,
 so delivery hydrates it from the database at send time.
@@ -251,8 +252,8 @@ so delivery hydrates it from the database at send time.
 That makes the arithmetic worth checking before adding a service. The pool holds
 `DATABASE_POOL_MINIMUM_IDLE` connections at rest and grows to
 `DATABASE_POOL_CONNECTION_LIMIT` under load. Compose gives the API 2/10 and each
-worker 1/5, so the stack costs roughly eighteen connections idle and
-ninety at its ceiling, against the 250 the local MySQL
+worker 1/5, so the stack costs roughly nineteen connections idle and
+ninety-five at its ceiling, against the 250 the local MySQL
 container allows. A managed instance is usually stricter — connection caps there
 derive from instance size, and a small instance may allow only around 150 — so
 adding replicas of the API multiplies this cost rather than sharing it.
