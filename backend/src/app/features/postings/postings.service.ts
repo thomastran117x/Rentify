@@ -9,9 +9,9 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { AuthRepository } from "@/features/auth/auth.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
+import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
-import { createAuditChanges } from "@/features/organizations/organization-audit.model";
+import { createAuditChanges } from "@/features/organizations/audit/audit.model";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
   MAX_BATCH_IDS,

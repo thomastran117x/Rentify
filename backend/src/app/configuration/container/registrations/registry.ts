@@ -13,7 +13,14 @@ import { blobRegistrationModule } from "@/configuration/container/registrations/
 import { bookingsRegistrationModule } from "@/configuration/container/registrations/modules/bookings";
 import { feedbacksRegistrationModule } from "@/configuration/container/registrations/modules/feedbacks";
 import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
-import { organizationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations";
+import { organizationsProfileRegistrationModule } from "@/configuration/container/registrations/modules/organizations-profile";
+import { organizationsMembersRegistrationModule } from "@/configuration/container/registrations/modules/organizations-members";
+import { organizationsInvitationsRegistrationModule } from "@/configuration/container/registrations/modules/organizations-invitations";
+import { organizationsAuditRegistrationModule } from "@/configuration/container/registrations/modules/organizations-audit";
+import { organizationsAnnouncementsRegistrationModule } from "@/configuration/container/registrations/modules/organizations-announcements";
+import { organizationsBlogRegistrationModule } from "@/configuration/container/registrations/modules/organizations-blog";
+import { organizationsBlogCommentsRegistrationModule } from "@/configuration/container/registrations/modules/organizations-blog-comments";
+import { organizationsReviewsRegistrationModule } from "@/configuration/container/registrations/modules/organizations-reviews";
 import { organizationsSearchRegistrationModule } from "@/configuration/container/registrations/modules/organizations-search";
 import { organizationsBlogSearchRegistrationModule } from "@/configuration/container/registrations/modules/organizations-blog-search";
 import { paymentsRegistrationModule } from "@/configuration/container/registrations/modules/payments";
@@ -61,7 +68,14 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authLockoutRegistrationModule,
   authPasswordRegistrationModule,
   authPersonalAccessTokensRegistrationModule,
-  organizationsRegistrationModule,
+  organizationsProfileRegistrationModule,
+  organizationsMembersRegistrationModule,
+  organizationsInvitationsRegistrationModule,
+  organizationsAuditRegistrationModule,
+  organizationsAnnouncementsRegistrationModule,
+  organizationsBlogRegistrationModule,
+  organizationsBlogCommentsRegistrationModule,
+  organizationsReviewsRegistrationModule,
   organizationsSearchRegistrationModule,
   organizationsBlogSearchRegistrationModule,
   reportsRegistrationModule,

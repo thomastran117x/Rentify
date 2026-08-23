@@ -48,30 +48,40 @@ import { EmailService } from "@/features/email/email.service";
 import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import { FeedbacksRepository } from "@/features/feedbacks/feedbacks.repository";
 import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
-import { OrganizationsController } from "@/features/organizations/organizations.controller";
-import { OrganizationAuditRepository } from "@/features/organizations/organization-audit.repository";
-import { OrganizationAuditService } from "@/features/organizations/organization-audit.service";
-import { OrganizationAnnouncementRepository } from "@/features/organizations/organization-announcement.repository";
-import { OrganizationAnnouncementService } from "@/features/organizations/organization-announcement.service";
-import { OrganizationBlogRepository } from "@/features/organizations/organization-blog.repository";
-import { OrganizationBlogService } from "@/features/organizations/organization-blog.service";
-import { OrganizationBlogCommentsRepository } from "@/features/organizations/blog-comments/organization-blog-comments.repository";
-import { OrganizationBlogCommentsService } from "@/features/organizations/blog-comments/organization-blog-comments.service";
-import { OrganizationBlogCommentsController } from "@/features/organizations/blog-comments/organization-blog-comments.controller";
-import { OrganizationBlogCommentSocketServer } from "@/features/organizations/blog-comments/organization-blog-comment-socket.server";
-import { OrganizationReviewRepository } from "@/features/organizations/organization-review.repository";
-import { OrganizationReviewService } from "@/features/organizations/organization-review.service";
+import { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
+import { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
+import { OrganizationAuditController } from "@/features/organizations/audit/audit.controller";
+import { OrganizationAnnouncementRepository } from "@/features/organizations/announcements/announcements.repository";
+import { OrganizationAnnouncementService } from "@/features/organizations/announcements/announcements.service";
+import { OrganizationAnnouncementsController } from "@/features/organizations/announcements/announcements.controller";
+import { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
+import { OrganizationBlogService } from "@/features/organizations/blog/blog.service";
+import { OrganizationBlogController } from "@/features/organizations/blog/blog.controller";
+import { OrganizationBlogCommentsRepository } from "@/features/organizations/blog/comments/comments.repository";
+import { OrganizationBlogCommentsService } from "@/features/organizations/blog/comments/comments.service";
+import { OrganizationBlogCommentsController } from "@/features/organizations/blog/comments/comments.controller";
+import { OrganizationBlogCommentSocketServer } from "@/features/organizations/blog/comments/comment-socket.server";
+import { OrganizationReviewRepository } from "@/features/organizations/reviews/reviews.repository";
+import { OrganizationReviewService } from "@/features/organizations/reviews/reviews.service";
+import { OrganizationReviewsController } from "@/features/organizations/reviews/reviews.controller";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { OrganizationLogoService } from "@/features/organizations/organization-logo.service";
+import { OrganizationPostingProjectionService } from "@/features/organizations/organization-posting-projection.service";
 import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
-import { OrganizationsService } from "@/features/organizations/organizations.service";
+import { OrganizationProfileService } from "@/features/organizations/profile/profile.service";
+import { OrganizationProfileController } from "@/features/organizations/profile/profile.controller";
+import { OrganizationMembersService } from "@/features/organizations/members/members.service";
+import { OrganizationMembersController } from "@/features/organizations/members/members.controller";
+import { OrganizationInvitationsService } from "@/features/organizations/invitations/invitations.service";
+import { OrganizationInvitationsController } from "@/features/organizations/invitations/invitations.controller";
 import { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
 import { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
-import { OrganizationsSearchService } from "@/features/organizations/search/organizations-search.service";
-import { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
-import { OrganizationBlogSearchIndexService } from "@/features/organizations/blog-search/index.service";
-import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog-search/public-search.service";
-import { OrganizationBlogSearchService } from "@/features/organizations/blog-search/organization-blog-search.service";
-import { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
+import { OrganizationsSearchService } from "@/features/organizations/search/search.service";
+import { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
+import { OrganizationBlogSearchIndexService } from "@/features/organizations/blog/search/index.service";
+import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
+import { OrganizationBlogSearchService } from "@/features/organizations/blog/search/blog-search.service";
+import { OrganizationBlogSearchController } from "@/features/organizations/blog/search/blog-search.controller";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
@@ -165,6 +175,9 @@ export const containerTokens = {
   organizationAuditService: createServiceToken<OrganizationAuditService>(
     "OrganizationAuditService",
   ),
+  organizationAuditController: createServiceToken<OrganizationAuditController>(
+    "OrganizationAuditController",
+  ),
   organizationAnnouncementRepository:
     createServiceToken<OrganizationAnnouncementRepository>(
       "OrganizationAnnouncementRepository",
@@ -173,11 +186,18 @@ export const containerTokens = {
     createServiceToken<OrganizationAnnouncementService>(
       "OrganizationAnnouncementService",
     ),
+  organizationAnnouncementsController:
+    createServiceToken<OrganizationAnnouncementsController>(
+      "OrganizationAnnouncementsController",
+    ),
   organizationBlogRepository: createServiceToken<OrganizationBlogRepository>(
     "OrganizationBlogRepository",
   ),
   organizationBlogService: createServiceToken<OrganizationBlogService>(
     "OrganizationBlogService",
+  ),
+  organizationBlogController: createServiceToken<OrganizationBlogController>(
+    "OrganizationBlogController",
   ),
   organizationBlogCommentsRepository:
     createServiceToken<OrganizationBlogCommentsRepository>(
@@ -202,15 +222,42 @@ export const containerTokens = {
   organizationReviewService: createServiceToken<OrganizationReviewService>(
     "OrganizationReviewService",
   ),
+  organizationReviewsController:
+    createServiceToken<OrganizationReviewsController>(
+      "OrganizationReviewsController",
+    ),
   organizationAccessService: createServiceToken<OrganizationAccessService>(
     "OrganizationAccessService",
   ),
-  organizationsService: createServiceToken<OrganizationsService>(
-    "OrganizationsService",
+  organizationLogoService: createServiceToken<OrganizationLogoService>(
+    "OrganizationLogoService",
   ),
-  organizationsController: createServiceToken<OrganizationsController>(
-    "OrganizationsController",
+  organizationPostingProjectionService:
+    createServiceToken<OrganizationPostingProjectionService>(
+      "OrganizationPostingProjectionService",
+    ),
+  organizationProfileService: createServiceToken<OrganizationProfileService>(
+    "OrganizationProfileService",
   ),
+  organizationProfileController:
+    createServiceToken<OrganizationProfileController>(
+      "OrganizationProfileController",
+    ),
+  organizationMembersService: createServiceToken<OrganizationMembersService>(
+    "OrganizationMembersService",
+  ),
+  organizationMembersController:
+    createServiceToken<OrganizationMembersController>(
+      "OrganizationMembersController",
+    ),
+  organizationInvitationsService:
+    createServiceToken<OrganizationInvitationsService>(
+      "OrganizationInvitationsService",
+    ),
+  organizationInvitationsController:
+    createServiceToken<OrganizationInvitationsController>(
+      "OrganizationInvitationsController",
+    ),
   organizationsSearchIndexService:
     createServiceToken<OrganizationsSearchIndexService>(
       "OrganizationsSearchIndexService",

@@ -1,9 +1,9 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
-import { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
-import { OrganizationBlogSearchIndexService } from "@/features/organizations/blog-search/index.service";
-import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog-search/public-search.service";
-import { OrganizationBlogSearchService } from "@/features/organizations/blog-search/organization-blog-search.service";
+import { OrganizationBlogSearchController } from "@/features/organizations/blog/search/blog-search.controller";
+import { OrganizationBlogSearchIndexService } from "@/features/organizations/blog/search/index.service";
+import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
+import { OrganizationBlogSearchService } from "@/features/organizations/blog/search/blog-search.service";
 import { SearchQueueService } from "@/features/search/search.queue.service";
 
 export const organizationsBlogSearchRegistrationModule: ContainerRegistrationModule =

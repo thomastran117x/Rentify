@@ -2,8 +2,8 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BlobController } from "@/features/blob/blob.controller";
 import type { ProfileController } from "@/features/profile/profile.controller";
 import type { SearchController } from "@/features/search/search.controller";
-import type { OrganizationsSearchController } from "@/features/organizations/search/organizations-search.controller";
-import type { OrganizationBlogSearchController } from "@/features/organizations/blog-search/organization-blog-search.controller";
+import type { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
+import type { OrganizationBlogSearchController } from "@/features/organizations/blog/search/blog-search.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const blobRouteModule: RouteModule = {
