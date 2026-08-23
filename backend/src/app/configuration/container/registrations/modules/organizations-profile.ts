@@ -22,7 +22,9 @@ export const organizationsProfileRegistrationModule: ContainerRegistrationModule
         lifetime: "scoped",
         dependencies: [containerTokens.authRepository],
         resolve: ({ resolve }) =>
-          new OrganizationAccessService(resolve(containerTokens.authRepository)),
+          new OrganizationAccessService(
+            resolve(containerTokens.authRepository),
+          ),
       });
       // Shared collaborators used by both the profile domain (create/update)
       // and the audit domain (restoring a version) -- registered here since

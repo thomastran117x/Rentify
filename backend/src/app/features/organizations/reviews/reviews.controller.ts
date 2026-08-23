@@ -38,7 +38,10 @@ export class OrganizationReviewsController {
 
   create = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
-    const body = await parseRequestBody(request, createOrganizationReviewSchema);
+    const body = await parseRequestBody(
+      request,
+      createOrganizationReviewSchema,
+    );
     const result = await this.reviewsService.create({
       organizationId: requireOrganizationId(request),
       reviewerId: auth.sub,
@@ -51,7 +54,10 @@ export class OrganizationReviewsController {
 
   updateOwn = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
-    const body = await parseRequestBody(request, updateOrganizationReviewSchema);
+    const body = await parseRequestBody(
+      request,
+      updateOrganizationReviewSchema,
+    );
     const result = await this.reviewsService.updateOwn({
       organizationId: requireOrganizationId(request),
       reviewerId: auth.sub,
@@ -87,10 +93,7 @@ export class OrganizationReviewsController {
     });
   };
 
-  removeReply = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
+  removeReply = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.reviewsService.removeReply({
       organizationId: requireOrganizationId(request),

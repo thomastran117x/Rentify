@@ -387,12 +387,10 @@ describe("OrganizationProfileService", () => {
       },
     });
 
-    await expect(service.getWorkspaceById("org-1", "user-1")).resolves.toEqual(
-      {
-        ...refreshedDetail,
-        viewerRole: "primary_manager",
-      },
-    );
+    await expect(service.getWorkspaceById("org-1", "user-1")).resolves.toEqual({
+      ...refreshedDetail,
+      viewerRole: "primary_manager",
+    });
     expect(invitationsService.expirePendingInvitations).toHaveBeenCalledWith(
       "org-1",
       [],

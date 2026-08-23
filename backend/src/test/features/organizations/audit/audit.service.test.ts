@@ -56,7 +56,11 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
     role: "operator",
     status: "pending",
     expiresAt: "2099-06-01T00:00:00.000Z",
-    invitedBy: { id: "user-1", email: "owner@example.com", username: "owner-one" },
+    invitedBy: {
+      id: "user-1",
+      email: "owner@example.com",
+      username: "owner-one",
+    },
     organization: { id: "org-1", slug: "northwind", name: "Northwind" },
     ...overrides,
   };
@@ -127,7 +131,10 @@ function createService(options?: {
   };
   const organizationsRepository = {
     findMembershipAccess: jest.fn(async () => membershipAccess),
-    updateOrganization: jest.fn(async () => ({ id: "org-1", name: "Northwind" })),
+    updateOrganization: jest.fn(async () => ({
+      id: "org-1",
+      name: "Northwind",
+    })),
     restoreMembership: jest.fn(async () => ({
       membershipId: "membership-2",
       userId: "user-2",
@@ -330,9 +337,11 @@ describe("OrganizationAuditService", () => {
 
   describe("restoreVersion", () => {
     it("preserves replaced logos during restore when a restorable audit still references them", async () => {
-      const restoredLogoUrl = "https://cdn.test/organizations/user-1/logo-restored.png";
+      const restoredLogoUrl =
+        "https://cdn.test/organizations/user-1/logo-restored.png";
       const restoredLogoBlobName = "organizations/user-1/logo-restored.png";
-      const previousLogoUrl = "https://cdn.test/organizations/user-1/logo-current.png";
+      const previousLogoUrl =
+        "https://cdn.test/organizations/user-1/logo-current.png";
       const previousLogoBlobName = "organizations/user-1/logo-current.png";
       const { service, organizationsRepository, organizationLogoService } =
         createService({
