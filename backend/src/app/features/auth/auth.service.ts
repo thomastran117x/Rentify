@@ -36,7 +36,12 @@ import {
   type UnlockLocalLoginInput,
   isStrongPassword,
 } from "@/features/auth/auth.model";
-import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
+import { AuthSessionService } from "@/features/auth/session/session.service";
+import {
+  PendingSignupStore,
+  type PendingLocalSignupRecord,
+} from "@/features/auth/pending-signup/pending-signup.store";
+import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -79,49 +84,14 @@ interface AuthRequestContext {
   refreshToken?: string;
 }
 
-interface PendingLocalSignupRecord {
-  username: string;
-  email: string;
-  passwordHash: string;
-  firstName?: string;
-  lastName?: string;
-  deviceId?: string;
-  createdAt: string;
-}
-
-interface VerificationRecipient {
-  email: string;
-  firstName?: string;
-}
-
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
 const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
-const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
-const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX = "auth:pending-signup-verify";
-const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS = 10_000;
-const PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS = 60 * 60;
-const PUBLIC_OTP_EMAIL_LIMIT = 5;
-const PUBLIC_OTP_IP_LIMIT = 20;
-const PUBLIC_OTP_DEVICE_LIMIT = 10;
 
 interface LocalLoginAttemptRecord {
   failedAttempts: number;
   lockedAt?: string;
 }
-
-interface PublicOtpRateLimitRecord {
-  count: number;
-}
-
-type PublicOtpRateLimitResult = {
-  allowed: boolean;
-  flow: string;
-  purpose: string;
-  subject: string;
-  reason?: string;
-  scope?: "email" | "ip" | "device";
-};
 
 export class AuthService {
   private readonly logger: Logger;
@@ -138,6 +108,9 @@ export class AuthService {
     private readonly cacheService: CacheService,
     private readonly mfaTotpService: MfaTotpService,
     private readonly usernameBloomService: UsernameBloomService,
+    private readonly authSessionService: AuthSessionService,
+    private readonly pendingSignupStore: PendingSignupStore,
+    private readonly publicOtpService: PublicOtpService,
   ) {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
@@ -155,7 +128,7 @@ export class AuthService {
     );
 
     if (loginAttemptRecord?.lockedAt && (!user || !isPasswordValid)) {
-      await this.sendLocalLoginUnlockCode(user);
+      await this.publicOtpService.sendLoginUnlockCode(user);
       throw new LockedError(
         "This sign-in is locked. Use the code we emailed you to unlock it.",
         this.buildLockedLoginDetails(user),
@@ -168,7 +141,7 @@ export class AuthService {
       );
 
       if (updatedAttemptRecord.lockedAt) {
-        await this.sendLocalLoginUnlockCode(user);
+        await this.publicOtpService.sendLoginUnlockCode(user);
         throw new LockedError(
           "This sign-in is locked. Use the code we emailed you to unlock it.",
           this.buildLockedLoginDetails(user),
@@ -188,7 +161,7 @@ export class AuthService {
 
     await requireLoginMfa(this.mfaTotpService, user.id, user.email, input.totpCode);
 
-    return this.authenticateVerifiedUser(user, input);
+    return this.authSessionService.authenticateVerifiedUser(user, input);
   }
 
   async localSignup(
@@ -210,7 +183,7 @@ export class AuthService {
     }
 
     const passwordHash = await hashPassword(input.password);
-    await this.writePendingLocalSignup(
+    await this.pendingSignupStore.write(
       {
         username: input.username,
         email: input.email,
@@ -222,7 +195,7 @@ export class AuthService {
       },
       this.otpService.getTtlInSeconds(),
     );
-    await this.sendVerificationCode({
+    await this.publicOtpService.sendEmailVerificationCode({
       email: input.email,
       firstName: input.firstName,
     });
@@ -237,7 +210,7 @@ export class AuthService {
   async forgotPassword(input: ForgotPasswordInput): Promise<{
     accepted: true;
   }> {
-    const rateLimitResult = await this.consumePublicOtpRateLimit({
+    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
       subject: input.username,
       client: input.client,
@@ -246,7 +219,7 @@ export class AuthService {
     });
 
     if (!rateLimitResult.allowed) {
-      this.logSuspiciousOtpPattern(rateLimitResult);
+      this.publicOtpService.logSuspicious(rateLimitResult);
       return {
         accepted: true,
       };
@@ -255,7 +228,7 @@ export class AuthService {
     const user = await this.authRepository.findUserByUsername(input.username);
 
     if (user && isEligibleForLocalPasswordManagement(user)) {
-      await this.sendPasswordResetCode(user);
+      await this.publicOtpService.sendPasswordResetCode(user);
     }
 
     return {
@@ -266,7 +239,7 @@ export class AuthService {
   async resendForgotPassword(input: ResendForgotPasswordInput): Promise<{
     accepted: true;
   }> {
-    const rateLimitResult = await this.consumePublicOtpRateLimit({
+    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
       subject: input.username,
       client: input.client,
@@ -275,7 +248,7 @@ export class AuthService {
     });
 
     if (!rateLimitResult.allowed) {
-      this.logSuspiciousOtpPattern(rateLimitResult);
+      this.publicOtpService.logSuspicious(rateLimitResult);
       return {
         accepted: true,
       };
@@ -284,7 +257,7 @@ export class AuthService {
     const user = await this.authRepository.findUserByUsername(input.username);
 
     if (user && isEligibleForLocalPasswordManagement(user)) {
-      await this.sendPasswordResetCode(user);
+      await this.publicOtpService.sendPasswordResetCode(user);
     }
 
     return {
@@ -295,7 +268,7 @@ export class AuthService {
   async forgotUsername(input: ForgotUsernameInput): Promise<{
     accepted: true;
   }> {
-    const rateLimitResult = await this.consumePublicOtpRateLimit({
+    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
       purpose: USERNAME_REMINDER_RATE_LIMIT_PURPOSE,
       subject: input.email,
       client: input.client,
@@ -304,7 +277,7 @@ export class AuthService {
     });
 
     if (!rateLimitResult.allowed) {
-      this.logSuspiciousOtpPattern(rateLimitResult);
+      this.publicOtpService.logSuspicious(rateLimitResult);
       return {
         accepted: true,
       };
@@ -313,7 +286,7 @@ export class AuthService {
     const user = await this.authRepository.findUserByEmail(input.email);
 
     if (user) {
-      await this.sendUsernameReminder(user);
+      await this.publicOtpService.sendUsernameReminder(user);
     }
 
     return {
@@ -351,13 +324,11 @@ export class AuthService {
       passwordHash,
       tokenVersion: nextTokenVersion,
     };
-    const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
+    return this.authSessionService.reissueSessionForUser(
       updatedUser,
       input.client,
       input.deviceId,
     );
-
-    return this.issueTokensForUser(updatedUser, deviceStatus, input.deviceId);
   }
 
   async verifyEmail(input: VerifyEmailInput): Promise<AuthSessionResult> {
@@ -367,14 +338,14 @@ export class AuthService {
       code: input.code,
     });
     const verificationLock =
-      await this.acquirePendingLocalSignupVerificationLock(input.email);
+      await this.pendingSignupStore.acquireVerificationLock(input.email);
 
     if (!verificationLock) {
       throw new BadRequestError("Verification code is invalid or has expired.");
     }
 
     try {
-      const pendingSignup = await this.readPendingLocalSignup(input.email);
+      const pendingSignup = await this.pendingSignupStore.read(input.email);
 
       if (!pendingSignup) {
         throw new BadRequestError(
@@ -410,7 +381,7 @@ export class AuthService {
           passwordHash: pendingSignup.passwordHash,
         };
       } else if (existingUser.emailVerified) {
-        await this.deletePendingLocalSignup(input.email);
+        await this.pendingSignupStore.delete(input.email);
         throw new BadRequestError(
           "Verification code is invalid or has expired.",
         );
@@ -426,7 +397,7 @@ export class AuthService {
         );
       }
 
-      await this.deletePendingLocalSignup(input.email);
+      await this.pendingSignupStore.delete(input.email);
 
       // The name was already recorded when it was reserved. Recording it again
       // as it becomes a durable row covers the case where that earlier write
@@ -434,16 +405,9 @@ export class AuthService {
       await this.usernameBloomService.add(pendingSignup.username);
 
       const resolvedDeviceId = input.deviceId ?? pendingSignup.deviceId;
-      const deviceStatus =
-        await this.deviceService.evaluateExistingSessionDevice(
-          verifiedUser,
-          input.client,
-          resolvedDeviceId,
-        );
-
-      return this.issueTokensForUser(
+      return this.authSessionService.reissueSessionForUser(
         verifiedUser,
-        deviceStatus,
+        input.client,
         resolvedDeviceId,
       );
     } finally {
@@ -454,7 +418,7 @@ export class AuthService {
   async resendVerificationEmail(input: ResendVerificationEmailInput): Promise<{
     accepted: true;
   }> {
-    const rateLimitResult = await this.consumePublicOtpRateLimit({
+    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
       purpose: EMAIL_VERIFICATION_OTP_PURPOSE,
       subject: input.email,
       client: input.client,
@@ -463,16 +427,16 @@ export class AuthService {
     });
 
     if (!rateLimitResult.allowed) {
-      this.logSuspiciousOtpPattern(rateLimitResult);
+      this.publicOtpService.logSuspicious(rateLimitResult);
       return {
         accepted: true,
       };
     }
 
-    const pendingSignup = await this.readPendingLocalSignup(input.email);
+    const pendingSignup = await this.pendingSignupStore.read(input.email);
 
     if (pendingSignup) {
-      await this.sendPublicVerificationCode({
+      await this.publicOtpService.sendPublicEmailVerificationCode({
         email: pendingSignup.email,
         firstName: pendingSignup.firstName,
       });
@@ -484,7 +448,7 @@ export class AuthService {
     const user = await this.authRepository.findUserByEmail(input.email);
 
     if (user && !user.emailVerified) {
-      await this.sendPublicVerificationCode({
+      await this.publicOtpService.sendPublicEmailVerificationCode({
         email: user.email,
         firstName: user.firstName,
       });
@@ -526,13 +490,11 @@ export class AuthService {
       passwordHash,
       tokenVersion: nextTokenVersion,
     };
-    const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
+    return this.authSessionService.reissueSessionForUser(
       updatedUser,
       input.client,
       input.deviceId,
     );
-
-    return this.issueTokensForUser(updatedUser, deviceStatus, input.deviceId);
   }
 
   /**
@@ -570,13 +532,11 @@ export class AuthService {
       passwordHash,
       tokenVersion: nextTokenVersion,
     };
-    const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
+    return this.authSessionService.reissueSessionForUser(
       updatedUser,
       input.client,
       input.deviceId,
     );
-
-    return this.issueTokensForUser(updatedUser, deviceStatus, input.deviceId);
   }
 
   async unlockLocalLogin(input: UnlockLocalLoginInput): Promise<{
@@ -604,7 +564,7 @@ export class AuthService {
   async resendUnlockLocalLogin(input: ResendUnlockLocalLoginInput): Promise<{
     accepted: true;
   }> {
-    const rateLimitResult = await this.consumePublicOtpRateLimit({
+    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
       purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
       subject: input.email,
       client: input.client,
@@ -613,7 +573,7 @@ export class AuthService {
     });
 
     if (!rateLimitResult.allowed) {
-      this.logSuspiciousOtpPattern(rateLimitResult);
+      this.publicOtpService.logSuspicious(rateLimitResult);
       return {
         accepted: true,
       };
@@ -630,7 +590,7 @@ export class AuthService {
       };
     }
 
-    await this.sendLocalLoginUnlockCode(user);
+    await this.publicOtpService.sendLoginUnlockCode(user);
 
     return {
       accepted: true,
@@ -956,55 +916,6 @@ export class AuthService {
     };
   }
 
-  private async issueTokensForUser(
-    user: AuthUserRecord,
-    deviceStatus: { deviceId?: string; known: boolean; knownByIp: boolean },
-    deviceId?: string,
-    rememberMe = false,
-  ): Promise<AuthSessionResult> {
-    const sessionId = randomUUID();
-    const accessToken = this.tokenService.createAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      deviceId,
-      sessionId,
-      tokenVersion: user.tokenVersion,
-    });
-
-    const refreshTokenExpiresInSeconds =
-      this.tokenService.getRefreshTokenExpiresInSeconds(rememberMe);
-    await this.tokenService.createSession(
-      {
-        sessionId,
-        userId: user.id,
-        deviceId,
-        tokenVersion: user.tokenVersion,
-      },
-      refreshTokenExpiresInSeconds,
-    );
-    const refreshToken = await this.tokenService.createRefreshToken(
-      {
-        sub: user.id,
-        deviceId,
-        rememberMe,
-        sessionId,
-        tokenVersion: user.tokenVersion,
-      },
-      {
-        expiresInSeconds: refreshTokenExpiresInSeconds,
-      },
-    );
-
-    return {
-      accessToken,
-      refreshToken,
-      refreshTokenExpiresInSeconds,
-      device: deviceStatus,
-      user: toAuthUserProfile(user),
-    };
-  }
-
   private async authenticateOAuthProfile(
     profile: VerifiedOAuthProfile,
     input: OAuthAuthenticateInput,
@@ -1022,7 +933,7 @@ export class AuthService {
         linkedUser.email,
         input.totpCode,
       );
-      return this.authenticateVerifiedUser(linkedUser, input);
+      return this.authSessionService.authenticateVerifiedUser(linkedUser, input);
     }
 
     if (await this.authRepository.findUserByEmail(profile.email)) {
@@ -1037,7 +948,7 @@ export class AuthService {
         this.usernameBloomService.check(candidate) === "possibly-present",
     );
     await this.usernameBloomService.add(user.profile.username);
-    const session = await this.authenticateVerifiedUser(user, input);
+    const session = await this.authSessionService.authenticateVerifiedUser(user, input);
     return { ...session, isNewUser: true };
   }
 
@@ -1062,176 +973,11 @@ export class AuthService {
     }
   }
 
-  private async sendVerificationCode(
-    recipient: VerificationRecipient,
-  ): Promise<void> {
-    const issuedOtp = await this.otpService.issue({
-      purpose: EMAIL_VERIFICATION_OTP_PURPOSE,
-      subject: recipient.email,
-    });
-
-    await this.emailService.sendVerificationEmail({
-      to: recipient.email,
-      verificationCode: issuedOtp.code,
-      firstName: recipient.firstName,
-      expiresInMinutes: Math.round(issuedOtp.ttlInSeconds / 60),
-    });
-  }
-
-  private async sendPublicVerificationCode(
-    recipient: VerificationRecipient,
-  ): Promise<void> {
-    try {
-      await this.sendVerificationCode(recipient);
-    } catch (error) {
-      if (error instanceof Error && error.name === "TooManyRequestError") {
-        this.logSuspiciousOtpPattern({
-          allowed: false,
-          flow: "resend-verification-email",
-          purpose: EMAIL_VERIFICATION_OTP_PURPOSE,
-          subject: recipient.email,
-          reason: "otp-cooldown",
-        });
-        return;
-      }
-
-      throw error;
-    }
-  }
-
   private resolvePasswordResetOtpSubject(
     user: AuthUserRecord | null,
     username: string,
   ): string {
     return user?.email ?? `auth:missing-password-reset:${username}`;
-  }
-
-  private async sendPasswordResetCode(user: AuthUserRecord): Promise<void> {
-    try {
-      const issuedOtp = await this.otpService.issue({
-        purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-        subject: user.email,
-      });
-
-      await this.emailService.sendPasswordResetEmail({
-        to: user.email,
-        resetCode: issuedOtp.code,
-        firstName: user.firstName,
-        expiresInMinutes: Math.round(issuedOtp.ttlInSeconds / 60),
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "TooManyRequestError") {
-        this.logSuspiciousOtpPattern({
-          allowed: false,
-          flow: "password-reset",
-          purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
-          subject: user.email,
-          reason: "otp-cooldown",
-        });
-        return;
-      }
-
-      throw error;
-    }
-  }
-
-  private async sendUsernameReminder(user: AuthUserRecord): Promise<void> {
-    await this.emailService.sendUsernameReminderEmail({
-      to: user.email,
-      username: user.profile.username,
-      firstName: user.firstName,
-    });
-  }
-
-  private async authenticateVerifiedUser(
-    user: AuthUserRecord,
-    input: {
-      deviceId?: string;
-      client: ClientRequestContext;
-      rememberMe?: boolean;
-    },
-  ): Promise<AuthSessionResult> {
-    const deviceStatus =
-      await this.deviceService.evaluateSuccessfulAuthentication(
-        user,
-        input.client,
-        input.deviceId,
-      );
-
-    return this.issueTokensForUser(
-      user,
-      deviceStatus,
-      input.deviceId,
-      Boolean(input.rememberMe),
-    );
-  }
-
-  private getPendingLocalSignupKey(email: string): string {
-    return `${PENDING_LOCAL_SIGNUP_CACHE_PREFIX}:${email.toLowerCase()}`;
-  }
-
-  private getPendingLocalSignupUsernameKey(username: string): string {
-    return getPendingSignupUsernameKey(username);
-  }
-
-  private getPendingLocalSignupVerifyLockKey(email: string): string {
-    return `${PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX}:${email.toLowerCase()}`;
-  }
-
-  private async writePendingLocalSignup(
-    signup: PendingLocalSignupRecord,
-    ttlInSeconds: number,
-  ): Promise<void> {
-    const existingSignup = await this.readPendingLocalSignup(signup.email);
-
-    if (existingSignup && existingSignup.username !== signup.username) {
-      await this.cacheService.delete(
-        this.getPendingLocalSignupUsernameKey(existingSignup.username),
-      );
-    }
-
-    await this.cacheService.setJson(
-      this.getPendingLocalSignupKey(signup.email),
-      signup,
-      ttlInSeconds,
-    );
-    await this.cacheService.setJson(
-      this.getPendingLocalSignupUsernameKey(signup.username),
-      signup.email,
-      ttlInSeconds,
-    );
-
-    // A reservation makes the name unavailable just as surely as a row does, and
-    // a bloom miss skips the reservation lookup too. Leaving it out would let
-    // the endpoint report a reserved name as free.
-    await this.usernameBloomService.add(signup.username);
-  }
-
-  private async readPendingLocalSignup(
-    email: string,
-  ): Promise<PendingLocalSignupRecord | null> {
-    return this.cacheService.getJson<PendingLocalSignupRecord>(
-      this.getPendingLocalSignupKey(email),
-    );
-  }
-
-  private async deletePendingLocalSignup(email: string): Promise<void> {
-    const pendingSignup = await this.readPendingLocalSignup(email);
-
-    if (pendingSignup) {
-      await this.cacheService.delete(
-        this.getPendingLocalSignupUsernameKey(pendingSignup.username),
-      );
-    }
-
-    await this.cacheService.delete(this.getPendingLocalSignupKey(email));
-  }
-
-  private acquirePendingLocalSignupVerificationLock(email: string) {
-    return this.cacheService.acquireLock(
-      this.getPendingLocalSignupVerifyLockKey(email),
-      PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS,
-    );
   }
 
   private getLocalLoginAttemptKey(username: string): string {
@@ -1281,120 +1027,6 @@ export class AuthService {
     return Boolean(record?.lockedAt);
   }
 
-  private async consumePublicOtpRateLimit(input: {
-    purpose: string;
-    subject: string;
-    client: ClientRequestContext;
-    deviceId?: string;
-    flow: string;
-  }): Promise<PublicOtpRateLimitResult> {
-    const checks: Array<{
-      scope: "email" | "ip" | "device";
-      value?: string;
-      limit: number;
-    }> = [
-      {
-        scope: "email",
-        value: input.subject.toLowerCase(),
-        limit: PUBLIC_OTP_EMAIL_LIMIT,
-      },
-      {
-        scope: "ip",
-        value: input.client.ip,
-        limit: PUBLIC_OTP_IP_LIMIT,
-      },
-      {
-        scope: "device",
-        value: input.deviceId ?? input.client.device.id,
-        limit: PUBLIC_OTP_DEVICE_LIMIT,
-      },
-    ];
-    const records: Array<{
-      key: string;
-      scope: "email" | "ip" | "device";
-      count: number;
-      limit: number;
-    }> = [];
-
-    for (const check of checks) {
-      if (!check.value) {
-        continue;
-      }
-
-      const key = this.getPublicOtpRateLimitKey(
-        input.purpose,
-        check.scope,
-        check.value,
-      );
-      const record =
-        await this.cacheService.getJson<PublicOtpRateLimitRecord>(key);
-      const count = record?.count ?? 0;
-
-      if (count >= check.limit) {
-        return {
-          allowed: false,
-          flow: input.flow,
-          purpose: input.purpose,
-          subject: input.subject,
-          reason: `${check.scope}-rate-limit`,
-          scope: check.scope,
-        };
-      }
-
-      records.push({
-        key,
-        scope: check.scope,
-        count,
-        limit: check.limit,
-      });
-    }
-
-    await Promise.all(
-      records.map((record) =>
-        this.cacheService.setJson(
-          record.key,
-          {
-            count: record.count + 1,
-          } satisfies PublicOtpRateLimitRecord,
-          PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS,
-        ),
-      ),
-    );
-
-    return {
-      allowed: true,
-      flow: input.flow,
-      purpose: input.purpose,
-      subject: input.subject,
-    };
-  }
-
-  private getPublicOtpRateLimitKey(
-    purpose: string,
-    scope: "email" | "ip" | "device",
-    value: string,
-  ): string {
-    return `auth:otp-rate:${purpose}:${scope}:${value.toLowerCase()}`;
-  }
-
-  private logSuspiciousOtpPattern(result: PublicOtpRateLimitResult): void {
-    this.logger.warn("Suspicious public OTP activity", {
-      flow: result.flow,
-      purpose: result.purpose,
-      subject: redactEmail(result.subject),
-      reason: result.reason,
-      scope: result.scope,
-    });
-  }
-
-  private async readPendingSignupEmailByUsername(
-    username: string,
-  ): Promise<string | null> {
-    return this.cacheService.getJson<string>(
-      this.getPendingLocalSignupUsernameKey(username),
-    );
-  }
-
   /**
    * Whether `username` can be claimed. A name is taken when it belongs to
    * another account, or when it is soft-reserved by another person's
@@ -1422,7 +1054,7 @@ export class AuthService {
     }
 
     const pendingSignupEmail =
-      await this.readPendingSignupEmailByUsername(normalizedUsername);
+      await this.pendingSignupStore.readEmailByUsername(normalizedUsername);
 
     if (pendingSignupEmail && pendingSignupEmail !== allowedPendingEmail) {
       return {
@@ -1497,40 +1129,6 @@ export class AuthService {
       ...(user ? { email: user.email } : {}),
       unlockRequired: true,
     };
-  }
-
-  private async sendLocalLoginUnlockCode(
-    user: AuthUserRecord | null,
-  ): Promise<void> {
-    if (!user) {
-      return;
-    }
-
-    try {
-      const issuedOtp = await this.otpService.issue({
-        purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
-        subject: user.email,
-      });
-
-      await this.emailService.sendLoginUnlockEmail({
-        to: user.email,
-        unlockCode: issuedOtp.code,
-        firstName: user.firstName,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "TooManyRequestError") {
-        this.logSuspiciousOtpPattern({
-          allowed: false,
-          flow: "local-login-unlock",
-          purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
-          subject: user.email,
-          reason: "otp-cooldown",
-        });
-        return;
-      }
-
-      throw error;
-    }
   }
 
   private listLinkedOAuthProvidersForUser(

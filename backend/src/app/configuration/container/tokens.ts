@@ -19,6 +19,9 @@ import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { AuthService } from "@/features/auth/auth.service";
+import { AuthSessionService } from "@/features/auth/session/session.service";
+import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
+import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
@@ -265,6 +268,12 @@ export const containerTokens = {
   personalAccessTokenService: createServiceToken<PersonalAccessTokenService>(
     "PersonalAccessTokenService",
   ),
+  authSessionService:
+    createServiceToken<AuthSessionService>("AuthSessionService"),
+  pendingSignupStore: createServiceToken<PendingSignupStore>(
+    "PendingSignupStore",
+  ),
+  publicOtpService: createServiceToken<PublicOtpService>("PublicOtpService"),
   authService: createServiceToken<AuthService>("AuthService"),
   authController: createServiceToken<AuthController>("AuthController"),
   personalAccessTokenController:

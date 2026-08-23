@@ -3,6 +3,7 @@ import type { ContainerRegistrationModule } from "@/configuration/container/regi
 import { AuthController } from "@/features/auth/auth.controller";
 import { AuthRepository } from "@/features/auth/auth.repository";
 import { AuthService } from "@/features/auth/auth.service";
+import { AuthSessionService } from "@/features/auth/session/session.service";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
@@ -36,6 +37,19 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         }),
     });
     container.register({
+      token: containerTokens.authSessionService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.tokenService,
+        containerTokens.deviceService,
+      ],
+      resolve: ({ resolve }) =>
+        new AuthSessionService(
+          resolve(containerTokens.tokenService),
+          resolve(containerTokens.deviceService),
+        ),
+    });
+    container.register({
       token: containerTokens.authService,
       lifetime: "scoped",
       dependencies: [
@@ -50,6 +64,9 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.cacheService,
         containerTokens.mfaTotpService,
         containerTokens.usernameBloomService,
+        containerTokens.authSessionService,
+        containerTokens.pendingSignupStore,
+        containerTokens.publicOtpService,
       ],
       resolve: ({ resolve }) =>
         new AuthService(
@@ -64,6 +81,9 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.cacheService),
           resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.usernameBloomService),
+          resolve(containerTokens.authSessionService),
+          resolve(containerTokens.pendingSignupStore),
+          resolve(containerTokens.publicOtpService),
         ),
     });
     container.register({

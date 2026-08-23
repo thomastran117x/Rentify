@@ -6,6 +6,9 @@ import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { AuthService } from "@/features/auth/auth.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import { AuthSessionService } from "@/features/auth/session/session.service";
+import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
+import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 
 const FAST_TEST_PASSWORD_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
@@ -482,6 +485,24 @@ function createService(overrides?: {
     }),
   };
 
+  // The extracted collaborators are wired as real instances over the same leaf
+  // fakes, so assertions keep targeting the fakes (cacheService.setJson,
+  // emailService.send*, tokenService.create*) rather than a mock of the
+  // collaborator.
+  const authSessionService = new AuthSessionService(
+    tokenService as any,
+    deviceService as any,
+  );
+  const pendingSignupStore = new PendingSignupStore(
+    cacheService as any,
+    usernameBloomService as any,
+  );
+  const publicOtpService = new PublicOtpService(
+    cacheService as any,
+    otpService as any,
+    emailService as any,
+  );
+
   const service = new AuthService(
     authRepository as any,
     tokenService as any,
@@ -494,6 +515,9 @@ function createService(overrides?: {
     cacheService as any,
     mfaTotpService as any,
     usernameBloomService as any,
+    authSessionService,
+    pendingSignupStore,
+    publicOtpService,
   );
 
   return service;
@@ -2203,7 +2227,7 @@ describe("AuthService", () => {
     expect(result.user.username).toBe("pending-user");
   });
 
-  it("covers provider verification and OTP cooldown swallowing", async () => {
+  it("authenticates through the Microsoft and Apple providers", async () => {
     const service = createService();
     Object.assign(service as object, {
       microsoftOAuthService: {
@@ -2223,18 +2247,6 @@ describe("AuthService", () => {
         }),
       },
     });
-    const helper = service as unknown as {
-      sendPublicVerificationCode(recipient: {
-        email: string;
-        firstName?: string;
-      }): Promise<void>;
-      sendPasswordResetCode(user: AuthUserRecord): Promise<void>;
-      sendLocalLoginUnlockCode(user: AuthUserRecord | null): Promise<void>;
-    };
-    const cooldownError = Object.assign(new Error("Cooldown"), {
-      name: "TooManyRequestError",
-    });
-
     await expect(
       service.microsoftAuthenticate({
         client: createClient(),
@@ -2263,36 +2275,6 @@ describe("AuthService", () => {
       },
     });
 
-    jest
-      .spyOn(
-        service as unknown as { sendVerificationCode(): Promise<void> },
-        "sendVerificationCode",
-      )
-      .mockRejectedValueOnce(cooldownError);
-    await expect(
-      helper.sendPublicVerificationCode({
-        email: "user@example.com",
-        firstName: "Test",
-      }),
-    ).resolves.toBeUndefined();
-
-    Object.assign(service as object, {
-      otpService: {
-        issue: async () => {
-          throw cooldownError;
-        },
-      },
-    });
-
-    await expect(
-      helper.sendPasswordResetCode(createUser()),
-    ).resolves.toBeUndefined();
-    await expect(
-      helper.sendLocalLoginUnlockCode(createUser()),
-    ).resolves.toBeUndefined();
-    await expect(
-      helper.sendLocalLoginUnlockCode(null),
-    ).resolves.toBeUndefined();
   });
 
   describe("isUsernameAvailable", () => {
