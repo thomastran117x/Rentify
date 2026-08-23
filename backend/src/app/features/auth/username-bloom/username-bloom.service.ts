@@ -4,7 +4,13 @@
  * Answers "could this username already be taken" from an in-process bit array,
  * so the common case (a name nobody has claimed) never reaches MySQL. Only a
  * negative answer is trusted; anything else defers to the authoritative lookup
- * in `AuthService.isUsernameAvailable`.
+ * in `UsernameService.isUsernameAvailable`.
+ *
+ * The in-process array is the zero-round-trip L1. Redis holds the shared bitmap
+ * and generation metadata used as L2, while `username-bloom.worker.ts`
+ * periodically rebuilds that shared copy from profiles and pending signup
+ * reservations. Redis accelerates reads here; MySQL and reservation records
+ * remain the sources of truth.
  *
  * Three mechanisms keep the local copy honest, each covering the previous one's
  * blind spot:
@@ -43,10 +49,15 @@ export type UsernameBloomVerdict =
   | "unknown";
 
 export interface UsernameBloomConfig {
+  /** Kill switch. Disabled filters return `unknown`, restoring database reads. */
   enabled: boolean;
+  /** Expected usernames; changing it selects a new Redis key namespace. */
   capacity: number;
+  /** Performance target only: false positives fall through to the database. */
   falsePositiveRate: number;
+  /** Repairs pub/sub events missed while an instance was disconnected. */
   reloadIntervalMs: number;
+  /** Stale copies return `unknown`; this must exceed `reloadIntervalMs`. */
   maxStalenessMs: number;
 }
 

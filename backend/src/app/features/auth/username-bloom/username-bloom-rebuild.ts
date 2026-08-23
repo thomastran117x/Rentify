@@ -26,8 +26,11 @@ import type { CacheService } from "@/features/cache/cache.service";
 export interface UsernameBloomRebuildConfig {
   capacity: number;
   falsePositiveRate: number;
+  /** Full rebuild cadence; rebuilds remove stale false-positive-only entries. */
   rebuildIntervalMs: number;
+  /** Profiles are scanned in keyset pages of this size. */
   batchSize: number;
+  /** Extended after every profile page so only one rebuild can publish. */
   lockTtlMs: number;
 }
 
@@ -99,6 +102,8 @@ export async function rebuildUsernameBloom(
     // From here on, every concurrent `add` records itself for replay.
     await store.writeKey(keys.shadowPointer, String(generation));
 
+    // Build in memory and publish with one SET plus an atomic RENAME. Updating
+    // the live Redis bitmap row-by-row would expose readers to a partial build.
     const filter = new LocalBloomFilter(parameters);
     const usernameCount = await loadUsernames(
       filter,
