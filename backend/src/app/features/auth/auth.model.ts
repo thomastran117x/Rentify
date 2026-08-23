@@ -109,19 +109,6 @@ export const resendVerificationEmailRequestSchema = z.object({
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
-export const unlockLocalLoginRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "Unlock code must be 6 digits."),
-});
-
-export const resendUnlockLocalLoginRequestSchema = z.object({
-  email: z.email().transform((value) => value.trim().toLowerCase()),
-  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
-});
-
 export const forgotPasswordRequestSchema = z.object({
   username: authUsernameSchema,
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
@@ -171,14 +158,6 @@ export type ResendVerificationEmailRequestBody = z.infer<
   typeof resendVerificationEmailRequestSchema
 >;
 
-export type UnlockLocalLoginRequestBody = z.infer<
-  typeof unlockLocalLoginRequestSchema
->;
-
-export type ResendUnlockLocalLoginRequestBody = z.infer<
-  typeof resendUnlockLocalLoginRequestSchema
->;
-
 export type ForgotPasswordRequestBody = z.infer<
   typeof forgotPasswordRequestSchema
 >;
@@ -224,17 +203,6 @@ export interface VerifyEmailInput {
 }
 
 export interface ResendVerificationEmailInput {
-  client: ClientRequestContext;
-  email: string;
-  deviceId?: string;
-}
-
-export interface UnlockLocalLoginInput {
-  email: string;
-  code: string;
-}
-
-export interface ResendUnlockLocalLoginInput {
   client: ClientRequestContext;
   email: string;
   deviceId?: string;

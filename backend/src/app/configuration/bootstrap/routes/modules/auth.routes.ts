@@ -5,6 +5,7 @@ import type { DeviceManagementController } from "@/features/auth/device/device-m
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
 import type { UsernameController } from "@/features/auth/username/username.controller";
+import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -80,15 +81,15 @@ export const authLocalRouteModule: RouteModule = {
     );
     app.post(
       "/auth/local/unlock",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LoginLockoutController>(
+        containerTokens.loginLockoutController,
         "unlockLocalLogin",
       ),
     );
     app.post(
       "/auth/local/unlock/resend",
-      resolveHandler<AuthController>(
-        containerTokens.authController,
+      resolveHandler<LoginLockoutController>(
+        containerTokens.loginLockoutController,
         "resendUnlockLocalLogin",
       ),
     );

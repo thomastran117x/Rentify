@@ -10,6 +10,7 @@ import { AuthSessionService } from "@/features/auth/session/session.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
+import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 
 const FAST_TEST_PASSWORD_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
@@ -512,6 +513,13 @@ function createService(overrides?: {
     publicOtpService,
   );
 
+  const loginLockoutService = new LoginLockoutService(
+    cacheService as any,
+    authRepository as any,
+    otpService as any,
+    publicOtpService,
+  );
+
   const service = new AuthService(
     authRepository as any,
     tokenService as any,
@@ -525,6 +533,7 @@ function createService(overrides?: {
     pendingSignupStore,
     publicOtpService,
     usernameService,
+    loginLockoutService,
   );
 
   return service;
@@ -1193,86 +1202,6 @@ describe("AuthService", () => {
     ).rejects.toThrow("Please verify your email address before signing in.");
 
     expect(clearedKey).toBe("auth:local-login-attempts:test-user");
-  });
-
-  it("unlocks local sign-in by email and clears the username lock state when the account exists", async () => {
-    const user = createUser();
-    const verifyCalls: Array<{
-      purpose: string;
-      subject: string;
-      code: string;
-    }> = [];
-    let clearedKey: string | undefined;
-    const service = createService({
-      findUserByEmail: async () => user,
-      verifyOtp: async (input) => {
-        verifyCalls.push(input);
-      },
-      cacheDelete: async (key) => {
-        clearedKey = key;
-        return true;
-      },
-    });
-
-    await expect(
-      service.unlockLocalLogin({
-        email: user.email,
-        code: "123456",
-      }),
-    ).resolves.toEqual({
-      unlocked: true,
-      email: user.email,
-    });
-    expect(verifyCalls).toEqual([
-      {
-        purpose: "local-login-unlock",
-        subject: user.email,
-        code: "123456",
-      },
-    ]);
-    expect(clearedKey).toBe("auth:local-login-attempts:test-user");
-  });
-
-  it("resends a local-login unlock code when the account is still locked", async () => {
-    const user = createUser();
-    let unlockEmailInput:
-      | {
-          to: string;
-          unlockCode: string;
-          firstName?: string;
-        }
-      | undefined;
-    const service = createService({
-      findUserByEmail: async () => user,
-      cacheGetJson: async (key) =>
-        key.startsWith("auth:local-login-attempts:")
-          ? {
-              failedAttempts: 5,
-              lockedAt: "2026-01-02T00:00:00.000Z",
-            }
-          : null,
-      issueOtp: async () => ({
-        code: "654321",
-      }),
-      sendLoginUnlockEmail: async (input) => {
-        unlockEmailInput = input;
-      },
-    });
-
-    await expect(
-      service.resendUnlockLocalLogin({
-        client: createClient(),
-        email: user.email,
-        deviceId: "device-1",
-      }),
-    ).resolves.toEqual({
-      accepted: true,
-    });
-    expect(unlockEmailInput).toEqual({
-      to: user.email,
-      unlockCode: "654321",
-      firstName: user.firstName,
-    });
   });
 
   it("skips login MFA for allowlisted users outside production", async () => {

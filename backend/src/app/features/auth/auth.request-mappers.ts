@@ -16,16 +16,12 @@ import type {
   OAuthProvider,
   ResendForgotPasswordInput,
   ResendForgotPasswordRequestBody,
-  ResendUnlockLocalLoginInput,
-  ResendUnlockLocalLoginRequestBody,
   ResendVerificationEmailInput,
   ResendVerificationEmailRequestBody,
   ResetPasswordInput,
   ResetPasswordRequestBody,
   SetPasswordInput,
   SetPasswordRequestBody,
-  UnlockLocalLoginInput,
-  UnlockLocalLoginRequestBody,
   VerifyEmailInput,
   VerifyEmailRequestBody,
 } from "@/features/auth/auth.model";
@@ -44,6 +40,12 @@ import type {
   RemoveKnownDeviceRequestBody,
 } from "@/features/auth/device/device-management.model";
 import { oauthProviderSchema } from "@/features/auth/auth.model";
+import type {
+  ResendUnlockLocalLoginInput,
+  ResendUnlockLocalLoginRequestBody,
+  UnlockLocalLoginInput,
+  UnlockLocalLoginRequestBody,
+} from "@/features/auth/lockout/login-lockout.model";
 import {
   usernameAvailabilityQuerySchema,
   type ForgotUsernameInput,

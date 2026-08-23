@@ -78,6 +78,8 @@ import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { PaymentsService } from "@/features/payments/payments.service";
 import { UsernameBloomRepository } from "@/features/auth/username-bloom/username-bloom.repository";
 import { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
+import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import { UsernameController } from "@/features/auth/username/username.controller";
 import { UsernameService } from "@/features/auth/username/username.service";
 import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
@@ -292,6 +294,10 @@ export const containerTokens = {
     "PendingSignupStore",
   ),
   publicOtpService: createServiceToken<PublicOtpService>("PublicOtpService"),
+  loginLockoutService:
+    createServiceToken<LoginLockoutService>("LoginLockoutService"),
+  loginLockoutController:
+    createServiceToken<LoginLockoutController>("LoginLockoutController"),
   usernameService: createServiceToken<UsernameService>("UsernameService"),
   usernameController:
     createServiceToken<UsernameController>("UsernameController"),

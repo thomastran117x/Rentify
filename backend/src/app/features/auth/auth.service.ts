@@ -20,11 +20,9 @@ import {
   type LocalSignupInput,
   type ResetPasswordInput,
   type ResendForgotPasswordInput,
-  type ResendUnlockLocalLoginInput,
   type ResendVerificationEmailInput,
   type SetPasswordInput,
   type VerifyEmailInput,
-  type UnlockLocalLoginInput,
   isStrongPassword,
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
@@ -34,6 +32,7 @@ import {
 } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
+import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -55,7 +54,6 @@ import { redactEmail } from "@/features/auth/redact-email";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
 import {
   EMAIL_VERIFICATION_OTP_PURPOSE,
-  LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
   LOCAL_PASSWORD_RESET_OTP_PURPOSE,
 } from "@/features/auth/otp/otp-purposes";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
@@ -65,14 +63,6 @@ import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 
-const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
-const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
-const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
-
-interface LocalLoginAttemptRecord {
-  failedAttempts: number;
-  lockedAt?: string;
-}
 
 export class AuthService {
   private readonly logger: Logger;
@@ -90,6 +80,7 @@ export class AuthService {
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
     private readonly usernameService: UsernameService,
+    private readonly loginLockoutService: LoginLockoutService,
   ) {
     this.logger = loggerFactory.forClass(AuthService, "service");
   }
@@ -102,35 +93,35 @@ export class AuthService {
       input.password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
-    const loginAttemptRecord = await this.getLocalLoginAttemptRecord(
+    const loginAttemptRecord = await this.loginLockoutService.getAttemptRecord(
       input.username,
     );
 
     if (loginAttemptRecord?.lockedAt && (!user || !isPasswordValid)) {
-      await this.publicOtpService.sendLoginUnlockCode(user);
+      await this.loginLockoutService.sendUnlockCode(user);
       throw new LockedError(
         "This sign-in is locked. Use the code we emailed you to unlock it.",
-        this.buildLockedLoginDetails(user),
+        this.loginLockoutService.buildLockedLoginDetails(user),
       );
     }
 
     if (!user || !isPasswordValid) {
-      const updatedAttemptRecord = await this.recordFailedLocalLoginAttempt(
+      const updatedAttemptRecord = await this.loginLockoutService.recordFailedAttempt(
         input.username,
       );
 
       if (updatedAttemptRecord.lockedAt) {
-        await this.publicOtpService.sendLoginUnlockCode(user);
+        await this.loginLockoutService.sendUnlockCode(user);
         throw new LockedError(
           "This sign-in is locked. Use the code we emailed you to unlock it.",
-          this.buildLockedLoginDetails(user),
+          this.loginLockoutService.buildLockedLoginDetails(user),
         );
       }
 
       throw new UnauthorizedError("Invalid username or password.");
     }
 
-    await this.clearLocalLoginAttemptRecord(input.username);
+    await this.loginLockoutService.clearAttemptRecord(input.username);
 
     if (!user.emailVerified) {
       throw new UnauthorizedError(
@@ -267,7 +258,7 @@ export class AuthService {
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       eligibleUser.id,
     );
-    await this.clearLocalLoginAttemptRecord(eligibleUser.profile.username);
+    await this.loginLockoutService.clearAttemptRecord(eligibleUser.profile.username);
 
     const updatedUser: AuthUserRecord = {
       ...eligibleUser,
@@ -433,7 +424,7 @@ export class AuthService {
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       user.id,
     );
-    await this.clearLocalLoginAttemptRecord(user.profile.username);
+    await this.loginLockoutService.clearAttemptRecord(user.profile.username);
 
     const updatedUser: AuthUserRecord = {
       ...user,
@@ -475,7 +466,7 @@ export class AuthService {
     const nextTokenVersion = await this.authRepository.rotateTokenVersion(
       user.id,
     );
-    await this.clearLocalLoginAttemptRecord(user.profile.username);
+    await this.loginLockoutService.clearAttemptRecord(user.profile.username);
 
     const updatedUser: AuthUserRecord = {
       ...user,
@@ -489,122 +480,10 @@ export class AuthService {
     );
   }
 
-  async unlockLocalLogin(input: UnlockLocalLoginInput): Promise<{
-    unlocked: true;
-    email: string;
-  }> {
-    await this.otpService.verify({
-      purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
-      subject: input.email,
-      code: input.code,
-    });
-
-    const user = await this.authRepository.findUserByEmail(input.email);
-
-    if (user) {
-      await this.clearLocalLoginAttemptRecord(user.profile.username);
-    }
-
-    return {
-      unlocked: true,
-      email: input.email,
-    };
-  }
-
-  async resendUnlockLocalLogin(input: ResendUnlockLocalLoginInput): Promise<{
-    accepted: true;
-  }> {
-    const rateLimitResult = await this.publicOtpService.consumeRateLimit({
-      purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
-      subject: input.email,
-      client: input.client,
-      deviceId: input.deviceId,
-      flow: "resend-unlock-local-login",
-    });
-
-    if (!rateLimitResult.allowed) {
-      this.publicOtpService.logSuspicious(rateLimitResult);
-      return {
-        accepted: true,
-      };
-    }
-
-    const user = await this.authRepository.findUserByEmail(input.email);
-    const isLocked = user
-      ? await this.isLocalLoginLocked(user.profile.username)
-      : false;
-
-    if (!isLocked) {
-      return {
-        accepted: true,
-      };
-    }
-
-    await this.publicOtpService.sendLoginUnlockCode(user);
-
-    return {
-      accepted: true,
-    };
-  }
-
   private resolvePasswordResetOtpSubject(
     user: AuthUserRecord | null,
     username: string,
   ): string {
     return user?.email ?? `auth:missing-password-reset:${username}`;
-  }
-
-  private getLocalLoginAttemptKey(username: string): string {
-    return `auth:local-login-attempts:${username.toLowerCase()}`;
-  }
-
-  private async getLocalLoginAttemptRecord(
-    username: string,
-  ): Promise<LocalLoginAttemptRecord | null> {
-    return this.cacheService.getJson<LocalLoginAttemptRecord>(
-      this.getLocalLoginAttemptKey(username),
-    );
-  }
-
-  private async recordFailedLocalLoginAttempt(
-    username: string,
-  ): Promise<LocalLoginAttemptRecord> {
-    const existingRecord = await this.getLocalLoginAttemptRecord(username);
-    const nextFailedAttempts = (existingRecord?.failedAttempts ?? 0) + 1;
-    const nextRecord: LocalLoginAttemptRecord =
-      nextFailedAttempts >= MAX_FAILED_LOCAL_LOGIN_ATTEMPTS
-        ? {
-            failedAttempts: nextFailedAttempts,
-            lockedAt: new Date().toISOString(),
-          }
-        : {
-            failedAttempts: nextFailedAttempts,
-          };
-
-    await this.cacheService.setJson(
-      this.getLocalLoginAttemptKey(username),
-      nextRecord,
-      nextRecord.lockedAt
-        ? LOCAL_LOGIN_LOCK_TTL_IN_SECONDS
-        : LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS,
-    );
-
-    return nextRecord;
-  }
-
-  private async clearLocalLoginAttemptRecord(username: string): Promise<void> {
-    await this.cacheService.delete(this.getLocalLoginAttemptKey(username));
-  }
-
-  private async isLocalLoginLocked(username: string): Promise<boolean> {
-    const record = await this.getLocalLoginAttemptRecord(username);
-    return Boolean(record?.lockedAt);
-  }
-
-  private buildLockedLoginDetails(user: AuthUserRecord | null) {
-    return {
-      ...(user ? { email: user.email } : {}),
-      unlockRequired: true,
-    };
   }
 }

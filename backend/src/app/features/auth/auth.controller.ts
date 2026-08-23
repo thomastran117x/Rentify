@@ -13,11 +13,9 @@ import {
   toLocalAuthenticateInput,
   toLocalSignupInput,
   toResendForgotPasswordInput,
-  toResendUnlockLocalLoginInput,
   toResendVerificationEmailInput,
   toResetPasswordInput,
   toSetPasswordInput,
-  toUnlockLocalLoginInput,
   toVerifyEmailInput,
 } from "@/features/auth/auth.request-mappers";
 import {
@@ -26,11 +24,9 @@ import {
   localAuthenticateRequestSchema,
   localSignupRequestSchema,
   resendForgotPasswordRequestSchema,
-  resendUnlockLocalLoginRequestSchema,
   resetPasswordRequestSchema,
   resendVerificationEmailRequestSchema,
   setPasswordRequestSchema,
-  unlockLocalLoginRequestSchema,
   verifyEmailRequestSchema,
 } from "@/features/auth/auth.model";
 import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
@@ -176,39 +172,6 @@ export class AuthController {
     );
     writeAuthSessionResponse(request, response, result, {
       message: "Password set successfully.",
-    });
-  };
-
-  unlockLocalLogin = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      unlockLocalLoginRequestSchema,
-    );
-    const result = await this.authService.unlockLocalLogin(
-      toUnlockLocalLoginInput(input),
-    );
-    ok(response, result, {
-      message: "Local login unlocked successfully.",
-    });
-  };
-
-  resendUnlockLocalLogin = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    const input = await parseRequestBody(
-      request,
-      resendUnlockLocalLoginRequestSchema,
-    );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
-    const result = await this.authService.resendUnlockLocalLogin(
-      toResendUnlockLocalLoginInput(request, input),
-    );
-    accepted(response, result, {
-      message: "Unlock email has been re-sent.",
     });
   };
 }

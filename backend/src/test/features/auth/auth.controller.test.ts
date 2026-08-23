@@ -748,24 +748,6 @@ describe("AuthController", () => {
         },
       }),
     );
-    const unlockResponse = await invoke(
-      controller.unlockLocalLogin,
-      createContext({
-        body: {
-          email: "USER@example.com",
-          code: "654321",
-        },
-      }),
-    );
-    const resendUnlockResponse = await invoke(
-      controller.resendUnlockLocalLogin,
-      createContext({
-        body: {
-          email: "USER@example.com",
-          captchaToken: "unlock-captcha",
-        },
-      }),
-    );
 
     expect(authService.localSignup).toHaveBeenCalledWith({
       client: expect.any(Object),
@@ -804,23 +786,12 @@ describe("AuthController", () => {
       email: "user@example.com",
       deviceId: "device-1",
     });
-    expect(authService.unlockLocalLogin).toHaveBeenCalledWith({
-      email: "user@example.com",
-      code: "654321",
-    });
-    expect(authService.resendUnlockLocalLogin).toHaveBeenCalledWith({
-      client: expect.any(Object),
-      email: "user@example.com",
-      deviceId: "device-1",
-    });
     expect(signupResponse.status).toBe(202);
     expect(forgotResponse.status).toBe(202);
     expect(resendForgotResponse.status).toBe(202);
     expect(resetResponse.status).toBe(200);
     expect(verifyResponse.status).toBe(200);
     expect(resendVerifyResponse.status).toBe(202);
-    expect(unlockResponse.status).toBe(200);
-    expect(resendUnlockResponse.status).toBe(202);
   });
 
   it("public resend actions verify captcha before calling the auth service", async () => {
@@ -850,23 +821,10 @@ describe("AuthController", () => {
         },
       }),
     );
-    await invoke(
-      controller.resendUnlockLocalLogin,
-      createContext({
-        body: {
-          email: "user@example.com",
-          captchaToken: "resend-unlock-captcha",
-        },
-        headers: {
-          "x-request-id": "req-unlock",
-        },
-      }),
-    );
 
-    expect(captchaService.verify).toHaveBeenCalledTimes(3);
+    expect(captchaService.verify).toHaveBeenCalledTimes(2);
     expect(authService.resendForgotPassword).toHaveBeenCalledTimes(1);
     expect(authService.resendVerificationEmail).toHaveBeenCalledTimes(1);
-    expect(authService.resendUnlockLocalLogin).toHaveBeenCalledTimes(1);
   });
 
   it("localSignup rejects html in profile fields before calling the auth service", async () => {
