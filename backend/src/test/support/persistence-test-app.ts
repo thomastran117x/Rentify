@@ -29,7 +29,7 @@ import {
   connectRabbitMq,
   disconnectRabbitMq,
 } from "@/configuration/resources/rabbitmq";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import { SEED_DEVICES } from "@/seeds/fixtures/users";
@@ -481,14 +481,14 @@ export async function createAuthenticatedRequestContext(input: {
   sessionId?: string;
 }): Promise<AuthenticatedRequestContext> {
   const persistenceApp = requirePersistenceApp();
-  const authRepository = persistenceApp.container.resolve<AuthRepository>(
-    containerTokens.authRepository,
+  const usersRepository = persistenceApp.container.resolve<UsersRepository>(
+    containerTokens.authUsersRepository,
   );
   const tokenService = persistenceApp.container.resolve<TokenService>(
     containerTokens.tokenService,
   );
 
-  const user = await authRepository.findUserByEmail(input.email);
+  const user = await usersRepository.findUserByEmail(input.email);
   if (!user) {
     throw new Error(`Could not find seeded user for email: ${input.email}`);
   }

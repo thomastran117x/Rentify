@@ -1,6 +1,6 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
-import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationLogoService } from "@/features/organizations/organization-logo.service";
 import { OrganizationPostingProjectionService } from "@/features/organizations/organization-posting-projection.service";
@@ -12,18 +12,18 @@ export const organizationsProfileRegistrationModule: ContainerRegistrationModule
     id: "organizations-profile",
     register(container) {
       container.register({
-        token: containerTokens.organizationsRepository,
+        token: containerTokens.organizationsProfileRepository,
         lifetime: "singleton",
         dependencies: [],
-        resolve: () => new OrganizationsRepository(),
+        resolve: () => new OrganizationsProfileRepository(),
       });
       container.register({
         token: containerTokens.organizationAccessService,
         lifetime: "scoped",
-        dependencies: [containerTokens.authRepository],
+        dependencies: [containerTokens.authUsersRepository],
         resolve: ({ resolve }) =>
           new OrganizationAccessService(
-            resolve(containerTokens.authRepository),
+            resolve(containerTokens.authUsersRepository),
           ),
       });
       // Shared collaborators used by both the profile domain (create/update)
@@ -59,8 +59,9 @@ export const organizationsProfileRegistrationModule: ContainerRegistrationModule
         token: containerTokens.organizationProfileService,
         lifetime: "scoped",
         dependencies: [
-          containerTokens.organizationsRepository,
-          containerTokens.authRepository,
+          containerTokens.organizationsProfileRepository,
+          containerTokens.organizationsMembersRepository,
+          containerTokens.authUsersRepository,
           containerTokens.organizationAuditService,
           containerTokens.organizationInvitationsService,
           containerTokens.organizationLogoService,
@@ -69,8 +70,9 @@ export const organizationsProfileRegistrationModule: ContainerRegistrationModule
         ],
         resolve: ({ resolve }) =>
           new OrganizationProfileService(
-            resolve(containerTokens.organizationsRepository),
-            resolve(containerTokens.authRepository),
+            resolve(containerTokens.organizationsProfileRepository),
+            resolve(containerTokens.organizationsMembersRepository),
+            resolve(containerTokens.authUsersRepository),
             resolve(containerTokens.organizationAuditService),
             resolve(containerTokens.organizationInvitationsService),
             resolve(containerTokens.organizationLogoService),

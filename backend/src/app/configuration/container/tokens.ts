@@ -20,7 +20,11 @@ import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
-import { AuthRepository } from "@/features/auth/auth.repository";
+import { UsersRepository } from "@/features/auth/users/users.repository";
+import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
+import { TokenRepository } from "@/features/auth/token/token.repository";
+import { PasswordRepository } from "@/features/auth/password/password.repository";
+import { MfaVerificationRepository } from "@/features/auth/mfa/verification/mfa-verification.repository";
 import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
 import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import { AuthSessionService } from "@/features/auth/session/session.service";
@@ -67,7 +71,11 @@ import { OrganizationReviewsController } from "@/features/organizations/reviews/
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { OrganizationLogoService } from "@/features/organizations/organization-logo.service";
 import { OrganizationPostingProjectionService } from "@/features/organizations/organization-posting-projection.service";
-import { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
+import { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
+import { OrganizationsInvitationsRepository } from "@/features/organizations/invitations/invitations.repository";
+import { OrganizationsPublicSearchRepository } from "@/features/organizations/search/public-search.repository";
+import { OrganizationsSearchRepository } from "@/features/organizations/search/search.repository";
 import { OrganizationProfileService } from "@/features/organizations/profile/profile.service";
 import { OrganizationProfileController } from "@/features/organizations/profile/profile.controller";
 import { OrganizationMembersService } from "@/features/organizations/members/members.service";
@@ -166,9 +174,26 @@ export const containerTokens = {
   feedbacksController: createServiceToken<FeedbacksController>(
     "FeedbacksController",
   ),
-  organizationsRepository: createServiceToken<OrganizationsRepository>(
-    "OrganizationsRepository",
-  ),
+  organizationsProfileRepository:
+    createServiceToken<OrganizationsProfileRepository>(
+      "OrganizationsProfileRepository",
+    ),
+  organizationsMembersRepository:
+    createServiceToken<OrganizationsMembersRepository>(
+      "OrganizationsMembersRepository",
+    ),
+  organizationsInvitationsRepository:
+    createServiceToken<OrganizationsInvitationsRepository>(
+      "OrganizationsInvitationsRepository",
+    ),
+  organizationsPublicSearchRepository:
+    createServiceToken<OrganizationsPublicSearchRepository>(
+      "OrganizationsPublicSearchRepository",
+    ),
+  organizationsSearchRepository:
+    createServiceToken<OrganizationsSearchRepository>(
+      "OrganizationsSearchRepository",
+    ),
   organizationAuditRepository: createServiceToken<OrganizationAuditRepository>(
     "OrganizationAuditRepository",
   ),
@@ -328,7 +353,16 @@ export const containerTokens = {
     "DeviceManagementController",
   ),
   tokenService: createServiceToken<TokenService>("TokenService"),
-  authRepository: createServiceToken<AuthRepository>("AuthRepository"),
+  authUsersRepository: createServiceToken<UsersRepository>("UsersRepository"),
+  authOAuthIdentityRepository: createServiceToken<OAuthIdentityRepository>(
+    "OAuthIdentityRepository",
+  ),
+  authTokenRepository: createServiceToken<TokenRepository>("TokenRepository"),
+  authPasswordRepository:
+    createServiceToken<PasswordRepository>("PasswordRepository"),
+  authMfaVerificationRepository: createServiceToken<MfaVerificationRepository>(
+    "MfaVerificationRepository",
+  ),
   personalAccessTokenRepository:
     createServiceToken<PersonalAccessTokenRepository>(
       "PersonalAccessTokenRepository",

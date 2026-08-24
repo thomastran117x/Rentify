@@ -111,7 +111,7 @@ function createService(
   };
 
   const service = new MfaVerificationService({
-    authRepository: authRepository as any,
+    mfaVerificationRepository: authRepository as any,
     cache: cache.service as any,
     otpService: otpService as any,
     emailService: emailService as any,

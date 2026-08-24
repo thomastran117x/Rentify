@@ -118,8 +118,11 @@ function createHarness() {
     tokenService,
     service: new PasswordService(
       authRepository as never,
+      authRepository as never,
+      authRepository as never,
       otpService as never,
       new AuthSessionService(
+        authRepository as never,
         authRepository as never,
         tokenService as never,
         deviceService as never,

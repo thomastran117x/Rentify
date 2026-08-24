@@ -5,10 +5,10 @@ import type {
   AuthUserOrganizationMembershipRecord,
   AuthUserRecord,
 } from "@/features/auth/auth.model";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 
 export class OrganizationAccessService {
-  constructor(private readonly authRepository: AuthRepository) {}
+  constructor(private readonly usersRepository: UsersRepository) {}
 
   async requireActiveMembership(
     userId: string,
@@ -28,7 +28,7 @@ export class OrganizationAccessService {
     userId: string,
     organizationId: string,
   ): Promise<AuthUserOrganizationMembershipRecord | null> {
-    const user = await this.authRepository.findUserById(userId);
+    const user = await this.usersRepository.findUserById(userId);
 
     if (!user) {
       return null;
@@ -71,7 +71,7 @@ export class OrganizationAccessService {
   }
 
   private async requireUser(userId: string): Promise<AuthUserRecord> {
-    const user = await this.authRepository.findUserById(userId);
+    const user = await this.usersRepository.findUserById(userId);
 
     if (!user) {
       throw new ResourceNotFoundError("User could not be found.");

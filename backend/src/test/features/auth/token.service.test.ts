@@ -92,7 +92,7 @@ function createService(options?: {
   const cache = createCache();
   const service = new TokenService({
     cache: cache.service as any,
-    authRepository: authRepository as any,
+    tokenRepository: authRepository as any,
     accessTokenSecret: options?.accessTokenSecret,
     refreshTokenSecret: options?.refreshTokenSecret,
     refreshTokenMode: options?.refreshTokenMode,

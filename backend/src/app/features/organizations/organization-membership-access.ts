@@ -2,8 +2,8 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
   OrganizationMembershipAccessRecord,
-  OrganizationsRepository,
-} from "@/features/organizations/organizations.repository";
+  OrganizationsMembersRepository,
+} from "@/features/organizations/members/members.repository";
 import type { OrganizationRole } from "@/features/organizations/organizations.model";
 
 /**
@@ -13,11 +13,11 @@ import type { OrganizationRole } from "@/features/organizations/organizations.mo
  * sub-domain services (announcements/blog/reviews/comments).
  */
 export async function requireOrganizationMembershipAccess(
-  organizationsRepository: OrganizationsRepository,
+  organizationsMembersRepository: OrganizationsMembersRepository,
   userId: string,
   organizationId: string,
 ): Promise<OrganizationMembershipAccessRecord> {
-  const membership = await organizationsRepository.findMembershipAccess(
+  const membership = await organizationsMembersRepository.findMembershipAccess(
     userId,
     organizationId,
   );

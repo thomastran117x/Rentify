@@ -1,5 +1,4 @@
-import { Prisma } from "@/generated/prisma/client";
-import { AuthRepository } from "@/features/auth/auth.repository";
+import { UsersRepository } from "@/features/auth/users/users.repository";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import ConflictError from "@/errors/http/conflict.error";
 
@@ -92,39 +91,7 @@ function createOAuthProfile(
   };
 }
 
-describe("AuthRepository", () => {
-  it("finds session validation data and token versions", async () => {
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce({
-        tokenVersion: 7,
-        role: "admin",
-      })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        tokenVersion: 9,
-        role: "owner",
-      });
-    const repository = new AuthRepository({
-      user: {
-        findUnique,
-      },
-    } as any);
-
-    await expect(
-      repository.findSessionValidationByUserId("user-1"),
-    ).resolves.toEqual({
-      tokenVersion: 7,
-      role: "admin",
-    });
-    await expect(
-      repository.findSessionValidationByUserId("missing-user"),
-    ).resolves.toBeNull();
-    await expect(repository.findTokenVersionByUserId("user-2")).resolves.toBe(
-      9,
-    );
-  });
-
+describe("UsersRepository", () => {
   it("finds users by id and email and maps nested auth records", async () => {
     const findUnique = jest
       .fn()
@@ -143,7 +110,7 @@ describe("AuthRepository", () => {
           preferredOrganizationId: null,
         }),
       );
-    const repository = new AuthRepository({
+    const repository = new UsersRepository({
       user: {
         findUnique,
       },
@@ -217,7 +184,7 @@ describe("AuthRepository", () => {
         }),
       }),
     );
-    const repository = new AuthRepository({
+    const repository = new UsersRepository({
       user: {
         create,
         update,
@@ -273,7 +240,7 @@ describe("AuthRepository", () => {
     expect(activated.emailVerified).toBe(true);
   });
 
-  it("creates oauth users, finds them by identity, and lists linked identities", async () => {
+  it("creates oauth users and finds them by identity", async () => {
     const profileFindUnique = jest.fn(async () => null);
     const create = jest.fn(async () =>
       createUserPersistence({
@@ -289,17 +256,7 @@ describe("AuthRepository", () => {
     const findUnique = jest.fn(async () => ({
       user: createUserPersistence(),
     }));
-    const findMany = jest.fn(async () => [
-      createOAuthIdentityPersistence(),
-      createOAuthIdentityPersistence({
-        id: "oauth-2",
-        provider: "apple",
-        providerUserId: "apple-user-1",
-        providerEmail: null,
-        displayName: null,
-      }),
-    ]);
-    const repository = new AuthRepository({
+    const repository = new UsersRepository({
       profile: {
         findUnique: profileFindUnique,
       },
@@ -308,7 +265,6 @@ describe("AuthRepository", () => {
       },
       oAuthIdentity: {
         findUnique,
-        findMany,
       },
     } as any);
 
@@ -317,7 +273,6 @@ describe("AuthRepository", () => {
       "google",
       "google-user-1",
     );
-    const identities = await repository.listOAuthIdentitiesByUserId("user-1");
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -335,166 +290,36 @@ describe("AuthRepository", () => {
       }),
     );
     expect(found?.id).toBe("user-1");
-    expect(identities).toEqual([
-      expect.objectContaining({
-        provider: "google",
-      }),
-      expect.objectContaining({
-        provider: "apple",
-        providerEmail: undefined,
-        displayName: undefined,
-      }),
-    ]);
     expect(created.passwordHash).toBeUndefined();
   });
 
-  it("links oauth identities and remaps duplicate-link races to conflicts", async () => {
-    const create = jest.fn(async () =>
-      createOAuthIdentityPersistence({
-        provider: "microsoft",
-        providerUserId: "ms-user-1",
-      }),
-    );
-    const repository = new AuthRepository({
-      oAuthIdentity: {
-        create,
-      },
-    } as any);
-
-    const linked = await repository.linkOAuthIdentity(
-      "user-1",
-      createOAuthProfile({
-        provider: "microsoft",
-        providerUserId: "ms-user-1",
-      }),
-    );
-
-    expect(linked).toMatchObject({
-      provider: "microsoft",
-      providerUserId: "ms-user-1",
-    });
-
-    const duplicateError = Object.assign(new Error("duplicate identity"), {
-      code: "P2002",
-      clientVersion: "test",
-    });
-    Object.setPrototypeOf(
-      duplicateError,
-      Prisma.PrismaClientKnownRequestError.prototype,
-    );
-    const duplicateRepository = new AuthRepository({
-      oAuthIdentity: {
-        create: jest.fn(async () => {
-          throw duplicateError;
-        }),
-      },
-    } as any);
-
-    await expect(
-      duplicateRepository.linkOAuthIdentity("user-1", createOAuthProfile()),
-    ).rejects.toThrow("This OAuth provider is already linked to an account.");
-  });
-
-  it("writes a first password only while the account has none", async () => {
-    const updateMany = jest
-      .fn()
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ count: 0 });
-    const repository = new AuthRepository({
-      user: {
-        updateMany,
-      },
-    } as any);
-
-    await expect(
-      repository.setPasswordHashIfUnset("user-1", "first-hash"),
-    ).resolves.toBe(true);
-    // A concurrent request already set one, so the conditional write matches
-    // no rows and the caller must report a conflict.
-    await expect(
-      repository.setPasswordHashIfUnset("user-1", "second-hash"),
-    ).resolves.toBe(false);
-
-    expect(updateMany).toHaveBeenNthCalledWith(1, {
-      where: {
-        id: "user-1",
-        passwordHash: null,
-      },
-      data: {
-        passwordHash: "first-hash",
-      },
-    });
-  });
-
-  it("unlinks identities and updates email verification, passwords, and token versions", async () => {
-    const deleteMany = jest.fn(async () => ({
-      count: 1,
-    }));
-    const update = jest
-      .fn()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({
-        tokenVersion: 12,
-      });
-    const repository = new AuthRepository({
-      oAuthIdentity: {
-        deleteMany,
-      },
+  it("marks a user's email as verified", async () => {
+    const update = jest.fn(async () => undefined);
+    const repository = new UsersRepository({
       user: {
         update,
       },
     } as any);
 
-    await expect(
-      repository.unlinkOAuthIdentity("user-1", "google"),
-    ).resolves.toBe(true);
     await repository.markEmailVerified("user-1");
-    await repository.updatePasswordHash("user-1", "new-hash");
-    await expect(repository.rotateTokenVersion("user-1")).resolves.toBe(12);
 
-    expect(deleteMany).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        provider: "google",
-      },
-    });
-    expect(update).toHaveBeenNthCalledWith(
-      1,
+    expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: {
+          id: "user-1",
+        },
         data: {
           emailVerified: true,
         },
       }),
     );
-    expect(update).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: {
-          passwordHash: "new-hash",
-        },
-      }),
-    );
-    expect(update).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
-        data: {
-          tokenVersion: {
-            increment: 1,
-          },
-        },
-        select: {
-          tokenVersion: true,
-        },
-      }),
-    );
   });
 
-  it("covers auth repository helper branches for mapping, usernames, and display names", async () => {
+  it("covers users repository helper branches for mapping, usernames, and display names", async () => {
     const profileFindUnique = jest.fn(async () => ({
       id: "taken",
     }));
-    const repository = new AuthRepository({
+    const repository = new UsersRepository({
       profile: {
         findUnique: profileFindUnique,
       },
@@ -538,7 +363,7 @@ describe("AuthRepository", () => {
 
   describe("generateAvailableUsername screening", () => {
     function createGenerator(findUnique: jest.Mock) {
-      return new AuthRepository({
+      return new UsersRepository({
         profile: { findUnique },
       } as any) as unknown as {
         generateAvailableUsername: (

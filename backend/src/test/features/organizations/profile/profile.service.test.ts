@@ -2,7 +2,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationProfileService } from "@/features/organizations/profile/profile.service";
-import { OrganizationSlugTakenError } from "@/features/organizations/organizations.repository";
+import { OrganizationSlugTakenError } from "@/features/organizations/profile/profile.repository";
 
 const NULL_ORGANIZATION_PROFILE = {
   description: null,
@@ -134,6 +134,7 @@ function createService(overrides?: {
 
   return {
     service: new OrganizationProfileService(
+      repository as any,
       repository as any,
       authRepository as any,
       auditService as any,

@@ -2,7 +2,9 @@ import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
 import { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
+import { OrganizationsPublicSearchRepository } from "@/features/organizations/search/public-search.repository";
 import { OrganizationsPublicSearchService } from "@/features/organizations/search/public-search.service";
+import { OrganizationsSearchRepository } from "@/features/organizations/search/search.repository";
 import { OrganizationsSearchService } from "@/features/organizations/search/search.service";
 import { SearchQueueService } from "@/features/search/search.queue.service";
 
@@ -10,6 +12,18 @@ export const organizationsSearchRegistrationModule: ContainerRegistrationModule 
   {
     id: "organizations-search",
     register(container) {
+      container.register({
+        token: containerTokens.organizationsPublicSearchRepository,
+        lifetime: "singleton",
+        dependencies: [],
+        resolve: () => new OrganizationsPublicSearchRepository(),
+      });
+      container.register({
+        token: containerTokens.organizationsSearchRepository,
+        lifetime: "singleton",
+        dependencies: [],
+        resolve: () => new OrganizationsSearchRepository(),
+      });
       container.register({
         token: containerTokens.organizationsSearchIndexService,
         lifetime: "singleton",
@@ -33,12 +47,12 @@ export const organizationsSearchRegistrationModule: ContainerRegistrationModule 
         token: containerTokens.organizationsPublicSearchService,
         lifetime: "scoped",
         dependencies: [
-          containerTokens.organizationsRepository,
+          containerTokens.organizationsPublicSearchRepository,
           containerTokens.organizationsSearchIndexService,
         ],
         resolve: ({ resolve }) =>
           new OrganizationsPublicSearchService(
-            resolve(containerTokens.organizationsRepository),
+            resolve(containerTokens.organizationsPublicSearchRepository),
             resolve(containerTokens.organizationsSearchIndexService),
           ),
       });
@@ -46,13 +60,13 @@ export const organizationsSearchRegistrationModule: ContainerRegistrationModule 
         token: containerTokens.organizationsSearchService,
         lifetime: "scoped",
         dependencies: [
-          containerTokens.organizationsRepository,
+          containerTokens.organizationsSearchRepository,
           containerTokens.organizationsSearchIndexService,
           containerTokens.organizationSearchQueueService,
         ],
         resolve: ({ resolve }) =>
           new OrganizationsSearchService(
-            resolve(containerTokens.organizationsRepository),
+            resolve(containerTokens.organizationsSearchRepository),
             resolve(containerTokens.organizationsSearchIndexService),
             resolve(containerTokens.organizationSearchQueueService),
           ),

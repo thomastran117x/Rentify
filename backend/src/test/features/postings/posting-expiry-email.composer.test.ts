@@ -1,4 +1,4 @@
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { PostingRecord } from "@/features/postings/postings.model";
@@ -49,7 +49,7 @@ function createComposer(
       options.user === undefined
         ? { email: "owner@example.com", firstName: "Ada" }
         : options.user,
-  } as unknown as AuthRepository;
+  } as unknown as UsersRepository;
 
   return new PostingExpiryEmailComposer(
     postingsRepository,

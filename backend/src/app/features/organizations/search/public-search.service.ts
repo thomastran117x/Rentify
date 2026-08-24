@@ -8,7 +8,7 @@ import type {
   ListPublicOrganizationsInput,
   PublicOrganizationListResult,
 } from "@/features/organizations/profile/profile.model";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsPublicSearchRepository } from "@/features/organizations/search/public-search.repository";
 import type { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
 import type { SearchFallbackReason } from "@/features/search/search.model";
 import { recordSearchFallback } from "@/features/search/search.telemetry";
@@ -48,7 +48,7 @@ export class OrganizationsPublicSearchService {
   private readonly logger: Logger;
 
   constructor(
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsPublicSearchRepository: OrganizationsPublicSearchRepository,
     private readonly organizationsSearchIndexService: OrganizationsSearchIndexService,
     private readonly elasticsearch: ElasticsearchClient = getElasticsearchClient(),
   ) {
@@ -62,9 +62,10 @@ export class OrganizationsPublicSearchService {
     input: ListPublicOrganizationsInput,
   ): Promise<PublicOrganizationListResult> {
     let searchIds = await this.searchIdsWithFallback(input);
-    let organizations = await this.organizationsRepository.batchFindPublicByIds(
-      searchIds.ids,
-    );
+    let organizations =
+      await this.organizationsPublicSearchRepository.batchFindPublicByIds(
+        searchIds.ids,
+      );
 
     if (
       searchIds.source === "elasticsearch" &&
@@ -74,9 +75,10 @@ export class OrganizationsPublicSearchService {
         "Organization search falling back to database because Elasticsearch returned stale ids.",
       );
       searchIds = await this.searchIdsFromDatabase(input, "index-drift");
-      organizations = await this.organizationsRepository.batchFindPublicByIds(
-        searchIds.ids,
-      );
+      organizations =
+        await this.organizationsPublicSearchRepository.batchFindPublicByIds(
+          searchIds.ids,
+        );
     }
 
     return {
@@ -302,7 +304,9 @@ export class OrganizationsPublicSearchService {
   ): Promise<SearchIdsResult> {
     recordSearchFallback(reason);
     const fallback =
-      await this.organizationsRepository.searchPublicFallback(input);
+      await this.organizationsPublicSearchRepository.searchPublicFallback(
+        input,
+      );
 
     return {
       ...fallback,

@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
-import { AuthRepository } from "@/features/auth/auth.repository";
+import { UsersRepository } from "@/features/auth/users/users.repository";
+import { TokenRepository } from "@/features/auth/token/token.repository";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { AuthSessionController } from "@/features/auth/session/session.controller";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
@@ -17,35 +18,43 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
       resolve: () => new CaptchaService(),
     });
     container.register({
-      token: containerTokens.authRepository,
+      token: containerTokens.authUsersRepository,
       lifetime: "singleton",
       dependencies: [],
-      resolve: () => new AuthRepository(),
+      resolve: () => new UsersRepository(),
+    });
+    container.register({
+      token: containerTokens.authTokenRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new TokenRepository(),
     });
     container.register({
       token: containerTokens.tokenService,
       lifetime: "singleton",
       dependencies: [
         containerTokens.cacheService,
-        containerTokens.authRepository,
+        containerTokens.authTokenRepository,
       ],
       resolve: ({ resolve }) =>
         new TokenService({
           cache: resolve(containerTokens.cacheService),
-          authRepository: resolve(containerTokens.authRepository),
+          tokenRepository: resolve(containerTokens.authTokenRepository),
         }),
     });
     container.register({
       token: containerTokens.authSessionService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
+        containerTokens.authTokenRepository,
         containerTokens.tokenService,
         containerTokens.deviceService,
       ],
       resolve: ({ resolve }) =>
         new AuthSessionService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
+          resolve(containerTokens.authTokenRepository),
           resolve(containerTokens.tokenService),
           resolve(containerTokens.deviceService),
         ),

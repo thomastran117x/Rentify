@@ -422,8 +422,10 @@ export class OrganizationBlogCommentSocketServer {
 
     if (state.username === undefined) {
       await this.withScope(async (scope) => {
-        const authRepository = scope.resolve(containerTokens.authRepository);
-        const user = await authRepository.findUserById(userId);
+        const usersRepository = scope.resolve(
+          containerTokens.authUsersRepository,
+        );
+        const user = await usersRepository.findUserById(userId);
 
         state.username = user?.profile?.username ?? "Someone";
       });

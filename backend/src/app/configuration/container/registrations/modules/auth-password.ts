@@ -2,15 +2,24 @@ import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { PasswordController } from "@/features/auth/password/password.controller";
 import { PasswordService } from "@/features/auth/password/password.service";
+import { PasswordRepository } from "@/features/auth/password/password.repository";
 
 export const authPasswordRegistrationModule: ContainerRegistrationModule = {
   id: "auth-password",
   register(container) {
     container.register({
+      token: containerTokens.authPasswordRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new PasswordRepository(),
+    });
+    container.register({
       token: containerTokens.passwordService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
+        containerTokens.authPasswordRepository,
+        containerTokens.authTokenRepository,
         containerTokens.otpService,
         containerTokens.authSessionService,
         containerTokens.loginLockoutService,
@@ -18,7 +27,9 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
       ],
       resolve: ({ resolve }) =>
         new PasswordService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
+          resolve(containerTokens.authPasswordRepository),
+          resolve(containerTokens.authTokenRepository),
           resolve(containerTokens.otpService),
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.loginLockoutService),

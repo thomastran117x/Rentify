@@ -6,10 +6,17 @@ import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
+import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
 
 export const authOauthRegistrationModule: ContainerRegistrationModule = {
   id: "auth-oauth",
   register(container) {
+    container.register({
+      token: containerTokens.authOAuthIdentityRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new OAuthIdentityRepository(),
+    });
     container.register({
       token: containerTokens.oauthTokenVerifier,
       lifetime: "transient",
@@ -40,7 +47,8 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.oauthAccountsService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
+        containerTokens.authOAuthIdentityRepository,
         containerTokens.googleOAuthService,
         containerTokens.microsoftOAuthService,
         containerTokens.appleOAuthService,
@@ -50,7 +58,8 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
       ],
       resolve: ({ resolve }) =>
         new OAuthAccountsService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
+          resolve(containerTokens.authOAuthIdentityRepository),
           resolve(containerTokens.googleOAuthService),
           resolve(containerTokens.microsoftOAuthService),
           resolve(containerTokens.appleOAuthService),

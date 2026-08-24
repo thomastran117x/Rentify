@@ -90,7 +90,7 @@ function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
       }) as never,
   });
   container.register({
-    token: containerTokens.authRepository,
+    token: containerTokens.authUsersRepository,
     lifetime: "scoped",
     dependencies: [],
     resolve: () => ({ findUserById: fakes.findUserById }) as never,

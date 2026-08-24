@@ -20,7 +20,9 @@ export const organizationsAuditRegistrationModule: ContainerRegistrationModule =
         dependencies: [
           containerTokens.organizationAuditRepository,
           containerTokens.organizationAccessService,
-          containerTokens.organizationsRepository,
+          containerTokens.organizationsProfileRepository,
+          containerTokens.organizationsMembersRepository,
+          containerTokens.organizationsInvitationsRepository,
           containerTokens.postingsRepository,
           containerTokens.seasonalPricingRepository,
           containerTokens.emailService,
@@ -31,7 +33,9 @@ export const organizationsAuditRegistrationModule: ContainerRegistrationModule =
           new OrganizationAuditService(
             resolve(containerTokens.organizationAuditRepository),
             resolve(containerTokens.organizationAccessService),
-            resolve(containerTokens.organizationsRepository),
+            resolve(containerTokens.organizationsProfileRepository),
+            resolve(containerTokens.organizationsMembersRepository),
+            resolve(containerTokens.organizationsInvitationsRepository),
             resolve(containerTokens.postingsRepository),
             resolve(containerTokens.seasonalPricingRepository),
             resolve(containerTokens.emailService),

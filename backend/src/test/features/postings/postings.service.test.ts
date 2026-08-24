@@ -27,11 +27,11 @@ import type { PostingsPublicSearchService } from "@/features/postings/search/pub
 import { PostingsService } from "@/features/postings/postings.service";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 
 class FakePostingsRepository {
@@ -517,7 +517,7 @@ function createServiceHarness(
   const postingsPublicCacheService = new FakePostingsPublicCacheService();
   const authRepository = new FakeAuthRepository();
   const organizationAccessService = new OrganizationAccessService(
-    authRepository as unknown as AuthRepository,
+    authRepository as unknown as UsersRepository,
   );
   postingsPublicCacheService.posting = isPostingPubliclyVisible(
     repository.posting,
@@ -537,11 +537,11 @@ function createServiceHarness(
       cacheService,
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
-      authRepository as unknown as AuthRepository,
+      authRepository as unknown as UsersRepository,
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
-      organizationsRepository as unknown as OrganizationsRepository,
+      organizationsRepository as unknown as OrganizationsProfileRepository,
     ),
     postingThumbnailQueueService,
     postingsPublicCacheService,
@@ -1838,7 +1838,7 @@ describe("PostingsService", () => {
     const postingsPublicCacheService = new FakePostingsPublicCacheService();
     const authRepository = new FakeAuthRepository();
     const organizationAccessService = new OrganizationAccessService(
-      authRepository as unknown as AuthRepository,
+      authRepository as unknown as UsersRepository,
     );
     postingsPublicCacheService.posting = isPostingPubliclyVisible(
       repository.posting,
@@ -1856,11 +1856,11 @@ describe("PostingsService", () => {
       cacheService,
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
-      authRepository as unknown as AuthRepository,
+      authRepository as unknown as UsersRepository,
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
-      createOrganizationsRepositoryStub() as unknown as OrganizationsRepository,
+      createOrganizationsRepositoryStub() as unknown as OrganizationsProfileRepository,
     );
 
     await expect(
@@ -2030,7 +2030,7 @@ describe("PostingsService", () => {
     const postingsPublicCacheService = new FakePostingsPublicCacheService();
     const authRepository = new FakeAuthRepository();
     const organizationAccessService = new OrganizationAccessService(
-      authRepository as unknown as AuthRepository,
+      authRepository as unknown as UsersRepository,
     );
     postingsPublicCacheService.posting = isPostingPubliclyVisible(
       repository.posting,
@@ -2048,11 +2048,11 @@ describe("PostingsService", () => {
       cacheService,
       postingsPublicCacheService as unknown as PostingsPublicCacheService,
       organizationAccessService,
-      authRepository as unknown as AuthRepository,
+      authRepository as unknown as UsersRepository,
       {
         record: jest.fn(async () => undefined),
       } as unknown as OrganizationAuditService,
-      createOrganizationsRepositoryStub() as unknown as OrganizationsRepository,
+      createOrganizationsRepositoryStub() as unknown as OrganizationsProfileRepository,
     );
 
     await expect(

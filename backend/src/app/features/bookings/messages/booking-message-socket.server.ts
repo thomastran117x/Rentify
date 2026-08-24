@@ -403,8 +403,10 @@ export class BookingMessageSocketServer {
     state.lastTypingAt = now;
 
     await this.withScope(async (scope) => {
-      const authRepository = scope.resolve(containerTokens.authRepository);
-      const user = await authRepository.findUserById(state.identity.userId);
+      const usersRepository = scope.resolve(
+        containerTokens.authUsersRepository,
+      );
+      const user = await usersRepository.findUserById(state.identity.userId);
 
       // Typing names its actor, unlike presence: a thread can have several
       // managers on the owner side, and "someone is typing" is unhelpful when

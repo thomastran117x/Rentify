@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
   type AuthUserOrganizationMembershipRecord,
-  type AppRole,
   type CreateLocalUserInput,
   type AuthUserRecord,
   type OAuthIdentityRecord,
@@ -58,20 +56,6 @@ type OAuthIdentityPersistence = {
   updatedAt: Date;
 };
 
-export type MfaVerificationSecurityContext = {
-  id: string;
-  email: string;
-  firstName?: string;
-  emailVerified: boolean;
-  tokenVersion: number;
-  updatedAt: string;
-  mfaTotp: {
-    status: string;
-    updatedAt: string;
-    confirmedAt?: string;
-  } | null;
-};
-
 type AuthProfilePersistence = {
   id: string;
   userId: string;
@@ -95,32 +79,7 @@ type AuthProfilePersistence = {
  */
 export type UsernameLikelyTakenPredicate = (candidate: string) => boolean;
 
-export class AuthRepository extends BaseRepository {
-  async findSessionValidationByUserId(
-    userId: string,
-  ): Promise<{ tokenVersion: number; role: AppRole } | null> {
-    const user = await this.executeAsync(() =>
-      this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-        select: {
-          tokenVersion: true,
-          role: true,
-        },
-      }),
-    );
-
-    if (!user) {
-      return null;
-    }
-
-    return {
-      tokenVersion: user.tokenVersion,
-      role: normalizeAppRole(user.role),
-    };
-  }
-
+export class UsersRepository extends BaseRepository {
   async findUserById(id: string): Promise<AuthUserRecord | null> {
     const user = await this.executeAsync(() =>
       this.prisma.user.findUnique({
@@ -194,53 +153,6 @@ export class AuthRepository extends BaseRepository {
     );
 
     return profile?.userId ?? null;
-  }
-
-  async findMfaVerificationSecurityContextByUserId(
-    userId: string,
-  ): Promise<MfaVerificationSecurityContext | null> {
-    const user = await this.executeAsync(() =>
-      this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          emailVerified: true,
-          tokenVersion: true,
-          updatedAt: true,
-          mfaTotp: {
-            select: {
-              status: true,
-              updatedAt: true,
-              confirmedAt: true,
-            },
-          },
-        },
-      }),
-    );
-
-    if (!user) {
-      return null;
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName ?? undefined,
-      emailVerified: user.emailVerified,
-      tokenVersion: user.tokenVersion,
-      updatedAt: user.updatedAt.toISOString(),
-      mfaTotp: user.mfaTotp
-        ? {
-            status: user.mfaTotp.status,
-            updatedAt: user.mfaTotp.updatedAt.toISOString(),
-            confirmedAt: user.mfaTotp.confirmedAt?.toISOString(),
-          }
-        : null,
-    };
   }
 
   async createLocalUser(
@@ -341,73 +253,6 @@ export class AuthRepository extends BaseRepository {
     return identity ? this.mapUser(identity.user) : null;
   }
 
-  async listOAuthIdentitiesByUserId(
-    userId: string,
-  ): Promise<OAuthIdentityRecord[]> {
-    const identities = await this.executeAsync(() =>
-      this.prisma.oAuthIdentity.findMany({
-        where: {
-          userId,
-        },
-        orderBy: {
-          linkedAt: "asc",
-        },
-      }),
-    );
-
-    return identities.map((identity) => this.mapOAuthIdentity(identity));
-  }
-
-  async linkOAuthIdentity(
-    userId: string,
-    input: VerifiedOAuthProfile,
-  ): Promise<OAuthIdentityRecord> {
-    try {
-      const identity = await this.executeAsync(() =>
-        this.prisma.oAuthIdentity.create({
-          data: {
-            id: randomUUID(),
-            userId,
-            provider: input.provider,
-            providerUserId: input.providerUserId,
-            providerEmail: input.email.toLowerCase(),
-            emailVerified: input.emailVerified,
-            displayName: this.createDisplayName(input),
-          },
-        }),
-      );
-
-      return this.mapOAuthIdentity(identity);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new ConflictError(
-          "This OAuth provider is already linked to an account.",
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  async unlinkOAuthIdentity(
-    userId: string,
-    provider: OAuthProvider,
-  ): Promise<boolean> {
-    const result = await this.executeAsync(() =>
-      this.prisma.oAuthIdentity.deleteMany({
-        where: {
-          userId,
-          provider,
-        },
-      }),
-    );
-
-    return result.count > 0;
-  }
-
   async markEmailVerified(userId: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({
@@ -451,71 +296,6 @@ export class AuthRepository extends BaseRepository {
     );
 
     return this.mapUser(user);
-  }
-
-  async updatePasswordHash(
-    userId: string,
-    passwordHash: string,
-  ): Promise<void> {
-    await this.executeAsync(() =>
-      this.prisma.user.update({
-        where: {
-          id: userId,
-        },
-        data: {
-          passwordHash,
-        },
-      }),
-    );
-  }
-
-  /**
-   * Writes a first password only while the account still has none, so two
-   * concurrent set-password requests cannot both succeed. Returns false when
-   * another request won the race and the caller should report a conflict.
-   */
-  async setPasswordHashIfUnset(
-    userId: string,
-    passwordHash: string,
-  ): Promise<boolean> {
-    const result = await this.executeAsync(() =>
-      this.prisma.user.updateMany({
-        where: {
-          id: userId,
-          passwordHash: null,
-        },
-        data: {
-          passwordHash,
-        },
-      }),
-    );
-
-    return result.count === 1;
-  }
-
-  async rotateTokenVersion(userId: string): Promise<number> {
-    const user = await this.executeAsync(() =>
-      this.prisma.user.update({
-        where: {
-          id: userId,
-        },
-        data: {
-          tokenVersion: {
-            increment: 1,
-          },
-        },
-        select: {
-          tokenVersion: true,
-        },
-      }),
-    );
-
-    return user.tokenVersion;
-  }
-
-  async findTokenVersionByUserId(userId: string): Promise<number | null> {
-    const sessionValidation = await this.findSessionValidationByUserId(userId);
-    return sessionValidation?.tokenVersion ?? null;
   }
 
   private mapUser(user: AuthUserPersistence): AuthUserRecord {

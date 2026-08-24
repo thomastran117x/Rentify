@@ -1,7 +1,7 @@
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 import type {
   PostingExpiryCandidate,
   PostingRecord,
@@ -136,7 +136,7 @@ function createService() {
     publicCache as unknown as PostingsPublicCacheService,
     cache as unknown as CacheService,
     audit as unknown as OrganizationAuditService,
-    organizations as unknown as OrganizationsRepository,
+    organizations as unknown as OrganizationsMembersRepository,
     email as unknown as EmailService,
   );
 

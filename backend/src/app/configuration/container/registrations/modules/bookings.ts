@@ -71,13 +71,13 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [
         containerTokens.bookingMessagesRepository,
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new BookingMessageEmailComposer(
           resolve(containerTokens.bookingMessagesRepository),
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.organizationAccessService),
         ),
     });
@@ -88,7 +88,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
         containerTokens.bookingMessagesRepository,
         containerTokens.bookingsRepository,
         containerTokens.organizationAccessService,
-        containerTokens.organizationsRepository,
+        containerTokens.organizationsMembersRepository,
         containerTokens.cacheService,
         containerTokens.emailService,
         containerTokens.tokenService,
@@ -99,7 +99,7 @@ export const bookingsRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.bookingMessagesRepository),
           resolve(containerTokens.bookingsRepository),
           resolve(containerTokens.organizationAccessService),
-          resolve(containerTokens.organizationsRepository),
+          resolve(containerTokens.organizationsMembersRepository),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.emailService),
           resolve(containerTokens.tokenService),

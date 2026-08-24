@@ -70,6 +70,7 @@ function createService(overrides?: {
   return {
     service: new OrganizationMembersService(
       repository as any,
+      repository as any,
       authRepository as any,
       auditService as any,
     ),

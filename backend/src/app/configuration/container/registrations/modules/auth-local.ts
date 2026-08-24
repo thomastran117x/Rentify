@@ -24,7 +24,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.localAuthService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.tokenService,
         containerTokens.otpService,
         containerTokens.deviceService,
@@ -40,7 +40,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
       ],
       resolve: ({ resolve }) =>
         new LocalAuthService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.tokenService),
           resolve(containerTokens.otpService),
           resolve(containerTokens.deviceService),

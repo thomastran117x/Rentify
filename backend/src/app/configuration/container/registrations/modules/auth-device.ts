@@ -33,13 +33,13 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.deviceManagementService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.deviceService,
         containerTokens.tokenService,
       ],
       resolve: ({ resolve }) =>
         new DeviceManagementService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.deviceService),
           resolve(containerTokens.tokenService),
         ),

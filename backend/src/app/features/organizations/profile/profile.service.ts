@@ -1,6 +1,6 @@
 import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { requireExistingUser } from "@/features/organizations/require-existing-user";
 import {
   requireOrganizationMembershipAccess,
@@ -21,8 +21,9 @@ import {
 } from "@/features/organizations/organizations.model";
 import {
   OrganizationSlugTakenError,
-  type OrganizationsRepository,
-} from "@/features/organizations/organizations.repository";
+  type OrganizationsProfileRepository,
+} from "@/features/organizations/profile/profile.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
   generateShortSlugSuffix,
@@ -47,8 +48,9 @@ const CREATE_SLUG_ATTEMPTS = 10;
 
 export class OrganizationProfileService {
   constructor(
-    private readonly organizationsRepository: OrganizationsRepository,
-    private readonly authRepository: AuthRepository,
+    private readonly organizationsProfileRepository: OrganizationsProfileRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly organizationAuditService: OrganizationAuditService,
     private readonly organizationInvitationsService: OrganizationInvitationsService,
     private readonly organizationLogoService: OrganizationLogoService,
@@ -71,7 +73,7 @@ export class OrganizationProfileService {
     organizationId: string,
   ): Promise<PublicOrganizationDetailResult> {
     const detail =
-      await this.organizationsRepository.findPublicOrganizationDetail(
+      await this.organizationsProfileRepository.findPublicOrganizationDetail(
         organizationId,
       );
 
@@ -87,12 +89,14 @@ export class OrganizationProfileService {
     userId: string,
   ): Promise<OrganizationWorkspaceDetailResult> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       userId,
       organizationId,
     );
     let detail =
-      await this.organizationsRepository.findOrganizationDetail(organizationId);
+      await this.organizationsProfileRepository.findOrganizationDetail(
+        organizationId,
+      );
 
     if (!detail) {
       throw new ResourceNotFoundError("Organization could not be found.");
@@ -105,7 +109,7 @@ export class OrganizationProfileService {
       )
     ) {
       detail =
-        await this.organizationsRepository.findOrganizationDetail(
+        await this.organizationsProfileRepository.findOrganizationDetail(
           organizationId,
         );
     }
@@ -123,7 +127,7 @@ export class OrganizationProfileService {
   async createOrganization(
     input: CreateOrganizationInput,
   ): Promise<CreateOrganizationResult> {
-    await requireExistingUser(this.authRepository, input.actorUserId);
+    await requireExistingUser(this.usersRepository, input.actorUserId);
 
     const profile = pickOrganizationProfileInput(input);
     this.organizationLogoService.assertLogoInput(input.actorUserId, profile);
@@ -134,7 +138,7 @@ export class OrganizationProfileService {
       profile,
     });
 
-    await this.organizationsRepository.setPreferredOrganization(
+    await this.organizationsProfileRepository.setPreferredOrganization(
       input.actorUserId,
       membership.id,
     );
@@ -200,12 +204,14 @@ export class OrganizationProfileService {
       );
 
       try {
-        return await this.organizationsRepository.createOrganizationWithOwner({
-          name: input.name,
-          slug: candidate,
-          ownerUserId: input.ownerUserId,
-          ...input.profile,
-        });
+        return await this.organizationsProfileRepository.createOrganizationWithOwner(
+          {
+            name: input.name,
+            slug: candidate,
+            ownerUserId: input.ownerUserId,
+            ...input.profile,
+          },
+        );
       } catch (error) {
         if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
@@ -217,19 +223,21 @@ export class OrganizationProfileService {
     // random suffix.
     for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
       try {
-        return await this.organizationsRepository.createOrganizationWithOwner({
-          name: input.name,
-          slug: toRouteSafeSlug(
-            withSuffix(
-              base,
-              `-${generateShortSlugSuffix()}`,
+        return await this.organizationsProfileRepository.createOrganizationWithOwner(
+          {
+            name: input.name,
+            slug: toRouteSafeSlug(
+              withSuffix(
+                base,
+                `-${generateShortSlugSuffix()}`,
+                ORGANIZATION_SLUG_MAX_LENGTH,
+              ),
               ORGANIZATION_SLUG_MAX_LENGTH,
             ),
-            ORGANIZATION_SLUG_MAX_LENGTH,
-          ),
-          ownerUserId: input.ownerUserId,
-          ...input.profile,
-        });
+            ownerUserId: input.ownerUserId,
+            ...input.profile,
+          },
+        );
       } catch (error) {
         if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
@@ -242,7 +250,7 @@ export class OrganizationProfileService {
 
   async update(input: UpdateOrganizationInput): Promise<OrganizationSummary> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -251,13 +259,14 @@ export class OrganizationProfileService {
     const beforeSnapshot = membership.organization;
     const profile = pickOrganizationProfileInput(input);
     this.organizationLogoService.assertLogoInput(input.actorUserId, profile);
-    const updated = await this.organizationsRepository.updateOrganization(
-      input.organizationId,
-      {
-        name: input.name.trim(),
-        ...profile,
-      },
-    );
+    const updated =
+      await this.organizationsProfileRepository.updateOrganization(
+        input.organizationId,
+        {
+          name: input.name.trim(),
+          ...profile,
+        },
+      );
     const afterSnapshot = {
       ...beforeSnapshot,
       ...updated,
@@ -309,7 +318,8 @@ export class OrganizationProfileService {
    * Map a public URL slug (current or retired) onto an organization.
    */
   async resolveBySlug(slug: string): Promise<ResolvedOrganizationReference> {
-    const resolved = await this.organizationsRepository.resolveBySlug(slug);
+    const resolved =
+      await this.organizationsProfileRepository.resolveBySlug(slug);
 
     if (!resolved) {
       throw new ResourceNotFoundError("Organization could not be found.");
@@ -326,7 +336,7 @@ export class OrganizationProfileService {
     input: ChangeOrganizationSlugInput,
   ): Promise<OrganizationSummary> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -355,17 +365,19 @@ export class OrganizationProfileService {
     //
     // This read is for a clear error message only; the reservation's primary key
     // is what actually enforces it.
-    const existing = await this.organizationsRepository.resolveBySlug(nextSlug);
+    const existing =
+      await this.organizationsProfileRepository.resolveBySlug(nextSlug);
     if (existing) {
       throw new ConflictError("That organization URL is already taken.");
     }
 
     let updated;
     try {
-      updated = await this.organizationsRepository.changeOrganizationSlug({
-        organizationId: input.organizationId,
-        nextSlug,
-      });
+      updated =
+        await this.organizationsProfileRepository.changeOrganizationSlug({
+          organizationId: input.organizationId,
+          nextSlug,
+        });
     } catch (error) {
       if (error instanceof OrganizationSlugTakenError) {
         throw new ConflictError("That organization URL is already taken.");

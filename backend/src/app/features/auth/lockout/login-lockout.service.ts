@@ -1,4 +1,4 @@
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import type { CacheService } from "@/features/cache/cache.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
@@ -26,7 +26,7 @@ const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
 export class LoginLockoutService {
   constructor(
     private readonly cacheService: CacheService,
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly otpService: OtpService,
     private readonly publicOtpService: PublicOtpService,
   ) {}
@@ -99,7 +99,7 @@ export class LoginLockoutService {
       code: input.code,
     });
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.usersRepository.findUserByEmail(input.email);
 
     if (user) {
       await this.clearAttemptRecord(user.profile.username);
@@ -129,7 +129,7 @@ export class LoginLockoutService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.usersRepository.findUserByEmail(input.email);
     const isLocked = user ? await this.isLocked(user.profile.username) : false;
 
     // Only a locked account gets a code. Sending one regardless would let the

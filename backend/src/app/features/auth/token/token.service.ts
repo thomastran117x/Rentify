@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { environment } from "@/configuration/environment";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AppRole } from "@/features/auth/auth.model";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type { CacheService } from "@/features/cache/cache.service";
 
 type RefreshTokenMode = "stateless" | "stateful";
@@ -47,7 +47,7 @@ interface StatefulRefreshSession extends RefreshTokenClaims {
 
 interface TokenServiceOptions {
   cache: CacheService;
-  authRepository: AuthRepository;
+  tokenRepository: TokenRepository;
   accessTokenSecret?: string;
   refreshTokenSecret?: string;
   accessTokenTtlSeconds?: number;
@@ -104,7 +104,7 @@ function safeEquals(left: string, right: string): boolean {
 
 export class TokenService {
   private readonly cache: CacheService;
-  private readonly authRepository: AuthRepository;
+  private readonly tokenRepository: TokenRepository;
   private readonly accessTokenSecret?: string;
   private readonly refreshTokenSecret?: string;
   private readonly accessTokenTtlSeconds?: number;
@@ -116,7 +116,7 @@ export class TokenService {
 
   constructor(options: TokenServiceOptions) {
     this.cache = options.cache;
-    this.authRepository = options.authRepository;
+    this.tokenRepository = options.tokenRepository;
     this.accessTokenSecret = options.accessTokenSecret;
     this.refreshTokenSecret = options.refreshTokenSecret;
     this.accessTokenTtlSeconds = options.accessTokenTtlSeconds;
@@ -558,7 +558,7 @@ export class TokenService {
     tokenVersion?: string | number | boolean | null,
   ): Promise<{ tokenVersion: number; role: AppRole }> {
     const sessionValidation =
-      await this.authRepository.findSessionValidationByUserId(userId);
+      await this.tokenRepository.findSessionValidationByUserId(userId);
     const normalizedTokenVersion =
       typeof tokenVersion === "number" ? tokenVersion : 0;
 

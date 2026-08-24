@@ -1,6 +1,8 @@
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
+import type { PasswordRepository } from "@/features/auth/password/password.repository";
+import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type {
   AuthSessionResult,
   AuthUserRecord,
@@ -39,7 +41,9 @@ import type {
  */
 export class PasswordService {
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
+    private readonly passwordRepository: PasswordRepository,
+    private readonly tokenRepository: TokenRepository,
     private readonly otpService: OtpService,
     private readonly authSessionService: AuthSessionService,
     private readonly loginLockoutService: LoginLockoutService,
@@ -59,7 +63,7 @@ export class PasswordService {
   }
 
   async resetPassword(input: ResetPasswordInput): Promise<AuthSessionResult> {
-    const user = await this.authRepository.findUserByUsername(input.username);
+    const user = await this.usersRepository.findUserByUsername(input.username);
 
     await this.otpService.verify({
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
@@ -83,7 +87,7 @@ export class PasswordService {
 
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
     const user = requireEligibleLocalPasswordUser(
-      await this.authRepository.findUserById(input.userId),
+      await this.usersRepository.findUserById(input.userId),
       "This account cannot change a password.",
     );
     const isPasswordValid = await verifyPassword(
@@ -109,14 +113,14 @@ export class PasswordService {
    */
   async setPassword(input: SetPasswordInput): Promise<AuthSessionResult> {
     const user = requirePasswordlessLinkedUser(
-      await this.authRepository.findUserById(input.userId),
+      await this.usersRepository.findUserById(input.userId),
     );
 
     const passwordHash = await hashPassword(input.newPassword);
     // The guard above is advisory: this conditional write is what actually
     // decides the race, so concurrent submissions cannot both rotate the token
     // version and strand each other's session.
-    const created = await this.authRepository.setPasswordHashIfUnset(
+    const created = await this.passwordRepository.setPasswordHashIfUnset(
       user.id,
       passwordHash,
     );
@@ -153,7 +157,7 @@ export class PasswordService {
       };
     }
 
-    const user = await this.authRepository.findUserByUsername(input.username);
+    const user = await this.usersRepository.findUserByUsername(input.username);
 
     if (user && isEligibleForLocalPasswordManagement(user)) {
       await this.publicOtpService.sendPasswordResetCode(user);
@@ -180,7 +184,7 @@ export class PasswordService {
     passwordHash: string,
     input: { client: ResetPasswordInput["client"]; deviceId?: string },
   ): Promise<AuthSessionResult> {
-    await this.authRepository.updatePasswordHash(user.id, passwordHash);
+    await this.passwordRepository.updatePasswordHash(user.id, passwordHash);
     return this.finishPasswordWrite(user, passwordHash, input);
   }
 
@@ -193,7 +197,7 @@ export class PasswordService {
     passwordHash: string,
     input: { client: ResetPasswordInput["client"]; deviceId?: string },
   ): Promise<AuthSessionResult> {
-    const nextTokenVersion = await this.authRepository.rotateTokenVersion(
+    const nextTokenVersion = await this.tokenRepository.rotateTokenVersion(
       user.id,
     );
     await this.loginLockoutService.clearAttemptRecord(user.profile.username);

@@ -1,4 +1,4 @@
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 
@@ -29,7 +29,7 @@ export interface PostingExpiryEmailContent {
 export class PostingExpiryEmailComposer {
   constructor(
     private readonly postingsRepository: PostingsRepository,
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly organizationAccessService: OrganizationAccessService,
   ) {}
 
@@ -80,7 +80,9 @@ export class PostingExpiryEmailComposer {
       return null;
     }
 
-    const recipient = await this.authRepository.findUserById(input.recipientId);
+    const recipient = await this.usersRepository.findUserById(
+      input.recipientId,
+    );
 
     if (!recipient?.email) {
       return null;
