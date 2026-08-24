@@ -11,9 +11,9 @@ import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
-  AuthRepository,
+  MfaVerificationRepository,
   MfaVerificationSecurityContext,
-} from "@/features/auth/auth.repository";
+} from "@/features/auth/mfa/verification/mfa-verification.repository";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
@@ -35,7 +35,7 @@ import {
 } from "./mfa-verification.model";
 
 interface MfaVerificationServiceOptions {
-  authRepository: AuthRepository;
+  mfaVerificationRepository: MfaVerificationRepository;
   cache: CacheService;
   otpService: OtpService;
   emailService: EmailService;
@@ -375,7 +375,7 @@ export class MfaVerificationService {
   ): Promise<VerifiedFactorState> {
     this.assertSupportedScope(scope);
     const securityContext =
-      await this.options.authRepository.findMfaVerificationSecurityContextByUserId(
+      await this.options.mfaVerificationRepository.findMfaVerificationSecurityContextByUserId(
         userId,
       );
 

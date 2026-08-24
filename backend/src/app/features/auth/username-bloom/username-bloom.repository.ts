@@ -8,7 +8,7 @@ export interface UsernamePage {
 /**
  * Bulk read of claimed usernames, used only by the rebuild.
  *
- * Kept separate from `AuthRepository` because the access pattern is the
+ * Kept separate from `UsersRepository` because the access pattern is the
  * opposite one: that repository probes single names on the unique index,
  * whereas a rebuild walks the whole table and wants nothing but the column.
  */

@@ -1,4 +1,4 @@
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
 import ForbiddenError from "@/errors/http/forbidden.error";
@@ -59,7 +59,7 @@ function createComposer(
         ? { id: "user-1", email: "owner@example.com", firstName: "Ada" }
         : options.recipient,
     ),
-  } as unknown as AuthRepository;
+  } as unknown as UsersRepository;
 
   return {
     composer: new BookingMessageEmailComposer(

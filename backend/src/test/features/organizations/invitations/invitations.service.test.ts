@@ -111,6 +111,8 @@ function createService(overrides?: {
   return {
     service: new OrganizationInvitationsService(
       repository as any,
+      repository as any,
+      repository as any,
       authRepository as any,
       emailService as any,
       auditService as any,

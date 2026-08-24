@@ -18,10 +18,12 @@ import type { OrganizationLogoService } from "@/features/organizations/organizat
 import type { OrganizationPostingProjectionService } from "@/features/organizations/organization-posting-projection.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
+import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import type {
-  OrganizationsRepository,
+  OrganizationsMembersRepository,
   OrganizationMembershipAccessRecord,
-} from "@/features/organizations/organizations.repository";
+} from "@/features/organizations/members/members.repository";
+import type { OrganizationsInvitationsRepository } from "@/features/organizations/invitations/invitations.repository";
 import type {
   OrganizationProfileInput,
   OrganizationRole,
@@ -46,7 +48,9 @@ export class OrganizationAuditService {
   constructor(
     private readonly repository: OrganizationAuditRepository,
     private readonly organizationAccessService: OrganizationAccessService,
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsProfileRepository: OrganizationsProfileRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
+    private readonly organizationsInvitationsRepository: OrganizationsInvitationsRepository,
     private readonly postingsRepository: PostingsRepository,
     private readonly seasonalPricingRepository: SeasonalPricingRepository,
     private readonly emailService: EmailService,
@@ -120,7 +124,7 @@ export class OrganizationAuditService {
   ): Promise<RestoreOrganizationVersionResult> {
     const auditLog = await this.requireRestorableAudit(input);
     const actorMembership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -140,7 +144,7 @@ export class OrganizationAuditService {
           );
         }
         beforeCleanupSnapshot = auditLog.afterSnapshot;
-        afterSnapshot = await this.organizationsRepository.updateOrganization(
+        afterSnapshot = await this.organizationsProfileRepository.updateOrganization(
           input.organizationId,
           {
             name,
@@ -157,7 +161,7 @@ export class OrganizationAuditService {
       }
       case "member": {
         const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
-        const restored = await this.organizationsRepository.restoreMembership({
+        const restored = await this.organizationsMembersRepository.restoreMembership({
           membershipId: String(snapshot.membershipId ?? auditLog.resourceId),
           organizationId: input.organizationId,
           userId: String(snapshot.userId ?? ""),
@@ -220,7 +224,7 @@ export class OrganizationAuditService {
           );
         }
         const token = createInviteToken();
-        const invitation = await this.organizationsRepository.reissueInvitation(
+        const invitation = await this.organizationsInvitationsRepository.reissueInvitation(
           {
             organizationId: input.organizationId,
             invitedByUserId: input.actorUserId,

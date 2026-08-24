@@ -22,13 +22,13 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [
         containerTokens.postingsRepository,
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.organizationAccessService,
       ],
       resolve: ({ resolve }) =>
         new PostingExpiryEmailComposer(
           resolve(containerTokens.postingsRepository),
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.organizationAccessService),
         ),
     });
@@ -40,7 +40,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.postingsPublicCacheService,
         containerTokens.cacheService,
         containerTokens.organizationAuditService,
-        containerTokens.organizationsRepository,
+        containerTokens.organizationsMembersRepository,
         containerTokens.emailService,
       ],
       resolve: ({ resolve }) =>
@@ -49,7 +49,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.postingsPublicCacheService),
           resolve(containerTokens.cacheService),
           resolve(containerTokens.organizationAuditService),
-          resolve(containerTokens.organizationsRepository),
+          resolve(containerTokens.organizationsMembersRepository),
           resolve(containerTokens.emailService),
         ),
     });
@@ -67,9 +67,9 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.cacheService,
         containerTokens.postingsPublicCacheService,
         containerTokens.organizationAccessService,
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.organizationAuditService,
-        containerTokens.organizationsRepository,
+        containerTokens.organizationsProfileRepository,
       ],
       resolve: ({ resolve }) =>
         new PostingsService(
@@ -83,9 +83,9 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.cacheService),
           resolve(containerTokens.postingsPublicCacheService),
           resolve(containerTokens.organizationAccessService),
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.organizationAuditService),
-          resolve(containerTokens.organizationsRepository),
+          resolve(containerTokens.organizationsProfileRepository),
         ),
     });
     container.register({

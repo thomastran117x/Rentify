@@ -179,6 +179,8 @@ function createService(options?: {
       repository as any,
       organizationAccessService as any,
       organizationsRepository as any,
+      organizationsRepository as any,
+      organizationsRepository as any,
       postingsRepository as any,
       seasonalPricingRepository as any,
       emailService as any,

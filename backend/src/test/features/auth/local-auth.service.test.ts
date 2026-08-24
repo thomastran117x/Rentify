@@ -493,6 +493,7 @@ function createService(overrides?: {
   // collaborator.
   const authSessionService = new AuthSessionService(
     authRepository as any,
+    authRepository as any,
     tokenService as any,
     deviceService as any,
   );

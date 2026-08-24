@@ -7,7 +7,7 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { DeviceService } from "@/features/auth/device/device.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import { EmailService } from "@/features/email/email.service";
-import { AuthRepository } from "@/features/auth/auth.repository";
+import { UsersRepository } from "@/features/auth/users/users.repository";
 import {
   type AuthActiveOrganizationSummary,
   type AuthSessionResult,
@@ -61,7 +61,7 @@ export class LocalAuthService {
   private readonly logger: Logger;
 
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly tokenService: TokenService,
     private readonly otpService: OtpService,
     private readonly deviceService: DeviceService,
@@ -81,7 +81,7 @@ export class LocalAuthService {
   async localAuthenticate(
     input: LocalAuthenticateInput,
   ): Promise<AuthSessionResult> {
-    const user = await this.authRepository.findUserByUsername(input.username);
+    const user = await this.usersRepository.findUserByUsername(input.username);
     const isPasswordValid = await verifyPassword(
       input.password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
@@ -134,7 +134,7 @@ export class LocalAuthService {
   async localSignup(
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
-    const existingUser = await this.authRepository.findUserByEmail(input.email);
+    const existingUser = await this.usersRepository.findUserByEmail(input.email);
     await this.usernameService.assertUsernameIsAvailable(
       input.username,
       existingUser?.id,
@@ -196,7 +196,7 @@ export class LocalAuthService {
         );
       }
 
-      const existingUser = await this.authRepository.findUserByEmail(
+      const existingUser = await this.usersRepository.findUserByEmail(
         input.email,
       );
       let verifiedUser: AuthUserRecord;
@@ -208,7 +208,7 @@ export class LocalAuthService {
       );
 
       if (!existingUser) {
-        const createdUser = await this.authRepository.createLocalUser(
+        const createdUser = await this.usersRepository.createLocalUser(
           {
             username: pendingSignup.username,
             email: pendingSignup.email,
@@ -217,7 +217,7 @@ export class LocalAuthService {
           },
           pendingSignup.passwordHash,
         );
-        await this.authRepository.markEmailVerified(createdUser.id);
+        await this.usersRepository.markEmailVerified(createdUser.id);
         verifiedUser = {
           ...createdUser,
           emailVerified: true,
@@ -229,7 +229,7 @@ export class LocalAuthService {
           "Verification code is invalid or has expired.",
         );
       } else {
-        verifiedUser = await this.authRepository.activatePendingLocalUser(
+        verifiedUser = await this.usersRepository.activatePendingLocalUser(
           existingUser.id,
           {
             username: pendingSignup.username,
@@ -288,7 +288,7 @@ export class LocalAuthService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.usersRepository.findUserByEmail(input.email);
 
     if (user && !user.emailVerified) {
       await this.publicOtpService.sendPublicEmailVerificationCode({

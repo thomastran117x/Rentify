@@ -8,7 +8,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { TokenService } from "@/features/auth/token/token.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 
 const RENTER_ID = "renter-1";
 const ORG_ID = "org-1";
@@ -117,7 +117,7 @@ function createService(
         ? PRIMARY_MANAGER_ID
         : options.primaryManagerUserId,
     ),
-  } as unknown as OrganizationsRepository;
+  } as unknown as OrganizationsMembersRepository;
 
   const cacheService = {
     publish: jest.fn(async () => {

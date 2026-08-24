@@ -1,5 +1,5 @@
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 
 /**
@@ -8,7 +8,7 @@ import type { AuthUserRecord } from "@/features/auth/auth.model";
  * error.
  */
 export async function requireExistingUser(
-  authRepository: AuthRepository,
+  authRepository: UsersRepository,
   userId: string,
 ): Promise<AuthUserRecord> {
   const user = await authRepository.findUserById(userId);

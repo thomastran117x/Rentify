@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
+import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type {
   AuthRequestContext,
   AuthSessionResult,
@@ -31,7 +32,8 @@ interface DeviceStatus {
  */
 export class AuthSessionService {
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
+    private readonly tokenRepository: TokenRepository,
     private readonly tokenService: TokenService,
     private readonly deviceService: DeviceService,
   ) {}
@@ -60,7 +62,7 @@ export class AuthSessionService {
     const claims = await this.tokenService.verifyRefreshToken(
       input.refreshToken,
     );
-    const user = await requireExistingUser(this.authRepository, claims.sub);
+    const user = await requireExistingUser(this.usersRepository, claims.sub);
     const deviceId = claims.deviceId ?? input.client.device.id;
     const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
       user,
@@ -146,7 +148,7 @@ export class AuthSessionService {
     if (context.auth.authMethod === "jwt" && context.auth.sessionId) {
       await this.tokenService.revokeSession(context.auth.sessionId);
     } else {
-      await this.authRepository.rotateTokenVersion(context.auth.sub);
+      await this.tokenRepository.rotateTokenVersion(context.auth.sub);
     }
 
     return {

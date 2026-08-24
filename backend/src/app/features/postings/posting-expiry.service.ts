@@ -4,7 +4,7 @@ import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import type { EmailService } from "@/features/email/email.service";
 import { createAuditChanges } from "@/features/organizations/audit/audit.model";
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 import type { PostingExpiryCandidate } from "@/features/postings/postings.model";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -32,7 +32,7 @@ export class PostingExpiryService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly cacheService: CacheService,
     private readonly organizationAuditService: OrganizationAuditService,
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
     private readonly emailService: EmailService,
   ) {}
 
@@ -137,7 +137,7 @@ export class PostingExpiryService {
     candidate: PostingExpiryCandidate,
   ): Promise<void> {
     const recipientId =
-      await this.organizationsRepository.findPrimaryManagerUserId(
+      await this.organizationsMembersRepository.findPrimaryManagerUserId(
         candidate.organizationId,
       );
 

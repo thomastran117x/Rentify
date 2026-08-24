@@ -2,7 +2,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { requireExistingUser } from "@/features/organizations/require-existing-user";
 import {
   requireOrganizationMembershipAccess,
@@ -16,7 +16,8 @@ import type {
   OrganizationRole,
   OrganizationSummary,
 } from "@/features/organizations/organizations.model";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
+import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import type {
   RemoveOrganizationMemberInput,
   SetActiveOrganizationInput,
@@ -27,15 +28,16 @@ import type { OrganizationWorkspaceResult } from "@/features/organizations/profi
 
 export class OrganizationMembersService {
   constructor(
-    private readonly organizationsRepository: OrganizationsRepository,
-    private readonly authRepository: AuthRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
+    private readonly organizationsProfileRepository: OrganizationsProfileRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly organizationAuditService: OrganizationAuditService,
   ) {}
 
   async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
-    const user = await requireExistingUser(this.authRepository, userId);
+    const user = await requireExistingUser(this.usersRepository, userId);
     const memberships =
-      await this.organizationsRepository.listMembershipsByUserId(
+      await this.organizationsMembersRepository.listMembershipsByUserId(
         user.id,
         user.preferredOrganizationId,
       );
@@ -50,11 +52,11 @@ export class OrganizationMembersService {
     input: SetActiveOrganizationInput,
   ): Promise<SetActiveOrganizationResult> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.userId,
       input.organizationId,
     );
-    await this.organizationsRepository.setPreferredOrganization(
+    await this.organizationsProfileRepository.setPreferredOrganization(
       input.userId,
       input.organizationId,
     );
@@ -73,7 +75,7 @@ export class OrganizationMembersService {
     input: UpdateOrganizationMemberInput,
   ): Promise<{ member: OrganizationMemberRecord }> {
     const actorMembership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -84,7 +86,7 @@ export class OrganizationMembersService {
 
     this.assertCanUpdateMemberRole(actorMembership, targetMember, input.role);
 
-    const updated = await this.organizationsRepository.updateMembershipRole(
+    const updated = await this.organizationsMembersRepository.updateMembershipRole(
       targetMember.membershipId,
       input.role,
     );
@@ -111,7 +113,7 @@ export class OrganizationMembersService {
     input: RemoveOrganizationMemberInput,
   ): Promise<{ removed: true; membershipId: string }> {
     const actorMembership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -122,7 +124,7 @@ export class OrganizationMembersService {
 
     this.assertCanRemoveMember(actorMembership, targetMember);
 
-    const removed = await this.organizationsRepository.removeMembership(
+    const removed = await this.organizationsMembersRepository.removeMembership(
       targetMember.membershipId,
     );
 
@@ -131,12 +133,12 @@ export class OrganizationMembersService {
     }
 
     const targetUser = await requireExistingUser(
-      this.authRepository,
+      this.usersRepository,
       targetMember.userId,
     );
 
     if (targetUser.preferredOrganizationId === input.organizationId) {
-      await this.organizationsRepository.setPreferredOrganization(
+      await this.organizationsProfileRepository.setPreferredOrganization(
         targetMember.userId,
         null,
       );
@@ -165,7 +167,7 @@ export class OrganizationMembersService {
     organizationId: string,
     membershipId: string,
   ): Promise<OrganizationMemberRecord> {
-    const member = await this.organizationsRepository.findMemberById(
+    const member = await this.organizationsMembersRepository.findMemberById(
       organizationId,
       membershipId,
     );

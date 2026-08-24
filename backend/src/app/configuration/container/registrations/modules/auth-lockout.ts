@@ -11,14 +11,14 @@ export const authLockoutRegistrationModule: ContainerRegistrationModule = {
       lifetime: "scoped",
       dependencies: [
         containerTokens.cacheService,
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.otpService,
         containerTokens.publicOtpService,
       ],
       resolve: ({ resolve }) =>
         new LoginLockoutService(
           resolve(containerTokens.cacheService),
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.otpService),
           resolve(containerTokens.publicOtpService),
         ),

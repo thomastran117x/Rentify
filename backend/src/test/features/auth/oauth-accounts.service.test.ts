@@ -134,12 +134,14 @@ function createHarness() {
     tokenService,
     service: new OAuthAccountsService(
       authRepository as never,
+      authRepository as never,
       googleOAuthService as never,
       microsoftOAuthService as never,
       appleOAuthService as never,
       usernameBloomService as never,
       mfaTotpService as never,
       new AuthSessionService(
+        authRepository as never,
         authRepository as never,
         tokenService as never,
         deviceService as never,

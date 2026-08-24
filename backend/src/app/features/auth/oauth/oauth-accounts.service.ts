@@ -1,5 +1,6 @@
 import ConflictError from "@/errors/http/conflict.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
+import type { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
 import type {
   AuthSessionResult,
   AuthUserRecord,
@@ -30,7 +31,8 @@ import type { UsernameBloomService } from "@/features/auth/username-bloom/userna
  */
 export class OAuthAccountsService {
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
+    private readonly oauthIdentityRepository: OAuthIdentityRepository,
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly microsoftOAuthService: MicrosoftOAuthService,
     private readonly appleOAuthService: AppleOAuthService,
@@ -63,13 +65,13 @@ export class OAuthAccountsService {
   async linkOAuthProvider(
     input: LinkOAuthProviderInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.authRepository, input.userId);
+    const user = await requireExistingUser(this.usersRepository, input.userId);
     const profile = await this.verifyOAuthInput(input.provider, input);
 
     this.requireVerifiedOAuthProfile(profile);
 
     const existingProviderUser =
-      await this.authRepository.findUserByOAuthIdentity(
+      await this.usersRepository.findUserByOAuthIdentity(
         profile.provider,
         profile.providerUserId,
       );
@@ -89,26 +91,27 @@ export class OAuthAccountsService {
       return this.listLinkedOAuthProvidersForUser(user);
     }
 
-    await this.authRepository.linkOAuthIdentity(user.id, profile);
+    await this.oauthIdentityRepository.linkOAuthIdentity(user.id, profile);
     return this.listLinkedOAuthProvidersForUser({
       ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
-        user.id,
-      ),
+      oauthIdentities:
+        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(
+          user.id,
+        ),
     });
   }
 
   async linkedOAuthProviders(context: {
     userId: string;
   }): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.authRepository, context.userId);
+    const user = await requireExistingUser(this.usersRepository, context.userId);
     return this.listLinkedOAuthProvidersForUser(user);
   }
 
   async unlinkOAuthProvider(
     input: UnlinkOAuthProviderInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.authRepository, input.userId);
+    const user = await requireExistingUser(this.usersRepository, input.userId);
 
     if (
       !user.oauthIdentities.some(
@@ -126,12 +129,16 @@ export class OAuthAccountsService {
       );
     }
 
-    await this.authRepository.unlinkOAuthIdentity(user.id, input.provider);
+    await this.oauthIdentityRepository.unlinkOAuthIdentity(
+      user.id,
+      input.provider,
+    );
     return this.listLinkedOAuthProvidersForUser({
       ...user,
-      oauthIdentities: await this.authRepository.listOAuthIdentitiesByUserId(
-        user.id,
-      ),
+      oauthIdentities:
+        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(
+          user.id,
+        ),
     });
   }
 
@@ -141,7 +148,7 @@ export class OAuthAccountsService {
   ): Promise<AuthSessionResult> {
     this.requireVerifiedOAuthProfile(profile);
 
-    const linkedUser = await this.authRepository.findUserByOAuthIdentity(
+    const linkedUser = await this.usersRepository.findUserByOAuthIdentity(
       profile.provider,
       profile.providerUserId,
     );
@@ -161,13 +168,13 @@ export class OAuthAccountsService {
 
     // Signing in with a provider must not silently take over an address that
     // already has an account: the owner links it from inside that account.
-    if (await this.authRepository.findUserByEmail(profile.email)) {
+    if (await this.usersRepository.findUserByEmail(profile.email)) {
       throw new ConflictError(
         "An account with this email already exists. Sign in with the original method before linking a social provider.",
       );
     }
 
-    const user = await this.authRepository.createOAuthUser(
+    const user = await this.usersRepository.createOAuthUser(
       profile,
       // This callback is a screening hint, not an availability guarantee.
       // `unknown` must remain false or an unavailable filter would reject every

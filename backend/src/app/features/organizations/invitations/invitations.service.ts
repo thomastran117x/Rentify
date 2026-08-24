@@ -2,7 +2,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { EmailService } from "@/features/email/email.service";
 import { requireExistingUser } from "@/features/organizations/require-existing-user";
 import { requireOrganizationMembershipAccess } from "@/features/organizations/organization-membership-access";
@@ -19,8 +19,10 @@ import {
 } from "@/features/organizations/organizations.model";
 import type {
   OrganizationInviteAccessRecord,
-  OrganizationsRepository,
-} from "@/features/organizations/organizations.repository";
+  OrganizationsInvitationsRepository,
+} from "@/features/organizations/invitations/invitations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
+import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import type {
   AcceptOrganizationInviteInput,
   AcceptOrganizationInviteResult,
@@ -35,8 +37,10 @@ const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class OrganizationInvitationsService {
   constructor(
-    private readonly organizationsRepository: OrganizationsRepository,
-    private readonly authRepository: AuthRepository,
+    private readonly organizationsInvitationsRepository: OrganizationsInvitationsRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
+    private readonly organizationsProfileRepository: OrganizationsProfileRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly emailService: EmailService,
     private readonly organizationAuditService: OrganizationAuditService,
   ) {}
@@ -45,17 +49,18 @@ export class OrganizationInvitationsService {
     input: CreateOrganizationInviteInput,
   ): Promise<CreateOrganizationInviteResult> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
     const email = normalizeOrganizationInvitationEmail(input.email);
     assertCanInvite(membership.role, input.role);
 
-    const existingMember = await this.organizationsRepository.findMemberByEmail(
-      input.organizationId,
-      email,
-    );
+    const existingMember =
+      await this.organizationsMembersRepository.findMemberByEmail(
+        input.organizationId,
+        email,
+      );
 
     if (existingMember) {
       throw new ConflictError(
@@ -64,7 +69,7 @@ export class OrganizationInvitationsService {
     }
 
     const token = createInviteToken();
-    const invitation = await this.organizationsRepository.reissueInvitation({
+    const invitation = await this.organizationsInvitationsRepository.reissueInvitation({
       organizationId: input.organizationId,
       invitedByUserId: input.actorUserId,
       email,
@@ -103,7 +108,7 @@ export class OrganizationInvitationsService {
     input: RevokeOrganizationInviteInput,
   ): Promise<CreateOrganizationInviteResult> {
     const membership = await requireOrganizationMembershipAccess(
-      this.organizationsRepository,
+      this.organizationsMembersRepository,
       input.actorUserId,
       input.organizationId,
     );
@@ -115,7 +120,7 @@ export class OrganizationInvitationsService {
     invitation = await this.ensureInvitationExpiry(invitation);
     this.assertCanRevokeInvitation(membership.role, invitation);
 
-    const revoked = await this.organizationsRepository.revokeInvitation(
+    const revoked = await this.organizationsInvitationsRepository.revokeInvitation(
       invitation.id,
       new Date(),
     );
@@ -149,7 +154,7 @@ export class OrganizationInvitationsService {
     invitation = await this.ensureInvitationExpiry(invitation);
 
     const user = input.userId
-      ? await this.authRepository.findUserById(input.userId)
+      ? await this.usersRepository.findUserById(input.userId)
       : null;
     const normalizedViewerEmail = user?.email?.trim().toLowerCase();
     const matchesEmail =
@@ -181,7 +186,7 @@ export class OrganizationInvitationsService {
   async acceptInvitation(
     input: AcceptOrganizationInviteInput,
   ): Promise<AcceptOrganizationInviteResult> {
-    const user = await requireExistingUser(this.authRepository, input.userId);
+    const user = await requireExistingUser(this.usersRepository, input.userId);
 
     if (!user.emailVerified) {
       throw new ForbiddenError(
@@ -200,7 +205,7 @@ export class OrganizationInvitationsService {
 
     if (invitation.status === "accepted") {
       const existingMember =
-        await this.organizationsRepository.findMemberByUserId(
+        await this.organizationsMembersRepository.findMemberByUserId(
           invitation.organization.id,
           user.id,
         );
@@ -212,7 +217,7 @@ export class OrganizationInvitationsService {
       }
 
       const memberships =
-        await this.organizationsRepository.listMembershipsByUserId(
+        await this.organizationsMembersRepository.listMembershipsByUserId(
           user.id,
           user.preferredOrganizationId,
         );
@@ -243,7 +248,7 @@ export class OrganizationInvitationsService {
     }
 
     const { invitation: acceptedInvitation, membership } =
-      await this.organizationsRepository.acceptInvitation({
+      await this.organizationsInvitationsRepository.acceptInvitation({
         invitationId: invitation.id,
         organizationId: invitation.organization.id,
         userId: user.id,
@@ -252,14 +257,14 @@ export class OrganizationInvitationsService {
       });
 
     if (!user.preferredOrganizationId) {
-      await this.organizationsRepository.setPreferredOrganization(
+      await this.organizationsProfileRepository.setPreferredOrganization(
         user.id,
         invitation.organization.id,
       );
     }
 
     const memberships =
-      await this.organizationsRepository.listMembershipsByUserId(
+      await this.organizationsMembersRepository.listMembershipsByUserId(
         user.id,
         user.preferredOrganizationId ?? invitation.organization.id,
       );
@@ -324,10 +329,11 @@ export class OrganizationInvitationsService {
 
     await Promise.all(
       expiredInvitations.map(async (invitation) => {
-        const expired = await this.organizationsRepository.expireInvitation(
-          invitation.id,
-          new Date(),
-        );
+        const expired =
+          await this.organizationsInvitationsRepository.expireInvitation(
+            invitation.id,
+            new Date(),
+          );
         const expiredInvitation = expired ?? {
           ...invitation,
           status: "expired" as const,
@@ -376,7 +382,7 @@ export class OrganizationInvitationsService {
     organizationId: string,
     invitationId: string,
   ) {
-    const invitation = await this.organizationsRepository.findInvitationById(
+    const invitation = await this.organizationsInvitationsRepository.findInvitationById(
       organizationId,
       invitationId,
     );
@@ -392,7 +398,7 @@ export class OrganizationInvitationsService {
 
   private async requireInvitationByToken(token: string) {
     const invitation =
-      await this.organizationsRepository.findInvitationByTokenHash(
+      await this.organizationsInvitationsRepository.findInvitationByTokenHash(
         hashInviteToken(token),
       );
 
@@ -412,10 +418,11 @@ export class OrganizationInvitationsService {
       invitation.status === "pending" &&
       new Date(invitation.expiresAt).getTime() <= Date.now()
     ) {
-      const expired = await this.organizationsRepository.expireInvitation(
-        invitation.id,
-        new Date(),
-      );
+      const expired =
+        await this.organizationsInvitationsRepository.expireInvitation(
+          invitation.id,
+          new Date(),
+        );
 
       const expiredInvitation = expired
         ? {

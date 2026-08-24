@@ -34,7 +34,7 @@ import type { BookingMessagesRepository } from "@/features/bookings/messages/boo
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
 
 /**
@@ -53,7 +53,7 @@ export class BookingMessagesService {
     private readonly bookingMessagesRepository: BookingMessagesRepository,
     private readonly bookingsRepository: BookingsRepository,
     private readonly organizationAccessService: OrganizationAccessService,
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsMembersRepository: OrganizationsMembersRepository,
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
     private readonly tokenService: TokenService,
@@ -491,7 +491,7 @@ export class BookingMessagesService {
     try {
       const recipientId =
         authorSide === "renter"
-          ? await this.organizationsRepository.findPrimaryManagerUserId(
+          ? await this.organizationsMembersRepository.findPrimaryManagerUserId(
               bookingRequest.organizationId,
             )
           : bookingRequest.renterId;

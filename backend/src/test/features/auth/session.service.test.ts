@@ -100,6 +100,7 @@ function createHarness() {
     deviceService,
     service: new AuthSessionService(
       authRepository as never,
+      authRepository as never,
       tokenService as never,
       deviceService as never,
     ),

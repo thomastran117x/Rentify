@@ -1,5 +1,5 @@
 import ConflictError from "@/errors/http/conflict.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { USERNAME_REMINDER_RATE_LIMIT_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
@@ -15,7 +15,7 @@ import type {
  */
 export class UsernameService {
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly usernameBloomService: UsernameBloomService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
@@ -37,7 +37,7 @@ export class UsernameService {
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
     const existingUserId =
-      await this.authRepository.findUserIdByUsername(normalizedUsername);
+      await this.usersRepository.findUserIdByUsername(normalizedUsername);
 
     if (existingUserId && existingUserId !== allowedUserId) {
       return {
@@ -140,7 +140,7 @@ export class UsernameService {
       };
     }
 
-    const user = await this.authRepository.findUserByEmail(input.email);
+    const user = await this.usersRepository.findUserByEmail(input.email);
 
     if (user) {
       await this.publicOtpService.sendUsernameReminder(user);

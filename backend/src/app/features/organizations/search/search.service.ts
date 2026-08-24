@@ -4,7 +4,7 @@ import type {
   OrganizationSearchDocument,
   OrganizationSearchOutboxRecord,
 } from "@/features/organizations/organizations.model";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsSearchRepository } from "@/features/organizations/search/search.repository";
 import type { OrganizationsSearchIndexService } from "@/features/organizations/search/index.service";
 import type {
   CleanupRetainedSearchIndicesResult,
@@ -73,7 +73,7 @@ export class OrganizationsSearchService {
   private readonly logger: Logger;
 
   constructor(
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsSearchRepository: OrganizationsSearchRepository,
     private readonly organizationsSearchIndexService: OrganizationsSearchIndexService,
     private readonly searchQueueService: SearchQueueService,
   ) {
@@ -81,7 +81,7 @@ export class OrganizationsSearchService {
   }
 
   async startReindex(): Promise<SearchReindexRunRecord> {
-    const run = await this.organizationsRepository.withSearchReindexStartLock(
+    const run = await this.organizationsSearchRepository.withSearchReindexStartLock(
       async ({ findActiveSearchReindexRun, createSearchReindexRun }) => {
         const activeRun = await findActiveSearchReindexRun();
 
@@ -107,14 +107,14 @@ export class OrganizationsSearchService {
   }
 
   async getReindexRun(id: string): Promise<SearchReindexRunRecord | null> {
-    return this.organizationsRepository.findSearchReindexRunById(id);
+    return this.organizationsSearchRepository.findSearchReindexRunById(id);
   }
 
   async replayDeadLetteredOutbox(
     limit: number,
   ): Promise<ReplayDeadLetteredSearchOutboxResult> {
     const revived =
-      await this.organizationsRepository.reviveDeadLetteredSearchOutbox(limit);
+      await this.organizationsSearchRepository.reviveDeadLetteredSearchOutbox(limit);
 
     return {
       revived,
@@ -135,7 +135,7 @@ export class OrganizationsSearchService {
       ...aliasStatus.writeTargets,
     ]);
     const runs =
-      await this.organizationsRepository.listCompletedSearchReindexRunsWithRetainedIndices();
+      await this.organizationsSearchRepository.listCompletedSearchReindexRunsWithRetainedIndices();
     let deleted = 0;
 
     for (const run of runs) {
@@ -146,7 +146,7 @@ export class OrganizationsSearchService {
       }
 
       await this.organizationsSearchIndexService.deleteConcreteIndex(indexName);
-      await this.organizationsRepository.clearSearchReindexRunRetainedIndexName(
+      await this.organizationsSearchRepository.clearSearchReindexRunRetainedIndexName(
         run.id,
       );
       deleted += 1;
@@ -166,9 +166,9 @@ export class OrganizationsSearchService {
       queueInspection,
     ] = await Promise.all([
       this.readAliasHealth(),
-      this.organizationsRepository.findActiveSearchReindexRun(),
-      this.organizationsRepository.findLatestSearchReindexRun(),
-      this.organizationsRepository.getSearchOutboxLagMetrics(),
+      this.organizationsSearchRepository.findActiveSearchReindexRun(),
+      this.organizationsSearchRepository.findLatestSearchReindexRun(),
+      this.organizationsSearchRepository.getSearchOutboxLagMetrics(),
       this.organizationsSearchIndexService.isElasticsearchEnabled()
         ? this.searchQueueService
             .getQueueCounts()
@@ -248,7 +248,7 @@ export class OrganizationsSearchService {
     await this.searchQueueService.ensureTopology();
 
     const jobs =
-      await this.organizationsRepository.claimSearchOutboxBatch(limit);
+      await this.organizationsSearchRepository.claimSearchOutboxBatch(limit);
     const relayJobs = this.coalesceRelayJobs(jobs);
 
     for (const relayJob of relayJobs) {
@@ -271,18 +271,18 @@ export class OrganizationsSearchService {
       if (!publishedToBroker) {
         try {
           const errorMessage = publishError ?? "Unknown relay error.";
-          await this.organizationsRepository.releaseSearchOutboxClaims(
+          await this.organizationsSearchRepository.releaseSearchOutboxClaims(
             relayJob.supersededIds,
             errorMessage,
           );
 
           if (job.publishAttempts + 1 >= maxPublishAttempts) {
-            await this.organizationsRepository.markSearchOutboxDeadLettered(
+            await this.organizationsSearchRepository.markSearchOutboxDeadLettered(
               job.id,
               errorMessage,
             );
           } else {
-            await this.organizationsRepository.markSearchOutboxPublishRetry(
+            await this.organizationsSearchRepository.markSearchOutboxPublishRetry(
               job.id,
               job.publishAttempts + 1,
               errorMessage,
@@ -302,7 +302,7 @@ export class OrganizationsSearchService {
       }
 
       try {
-        await this.organizationsRepository.markSearchOutboxRelayed(
+        await this.organizationsSearchRepository.markSearchOutboxRelayed(
           job.id,
           relayJob.supersededIds,
           job.id,
@@ -310,7 +310,7 @@ export class OrganizationsSearchService {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown relay state error.";
-        await this.organizationsRepository.releaseSearchOutboxClaims(
+        await this.organizationsSearchRepository.releaseSearchOutboxClaims(
           claimedIds,
           errorMessage,
         );
@@ -332,7 +332,7 @@ export class OrganizationsSearchService {
     payload: SearchIndexJobPayload,
     maxAttempts: number,
   ): Promise<void> {
-    const job = await this.organizationsRepository.getSearchOutboxById(
+    const job = await this.organizationsSearchRepository.getSearchOutboxById(
       payload.outboxId,
     );
 
@@ -341,7 +341,7 @@ export class OrganizationsSearchService {
     }
 
     if (job.operation === "barrier") {
-      await this.organizationsRepository.markSearchOutboxIndexed(job.id);
+      await this.organizationsSearchRepository.markSearchOutboxIndexed(job.id);
       return;
     }
 
@@ -350,9 +350,9 @@ export class OrganizationsSearchService {
         throw new Error("Search outbox job is missing an organization id.");
       }
 
-      if (await this.organizationsRepository.hasNewerSearchOutboxJob(job)) {
+      if (await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)) {
         this.logStaleOutboxJob(job);
-        await this.organizationsRepository.markSearchOutboxIndexed(job.id);
+        await this.organizationsSearchRepository.markSearchOutboxIndexed(job.id);
         return;
       }
 
@@ -363,7 +363,7 @@ export class OrganizationsSearchService {
         );
       } else {
         const documents =
-          await this.organizationsRepository.findByIdsForIndexing([
+          await this.organizationsSearchRepository.findByIdsForIndexing([
             job.organizationId,
           ]);
         const document = documents[0];
@@ -381,7 +381,7 @@ export class OrganizationsSearchService {
         }
       }
 
-      await this.organizationsRepository.markSearchOutboxIndexed(job.id);
+      await this.organizationsSearchRepository.markSearchOutboxIndexed(job.id);
     } catch (error) {
       await this.handleIndexJobFailure(job, payload, maxAttempts, error);
     }
@@ -398,7 +398,7 @@ export class OrganizationsSearchService {
     const uniquePayloads = Array.from(
       new Map(payloads.map((payload) => [payload.outboxId, payload])).values(),
     );
-    const jobs = await this.organizationsRepository.getSearchOutboxesByIds(
+    const jobs = await this.organizationsSearchRepository.getSearchOutboxesByIds(
       uniquePayloads.map((payload) => payload.outboxId),
     );
     const jobsById = new Map(jobs.map((job) => [job.id, job]));
@@ -424,7 +424,7 @@ export class OrganizationsSearchService {
           throw new Error("Search outbox job is missing an organization id.");
         }
 
-        if (await this.organizationsRepository.hasNewerSearchOutboxJob(job)) {
+        if (await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)) {
           this.logStaleOutboxJob(job);
           immediateIndexIds.push(job.id);
           continue;
@@ -448,12 +448,12 @@ export class OrganizationsSearchService {
     }
 
     if (immediateIndexIds.length > 0) {
-      await this.organizationsRepository.markSearchOutboxesIndexed(
+      await this.organizationsSearchRepository.markSearchOutboxesIndexed(
         immediateIndexIds,
       );
     }
 
-    const documents = await this.organizationsRepository.findByIdsForIndexing(
+    const documents = await this.organizationsSearchRepository.findByIdsForIndexing(
       upsertCandidates.map(({ job }) => job.organizationId!).filter(Boolean),
     );
     const documentsById = new Map(
@@ -499,7 +499,7 @@ export class OrganizationsSearchService {
             group.documents,
             targetIndexName,
           );
-          await this.organizationsRepository.markSearchOutboxesIndexed(
+          await this.organizationsSearchRepository.markSearchOutboxesIndexed(
             group.entries.map(({ job }) => job.id),
           );
         } catch (error) {
@@ -523,7 +523,7 @@ export class OrganizationsSearchService {
             Array.from(new Set(group.ids)),
             targetIndexName,
           );
-          await this.organizationsRepository.markSearchOutboxesIndexed(
+          await this.organizationsSearchRepository.markSearchOutboxesIndexed(
             group.entries.map(({ job }) => job.id),
           );
         } catch (error) {
@@ -549,7 +549,7 @@ export class OrganizationsSearchService {
     await this.organizationsSearchIndexService.ensureLiveIndex();
     await this.searchQueueService.ensureTopology();
 
-    const run = await this.organizationsRepository.claimNextSearchReindexRun();
+    const run = await this.organizationsSearchRepository.claimNextSearchReindexRun();
 
     if (!run) {
       return 0;
@@ -563,12 +563,12 @@ export class OrganizationsSearchService {
 
       if (run.status === "waiting_for_catchup") {
         const catchUpState =
-          await this.organizationsRepository.getSearchReindexCatchUpState(
+          await this.organizationsSearchRepository.getSearchReindexCatchUpState(
             run.id,
           );
 
         if (catchUpState.state === "waiting") {
-          await this.organizationsRepository.clearSearchReindexRunProcessing(
+          await this.organizationsSearchRepository.clearSearchReindexRunProcessing(
             run.id,
           );
           return 1;
@@ -579,7 +579,7 @@ export class OrganizationsSearchService {
         }
 
         const previousCompletedRun =
-          await this.organizationsRepository.findLatestCompletedSearchReindexRun();
+          await this.organizationsSearchRepository.findLatestCompletedSearchReindexRun();
         const { previousReadTargets, previousWriteTargets } =
           await this.organizationsSearchIndexService.swapAliases(
             run.targetIndexName,
@@ -589,7 +589,7 @@ export class OrganizationsSearchService {
           ...previousWriteTargets,
         ].find((index) => index !== run.targetIndexName);
 
-        await this.organizationsRepository.markSearchReindexRunCompleted(
+        await this.organizationsSearchRepository.markSearchReindexRunCompleted(
           run.id,
           retainedIndexName,
         );
@@ -604,7 +604,7 @@ export class OrganizationsSearchService {
       return 1;
     } catch (error) {
       if (this.isTransientReindexError(error)) {
-        await this.organizationsRepository.clearSearchReindexRunProcessing(
+        await this.organizationsSearchRepository.clearSearchReindexRunProcessing(
           run.id,
         );
         this.logger.warn(
@@ -618,7 +618,7 @@ export class OrganizationsSearchService {
         return 0;
       }
 
-      await this.organizationsRepository.markSearchReindexRunFailed(
+      await this.organizationsSearchRepository.markSearchReindexRunFailed(
         run.id,
         error instanceof Error ? error.message : "Unknown reindex error.",
       );
@@ -644,10 +644,10 @@ export class OrganizationsSearchService {
         run.targetIndexName,
       );
       const totalOrganizations =
-        await this.organizationsRepository.countOrganizationsForIndexing(
+        await this.organizationsSearchRepository.countOrganizationsForIndexing(
           run.sourceSnapshotAt,
         );
-      await this.organizationsRepository.markSearchReindexRunRunning(
+      await this.organizationsSearchRepository.markSearchReindexRunRunning(
         run.id,
         totalOrganizations,
       );
@@ -657,7 +657,7 @@ export class OrganizationsSearchService {
     let indexedOrganizations = 0;
 
     while (true) {
-      const documents = await this.organizationsRepository.listForIndexingBatch(
+      const documents = await this.organizationsSearchRepository.listForIndexingBatch(
         batchSize,
         cursorId,
         run.sourceSnapshotAt,
@@ -671,21 +671,21 @@ export class OrganizationsSearchService {
         documents,
         REINDEX_HEARTBEAT_BULK_CHUNK_SIZE,
       )) {
-        await this.organizationsRepository.touchSearchReindexRunProcessing(
+        await this.organizationsSearchRepository.touchSearchReindexRunProcessing(
           run.id,
         );
         await this.organizationsSearchIndexService.bulkUpsertDocuments(
           chunk,
           run.targetIndexName,
         );
-        await this.organizationsRepository.touchSearchReindexRunProcessing(
+        await this.organizationsSearchRepository.touchSearchReindexRunProcessing(
           run.id,
         );
       }
       indexedOrganizations += documents.length;
       cursorId = documents[documents.length - 1]?.id;
 
-      await this.organizationsRepository.updateSearchReindexRunProgress(
+      await this.organizationsSearchRepository.updateSearchReindexRunProgress(
         run.id,
         {
           indexedDocuments: indexedOrganizations,
@@ -693,7 +693,7 @@ export class OrganizationsSearchService {
       );
     }
 
-    await this.organizationsRepository.enqueueSearchReindexBarrier(
+    await this.organizationsSearchRepository.enqueueSearchReindexBarrier(
       run.id,
       run.targetIndexName,
     );
@@ -706,7 +706,7 @@ export class OrganizationsSearchService {
 
     await this.organizationsSearchIndexService.ensureLiveIndex();
     const documents =
-      await this.organizationsRepository.listRecentForIndexReconciliation(
+      await this.organizationsSearchRepository.listRecentForIndexReconciliation(
         limit,
       );
 
@@ -884,7 +884,7 @@ export class OrganizationsSearchService {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown indexing error.";
     const attempt =
-      await this.organizationsRepository.incrementSearchOutboxAttempt(
+      await this.organizationsSearchRepository.incrementSearchOutboxAttempt(
         job.id,
         errorMessage,
       );
@@ -909,7 +909,7 @@ export class OrganizationsSearchService {
         throw publishError;
       }
 
-      await this.organizationsRepository.markSearchOutboxDeadLettered(
+      await this.organizationsSearchRepository.markSearchOutboxDeadLettered(
         job.id,
         errorMessage,
       );
@@ -1017,7 +1017,7 @@ export class OrganizationsSearchService {
       await this.organizationsSearchIndexService.deleteConcreteIndex(
         previousRetainedIndexName,
       );
-      await this.organizationsRepository.clearSearchReindexRunRetainedIndexName(
+      await this.organizationsSearchRepository.clearSearchReindexRunRetainedIndexName(
         previousCompletedRun.id,
       );
     } catch (error) {

@@ -1,5 +1,5 @@
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 
 describe("requireExistingUser", () => {
@@ -7,7 +7,7 @@ describe("requireExistingUser", () => {
     const user = { id: "user-1" };
     const authRepository = {
       findUserById: jest.fn().mockResolvedValue(user),
-    } as unknown as AuthRepository;
+    } as unknown as UsersRepository;
 
     await expect(requireExistingUser(authRepository, "user-1")).resolves.toBe(
       user,
@@ -18,7 +18,7 @@ describe("requireExistingUser", () => {
   it("throws when the token outlives the account row", async () => {
     const authRepository = {
       findUserById: jest.fn().mockResolvedValue(null),
-    } as unknown as AuthRepository;
+    } as unknown as UsersRepository;
 
     await expect(
       requireExistingUser(authRepository, "user-gone"),

@@ -10,14 +10,14 @@ export const authUsernameRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.usernameService,
       lifetime: "scoped",
       dependencies: [
-        containerTokens.authRepository,
+        containerTokens.authUsersRepository,
         containerTokens.usernameBloomService,
         containerTokens.pendingSignupStore,
         containerTokens.publicOtpService,
       ],
       resolve: ({ resolve }) =>
         new UsernameService(
-          resolve(containerTokens.authRepository),
+          resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.usernameBloomService),
           resolve(containerTokens.pendingSignupStore),
           resolve(containerTokens.publicOtpService),

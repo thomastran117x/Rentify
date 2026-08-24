@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { OrganizationsInvitationsRepository } from "@/features/organizations/invitations/invitations.repository";
 import { OrganizationInvitationsService } from "@/features/organizations/invitations/invitations.service";
 import { OrganizationInvitationsController } from "@/features/organizations/invitations/invitations.controller";
 
@@ -8,18 +9,28 @@ export const organizationsInvitationsRegistrationModule: ContainerRegistrationMo
     id: "organizations-invitations",
     register(container) {
       container.register({
+        token: containerTokens.organizationsInvitationsRepository,
+        lifetime: "singleton",
+        dependencies: [],
+        resolve: () => new OrganizationsInvitationsRepository(),
+      });
+      container.register({
         token: containerTokens.organizationInvitationsService,
         lifetime: "scoped",
         dependencies: [
-          containerTokens.organizationsRepository,
-          containerTokens.authRepository,
+          containerTokens.organizationsInvitationsRepository,
+          containerTokens.organizationsMembersRepository,
+          containerTokens.organizationsProfileRepository,
+          containerTokens.authUsersRepository,
           containerTokens.emailService,
           containerTokens.organizationAuditService,
         ],
         resolve: ({ resolve }) =>
           new OrganizationInvitationsService(
-            resolve(containerTokens.organizationsRepository),
-            resolve(containerTokens.authRepository),
+            resolve(containerTokens.organizationsInvitationsRepository),
+            resolve(containerTokens.organizationsMembersRepository),
+            resolve(containerTokens.organizationsProfileRepository),
+            resolve(containerTokens.authUsersRepository),
             resolve(containerTokens.emailService),
             resolve(containerTokens.organizationAuditService),
           ),

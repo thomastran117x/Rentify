@@ -1,4 +1,4 @@
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthRequestContext } from "@/features/auth/auth.model";
 import { DeviceService } from "@/features/auth/device/device.service";
 import { TokenService } from "@/features/auth/token/token.service";
@@ -17,14 +17,14 @@ import type {
  */
 export class DeviceManagementService {
   constructor(
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly deviceService: DeviceService,
     private readonly tokenService: TokenService,
   ) {}
 
   async deviceVerify(context: AuthRequestContext): Promise<DeviceVerifyResult> {
     const user = await requireExistingUser(
-      this.authRepository,
+      this.usersRepository,
       context.auth.sub,
     );
     const deviceStatus = await this.deviceService.registerKnownDevice(

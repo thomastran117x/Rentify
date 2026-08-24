@@ -6,11 +6,11 @@ import { ZodError } from "zod";
 import { RequestValidationError } from "@/configuration/validation/request";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
-import type { AuthRepository } from "@/features/auth/auth.repository";
+import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
-import type { OrganizationsRepository } from "@/features/organizations/organizations.repository";
+import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { createAuditChanges } from "@/features/organizations/audit/audit.model";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import {
@@ -86,9 +86,9 @@ export class PostingsService {
     private readonly cacheService: CacheService,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly organizationAccessService: OrganizationAccessService,
-    private readonly authRepository: AuthRepository,
+    private readonly usersRepository: UsersRepository,
     private readonly organizationAuditService: OrganizationAuditService,
-    private readonly organizationsRepository: OrganizationsRepository,
+    private readonly organizationsProfileRepository: OrganizationsProfileRepository,
   ) {
     this.logger = loggerFactory.forClass(PostingsService, "service");
   }
@@ -859,7 +859,7 @@ export class PostingsService {
     // which organization they want (org profile links, result-card chips).
     if (input.organizationId) {
       const matches =
-        await this.organizationsRepository.findOrganizationSummariesByIds([
+        await this.organizationsProfileRepository.findOrganizationSummariesByIds([
           input.organizationId,
         ]);
 
@@ -872,7 +872,7 @@ export class PostingsService {
     }
 
     const { matches, truncated } =
-      await this.organizationsRepository.findOrganizationNameMatches(
+      await this.organizationsProfileRepository.findOrganizationNameMatches(
         organizationQuery ?? "",
         MAX_SEARCH_ORGANIZATION_MATCHES,
       );
@@ -1906,7 +1906,7 @@ export class PostingsService {
   private async requireActiveMembership(
     userId: string,
   ): Promise<AuthUserOrganizationMembershipRecord> {
-    const user = await this.authRepository.findUserById(userId);
+    const user = await this.usersRepository.findUserById(userId);
 
     if (!user) {
       throw new ResourceNotFoundError("User could not be found.");
