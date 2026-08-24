@@ -94,7 +94,9 @@ export class OrganizationProfileService {
       organizationId,
     );
     let detail =
-      await this.organizationsProfileRepository.findOrganizationDetail(organizationId);
+      await this.organizationsProfileRepository.findOrganizationDetail(
+        organizationId,
+      );
 
     if (!detail) {
       throw new ResourceNotFoundError("Organization could not be found.");
@@ -202,12 +204,14 @@ export class OrganizationProfileService {
       );
 
       try {
-        return await this.organizationsProfileRepository.createOrganizationWithOwner({
-          name: input.name,
-          slug: candidate,
-          ownerUserId: input.ownerUserId,
-          ...input.profile,
-        });
+        return await this.organizationsProfileRepository.createOrganizationWithOwner(
+          {
+            name: input.name,
+            slug: candidate,
+            ownerUserId: input.ownerUserId,
+            ...input.profile,
+          },
+        );
       } catch (error) {
         if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
@@ -219,19 +223,21 @@ export class OrganizationProfileService {
     // random suffix.
     for (let attempt = 0; attempt < CREATE_SLUG_ATTEMPTS; attempt += 1) {
       try {
-        return await this.organizationsProfileRepository.createOrganizationWithOwner({
-          name: input.name,
-          slug: toRouteSafeSlug(
-            withSuffix(
-              base,
-              `-${generateShortSlugSuffix()}`,
+        return await this.organizationsProfileRepository.createOrganizationWithOwner(
+          {
+            name: input.name,
+            slug: toRouteSafeSlug(
+              withSuffix(
+                base,
+                `-${generateShortSlugSuffix()}`,
+                ORGANIZATION_SLUG_MAX_LENGTH,
+              ),
               ORGANIZATION_SLUG_MAX_LENGTH,
             ),
-            ORGANIZATION_SLUG_MAX_LENGTH,
-          ),
-          ownerUserId: input.ownerUserId,
-          ...input.profile,
-        });
+            ownerUserId: input.ownerUserId,
+            ...input.profile,
+          },
+        );
       } catch (error) {
         if (!(error instanceof OrganizationSlugTakenError)) {
           throw error;
@@ -253,13 +259,14 @@ export class OrganizationProfileService {
     const beforeSnapshot = membership.organization;
     const profile = pickOrganizationProfileInput(input);
     this.organizationLogoService.assertLogoInput(input.actorUserId, profile);
-    const updated = await this.organizationsProfileRepository.updateOrganization(
-      input.organizationId,
-      {
-        name: input.name.trim(),
-        ...profile,
-      },
-    );
+    const updated =
+      await this.organizationsProfileRepository.updateOrganization(
+        input.organizationId,
+        {
+          name: input.name.trim(),
+          ...profile,
+        },
+      );
     const afterSnapshot = {
       ...beforeSnapshot,
       ...updated,
@@ -311,7 +318,8 @@ export class OrganizationProfileService {
    * Map a public URL slug (current or retired) onto an organization.
    */
   async resolveBySlug(slug: string): Promise<ResolvedOrganizationReference> {
-    const resolved = await this.organizationsProfileRepository.resolveBySlug(slug);
+    const resolved =
+      await this.organizationsProfileRepository.resolveBySlug(slug);
 
     if (!resolved) {
       throw new ResourceNotFoundError("Organization could not be found.");
@@ -357,17 +365,19 @@ export class OrganizationProfileService {
     //
     // This read is for a clear error message only; the reservation's primary key
     // is what actually enforces it.
-    const existing = await this.organizationsProfileRepository.resolveBySlug(nextSlug);
+    const existing =
+      await this.organizationsProfileRepository.resolveBySlug(nextSlug);
     if (existing) {
       throw new ConflictError("That organization URL is already taken.");
     }
 
     let updated;
     try {
-      updated = await this.organizationsProfileRepository.changeOrganizationSlug({
-        organizationId: input.organizationId,
-        nextSlug,
-      });
+      updated =
+        await this.organizationsProfileRepository.changeOrganizationSlug({
+          organizationId: input.organizationId,
+          nextSlug,
+        });
     } catch (error) {
       if (error instanceof OrganizationSlugTakenError) {
         throw new ConflictError("That organization URL is already taken.");

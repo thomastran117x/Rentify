@@ -357,15 +357,12 @@ export const containerTokens = {
   authOAuthIdentityRepository: createServiceToken<OAuthIdentityRepository>(
     "OAuthIdentityRepository",
   ),
-  authTokenRepository:
-    createServiceToken<TokenRepository>("TokenRepository"),
-  authPasswordRepository: createServiceToken<PasswordRepository>(
-    "PasswordRepository",
+  authTokenRepository: createServiceToken<TokenRepository>("TokenRepository"),
+  authPasswordRepository:
+    createServiceToken<PasswordRepository>("PasswordRepository"),
+  authMfaVerificationRepository: createServiceToken<MfaVerificationRepository>(
+    "MfaVerificationRepository",
   ),
-  authMfaVerificationRepository:
-    createServiceToken<MfaVerificationRepository>(
-      "MfaVerificationRepository",
-    ),
   personalAccessTokenRepository:
     createServiceToken<PersonalAccessTokenRepository>(
       "PersonalAccessTokenRepository",

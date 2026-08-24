@@ -859,9 +859,9 @@ export class PostingsService {
     // which organization they want (org profile links, result-card chips).
     if (input.organizationId) {
       const matches =
-        await this.organizationsProfileRepository.findOrganizationSummariesByIds([
-          input.organizationId,
-        ]);
+        await this.organizationsProfileRepository.findOrganizationSummariesByIds(
+          [input.organizationId],
+        );
 
       return {
         ...(organizationQuery ? { query: organizationQuery } : {}),

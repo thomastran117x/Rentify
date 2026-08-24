@@ -134,7 +134,9 @@ export class LocalAuthService {
   async localSignup(
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
-    const existingUser = await this.usersRepository.findUserByEmail(input.email);
+    const existingUser = await this.usersRepository.findUserByEmail(
+      input.email,
+    );
     await this.usernameService.assertUsernameIsAvailable(
       input.username,
       existingUser?.id,

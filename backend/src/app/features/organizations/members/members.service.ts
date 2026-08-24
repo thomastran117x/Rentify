@@ -86,10 +86,11 @@ export class OrganizationMembersService {
 
     this.assertCanUpdateMemberRole(actorMembership, targetMember, input.role);
 
-    const updated = await this.organizationsMembersRepository.updateMembershipRole(
-      targetMember.membershipId,
-      input.role,
-    );
+    const updated =
+      await this.organizationsMembersRepository.updateMembershipRole(
+        targetMember.membershipId,
+        input.role,
+      );
 
     await this.organizationAuditService.recordSafely({
       organizationId: input.organizationId,

@@ -62,9 +62,10 @@ export class OrganizationsPublicSearchService {
     input: ListPublicOrganizationsInput,
   ): Promise<PublicOrganizationListResult> {
     let searchIds = await this.searchIdsWithFallback(input);
-    let organizations = await this.organizationsPublicSearchRepository.batchFindPublicByIds(
-      searchIds.ids,
-    );
+    let organizations =
+      await this.organizationsPublicSearchRepository.batchFindPublicByIds(
+        searchIds.ids,
+      );
 
     if (
       searchIds.source === "elasticsearch" &&
@@ -74,9 +75,10 @@ export class OrganizationsPublicSearchService {
         "Organization search falling back to database because Elasticsearch returned stale ids.",
       );
       searchIds = await this.searchIdsFromDatabase(input, "index-drift");
-      organizations = await this.organizationsPublicSearchRepository.batchFindPublicByIds(
-        searchIds.ids,
-      );
+      organizations =
+        await this.organizationsPublicSearchRepository.batchFindPublicByIds(
+          searchIds.ids,
+        );
     }
 
     return {
@@ -302,7 +304,9 @@ export class OrganizationsPublicSearchService {
   ): Promise<SearchIdsResult> {
     recordSearchFallback(reason);
     const fallback =
-      await this.organizationsPublicSearchRepository.searchPublicFallback(input);
+      await this.organizationsPublicSearchRepository.searchPublicFallback(
+        input,
+      );
 
     return {
       ...fallback,

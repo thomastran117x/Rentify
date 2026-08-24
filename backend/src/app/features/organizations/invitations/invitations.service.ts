@@ -69,15 +69,16 @@ export class OrganizationInvitationsService {
     }
 
     const token = createInviteToken();
-    const invitation = await this.organizationsInvitationsRepository.reissueInvitation({
-      organizationId: input.organizationId,
-      invitedByUserId: input.actorUserId,
-      email,
-      role: input.role,
-      tokenHash: hashInviteToken(token),
-      expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
-      now: new Date(),
-    });
+    const invitation =
+      await this.organizationsInvitationsRepository.reissueInvitation({
+        organizationId: input.organizationId,
+        invitedByUserId: input.actorUserId,
+        email,
+        role: input.role,
+        tokenHash: hashInviteToken(token),
+        expiresAt: new Date(Date.now() + ORGANIZATION_INVITE_TTL_MS),
+        now: new Date(),
+      });
 
     await this.emailService.sendOrganizationInviteEmail({
       to: email,
@@ -120,10 +121,11 @@ export class OrganizationInvitationsService {
     invitation = await this.ensureInvitationExpiry(invitation);
     this.assertCanRevokeInvitation(membership.role, invitation);
 
-    const revoked = await this.organizationsInvitationsRepository.revokeInvitation(
-      invitation.id,
-      new Date(),
-    );
+    const revoked =
+      await this.organizationsInvitationsRepository.revokeInvitation(
+        invitation.id,
+        new Date(),
+      );
 
     if (!revoked) {
       throw new ConflictError("This invitation can no longer be revoked.");
@@ -382,10 +384,11 @@ export class OrganizationInvitationsService {
     organizationId: string,
     invitationId: string,
   ) {
-    const invitation = await this.organizationsInvitationsRepository.findInvitationById(
-      organizationId,
-      invitationId,
-    );
+    const invitation =
+      await this.organizationsInvitationsRepository.findInvitationById(
+        organizationId,
+        invitationId,
+      );
 
     if (!invitation) {
       throw new ResourceNotFoundError(

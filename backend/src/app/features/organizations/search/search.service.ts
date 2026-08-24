@@ -81,21 +81,22 @@ export class OrganizationsSearchService {
   }
 
   async startReindex(): Promise<SearchReindexRunRecord> {
-    const run = await this.organizationsSearchRepository.withSearchReindexStartLock(
-      async ({ findActiveSearchReindexRun, createSearchReindexRun }) => {
-        const activeRun = await findActiveSearchReindexRun();
+    const run =
+      await this.organizationsSearchRepository.withSearchReindexStartLock(
+        async ({ findActiveSearchReindexRun, createSearchReindexRun }) => {
+          const activeRun = await findActiveSearchReindexRun();
 
-        if (activeRun) {
-          throw new ConflictError(
-            "An organization search reindex run is already active.",
+          if (activeRun) {
+            throw new ConflictError(
+              "An organization search reindex run is already active.",
+            );
+          }
+
+          return createSearchReindexRun(
+            this.organizationsSearchIndexService.buildVersionedIndexName(),
           );
-        }
-
-        return createSearchReindexRun(
-          this.organizationsSearchIndexService.buildVersionedIndexName(),
-        );
-      },
-    );
+        },
+      );
 
     if (!run) {
       throw new ConflictError(
@@ -114,7 +115,9 @@ export class OrganizationsSearchService {
     limit: number,
   ): Promise<ReplayDeadLetteredSearchOutboxResult> {
     const revived =
-      await this.organizationsSearchRepository.reviveDeadLetteredSearchOutbox(limit);
+      await this.organizationsSearchRepository.reviveDeadLetteredSearchOutbox(
+        limit,
+      );
 
     return {
       revived,
@@ -350,9 +353,13 @@ export class OrganizationsSearchService {
         throw new Error("Search outbox job is missing an organization id.");
       }
 
-      if (await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)) {
+      if (
+        await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)
+      ) {
         this.logStaleOutboxJob(job);
-        await this.organizationsSearchRepository.markSearchOutboxIndexed(job.id);
+        await this.organizationsSearchRepository.markSearchOutboxIndexed(
+          job.id,
+        );
         return;
       }
 
@@ -398,9 +405,10 @@ export class OrganizationsSearchService {
     const uniquePayloads = Array.from(
       new Map(payloads.map((payload) => [payload.outboxId, payload])).values(),
     );
-    const jobs = await this.organizationsSearchRepository.getSearchOutboxesByIds(
-      uniquePayloads.map((payload) => payload.outboxId),
-    );
+    const jobs =
+      await this.organizationsSearchRepository.getSearchOutboxesByIds(
+        uniquePayloads.map((payload) => payload.outboxId),
+      );
     const jobsById = new Map(jobs.map((job) => [job.id, job]));
     const immediateIndexIds: string[] = [];
     const fallbackPayloads: SearchIndexJobPayload[] = [];
@@ -424,7 +432,9 @@ export class OrganizationsSearchService {
           throw new Error("Search outbox job is missing an organization id.");
         }
 
-        if (await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)) {
+        if (
+          await this.organizationsSearchRepository.hasNewerSearchOutboxJob(job)
+        ) {
           this.logStaleOutboxJob(job);
           immediateIndexIds.push(job.id);
           continue;
@@ -453,9 +463,10 @@ export class OrganizationsSearchService {
       );
     }
 
-    const documents = await this.organizationsSearchRepository.findByIdsForIndexing(
-      upsertCandidates.map(({ job }) => job.organizationId!).filter(Boolean),
-    );
+    const documents =
+      await this.organizationsSearchRepository.findByIdsForIndexing(
+        upsertCandidates.map(({ job }) => job.organizationId!).filter(Boolean),
+      );
     const documentsById = new Map(
       documents.map((document) => [document.id, document]),
     );
@@ -549,7 +560,8 @@ export class OrganizationsSearchService {
     await this.organizationsSearchIndexService.ensureLiveIndex();
     await this.searchQueueService.ensureTopology();
 
-    const run = await this.organizationsSearchRepository.claimNextSearchReindexRun();
+    const run =
+      await this.organizationsSearchRepository.claimNextSearchReindexRun();
 
     if (!run) {
       return 0;
@@ -657,11 +669,12 @@ export class OrganizationsSearchService {
     let indexedOrganizations = 0;
 
     while (true) {
-      const documents = await this.organizationsSearchRepository.listForIndexingBatch(
-        batchSize,
-        cursorId,
-        run.sourceSnapshotAt,
-      );
+      const documents =
+        await this.organizationsSearchRepository.listForIndexingBatch(
+          batchSize,
+          cursorId,
+          run.sourceSnapshotAt,
+        );
 
       if (documents.length === 0) {
         break;

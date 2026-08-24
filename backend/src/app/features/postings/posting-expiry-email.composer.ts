@@ -80,7 +80,9 @@ export class PostingExpiryEmailComposer {
       return null;
     }
 
-    const recipient = await this.usersRepository.findUserById(input.recipientId);
+    const recipient = await this.usersRepository.findUserById(
+      input.recipientId,
+    );
 
     if (!recipient?.email) {
       return null;

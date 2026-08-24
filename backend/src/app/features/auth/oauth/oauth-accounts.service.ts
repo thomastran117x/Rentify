@@ -95,16 +95,17 @@ export class OAuthAccountsService {
     return this.listLinkedOAuthProvidersForUser({
       ...user,
       oauthIdentities:
-        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(
-          user.id,
-        ),
+        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(user.id),
     });
   }
 
   async linkedOAuthProviders(context: {
     userId: string;
   }): Promise<LinkedOAuthProvidersResult> {
-    const user = await requireExistingUser(this.usersRepository, context.userId);
+    const user = await requireExistingUser(
+      this.usersRepository,
+      context.userId,
+    );
     return this.listLinkedOAuthProvidersForUser(user);
   }
 
@@ -136,9 +137,7 @@ export class OAuthAccountsService {
     return this.listLinkedOAuthProvidersForUser({
       ...user,
       oauthIdentities:
-        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(
-          user.id,
-        ),
+        await this.oauthIdentityRepository.listOAuthIdentitiesByUserId(user.id),
     });
   }
 
