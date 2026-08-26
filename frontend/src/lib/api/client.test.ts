@@ -782,8 +782,9 @@ describe("api client", () => {
         ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { hasRefreshCookieHint, refreshStoredSession } =
-      await import("./client");
+    const { hasRefreshCookieHint, refreshStoredSession } = await import(
+      "./client"
+    );
     expect(hasRefreshCookieHint()).toBe(false);
     await expect(refreshStoredSession()).resolves.toMatchObject({
       accessToken: "new",

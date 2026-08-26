@@ -586,7 +586,9 @@ export type EquipmentPostingDetails = z.infer<
 >;
 export type VehiclePostingDetails = z.infer<typeof vehiclePostingDetailsSchema>;
 export type PostingDetails =
-  PlacePostingDetails | EquipmentPostingDetails | VehiclePostingDetails;
+  | PlacePostingDetails
+  | EquipmentPostingDetails
+  | VehiclePostingDetails;
 export type PostingPhotoInput = z.infer<typeof postingPhotoSchema>;
 export interface ManagedPostingPhotoInput extends PostingPhotoInput {
   thumbnailBlobUrl?: string;
@@ -653,7 +655,10 @@ export type AvailabilityCalendarQuery = z.infer<
 >;
 
 export type AvailabilityDayStatus =
-  "available" | "blocked" | "booked" | "unavailable";
+  | "available"
+  | "blocked"
+  | "booked"
+  | "unavailable";
 
 export interface AvailabilityCalendarDay {
   status: AvailabilityDayStatus;
@@ -767,10 +772,8 @@ export interface PostingRecord {
   updatedAt: string;
 }
 
-export interface PublicPostingRecord extends Omit<
-  PostingRecord,
-  "location" | "organizationId"
-> {
+export interface PublicPostingRecord
+  extends Omit<PostingRecord, "location" | "organizationId"> {
   location: PublicPostingLocationRecord;
   organization?: PublicPostingOrganizationSummary;
   primaryPhotoUrl?: string;

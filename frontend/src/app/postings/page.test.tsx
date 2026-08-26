@@ -249,8 +249,9 @@ describe("PostingsPage", () => {
   ])(
     "renders categorized search failures",
     async (debug, title, description) => {
-      const { PublicPostingSearchError } =
-        await import("@/lib/postings/search");
+      const { PublicPostingSearchError } = await import(
+        "@/lib/postings/search"
+      );
       searchMock.mockRejectedValue(
         new PublicPostingSearchError("Denied", {
           requestUrl: "/postings",

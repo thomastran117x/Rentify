@@ -3179,8 +3179,9 @@ export class PostingsRepository extends BaseRepository {
           block.bookingRequestHold.holdExpiresAt.getTime() > now
         );
       })
-      .map((block): PostingAvailabilityBlockRecord =>
-        this.mapAvailabilityBlock(block),
+      .map(
+        (block): PostingAvailabilityBlockRecord =>
+          this.mapAvailabilityBlock(block),
       );
 
     return {
@@ -3195,16 +3196,18 @@ export class PostingsRepository extends BaseRepository {
       description: posting.description,
       pricing,
       pricingCurrency: posting.pricingCurrency,
-      photos: posting.photos.map((photo): PostingPhotoRecord => ({
-        id: photo.id,
-        blobUrl: photo.blobUrl,
-        blobName: photo.blobName,
-        thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
-        thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
-        position: photo.position,
-        createdAt: photo.createdAt.toISOString(),
-        updatedAt: photo.updatedAt.toISOString(),
-      })),
+      photos: posting.photos.map(
+        (photo): PostingPhotoRecord => ({
+          id: photo.id,
+          blobUrl: photo.blobUrl,
+          blobName: photo.blobName,
+          thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
+          thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
+          position: photo.position,
+          createdAt: photo.createdAt.toISOString(),
+          updatedAt: photo.updatedAt.toISOString(),
+        }),
+      ),
       tags,
       details,
       availabilityStatus:
