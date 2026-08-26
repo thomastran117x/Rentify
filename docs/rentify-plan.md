@@ -56,6 +56,7 @@ The best first release is a focused marketplace MVP with a strong backend and we
 - Listing creation and management
 - Image upload and media storage
 - Search and filters
+- Saved searches with email alerts on new matches
 - Booking request workflow
 - Direct messaging between renter and owner
 - Availability and scheduling basics
@@ -72,7 +73,6 @@ The best first release is a focused marketplace MVP with a strong backend and we
 - Advanced calendar sync
 - Dynamic pricing and discounts
 - Multi-language support
-- Saved searches and favorites
 - Smart recommendations
 - Dispute resolution center
 - Tax invoices and financial reporting

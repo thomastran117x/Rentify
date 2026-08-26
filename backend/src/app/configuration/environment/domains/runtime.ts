@@ -372,6 +372,35 @@ export function buildWorkerConfig(
         },
       ),
     },
+    savedSearchAlert: {
+      // Saved searches are a "tell me within a few minutes" concern, not a
+      // real-time one, and every pass replays real searches against
+      // Elasticsearch — polling harder would cost more than it buys.
+      pollIntervalMs: parseNumber(
+        raw,
+        "SAVED_SEARCH_ALERT_POLL_INTERVAL_MS",
+        300_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      batchSize: parseNumber(raw, "SAVED_SEARCH_ALERT_BATCH_SIZE", 25, errors, {
+        integer: true,
+        min: 1,
+      }),
+      dailyIntervalHours: parseNumber(
+        raw,
+        "SAVED_SEARCH_ALERT_DAILY_INTERVAL_HOURS",
+        24,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
     paymentsRetry: {
       pollIntervalMs: parseNumber(
         raw,

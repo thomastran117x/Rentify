@@ -5,10 +5,15 @@ import {
   SEED_POSTING_REVIEWS,
   SEED_POSTING_VIEW_EVENTS,
   SEED_SAVED_POSTINGS,
+  SEED_SAVED_SEARCHES,
 } from "@/seeds/fixtures/activity";
 import { SEED_BOOKINGS } from "@/seeds/fixtures/bookings";
 import { SEED_POSTINGS } from "@/seeds/fixtures/postings";
 import type { SeedModule } from "@/seeds/types";
+import {
+  hashSavedSearchParams,
+  savedSearchQueryParamsSchema,
+} from "@/features/postings/saved-searches/saved-searches.model";
 
 function startOfDay(date: Date): Date {
   return new Date(
@@ -40,6 +45,7 @@ export const activitySeedModule: SeedModule = {
   name: "activity",
   async run({ logger, prisma, state }) {
     const postingIds = SEED_POSTINGS.map((posting) => posting.id);
+    let seenPostingRowIndex = 1;
 
     await prisma.postingReview.deleteMany({
       where: {
@@ -52,6 +58,13 @@ export const activitySeedModule: SeedModule = {
       where: {
         postingId: {
           in: postingIds,
+        },
+      },
+    });
+    await prisma.savedSearch.deleteMany({
+      where: {
+        id: {
+          in: SEED_SAVED_SEARCHES.map((search) => search.id),
         },
       },
     });
@@ -133,6 +146,52 @@ export const activitySeedModule: SeedModule = {
           createdAt: new Date(saved.createdAt),
         },
       });
+    }
+
+    for (const search of SEED_SAVED_SEARCHES) {
+      const userId = state.userIdsByEmail.get(search.userEmail);
+
+      if (!userId) {
+        throw new Error(`Missing seeded user for saved search ${search.id}.`);
+      }
+
+      // Parsed rather than cast: a fixture carrying a filter the search no
+      // longer supports should fail the seed loudly, not write a row that the
+      // sweep will later have to retire as invalid.
+      const queryParams = savedSearchQueryParamsSchema.parse(
+        search.queryParams,
+      );
+      const createdAt = new Date(search.createdAt);
+
+      await prisma.savedSearch.create({
+        data: {
+          id: search.id,
+          userId,
+          name: search.name,
+          queryParams,
+          queryHash: hashSavedSearchParams(queryParams),
+          notifyFrequency: search.notifyFrequency,
+          nextCheckAt:
+            search.notifyFrequency === "off"
+              ? null
+              : new Date(Date.now() + 60_000),
+          newMatchCount: search.newMatchCount ?? 0,
+          createdAt,
+          updatedAt: createdAt,
+        },
+      });
+
+      for (const postingId of search.seenPostingIds ?? []) {
+        await prisma.savedSearchSeenPosting.create({
+          data: {
+            id: createFixtureId(4410, seenPostingRowIndex),
+            savedSearchId: search.id,
+            postingId,
+            createdAt,
+          },
+        });
+        seenPostingRowIndex += 1;
+      }
     }
 
     const reviewedOrganizationIds = new Set<string>();

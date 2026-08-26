@@ -41,6 +41,7 @@ import {
   postingsPublicRouteModule,
   postingsReviewsRouteModule,
   postingsSavedRouteModule,
+  postingsSavedSearchesRouteModule,
   postingsSeasonalPricingRouteModule,
 } from "@/configuration/bootstrap/routes/modules/postings.routes";
 import {
@@ -91,6 +92,10 @@ export const routeModuleRegistry: RouteModule[] = [
   postingsAvailabilityRouteModule,
   postingsSeasonalPricingRouteModule,
   postingsActivityRouteModule,
+  // Must stay ahead of postingsSavedRouteModule and postingsPublicRouteModule:
+  // it owns the deepest static /postings/saved/searches paths, which both
+  // /postings/saved/:id-shaped routes and /postings/:id would otherwise match.
+  postingsSavedSearchesRouteModule,
   // Must stay ahead of postingsPublicRouteModule: it owns the static
   // /postings/saved paths that /postings/:id would otherwise match.
   postingsSavedRouteModule,

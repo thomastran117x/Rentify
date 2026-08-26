@@ -47,6 +47,31 @@ describe("api client", () => {
     vi.unstubAllGlobals();
   });
 
+  it("resolves a 204 without demanding a data envelope", async () => {
+    // 204 is bodiless by definition. Insisting on an envelope made every
+    // endpoint that answers 204 look like a protocol failure to its caller,
+    // so a delete that had actually succeeded got rolled back in the UI.
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { authenticatedJson } = await import("./client");
+
+    await expect(
+      authenticatedJson<void>("DELETE", "/postings/saved/searches/search-1"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still rejects a 200 that carries no envelope", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { authenticatedJson } = await import("./client");
+
+    await expect(
+      authenticatedJson<{ ok: true }>("GET", "/secure"),
+    ).rejects.toThrow();
+  });
+
   it("builds repeated query params for arrays", async () => {
     const { buildPathWithQuery } = await import("./client");
 
@@ -757,9 +782,8 @@ describe("api client", () => {
         ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { hasRefreshCookieHint, refreshStoredSession } = await import(
-      "./client"
-    );
+    const { hasRefreshCookieHint, refreshStoredSession } =
+      await import("./client");
     expect(hasRefreshCookieHint()).toBe(false);
     await expect(refreshStoredSession()).resolves.toMatchObject({
       accessToken: "new",

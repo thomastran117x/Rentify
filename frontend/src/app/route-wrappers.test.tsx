@@ -6,6 +6,7 @@ import ModerationPage from "./moderation/page";
 import BookingsPage from "./bookings/page";
 import PostingCreatePage from "./postings/create/page";
 import SavedPostingsPage from "./saved/page";
+import SavedSearchesPage from "./saved/searches/page";
 import RentingDetailPage from "./rentings/[id]/page";
 import DashboardPostingDetailPage from "./dashboard/postings/[id]/page";
 import OrganizationInviteRoute from "./organizations/invitations/[token]/page";
@@ -27,6 +28,9 @@ vi.mock("@/components/postings/posting-management-workspace", () => ({
 }));
 vi.mock("@/components/postings/saved-postings-workspace", () => ({
   SavedPostingsWorkspace: () => <div>Saved postings</div>,
+}));
+vi.mock("@/components/postings/saved-searches-workspace", () => ({
+  SavedSearchesWorkspace: () => <div>Saved searches</div>,
 }));
 vi.mock("@/components/rentings/renting-detail-client", () => ({
   RentingDetailClient: ({ rentingId }: { rentingId: string }) => (
@@ -56,6 +60,7 @@ describe("app route wrappers", () => {
     [BookingsPage, "Bookings dashboard"],
     [PostingCreatePage, "Posting workspace"],
     [SavedPostingsPage, "Saved postings"],
+    [SavedSearchesPage, "Saved searches"],
   ])("renders %s through its page wrapper", (Page, content) => {
     render(<Page />);
     expect(screen.getByText(content)).toBeInTheDocument();

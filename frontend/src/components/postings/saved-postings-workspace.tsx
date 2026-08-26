@@ -9,6 +9,7 @@ import { useErrorToast } from "@/components/errors";
 import { PostingResultCard } from "@/components/postings/posting-result-card";
 import { SavePostingButton } from "@/components/postings/save-posting-button";
 import { useSavedPostings } from "@/components/postings/saved-postings-context";
+import { SavedTabs } from "@/components/postings/saved-tabs";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { Pagination as PaginationMeta } from "@/lib/api/types";
 import {
@@ -47,6 +48,9 @@ function PageHeading() {
         Postings you hearted while browsing. They stay here across every device
         you sign in on.
       </p>
+      <div className="mt-5">
+        <SavedTabs active="postings" />
+      </div>
     </header>
   );
 }

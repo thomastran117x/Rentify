@@ -172,6 +172,10 @@ export class EnvironmentManager {
     return this.get().workers.postingExpiry;
   }
 
+  getSavedSearchAlertWorkerConfig(): AppEnvironment["workers"]["savedSearchAlert"] {
+    return this.get().workers.savedSearchAlert;
+  }
+
   getPaymentsRetryWorkerConfig(): AppEnvironment["workers"]["paymentsRetry"] {
     return this.get().workers.paymentsRetry;
   }

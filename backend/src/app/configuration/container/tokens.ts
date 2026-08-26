@@ -126,6 +126,11 @@ import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.r
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import { SavedPostingsRepository } from "@/features/postings/saved/saved-postings.repository";
 import { SavedPostingsService } from "@/features/postings/saved/saved-postings.service";
+import { SavedSearchAlertService } from "@/features/postings/saved-searches/saved-search-alert.service";
+import { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
+import { SavedSearchesController } from "@/features/postings/saved-searches/saved-searches.controller";
+import { SavedSearchesRepository } from "@/features/postings/saved-searches/saved-searches.repository";
+import { SavedSearchesService } from "@/features/postings/saved-searches/saved-searches.service";
 import { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import { SeasonalPricingService } from "@/features/postings/seasonal-pricing/seasonal-pricing.service";
 import { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -502,6 +507,21 @@ export const containerTokens = {
   ),
   savedPostingsService: createServiceToken<SavedPostingsService>(
     "SavedPostingsService",
+  ),
+  savedSearchesRepository: createServiceToken<SavedSearchesRepository>(
+    "SavedSearchesRepository",
+  ),
+  savedSearchesService: createServiceToken<SavedSearchesService>(
+    "SavedSearchesService",
+  ),
+  savedSearchesController: createServiceToken<SavedSearchesController>(
+    "SavedSearchesController",
+  ),
+  savedSearchAlertService: createServiceToken<SavedSearchAlertService>(
+    "SavedSearchAlertService",
+  ),
+  savedSearchEmailComposer: createServiceToken<SavedSearchEmailComposer>(
+    "SavedSearchEmailComposer",
   ),
   seasonalPricingRepository: createServiceToken<SeasonalPricingRepository>(
     "SeasonalPricingRepository",

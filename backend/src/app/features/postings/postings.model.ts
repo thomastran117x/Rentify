@@ -441,6 +441,93 @@ export const listOwnerPostingsQuerySchema = z
   })
   .strict();
 
+/**
+ * Every filter the public search understands, without the presentation
+ * parameters (`page`, `pageSize`, `sort`).
+ *
+ * Split out so saved searches can be validated against exactly the filter set
+ * the live endpoint accepts. A filter added here is savable the same day it
+ * ships; one that is removed makes the stored searches carrying it fail to
+ * parse, which the sweep reports as invalidated rather than silently ignoring.
+ */
+export const publicSearchPostingsFilterShape = {
+  q: z.string().trim().min(1).max(120).optional(),
+  organization: z.string().trim().min(1).max(160).optional(),
+  // `guid`, not `uuid`: identifiers are stored as VarChar(36) and are not
+  // required to be RFC 4122 compliant. Zod's `uuid()` additionally asserts
+  // the version and variant bits, which rejects every deterministic seeded
+  // id (`00000000-0000-0000-1040-000000000016` and friends) and made the
+  // organization filter unusable against seeded data.
+  organizationId: z.guid().optional(),
+  family: postingFamilySchema.optional(),
+  subtype: postingSubtypeSchema.optional(),
+  tags: z.array(postingTagSchema).max(20).optional(),
+  availabilityStatus: postingAvailabilityStatusSchema.optional(),
+  minDailyPrice: z.coerce.number().finite().nonnegative().optional(),
+  maxDailyPrice: z.coerce.number().finite().nonnegative().optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  radiusKm: z.coerce.number().positive().max(20_000).optional(),
+  startAt: z
+    .string()
+    .datetime("Search start time must be an ISO datetime.")
+    .optional(),
+  endAt: z
+    .string()
+    .datetime("Search end time must be an ISO datetime.")
+    .optional(),
+  cancellationPolicy: postingCancellationPolicySchema.optional(),
+  instantBooking: z.coerce.boolean().optional(),
+  maxMinBookingDurationDays: z.coerce.number().int().min(1).optional(),
+} as const;
+
+/**
+ * Cross-field rules that hold for any consumer of the filter shape, so the
+ * search endpoint and saved searches cannot drift apart on them.
+ */
+export function refinePublicSearchPostingsFilters(
+  query: {
+    startAt?: string;
+    endAt?: string;
+    latitude?: number;
+    longitude?: number;
+    radiusKm?: number;
+  },
+  context: z.RefinementCtx,
+): void {
+  if ((query.startAt === undefined) !== (query.endAt === undefined)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["startAt"],
+      message: "startAt and endAt must be provided together.",
+    });
+  }
+
+  const hasLatitude = query.latitude !== undefined;
+  const hasLongitude = query.longitude !== undefined;
+
+  if (hasLatitude !== hasLongitude) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["latitude"],
+      message: "latitude and longitude must be provided together.",
+    });
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["longitude"],
+      message: "latitude and longitude must be provided together.",
+    });
+  }
+
+  if (query.radiusKm !== undefined && (!hasLatitude || !hasLongitude)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["radiusKm"],
+      message: "radiusKm requires both latitude and longitude.",
+    });
+  }
+}
+
 export const publicSearchPostingsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
@@ -450,70 +537,11 @@ export const publicSearchPostingsQuerySchema = z
       .min(1)
       .max(MAX_PAGE_SIZE)
       .default(DEFAULT_PAGE_SIZE),
-    q: z.string().trim().min(1).max(120).optional(),
-    organization: z.string().trim().min(1).max(160).optional(),
-    // `guid`, not `uuid`: identifiers are stored as VarChar(36) and are not
-    // required to be RFC 4122 compliant. Zod's `uuid()` additionally asserts
-    // the version and variant bits, which rejects every deterministic seeded
-    // id (`00000000-0000-0000-1040-000000000016` and friends) and made the
-    // organization filter unusable against seeded data.
-    organizationId: z.guid().optional(),
-    family: postingFamilySchema.optional(),
-    subtype: postingSubtypeSchema.optional(),
-    tags: z.array(postingTagSchema).max(20).optional(),
-    availabilityStatus: postingAvailabilityStatusSchema.optional(),
-    minDailyPrice: z.coerce.number().finite().nonnegative().optional(),
-    maxDailyPrice: z.coerce.number().finite().nonnegative().optional(),
-    latitude: z.coerce.number().min(-90).max(90).optional(),
-    longitude: z.coerce.number().min(-180).max(180).optional(),
-    radiusKm: z.coerce.number().positive().max(20_000).optional(),
-    startAt: z
-      .string()
-      .datetime("Search start time must be an ISO datetime.")
-      .optional(),
-    endAt: z
-      .string()
-      .datetime("Search end time must be an ISO datetime.")
-      .optional(),
+    ...publicSearchPostingsFilterShape,
     sort: postingSortSchema.default("relevance"),
-    cancellationPolicy: postingCancellationPolicySchema.optional(),
-    instantBooking: z.coerce.boolean().optional(),
-    maxMinBookingDurationDays: z.coerce.number().int().min(1).optional(),
   })
   .strict()
-  .superRefine((query, context) => {
-    if ((query.startAt === undefined) !== (query.endAt === undefined)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["startAt"],
-        message: "startAt and endAt must be provided together.",
-      });
-    }
-
-    const hasLatitude = query.latitude !== undefined;
-    const hasLongitude = query.longitude !== undefined;
-
-    if (hasLatitude !== hasLongitude) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["latitude"],
-        message: "latitude and longitude must be provided together.",
-      });
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["longitude"],
-        message: "latitude and longitude must be provided together.",
-      });
-    }
-
-    if (query.radiusKm !== undefined && (!hasLatitude || !hasLongitude)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["radiusKm"],
-        message: "radiusKm requires both latitude and longitude.",
-      });
-    }
-  });
+  .superRefine(refinePublicSearchPostingsFilters);
 
 export const publicAutocompletePostingsQuerySchema = z
   .object({
@@ -558,9 +586,7 @@ export type EquipmentPostingDetails = z.infer<
 >;
 export type VehiclePostingDetails = z.infer<typeof vehiclePostingDetailsSchema>;
 export type PostingDetails =
-  | PlacePostingDetails
-  | EquipmentPostingDetails
-  | VehiclePostingDetails;
+  PlacePostingDetails | EquipmentPostingDetails | VehiclePostingDetails;
 export type PostingPhotoInput = z.infer<typeof postingPhotoSchema>;
 export interface ManagedPostingPhotoInput extends PostingPhotoInput {
   thumbnailBlobUrl?: string;
@@ -627,10 +653,7 @@ export type AvailabilityCalendarQuery = z.infer<
 >;
 
 export type AvailabilityDayStatus =
-  | "available"
-  | "blocked"
-  | "booked"
-  | "unavailable";
+  "available" | "blocked" | "booked" | "unavailable";
 
 export interface AvailabilityCalendarDay {
   status: AvailabilityDayStatus;
@@ -744,8 +767,10 @@ export interface PostingRecord {
   updatedAt: string;
 }
 
-export interface PublicPostingRecord
-  extends Omit<PostingRecord, "location" | "organizationId"> {
+export interface PublicPostingRecord extends Omit<
+  PostingRecord,
+  "location" | "organizationId"
+> {
   location: PublicPostingLocationRecord;
   organization?: PublicPostingOrganizationSummary;
   primaryPhotoUrl?: string;

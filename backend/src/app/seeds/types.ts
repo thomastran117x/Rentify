@@ -328,6 +328,26 @@ export interface SeedSavedPostingFixture {
   createdAt: string;
 }
 
+export interface SeedSavedSearchFixture {
+  id: string;
+  userEmail: string;
+  name: string;
+  /**
+   * The stored browse filters, validated against
+   * `savedSearchQueryParamsSchema` by the seed module before they are written.
+   */
+  queryParams: Record<string, unknown>;
+  notifyFrequency: "instant" | "daily" | "off";
+  createdAt: string;
+  /**
+   * Postings this search should start out having already alerted on. Leaving a
+   * live match out of this list is how a seeded search demonstrates the
+   * new-match badge without the sweep having to run.
+   */
+  seenPostingIds?: string[];
+  newMatchCount?: number;
+}
+
 export interface SeedOrganizationReviewFixture {
   id: string;
   ownerEmail: string;

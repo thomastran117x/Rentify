@@ -30,6 +30,7 @@ model User {
   profile       Profile?
   postingReviews PostingReview[] @relation("PostingReviewAuthor")
   savedPostings SavedPosting[] @relation("SavedPostingUser")
+  savedSearches SavedSearch[] @relation("SavedSearchUser")
   bookingRequestsAsRenter BookingRequest[] @relation("BookingRequestRenter")
   bookingMessages BookingMessage[] @relation("BookingMessageAuthor")
   rentingsAsRenter Renting[] @relation("RentingRenter")
@@ -440,6 +441,7 @@ model Posting {
   analyticsOutboxEntries PostingAnalyticsOutbox[]
   reviews           PostingReview[]
   savedBy           SavedPosting[]
+  savedSearchSeenBy SavedSearchSeenPosting[]
   seasonalPricing   PostingSeasonalPricing[]
   bookingRequests   BookingRequest[]
   rentings          Renting[]
@@ -1073,6 +1075,54 @@ model SavedPosting {
   @@map("saved_postings")
 }
 
+/// A filter set a visitor asked to be told about. `queryParams` holds the
+/// validated public search input minus page/pageSize/sort; the zod schema on
+/// the search endpoint stays the schema of record, and `invalidatedAt` marks
+/// rows that stop parsing against it after a filter change.
+model SavedSearch {
+  id              String                      @id @db.VarChar(36)
+  userId          String                      @map("user_id") @db.VarChar(36)
+  name            String                      @db.VarChar(120)
+  queryParams     Json                        @map("query_params")
+  /// sha256 over the canonicalised params. Unique per user so pressing save
+  /// twice on the same filters updates nothing instead of piling up copies.
+  queryHash       String                      @map("query_hash") @db.Char(64)
+  notifyFrequency SavedSearchNotifyFrequency  @default(instant) @map("notify_frequency")
+  /// Null exactly when notifyFrequency is `off`, which keeps the worker's
+  /// claim index free of searches that never alert.
+  nextCheckAt     DateTime?                   @map("next_check_at") @db.DateTime(6)
+  lastCheckedAt   DateTime?                   @map("last_checked_at") @db.DateTime(6)
+  lastNotifiedAt  DateTime?                   @map("last_notified_at") @db.DateTime(6)
+  newMatchCount   Int                         @default(0) @map("new_match_count")
+  invalidatedAt   DateTime?                   @map("invalidated_at") @db.DateTime(6)
+  createdAt       DateTime                    @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime                    @updatedAt @map("updated_at") @db.DateTime(6)
+  user            User                        @relation("SavedSearchUser", fields: [userId], references: [id], onDelete: Cascade)
+  seenPostings    SavedSearchSeenPosting[]
+
+  @@unique([userId, queryHash])
+  @@index([userId, createdAt])
+  @@index([notifyFrequency, nextCheckAt])
+  @@map("saved_searches")
+}
+
+/// Postings a saved search has already alerted on. Tracking the set rather
+/// than a published-after cutoff is what lets an unpaused listing, or one that
+/// frees up inside the search's date window, still count as a new match.
+model SavedSearchSeenPosting {
+  id            String      @id @db.VarChar(36)
+  savedSearchId String      @map("saved_search_id") @db.VarChar(36)
+  postingId     String      @map("posting_id") @db.VarChar(36)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.DateTime(6)
+  savedSearch   SavedSearch @relation(fields: [savedSearchId], references: [id], onDelete: Cascade)
+  posting       Posting     @relation(fields: [postingId], references: [id], onDelete: Cascade)
+
+  @@unique([savedSearchId, postingId], map: "saved_search_seen_postings_search_posting_key")
+  @@index([savedSearchId, createdAt], map: "saved_search_seen_postings_search_created_idx")
+  @@index([postingId])
+  @@map("saved_search_seen_postings")
+}
+
 model Feedback {
   id        String           @id @db.VarChar(36)
   userId    String?          @map("user_id") @db.VarChar(36)
@@ -1296,6 +1346,12 @@ enum PostingStatus {
   published
   paused
   archived
+}
+
+enum SavedSearchNotifyFrequency {
+  instant
+  daily
+  off
 }
 
 enum FeedbackCategory {
