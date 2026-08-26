@@ -40,6 +40,7 @@ function createDependencies(
     repository?: Record<string, unknown>;
     publicCache?: Record<string, unknown>;
     users?: Record<string, unknown>;
+    postings?: Record<string, unknown>;
   } = {},
 ) {
   const savedSearchesRepository = {
@@ -52,6 +53,13 @@ function createDependencies(
       missingIds: [],
     })),
     ...overrides.publicCache,
+  };
+  const postingsService = {
+    searchPublic: jest.fn(async () => ({
+      postings: [createPosting("posting-1")],
+      pagination: { hasNextPage: false },
+    })),
+    ...overrides.postings,
   };
   const usersRepository = {
     findUserById: jest.fn(async () => ({
@@ -67,10 +75,12 @@ function createDependencies(
     savedSearchesRepository,
     postingsPublicCacheService,
     usersRepository,
+    postingsService,
     composer: new SavedSearchEmailComposer(
       savedSearchesRepository as never,
       postingsPublicCacheService as never,
       usersRepository as never,
+      postingsService as never,
     ),
   };
 }
@@ -166,6 +176,42 @@ describe("SavedSearchEmailComposer", () => {
     await expect(composer.compose(composeInput)).resolves.toBeNull();
   });
 
+  it("drops a posting that is still public but no longer matches the filters", async () => {
+    // A job waiting behind a retry has had time for a posting to change price,
+    // tags or policy. Still visible is not the same as still matching.
+    const { composer } = createDependencies({
+      publicCache: {
+        getPublicByIds: jest.fn(async () => ({
+          postings: [createPosting("posting-1"), createPosting("posting-2")],
+          missingIds: [],
+        })),
+      },
+      postings: {
+        searchPublic: jest.fn(async () => ({
+          postings: [{ id: "posting-2" }],
+          pagination: { hasNextPage: false },
+        })),
+      },
+    });
+
+    const content = await composer.compose(composeInput);
+
+    expect(content?.matches.map((match) => match.id)).toEqual(["posting-2"]);
+  });
+
+  it("skips the email when nothing carried by the job still matches", async () => {
+    const { composer } = createDependencies({
+      postings: {
+        searchPublic: jest.fn(async () => ({
+          postings: [],
+          pagination: { hasNextPage: false },
+        })),
+      },
+    });
+
+    await expect(composer.compose(composeInput)).resolves.toBeNull();
+  });
+
   it("caps the named matches and counts the rest", async () => {
     const postings = Array.from(
       { length: MAX_ALERT_MATCHES_PER_EMAIL + 3 },
@@ -174,6 +220,12 @@ describe("SavedSearchEmailComposer", () => {
     const { composer } = createDependencies({
       publicCache: {
         getPublicByIds: jest.fn(async () => ({ postings, missingIds: [] })),
+      },
+      postings: {
+        searchPublic: jest.fn(async () => ({
+          postings: postings.map((posting) => ({ id: posting.id })),
+          pagination: { hasNextPage: false },
+        })),
       },
     });
 

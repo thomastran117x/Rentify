@@ -65,12 +65,14 @@ export const postingsSavedSearchesRegistrationModule: ContainerRegistrationModul
           containerTokens.savedSearchesRepository,
           containerTokens.postingsPublicCacheService,
           containerTokens.authUsersRepository,
+          containerTokens.postingsService,
         ],
         resolve: ({ resolve }) =>
           new SavedSearchEmailComposer(
             resolve(containerTokens.savedSearchesRepository),
             resolve(containerTokens.postingsPublicCacheService),
             resolve(containerTokens.authUsersRepository),
+            resolve(containerTokens.postingsService),
           ),
       });
     },

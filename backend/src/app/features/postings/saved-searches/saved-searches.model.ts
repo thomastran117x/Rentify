@@ -87,6 +87,24 @@ export const savedSearchQueryParamsSchema = z
       });
     }
 
+    // The live search rejects an empty or inverted window in its service layer,
+    // not in the query schema. A saved search has to catch it here instead:
+    // stored filters that parse but cannot execute would persist, fail every
+    // sweep, and never be marked invalidated - a search that silently never
+    // alerts, with nothing in the UI to explain why.
+    if (params.startAt && params.endAt) {
+      const startAt = Date.parse(params.startAt);
+      const endAt = Date.parse(params.endAt);
+
+      if (Number.isNaN(startAt) || Number.isNaN(endAt) || startAt >= endAt) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["startAt"],
+          message: "Availability window must define a valid, non-empty range.",
+        });
+      }
+    }
+
     if (!hasAnyFilter(params)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -472,6 +490,51 @@ export function buildSavedSearchQueryString(
   }
 
   return search.toString();
+}
+
+/** Minimal shape the bounded scan needs back from a search call. */
+export interface SavedSearchScanResult {
+  postings: Array<{ id: string }>;
+  pagination: { hasNextPage: boolean };
+}
+
+/**
+ * Collects the identifiers a saved search currently matches, paging up to the
+ * retention cap.
+ *
+ * Page one alone is not enough. Results come back newest-published-first, so a
+ * posting that becomes eligible by being unpaused - or one that frees up inside
+ * the search's date window - sits wherever its original publish date puts it,
+ * which for a broad search is well past the first page. Reading only page one
+ * would silently never alert on exactly the case this feature exists for, and
+ * would also drop older arrivals whenever more than one page of postings shows
+ * up between two sweeps.
+ *
+ * The cap bounds the cost: past `SAVED_SEARCH_SEEN_CAP` matches the seen set
+ * would evict the tail anyway, so scanning further buys nothing.
+ *
+ * Shared by the create-time baseline and the alert sweep so the two cannot
+ * disagree about what "everything this search matches" means.
+ */
+export async function collectSavedSearchMatchIds(
+  params: SavedSearchQueryParams,
+  search: (input: SearchPostingsInput) => Promise<SavedSearchScanResult>,
+): Promise<string[]> {
+  const matchIds: string[] = [];
+
+  for (let page = 1; matchIds.length < SAVED_SEARCH_SEEN_CAP; page += 1) {
+    const result = await search(
+      toSearchPostingsInput(params, page, SAVED_SEARCH_SCAN_PAGE_SIZE),
+    );
+
+    matchIds.push(...result.postings.map((posting) => posting.id));
+
+    if (!result.pagination.hasNextPage) {
+      break;
+    }
+  }
+
+  return matchIds.slice(0, SAVED_SEARCH_SEEN_CAP);
 }
 
 export interface SavedSearchMatchPreview {

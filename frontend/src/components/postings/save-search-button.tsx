@@ -29,15 +29,26 @@ export function SaveSearchButton() {
   const { showError } = useErrorToast();
 
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /** Query string that was saved, or null when there is nothing to confirm. */
+  const [savedSearch, setSavedSearch] = useState<string | null>(null);
   /** Query string of a click made before the session status was known. */
   const pendingSearchRef = useRef<string | null>(null);
 
-  // Navigating to a different set of filters makes a previous confirmation
-  // stale, so the button goes back to offering the new search.
-  useEffect(() => {
-    setSaved(false);
-  }, [pathname]);
+  // Adjusted during render rather than in an effect, so it reacts to every
+  // navigation rather than to a dependency list. The filter chips are
+  // client-side `Link` navigations that change the query but not the pathname,
+  // so keying a reset on `pathname` left the confirmation on screen with no
+  // button and no way to save the filters the visitor had just switched to.
+  // `useSearchParams` is not an option here: it would opt the whole /postings
+  // server route into client rendering, which the pagination control documents
+  // as the reason it avoids the same hook.
+  if (
+    savedSearch !== null &&
+    typeof window !== "undefined" &&
+    window.location.search !== savedSearch
+  ) {
+    setSavedSearch(null);
+  }
 
   const redirectToLogin = useCallback(
     (search: string) => {
@@ -50,17 +61,20 @@ export function SaveSearchButton() {
   );
 
   const save = useCallback(
-    async (params: ReturnType<typeof readSavedSearchParams>) => {
+    async (
+      params: ReturnType<typeof readSavedSearchParams>,
+      search: string,
+    ) => {
       setSaving(true);
 
       try {
         await savedSearchesApi.create({ queryParams: params });
-        setSaved(true);
+        setSavedSearch(search);
       } catch (error) {
         // 409 means this exact search is already saved, which is the outcome
         // the visitor wanted. Reporting it as a failure would read as a bug.
         if (isApiClientError(error) && error.status === 409) {
-          setSaved(true);
+          setSavedSearch(search);
           return;
         }
 
@@ -104,7 +118,10 @@ export function SaveSearchButton() {
       return;
     }
 
-    void save(readSavedSearchParams(new URLSearchParams(pendingSearch)));
+    void save(
+      readSavedSearchParams(new URLSearchParams(pendingSearch)),
+      pendingSearch,
+    );
   }, [authStatus, redirectToLogin, save]);
 
   const handleClick = useCallback(() => {
@@ -136,10 +153,10 @@ export function SaveSearchButton() {
       return;
     }
 
-    void save(params);
+    void save(params, search);
   }, [authStatus, redirectToLogin, save, showError]);
 
-  if (saved) {
+  if (savedSearch !== null) {
     return (
       <span className={theme.marketplace.summaryPill}>
         <Check className="mr-1.5 inline h-3.5 w-3.5" aria-hidden="true" />

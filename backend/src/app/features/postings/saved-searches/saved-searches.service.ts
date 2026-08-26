@@ -6,12 +6,10 @@ import type { PostingsService } from "@/features/postings/postings.service";
 import type { SavedSearchesRepository } from "@/features/postings/saved-searches/saved-searches.repository";
 import {
   MAX_SAVED_SEARCHES_PER_USER,
-  SAVED_SEARCH_SCAN_PAGE_SIZE,
-  SAVED_SEARCH_SEEN_CAP,
+  collectSavedSearchMatchIds,
   deriveSavedSearchName,
   hashSavedSearchParams,
   toSavedSearchRecord,
-  toSearchPostingsInput,
   type CreateSavedSearchRequest,
   type ListSavedSearchesResult,
   type SavedSearchNotifyFrequency,
@@ -163,23 +161,14 @@ export class SavedSearchesService {
     queryParams: SavedSearchQueryParams,
   ): Promise<void> {
     try {
-      const postingIds: string[] = [];
-
-      for (let page = 1; postingIds.length < SAVED_SEARCH_SEEN_CAP; page += 1) {
-        const result = await this.postingsService.searchPublic(
-          toSearchPostingsInput(queryParams, page, SAVED_SEARCH_SCAN_PAGE_SIZE),
-        );
-
-        postingIds.push(...result.postings.map((posting) => posting.id));
-
-        if (!result.pagination.hasNextPage) {
-          break;
-        }
-      }
+      const postingIds = await collectSavedSearchMatchIds(
+        queryParams,
+        (input) => this.postingsService.searchPublic(input),
+      );
 
       await this.savedSearchesRepository.recordSeenPostings(
         savedSearchId,
-        postingIds.slice(0, SAVED_SEARCH_SEEN_CAP),
+        postingIds,
       );
     } catch (error) {
       this.logger.warn("Saved search baseline could not be recorded.", {

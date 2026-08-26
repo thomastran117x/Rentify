@@ -18,7 +18,10 @@ function createDueSearch(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createSearchResult(postingIds: string[]): Record<string, unknown> {
+function createSearchResult(
+  postingIds: string[],
+  hasNextPage = false,
+): Record<string, unknown> {
   return {
     postings: postingIds.map((id) => ({ id })),
     pagination: {
@@ -26,7 +29,7 @@ function createSearchResult(postingIds: string[]): Record<string, unknown> {
       pageSize: 50,
       total: postingIds.length,
       totalPages: 1,
-      hasNextPage: false,
+      hasNextPage,
       hasPreviousPage: false,
     },
     source: "elasticsearch",
@@ -99,6 +102,29 @@ describe("SavedSearchAlertService", () => {
 
     expect(postingsService.searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({ query: "kayak", sort: "newest", page: 1 }),
+    );
+  });
+
+  it("scans past the first page so an older new match is not missed", async () => {
+    // An unpaused posting keeps its original publish date, so under
+    // newest-first ordering it can sit well beyond page one.
+    const searchPublic = jest
+      .fn()
+      .mockResolvedValueOnce(createSearchResult(["posting-1"], true))
+      .mockResolvedValueOnce(createSearchResult(["posting-9"]));
+    const { service, savedSearchesRepository } = createDependencies({
+      postings: { searchPublic },
+      repository: {
+        filterUnseenPostingIds: jest.fn(async () => ["posting-9"]),
+      },
+    });
+
+    await service.runSweep(sweepConfig);
+
+    expect(searchPublic).toHaveBeenCalledTimes(2);
+    expect(savedSearchesRepository.filterUnseenPostingIds).toHaveBeenCalledWith(
+      "search-1",
+      ["posting-1", "posting-9"],
     );
   });
 

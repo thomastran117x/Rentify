@@ -57,6 +57,39 @@ describe("SaveSearchButton", () => {
     expect(await screen.findByText(/search saved/i)).toBeInTheDocument();
   });
 
+  it("offers to save again once the filters change", async () => {
+    // Filter chips are client-side Link navigations: they change the query but
+    // not the pathname, so a pathname-keyed reset left the confirmation on
+    // screen with no button and no way to save the new filters.
+    const { rerender } = render(<SaveSearchButton />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /save this search/i }),
+    );
+    expect(await screen.findByText(/search saved/i)).toBeInTheDocument();
+
+    setLocationSearch("?q=canoe");
+    rerender(<SaveSearchButton />);
+
+    expect(
+      await screen.findByRole("button", { name: /save this search/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/search saved/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the confirmation while the filters are unchanged", async () => {
+    const { rerender } = render(<SaveSearchButton />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /save this search/i }),
+    );
+    expect(await screen.findByText(/search saved/i)).toBeInTheDocument();
+
+    rerender(<SaveSearchButton />);
+
+    expect(screen.getByText(/search saved/i)).toBeInTheDocument();
+  });
+
   it("refuses to save a search with no filters", async () => {
     // An unfiltered search matches every posting, which is a mailing list.
     setLocationSearch("");

@@ -4,10 +4,9 @@ import type { EmailService } from "@/features/email/email.service";
 import type { PostingsService } from "@/features/postings/postings.service";
 import type { SavedSearchesRepository } from "@/features/postings/saved-searches/saved-searches.repository";
 import {
-  SAVED_SEARCH_SCAN_PAGE_SIZE,
   SAVED_SEARCH_SEEN_CAP,
+  collectSavedSearchMatchIds,
   savedSearchQueryParamsSchema,
-  toSearchPostingsInput,
   type DueSavedSearch,
 } from "@/features/postings/saved-searches/saved-searches.model";
 
@@ -121,11 +120,9 @@ export class SavedSearchAlertService {
       return false;
     }
 
-    const result = await this.postingsService.searchPublic(
-      toSearchPostingsInput(parsed.data, 1, SAVED_SEARCH_SCAN_PAGE_SIZE),
+    const matchIds = await collectSavedSearchMatchIds(parsed.data, (input) =>
+      this.postingsService.searchPublic(input),
     );
-
-    const matchIds = result.postings.map((posting) => posting.id);
     const newMatchIds =
       await this.savedSearchesRepository.filterUnseenPostingIds(
         search.id,

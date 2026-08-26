@@ -280,6 +280,39 @@ describe("jwt middleware helpers", () => {
     expect(result).toEqual(principal);
   });
 
+  it("accepts PAT bearer auth on the saved searches list route", async () => {
+    // Two segments deep, so the /postings/:id catch-all does not reach it. The
+    // OpenAPI contract advertises this operation as jwt-or-pat with mcp:read,
+    // and without an explicit policy a valid PAT is rejected with 403.
+    const principal = createPatPrincipal({ scopes: ["mcp:read"] });
+    const context = createContext({
+      url: "https://example.test/api/v1/postings/saved/searches",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+      personalAccessTokenService: new FakePersonalAccessTokenService(
+        () => principal,
+      ),
+    });
+
+    await expect(requireJwtAuth(context.request)).resolves.toEqual(principal);
+  });
+
+  it("rejects PAT bearer auth on saved search writes", async () => {
+    // Only the read is documented as PAT-accessible; the writes are not.
+    const context = createContext({
+      method: "POST",
+      url: "https://example.test/api/v1/postings/saved/searches",
+      authorization:
+        "Bearer rpat_1234567890abcdef123456_abcdef123456abcdef123456abcdef123456abcdef123456",
+    });
+
+    await expect(requireJwtAuth(context.request)).rejects.toMatchObject<
+      Partial<ForbiddenError>
+    >({
+      message: "Personal access tokens cannot access this endpoint.",
+    });
+  });
+
   it("rejects PAT bearer auth on non-allowlisted routes", async () => {
     const context = createContext({
       url: "https://example.test/postings/post_1/booking-quote",

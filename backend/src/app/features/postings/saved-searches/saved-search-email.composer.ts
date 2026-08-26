@@ -1,8 +1,10 @@
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
+import type { PostingsService } from "@/features/postings/postings.service";
 import type { SavedSearchesRepository } from "@/features/postings/saved-searches/saved-searches.repository";
 import {
   MAX_ALERT_MATCHES_PER_EMAIL,
+  collectSavedSearchMatchIds,
   savedSearchQueryParamsSchema,
   toSavedSearchMatchPreview,
   type SavedSearchMatchPreview,
@@ -43,6 +45,7 @@ export class SavedSearchEmailComposer {
     private readonly savedSearchesRepository: SavedSearchesRepository,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly usersRepository: UsersRepository,
+    private readonly postingsService: PostingsService,
   ) {}
 
   async compose(
@@ -84,6 +87,24 @@ export class SavedSearchEmailComposer {
       return null;
     }
 
+    // Still visible is not the same as still matching. A posting can stay
+    // public while its price, tags, policy or availability change, and a job
+    // waiting behind a retry has had time for that to happen. Re-running the
+    // saved filters and intersecting keeps the email from announcing a match
+    // that has stopped being one.
+    const matchingIds = new Set(
+      await collectSavedSearchMatchIds(parsedParams.data, (searchInput) =>
+        this.postingsService.searchPublic(searchInput),
+      ),
+    );
+    const matches = batch.postings.filter((posting) =>
+      matchingIds.has(posting.id),
+    );
+
+    if (matches.length === 0) {
+      return null;
+    }
+
     const recipient = await this.usersRepository.findUserById(
       input.recipientId,
     );
@@ -98,12 +119,12 @@ export class SavedSearchEmailComposer {
       savedSearchId: search.id,
       savedSearchName: search.name,
       queryParams: parsedParams.data,
-      matches: batch.postings
+      matches: matches
         .slice(0, MAX_ALERT_MATCHES_PER_EMAIL)
         .map(toSavedSearchMatchPreview),
       additionalMatchCount: Math.max(
         0,
-        batch.postings.length - MAX_ALERT_MATCHES_PER_EMAIL,
+        matches.length - MAX_ALERT_MATCHES_PER_EMAIL,
       ),
     };
   }

@@ -1,6 +1,9 @@
 import { publicSearchPostingsQuerySchema } from "@/features/postings/postings.model";
 import {
+  SAVED_SEARCH_SCAN_PAGE_SIZE,
+  SAVED_SEARCH_SEEN_CAP,
   buildSavedSearchQueryString,
+  collectSavedSearchMatchIds,
   canonicalizeSavedSearchParams,
   createSavedSearchSchema,
   deriveSavedSearchName,
@@ -78,6 +81,33 @@ describe("savedSearchQueryParamsSchema", () => {
         maxDailyPrice: 40,
       }).success,
     ).toBe(false);
+  });
+
+  it("rejects an inverted or empty availability window", () => {
+    // The live search enforces this in its service layer, not its query schema.
+    // A saved search that parses but cannot execute would fail every sweep
+    // without ever being marked invalidated.
+    expect(
+      savedSearchQueryParamsSchema.safeParse({
+        startAt: "2026-09-05T00:00:00.000Z",
+        endAt: "2026-09-01T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+    expect(
+      savedSearchQueryParamsSchema.safeParse({
+        startAt: "2026-09-01T00:00:00.000Z",
+        endAt: "2026-09-01T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a well-ordered availability window", () => {
+    expect(
+      savedSearchQueryParamsSchema.safeParse({
+        startAt: "2026-09-01T00:00:00.000Z",
+        endAt: "2026-09-05T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects attribute filters without a family and subtype", () => {
@@ -244,6 +274,65 @@ describe("buildSavedSearchQueryString", () => {
 
     expect(query).toContain("attr.seats.min=2");
     expect(query).toContain("attr.seats.max=5");
+  });
+});
+
+describe("collectSavedSearchMatchIds", () => {
+  function pagedSearch(pages: string[][]) {
+    return jest.fn(async (input: { page: number }) => ({
+      postings: (pages[input.page - 1] ?? []).map((id) => ({ id })),
+      pagination: { hasNextPage: input.page < pages.length },
+    }));
+  }
+
+  it("pages past the first page of results", async () => {
+    // Results come back newest-published-first, so an unpaused posting sits
+    // wherever its original publish date puts it. Reading only page one would
+    // silently never alert on the case this feature exists for.
+    const search = pagedSearch([["a", "b"], ["c"]]);
+
+    await expect(
+      collectSavedSearchMatchIds(parseParams({ q: "kayak" }), search),
+    ).resolves.toEqual(["a", "b", "c"]);
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops as soon as a page reports no successor", async () => {
+    const search = pagedSearch([["a"]]);
+
+    await collectSavedSearchMatchIds(parseParams({ q: "kayak" }), search);
+
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds the scan at the retention cap rather than paging forever", async () => {
+    const page = Array.from({ length: 50 }, (_, index) => `p${index}`);
+    const search = jest.fn(async () => ({
+      postings: page.map((id) => ({ id })),
+      pagination: { hasNextPage: true },
+    }));
+
+    const ids = await collectSavedSearchMatchIds(
+      parseParams({ q: "kayak" }),
+      search,
+    );
+
+    expect(ids).toHaveLength(SAVED_SEARCH_SEEN_CAP);
+    expect(search).toHaveBeenCalledTimes(SAVED_SEARCH_SEEN_CAP / page.length);
+  });
+
+  it("always asks for newest-first pages of the scan size", async () => {
+    const search = pagedSearch([["a"]]);
+
+    await collectSavedSearchMatchIds(parseParams({ q: "kayak" }), search);
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: SAVED_SEARCH_SCAN_PAGE_SIZE,
+        sort: "newest",
+      }),
+    );
   });
 });
 
