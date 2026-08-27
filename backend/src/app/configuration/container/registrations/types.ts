@@ -36,6 +36,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "postings-analytics",
   "postings-reviews",
   "postings-saved",
+  "postings-saved-searches",
   "postings-search",
   "postings-thumbnail",
   "recommendations-query",

@@ -85,6 +85,14 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
     pattern: /^\/postings\/saved\/ids$/,
     requiredScope: "mcp:read",
   },
+  // Two segments deep, so the /postings/:id catch-all below does not reach it
+  // and an omission here would 403 a valid PAT against a contract that
+  // advertises jwt-or-pat.
+  {
+    method: "GET",
+    pattern: /^\/postings\/saved\/searches$/,
+    requiredScope: "mcp:read",
+  },
   { method: "GET", pattern: /^\/postings\/[^/]+$/, requiredScope: "mcp:read" },
   {
     method: "GET",

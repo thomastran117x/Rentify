@@ -27,6 +27,9 @@ vi.mock("@/components/postings/posting-result-card", () => ({
 vi.mock("@/components/postings/save-posting-button", () => ({
   SavePostingButton: () => <button>Save</button>,
 }));
+vi.mock("@/components/postings/save-search-button", () => ({
+  SaveSearchButton: () => <button>Save this search</button>,
+}));
 vi.mock("@/components/postings/posting-autocomplete-input", () => ({
   PostingAutocompleteInput: () => <input aria-label="Search rentals" />,
 }));

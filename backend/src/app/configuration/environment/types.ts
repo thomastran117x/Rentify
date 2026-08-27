@@ -68,6 +68,9 @@ export type RawEnvironmentValues = {
   POSTING_EXPIRY_BATCH_SIZE?: string;
   POSTING_EXPIRY_POLL_INTERVAL_MS?: string;
   POSTING_EXPIRY_REMINDER_LEAD_DAYS?: string;
+  SAVED_SEARCH_ALERT_POLL_INTERVAL_MS?: string;
+  SAVED_SEARCH_ALERT_BATCH_SIZE?: string;
+  SAVED_SEARCH_ALERT_DAILY_INTERVAL_HOURS?: string;
   POSTINGS_ANALYTICS_OUTBOX_BATCH_SIZE?: string;
   POSTINGS_ANALYTICS_OUTBOX_POLL_INTERVAL_MS?: string;
   RECOMMENDATIONS_PRECOMPUTE_BATCH_SIZE?: string;
@@ -284,6 +287,16 @@ export interface AppEnvironment {
       pollIntervalMs: number;
       batchSize: number;
       reminderLeadDays: number;
+    };
+    savedSearchAlert: {
+      pollIntervalMs: number;
+      batchSize: number;
+      /**
+       * Doubles as the `instant` cadence: a search set to instant is re-checked
+       * every poll interval, so the sweep interval and the alert cadence are
+       * one knob rather than two that can disagree.
+       */
+      dailyIntervalHours: number;
     };
     paymentsRetry: {
       pollIntervalMs: number;

@@ -33,6 +33,7 @@ export const sharedRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.bookingMessageEmailComposer,
         containerTokens.postingExpiryEmailComposer,
+        containerTokens.savedSearchEmailComposer,
       ],
       resolve: ({ resolve }) =>
         new EmailDeliveryService({
@@ -41,6 +42,9 @@ export const sharedRegistrationModule: ContainerRegistrationModule = {
           ),
           postingExpiryEmailComposer: resolve(
             containerTokens.postingExpiryEmailComposer,
+          ),
+          savedSearchEmailComposer: resolve(
+            containerTokens.savedSearchEmailComposer,
           ),
         }),
     });

@@ -28,6 +28,7 @@ import { postingsAnalyticsRegistrationModule } from "@/configuration/container/r
 import { postingsCoreRegistrationModule } from "@/configuration/container/registrations/modules/postings-core";
 import { postingsReviewsRegistrationModule } from "@/configuration/container/registrations/modules/postings-reviews";
 import { postingsSavedRegistrationModule } from "@/configuration/container/registrations/modules/postings-saved";
+import { postingsSavedSearchesRegistrationModule } from "@/configuration/container/registrations/modules/postings-saved-searches";
 import { postingsSearchRegistrationModule } from "@/configuration/container/registrations/modules/postings-search";
 import { postingsThumbnailRegistrationModule } from "@/configuration/container/registrations/modules/postings-thumbnail";
 import { profileRegistrationModule } from "@/configuration/container/registrations/modules/profile";
@@ -85,6 +86,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   postingsAnalyticsRegistrationModule,
   postingsReviewsRegistrationModule,
   postingsSavedRegistrationModule,
+  postingsSavedSearchesRegistrationModule,
   postingsSearchRegistrationModule,
   postingsThumbnailRegistrationModule,
   recommendationsQueryRegistrationModule,

@@ -74,6 +74,18 @@ export interface SendPostingExpiringSoonEmailInput {
   expiresAt: string;
 }
 
+export interface SendSavedSearchMatchesEmailInput {
+  savedSearchId: string;
+  recipientId: string;
+  /**
+   * Identifiers only. The queue job may sit for minutes behind a retry, by
+   * which time a posting can be paused or removed, so the composer re-reads
+   * every one of these at send time instead of trusting a snapshot.
+   */
+  postingIds: string[];
+  occurredAt: string;
+}
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -117,6 +129,12 @@ export class EmailService {
     input: SendBookingMessageNotificationEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("booking_message", input);
+  }
+
+  async sendSavedSearchMatchesEmail(
+    input: SendSavedSearchMatchesEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("saved_search_matches", input);
   }
 
   async sendPostingExpiringSoonEmail(

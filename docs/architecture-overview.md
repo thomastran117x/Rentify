@@ -74,6 +74,7 @@ The route registry currently groups the API into these main areas:
 - owner posting management
 - posting analytics, reviews, availability, and activity
 - saved postings (renter wishlist)
+- saved searches (renter search alerts)
 - booking requests
 - payments
 - rentings
@@ -220,6 +221,7 @@ Workers currently cover:
 - postings analytics
 - booking expiry
 - posting expiry and expiry reminders
+- saved search alerts
 - email delivery
 - SMS delivery and webhook processing
 - log consumption
@@ -232,6 +234,38 @@ Workers currently cover:
 
 This keeps the API focused on request-response work while heavier or asynchronous processing can be handled off the main server path.
 
+### Saved Search Alerts
+
+A saved search stores the browse filters a visitor asked to be told about, and
+the `saved-search-alert-worker` replays them on a schedule.
+
+The replay goes through `PostingsService.searchPublic` — the same call the
+browse page makes — rather than a second matching implementation. Geo radius,
+availability windows and attribute filters are subtle enough that a parallel
+evaluator would drift from the real search within a release or two, and the
+visitor would only find out by getting an email about a posting that does not
+match.
+
+What counts as a new match is tracked as a set of already-alerted posting ids in
+`saved_search_seen_postings`, not as a "published after" cutoff. That is what
+lets an unpaused listing, or one that frees up inside the search's date window,
+still alert: those postings are not new, but they are new *to this search*.
+Creating a search records everything currently matching as already seen, so the
+first alert only covers postings that appear afterwards.
+
+Alerts are emailed through the existing RabbitMQ pipeline as a
+`saved_search_matches` job carrying ids only, which the composer re-checks at
+send time. The sweep enqueues the job *before* it records the matches as seen:
+a crash between the two costs a duplicate email, where the other order would
+drop the alert silently and the visitor would never learn the posting existed.
+
+Configuration lives in `workers.savedSearchAlert`
+(`SAVED_SEARCH_ALERT_POLL_INTERVAL_MS`, `SAVED_SEARCH_ALERT_BATCH_SIZE`,
+`SAVED_SEARCH_ALERT_DAILY_INTERVAL_HOURS`). The poll interval doubles as the
+`instant` cadence, so the frequency a visitor picks and the rate the worker runs
+at cannot disagree.
+
+
 ## Data and Infrastructure Responsibilities
 
 - MySQL: source of truth for product and transactional data
@@ -243,8 +277,8 @@ This keeps the API focused on request-response work while heavier or asynchronou
 
 Connection pool size is a per-process cost, not a per-request one. The API and
 every worker that touches the database run as separate processes, and each owns
-its own pool. Eighteen processes in the Compose stack connect: the API plus
-seventeen workers. The SMS and log-consumer workers are queue-only and never open
+its own pool. Nineteen processes in the Compose stack connect: the API plus
+eighteen workers. The SMS and log-consumer workers are queue-only and never open
 a database connection. The email worker used to be queue-only too, but the
 booking message notification job carries ids rather than a rendered recipient,
 so delivery hydrates it from the database at send time.
@@ -252,8 +286,8 @@ so delivery hydrates it from the database at send time.
 That makes the arithmetic worth checking before adding a service. The pool holds
 `DATABASE_POOL_MINIMUM_IDLE` connections at rest and grows to
 `DATABASE_POOL_CONNECTION_LIMIT` under load. Compose gives the API 2/10 and each
-worker 1/5, so the stack costs roughly nineteen connections idle and
-ninety-five at its ceiling, against the 250 the local MySQL
+worker 1/5, so the stack costs roughly twenty connections idle and
+one hundred at its ceiling, against the 250 the local MySQL
 container allows. A managed instance is usually stricter — connection caps there
 derive from instance size, and a small instance may allow only around 150 — so
 adding replicas of the API multiplies this cost rather than sharing it.

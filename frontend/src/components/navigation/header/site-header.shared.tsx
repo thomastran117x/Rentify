@@ -99,8 +99,8 @@ export function getAccountLinks(
       : []),
     {
       href: "/saved",
-      label: "Saved postings",
-      description: "Postings you hearted while browsing",
+      label: "Saved",
+      description: "Postings you hearted and searches we watch for you",
     },
     {
       href: "/bookings",

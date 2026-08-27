@@ -6,6 +6,8 @@ import { loggerFactory } from "@/configuration/logging";
 import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import { isSuppressedRecipient } from "@/features/email/email-suppression";
 import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
+import type { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
+import { buildSavedSearchQueryString } from "@/features/postings/saved-searches/saved-searches.model";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
   SendBookingMessageNotificationEmailInput,
@@ -15,6 +17,7 @@ import type {
   SendOrganizationInviteEmailInput,
   SendPasswordResetEmailInput,
   SendPostingExpiringSoonEmailInput,
+  SendSavedSearchMatchesEmailInput,
   SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
@@ -31,6 +34,11 @@ interface EmailDeliveryServiceOptions {
    * cannot render without a composer to hydrate them.
    */
   postingExpiryEmailComposer: PostingExpiryEmailComposer;
+  /**
+   * Required for the same reason: `saved_search_matches` carries posting ids,
+   * and the composer re-checks each one before it is named in an email.
+   */
+  savedSearchEmailComposer: SavedSearchEmailComposer;
   transporter?: Transporter;
   gmailUser?: string;
   gmailAppPassword?: string;
@@ -91,6 +99,7 @@ export class EmailDeliveryService {
   private readonly appBaseUrl: string;
   private readonly bookingMessageEmailComposer: BookingMessageEmailComposer;
   private readonly postingExpiryEmailComposer: PostingExpiryEmailComposer;
+  private readonly savedSearchEmailComposer: SavedSearchEmailComposer;
   private readonly maxRetries: number;
   private readonly initialDelayMs: number;
   private readonly maxDelayMs: number;
@@ -99,6 +108,7 @@ export class EmailDeliveryService {
   constructor(options: EmailDeliveryServiceOptions) {
     this.bookingMessageEmailComposer = options.bookingMessageEmailComposer;
     this.postingExpiryEmailComposer = options.postingExpiryEmailComposer;
+    this.savedSearchEmailComposer = options.savedSearchEmailComposer;
 
     const gmailUser = options.gmailUser ?? getEnvironmentVariable("GMAIL_USER");
     const gmailAppPassword =
@@ -147,6 +157,13 @@ export class EmailDeliveryService {
 
     if (payload.kind === "posting_expiring_soon") {
       await this.sendPostingExpiringSoonEmail(payload.input);
+      return;
+    }
+
+    // Also ahead of the suppression check: the recipient address is not on the
+    // job, so there is nothing to suppress until the composer has resolved it.
+    if (payload.kind === "saved_search_matches") {
+      await this.sendSavedSearchMatchesEmail(payload.input);
       return;
     }
 
@@ -515,6 +532,100 @@ export class EmailDeliveryService {
         ].join(""),
       ),
     });
+  }
+
+  async sendSavedSearchMatchesEmail(
+    input: SendSavedSearchMatchesEmailInput,
+  ): Promise<void> {
+    const content = await this.savedSearchEmailComposer.compose(input);
+
+    if (!content) {
+      deliveryLogger.info(
+        "Saved search alert skipped; the matches are no longer available.",
+        {
+          savedSearchId: input.savedSearchId,
+          postingCount: input.postingIds.length,
+        },
+      );
+      return;
+    }
+
+    if (isSuppressedRecipient(content.to)) {
+      deliveryLogger.info(
+        "Email delivery suppressed for non-deliverable recipient.",
+        {
+          kind: "saved_search_matches",
+          savedSearchId: input.savedSearchId,
+        },
+      );
+      return;
+    }
+
+    const queryString = buildSavedSearchQueryString(content.queryParams);
+    const resultsUrl = `${this.appBaseUrl}/postings${queryString ? `?${queryString}` : ""}`;
+    const manageUrl = `${this.appBaseUrl}/saved/searches`;
+    const greetingName = this.resolveGreetingName(content.firstName);
+    const matchCount = content.matches.length + content.additionalMatchCount;
+    const subject =
+      matchCount === 1
+        ? `A new match for "${content.savedSearchName}"`
+        : `${matchCount} new matches for "${content.savedSearchName}"`;
+
+    const textLines = content.matches.map(
+      (match) =>
+        `- ${match.name}${match.organizationName ? ` from ${match.organizationName}` : ""} — ${this.formatMatchPrice(match.dailyPrice, match.currency)}`,
+    );
+
+    if (content.additionalMatchCount > 0) {
+      textLines.push(`- and ${content.additionalMatchCount} more`);
+    }
+
+    await this.sendWithRetry({
+      to: content.to,
+      subject,
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        `Your saved search "${content.savedSearchName}" has new matches:`,
+        "",
+        ...textLines,
+        "",
+        `See them all: ${resultsUrl}`,
+        "",
+        `Manage or turn off this alert: ${manageUrl}`,
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">${matchCount === 1 ? "A new match for your saved search" : "New matches for your saved search"}</h1>`,
+          `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)}, your saved search <strong>${escapeHtml(content.savedSearchName)}</strong> just turned up something new.</p>`,
+          ...content.matches.map((match) =>
+            this.buildValueBlock(
+              escapeHtml(match.name),
+              escapeHtml(
+                [
+                  this.formatMatchPrice(match.dailyPrice, match.currency),
+                  match.organizationName,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              ),
+            ),
+          ),
+          content.additionalMatchCount > 0
+            ? `<p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">And ${content.additionalMatchCount} more.</p>`
+            : "",
+          this.buildCTAButton(escapeHtml(resultsUrl), "See all matches"),
+          this.buildAlertBox(
+            `You are getting this because you saved this search on Rentify. <a href="${escapeHtml(manageUrl)}">Manage or turn off this alert</a>.`,
+            "info",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  private formatMatchPrice(dailyPrice: number, currency: string): string {
+    return `${currency} ${dailyPrice.toFixed(2)} per day`;
   }
 
   async sendPostingExpiringSoonEmail(

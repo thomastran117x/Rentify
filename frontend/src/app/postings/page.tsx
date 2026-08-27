@@ -38,6 +38,7 @@ import {
 import { humanizePostingValue } from "@/lib/postings/public-format";
 import { PostingResultCard } from "@/components/postings/posting-result-card";
 import { SavePostingButton } from "@/components/postings/save-posting-button";
+import { SaveSearchButton } from "@/components/postings/save-search-button";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 import { OrganizationFilterField } from "@/components/postings/organization-filter-field";
 import { theme } from "@/styles/theme";
@@ -1134,6 +1135,7 @@ function SearchResults({
         <span className="text-xs text-slate-400 dark:text-slate-500">
           via {result.source}
         </span>
+        <SaveSearchButton />
       </div>
 
       {organizationFilter?.truncated ? (
@@ -1164,9 +1166,15 @@ function SearchResults({
           </Link>
         </div>
       ) : postings.length === 0 ? (
-        <p className={theme.marketplace.resultsEmpty}>
-          No postings matched your search. Try broadening your filters.
-        </p>
+        <div className={theme.marketplace.resultsEmpty}>
+          <p>No postings matched your search. Try broadening your filters.</p>
+          {/* The empty result is exactly when a saved search is worth the most:
+              nothing matches today, and without an alert the visitor has no way
+              of learning when something does. */}
+          <p className="mt-2">
+            Or save this search and we will email you when something matches.
+          </p>
+        </div>
       ) : grouped ? (
         <div className="mt-5 space-y-8">
           {groups.map((group) => (

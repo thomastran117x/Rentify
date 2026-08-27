@@ -396,6 +396,14 @@ async function performJsonRequest<TResponse, TBody = undefined>(
     });
   }
 
+  // 204 and 205 are defined as bodiless, so there is no envelope to unwrap.
+  // Reading one would yield null and fail the envelope check, which made every
+  // endpoint that answers 204 — deletes, and anything else that just
+  // acknowledges — look to the caller like a protocol failure.
+  if (response.status === 204 || response.status === 205) {
+    return undefined as TResponse;
+  }
+
   const payload = await readApiPayload(response, request);
 
   if (!response.ok) {

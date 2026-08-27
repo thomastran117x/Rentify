@@ -1,5 +1,6 @@
 import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
+import type { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 
 function createTransporterMock() {
@@ -28,6 +29,8 @@ function createService(
       composer as unknown as BookingMessageEmailComposer,
     postingExpiryEmailComposer:
       postingExpiryComposer as unknown as PostingExpiryEmailComposer,
+    savedSearchEmailComposer:
+      createComposerMock() as unknown as SavedSearchEmailComposer,
     transporter: transporter as any,
     gmailUser: "gmail-user@example.com",
     gmailAppPassword: "app-password",

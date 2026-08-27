@@ -70,6 +70,20 @@ export function buildSearchHref(input: SearchHrefInput): string {
     searchParams.set("radiusKm", String(input.radiusKm));
   if (input.startAt) searchParams.set("startAt", input.startAt);
   if (input.endAt) searchParams.set("endAt", input.endAt);
+  // No filter form field sets these three yet, but a saved search round-trips
+  // through this builder, so leaving them out would quietly drop them from a
+  // search the visitor asked to keep.
+  if (input.cancellationPolicy)
+    searchParams.set("cancellationPolicy", input.cancellationPolicy);
+  if (input.instantBooking !== undefined) {
+    searchParams.set("instantBooking", String(input.instantBooking));
+  }
+  if (input.maxMinBookingDurationDays !== undefined) {
+    searchParams.set(
+      "maxMinBookingDurationDays",
+      String(input.maxMinBookingDurationDays),
+    );
+  }
 
   return `/postings?${searchParams.toString()}`;
 }

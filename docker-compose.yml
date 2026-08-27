@@ -124,6 +124,20 @@ x-db-redis-rabbitmq-worker-depends-on: &db-redis-rabbitmq-worker-depends-on
   rabbitmq:
     condition: service_healthy
 
+# The saved search sweep replays real searches through the public search path,
+# so it needs Elasticsearch as well as the queue, cache, and database.
+x-db-redis-rabbitmq-search-worker-depends-on: &db-redis-rabbitmq-search-worker-depends-on
+  backend-migrate:
+    condition: service_completed_successfully
+  mysql:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  elasticsearch:
+    condition: service_healthy
+
 x-search-worker-depends-on: &search-worker-depends-on
   backend-migrate:
     condition: service_completed_successfully
@@ -287,6 +301,20 @@ services:
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/postings/posting-expiry.worker.js"]
+
+  # Replays due saved searches and emails their owners about matches the search
+  # has not reported before. The replay goes through the same public search path
+  # the browse page uses, so it needs Elasticsearch and the Redis posting
+  # projection cache as well as RabbitMQ for the email jobs.
+  saved-search-alert-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-saved-search-alert-worker
+    restart: unless-stopped
+    depends_on: *db-redis-rabbitmq-search-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/postings/saved-search-alert.worker.js"]
 
   # Rebuilds the username availability bloom filter from the profiles table.
   # Needs Redis as well as MySQL: the filter itself lives in a Redis bitmap that

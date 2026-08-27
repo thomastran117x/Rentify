@@ -1399,6 +1399,28 @@ export class PostingsRepository extends BaseRepository {
       );
     }
 
+    if (input.cancellationPolicy !== undefined) {
+      whereClauses.push(
+        Prisma.sql`cancellation_policy = ${input.cancellationPolicy}`,
+      );
+    }
+
+    if (input.instantBooking !== undefined) {
+      whereClauses.push(Prisma.sql`instant_booking = ${input.instantBooking}`);
+    }
+
+    if (input.maxMinBookingDurationDays !== undefined) {
+      // NULL means the owner set no minimum, so the posting satisfies any
+      // ceiling the visitor asks for. Elasticsearch expresses the same rule as
+      // a `should` over the range and a missing-field clause.
+      whereClauses.push(
+        Prisma.sql`(
+          min_booking_duration_days IS NULL
+          OR min_booking_duration_days <= ${input.maxMinBookingDurationDays}
+        )`,
+      );
+    }
+
     const detailsColumn = input.family
       ? Prisma.raw(this.resolveDetailsColumnName(input.family))
       : null;

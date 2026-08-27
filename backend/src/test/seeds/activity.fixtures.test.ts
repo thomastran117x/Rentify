@@ -1,7 +1,12 @@
 import {
   SEED_ANALYTICS_OUTBOX_EVENTS,
   SEED_POSTING_REVIEWS,
+  SEED_SAVED_SEARCHES,
 } from "@/seeds/fixtures/activity";
+import {
+  hashSavedSearchParams,
+  savedSearchQueryParamsSchema,
+} from "@/features/postings/saved-searches/saved-searches.model";
 import { SEED_USERS } from "@/seeds/fixtures/users";
 
 describe("seeded analytics outbox fixtures", () => {
@@ -45,5 +50,42 @@ describe("seeded analytics outbox fixtures", () => {
     for (const count of reviewsPerPosting.values()) {
       expect(count).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe("seeded saved search fixtures", () => {
+  it("stores filters the live search contract still accepts", () => {
+    for (const search of SEED_SAVED_SEARCHES) {
+      expect(
+        savedSearchQueryParamsSchema.safeParse(search.queryParams).success,
+      ).toBe(true);
+    }
+  });
+
+  it("attaches every search to a seeded user", () => {
+    const seededEmails = new Set(SEED_USERS.map((user) => user.email));
+
+    for (const search of SEED_SAVED_SEARCHES) {
+      expect(seededEmails.has(search.userEmail)).toBe(true);
+    }
+  });
+
+  it("keeps identifiers and per-user filter sets unique", () => {
+    const ids = SEED_SAVED_SEARCHES.map((search) => search.id);
+    const hashes = SEED_SAVED_SEARCHES.map(
+      (search) =>
+        `${search.userEmail}:${hashSavedSearchParams(
+          savedSearchQueryParamsSchema.parse(search.queryParams),
+        )}`,
+    );
+
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(hashes).size).toBe(hashes.length);
+  });
+
+  it("keeps a search that matches nothing, which is the case the feature exists for", () => {
+    expect(
+      SEED_SAVED_SEARCHES.some((search) => search.name.includes("Lighthouse")),
+    ).toBe(true);
   });
 });

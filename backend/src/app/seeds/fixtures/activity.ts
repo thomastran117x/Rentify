@@ -9,6 +9,7 @@ import {
   type SeedPostingReviewFixture,
   type SeedPostingViewEventFixture,
   type SeedSavedPostingFixture,
+  type SeedSavedSearchFixture,
 } from "@/seeds/types";
 
 const BASE_SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
@@ -544,6 +545,48 @@ export const SEED_SAVED_POSTINGS: SeedSavedPostingFixture[] = [
     postingId: createFixtureId(2000, 29),
     userEmail: "user2@rentify.local",
     createdAt: "2026-08-02T11:50:00.000Z",
+  },
+];
+
+/**
+ * Two searches for renter-one, chosen to make both states visible without
+ * waiting on the sweep: the first has live matches that are deliberately not
+ * in `seenPostingIds`, so it renders a new-match badge; the second matches
+ * nothing at all, which is the state the whole feature exists for.
+ */
+export const SEED_SAVED_SEARCHES: SeedSavedSearchFixture[] = [
+  {
+    id: createFixtureId(4400, 1),
+    userEmail: "user1@rentify.local",
+    name: "Equipment under $80/day",
+    queryParams: {
+      family: "equipment",
+      maxDailyPrice: 80,
+    },
+    notifyFrequency: "instant",
+    createdAt: "2026-08-10T09:00:00.000Z",
+    newMatchCount: 2,
+  },
+  {
+    id: createFixtureId(4400, 2),
+    userEmail: "user1@rentify.local",
+    name: "Lighthouse keeper cottage",
+    queryParams: {
+      q: "lighthouse keeper cottage",
+      family: "place",
+    },
+    notifyFrequency: "instant",
+    createdAt: "2026-08-12T18:30:00.000Z",
+  },
+  {
+    id: createFixtureId(4400, 3),
+    userEmail: "user2@rentify.local",
+    name: "Vehicles near the harbour",
+    queryParams: {
+      family: "vehicle",
+    },
+    notifyFrequency: "daily",
+    createdAt: "2026-08-14T07:45:00.000Z",
   },
 ];
 

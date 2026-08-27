@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BookingsController } from "@/features/bookings/bookings.controller";
 import type { PostingsController } from "@/features/postings/postings.controller";
+import type { SavedSearchesController } from "@/features/postings/saved-searches/saved-searches.controller";
 import type { RecommendationsController } from "@/features/recommendations/recommendations.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
@@ -233,6 +234,50 @@ export const postingsActivityRouteModule: RouteModule = {
       resolveHandler<PostingsController>(
         containerTokens.postingsController,
         "trackSearchClick",
+      ),
+    );
+  },
+};
+
+export const postingsSavedSearchesRouteModule: RouteModule = {
+  id: "postings-saved-searches",
+  register(app, { resolveHandler }) {
+    // Registered ahead of both `postings-saved` and `postings-public`: these
+    // are the deepest static paths under /postings, and either `/postings/:id`
+    // or a future `/postings/saved/:id` would swallow them.
+    app.get(
+      "/postings/saved/searches",
+      resolveHandler<SavedSearchesController>(
+        containerTokens.savedSearchesController,
+        "list",
+      ),
+    );
+    app.post(
+      "/postings/saved/searches",
+      resolveHandler<SavedSearchesController>(
+        containerTokens.savedSearchesController,
+        "create",
+      ),
+    );
+    app.patch(
+      "/postings/saved/searches/:id",
+      resolveHandler<SavedSearchesController>(
+        containerTokens.savedSearchesController,
+        "update",
+      ),
+    );
+    app.delete(
+      "/postings/saved/searches/:id",
+      resolveHandler<SavedSearchesController>(
+        containerTokens.savedSearchesController,
+        "remove",
+      ),
+    );
+    app.post(
+      "/postings/saved/searches/:id/seen",
+      resolveHandler<SavedSearchesController>(
+        containerTokens.savedSearchesController,
+        "markSeen",
       ),
     );
   },

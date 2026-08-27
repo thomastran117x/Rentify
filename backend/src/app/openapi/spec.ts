@@ -668,6 +668,47 @@ const savedPostingsResultExample = {
     },
   ],
 };
+const savedSearchQueryParamsExample = {
+  q: "kayak",
+  family: "equipment",
+  maxDailyPrice: 60,
+};
+
+const savedSearchRecordExample = {
+  id: "saved-search-1",
+  name: "kayak · Equipment · under $60/day",
+  queryParams: savedSearchQueryParamsExample,
+  notifyFrequency: "instant",
+  newMatchCount: 2,
+  lastCheckedAt: "2026-08-25T09:00:00.000Z",
+  lastNotifiedAt: "2026-08-25T08:00:00.000Z",
+  invalidated: false,
+  createdAt: "2026-08-20T12:00:00.000Z",
+};
+
+const listSavedSearchesResultExample = {
+  searches: [savedSearchRecordExample],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+  limit: 20,
+};
+
+const createSavedSearchRequestExample = {
+  name: "Kayaks under $60",
+  queryParams: savedSearchQueryParamsExample,
+  notifyFrequency: "instant",
+};
+
+const updateSavedSearchRequestExample = {
+  notifyFrequency: "daily",
+};
+
 const savedPostingIdsResultExample = {
   postingIds: ["posting-1", "posting-2"],
   truncated: false,
@@ -5443,6 +5484,140 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/postings/saved/searches",
+      operationId: "listSavedSearches",
+      summary: "List the saved searches belonging to the caller",
+      description:
+        "Returns the saved searches of the authenticated caller, newest first. `newMatchCount` is how many postings have matched since the caller last opened the search, and is cleared by the `seen` operation rather than by this read. `invalidated` marks a search whose stored filters no longer validate against the current search contract: it is kept and shown, but it no longer runs. `limit` is the per-account cap. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [parameterRef("Page"), parameterRef("PageSize")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ListSavedSearchesResult",
+          listSavedSearchesResultExample,
+          "Successful response.",
+          {
+            requestId: requestIdExample,
+            pagination: listSavedSearchesResultExample.pagination,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/postings/saved/searches",
+      operationId: "createSavedSearch",
+      summary: "Save a posting search",
+      description:
+        "Persists a set of browse filters so the caller can re-run it, and alerts them by email when postings start matching it. `queryParams` accepts the same filters as `GET /postings`, without `page`, `pageSize` and `sort`, and at least one filter is required. Everything already matching at the moment of saving is recorded as seen, so the first alert only covers postings that appear afterwards. Saving the same filters twice returns 409, and exceeding the per-account cap returns 422.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody(
+        "CreateSavedSearchRequest",
+        createSavedSearchRequestExample,
+      ),
+      responses: {
+        "201": successResponse(
+          201,
+          "Search saved successfully.",
+          "SavedSearchRecord",
+          savedSearchRecordExample,
+        ),
+        ...commonErrors([400, 401, 403, 409, 422, 429, 500]),
+      },
+    },
+    {
+      method: "patch",
+      path: "/postings/saved/searches/:id",
+      operationId: "updateSavedSearch",
+      summary: "Rename a saved search or change its alert frequency",
+      description:
+        "Updates the name, the notification frequency, or both. Changing the frequency reschedules the search: `off` takes it off the alert sweep entirely, and switching back on re-arms it. The stored filters cannot be edited — save a new search instead, so the seen-match history stays attached to the filters it was built from.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Saved search identifier.", "saved-search-1"),
+      ],
+      requestBody: requestBody(
+        "UpdateSavedSearchRequest",
+        updateSavedSearchRequestExample,
+      ),
+      responses: {
+        "200": successResponse(
+          200,
+          "Saved search updated successfully.",
+          "SavedSearchRecord",
+          { ...savedSearchRecordExample, notifyFrequency: "daily" },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/postings/saved/searches/:id",
+      operationId: "deleteSavedSearch",
+      summary: "Delete a saved search",
+      description:
+        "Removes a saved search and the record of which postings it has already alerted on. Alerts stop immediately.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Saved search identifier.", "saved-search-1"),
+      ],
+      responses: {
+        "204": noContentResponse("Saved search deleted successfully."),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/postings/saved/searches/:id/seen",
+      operationId: "markSavedSearchSeen",
+      summary: "Clear the new-match badge on a saved search",
+      description:
+        "Resets `newMatchCount` to zero. Separate from listing the searches so the badge survives a page render the caller never looked at, and only clears when they open the results.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Saved search identifier.", "saved-search-1"),
+      ],
+      responses: {
+        "204": noContentResponse("Saved search marked as seen."),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },
     {
@@ -10359,6 +10534,160 @@ function buildComponents(): Record<string, unknown> {
             items: schemaRef("UnavailableSavedPosting"),
             description:
               "Saved postings on this page that are no longer publicly viewable. They still count towards the pagination total.",
+          },
+        },
+      },
+      SavedSearchQueryParams: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "The browse filters a saved search stores. Accepts the same filters as `GET /postings` minus `page`, `pageSize` and `sort`; at least one must be present. `latitude` and `longitude` must be given together, `radiusKm` requires both, and `startAt`/`endAt` must be given together.",
+        properties: {
+          q: { type: "string", minLength: 1, maxLength: 120 },
+          organization: { type: "string", minLength: 1, maxLength: 160 },
+          organizationId: { type: "string", format: "uuid" },
+          family: {
+            type: "string",
+            enum: ["place", "equipment", "vehicle"],
+          },
+          subtype: { type: "string" },
+          tags: {
+            type: "array",
+            maxItems: 20,
+            items: { type: "string" },
+          },
+          availabilityStatus: {
+            type: "string",
+            enum: ["available", "limited", "unavailable"],
+          },
+          minDailyPrice: { type: "number", minimum: 0 },
+          maxDailyPrice: { type: "number", minimum: 0 },
+          latitude: { type: "number", minimum: -90, maximum: 90 },
+          longitude: { type: "number", minimum: -180, maximum: 180 },
+          radiusKm: { type: "number", exclusiveMinimum: 0, maximum: 20000 },
+          startAt: { type: "string", format: "date-time" },
+          endAt: { type: "string", format: "date-time" },
+          cancellationPolicy: {
+            type: "string",
+            enum: ["flexible", "moderate", "strict"],
+          },
+          instantBooking: { type: "boolean" },
+          maxMinBookingDurationDays: { type: "integer", minimum: 1 },
+          attributeFilters: {
+            type: "array",
+            maxItems: 20,
+            description:
+              "Variant-specific attribute filters. Requires both `family` and `subtype`.",
+            items: {
+              type: "object",
+              required: ["key"],
+              properties: {
+                key: { type: "string" },
+                value: {
+                  oneOf: [
+                    { type: "string" },
+                    { type: "number" },
+                    { type: "boolean" },
+                    { type: "array", items: { type: "string" } },
+                  ],
+                },
+                min: { type: "number" },
+                max: { type: "number" },
+              },
+            },
+          },
+        },
+      },
+      SavedSearchRecord: {
+        type: "object",
+        required: [
+          "id",
+          "name",
+          "queryParams",
+          "notifyFrequency",
+          "newMatchCount",
+          "lastCheckedAt",
+          "lastNotifiedAt",
+          "invalidated",
+          "createdAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string", maxLength: 120 },
+          queryParams: schemaRef("SavedSearchQueryParams"),
+          notifyFrequency: {
+            type: "string",
+            enum: ["instant", "daily", "off"],
+            description:
+              "`instant` alerts on the next sweep after a match appears, `daily` at most once a day, `off` keeps the search without alerting.",
+          },
+          newMatchCount: {
+            type: "integer",
+            description:
+              "Matches found since the caller last marked this search as seen.",
+          },
+          lastCheckedAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+          },
+          lastNotifiedAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+          },
+          invalidated: {
+            type: "boolean",
+            description:
+              "True when the stored filters no longer validate against the current search contract. The search is kept but no longer runs.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      ListSavedSearchesResult: {
+        type: "object",
+        required: ["searches", "pagination", "limit"],
+        properties: {
+          searches: {
+            type: "array",
+            items: schemaRef("SavedSearchRecord"),
+          },
+          pagination: schemaRef("Pagination"),
+          limit: {
+            type: "integer",
+            description: "How many searches one account may save.",
+          },
+        },
+      },
+      CreateSavedSearchRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["queryParams"],
+        properties: {
+          name: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            description:
+              "Optional. Defaults to a label derived from the filters.",
+          },
+          queryParams: schemaRef("SavedSearchQueryParams"),
+          notifyFrequency: {
+            type: "string",
+            enum: ["instant", "daily", "off"],
+            default: "instant",
+          },
+        },
+      },
+      UpdateSavedSearchRequest: {
+        type: "object",
+        additionalProperties: false,
+        description: "At least one property must be present.",
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          notifyFrequency: {
+            type: "string",
+            enum: ["instant", "daily", "off"],
           },
         },
       },
