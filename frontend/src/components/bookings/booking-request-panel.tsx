@@ -75,6 +75,14 @@ export function todayIsoDate(now: number = Date.now()): string {
   return new Date(now).toISOString().slice(0, 10);
 }
 
+export function nextIsoDate(dateValue: string): string {
+  // The end date must be strictly after the start date, so the earliest end a
+  // picker should offer is the following day rather than the start itself.
+  const next = new Date(`${dateValue}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
 export function describeFailure(reason: BookingQuoteFailureReason): string {
   return (
     FAILURE_REASON_MESSAGES[reason.code] ??
@@ -452,7 +460,11 @@ export function BookingRequestPanel({ posting }: BookingRequestPanelProps) {
               End date
               <input
                 type="date"
-                min={values.startAt || todayIsoDate()}
+                min={
+                  values.startAt
+                    ? nextIsoDate(values.startAt)
+                    : nextIsoDate(todayIsoDate())
+                }
                 value={values.endAt}
                 onChange={(event) => updateValue("endAt", event.target.value)}
                 aria-invalid={Boolean(errors.endAt)}

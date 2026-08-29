@@ -6034,6 +6034,7 @@ function buildOperations(): OperationDefinition[] {
             "2026-07-02": { status: "blocked", reason: "Owner maintenance" },
             "2026-07-03": { status: "booked", reason: "booked" },
             "2026-07-04": { status: "unavailable", reason: "advance_notice" },
+            "2026-07-05": { status: "unavailable", reason: "past" },
           },
         ),
         ...commonErrors([400, 404, 429, 500]),

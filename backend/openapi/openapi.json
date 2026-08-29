@@ -16381,6 +16381,10 @@
                     "2026-07-04": {
                       "status": "unavailable",
                       "reason": "advance_notice"
+                    },
+                    "2026-07-05": {
+                      "status": "unavailable",
+                      "reason": "past"
                     }
                   },
                   "error": null,

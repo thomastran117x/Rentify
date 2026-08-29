@@ -4,6 +4,7 @@ import {
   BookingRequestPanel,
   describeFailure,
   getFieldClassName,
+  nextIsoDate,
   toIsoDate,
   todayIsoDate,
   validate,
@@ -328,6 +329,22 @@ describe("BookingRequestPanel", () => {
       "min",
       todayIsoDate(),
     );
+  });
+
+  it("offers the end-date picker only dates after the chosen start", () => {
+    // endAt must be strictly after startAt, so the same day is never valid.
+    expect(nextIsoDate("2099-08-01")).toBe("2099-08-02");
+    expect(nextIsoDate("2099-08-31")).toBe("2099-09-01");
+    expect(nextIsoDate("2099-12-31")).toBe("2100-01-01");
+
+    render(<BookingRequestPanel posting={buildPosting()} />);
+    const endInput = screen.getByLabelText("End date");
+    expect(endInput).toHaveAttribute("min", nextIsoDate(todayIsoDate()));
+
+    fireEvent.change(screen.getByLabelText("Start date"), {
+      target: { value: "2099-08-01" },
+    });
+    expect(endInput).toHaveAttribute("min", "2099-08-02");
   });
 
   it("describes known, server-provided, and fallback quote failures", () => {

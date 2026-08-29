@@ -481,6 +481,50 @@ describe("BookingsService — pricing and constraint enforcement", () => {
       expect(codes).not.toContain("advance_notice_not_met");
     });
 
+    it("rejects a time-specific start earlier today", async () => {
+      const { service } = createService();
+
+      // A window that already elapsed today: the calendar-day cutoff alone
+      // would accept it, so this is held to the current instant instead.
+      const elapsedStart = new Date();
+      elapsedStart.setUTCHours(0, 0, 0, 0);
+      elapsedStart.setUTCMilliseconds(1);
+      const elapsedEnd = new Date(elapsedStart);
+      elapsedEnd.setUTCMinutes(elapsedEnd.getUTCMinutes() + 30);
+
+      const result = await service.quote({
+        ...BASE_QUOTE_INPUT,
+        startAt: elapsedStart.toISOString(),
+        endAt: elapsedEnd.toISOString(),
+      });
+
+      expect(result.bookable).toBe(false);
+      expect(result.failureReasons).toContainEqual(
+        expect.objectContaining({
+          code: "start_date_in_past",
+          message: "Booking start time cannot be in the past.",
+        }),
+      );
+    });
+
+    it("accepts a time-specific start later today", async () => {
+      const { service } = createService();
+
+      const upcomingStart = new Date(Date.now() + 60 * 60 * 1000);
+      const upcomingEnd = new Date(upcomingStart);
+      upcomingEnd.setUTCDate(upcomingEnd.getUTCDate() + 2);
+
+      const result = await service.quote({
+        ...BASE_QUOTE_INPUT,
+        startAt: upcomingStart.toISOString(),
+        endAt: upcomingEnd.toISOString(),
+      });
+
+      expect(result.failureReasons.map((r) => r.code)).not.toContain(
+        "start_date_in_past",
+      );
+    });
+
     it("rejects create() when the start date is in the past", async () => {
       const { service, bookingsRepository } = createService();
 

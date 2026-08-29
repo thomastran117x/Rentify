@@ -11044,6 +11044,9 @@ paths:
                   '2026-07-04':
                     status: unavailable
                     reason: advance_notice
+                  '2026-07-05':
+                    status: unavailable
+                    reason: past
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
