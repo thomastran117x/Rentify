@@ -71,7 +71,8 @@ interface NormalizedBookingRequestInput {
   note: string | null;
 }
 
-interface NormalizedCreateBookingRequestInput extends NormalizedBookingRequestInput {
+interface NormalizedCreateBookingRequestInput
+  extends NormalizedBookingRequestInput {
   contactName: string;
   contactEmail: string;
   contactPhoneNumber: string | null;
