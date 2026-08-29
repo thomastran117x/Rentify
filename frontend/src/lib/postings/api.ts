@@ -38,6 +38,7 @@ export interface BookingQuoteFailureReason {
     | "invalid_dates"
     | "max_duration_exceeded"
     | "min_duration_not_met"
+    | "start_date_in_past"
     | "advance_notice_not_met"
     | "invalid_guest_count"
     | "guest_count_exceeded"

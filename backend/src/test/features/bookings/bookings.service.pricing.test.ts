@@ -55,8 +55,8 @@ function createCreatedBooking(
     renterId: "renter-1",
     organizationId: "org-1",
     status: "pending",
-    startAt: "2026-05-01T00:00:00.000Z",
-    endAt: "2026-05-08T00:00:00.000Z",
+    startAt: "2099-05-01T00:00:00.000Z",
+    endAt: "2099-05-08T00:00:00.000Z",
     durationDays: 7,
     guestCount: 2,
     contactName: "Jordan Lee",
@@ -85,8 +85,8 @@ function buildSeasonalRule(
     id: "rule-1",
     postingId: "posting-1",
     name: "Peak",
-    startDate: "2026-05-01",
-    endDate: "2026-05-03",
+    startDate: "2099-05-01",
+    endDate: "2099-05-03",
     dailyAmount: 200,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -207,10 +207,19 @@ function createService(options?: {
 const BASE_QUOTE_INPUT = {
   postingId: "posting-1",
   renterId: "renter-1",
-  startAt: "2026-05-01T00:00:00.000Z",
-  endAt: "2026-05-04T00:00:00.000Z",
+  startAt: "2099-05-01T00:00:00.000Z",
+  endAt: "2099-05-04T00:00:00.000Z",
   guestCount: 2,
 };
+
+// The past-start cutoff is today at 00:00 UTC, so boundary cases have to be
+// expressed relative to the run date rather than as literals that go stale.
+function utcMidnightOffsetBy(days: number): string {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
+}
 
 describe("BookingsService — pricing and constraint enforcement", () => {
   describe("calculateEstimatedTotal — daily rate", () => {
@@ -256,7 +265,7 @@ describe("BookingsService — pricing and constraint enforcement", () => {
 
       const result = await service.quote({
         ...BASE_QUOTE_INPUT,
-        endAt: "2026-05-08T00:00:00.000Z", // 7 days
+        endAt: "2099-05-08T00:00:00.000Z", // 7 days
       });
 
       // $560 / 7 × 7 = $560
@@ -280,7 +289,7 @@ describe("BookingsService — pricing and constraint enforcement", () => {
 
       const result = await service.quote({
         ...BASE_QUOTE_INPUT,
-        endAt: "2026-05-29T00:00:00.000Z", // 28 days
+        endAt: "2099-05-29T00:00:00.000Z", // 28 days
       });
 
       // $2100 / 30 × 28 = $1960
@@ -290,12 +299,12 @@ describe("BookingsService — pricing and constraint enforcement", () => {
 
   describe("calculateEstimatedTotal — seasonal rules", () => {
     it("applies seasonal rule dailyAmount for covered days, base rate for uncovered days", async () => {
-      // 3-day booking: 2026-05-01 to 2026-05-04
-      // Rule covers 2026-05-01 to 2026-05-02 @ $200/day (2 days)
-      // Day 2026-05-03 is uncovered → $100/day
+      // 3-day booking: 2099-05-01 to 2099-05-04
+      // Rule covers 2099-05-01 to 2099-05-02 @ $200/day (2 days)
+      // Day 2099-05-03 is uncovered → $100/day
       const rule = buildSeasonalRule({
-        startDate: "2026-05-01",
-        endDate: "2026-05-02",
+        startDate: "2099-05-01",
+        endDate: "2099-05-02",
         dailyAmount: 200,
       });
 
@@ -332,17 +341,17 @@ describe("BookingsService — pricing and constraint enforcement", () => {
     });
 
     it("resolves overlapping seasonal rules by latest endDate wins", async () => {
-      // Both rules cover 2026-05-01. 'Holiday' has the later endDate so it wins.
+      // Both rules cover 2099-05-01. 'Holiday' has the later endDate so it wins.
       const summer = buildSeasonalRule({
         id: "r1",
         startDate: "2026-04-01",
-        endDate: "2026-05-15",
+        endDate: "2099-05-15",
         dailyAmount: 150,
       });
       const holiday = buildSeasonalRule({
         id: "r2",
-        startDate: "2026-05-01",
-        endDate: "2026-05-31",
+        startDate: "2099-05-01",
+        endDate: "2099-05-31",
         dailyAmount: 250,
       });
 
@@ -355,7 +364,7 @@ describe("BookingsService — pricing and constraint enforcement", () => {
 
       const result = await service.quote(BASE_QUOTE_INPUT);
 
-      // All 3 days picked up by 'holiday' (endDate 2026-05-31 > 2026-05-15)
+      // All 3 days picked up by 'holiday' (endDate 2099-05-31 > 2099-05-15)
       expect(result.estimatedTotal).toBe(750); // 3 × 250
     });
 
@@ -364,8 +373,8 @@ describe("BookingsService — pricing and constraint enforcement", () => {
       // Without per-day rounding: 33.333333 × 3 ≈ 99.999999 → would round to 100.
       // With per-day rounding: Math.round(33.333333 × 100)/100 = 33.33 per day → 99.99 total.
       const rule = buildSeasonalRule({
-        startDate: "2026-05-01",
-        endDate: "2026-05-31",
+        startDate: "2099-05-01",
+        endDate: "2099-05-31",
         dailyAmount: 33.333333,
       });
 
@@ -423,17 +432,89 @@ describe("BookingsService — pricing and constraint enforcement", () => {
     });
   });
 
+  describe("booking constraint enforcement — past start dates", () => {
+    it("returns start_date_in_past failure reason in quote for a past start", async () => {
+      const { service } = createService();
+
+      const result = await service.quote({
+        ...BASE_QUOTE_INPUT,
+        startAt: utcMidnightOffsetBy(-3),
+        endAt: utcMidnightOffsetBy(-1),
+      });
+
+      expect(result.bookable).toBe(false);
+      expect(result.failureReasons).toContainEqual(
+        expect.objectContaining({
+          code: "start_date_in_past",
+          field: "startAt",
+        }),
+      );
+    });
+
+    it("allows a start date of today", async () => {
+      const { service } = createService();
+
+      const result = await service.quote({
+        ...BASE_QUOTE_INPUT,
+        startAt: utcMidnightOffsetBy(0),
+        endAt: utcMidnightOffsetBy(3),
+      });
+
+      expect(result.failureReasons.map((r) => r.code)).not.toContain(
+        "start_date_in_past",
+      );
+    });
+
+    it("reports start_date_in_past ahead of advance_notice_not_met", async () => {
+      const { service } = createService({
+        posting: createPostingRecord({ advanceNoticeDays: 2 }),
+      });
+
+      const result = await service.quote({
+        ...BASE_QUOTE_INPUT,
+        startAt: utcMidnightOffsetBy(-5),
+        endAt: utcMidnightOffsetBy(-2),
+      });
+
+      const codes = result.failureReasons.map((r) => r.code);
+      expect(codes).toContain("start_date_in_past");
+      expect(codes).not.toContain("advance_notice_not_met");
+    });
+
+    it("rejects create() when the start date is in the past", async () => {
+      const { service, bookingsRepository } = createService();
+
+      await expect(
+        service.create({
+          postingId: "posting-1",
+          renterId: "renter-1",
+          startAt: utcMidnightOffsetBy(-2),
+          endAt: utcMidnightOffsetBy(1),
+          guestCount: 2,
+          contactName: "Jordan Lee",
+          contactEmail: "jordan@example.com",
+        } as any),
+      ).rejects.toBeInstanceOf(BadRequestError);
+
+      expect(
+        bookingsRepository.createIfWithinActiveRequestLimit,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
   describe("booking constraint enforcement — advanceNoticeDays", () => {
     it("returns advance_notice_not_met failure reason in quote for same-day start", async () => {
       const { service } = createService({
         posting: createPostingRecord({ advanceNoticeDays: 2 }),
       });
 
-      // startAt is far in the past; advance notice will certainly not be met
+      // Today is a valid start date on its own, but it does not clear the
+      // 2-day notice requirement. Using today (not a past literal) keeps this
+      // exercising advance notice rather than the past-start rule.
       const result = await service.quote({
         ...BASE_QUOTE_INPUT,
-        startAt: "2020-01-01T00:00:00.000Z",
-        endAt: "2020-01-04T00:00:00.000Z",
+        startAt: utcMidnightOffsetBy(0),
+        endAt: utcMidnightOffsetBy(3),
       });
 
       expect(result.bookable).toBe(false);

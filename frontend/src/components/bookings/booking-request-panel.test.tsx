@@ -5,6 +5,7 @@ import {
   describeFailure,
   getFieldClassName,
   toIsoDate,
+  todayIsoDate,
   validate,
 } from "./booking-request-panel";
 import { ApiClientError } from "@/lib/api/types";
@@ -65,8 +66,8 @@ function buildBookingRecord(status: string, autoApproved?: boolean) {
     renterId: "user-1",
     organizationId: "org-1",
     status,
-    startAt: "2026-08-01T00:00:00.000Z",
-    endAt: "2026-08-05T00:00:00.000Z",
+    startAt: "2099-08-01T00:00:00.000Z",
+    endAt: "2099-08-05T00:00:00.000Z",
     durationDays: 4,
     guestCount: 1,
     contactName: "Renter One",
@@ -88,10 +89,10 @@ function buildBookingRecord(status: string, autoApproved?: boolean) {
 
 async function fillValidDates() {
   fireEvent.change(screen.getByLabelText("Start date"), {
-    target: { value: "2026-08-01" },
+    target: { value: "2099-08-01" },
   });
   fireEvent.change(screen.getByLabelText("End date"), {
-    target: { value: "2026-08-05" },
+    target: { value: "2099-08-05" },
   });
   // Wait for the debounced quote and the enabled submit button.
   await waitFor(() => expect(quoteMock).toHaveBeenCalled());
@@ -260,8 +261,8 @@ describe("BookingRequestPanel", () => {
   it("validates every local field and accepts a complete form", () => {
     expect(
       validate({
-        startAt: "2026-08-05",
-        endAt: "2026-08-01",
+        startAt: "2099-08-05",
+        endAt: "2099-08-01",
         guestCount: "0.5",
         note: "",
         contactName: " ",
@@ -276,8 +277,8 @@ describe("BookingRequestPanel", () => {
     });
     expect(
       validate({
-        startAt: "2026-08-01",
-        endAt: "2026-08-05",
+        startAt: "2099-08-01",
+        endAt: "2099-08-05",
         guestCount: "2",
         note: "hello",
         contactName: "Renter",
@@ -285,9 +286,48 @@ describe("BookingRequestPanel", () => {
         contactPhoneNumber: "555",
       }),
     ).toEqual({});
-    expect(toIsoDate("2026-08-01")).toBe("2026-08-01T00:00:00.000Z");
+    expect(toIsoDate("2099-08-01")).toBe("2099-08-01T00:00:00.000Z");
     expect(getFieldClassName(true)).toContain("border-rose-300");
     expect(getFieldClassName(false)).toContain("border-slate-200");
+  });
+
+  it("rejects a start date before today and blocks the picker", () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    expect(
+      validate({
+        startAt: yesterday,
+        endAt: "2099-08-05",
+        guestCount: "2",
+        note: "",
+        contactName: "Renter",
+        contactEmail: "renter@example.com",
+        contactPhoneNumber: "",
+      }),
+    ).toEqual({ startAt: "The start date can't be in the past." });
+
+    // Today itself stays bookable — the cutoff is today at 00:00 UTC.
+    expect(
+      validate({
+        startAt: todayIsoDate(),
+        endAt: "2099-08-05",
+        guestCount: "2",
+        note: "",
+        contactName: "Renter",
+        contactEmail: "renter@example.com",
+        contactPhoneNumber: "",
+      }),
+    ).toEqual({});
+
+    expect(todayIsoDate(Date.UTC(2026, 7, 27, 23, 30))).toBe("2026-08-27");
+
+    render(<BookingRequestPanel posting={buildPosting()} />);
+    expect(screen.getByLabelText("Start date")).toHaveAttribute(
+      "min",
+      todayIsoDate(),
+    );
   });
 
   it("describes known, server-provided, and fallback quote failures", () => {
@@ -297,6 +337,9 @@ describe("BookingRequestPanel", () => {
     expect(
       describeFailure({ code: "renting_overlap", message: "ignored" }),
     ).toMatch(/existing booking/i);
+    expect(
+      describeFailure({ code: "start_date_in_past", message: "ignored" }),
+    ).toMatch(/can't be in the past/i);
     expect(
       describeFailure({
         code: "future_reason",
@@ -318,10 +361,10 @@ describe("BookingRequestPanel", () => {
       target: { value: "  owner note  " },
     });
     fireEvent.change(screen.getByLabelText("Start date"), {
-      target: { value: "2026-08-01" },
+      target: { value: "2099-08-01" },
     });
     fireEvent.change(screen.getByLabelText("End date"), {
-      target: { value: "2026-08-05" },
+      target: { value: "2099-08-05" },
     });
 
     expect(

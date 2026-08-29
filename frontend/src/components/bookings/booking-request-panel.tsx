@@ -52,6 +52,7 @@ const FAILURE_REASON_MESSAGES: Record<
   max_duration_exceeded:
     "The selected dates exceed the maximum booking length.",
   min_duration_not_met: "The selected dates are shorter than the minimum stay.",
+  start_date_in_past: "The start date can't be in the past.",
   advance_notice_not_met:
     "This posting needs more advance notice before the start date.",
   invalid_guest_count: "Enter a valid number of guests.",
@@ -66,6 +67,12 @@ const FAILURE_REASON_MESSAGES: Record<
 export function toIsoDate(dateValue: string): string {
   // Date inputs yield YYYY-MM-DD; the API expects an ISO datetime.
   return `${dateValue}T00:00:00.000Z`;
+}
+
+export function todayIsoDate(now: number = Date.now()): string {
+  // Matches toIsoDate's UTC anchoring, so this is exactly the server's
+  // today-00:00-UTC cutoff and the picker can never offer a rejected date.
+  return new Date(now).toISOString().slice(0, 10);
 }
 
 export function describeFailure(reason: BookingQuoteFailureReason): string {
@@ -90,6 +97,8 @@ export function validate(values: BookingFormValues): BookingFormErrors {
 
   if (!values.startAt) {
     errors.startAt = "Choose a start date.";
+  } else if (values.startAt < todayIsoDate()) {
+    errors.startAt = "The start date can't be in the past.";
   }
 
   if (!values.endAt) {
@@ -424,6 +433,7 @@ export function BookingRequestPanel({ posting }: BookingRequestPanelProps) {
               Start date
               <input
                 type="date"
+                min={todayIsoDate()}
                 value={values.startAt}
                 onChange={(event) => updateValue("startAt", event.target.value)}
                 aria-invalid={Boolean(errors.startAt)}
@@ -442,6 +452,7 @@ export function BookingRequestPanel({ posting }: BookingRequestPanelProps) {
               End date
               <input
                 type="date"
+                min={values.startAt || todayIsoDate()}
                 value={values.endAt}
                 onChange={(event) => updateValue("endAt", event.target.value)}
                 aria-invalid={Boolean(errors.endAt)}

@@ -65,8 +65,8 @@ function createBookingRequestRecord(
     ownerId: "owner-1",
     organizationId: "org-1",
     status: "pending",
-    startAt: "2026-05-01T00:00:00.000Z",
-    endAt: "2026-05-04T00:00:00.000Z",
+    startAt: "2099-05-01T00:00:00.000Z",
+    endAt: "2099-05-04T00:00:00.000Z",
     durationDays: 3,
     guestCount: 2,
     contactName: "Jordan Lee",
@@ -398,8 +398,8 @@ describe("BookingsService", () => {
     const result = await service.create({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
       contactName: "Jordan Lee",
       contactEmail: "jordan@example.com",
@@ -438,8 +438,8 @@ describe("BookingsService", () => {
     await service.create({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
       contactName: "Jordan Lee",
       contactEmail: "jordan@example.com",
@@ -460,8 +460,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -479,8 +479,8 @@ describe("BookingsService", () => {
     const result = await service.quote({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
     });
 
@@ -517,8 +517,8 @@ describe("BookingsService", () => {
     const result = await service.quote({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
     });
 
@@ -544,8 +544,8 @@ describe("BookingsService", () => {
     const quote = await service.quote({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
     });
 
@@ -558,8 +558,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -594,8 +594,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -621,8 +621,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -649,8 +649,8 @@ describe("BookingsService", () => {
     await service.create({
       postingId: "posting-1",
       renterId: "renter-1",
-      startAt: "2026-05-01T00:00:00.000Z",
-      endAt: "2026-05-04T00:00:00.000Z",
+      startAt: "2099-05-01T00:00:00.000Z",
+      endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
       contactName: "Jordan Lee",
       contactEmail: "Jordan@example.com",
@@ -678,8 +678,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -705,8 +705,8 @@ describe("BookingsService", () => {
       service.updateOwnPending({
         bookingRequestId: "booking-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -717,6 +717,39 @@ describe("BookingsService", () => {
       "booking-request:booking-1:state",
       "posting:posting-1:booking-window",
     ]);
+  });
+
+  it("blocks renter updates that move a pending request into the past", async () => {
+    const booking = createBookingRequestRecord({
+      holdExpiresAt: "2099-04-21T00:00:00.000Z",
+    });
+    const { service, bookingsRepository } = createService({
+      createdBooking: booking,
+    });
+    bookingsRepository.findById.mockResolvedValue(booking);
+
+    // Dates are relative to the run date: the cutoff is today at 00:00 UTC.
+    const pastStart = new Date();
+    pastStart.setUTCHours(0, 0, 0, 0);
+    pastStart.setUTCDate(pastStart.getUTCDate() - 3);
+    const pastEnd = new Date(pastStart);
+    pastEnd.setUTCDate(pastEnd.getUTCDate() + 2);
+
+    await expect(
+      service.updateOwnPending({
+        bookingRequestId: "booking-1",
+        renterId: "renter-1",
+        startAt: pastStart.toISOString(),
+        endAt: pastEnd.toISOString(),
+        guestCount: 2,
+        contactName: "Jordan Lee",
+        contactEmail: "jordan@example.com",
+      }),
+    ).rejects.toMatchObject<Partial<BadRequestError>>({
+      message: "Booking start date cannot be in the past.",
+    });
+
+    expect(bookingsRepository.updatePending).not.toHaveBeenCalled();
   });
 
   it("blocks renter updates when the posting is paused", async () => {
@@ -736,8 +769,8 @@ describe("BookingsService", () => {
       service.updateOwnPending({
         bookingRequestId: "booking-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -1304,8 +1337,8 @@ describe("BookingsService", () => {
       service.create({
         postingId: "posting-1",
         renterId: "renter-1",
-        startAt: "2026-05-01T00:00:00.000Z",
-        endAt: "2026-05-04T00:00:00.000Z",
+        startAt: "2099-05-01T00:00:00.000Z",
+        endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
         contactName: "Jordan Lee",
         contactEmail: "jordan@example.com",
@@ -1551,8 +1584,8 @@ describe("BookingsService", () => {
         conflictContext.service as unknown as typeof helper
       ).assertNoBlockingAvailabilityOverlap(
         "posting-1",
-        new Date("2026-05-01T00:00:00.000Z"),
-        new Date("2026-05-04T00:00:00.000Z"),
+        new Date("2099-05-01T00:00:00.000Z"),
+        new Date("2099-05-04T00:00:00.000Z"),
       ),
     ).rejects.toBeInstanceOf(BadRequestError);
     conflictContext.bookingsRepository.countActiveRequestsForRenterPosting.mockResolvedValueOnce(
@@ -1569,8 +1602,8 @@ describe("BookingsService", () => {
         conflictContext.service as unknown as typeof helper
       ).assertNoRentingOverlap(
         "posting-1",
-        new Date("2026-05-01T00:00:00.000Z"),
-        new Date("2026-05-04T00:00:00.000Z"),
+        new Date("2099-05-01T00:00:00.000Z"),
+        new Date("2099-05-04T00:00:00.000Z"),
       ),
     ).rejects.toBeInstanceOf(BadRequestError);
 
