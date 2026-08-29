@@ -625,6 +625,12 @@ export class PostingsService {
       now,
       posting.advanceNoticeDays,
     );
+    // Mirrors the booking endpoint's unconditional past-start cutoff
+    // (checkBookingDateConstraints): today's UTC midnight. advanceNoticeDays is
+    // optional, so the notice threshold alone leaves historical days advertised
+    // as available on most postings.
+    const pastThreshold = new Date(now);
+    pastThreshold.setUTCHours(0, 0, 0, 0);
     const postingUnavailable = posting.availabilityStatus === "unavailable";
 
     // Resolve a base status for every window (including the min-duration
@@ -634,6 +640,7 @@ export class PostingsService {
         window,
         postingUnavailable,
         noticeThreshold,
+        pastThreshold,
         activeBlocks,
         rentings,
         bookingRequests,
@@ -690,6 +697,7 @@ export class PostingsService {
     window: CalendarDayWindow;
     postingUnavailable: boolean;
     noticeThreshold?: Date;
+    pastThreshold: Date;
     activeBlocks: AvailabilityBlockRange[];
     rentings: ConfirmedRentingRange[];
     bookingRequests: ActiveBookingRequestRange[];
@@ -747,6 +755,12 @@ export class PostingsService {
         ? (ownerBlock.note ?? "blocked")
         : "blocked";
       return { status: "blocked", reason };
+    }
+
+    // Reported ahead of advance notice: an elapsed day is not merely "too
+    // soon", and the booking API rejects it regardless of advanceNoticeDays.
+    if (window.startUtc.getTime() < input.pastThreshold.getTime()) {
+      return { status: "unavailable", reason: "past" };
     }
 
     if (

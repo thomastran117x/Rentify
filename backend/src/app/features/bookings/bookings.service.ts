@@ -2330,9 +2330,42 @@ export class BookingsService {
       };
     }
 
+    const now = new Date();
+    const today = new Date(now);
+    today.setUTCHours(0, 0, 0, 0);
+
+    // The booking form submits calendar days anchored to UTC midnight (see the
+    // client's toIsoDate), and a same-day booking stays valid for the whole of
+    // that day, matching advanceNoticeDays: 0. A start carrying a real time of
+    // day can only come from an API client, and there the day boundary is too
+    // permissive: a 01:00Z-02:00Z window requested at 22:00Z has already
+    // elapsed. So calendar-day starts are held to the day boundary and
+    // time-specific starts to the current instant.
+    const isCalendarDayStart =
+      startAt.getUTCHours() === 0 &&
+      startAt.getUTCMinutes() === 0 &&
+      startAt.getUTCSeconds() === 0 &&
+      startAt.getUTCMilliseconds() === 0;
+    const earliestStart = isCalendarDayStart ? today : now;
+
+    // Checked before advance notice: both would be true for an old date, but
+    // "in the past" is the more actionable message. Without this a request
+    // could be created for a stay that already ended, which the renter then
+    // cannot cancel (see assessCancellation's already_started guard).
+    if (startAt < earliestStart) {
+      return {
+        code: "start_date_in_past",
+        field: "startAt",
+        message: isCalendarDayStart
+          ? "Booking start date cannot be in the past."
+          : "Booking start time cannot be in the past.",
+        details: {
+          earliestStartDate: earliestStart.toISOString(),
+        },
+      };
+    }
+
     if (posting.advanceNoticeDays != null) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
       const minStart = new Date(today);
       minStart.setUTCDate(today.getUTCDate() + posting.advanceNoticeDays);
       if (startAt < minStart) {

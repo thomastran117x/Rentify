@@ -310,6 +310,40 @@ describe("Bookings persistence integration", () => {
     );
   });
 
+  it("does not persist booking requests that start in the past", async () => {
+    const renter = await createAuthenticatedRequestContext({
+      email: "viewer1@rentify.local",
+    });
+    const beforeCount = await persistenceApp.prisma.bookingRequest.count();
+
+    // Relative to the run date, since the cutoff is today at 00:00 UTC.
+    const pastStart = new Date();
+    pastStart.setUTCHours(0, 0, 0, 0);
+    pastStart.setUTCDate(pastStart.getUTCDate() - 5);
+    const pastEnd = new Date(pastStart);
+    pastEnd.setUTCDate(pastEnd.getUTCDate() + 3);
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/postings/${MUTABLE_POSTING_ID}/booking-requests`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          startAt: pastStart.toISOString(),
+          endAt: pastEnd.toISOString(),
+          guestCount: 2,
+          contactName: "Jordan Lee",
+          contactEmail: "jordan@example.com",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await persistenceApp.prisma.bookingRequest.count()).toBe(
+      beforeCount,
+    );
+  });
+
   it("quotes a booking before it is requested", async () => {
     const renter = await createAuthenticatedRequestContext({
       email: "viewer1@rentify.local",
