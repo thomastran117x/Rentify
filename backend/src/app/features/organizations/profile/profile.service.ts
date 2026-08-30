@@ -43,6 +43,7 @@ import type {
   OrganizationWorkspaceDetailResult,
 } from "@/features/organizations/profile/profile.model";
 import type { ResolvedOrganizationReference } from "@/features/organizations/organizations.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const CREATE_SLUG_ATTEMPTS = 10;
 
@@ -70,7 +71,7 @@ export class OrganizationProfileService {
   }
 
   async getById(
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<PublicOrganizationDetailResult> {
     const detail =
       await this.organizationsProfileRepository.findPublicOrganizationDetail(
@@ -85,8 +86,8 @@ export class OrganizationProfileService {
   }
 
   async getWorkspaceById(
-    organizationId: string,
-    userId: string,
+    organizationId: Uuid,
+    userId: Uuid,
   ): Promise<OrganizationWorkspaceDetailResult> {
     const membership = await requireOrganizationMembershipAccess(
       this.organizationsMembersRepository,
@@ -149,7 +150,7 @@ export class OrganizationProfileService {
       ...profile,
     };
     await this.organizationAuditService.recordSafely({
-      organizationId: membership.id,
+      organizationId: asUuid(membership.id),
       actorUserId: input.actorUserId,
       action: "organization.created",
       resourceType: "organization",
@@ -185,7 +186,7 @@ export class OrganizationProfileService {
    */
   private async createOrganizationWithUniqueSlug(input: {
     name: string;
-    ownerUserId: string;
+    ownerUserId: Uuid;
     profile: OrganizationProfileInput;
   }): Promise<OrganizationMembershipSummary> {
     const base = slugify(input.name, {

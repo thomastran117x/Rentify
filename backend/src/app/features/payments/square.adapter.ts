@@ -13,6 +13,7 @@ import {
   moneyToMinorUnits,
   verifySquareSignature,
 } from "@/features/payments/payments.utils";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 type SquareApiErrorResponse = {
   errors?: Array<{
@@ -99,8 +100,8 @@ export class SquarePaymentAdapter implements PaymentProviderAdapter {
     idempotencyKey: string;
     amount: number;
     currency: string;
-    bookingRequestId: string;
-    paymentId: string;
+    bookingRequestId: Uuid;
+    paymentId: Uuid;
   }): Promise<ProviderPaymentSession> {
     const payload = {
       idempotency_key: input.idempotencyKey,

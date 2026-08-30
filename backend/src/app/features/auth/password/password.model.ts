@@ -8,6 +8,7 @@ import {
   UNSAFE_AUTH_INPUT_MESSAGE,
   containsUnsafeAuthInput,
 } from "@/features/auth/auth.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const forgotPasswordRequestSchema = z.object({
   username: authUsernameSchema,
@@ -79,7 +80,7 @@ export interface ResetPasswordInput {
 }
 
 export interface ChangePasswordInput {
-  userId: string;
+  userId: Uuid;
   client: ClientRequestContext;
   currentPassword: string;
   newPassword: string;
@@ -87,7 +88,7 @@ export interface ChangePasswordInput {
 }
 
 export interface SetPasswordInput {
-  userId: string;
+  userId: Uuid;
   client: ClientRequestContext;
   newPassword: string;
   deviceId?: string;

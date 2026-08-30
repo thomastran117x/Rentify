@@ -11,6 +11,7 @@ import {
   type CreateBlobUploadUrlInput,
 } from "@/features/blob/blob.model";
 import { BlobService } from "@/features/blob/blob.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class BlobController {
   constructor(private readonly blobService: BlobService) {}
@@ -38,7 +39,7 @@ export class BlobController {
     input: CreateBlobUploadUrlRequestBody,
   ): CreateBlobUploadUrlInput {
     return {
-      userId: request.auth.sub,
+      userId: asUuid(request.auth.sub),
       filename: input.filename,
       contentType: input.contentType,
       scope: input.scope,

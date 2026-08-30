@@ -56,6 +56,7 @@ import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class LocalAuthService {
   private readonly logger: Logger;
@@ -123,7 +124,7 @@ export class LocalAuthService {
 
     await requireLoginMfa(
       this.mfaTotpService,
-      user.id,
+      asUuid(user.id),
       user.email,
       input.totpCode,
     );
@@ -232,7 +233,7 @@ export class LocalAuthService {
         );
       } else {
         verifiedUser = await this.usersRepository.activatePendingLocalUser(
-          existingUser.id,
+          asUuid(existingUser.id),
           {
             username: pendingSignup.username,
             passwordHash: pendingSignup.passwordHash,

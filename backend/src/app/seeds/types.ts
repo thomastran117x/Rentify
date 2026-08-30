@@ -1,3 +1,4 @@
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { PrismaClient } from "@/generated/prisma/client";
 
 export type FixtureRole = "owner" | "user" | "moderator" | "admin";
@@ -9,7 +10,7 @@ export interface SeedLogger {
 }
 
 export interface SeedUserFixture {
-  id: string;
+  id: Uuid;
   email: string;
   /**
    * `null` seeds an OAuth-only account with no local password, mirroring what
@@ -44,7 +45,7 @@ export interface SeedUserFixture {
 }
 
 export interface SeedDeviceFixture {
-  id: string;
+  id: Uuid;
   userEmail: string;
   deviceId: string;
   type: "desktop" | "mobile" | "tablet";
@@ -54,7 +55,7 @@ export interface SeedDeviceFixture {
 }
 
 export interface SeedPersonalAccessTokenFixture {
-  id: string;
+  id: Uuid;
   userEmail: string;
   name: string;
   publicId: string;
@@ -66,7 +67,7 @@ export interface SeedPersonalAccessTokenFixture {
 }
 
 export interface SeedOAuthIdentityFixture {
-  id: string;
+  id: Uuid;
   userEmail: string;
   provider: "google" | "microsoft" | "apple";
   providerUserId: string;
@@ -77,7 +78,7 @@ export interface SeedOAuthIdentityFixture {
 }
 
 export interface SeedPostingPhotoFixture {
-  id: string;
+  id: Uuid;
   blobUrl: string;
   blobName: string;
   thumbnailBlobUrl?: string;
@@ -86,7 +87,7 @@ export interface SeedPostingPhotoFixture {
 }
 
 export interface SeedAvailabilityBlockFixture {
-  id: string;
+  id: Uuid;
   startAt: string;
   endAt: string;
   note?: string | null;
@@ -94,7 +95,7 @@ export interface SeedAvailabilityBlockFixture {
 }
 
 export interface SeedPostingFixture {
-  id: string;
+  id: Uuid;
   ownerEmail: string;
   status: "draft" | "published" | "paused";
   family: "place" | "equipment" | "vehicle";
@@ -135,7 +136,7 @@ export interface SeedPostingFixture {
 }
 
 export interface SeedPaymentAttemptFixture {
-  id: string;
+  id: Uuid;
   idempotencyKey: string;
   status:
     | "pending"
@@ -156,7 +157,7 @@ export interface SeedPaymentAttemptFixture {
 }
 
 export interface SeedRefundFixture {
-  id: string;
+  id: Uuid;
   issuedByUserEmail?: string;
   status: "pending" | "succeeded" | "failed";
   amount: number;
@@ -168,7 +169,7 @@ export interface SeedRefundFixture {
 }
 
 export interface SeedPayoutFixture {
-  id: string;
+  id: Uuid;
   status: "scheduled" | "released" | "failed";
   amount: number;
   dueAt: string;
@@ -180,7 +181,7 @@ export interface SeedPayoutFixture {
 }
 
 export interface SeedPaymentWebhookEventFixture {
-  id: string;
+  id: Uuid;
   providerEventId: string;
   eventType: string;
   signatureValid: boolean;
@@ -190,7 +191,7 @@ export interface SeedPaymentWebhookEventFixture {
 }
 
 export interface SeedPaymentLedgerEntryFixture {
-  id: string;
+  id: Uuid;
   type:
     | "charge_created"
     | "charge_succeeded"
@@ -204,7 +205,7 @@ export interface SeedPaymentLedgerEntryFixture {
 }
 
 export interface SeedPaymentFixture {
-  id: string;
+  id: Uuid;
   provider: "square";
   status:
     | "awaiting_method"
@@ -236,7 +237,7 @@ export interface SeedPaymentFixture {
 }
 
 export interface SeedRentingFixture {
-  id: string;
+  id: Uuid;
   status:
     | "confirmed"
     | "check_in_ready"
@@ -259,7 +260,7 @@ export interface SeedRentingFixture {
 }
 
 export interface SeedRentingDisputeFixture {
-  id: string;
+  id: Uuid;
   openedByUserEmail: string;
   reason: string;
   details?: string;
@@ -267,8 +268,8 @@ export interface SeedRentingDisputeFixture {
 }
 
 export interface SeedBookingFixture {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   renterEmail: string;
   status:
     | "pending"
@@ -312,8 +313,8 @@ export interface SeedBookingFixture {
 }
 
 export interface SeedPostingReviewFixture {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   reviewerEmail: string;
   rating: number;
   title?: string;
@@ -322,14 +323,14 @@ export interface SeedPostingReviewFixture {
 }
 
 export interface SeedSavedPostingFixture {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   userEmail: string;
   createdAt: string;
 }
 
 export interface SeedSavedSearchFixture {
-  id: string;
+  id: Uuid;
   userEmail: string;
   name: string;
   /**
@@ -344,12 +345,12 @@ export interface SeedSavedSearchFixture {
    * live match out of this list is how a seeded search demonstrates the
    * new-match badge without the sweep having to run.
    */
-  seenPostingIds?: string[];
+  seenPostingIds?: Uuid[];
   newMatchCount?: number;
 }
 
 export interface SeedOrganizationReviewFixture {
-  id: string;
+  id: Uuid;
   ownerEmail: string;
   reviewerEmail: string;
   rating: number;
@@ -364,8 +365,8 @@ export interface SeedOrganizationReviewFixture {
 }
 
 export interface SeedPostingViewEventFixture {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   viewerHash: string;
   userEmail?: string;
   ipAddressHash?: string;
@@ -375,8 +376,8 @@ export interface SeedPostingViewEventFixture {
 }
 
 export interface SeedPostingAnalyticsOutboxFixture {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   eventType:
     | "posting_viewed"
     | "search_impression"
@@ -397,9 +398,9 @@ export interface SeedPostingAnalyticsOutboxFixture {
 }
 
 export interface SeedState {
-  userIdsByEmail: Map<string, string>;
-  organizationIdsByOwnerEmail: Map<string, string>;
-  postingOrganizationIdsByPostingId: Map<string, string>;
+  userIdsByEmail: Map<string, Uuid>;
+  organizationIdsByOwnerEmail: Map<string, Uuid>;
+  postingOrganizationIdsByPostingId: Map<Uuid, Uuid>;
 }
 
 export interface SeedModuleContext {
@@ -432,8 +433,16 @@ export interface SeedSummary {
   source: SeedSource;
 }
 
-export function createFixtureId(namespace: number, index: number): string {
+/**
+ * Builds a stable, human-readable identifier for a seeded row.
+ *
+ * The result is 8-4-4-4-12 hexadecimal but deliberately not RFC 4122: the
+ * version nibble is zero so the namespace and index stay legible in the
+ * database. That is why identifier validation is built on `z.guid()` rather
+ * than `z.uuid()` — see configuration/validation/uuid.ts.
+ */
+export function createFixtureId(namespace: number, index: number): Uuid {
   const namespacePart = namespace.toString().padStart(4, "0").slice(-4);
   const indexPart = index.toString().padStart(12, "0").slice(-12);
-  return `00000000-0000-0000-${namespacePart}-${indexPart}`;
+  return asUuid(`00000000-0000-0000-${namespacePart}-${indexPart}`);
 }

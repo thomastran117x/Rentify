@@ -12,6 +12,7 @@ import {
   type OrganizationSearchSource,
   type OrganizationSummary,
 } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const createOrganizationRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -79,7 +80,7 @@ export interface PublicOrganizationStats {
 }
 
 export interface PublicOrganizationSummary extends PublicOrganizationStats {
-  id: string;
+  id: Uuid;
   slug: string;
   name: string;
   createdAt: string;
@@ -114,7 +115,7 @@ export interface OrganizationWorkspaceResult {
 
 export interface OrganizationWorkspaceDetailResult {
   organization: {
-    id: string;
+    id: Uuid;
     slug: string;
     name: string;
     createdAt: string;
@@ -126,7 +127,7 @@ export interface OrganizationWorkspaceDetailResult {
 }
 
 export interface CreateOrganizationInput extends OrganizationProfileInput {
-  actorUserId: string;
+  actorUserId: Uuid;
   name: string;
 }
 
@@ -136,14 +137,14 @@ export interface CreateOrganizationResult {
 }
 
 export interface UpdateOrganizationInput extends OrganizationProfileInput {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
   name: string;
 }
 
 export interface ChangeOrganizationSlugInput {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
   slug: string;
 }
 

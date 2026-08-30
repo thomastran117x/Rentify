@@ -7,7 +7,7 @@ import {
   RequestValidationError,
   parseRequestBody,
 } from "@/configuration/validation/request";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import type {
   CreateRentingDisputeBody,
   CreateRentingDisputeInput,
@@ -24,6 +24,7 @@ import {
 } from "@/features/rentings/rentings.model";
 import type { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import type { RentingsService } from "@/features/rentings/rentings.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class RentingsController {
   constructor(
@@ -37,8 +38,8 @@ export class RentingsController {
   ): Promise<void> => {
     const auth = await this.requireAuth(request);
     const result = await this.rentingsService.convertApprovedBookingRequest({
-      bookingRequestId: this.requireBookingRequestId(request),
-      actorUserId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      actorUserId: asUuid(auth.sub),
     });
     await this.recommendationActivityPublisher.publishRentingConfirmed({
       renting: result,
@@ -192,7 +193,7 @@ export class RentingsController {
   }
 
   private toListMineInput(
-    userId: string,
+    userId: Uuid,
     query: ListRentingsQuery,
   ): ListMyRentingsInput {
     return {
@@ -204,8 +205,8 @@ export class RentingsController {
   }
 
   private toRentingActorInput(
-    rentingId: string,
-    actorUserId: string,
+    rentingId: Uuid,
+    actorUserId: Uuid,
     actorRole: ReturnType<typeof getAuthRole>,
   ): RentingActorInput {
     return {
@@ -216,8 +217,8 @@ export class RentingsController {
   }
 
   private toUpdateInstructionsInput(
-    rentingId: string,
-    actorUserId: string,
+    rentingId: Uuid,
+    actorUserId: Uuid,
     actorRole: ReturnType<typeof getAuthRole>,
     body: UpdateRentingInstructionsBody,
   ): UpdateRentingInstructionsInput {
@@ -231,8 +232,8 @@ export class RentingsController {
   }
 
   private toCreateDisputeInput(
-    rentingId: string,
-    actorUserId: string,
+    rentingId: Uuid,
+    actorUserId: Uuid,
     actorRole: ReturnType<typeof getAuthRole>,
     body: CreateRentingDisputeBody,
   ): CreateRentingDisputeInput {
@@ -245,12 +246,12 @@ export class RentingsController {
     };
   }
 
-  private requireBookingRequestId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireBookingRequestId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
-  private requireRentingId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireRentingId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
   private async requireAuth(request: Request) {

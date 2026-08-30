@@ -36,6 +36,7 @@ import type { EmailService } from "@/features/email/email.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /**
  * The realtime seam. Narrowed to what this service needs so the service does
@@ -74,7 +75,7 @@ export class BookingMessagesService {
     );
 
     const record = await this.bookingMessagesRepository.create({
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       authorId: input.authorId,
       body: input.body,
       renterId: bookingRequest.renterId,
@@ -108,13 +109,13 @@ export class BookingMessagesService {
 
     const [page, unreadCount, parties] = await Promise.all([
       this.bookingMessagesRepository.listByBookingRequest({
-        bookingRequestId: bookingRequest.id,
+        bookingRequestId: asUuid(bookingRequest.id),
         renterId: bookingRequest.renterId,
         page: input.page,
         pageSize: input.pageSize,
       }),
       this.bookingMessagesRepository.countUnreadForSide({
-        bookingRequestId: bookingRequest.id,
+        bookingRequestId: asUuid(bookingRequest.id),
         renterId: bookingRequest.renterId,
         side,
       }),
@@ -144,7 +145,7 @@ export class BookingMessagesService {
     );
 
     const updated = await this.bookingMessagesRepository.updateBodyIfEligible({
-      messageId: message.id,
+      messageId: asUuid(message.id),
       authorId: input.actorUserId,
       body: input.body,
       editedAt: new Date(),
@@ -159,7 +160,7 @@ export class BookingMessagesService {
 
     await this.publishEvent({
       type: "message.updated",
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       message: updated,
     });
 
@@ -176,7 +177,7 @@ export class BookingMessagesService {
     );
 
     const deleted = await this.bookingMessagesRepository.softDeleteIfEligible({
-      messageId: message.id,
+      messageId: asUuid(message.id),
       authorId: input.actorUserId,
       deletedAt: new Date(),
       notBefore: this.editWindowStart(),
@@ -189,7 +190,7 @@ export class BookingMessagesService {
 
     await this.publishEvent({
       type: "message.updated",
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       message: deleted,
     });
 
@@ -206,9 +207,9 @@ export class BookingMessagesService {
   }
 
   private async requireOwnEditableMessage(
-    bookingRequestId: string,
-    messageId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    messageId: Uuid,
+    actorUserId: Uuid,
   ): Promise<{
     bookingRequest: BookingRequestRecord;
     message: BookingMessageRecord;
@@ -250,8 +251,8 @@ export class BookingMessagesService {
   }
 
   async markRead(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
   ): Promise<MarkBookingMessagesReadResult> {
     const bookingRequest = await this.requireBookingRequest(bookingRequestId);
     const side = await resolveBookingParticipant(
@@ -263,14 +264,14 @@ export class BookingMessagesService {
 
     const readAt = new Date();
     const markedCount = await this.bookingMessagesRepository.markReadForSide({
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       renterId: bookingRequest.renterId,
       side,
       readAt,
     });
 
     const result: MarkBookingMessagesReadResult = {
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       markedCount,
       readAt: readAt.toISOString(),
     };
@@ -278,7 +279,7 @@ export class BookingMessagesService {
     if (markedCount > 0) {
       await this.publishEvent({
         type: "messages.read",
-        bookingRequestId: bookingRequest.id,
+        bookingRequestId: asUuid(bookingRequest.id),
         readerSide: side,
         readAt: result.readAt,
         markedCount,
@@ -294,8 +295,8 @@ export class BookingMessagesService {
    * here and the ticket is presented on the upgrade instead.
    */
   async createSocketTicket(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
     session: BookingMessageSocketSession = {},
   ): Promise<BookingMessageSocketTicket> {
     // Same bar as reading the thread: a ticket must never widen access.
@@ -309,7 +310,7 @@ export class BookingMessagesService {
     // receiving messages.
     const identity: BookingMessageSocketIdentity = {
       bookingRequestId,
-      userId: actorUserId,
+      userId: asUuid(actorUserId),
       sessionId: session.sessionId ?? null,
       tokenVersion: session.tokenVersion ?? null,
     };
@@ -389,10 +390,10 @@ export class BookingMessagesService {
    * the thread sits unopened in another tab.
    */
   async markDelivered(
-    bookingRequestId: string,
-    actorUserId: string,
-    messageIds: string[],
-  ): Promise<string[]> {
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
+    messageIds: Uuid[],
+  ): Promise<Uuid[]> {
     const bookingRequest = await this.requireBookingRequest(bookingRequestId);
     // Read access is enough: acknowledging receipt is not a write to the
     // conversation, and a read-only member still receives the messages.
@@ -405,7 +406,7 @@ export class BookingMessagesService {
     const deliveredAt = new Date();
     const delivered = await this.bookingMessagesRepository.markDeliveredForSide(
       {
-        bookingRequestId: bookingRequest.id,
+        bookingRequestId: asUuid(bookingRequest.id),
         renterId: bookingRequest.renterId,
         side,
         messageIds,
@@ -419,7 +420,7 @@ export class BookingMessagesService {
 
     await this.publishEvent({
       type: "messages.delivered",
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       messageIds: delivered,
       deliveredAt: deliveredAt.toISOString(),
     });
@@ -428,8 +429,8 @@ export class BookingMessagesService {
   }
 
   async authorizeStream(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
   ): Promise<BookingMessageStreamAuthorization> {
     const bookingRequest = await this.requireBookingRequest(bookingRequestId);
     // Resolved rather than asserted, for the same reason `list` does it: a
@@ -445,7 +446,7 @@ export class BookingMessagesService {
   }
 
   private async requireBookingRequest(
-    bookingRequestId: string,
+    bookingRequestId: Uuid,
   ): Promise<BookingRequestRecord> {
     const bookingRequest =
       await this.bookingsRepository.findById(bookingRequestId);
@@ -504,8 +505,8 @@ export class BookingMessagesService {
       }
 
       const cooldownKey = this.notifyCooldownKey(
-        bookingRequest.id,
-        recipientId,
+        asUuid(bookingRequest.id),
+        asUuid(recipientId),
       );
       const claimed = await this.cacheService.setIfNotExists(
         cooldownKey,
@@ -519,9 +520,9 @@ export class BookingMessagesService {
 
       try {
         await this.emailService.sendBookingMessageNotificationEmail({
-          bookingRequestId: bookingRequest.id,
-          recipientId,
-          messageId: record.id,
+          bookingRequestId: asUuid(bookingRequest.id),
+          recipientId: asUuid(recipientId),
+          messageId: asUuid(record.id),
         });
       } catch (error) {
         // Release the claim: keeping it would let one transient broker failure
@@ -542,8 +543,8 @@ export class BookingMessagesService {
   }
 
   private notifyCooldownKey(
-    bookingRequestId: string,
-    recipientId: string,
+    bookingRequestId: Uuid,
+    recipientId: Uuid,
   ): string {
     return `booking-messages:notify:${bookingRequestId}:${recipientId}`;
   }

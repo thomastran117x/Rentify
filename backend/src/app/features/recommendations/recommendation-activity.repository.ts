@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -6,15 +5,16 @@ import type {
   RecommendationPostingSummary,
   UpsertRecommendationRefreshJobInput,
 } from "@/features/recommendations/recommendation-activity.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class RecommendationActivityRepository extends BaseRepository {
   async findPostingSummary(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<RecommendationPostingSummary | null> {
     const prismaPosting = this.prisma.posting as unknown as {
       findUnique: (args: unknown) => Promise<{
         id: string;
-        organizationId: string;
+        organizationId: Uuid;
         family: RecommendationPostingSummary["family"];
         subtype: RecommendationPostingSummary["subtype"];
       } | null>;
@@ -38,7 +38,7 @@ export class RecommendationActivityRepository extends BaseRepository {
     }
 
     return {
-      id: posting.id,
+      id: asUuid(posting.id),
       organizationId: posting.organizationId,
       family: posting.family,
       subtype: posting.subtype,
@@ -148,7 +148,7 @@ export class RecommendationActivityRepository extends BaseRepository {
           if (!existing) {
             await recommendationRefreshJob.create({
               data: {
-                id: randomUUID(),
+                id: newUuid(),
                 jobType: job.jobType,
                 dedupeKey: job.dedupeKey,
                 userId: job.userId ?? null,

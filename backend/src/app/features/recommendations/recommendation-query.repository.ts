@@ -8,6 +8,7 @@ import type {
   UserRecommendationSnapshotRecord,
 } from "@/features/recommendations/recommendation-precompute.model";
 import type { RecommendationPopularSegmentType } from "@/features/recommendations/recommendation-activity.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface RecommendationPersonalizationContextRecord {
   recommendationPersonalizationEnabled: boolean;
@@ -25,7 +26,7 @@ type JsonObject = Record<string, unknown>;
 
 export class RecommendationQueryRepository extends BaseRepository {
   async getPersonalizationContext(
-    userId: string,
+    userId: Uuid,
   ): Promise<RecommendationPersonalizationContextRecord> {
     return this.executeAsync(async () => {
       const [profileSettings, profile, snapshot] = await Promise.all([
@@ -90,7 +91,7 @@ export class RecommendationQueryRepository extends BaseRepository {
     return snapshot ? this.mapPopularRecommendationSnapshot(snapshot) : null;
   }
 
-  async listExcludedPostingIdsForUser(userId: string): Promise<Set<string>> {
+  async listExcludedPostingIdsForUser(userId: Uuid): Promise<Set<string>> {
     return this.executeAsync(async () => {
       const activeBookingStatuses: BookingRequestStatus[] = [
         "pending",
@@ -217,7 +218,7 @@ export class RecommendationQueryRepository extends BaseRepository {
     record: Record<string, unknown>,
   ): UserRecommendationProfileRecord {
     return {
-      userId: String(record.userId),
+      userId: asUuid(String(record.userId)),
       qualified: Boolean(record.qualified),
       activityWindowStartAt: this.toIsoString(record.activityWindowStartAt),
       lastSignalAt: this.toOptionalIsoString(record.lastSignalAt),
@@ -234,7 +235,7 @@ export class RecommendationQueryRepository extends BaseRepository {
     record: Record<string, unknown>,
   ): UserRecommendationSnapshotRecord {
     return {
-      userId: String(record.userId),
+      userId: asUuid(String(record.userId)),
       generatedAt: this.toIsoString(record.generatedAt),
       sourceLastSignalAt: this.toOptionalIsoString(record.sourceLastSignalAt),
       candidateCount: Number(record.candidateCount ?? 0),
@@ -266,7 +267,7 @@ export class RecommendationQueryRepository extends BaseRepository {
           typeof entry === "object" && entry !== null,
       )
       .map((entry) => ({
-        postingId: String(entry.postingId ?? ""),
+        postingId: asUuid(String(entry.postingId ?? "")),
         score:
           typeof entry.score === "number"
             ? entry.score

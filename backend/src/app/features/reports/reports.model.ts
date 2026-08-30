@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AppRole } from "@/features/auth/auth.model";
+import { uuidSchema, type Uuid } from "@/configuration/validation/uuid";
 
 export const reportSubjectTypeSchema = z.enum([
   "posting",
@@ -61,13 +62,14 @@ export const listContentReportsQuerySchema = z.object({
   status: reportStatusSchema.optional(),
   subjectType: reportSubjectTypeSchema.optional(),
   reasonCode: reportReasonCodeSchema.optional(),
+  // Also accepts the literal "unassigned", so this is not an identifier schema.
   assignedTo: z.string().trim().max(64).optional(),
-  reporterId: z.string().trim().max(64).optional(),
+  reporterId: z.string().trim().pipe(uuidSchema).optional(),
   sort: reportSortSchema.default("newest"),
 });
 
 export const assignContentReportRequestSchema = z.object({
-  assignedModeratorId: z.string().trim().min(1).max(64).nullable().optional(),
+  assignedModeratorId: z.string().trim().pipe(uuidSchema).nullable().optional(),
 });
 
 export const updateContentReportStatusRequestSchema = z
@@ -113,7 +115,7 @@ export type UpdateContentReportStatusRequestBody = z.infer<
 >;
 
 export interface ContentReportUserSummary {
-  id: string;
+  id: Uuid;
   email: string;
   username?: string;
   avatarUrl?: string;
@@ -121,7 +123,7 @@ export interface ContentReportUserSummary {
 }
 
 export interface ContentReportOrganizationSummary {
-  id: string;
+  id: Uuid;
   name: string;
 }
 
@@ -129,7 +131,7 @@ export interface PostingReportSubjectSnapshot {
   subjectType: "posting";
   summaryText: string;
   posting: {
-    id: string;
+    id: Uuid;
     name: string;
     status: string;
     organization: ContentReportOrganizationSummary;
@@ -140,13 +142,13 @@ export interface PostingReviewReportSubjectSnapshot {
   subjectType: "posting_review";
   summaryText: string;
   review: {
-    id: string;
+    id: Uuid;
     rating: number;
     title?: string;
     commentExcerpt?: string;
     reviewer: ContentReportUserSummary;
     posting: {
-      id: string;
+      id: Uuid;
       name: string;
     };
   };
@@ -162,11 +164,11 @@ export interface OrganizationBlogCommentReportSubjectSnapshot {
   subjectType: "organization_blog_comment";
   summaryText: string;
   comment: {
-    id: string;
+    id: Uuid;
     bodyExcerpt?: string;
     author: ContentReportUserSummary;
     post: {
-      id: string;
+      id: Uuid;
       title: string;
       slug: string;
       organization: ContentReportOrganizationSummary;
@@ -181,19 +183,19 @@ export type ContentReportSubjectSnapshot =
   | OrganizationBlogCommentReportSubjectSnapshot;
 
 export interface ContentReportEventRecord {
-  id: string;
+  id: Uuid;
   eventType: ReportEventType;
   fromStatus?: ReportStatus;
   toStatus?: ReportStatus;
-  assignmentUserId?: string;
+  assignmentUserId?: Uuid;
   note?: string;
   actor: ContentReportUserSummary;
   createdAt: string;
 }
 
 export interface ContentReportRecord {
-  id: string;
-  reporterId: string;
+  id: Uuid;
+  reporterId: Uuid;
   subjectType: ReportSubjectType;
   subjectId: string;
   reasonCode: ReportReasonCode;
@@ -238,21 +240,21 @@ export interface ListContentReportsInput {
   subjectType?: ReportSubjectType;
   reasonCode?: ReportReasonCode;
   assignedTo?: string;
-  reporterId?: string;
+  reporterId?: Uuid;
   sort: ReportSort;
 }
 
 export interface AssignContentReportInput {
-  actorUserId: string;
+  actorUserId: Uuid;
   actorRole: AppRole;
-  reportId: string;
-  assignedModeratorId?: string | null;
+  reportId: Uuid;
+  assignedModeratorId?: Uuid | null;
 }
 
 export interface UpdateContentReportStatusInput {
-  actorUserId: string;
+  actorUserId: Uuid;
   actorRole: AppRole;
-  reportId: string;
+  reportId: Uuid;
   status: ReportStatus;
   resolutionCode?: ReportResolutionCode;
   resolutionSummary?: string;
@@ -260,7 +262,7 @@ export interface UpdateContentReportStatusInput {
 }
 
 export interface CreateContentReportInput {
-  reporterId: string;
+  reporterId: Uuid;
   subjectType: ReportSubjectType;
   subjectId: string;
   reasonCode: ReportReasonCode;
@@ -269,7 +271,7 @@ export interface CreateContentReportInput {
 }
 
 export interface ContentReportSearchDocument {
-  id: string;
+  id: Uuid;
   subjectType: ReportSubjectType;
   subjectId: string;
   reasonCode: ReportReasonCode;
@@ -277,11 +279,11 @@ export interface ContentReportSearchDocument {
   title: string;
   description: string;
   subjectSnapshotText: string;
-  reporterId: string;
+  reporterId: Uuid;
   reporterEmail: string;
   reporterUsername?: string;
   reporterRole: AppRole;
-  assignedModeratorId?: string;
+  assignedModeratorId?: Uuid;
   assignedModeratorEmail?: string;
   assignedModeratorUsername?: string;
   assignedModeratorRole?: AppRole;
@@ -291,8 +293,8 @@ export interface ContentReportSearchDocument {
 }
 
 export interface ContentReportSearchOutboxRecord {
-  id: string;
-  reportId: string;
+  id: Uuid;
+  reportId: Uuid;
   operation: "upsert" | "delete";
   attempts: number;
   availableAt: string;

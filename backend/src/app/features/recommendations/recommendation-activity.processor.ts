@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { RecommendationActivityRepository } from "@/features/recommendations/recommendation-activity.repository";
 import type {
   PersistRecommendationActivityInput,
@@ -7,6 +6,7 @@ import type {
   RecommendationPostingSummary,
   UpsertRecommendationRefreshJobInput,
 } from "@/features/recommendations/recommendation-activity.model";
+import { asOptionalUuid, asUuid, newUuid } from "@/configuration/validation/uuid";
 
 const COALESCE_EVENT_TYPES = new Set<RecommendationActivityEventType>([
   "posting_view",
@@ -17,7 +17,7 @@ export class RecommendationActivityProcessor {
   constructor(private readonly repository: RecommendationActivityRepository) {}
 
   async process(payload: RecommendationActivityEventPayload): Promise<void> {
-    const posting = await this.repository.findPostingSummary(payload.postingId);
+    const posting = await this.repository.findPostingSummary(asUuid(payload.postingId));
 
     if (!posting) {
       throw new Error(
@@ -78,14 +78,14 @@ export class RecommendationActivityProcessor {
       : payload.eventId;
 
     return {
-      id: randomUUID(),
+      id: newUuid(),
       aggregationKey,
       eventType: payload.eventType,
       source: payload.source,
       occurredAt,
-      postingId: posting.id,
+      postingId: asUuid(posting.id),
       organizationId: posting.organizationId,
-      actorUserId: payload.actorUserId ?? undefined,
+      actorUserId: asOptionalUuid(payload.actorUserId),
       anonymousActorHash: payload.anonymousActorHash ?? undefined,
       deviceType: payload.deviceType,
       requestId: payload.requestId ?? undefined,
@@ -111,7 +111,7 @@ export class RecommendationActivityProcessor {
       jobs.push({
         jobType: "user_refresh",
         dedupeKey: `user:${payload.actorUserId}`,
-        userId: payload.actorUserId,
+        userId: asUuid(payload.actorUserId),
         availableAt: occurredAt,
       });
     }

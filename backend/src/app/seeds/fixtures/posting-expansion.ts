@@ -1,4 +1,5 @@
 import { createFixtureId } from "@/seeds/types";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export type ExpandedPostingBundleType = "standard" | "expanded";
 
@@ -253,6 +254,6 @@ export function getExpandedPostingIndex(
 export function getExpandedPostingId(
   ownerEmail: string,
   offset: number,
-): string {
+): Uuid {
   return createFixtureId(2000, getExpandedPostingIndex(ownerEmail, offset));
 }

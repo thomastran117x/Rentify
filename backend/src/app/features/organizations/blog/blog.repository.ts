@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { htmlToPlainText } from "@/configuration/security/html-sanitizer";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -17,6 +16,7 @@ import type {
   SearchReindexRunRecord,
   SearchReindexStatus,
 } from "@/features/search/search.model";
+import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type BlogPostPersistence = Prisma.OrganizationBlogPostGetPayload<{
   include: {
@@ -47,7 +47,7 @@ type PublicBlogPostPersistence = Prisma.OrganizationBlogPostGetPayload<{
 }>;
 
 export interface ListOrganizationBlogPostsQueryInput {
-  organizationId: string;
+  organizationId: Uuid;
   page: number;
   pageSize: number;
   status?: OrganizationBlogStatus;
@@ -63,7 +63,7 @@ export interface OrganizationBlogSearchFallbackInput {
   query?: string;
   tag?: string;
   sort?: OrganizationBlogSort;
-  organizationId?: string;
+  organizationId?: Uuid;
 }
 
 interface SearchOutboxIdRow {
@@ -109,7 +109,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       this.prisma.$transaction(async (transaction) => {
         const created = await transaction.organizationBlogPost.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             organizationId: input.organizationId,
             authorUserId: input.authorUserId,
             title: input.title,
@@ -126,7 +126,7 @@ export class OrganizationBlogRepository extends BaseRepository {
           include: this.includeAuthor(),
         });
 
-        await this.enqueueSearchOutbox(transaction, created.id, "upsert");
+        await this.enqueueSearchOutbox(transaction, asUuid(created.id), "upsert");
 
         return created;
       }),
@@ -136,8 +136,8 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   async update(
-    organizationId: string,
-    blogPostId: string,
+    organizationId: Uuid,
+    blogPostId: Uuid,
     input: UpdateOrganizationBlogPostPersistence,
   ): Promise<OrganizationBlogPostRecord> {
     const row = await this.executeAsync(() =>
@@ -167,7 +167,7 @@ export class OrganizationBlogRepository extends BaseRepository {
           include: this.includeAuthor(),
         });
 
-        await this.enqueueSearchOutbox(transaction, updated.id, "upsert");
+        await this.enqueueSearchOutbox(transaction, asUuid(updated.id), "upsert");
 
         return updated;
       }),
@@ -176,7 +176,7 @@ export class OrganizationBlogRepository extends BaseRepository {
     return this.mapBlogPost(row);
   }
 
-  async delete(organizationId: string, blogPostId: string): Promise<void> {
+  async delete(organizationId: Uuid, blogPostId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         await transaction.organizationBlogPost.delete({
@@ -191,8 +191,8 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   async findById(
-    organizationId: string,
-    blogPostId: string,
+    organizationId: Uuid,
+    blogPostId: Uuid,
   ): Promise<OrganizationBlogPostRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationBlogPost.findFirst({
@@ -205,7 +205,7 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   async findBySlug(
-    organizationId: string,
+    organizationId: Uuid,
     slug: string,
   ): Promise<OrganizationBlogPostRecord | null> {
     const row = await this.executeAsync(() =>
@@ -219,7 +219,7 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   async findPublishedBySlug(
-    organizationId: string,
+    organizationId: Uuid,
     slug: string,
   ): Promise<OrganizationBlogPostRecord | null> {
     const row = await this.executeAsync(() =>
@@ -778,7 +778,7 @@ export class OrganizationBlogRepository extends BaseRepository {
     const run = await this.executeAsync(() =>
       this.prisma.organizationBlogSearchReindexRun.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           status: "pending",
           targetIndexName,
           sourceSnapshotAt: new Date(),
@@ -935,12 +935,12 @@ export class OrganizationBlogRepository extends BaseRepository {
   }
 
   async enqueueSearchReindexBarrier(
-    reindexRunId: string,
+    reindexRunId: Uuid,
     targetIndexName: string,
   ): Promise<OrganizationBlogSearchOutboxRecord> {
     return this.executeAsync(async () =>
       this.prisma.$transaction(async (transaction) => {
-        const barrierId = randomUUID();
+        const barrierId = newUuid();
 
         const created = await transaction.organizationBlogSearchOutbox.create({
           data: {
@@ -1136,7 +1136,7 @@ export class OrganizationBlogRepository extends BaseRepository {
                 const run =
                   await transaction.organizationBlogSearchReindexRun.create({
                     data: {
-                      id: randomUUID(),
+                      id: newUuid(),
                       status: "pending",
                       targetIndexName,
                       sourceSnapshotAt: new Date(),
@@ -1160,7 +1160,7 @@ export class OrganizationBlogRepository extends BaseRepository {
 
   private async enqueueSearchOutbox(
     transaction: Prisma.TransactionClient,
-    blogPostId: string,
+    blogPostId: Uuid,
     operation: "upsert" | "delete",
   ): Promise<void> {
     const activeRun =
@@ -1174,7 +1174,7 @@ export class OrganizationBlogRepository extends BaseRepository {
           targetIndexName: true,
         },
       });
-    const primaryEventId = randomUUID();
+    const primaryEventId = newUuid();
     const entries: Prisma.OrganizationBlogSearchOutboxCreateManyInput[] = [
       {
         id: primaryEventId,
@@ -1185,7 +1185,7 @@ export class OrganizationBlogRepository extends BaseRepository {
     ];
 
     if (activeRun) {
-      const secondaryEventId = randomUUID();
+      const secondaryEventId = newUuid();
       entries.push({
         id: secondaryEventId,
         blogPostId,
@@ -1213,8 +1213,8 @@ export class OrganizationBlogRepository extends BaseRepository {
 
   private mapBlogPost(row: BlogPostPersistence): OrganizationBlogPostRecord {
     return {
-      id: row.id,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
       author: this.mapAuthor(row.author),
       title: row.title,
       slug: row.slug,
@@ -1235,10 +1235,10 @@ export class OrganizationBlogRepository extends BaseRepository {
     row: PublicBlogPostPersistence,
   ): OrganizationBlogPostRecord {
     return {
-      id: row.id,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
       organization: {
-        id: row.organization.id,
+        id: asUuid(row.organization.id),
         slug: row.organization.slug,
         name: row.organization.name,
         logoUrl: row.organization.logoUrl ?? undefined,
@@ -1274,7 +1274,7 @@ export class OrganizationBlogRepository extends BaseRepository {
   private mapAuthor(author: BlogPostPersistence["author"]) {
     return author
       ? {
-          id: author.id,
+          id: asUuid(author.id),
           email: author.email,
           username: author.profile?.username ?? author.email,
           avatarUrl: author.profile?.avatarUrl ?? undefined,
@@ -1286,8 +1286,8 @@ export class OrganizationBlogRepository extends BaseRepository {
     row: Prisma.OrganizationBlogPostGetPayload<object>,
   ): OrganizationBlogSearchDocument {
     return {
-      id: row.id,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
       title: row.title,
       excerpt: row.excerpt ?? null,
       body: htmlToPlainText(row.body),
@@ -1304,9 +1304,9 @@ export class OrganizationBlogRepository extends BaseRepository {
     processingAt?: Date,
   ): OrganizationBlogSearchOutboxRecord {
     return {
-      id: outbox.id,
-      blogPostId: outbox.blogPostId ?? undefined,
-      reindexRunId: outbox.reindexRunId ?? undefined,
+      id: asUuid(outbox.id),
+      blogPostId: asOptionalUuid(outbox.blogPostId),
+      reindexRunId: asOptionalUuid(outbox.reindexRunId),
       operation: outbox.operation,
       dedupeKey: outbox.dedupeKey,
       targetIndexName: outbox.targetIndexName ?? undefined,
@@ -1332,12 +1332,12 @@ export class OrganizationBlogRepository extends BaseRepository {
     run: Prisma.OrganizationBlogSearchReindexRunGetPayload<object>,
   ): SearchReindexRunRecord {
     return {
-      id: run.id,
+      id: asUuid(run.id),
       status: run.status as SearchReindexStatus,
       targetIndexName: run.targetIndexName,
       retainedIndexName: run.retainedIndexName ?? undefined,
       sourceSnapshotAt: run.sourceSnapshotAt.toISOString(),
-      barrierOutboxId: run.barrierOutboxId ?? undefined,
+      barrierOutboxId: asOptionalUuid(run.barrierOutboxId),
       totalPostings: run.totalDocuments,
       indexedPostings: run.indexedDocuments,
       failedPostings: run.failedDocuments,

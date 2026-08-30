@@ -6,7 +6,7 @@ import {
   RequestValidationError,
   parseRequestBody,
 } from "@/configuration/validation/request";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import type {
   BookingQuoteBody,
   BookingQuoteInput,
@@ -36,6 +36,7 @@ import {
 } from "@/features/bookings/bookings.model";
 import type { BookingsService } from "@/features/bookings/bookings.service";
 import type { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
+import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class BookingsController {
   constructor(
@@ -268,8 +269,8 @@ export class BookingsController {
   }
 
   private toCreateInput(
-    postingId: string,
-    renterId: string,
+    postingId: Uuid,
+    renterId: Uuid,
     body: CreateBookingRequestBody,
   ): CreateBookingRequestInput {
     return {
@@ -286,8 +287,8 @@ export class BookingsController {
   }
 
   private toQuoteInput(
-    postingId: string,
-    renterId: string,
+    postingId: Uuid,
+    renterId: Uuid,
     body: BookingQuoteBody,
   ): BookingQuoteInput {
     return {
@@ -301,8 +302,8 @@ export class BookingsController {
   }
 
   private toDecisionInput(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
     body: {
       note?: string | null;
     },
@@ -315,8 +316,8 @@ export class BookingsController {
   }
 
   private toUpdateInput(
-    bookingRequestId: string,
-    renterId: string,
+    bookingRequestId: Uuid,
+    renterId: Uuid,
     body: {
       startAt: string;
       endAt: string;
@@ -341,8 +342,8 @@ export class BookingsController {
   }
 
   private toCancelInput(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
     body: CancelBookingRequestBody,
   ) {
     return {
@@ -353,7 +354,7 @@ export class BookingsController {
   }
 
   private toListMineInput(
-    renterId: string,
+    renterId: Uuid,
     query: ListBookingRequestsQuery,
   ): ListRenterBookingRequestsInput {
     return {
@@ -365,12 +366,11 @@ export class BookingsController {
   }
 
   private toListOwnedInput(
-    actorUserId: string,
+    actorUserId: Uuid,
     query: ListBookingRequestsQuery,
   ): ListOwnedBookingRequestsInput {
     return {
       actorUserId,
-      organizationId: "",
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
@@ -378,13 +378,12 @@ export class BookingsController {
   }
 
   private toListOwnerPostingInput(
-    actorUserId: string,
-    postingId: string,
+    actorUserId: Uuid,
+    postingId: Uuid,
     query: ListBookingRequestsQuery,
   ): ListOwnerBookingRequestsInput {
     return {
       actorUserId,
-      organizationId: "",
       postingId,
       page: query.page,
       pageSize: query.pageSize,
@@ -393,7 +392,7 @@ export class BookingsController {
   }
 
   private toDashboardMineInput(
-    renterId: string,
+    renterId: Uuid,
     query: RenterBookingDashboardQuery,
   ): RenterBookingDashboardInput {
     return {
@@ -407,27 +406,26 @@ export class BookingsController {
   }
 
   private toDashboardOwnedInput(
-    actorUserId: string,
+    actorUserId: Uuid,
     query: OwnerBookingDashboardQuery,
   ): OwnerBookingDashboardInput {
     return {
       actorUserId,
-      organizationId: "",
       page: query.page,
       pageSize: query.pageSize,
       sort: query.sort,
       status: query.status,
       actionNeeded: query.actionNeeded,
-      postingId: query.postingId,
+      postingId: asOptionalUuid(query.postingId),
     };
   }
 
-  private requirePostingId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requirePostingId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
-  private requireBookingRequestId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireBookingRequestId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
   private async requireAuth(request: Request) {

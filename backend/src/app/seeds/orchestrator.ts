@@ -6,12 +6,7 @@ import { bookingsSeedModule } from "@/seeds/modules/bookings.module";
 import { postingsSeedModule } from "@/seeds/modules/postings.module";
 import { usersSeedModule } from "@/seeds/modules/users.module";
 import { resolveAutoSeedPolicy } from "@/seeds/policy";
-import type {
-  RunSeedOrchestratorOptions,
-  SeedLogger,
-  SeedModule,
-  SeedSummary,
-} from "@/seeds/types";
+import type { RunSeedOrchestratorOptions, SeedLogger, SeedModule, SeedState, SeedSummary } from "@/seeds/types";
 
 const seedRuntimeLogger = loggerFactory.forComponent(
   "seed-orchestrator",
@@ -68,10 +63,10 @@ export async function runSeedOrchestrator(
     `[SEEDS] Starting seed orchestrator source=${source} refresh=${refresh ? "true" : "false"}.`,
   );
 
-  const state = {
-    organizationIdsByOwnerEmail: new Map<string, string>(),
-    postingOrganizationIdsByPostingId: new Map<string, string>(),
-    userIdsByEmail: new Map<string, string>(),
+  const state: SeedState = {
+    organizationIdsByOwnerEmail: new Map(),
+    postingOrganizationIdsByPostingId: new Map(),
+    userIdsByEmail: new Map(),
   };
 
   for (const module of modules) {

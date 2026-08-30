@@ -5,6 +5,7 @@ import {
 } from "@/configuration/bootstrap/container";
 import { getRequestUrl } from "@/configuration/http/request";
 import type { ContentSanitizationInput } from "@/features/security/content-sanitization.service";
+import { isUuid, type Uuid } from "@/configuration/validation/uuid";
 import { RequestValidationError } from "./request";
 
 const SKIPPED_REQUEST_BODY_SEGMENTS = new Set([
@@ -153,6 +154,30 @@ export function requireSafeRouteParam(request: Request, name: string): string {
     ],
     "Route parameter validation failed.",
   );
+
+  return value;
+}
+
+/**
+ * Route parameter that must be an entity identifier.
+ *
+ * Layers a shape check on top of {@link requireSafeRouteParam}, so a malformed
+ * id is rejected as a 400 at the boundary instead of reaching the database and
+ * surfacing as a 404. Routes whose identifiers are deliberately looser than a
+ * GUID — postings and saved searches, which accept `^[A-Za-z0-9_-]+$` — keep
+ * using {@link requireSafeRouteParam} with their own schema.
+ */
+export function requireUuidRouteParam(request: Request, name: string): Uuid {
+  const value = requireSafeRouteParam(request, name);
+
+  if (!isUuid(value)) {
+    throw new RequestValidationError("Route parameter validation failed.", [
+      {
+        path: name,
+        message: `Route parameter ${name} must be a valid identifier.`,
+      },
+    ]);
+  }
 
   return value;
 }

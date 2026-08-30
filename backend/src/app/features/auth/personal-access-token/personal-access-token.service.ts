@@ -15,6 +15,7 @@ import type {
   RevokePersonalAccessTokenResult,
 } from "./personal-access-token.model";
 import { PersonalAccessTokenRepository } from "./personal-access-token.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface PersonalAccessTokenServiceOptions {
   personalAccessTokenSecret?: string;
@@ -34,7 +35,7 @@ export class PersonalAccessTokenService {
     this.personalAccessTokenSecret = options.personalAccessTokenSecret;
   }
 
-  async listForUser(userId: string): Promise<PersonalAccessTokenListResult> {
+  async listForUser(userId: Uuid): Promise<PersonalAccessTokenListResult> {
     const tokens =
       await this.personalAccessTokenRepository.listByUserId(userId);
 
@@ -131,7 +132,7 @@ export class PersonalAccessTokenService {
       role: normalizeAppRole(token.user.role),
       authMethod: "pat",
       scopes: token.scopes,
-      personalAccessTokenId: token.id,
+      personalAccessTokenId: asUuid(token.id),
       personalAccessTokenName: token.name,
     };
   }

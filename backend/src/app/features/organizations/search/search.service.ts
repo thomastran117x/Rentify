@@ -23,6 +23,7 @@ import {
   recordReindexRunFailed,
 } from "@/features/search/search.telemetry";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import { asUuid } from "@/configuration/validation/uuid";
 
 function createEmptyQueueCounts(): SearchQueueCounts {
   return {
@@ -707,7 +708,7 @@ export class OrganizationsSearchService {
     }
 
     await this.organizationsSearchRepository.enqueueSearchReindexBarrier(
-      run.id,
+      asUuid(run.id),
       run.targetIndexName,
     );
   }
@@ -756,7 +757,7 @@ export class OrganizationsSearchService {
     job: OrganizationSearchOutboxRecord,
   ): SearchIndexJobPayload {
     return {
-      outboxId: job.id,
+      outboxId: asUuid(job.id),
       eventId: job.id,
       dedupeKey: job.dedupeKey,
       operation: job.operation,

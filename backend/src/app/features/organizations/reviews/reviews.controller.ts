@@ -14,6 +14,7 @@ import {
   updateOrganizationReviewSchema,
 } from "@/features/organizations/reviews/reviews.model";
 import { OrganizationReviewService } from "@/features/organizations/reviews/reviews.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationReviewsController {
   constructor(private readonly reviewsService: OrganizationReviewService) {}
@@ -22,7 +23,7 @@ export class OrganizationReviewsController {
     const query = listOrganizationReviewsQuerySchema.parse(getQuery(request));
     const result = await this.reviewsService.list({
       ...query,
-      organizationId: requireOrganizationId(request),
+      organizationId: asUuid(requireOrganizationId(request)),
     });
     ok(response, result, { meta: paginationMeta(result) });
   };
@@ -30,8 +31,8 @@ export class OrganizationReviewsController {
   getOwn = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.reviewsService.getOwn({
-      organizationId: requireOrganizationId(request),
-      reviewerId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      reviewerId: asUuid(auth.sub),
     });
     ok(response, result);
   };
@@ -43,8 +44,8 @@ export class OrganizationReviewsController {
       createOrganizationReviewSchema,
     );
     const result = await this.reviewsService.create({
-      organizationId: requireOrganizationId(request),
-      reviewerId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      reviewerId: asUuid(auth.sub),
       ...body,
     });
     created(response, result, {
@@ -59,8 +60,8 @@ export class OrganizationReviewsController {
       updateOrganizationReviewSchema,
     );
     const result = await this.reviewsService.updateOwn({
-      organizationId: requireOrganizationId(request),
-      reviewerId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      reviewerId: asUuid(auth.sub),
       ...body,
     });
     ok(response, result, {
@@ -71,8 +72,8 @@ export class OrganizationReviewsController {
   deleteOwn = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.reviewsService.deleteOwn({
-      organizationId: requireOrganizationId(request),
-      reviewerId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      reviewerId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Review deleted successfully.",
@@ -83,9 +84,9 @@ export class OrganizationReviewsController {
     const auth = await requireAuth(request);
     const body = await parseRequestBody(request, replyOrganizationReviewSchema);
     const result = await this.reviewsService.reply({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      reviewId: requireResourceId(request, "reviewId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      reviewId: asUuid(requireResourceId(request, "reviewId")),
       ...body,
     });
     ok(response, result, {
@@ -96,9 +97,9 @@ export class OrganizationReviewsController {
   removeReply = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.reviewsService.removeReply({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      reviewId: requireResourceId(request, "reviewId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      reviewId: asUuid(requireResourceId(request, "reviewId")),
     });
     ok(response, result, {
       message: "Reply removed successfully.",
@@ -108,9 +109,9 @@ export class OrganizationReviewsController {
   delete = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.reviewsService.delete({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      reviewId: requireResourceId(request, "reviewId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      reviewId: asUuid(requireResourceId(request, "reviewId")),
     });
     ok(response, result, {
       message: "Review deleted successfully.",

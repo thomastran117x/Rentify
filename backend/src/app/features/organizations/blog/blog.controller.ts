@@ -20,6 +20,7 @@ import {
   updateOrganizationBlogSchema,
 } from "@/features/organizations/blog/blog.model";
 import { OrganizationBlogService } from "@/features/organizations/blog/blog.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationBlogController {
   constructor(private readonly blogService: OrganizationBlogService) {}
@@ -29,8 +30,8 @@ export class OrganizationBlogController {
     const query = listOrganizationBlogQuerySchema.parse(getQuery(request));
     const result = await this.blogService.list({
       ...query,
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, { meta: paginationMeta(result) });
   };
@@ -43,8 +44,8 @@ export class OrganizationBlogController {
       ["body"],
     );
     const result = await this.blogService.create({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       ...body,
     });
     created(response, result, {
@@ -60,9 +61,9 @@ export class OrganizationBlogController {
       ["body"],
     );
     const result = await this.blogService.update({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      blogPostId: requireResourceId(request, "blogPostId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      blogPostId: asUuid(requireResourceId(request, "blogPostId")),
       ...body,
     });
     ok(response, result, {
@@ -73,9 +74,9 @@ export class OrganizationBlogController {
   delete = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.blogService.delete({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      blogPostId: requireResourceId(request, "blogPostId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      blogPostId: asUuid(requireResourceId(request, "blogPostId")),
     });
     ok(response, result, {
       message: "Organization blog post deleted successfully.",
@@ -91,7 +92,7 @@ export class OrganizationBlogController {
     );
     const result = await this.blogService.listPublished({
       ...query,
-      organizationId: requireOrganizationId(request),
+      organizationId: asUuid(requireOrganizationId(request)),
     });
     ok(response, result, { meta: paginationMeta(result) });
   };
@@ -101,7 +102,7 @@ export class OrganizationBlogController {
     response: Response,
   ): Promise<void> => {
     const result = await this.blogService.getPublishedBySlug({
-      organizationId: requireOrganizationId(request),
+      organizationId: asUuid(requireOrganizationId(request)),
       slug: requireRouteValue(
         request,
         "slug",

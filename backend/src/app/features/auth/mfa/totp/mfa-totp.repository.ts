@@ -1,25 +1,25 @@
-import { randomUUID } from "node:crypto";
 import type { UserMfaTotp } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
+import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export type { UserMfaTotp };
 
 export class MfaTotpRepository extends BaseRepository {
-  async findByUserId(userId: string): Promise<UserMfaTotp | null> {
+  async findByUserId(userId: Uuid): Promise<UserMfaTotp | null> {
     return this.executeAsync(() =>
       this.prisma.userMfaTotp.findUnique({ where: { userId } }),
     );
   }
 
   async createPending(data: {
-    userId: string;
+    userId: Uuid;
     secretEncrypted: string;
     expiresAt: Date;
   }): Promise<UserMfaTotp> {
     return this.executeAsync(() =>
       this.prisma.userMfaTotp.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           userId: data.userId,
           secretEncrypted: data.secretEncrypted,
           status: "pending",
@@ -79,14 +79,14 @@ export class MfaTotpRepository extends BaseRepository {
     );
   }
 
-  async deleteByUserId(userId: string): Promise<void> {
+  async deleteByUserId(userId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.userMfaTotp.deleteMany({ where: { userId } }),
     );
   }
 
   // Deletes only a pending record — leaves an active record untouched.
-  async deleteByUserIdIfPending(userId: string): Promise<void> {
+  async deleteByUserIdIfPending(userId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.userMfaTotp.deleteMany({
         where: { userId, status: "pending" },

@@ -5,6 +5,7 @@ import {
   MAX_PAGE_SIZE,
   postingPricingSchema,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_RENTING_INSTRUCTION_LENGTH = 1000;
 export const MAX_RENTING_DISPUTE_REASON_LENGTH = 255;
@@ -79,15 +80,15 @@ export type CreateRentingDisputeBody = z.infer<
 >;
 
 export interface RentingPostingSummary {
-  id: string;
+  id: Uuid;
   name: string;
   primaryPhotoUrl?: string;
 }
 
 export interface RentingDisputeRecord {
-  id: string;
-  rentingId: string;
-  openedByUserId: string;
+  id: Uuid;
+  rentingId: Uuid;
+  openedByUserId: Uuid;
   reason: string;
   details?: string;
   createdAt: string;
@@ -95,11 +96,11 @@ export interface RentingDisputeRecord {
 }
 
 export interface RentingRecord {
-  id: string;
-  postingId: string;
-  bookingRequestId: string;
-  renterId: string;
-  organizationId: string;
+  id: Uuid;
+  postingId: Uuid;
+  bookingRequestId: Uuid;
+  renterId: Uuid;
+  organizationId: Uuid;
   status: RentingStatus;
   startAt: string;
   endAt: string;
@@ -138,26 +139,26 @@ export interface ListRentingsResult {
 }
 
 export interface ConvertBookingRequestInput {
-  bookingRequestId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface ListMyRentingsInput {
-  userId: string;
-  organizationId?: string;
+  userId: Uuid;
+  organizationId?: Uuid;
   page: number;
   pageSize: number;
   status?: RentingStatus;
 }
 
 export interface ListOwnerDashboardRentingsInput {
-  organizationId: string;
-  postingId?: string;
+  organizationId: Uuid;
+  postingId?: Uuid;
 }
 
 export interface RentingActorInput {
-  rentingId: string;
-  actorUserId: string;
+  rentingId: Uuid;
+  actorUserId: Uuid;
   actorRole: AppRole;
 }
 

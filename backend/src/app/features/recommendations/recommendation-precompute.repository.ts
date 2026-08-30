@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -15,6 +14,7 @@ import type {
   RecommendationPopularSegmentType,
   RecommendationRefreshJobType,
 } from "@/features/recommendations/recommendation-activity.model";
+import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type RefreshJobDelegate = {
   create: (args: unknown) => Promise<unknown>;
@@ -157,7 +157,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
   }
 
   async listUserActivityRows(
-    userId: string,
+    userId: Uuid,
     windowStart: Date,
   ): Promise<RecommendationActivityRow[]> {
     const recommendationActivity = (this.prisma as any)
@@ -200,7 +200,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
 
         return [
           {
-            postingId: String(row.postingId),
+            postingId: asUuid(String(row.postingId)),
             eventType: row.eventType as RecommendationActivityRow["eventType"],
             count: Number(row.count ?? 0),
             lastOccurredAt: new Date(row.lastOccurredAt as Date).toISOString(),
@@ -254,7 +254,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
 
         return [
           {
-            postingId: String(row.postingId),
+            postingId: asUuid(String(row.postingId)),
             eventType: row.eventType as RecommendationActivityRow["eventType"],
             count: Number(row.count ?? 0),
             lastOccurredAt: new Date(row.lastOccurredAt as Date).toISOString(),
@@ -268,7 +268,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
   }
 
   async listPublishedRecommendationCandidates(input?: {
-    excludeUserId?: string;
+    excludeUserId?: Uuid;
     family?: RecommendationPostingCandidate["family"];
     subtype?: RecommendationPostingCandidate["subtype"];
   }): Promise<RecommendationPostingCandidate[]> {
@@ -308,8 +308,8 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
       });
 
       return rows.map((row) => ({
-        id: String(row.id),
-        organizationId: String(row.organizationId),
+        id: asUuid(String(row.id)),
+        organizationId: asUuid(String(row.organizationId)),
         family: row.family as RecommendationPostingCandidate["family"],
         subtype: row.subtype as RecommendationPostingCandidate["subtype"],
         tags: this.readTags(row.tags),
@@ -395,7 +395,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     jobs: Array<{
       jobType: RecommendationRefreshJobType;
       dedupeKey: string;
-      userId?: string;
+      userId?: Uuid;
       segmentType?: RecommendationPopularSegmentType;
       segmentValue?: string;
       availableAt: Date;
@@ -445,7 +445,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
             rebuiltAt: new Date(input.profile.rebuiltAt),
           },
           create: {
-            id: randomUUID(),
+            id: newUuid(),
             userId: input.profile.userId,
             qualified: input.profile.qualified,
             activityWindowStartAt: new Date(
@@ -490,7 +490,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
               .candidates as unknown as Prisma.InputJsonValue,
           },
           create: {
-            id: randomUUID(),
+            id: newUuid(),
             userId: input.snapshot.userId,
             generatedAt: new Date(input.snapshot.generatedAt),
             sourceLastSignalAt: input.snapshot.sourceLastSignalAt
@@ -528,7 +528,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
           candidates: input.candidates as unknown as Prisma.InputJsonValue,
         },
         create: {
-          id: randomUUID(),
+          id: newUuid(),
           segmentType: input.segmentType,
           segmentValue: input.segmentValue,
           generatedAt: new Date(input.generatedAt),
@@ -556,7 +556,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     job: {
       jobType: RecommendationRefreshJobType;
       dedupeKey: string;
-      userId?: string;
+      userId?: Uuid;
       segmentType?: RecommendationPopularSegmentType;
       segmentValue?: string;
       availableAt: Date;
@@ -571,7 +571,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     if (!existing) {
       await recommendationRefreshJob.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           jobType: job.jobType,
           dedupeKey: job.dedupeKey,
           userId: job.userId ?? null,
@@ -636,9 +636,10 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     processingAt?: Date,
   ): RecommendationRefreshJobRecord {
     return {
-      id: String(job.id),
+      id: asUuid(String(job.id)),
       jobType: job.jobType as RecommendationRefreshJobType,
-      userId: typeof job.userId === "string" ? job.userId : undefined,
+      userId:
+        typeof job.userId === "string" ? asUuid(job.userId) : undefined,
       segmentType:
         typeof job.segmentType === "string"
           ? (job.segmentType as RecommendationPopularSegmentType)

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -18,6 +17,7 @@ import type {
   PublicOrganizationListResult,
   PublicOrganizationProfileFields,
 } from "@/features/organizations/profile/profile.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type MembershipPersistence = Prisma.OrganizationMembershipGetPayload<{
   include: {
@@ -233,7 +233,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     organization: PublicOrganizationRow,
   ): PublicOrganizationDetailResult["organization"] {
     return {
-      id: organization.id,
+      id: asUuid(organization.id),
       slug: organization.slug,
       name: organization.name,
       createdAt: new Date(organization.createdAt).toISOString(),
@@ -422,7 +422,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
   }
 
   async findPublicOrganizationDetail(
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<PublicOrganizationDetailResult | null> {
     const rows = await this.executeAsync(() =>
       this.prisma.$queryRaw<PublicOrganizationRow[]>(Prisma.sql`
@@ -483,7 +483,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
   }
 
   async findOrganizationDetail(
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<OrganizationWorkspaceDetailResult | null> {
     const organization = await this.executeAsync(() =>
       this.prisma.organization.findUnique({
@@ -533,7 +533,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
 
     return {
       organization: {
-        id: organization.id,
+        id: asUuid(organization.id),
         slug: organization.slug,
         name: organization.name,
         createdAt: organization.createdAt.toISOString(),
@@ -575,7 +575,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
 
     if (organization) {
       return {
-        organizationId: organization.id,
+        organizationId: asUuid(organization.id),
         canonicalSlug: organization.slug,
         name: organization.name,
         matchedBy: "canonical-slug",
@@ -604,7 +604,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     }
 
     return {
-      organizationId: reservation.organization.id,
+      organizationId: asUuid(reservation.organization.id),
       canonicalSlug: reservation.organization.slug,
       name: reservation.organization.name,
       matchedBy: "alias",
@@ -623,7 +623,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
    * overwriting the other claim.
    */
   async changeOrganizationSlug(input: {
-    organizationId: string;
+    organizationId: Uuid;
     nextSlug: string;
   }): Promise<OrganizationSummary & OrganizationProfileFields> {
     const organization = await this.executeTransaction(async (transaction) => {
@@ -662,7 +662,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     });
 
     return {
-      id: organization.id,
+      id: asUuid(organization.id),
       slug: organization.slug,
       name: organization.name,
       role: "operator",
@@ -671,7 +671,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
   }
 
   async setPreferredOrganization(
-    userId: string,
+    userId: Uuid,
     organizationId: string | null,
   ): Promise<void> {
     await this.executeAsync(() =>
@@ -687,7 +687,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
   }
 
   async updateOrganization(
-    organizationId: string,
+    organizationId: Uuid,
     input: OrganizationProfileInput & { name?: string },
   ): Promise<OrganizationSummary & OrganizationProfileFields> {
     const data = this.buildOrganizationWriteData(input);
@@ -707,7 +707,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     });
 
     return {
-      id: organization.id,
+      id: asUuid(organization.id),
       slug: organization.slug,
       name: organization.name,
       role: "operator",
@@ -716,7 +716,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
   }
 
   async updateOrganizationName(
-    organizationId: string,
+    organizationId: Uuid,
     name: string,
   ): Promise<OrganizationSummary & OrganizationProfileFields> {
     return this.updateOrganization(organizationId, { name });
@@ -726,13 +726,13 @@ export class OrganizationsProfileRepository extends BaseRepository {
     input: {
       name: string;
       slug: string;
-      ownerUserId: string;
+      ownerUserId: Uuid;
     } & OrganizationProfileInput,
   ): Promise<OrganizationMembershipSummary> {
     const { name, slug, ownerUserId, ...profile } = input;
     return this.executeTransaction(async (transaction) => {
       const organizationData: Prisma.OrganizationUncheckedCreateInput = {
-        id: randomUUID(),
+        id: newUuid(),
         slug,
         name,
       };
@@ -758,11 +758,11 @@ export class OrganizationsProfileRepository extends BaseRepository {
         throw toOrganizationSlugTakenError(error, slug);
       }
 
-      await this.enqueueSearchOutbox(transaction, organization.id, "upsert");
+      await this.enqueueSearchOutbox(transaction, asUuid(organization.id), "upsert");
 
       const membership = await transaction.organizationMembership.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           organizationId: organization.id,
           userId: ownerUserId,
           role: "primary_manager",
@@ -786,8 +786,8 @@ export class OrganizationsProfileRepository extends BaseRepository {
     activeOrganizationId?: string | null,
   ): OrganizationMembershipSummary {
     return {
-      membershipId: membership.id,
-      id: membership.organization.id,
+      membershipId: asUuid(membership.id),
+      id: asUuid(membership.organization.id),
       slug: membership.organization.slug,
       name: membership.organization.name,
       role: membership.role,
@@ -800,8 +800,8 @@ export class OrganizationsProfileRepository extends BaseRepository {
     membership: MembershipPersistence,
   ): OrganizationMemberRecord {
     return {
-      membershipId: membership.id,
-      userId: membership.user.id,
+      membershipId: asUuid(membership.id),
+      userId: asUuid(membership.user.id),
       email: membership.user.email,
       firstName: membership.user.firstName ?? undefined,
       lastName: membership.user.lastName ?? undefined,
@@ -816,7 +816,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     invitation: InvitationPersistence,
   ): OrganizationInvitationRecord {
     return {
-      id: invitation.id,
+      id: asUuid(invitation.id),
       email: invitation.email,
       emailHint: maskEmailAddress(invitation.email),
       role: invitation.role,
@@ -827,7 +827,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       acceptedAt: invitation.acceptedAt?.toISOString(),
       revokedAt: invitation.revokedAt?.toISOString(),
       invitedBy: {
-        id: invitation.invitedByUser.id,
+        id: asUuid(invitation.invitedByUser.id),
         email: invitation.invitedByUser.email,
         username:
           invitation.invitedByUser.profile?.username ??
@@ -835,7 +835,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       },
       acceptedBy: invitation.acceptedByUser
         ? {
-            id: invitation.acceptedByUser.id,
+            id: asUuid(invitation.acceptedByUser.id),
             email: invitation.acceptedByUser.email,
             username:
               invitation.acceptedByUser.profile?.username ??
@@ -847,7 +847,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
 
   private async enqueueSearchOutbox(
     transaction: Prisma.TransactionClient,
-    organizationId: string,
+    organizationId: Uuid,
     operation: "upsert" | "delete",
   ): Promise<void> {
     const activeRun = await transaction.organizationSearchReindexRun.findFirst({
@@ -866,7 +866,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
         targetIndexName: true,
       },
     });
-    const primaryEventId = randomUUID();
+    const primaryEventId = newUuid();
     const entries: Prisma.OrganizationSearchOutboxCreateManyInput[] = [
       {
         id: primaryEventId,
@@ -877,7 +877,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
     ];
 
     if (activeRun) {
-      const secondaryEventId = randomUUID();
+      const secondaryEventId = newUuid();
       entries.push({
         id: secondaryEventId,
         organizationId,

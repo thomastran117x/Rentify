@@ -5,6 +5,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_BLOG_COMMENT_LENGTH = 2000;
 
@@ -97,7 +98,7 @@ export type ListBlogCommentsQuery = z.infer<typeof listBlogCommentsQuerySchema>;
  * an address must never travel with one.
  */
 export interface BlogCommentAuthorSummary {
-  id: string;
+  id: Uuid;
   username: string;
   avatarUrl?: string;
 }
@@ -106,9 +107,9 @@ export interface BlogCommentAuthorSummary {
 export type BlogCommentDeletedBy = "author" | "moderator";
 
 export interface OrganizationBlogCommentRecord {
-  id: string;
-  blogPostId: string;
-  organizationId: string;
+  id: Uuid;
+  blogPostId: Uuid;
+  organizationId: Uuid;
   author: BlogCommentAuthorSummary;
   /** Empty once deleted — the tombstone is the record, not the text. */
   body: string;
@@ -145,50 +146,50 @@ export interface ListOrganizationBlogCommentsResult {
   viewerCanComment: boolean;
   viewerCanModerate: boolean;
   /** Null while anonymous. Lets the client resolve its own comments locally. */
-  viewerUserId: string | null;
+  viewerUserId: Uuid | null;
 }
 
 export interface ListOrganizationBlogCommentsInput {
-  organizationId: string;
+  organizationId: Uuid;
   slug: string;
-  actorUserId: string | null;
+  actorUserId: Uuid | null;
   page: number;
   pageSize: number;
 }
 
 export interface CreateOrganizationBlogCommentInput {
-  organizationId: string;
+  organizationId: Uuid;
   slug: string;
-  actorUserId: string;
+  actorUserId: Uuid;
   body: string;
 }
 
 export interface UpdateOrganizationBlogCommentInput {
-  organizationId: string;
+  organizationId: Uuid;
   slug: string;
-  commentId: string;
-  actorUserId: string;
+  commentId: Uuid;
+  actorUserId: Uuid;
   body: string;
 }
 
 export interface DeleteOrganizationBlogCommentInput {
-  organizationId: string;
+  organizationId: Uuid;
   slug: string;
-  commentId: string;
-  actorUserId: string;
+  commentId: Uuid;
+  actorUserId: Uuid;
 }
 
 /** The post fields every authorization decision in this feature depends on. */
 export interface OrganizationBlogCommentPostContext {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   status: string;
   commentsEnabled: boolean;
 }
 
 export interface OrganizationBlogCommentStreamAuthorization {
-  blogPostId: string;
-  organizationId: string;
+  blogPostId: Uuid;
+  organizationId: Uuid;
   /**
    * Whether this viewer may post. Connecting only needs read access — an
    * anonymous reader watches a thread they cannot write to — so the capability
@@ -211,10 +212,10 @@ export interface OrganizationBlogCommentSocketSession {
 }
 
 export interface OrganizationBlogCommentSocketIdentity {
-  blogPostId: string;
-  organizationId: string;
+  blogPostId: Uuid;
+  organizationId: Uuid;
   /** Null for an anonymous reader — the whole point of the public surface. */
-  userId: string | null;
+  userId: Uuid | null;
   sessionId: string | null;
   tokenVersion: number | null;
 }
@@ -226,12 +227,12 @@ export interface OrganizationBlogCommentSocketIdentity {
 export type OrganizationBlogCommentStreamEvent =
   | {
       type: "comment.created";
-      blogPostId: string;
+      blogPostId: Uuid;
       comment: OrganizationBlogCommentRecord;
     }
   | {
       type: "comment.updated";
-      blogPostId: string;
+      blogPostId: Uuid;
       comment: OrganizationBlogCommentRecord;
     }
   | {
@@ -242,14 +243,14 @@ export type OrganizationBlogCommentStreamEvent =
        * the two are rendered with different copy.
        */
       type: "comment.deleted";
-      blogPostId: string;
+      blogPostId: Uuid;
       comment: OrganizationBlogCommentRecord;
     }
   | {
       // Ephemeral: never persisted, and expires on its own if the author goes
       // quiet or their socket drops.
       type: "typing";
-      blogPostId: string;
+      blogPostId: Uuid;
       username: string;
       expiresAt: string;
     }
@@ -260,13 +261,13 @@ export type OrganizationBlogCommentStreamEvent =
        * another node dying with sockets attached.
        */
       type: "presence";
-      blogPostId: string;
+      blogPostId: Uuid;
       readerCount: number;
     }
   | {
       /** Broadcast when a manager opens or closes comments on the post. */
       type: "comments.closed";
-      blogPostId: string;
+      blogPostId: Uuid;
       commentsEnabled: boolean;
     }
   | {
@@ -276,12 +277,12 @@ export type OrganizationBlogCommentStreamEvent =
        * the single source for every `viewerCan*` field.
        */
       type: "resync";
-      blogPostId: string;
+      blogPostId: Uuid;
     };
 
 /** Sent to a single socket the moment it is admitted to a room. */
 export interface OrganizationBlogCommentReadyEvent {
   type: "ready";
-  blogPostId: string;
+  blogPostId: Uuid;
   canWrite: boolean;
 }

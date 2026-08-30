@@ -9,6 +9,7 @@ import type { PostingExpiryCandidate } from "@/features/postings/postings.model"
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -175,8 +176,8 @@ export class PostingExpiryService {
     }
 
     await this.emailService.sendPostingExpiringSoonEmail({
-      postingId: candidate.id,
-      recipientId,
+      postingId: asUuid(candidate.id),
+      recipientId: asUuid(recipientId),
       expiresAt: candidate.expiresAt,
     });
   }
@@ -193,8 +194,8 @@ export class PostingExpiryService {
    * the staleness window is user-visible and worth alerting on.
    */
   private async invalidateProjection(
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
   ): Promise<void> {
     try {
       await invalidatePublicPostingProjection(

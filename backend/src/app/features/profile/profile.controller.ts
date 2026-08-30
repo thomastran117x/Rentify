@@ -15,6 +15,7 @@ import {
 } from "@/features/profile/profile.model";
 import { ProfileService } from "@/features/profile/profile.service";
 import { RequestValidationError } from "@/configuration/validation/request";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
@@ -49,7 +50,7 @@ export class ProfileController {
     input: UpdateProfileRequestBody,
   ): UpdateProfileInput {
     return {
-      userId: request.auth.sub,
+      userId: asUuid(request.auth.sub),
       username: input.username,
       phoneNumber: input.phoneNumber,
       isPrivate: input.isPrivate,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const organizationBlogStatusSchema = z.enum(["draft", "published"]);
 export type OrganizationBlogStatus = z.infer<
@@ -122,7 +123,7 @@ export type ListPublicBlogFeedQuery = z.infer<
 >;
 
 export interface OrganizationBlogAuthorSummary {
-  id: string;
+  id: Uuid;
   email: string;
   username: string;
   avatarUrl?: string;
@@ -132,15 +133,15 @@ export interface OrganizationBlogAuthorSummary {
 // outside of a single organization context (e.g. the global blog feed), so the
 // UI can label and link the post back to its organization.
 export interface OrganizationBlogOrganizationSummary {
-  id: string;
+  id: Uuid;
   slug: string;
   name: string;
   logoUrl?: string;
 }
 
 export interface OrganizationBlogPostRecord {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   organization?: OrganizationBlogOrganizationSummary;
   author?: OrganizationBlogAuthorSummary;
   title: string;
@@ -182,13 +183,13 @@ export interface ListOrganizationBlogPostsResult {
 
 export interface ListOrganizationBlogPostsInput
   extends ListOrganizationBlogQuery {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface ListPublicOrganizationBlogPostsInput
   extends ListPublicOrganizationBlogQuery {
-  organizationId: string;
+  organizationId: Uuid;
 }
 
 export interface ListPublicBlogFeedInput extends ListPublicBlogFeedQuery {}
@@ -198,8 +199,8 @@ export interface ListPublicBlogFeedInput extends ListPublicBlogFeedQuery {}
 // time, so the index only carries what we search, filter, and sort on. `body` is
 // stored as plain text (HTML stripped) for full-text relevance.
 export interface OrganizationBlogSearchDocument {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   title: string;
   excerpt: string | null;
   body: string;
@@ -211,9 +212,9 @@ export interface OrganizationBlogSearchDocument {
 }
 
 export interface OrganizationBlogSearchOutboxRecord {
-  id: string;
-  blogPostId?: string;
-  reindexRunId?: string;
+  id: Uuid;
+  blogPostId?: Uuid;
+  reindexRunId?: Uuid;
   operation: "upsert" | "delete" | "barrier";
   dedupeKey: string;
   targetIndexName?: string;
@@ -231,14 +232,14 @@ export interface OrganizationBlogSearchOutboxRecord {
 }
 
 export interface GetPublicOrganizationBlogPostInput {
-  organizationId: string;
+  organizationId: Uuid;
   slug: string;
 }
 
 export interface CreateOrganizationBlogPostInput
   extends Omit<CreateOrganizationBlogBody, "commentsEnabled"> {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
   /**
    * Optional at the service boundary even though the schema defaults it, so a
    * caller that predates comments does not have to opt in explicitly. The
@@ -249,25 +250,25 @@ export interface CreateOrganizationBlogPostInput
 
 export interface UpdateOrganizationBlogPostInput
   extends UpdateOrganizationBlogBody {
-  organizationId: string;
-  actorUserId: string;
-  blogPostId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  blogPostId: Uuid;
 }
 
 export interface DeleteOrganizationBlogPostInput {
-  organizationId: string;
-  actorUserId: string;
-  blogPostId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  blogPostId: Uuid;
 }
 
 export interface DeleteOrganizationBlogPostResult {
   deleted: true;
-  blogPostId: string;
+  blogPostId: Uuid;
 }
 
 export interface CreateOrganizationBlogPostPersistence {
-  organizationId: string;
-  authorUserId: string | null;
+  organizationId: Uuid;
+  authorUserId: Uuid | null;
   title: string;
   slug: string;
   excerpt: string | null;

@@ -4,11 +4,14 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AppRole } from "@/features/auth/auth.model";
 import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type { CacheService } from "@/features/cache/cache.service";
+import { type Uuid } from "@/configuration/validation/uuid";
 
 type RefreshTokenMode = "stateless" | "stateful";
 
 export interface AccessTokenPayload {
-  sub: string;
+  // The authenticated user's id. Trusted because the token's HMAC signature is
+  // verified before the claims are read, and we minted `sub` from `user.id`.
+  sub: Uuid;
   email?: string;
   role?: AppRole;
   deviceId?: string;
@@ -17,7 +20,7 @@ export interface AccessTokenPayload {
 }
 
 export interface RefreshTokenPayload {
-  sub: string;
+  sub: Uuid;
   deviceId?: string;
   rememberMe?: boolean;
   tokenVersion?: number;
@@ -70,7 +73,7 @@ const SESSION_CACHE_PREFIX = "auth:session";
 
 export interface AuthSessionState {
   sessionId: string;
-  userId: string;
+  userId: Uuid;
   deviceId?: string;
   tokenVersion: number;
   status: "active" | "revoked";
@@ -239,7 +242,7 @@ export class TokenService {
   }
 
   async revokeSessionsForDevice(
-    userId: string,
+    userId: Uuid,
     deviceId: string,
   ): Promise<number> {
     const sessionKeys = await this.cache.scanKeys(this.getSessionScanPattern());
@@ -545,7 +548,7 @@ export class TokenService {
    * revoked session closes the socket instead of leaving it streaming.
    */
   async assertSessionIsUsable(
-    userId: string,
+    userId: Uuid,
     sessionId?: string | null,
     tokenVersion?: number | null,
   ): Promise<void> {
@@ -554,7 +557,7 @@ export class TokenService {
   }
 
   private async getCurrentSessionValidation(
-    userId: string,
+    userId: Uuid,
     tokenVersion?: string | number | boolean | null,
   ): Promise<{ tokenVersion: number; role: AppRole }> {
     const sessionValidation =
@@ -574,14 +577,14 @@ export class TokenService {
   }
 
   private async assertTokenVersionIsCurrent(
-    userId: string,
+    userId: Uuid,
     tokenVersion?: string | number | boolean | null,
   ): Promise<void> {
     await this.getCurrentSessionValidation(userId, tokenVersion);
   }
 
   private async assertSessionIsActive(
-    userId: string,
+    userId: Uuid,
     sessionId?: string | number | boolean | null,
   ): Promise<void> {
     if (typeof sessionId !== "string" || sessionId.length === 0) {

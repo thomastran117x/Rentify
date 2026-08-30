@@ -5,6 +5,7 @@ import {
   requiredSafeTrimmedString,
   type OAuthProvider,
 } from "@/features/auth/auth.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const oauthAuthenticateRequestSchema = z
   .object({
@@ -60,19 +61,19 @@ export interface OAuthAuthenticateInput {
 }
 
 export interface LinkOAuthProviderInput extends OAuthAuthenticateInput {
-  userId: string;
+  userId: Uuid;
   provider: OAuthProvider;
 }
 
 export interface UnlinkOAuthProviderInput {
-  userId: string;
+  userId: Uuid;
   provider: OAuthProvider;
 }
 
 export interface LinkedOAuthProvidersResult {
   hasPassword: boolean;
   providers: Array<{
-    id: string;
+    id: Uuid;
     provider: OAuthProvider;
     providerEmail?: string;
     emailVerified: boolean;

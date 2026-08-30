@@ -17,6 +17,11 @@ import {
   type SavedSearchRecord,
   type UpdateSavedSearchRequest,
 } from "@/features/postings/saved-searches/saved-searches.model";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -40,7 +45,7 @@ export class SavedSearchesService {
   ) {}
 
   async create(
-    userId: string,
+    userId: Uuid,
     body: CreateSavedSearchRequest,
   ): Promise<SavedSearchRecord> {
     const queryHash = hashSavedSearchParams(body.queryParams);
@@ -70,13 +75,13 @@ export class SavedSearchesService {
       nextCheckAt: this.resolveNextCheckAt(body.notifyFrequency, new Date()),
     });
 
-    await this.baselineSeenPostings(row.id, body.queryParams);
+    await this.baselineSeenPostings(asUuid(row.id), body.queryParams);
 
     return toSavedSearchRecord(row);
   }
 
   async list(
-    userId: string,
+    userId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListSavedSearchesResult> {
@@ -94,8 +99,8 @@ export class SavedSearchesService {
   }
 
   async update(
-    id: string,
-    userId: string,
+    id: Uuid,
+    userId: Uuid,
     body: UpdateSavedSearchRequest,
   ): Promise<SavedSearchRecord> {
     const row = await this.savedSearchesRepository.update(id, userId, {
@@ -120,7 +125,7 @@ export class SavedSearchesService {
     return toSavedSearchRecord(row);
   }
 
-  async remove(id: string, userId: string): Promise<void> {
+  async remove(id: Uuid, userId: Uuid): Promise<void> {
     const removed = await this.savedSearchesRepository.remove(id, userId);
 
     if (!removed) {
@@ -133,7 +138,7 @@ export class SavedSearchesService {
    * page render the visitor never scrolled to, and only drops when they open
    * the results.
    */
-  async markSeen(id: string, userId: string): Promise<void> {
+  async markSeen(id: Uuid, userId: Uuid): Promise<void> {
     const reset = await this.savedSearchesRepository.resetNewMatchCount(
       id,
       userId,
@@ -157,7 +162,7 @@ export class SavedSearchesService {
    * losing the baseline costs one over-eager email, not the feature.
    */
   private async baselineSeenPostings(
-    savedSearchId: string,
+    savedSearchId: Uuid,
     queryParams: SavedSearchQueryParams,
   ): Promise<void> {
     try {
@@ -167,7 +172,7 @@ export class SavedSearchesService {
       );
 
       await this.savedSearchesRepository.recordSeenPostings(
-        savedSearchId,
+        asUuid(savedSearchId),
         postingIds,
       );
     } catch (error) {

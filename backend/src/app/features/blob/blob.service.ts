@@ -17,6 +17,7 @@ import type {
   BlobUploadTarget,
   CreateBlobUploadUrlInput,
 } from "@/features/blob/blob.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 interface AzureBlobConfiguration {
   accountName: string;
@@ -114,13 +115,13 @@ export class BlobService {
     return this.readLocalBlobData(blobName);
   }
 
-  async deleteBlobForUser(userId: string, blobName: string): Promise<void> {
+  async deleteBlobForUser(userId: Uuid, blobName: string): Promise<void> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
     this.assertUserOwnsBlob(userId, normalizedBlobName);
     await this.deleteBlob(normalizedBlobName);
   }
 
-  isBlobOwnedByUser(userId: string, blobName: string): boolean {
+  isBlobOwnedByUser(userId: Uuid, blobName: string): boolean {
     try {
       const normalizedBlobName = this.normalizeBlobName(blobName);
       this.assertUserOwnsBlob(userId, normalizedBlobName);
@@ -428,7 +429,7 @@ export class BlobService {
   }
 
   private buildBlobName(
-    userId: string,
+    userId: Uuid,
     filename: string,
     scope?: string,
   ): string {
@@ -552,7 +553,7 @@ export class BlobService {
     return normalized;
   }
 
-  private assertUserOwnsBlob(userId: string, blobName: string): void {
+  private assertUserOwnsBlob(userId: Uuid, blobName: string): void {
     const segments = blobName.split("/");
 
     if (segments.length < 3 || segments[1] !== userId) {

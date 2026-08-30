@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { BaseRepository } from "@/features/base/base.repository";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface RegisterKnownDeviceInput {
-  userId: string;
+  userId: Uuid;
   deviceId: string;
   type: string;
   platform?: string;
@@ -11,8 +11,8 @@ interface RegisterKnownDeviceInput {
 }
 
 export interface KnownDeviceRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   deviceId: string;
   type: string;
   platform?: string;
@@ -37,7 +37,7 @@ type DevicePersistence = {
 };
 
 export class DeviceRepository extends BaseRepository {
-  async hasAnyKnownDevice(userId: string): Promise<boolean> {
+  async hasAnyKnownDevice(userId: Uuid): Promise<boolean> {
     const count = await this.executeAsync(() =>
       this.prisma.device.count({
         where: {
@@ -49,7 +49,7 @@ export class DeviceRepository extends BaseRepository {
     return count > 0;
   }
 
-  async hasKnownIpAddress(userId: string, ipAddress: string): Promise<boolean> {
+  async hasKnownIpAddress(userId: Uuid, ipAddress: string): Promise<boolean> {
     const count = await this.executeAsync(() =>
       this.prisma.device.count({
         where: {
@@ -63,7 +63,7 @@ export class DeviceRepository extends BaseRepository {
   }
 
   async findKnownDevice(
-    userId: string,
+    userId: Uuid,
     deviceId: string,
   ): Promise<KnownDeviceRecord | null> {
     const device = await this.executeAsync(() =>
@@ -93,7 +93,7 @@ export class DeviceRepository extends BaseRepository {
           },
         },
         create: {
-          id: randomUUID(),
+          id: newUuid(),
           userId: input.userId,
           deviceId: input.deviceId,
           type: input.type,
@@ -119,7 +119,7 @@ export class DeviceRepository extends BaseRepository {
   }
 
   async touchKnownDevice(
-    userId: string,
+    userId: Uuid,
     deviceId: string,
     ipAddress?: string,
   ): Promise<void> {
@@ -139,7 +139,7 @@ export class DeviceRepository extends BaseRepository {
     );
   }
 
-  async touchKnownIpAddress(userId: string, ipAddress: string): Promise<void> {
+  async touchKnownIpAddress(userId: Uuid, ipAddress: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.device.updateMany({
         where: {
@@ -153,7 +153,7 @@ export class DeviceRepository extends BaseRepository {
     );
   }
 
-  async listKnownDevices(userId: string): Promise<KnownDeviceRecord[]> {
+  async listKnownDevices(userId: Uuid): Promise<KnownDeviceRecord[]> {
     const devices = await this.executeAsync(() =>
       this.prisma.device.findMany({
         where: {
@@ -168,7 +168,7 @@ export class DeviceRepository extends BaseRepository {
     return devices.map((device) => this.mapDevice(device));
   }
 
-  async removeKnownDevice(userId: string, deviceId: string): Promise<boolean> {
+  async removeKnownDevice(userId: Uuid, deviceId: string): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.device.deleteMany({
         where: {
@@ -183,8 +183,8 @@ export class DeviceRepository extends BaseRepository {
 
   private mapDevice(device: DevicePersistence): KnownDeviceRecord {
     return {
-      id: device.id,
-      userId: device.userId,
+      id: asUuid(device.id),
+      userId: asUuid(device.userId),
       deviceId: device.deviceId,
       type: device.type,
       platform: device.platform ?? undefined,

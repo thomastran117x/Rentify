@@ -11,6 +11,7 @@ import {
   organizationAuditIdSchema,
 } from "@/features/organizations/audit/audit.model";
 import { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationAuditController {
   constructor(private readonly auditService: OrganizationAuditService) {}
@@ -20,8 +21,8 @@ export class OrganizationAuditController {
     const query = listOrganizationAuditQuerySchema.parse(getQuery(request));
     const result = await this.auditService.list({
       ...query,
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, { meta: paginationMeta(result) });
   };
@@ -32,8 +33,8 @@ export class OrganizationAuditController {
   ): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.auditService.restoreVersion({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       auditId: requireRouteValue(
         request,
         "auditId",

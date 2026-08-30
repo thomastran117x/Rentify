@@ -5,14 +5,15 @@ import type {
   ProviderRefundResult,
   SquareWebhookVerificationResult,
 } from "@/features/payments/payments.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export interface PaymentProviderAdapter {
   createPaymentSession(input: {
     idempotencyKey: string;
     amount: number;
     currency: string;
-    bookingRequestId: string;
-    paymentId: string;
+    bookingRequestId: Uuid;
+    paymentId: Uuid;
   }): Promise<ProviderPaymentSession>;
   getPaymentStatus(input: {
     providerPaymentId?: string;

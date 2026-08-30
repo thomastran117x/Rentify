@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const organizationAnnouncementStatusSchema = z.enum([
   "draft",
@@ -49,15 +50,15 @@ export type ListOrganizationAnnouncementsQuery = z.infer<
 >;
 
 export interface OrganizationAnnouncementAuthorSummary {
-  id: string;
+  id: Uuid;
   email: string;
   username: string;
   avatarUrl?: string;
 }
 
 export interface OrganizationAnnouncementRecord {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   author?: OrganizationAnnouncementAuthorSummary;
   title: string;
   body: string;
@@ -83,37 +84,37 @@ export interface ListOrganizationAnnouncementsResult {
 
 export interface ListOrganizationAnnouncementsInput
   extends ListOrganizationAnnouncementsQuery {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface CreateOrganizationAnnouncementInput
   extends CreateOrganizationAnnouncementBody {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface UpdateOrganizationAnnouncementInput
   extends UpdateOrganizationAnnouncementBody {
-  organizationId: string;
-  actorUserId: string;
-  announcementId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  announcementId: Uuid;
 }
 
 export interface DeleteOrganizationAnnouncementInput {
-  organizationId: string;
-  actorUserId: string;
-  announcementId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  announcementId: Uuid;
 }
 
 export interface DeleteOrganizationAnnouncementResult {
   deleted: true;
-  announcementId: string;
+  announcementId: Uuid;
 }
 
 export interface CreateOrganizationAnnouncementPersistence {
-  organizationId: string;
-  authorUserId: string | null;
+  organizationId: Uuid;
+  authorUserId: Uuid | null;
   title: string;
   body: string;
   status: OrganizationAnnouncementStatus;

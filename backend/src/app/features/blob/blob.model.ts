@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const blobScopePattern = /^[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
 
@@ -30,7 +31,7 @@ export type DeleteBlobRequestQuery = z.infer<
 >;
 
 export interface CreateBlobUploadUrlInput {
-  userId: string;
+  userId: Uuid;
   filename: string;
   contentType: string;
   scope?: string;

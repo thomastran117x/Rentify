@@ -19,6 +19,7 @@ import {
   resolveUsernameChangeEligibility,
   USERNAME_CHANGE_COOLDOWN_DAYS,
 } from "@/features/profile/username-change-policy";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export class ProfileService {
   constructor(
@@ -36,7 +37,7 @@ export class ProfileService {
     });
   }
 
-  async getByUserId(userId: string): Promise<ProfileRecord> {
+  async getByUserId(userId: Uuid): Promise<ProfileRecord> {
     const profile = await this.profileRepository.findByUserId(userId);
 
     if (!profile) {
@@ -105,7 +106,7 @@ export class ProfileService {
    * the row as it stands now so the reported `availableAt` reflects the rename
    * that actually landed.
    */
-  private async buildLostRaceError(userId: string): Promise<Error> {
+  private async buildLostRaceError(userId: Uuid): Promise<Error> {
     const current = await this.profileRepository.findByUserId(userId);
 
     if (!current) {

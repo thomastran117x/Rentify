@@ -10,6 +10,7 @@ import {
 } from "@/features/organizations/organizations.request-helpers";
 import { createOrganizationInviteRequestSchema } from "@/features/organizations/invitations/invitations.model";
 import { OrganizationInvitationsService } from "@/features/organizations/invitations/invitations.service";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationInvitationsController {
   constructor(
@@ -23,8 +24,8 @@ export class OrganizationInvitationsController {
       createOrganizationInviteRequestSchema,
     );
     const result = await this.invitationsService.createInvitation({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       email: body.email,
       role: body.role,
     });
@@ -36,9 +37,9 @@ export class OrganizationInvitationsController {
   revoke = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.invitationsService.revokeInvitation({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      invitationId: requireResourceId(request, "inviteId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      invitationId: asUuid(requireResourceId(request, "inviteId")),
     });
     ok(response, result, {
       message: "Organization invitation revoked successfully.",
@@ -49,7 +50,7 @@ export class OrganizationInvitationsController {
     const auth = await getOptionalAuth(request);
     const result = await this.invitationsService.previewInvitation({
       token: requireInviteToken(request),
-      userId: auth?.sub,
+      userId: asOptionalUuid(auth?.sub),
     });
     ok(response, result);
   };
@@ -58,7 +59,7 @@ export class OrganizationInvitationsController {
     const auth = await requireAuth(request);
     const result = await this.invitationsService.acceptInvitation({
       token: requireInviteToken(request),
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Organization invitation accepted successfully.",

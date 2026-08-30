@@ -3,6 +3,7 @@ import type { BlobService } from "@/features/blob/blob.service";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const THUMBNAIL_WIDTH = 640;
 const THUMBNAIL_HEIGHT = 480;
@@ -15,7 +16,7 @@ export class PostingThumbnailService {
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
   ) {}
 
-  async generateForPosting(postingId: string): Promise<void> {
+  async generateForPosting(postingId: Uuid): Promise<void> {
     const primaryPhoto =
       await this.postingsRepository.findPrimaryPhotoForThumbnailing(postingId);
 

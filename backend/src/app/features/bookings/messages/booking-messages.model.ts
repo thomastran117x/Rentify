@@ -4,6 +4,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_BOOKING_MESSAGE_LENGTH = 2000;
 
@@ -73,9 +74,9 @@ export type ListBookingMessagesQuery = z.infer<
 >;
 
 export interface BookingMessageRecord {
-  id: string;
-  bookingRequestId: string;
-  authorId: string;
+  id: Uuid;
+  bookingRequestId: Uuid;
+  authorId: Uuid;
   /**
    * Which side of the booking authored the message. Derived from the booking's
    * `renterId` in the repository mapper so clients can align the thread without
@@ -129,39 +130,39 @@ export interface BookingMessagesListResult {
 }
 
 export interface MarkBookingMessagesReadResult {
-  bookingRequestId: string;
+  bookingRequestId: Uuid;
   markedCount: number;
   readAt: string;
 }
 
 export interface SendBookingMessageInput {
-  bookingRequestId: string;
-  authorId: string;
+  bookingRequestId: Uuid;
+  authorId: Uuid;
   body: string;
 }
 
 export interface EditBookingMessageInput {
-  bookingRequestId: string;
-  messageId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  messageId: Uuid;
+  actorUserId: Uuid;
   body: string;
 }
 
 export interface DeleteBookingMessageInput {
-  bookingRequestId: string;
-  messageId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  messageId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface ListBookingMessagesInput {
-  bookingRequestId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  actorUserId: Uuid;
   page: number;
   pageSize: number;
 }
 
 export interface BookingMessageStreamAuthorization {
-  bookingRequestId: string;
+  bookingRequestId: Uuid;
   side: BookingParticipantSide;
   /**
    * Whether this participant may write to the thread. Connecting only needs
@@ -193,8 +194,8 @@ export interface BookingMessageSocketSession {
 }
 
 export interface BookingMessageSocketIdentity {
-  bookingRequestId: string;
-  userId: string;
+  bookingRequestId: Uuid;
+  userId: Uuid;
   sessionId: string | null;
   tokenVersion: number | null;
 }
@@ -202,32 +203,32 @@ export interface BookingMessageSocketIdentity {
 export type BookingMessageStreamEvent =
   | {
       type: "message.created";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
       message: BookingMessageRecord;
     }
   | {
       type: "message.updated";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
       message: BookingMessageRecord;
     }
   | {
       type: "messages.read";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
       readerSide: BookingParticipantSide;
       readAt: string;
       markedCount: number;
     }
   | {
       type: "messages.delivered";
-      bookingRequestId: string;
-      messageIds: string[];
+      bookingRequestId: Uuid;
+      messageIds: Uuid[];
       deliveredAt: string;
     }
   | {
       // Ephemeral: never persisted, and expires on its own if the sender goes
       // quiet or their socket drops.
       type: "typing";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
       side: BookingParticipantSide;
       username: string;
       expiresAt: string;
@@ -240,11 +241,11 @@ export type BookingMessageStreamEvent =
        * `canWrite` and the viewer's side, so one event covers all of it.
        */
       type: "resync";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
     }
   | {
       type: "presence";
-      bookingRequestId: string;
+      bookingRequestId: Uuid;
       /**
        * Presence belongs to the side, not to a person. An organization is
        * present when any of its managers is watching, and naming whichever one
@@ -262,5 +263,5 @@ export interface BookingMessageEmailContent {
   postingName: string;
   authorName: string;
   snippet: string;
-  bookingRequestId: string;
+  bookingRequestId: Uuid;
 }

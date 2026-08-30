@@ -10,6 +10,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import type { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 import { createAppFeedbackRequestSchema } from "@/features/feedbacks/feedbacks.model";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 class FeedbacksController {
   constructor(
@@ -29,7 +30,7 @@ class FeedbacksController {
     }
 
     const result = await this.feedbacksService.create({
-      userId: auth?.sub,
+      userId: asOptionalUuid(auth?.sub),
       name: body.name,
       email: body.email,
       category: body.category,

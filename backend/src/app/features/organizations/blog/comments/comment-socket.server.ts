@@ -14,6 +14,7 @@ import {
   type OrganizationBlogCommentSocketIdentity,
   type OrganizationBlogCommentStreamEvent,
 } from "@/features/organizations/blog/comments/comments.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export { BLOG_COMMENT_SOCKET_PATH };
 
@@ -39,7 +40,7 @@ const PRESENCE_BROADCAST_INTERVAL_MS = 2_000;
  * The room every reader of a post joins. One room, not two: a blog post has no
  * sides, and everyone in it sees the same public conversation.
  */
-export function postRoom(blogPostId: string): string {
+export function postRoom(blogPostId: Uuid): string {
   return `blog-comments:${blogPostId}`;
 }
 
@@ -241,7 +242,7 @@ export class OrganizationBlogCommentSocketServer {
    * sockets attached takes its share out of the cluster's view on its own,
    * where a hand-kept tally would strand it until a restart.
    */
-  async countReaders(blogPostId: string): Promise<number> {
+  async countReaders(blogPostId: Uuid): Promise<number> {
     if (!this.io) {
       return 0;
     }
@@ -372,7 +373,7 @@ export class OrganizationBlogCommentSocketServer {
    * membership. The timer is trailing-edge for exactly that reason — the final
    * state has to go out even if it lands inside a quiet interval.
    */
-  private schedulePresence(blogPostId: string): void {
+  private schedulePresence(blogPostId: Uuid): void {
     if (this.presenceTimers.has(blogPostId)) {
       return;
     }
@@ -389,7 +390,7 @@ export class OrganizationBlogCommentSocketServer {
     this.presenceTimers.set(blogPostId, timer);
   }
 
-  private async broadcastPresence(blogPostId: string): Promise<void> {
+  private async broadcastPresence(blogPostId: Uuid): Promise<void> {
     const readerCount = await this.countReaders(blogPostId);
 
     this.publish({

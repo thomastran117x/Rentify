@@ -49,6 +49,7 @@ import {
   type SearchPostingsResult,
   toPostingAttributes,
   type UpsertPostingInput,
+  type UpsertPostingPersistenceInput,
   isPostingPubliclyVisible,
 } from "@/features/postings/postings.model";
 import {
@@ -71,6 +72,7 @@ import type { PostingsPublicSearchService } from "@/features/postings/search/pub
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class PostingsService {
   private readonly logger: Logger;
@@ -94,7 +96,7 @@ export class PostingsService {
   }
 
   async createDraft(
-    actorUserId: string,
+    actorUserId: Uuid,
     input: UpsertPostingInput,
   ): Promise<PostingRecord> {
     const membership = await this.requireActiveMembership(actorUserId);
@@ -121,7 +123,7 @@ export class PostingsService {
     return created;
   }
 
-  async duplicate(id: string, actorUserId: string): Promise<PostingRecord> {
+  async duplicate(id: Uuid, actorUserId: Uuid): Promise<PostingRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     const availabilityBlocks =
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
@@ -136,7 +138,7 @@ export class PostingsService {
     await this.enqueueThumbnailGeneration(duplicated.id);
     await this.recordPostingAudit({
       organizationId: duplicated.organizationId,
-      actorUserId,
+      actorUserId: asUuid(actorUserId),
       action: "posting.duplicated",
       resourceType: "posting",
       resourceId: duplicated.id,
@@ -149,8 +151,8 @@ export class PostingsService {
   }
 
   async update(
-    id: string,
-    actorUserId: string,
+    id: Uuid,
+    actorUserId: Uuid,
     input: UpsertPostingInput,
   ): Promise<PostingRecord> {
     const existing = await this.requireManagedPosting(id, actorUserId, "write");
@@ -186,8 +188,8 @@ export class PostingsService {
   }
 
   async listOwnerAvailabilityBlocks(
-    id: string,
-    actorUserId: string,
+    id: Uuid,
+    actorUserId: Uuid,
   ): Promise<{ availabilityBlocks: PostingAvailabilityBlockRecord[] }> {
     const posting = await this.requireManagedPosting(id, actorUserId, "read");
     const availabilityBlocks =
@@ -199,8 +201,8 @@ export class PostingsService {
   }
 
   async createOwnerAvailabilityBlock(
-    id: string,
-    actorUserId: string,
+    id: Uuid,
+    actorUserId: Uuid,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
@@ -214,7 +216,7 @@ export class PostingsService {
         await this.assertAvailabilityBlockCanBeWritten(posting.id, normalized);
         const created =
           await this.postingsRepository.createOwnerAvailabilityBlock(
-            posting.id,
+            asUuid(posting.id),
             normalized,
           );
         await this.invalidatePublicProjection(posting.id);
@@ -235,9 +237,9 @@ export class PostingsService {
   }
 
   async updateOwnerAvailabilityBlock(
-    id: string,
-    actorUserId: string,
-    blockId: string,
+    id: Uuid,
+    actorUserId: Uuid,
+    blockId: Uuid,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
@@ -249,18 +251,18 @@ export class PostingsService {
       flowLockKeys.postingBookingWindow(posting.id),
       async () => {
         const beforeBlock = await this.assertExistingOwnerAvailabilityBlock(
-          posting.id,
+          asUuid(posting.id),
           blockId,
         );
         await this.assertAvailabilityBlockCanBeWritten(
-          posting.id,
+          asUuid(posting.id),
           normalized,
           blockId,
         );
 
         const updated =
           await this.postingsRepository.updateOwnerAvailabilityBlock(
-            posting.id,
+            asUuid(posting.id),
             blockId,
             normalized,
           );
@@ -289,9 +291,9 @@ export class PostingsService {
   }
 
   async deleteOwnerAvailabilityBlock(
-    id: string,
-    actorUserId: string,
-    blockId: string,
+    id: Uuid,
+    actorUserId: Uuid,
+    blockId: Uuid,
   ): Promise<void> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
 
@@ -301,12 +303,12 @@ export class PostingsService {
       async () => {
         const beforeBlock =
           await this.postingsRepository.findOwnerAvailabilityBlock(
-            posting.id,
+            asUuid(posting.id),
             blockId,
           );
         const deleted =
           await this.postingsRepository.deleteOwnerAvailabilityBlock(
-            posting.id,
+            asUuid(posting.id),
             blockId,
           );
 
@@ -334,7 +336,7 @@ export class PostingsService {
     );
   }
 
-  async publish(id: string, actorUserId: string): Promise<PostingRecord> {
+  async publish(id: Uuid, actorUserId: Uuid): Promise<PostingRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanPublish(posting);
 
@@ -348,7 +350,7 @@ export class PostingsService {
     await this.enqueueThumbnailGeneration(published.id);
     await this.recordPostingAudit({
       organizationId: published.organizationId,
-      actorUserId,
+      actorUserId: asUuid(actorUserId),
       action: "posting.published",
       resourceType: "posting",
       resourceId: published.id,
@@ -359,7 +361,7 @@ export class PostingsService {
     return published;
   }
 
-  async pause(id: string, actorUserId: string): Promise<PostingRecord> {
+  async pause(id: Uuid, actorUserId: Uuid): Promise<PostingRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanPause(posting);
 
@@ -369,7 +371,7 @@ export class PostingsService {
       async () => {
         const lockedPosting = await this.requireManagedPosting(
           id,
-          actorUserId,
+          asUuid(actorUserId),
           "write",
         );
         this.assertCanPause(lockedPosting);
@@ -382,7 +384,7 @@ export class PostingsService {
         await this.invalidatePublicProjection(paused.id);
         await this.recordPostingAudit({
           organizationId: paused.organizationId,
-          actorUserId,
+          actorUserId: asUuid(actorUserId),
           action: "posting.paused",
           resourceType: "posting",
           resourceId: paused.id,
@@ -396,7 +398,7 @@ export class PostingsService {
     );
   }
 
-  async unpause(id: string, actorUserId: string): Promise<PostingRecord> {
+  async unpause(id: Uuid, actorUserId: Uuid): Promise<PostingRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanUnpause(posting);
 
@@ -406,7 +408,7 @@ export class PostingsService {
       async () => {
         const lockedPosting = await this.requireManagedPosting(
           id,
-          actorUserId,
+          asUuid(actorUserId),
           "write",
         );
         this.assertCanUnpause(lockedPosting);
@@ -420,7 +422,7 @@ export class PostingsService {
         await this.enqueueThumbnailGeneration(unpaused.id);
         await this.recordPostingAudit({
           organizationId: unpaused.organizationId,
-          actorUserId,
+          actorUserId: asUuid(actorUserId),
           action: "posting.unpaused",
           resourceType: "posting",
           resourceId: unpaused.id,
@@ -434,7 +436,7 @@ export class PostingsService {
     );
   }
 
-  async archive(id: string, actorUserId: string): Promise<PostingRecord> {
+  async archive(id: Uuid, actorUserId: Uuid): Promise<PostingRecord> {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     this.assertCanArchive(posting);
     const archived = await this.postingsRepository.archive(id);
@@ -446,7 +448,7 @@ export class PostingsService {
     await this.invalidatePublicProjection(archived.id);
     await this.recordPostingAudit({
       organizationId: archived.organizationId,
-      actorUserId,
+      actorUserId: asUuid(actorUserId),
       action: "posting.archived",
       resourceType: "posting",
       resourceId: archived.id,
@@ -458,8 +460,8 @@ export class PostingsService {
   }
 
   private async recordPostingAudit(input: {
-    organizationId: string;
-    actorUserId: string;
+    organizationId: Uuid;
+    actorUserId: Uuid;
     action:
       | "posting.created"
       | "posting.updated"
@@ -502,8 +504,8 @@ export class PostingsService {
     }
   }
   async getById(
-    id: string,
-    viewerId?: string,
+    id: Uuid,
+    viewerId?: Uuid,
   ): Promise<PostingRecord | PublicPostingRecord> {
     if (viewerId) {
       const metadata =
@@ -514,7 +516,7 @@ export class PostingsService {
       }
 
       const membership = await this.findMembership(
-        viewerId,
+        asUuid(viewerId),
         metadata.organizationId,
       );
 
@@ -546,8 +548,8 @@ export class PostingsService {
 
     const [hasEligibleReviewRenting, ownReview] = await Promise.all([
       this.rentingsRepository.hasEligibleReviewRenting({
-        postingId: publicPosting.id,
-        renterId: viewerId,
+        postingId: asUuid(publicPosting.id),
+        renterId: asUuid(viewerId),
         now: new Date(),
       }),
       this.postingsReviewsRepository.findOwnReview(publicPosting.id, viewerId),
@@ -563,9 +565,9 @@ export class PostingsService {
   }
 
   async getAvailabilityCalendar(
-    id: string,
+    id: Uuid,
     query: AvailabilityCalendarQuery,
-    viewerId?: string,
+    viewerId?: Uuid,
   ): Promise<AvailabilityCalendarResult> {
     const posting =
       await this.postingsRepository.findAvailabilityCalendarPosting(id);
@@ -601,17 +603,17 @@ export class PostingsService {
 
     const [blocks, rentings, bookingRequests] = await Promise.all([
       this.postingsRepository.findAvailabilityBlocksInRange({
-        postingId: id,
+        postingId: asUuid(id),
         startAt: rangeStart,
         endAt: rangeEnd,
       }),
       this.postingsRepository.findConfirmedRentingsInRange({
-        postingId: id,
+        postingId: asUuid(id),
         startAt: rangeStart,
         endAt: rangeEnd,
       }),
       this.postingsRepository.findActiveBookingRequestsInRange({
-        postingId: id,
+        postingId: asUuid(id),
         startAt: rangeStart,
         endAt: rangeEnd,
       }),
@@ -792,7 +794,7 @@ export class PostingsService {
   }
 
   async listByOwner(
-    userId: string,
+    userId: Uuid,
     input: Omit<ListOwnerPostingsInput, "organizationId">,
   ): Promise<ListOwnerPostingsResult> {
     const membership = await this.requireActiveMembership(userId);
@@ -803,7 +805,7 @@ export class PostingsService {
   }
 
   async getOwnerStatusSummary(
-    userId: string,
+    userId: Uuid,
   ): Promise<OwnerPostingsStatusSummary> {
     const membership = await this.requireActiveMembership(userId);
     return this.postingsRepository.countByOwnerStatus(
@@ -812,7 +814,7 @@ export class PostingsService {
   }
 
   async batchByOwner(
-    actorUserId: string,
+    actorUserId: Uuid,
     ids: string[],
   ): Promise<BatchPostingsResult<PostingRecord>> {
     const normalizedIds = this.normalizeBatchIds(ids);
@@ -880,7 +882,7 @@ export class PostingsService {
       return {
         ...(organizationQuery ? { query: organizationQuery } : {}),
         organizationId: input.organizationId,
-        matches,
+        matches: matches.map((match) => ({ ...match, id: asUuid(match.id) })),
         truncated: false,
       };
     }
@@ -893,7 +895,7 @@ export class PostingsService {
 
     return {
       ...(organizationQuery ? { query: organizationQuery } : {}),
-      matches,
+      matches: matches.map((match) => ({ ...match, id: asUuid(match.id) })),
       truncated,
     };
   }
@@ -918,7 +920,9 @@ export class PostingsService {
     };
   }
 
-  private normalizeUpsertInput(input: UpsertPostingInput): UpsertPostingInput {
+  private normalizeUpsertInput(
+    input: UpsertPostingPersistenceInput,
+  ): UpsertPostingPersistenceInput {
     const normalizedPhotos = this.normalizePhotos(input.photos);
     const normalizedBlocks = this.normalizeAvailabilityBlocks(
       input.availabilityBlocks,
@@ -1069,7 +1073,7 @@ export class PostingsService {
     };
   }
 
-  private assertSafeTextContent(input: UpsertPostingInput): void {
+  private assertSafeTextContent(input: UpsertPostingPersistenceInput): void {
     const violations = this.contentSanitizationService
       .inspect(this.collectTextInputs(input))
       .map((violation) => ({
@@ -1082,7 +1086,7 @@ export class PostingsService {
     }
   }
 
-  private normalizePostingDetails(input: UpsertPostingInput) {
+  private normalizePostingDetails(input: UpsertPostingPersistenceInput) {
     try {
       return parsePostingDetailsForVariant(input.variant, input.details);
     } catch (error) {
@@ -1106,7 +1110,7 @@ export class PostingsService {
   private toDuplicateInput(
     posting: PostingRecord,
     availabilityBlocks: PostingAvailabilityBlockRecord[],
-  ): UpsertPostingInput {
+  ): UpsertPostingPersistenceInput {
     // Duplicate the posting with the same managed photo blobs and only owner-authored
     // availability blocks; transient booking holds should not carry over to the new draft.
     return {
@@ -1171,11 +1175,11 @@ export class PostingsService {
   }
 
   private async assertExistingOwnerAvailabilityBlock(
-    postingId: string,
-    blockId: string,
+    postingId: Uuid,
+    blockId: Uuid,
   ): Promise<PostingAvailabilityBlockRecord> {
     const block = await this.postingsRepository.findOwnerAvailabilityBlock(
-      postingId,
+      asUuid(postingId),
       blockId,
     );
 
@@ -1187,16 +1191,16 @@ export class PostingsService {
   }
 
   private async assertAvailabilityBlockCanBeWritten(
-    postingId: string,
+    postingId: Uuid,
     block: PostingAvailabilityBlockInput,
-    excludeBlockId?: string,
+    excludeBlockId?: Uuid,
   ): Promise<void> {
     const startAt = new Date(block.startAt);
     const endAt = new Date(block.endAt);
 
     const ownerOverlap =
       await this.postingsRepository.hasOwnerAvailabilityBlockOverlap({
-        postingId,
+        postingId: asUuid(postingId),
         startAt,
         endAt,
         excludeBlockId,
@@ -1208,7 +1212,7 @@ export class PostingsService {
 
     const bookingConflict =
       await this.postingsRepository.hasActiveBookingAvailabilityConflict({
-        postingId,
+        postingId: asUuid(postingId),
         startAt,
         endAt,
       });
@@ -1221,7 +1225,7 @@ export class PostingsService {
 
     const rentingConflict =
       await this.postingsRepository.hasRentingAvailabilityConflict({
-        postingId,
+        postingId: asUuid(postingId),
         startAt,
         endAt,
       });
@@ -1390,7 +1394,7 @@ export class PostingsService {
     }
   }
 
-  private assertPublishableDraftShape(input: UpsertPostingInput): void {
+  private assertPublishableDraftShape(input: UpsertPostingPersistenceInput): void {
     if (!input.name.trim()) {
       throw new BadRequestError("Posting name is required.");
     }
@@ -1884,8 +1888,8 @@ export class PostingsService {
   }
 
   private async requireManagedPosting(
-    id: string,
-    userId: string,
+    id: Uuid,
+    userId: Uuid,
     access: "read" | "write",
   ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(id);
@@ -1910,7 +1914,7 @@ export class PostingsService {
     return posting;
   }
 
-  private async invalidatePublicProjection(postingId?: string): Promise<void> {
+  private async invalidatePublicProjection(postingId?: Uuid): Promise<void> {
     await invalidatePublicPostingProjection(
       this.postingsPublicCacheService,
       postingId,
@@ -1918,7 +1922,7 @@ export class PostingsService {
   }
 
   private async requireActiveMembership(
-    userId: string,
+    userId: Uuid,
   ): Promise<AuthUserOrganizationMembershipRecord> {
     const user = await this.usersRepository.findUserById(userId);
 
@@ -1944,7 +1948,7 @@ export class PostingsService {
   private async resolveWriteInputForActiveOrganization(
     input: UpsertPostingInput,
     membership: AuthUserOrganizationMembershipRecord,
-  ): Promise<UpsertPostingInput> {
+  ): Promise<UpsertPostingPersistenceInput> {
     return {
       ...input,
       organizationId: membership.organizationId,
@@ -1952,8 +1956,8 @@ export class PostingsService {
   }
 
   private async findMembership(
-    userId: string,
-    organizationId: string,
+    userId: Uuid,
+    organizationId: Uuid,
   ): Promise<AuthUserOrganizationMembershipRecord | null> {
     return this.organizationAccessService.findMembership(
       userId,
@@ -1989,10 +1993,10 @@ export class PostingsService {
     return normalized;
   }
 
-  private async enqueueThumbnailGeneration(postingId: string): Promise<void> {
+  private async enqueueThumbnailGeneration(postingId: Uuid): Promise<void> {
     try {
       await this.postingThumbnailQueueService.enqueuePostingThumbnailJob(
-        postingId,
+        asUuid(postingId),
       );
     } catch (error) {
       this.logger.error(

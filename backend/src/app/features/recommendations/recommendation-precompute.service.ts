@@ -29,6 +29,7 @@ import {
   isPostingFamilyValue,
   isPostingSubtypeValue,
 } from "@/features/postings/postings.variants";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface CandidateScoreParts {
   posting: RecommendationPostingCandidate;
@@ -156,7 +157,7 @@ export class RecommendationPrecomputeService {
     await this.rebuildPopularRecommendations(segment);
   }
 
-  private async rebuildUserRecommendations(userId: string): Promise<void> {
+  private async rebuildUserRecommendations(userId: Uuid): Promise<void> {
     const now = new Date();
     const activityWindowStart = this.createLookbackStart(
       now,
@@ -170,7 +171,7 @@ export class RecommendationPrecomputeService {
       this.repository.listUserActivityRows(userId, activityWindowStart),
       this.repository.listPopularActivityRows(popularityWindowStart),
       this.repository.listPublishedRecommendationCandidates({
-        excludeUserId: userId,
+        excludeUserId: asUuid(userId),
       }),
     ]);
 
@@ -266,7 +267,7 @@ export class RecommendationPrecomputeService {
       .slice(0, POPULAR_RECOMMENDATION_LIMITS[segment.segmentType])
       .map<RecommendationCandidateRecord>(
         ({ postingId, score, reasonCodes }) => ({
-          postingId,
+          postingId: asUuid(postingId),
           score,
           reasonCodes,
         }),
@@ -285,7 +286,7 @@ export class RecommendationPrecomputeService {
   }
 
   private buildUserProfile(
-    userId: string,
+    userId: Uuid,
     activityWindowStart: Date,
     now: Date,
     activities: RecommendationActivityRow[],
@@ -372,7 +373,7 @@ export class RecommendationPrecomputeService {
         PERSONALIZED_RECOMMENDATION_WEIGHTS.availabilityBiasByStatus[
           posting.availabilityStatus
         ],
-      viewedPenalty: viewedPostingIds.has(posting.id)
+      viewedPenalty: viewedPostingIds.has(asUuid(posting.id))
         ? PERSONALIZED_RECOMMENDATION_WEIGHTS.viewedPenalty
         : 0,
       viewed: viewedPostingIds.has(posting.id),
@@ -435,7 +436,7 @@ export class RecommendationPrecomputeService {
       .slice(0, PERSONALIZED_RECOMMENDATION_LIMIT)
       .map<RecommendationCandidateRecord>(
         ({ postingId, score, reasonCodes }) => ({
-          postingId,
+          postingId: asUuid(postingId),
           score,
           reasonCodes,
         }),

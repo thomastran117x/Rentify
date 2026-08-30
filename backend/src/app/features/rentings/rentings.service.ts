@@ -26,6 +26,7 @@ import type {
 } from "@/features/rentings/rentings.model";
 import { RENTING_DISPUTE_WINDOW_DAYS } from "@/features/rentings/rentings.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -117,10 +118,10 @@ export class RentingsService {
 
   async getById(
     id: string,
-    userId: string,
+    userId: Uuid,
     role: AppRole = "user",
   ): Promise<RentingRecord> {
-    await this.rentingsRepository.promoteReturnDueForRenting(id, new Date());
+    await this.rentingsRepository.promoteReturnDueForRenting(asUuid(id), new Date());
     const renting = await this.rentingsRepository.findById(id);
 
     if (!renting) {
@@ -331,8 +332,8 @@ export class RentingsService {
   }
 
   private async requireAccessibleRenting(
-    rentingId: string,
-    actorUserId: string,
+    rentingId: Uuid,
+    actorUserId: Uuid,
     actorRole: AppRole,
   ): Promise<RentingRecord> {
     const renting = await this.rentingsRepository.findById(rentingId);
@@ -347,7 +348,7 @@ export class RentingsService {
 
   private async assertParticipantOrAdmin(
     renting: RentingRecord,
-    actorUserId: string,
+    actorUserId: Uuid,
     actorRole: AppRole,
   ): Promise<void> {
     if (actorRole === "admin") {
@@ -370,7 +371,7 @@ export class RentingsService {
 
   private async assertOwnerOrAdmin(
     renting: RentingRecord,
-    actorUserId: string,
+    actorUserId: Uuid,
     actorRole: AppRole,
   ): Promise<void> {
     if (actorRole === "admin") {
@@ -420,7 +421,7 @@ export class RentingsService {
   }
 
   private async requirePostingActionableForConversion(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<void> {
     const posting = await this.postingsRepository.findById(postingId);
 
@@ -438,7 +439,7 @@ export class RentingsService {
     }
   }
 
-  private async syncPostingSearchState(postingId: string): Promise<void> {
+  private async syncPostingSearchState(postingId: Uuid): Promise<void> {
     await invalidatePublicPostingProjection(
       this.postingsPublicCacheService,
       postingId,

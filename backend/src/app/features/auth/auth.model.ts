@@ -2,6 +2,7 @@ import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const UNSAFE_AUTH_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
@@ -86,8 +87,8 @@ export interface CreateLocalUserInput {
 }
 
 export interface UserProfileRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   username: string;
   phoneNumber?: string;
   avatarUrl?: string;
@@ -102,8 +103,8 @@ export interface UserProfileRecord {
 }
 
 export interface OAuthIdentityRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   provider: OAuthProvider;
   providerUserId: string;
   providerEmail?: string;
@@ -115,8 +116,8 @@ export interface OAuthIdentityRecord {
 }
 
 export interface AuthUserOrganizationMembershipRecord {
-  membershipId: string;
-  organizationId: string;
+  membershipId: Uuid;
+  organizationId: Uuid;
   organizationName: string;
   role: "primary_manager" | "manager" | "operator";
   createdAt: string;
@@ -124,13 +125,13 @@ export interface AuthUserOrganizationMembershipRecord {
 }
 
 export interface AuthActiveOrganizationSummary {
-  id: string;
+  id: Uuid;
   name: string;
   role: "primary_manager" | "manager" | "operator";
 }
 
 export interface AuthUserRecord {
-  id: string;
+  id: Uuid;
   email: string;
   passwordHash?: string;
   tokenVersion: number;
@@ -140,14 +141,14 @@ export interface AuthUserRecord {
   emailVerified: boolean;
   profile: UserProfileRecord;
   oauthIdentities: OAuthIdentityRecord[];
-  preferredOrganizationId?: string;
+  preferredOrganizationId?: Uuid;
   organizationMemberships: AuthUserOrganizationMembershipRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AuthUserProfile {
-  id: string;
+  id: Uuid;
   email: string;
   firstName?: string;
   lastName?: string;
@@ -184,7 +185,7 @@ export interface AuthSessionResult {
 }
 
 export interface AuthResponseUser {
-  id: string;
+  id: Uuid;
   email: string;
   username: string;
   avatarUrl?: string;

@@ -10,6 +10,7 @@ import {
   type SearchAttributeFilterInput,
   type SearchPostingsInput,
 } from "@/features/postings/postings.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /**
  * A visitor with hundreds of saved searches would turn every sweep into a
@@ -180,7 +181,7 @@ export type ListSavedSearchesQuery = z.infer<
 >;
 
 export interface SavedSearchRecord {
-  id: string;
+  id: Uuid;
   name: string;
   queryParams: SavedSearchQueryParams;
   notifyFrequency: SavedSearchNotifyFrequency;
@@ -219,8 +220,8 @@ export interface ListSavedSearchesResult {
 
 /** Row shape the worker claims, before the stored params are re-validated. */
 export interface DueSavedSearch {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   name: string;
   queryParams: unknown;
   notifyFrequency: SavedSearchNotifyFrequency;
@@ -381,7 +382,7 @@ export function toSavedSearchRecord(row: {
   const parsed = savedSearchQueryParamsSchema.safeParse(row.queryParams);
 
   return {
-    id: row.id,
+    id: asUuid(row.id),
     name: row.name,
     queryParams: parsed.success ? parsed.data : ({} as SavedSearchQueryParams),
     notifyFrequency: row.notifyFrequency,
@@ -519,15 +520,15 @@ export interface SavedSearchScanResult {
 export async function collectSavedSearchMatchIds(
   params: SavedSearchQueryParams,
   search: (input: SearchPostingsInput) => Promise<SavedSearchScanResult>,
-): Promise<string[]> {
-  const matchIds: string[] = [];
+): Promise<Uuid[]> {
+  const matchIds: Uuid[] = [];
 
   for (let page = 1; matchIds.length < SAVED_SEARCH_SEEN_CAP; page += 1) {
     const result = await search(
       toSearchPostingsInput(params, page, SAVED_SEARCH_SCAN_PAGE_SIZE),
     );
 
-    matchIds.push(...result.postings.map((posting) => posting.id));
+    matchIds.push(...result.postings.map((posting) => asUuid(posting.id)));
 
     if (!result.pagination.hasNextPage) {
       break;
@@ -538,7 +539,7 @@ export async function collectSavedSearchMatchIds(
 }
 
 export interface SavedSearchMatchPreview {
-  id: string;
+  id: Uuid;
   name: string;
   dailyPrice: number;
   currency: string;

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -7,6 +6,7 @@ import type {
   SavedSearchNotifyFrequency,
   SavedSearchQueryParams,
 } from "@/features/postings/saved-searches/saved-searches.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /** Row shape shared by every read that feeds `toSavedSearchRecord`. */
 const savedSearchSelect = {
@@ -29,7 +29,7 @@ export type SavedSearchRow = Prisma.SavedSearchGetPayload<{
 }>;
 
 export interface CreateSavedSearchRow {
-  userId: string;
+  userId: Uuid;
   name: string;
   queryParams: SavedSearchQueryParams;
   queryHash: string;
@@ -47,7 +47,7 @@ export class SavedSearchesRepository extends BaseRepository {
     return this.executeAsync(() =>
       this.prisma.savedSearch.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           userId: input.userId,
           name: input.name,
           queryParams: input.queryParams as Prisma.InputJsonValue,
@@ -70,7 +70,7 @@ export class SavedSearchesRepository extends BaseRepository {
   }
 
   async findByHash(
-    userId: string,
+    userId: Uuid,
     queryHash: string,
   ): Promise<SavedSearchRow | null> {
     return this.executeAsync(() =>
@@ -86,14 +86,14 @@ export class SavedSearchesRepository extends BaseRepository {
     );
   }
 
-  async countForUser(userId: string): Promise<number> {
+  async countForUser(userId: Uuid): Promise<number> {
     return this.executeAsync(() =>
       this.prisma.savedSearch.count({ where: { userId } }),
     );
   }
 
   async listPage(
-    userId: string,
+    userId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListSavedSearchRowsResult> {
@@ -126,7 +126,7 @@ export class SavedSearchesRepository extends BaseRepository {
    */
   async update(
     id: string,
-    userId: string,
+    userId: Uuid,
     patch: {
       name?: string;
       notifyFrequency?: SavedSearchNotifyFrequency;
@@ -147,7 +147,7 @@ export class SavedSearchesRepository extends BaseRepository {
     return this.findById(id);
   }
 
-  async remove(id: string, userId: string): Promise<boolean> {
+  async remove(id: string, userId: Uuid): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.savedSearch.deleteMany({ where: { id, userId } }),
     );
@@ -155,7 +155,7 @@ export class SavedSearchesRepository extends BaseRepository {
     return result.count > 0;
   }
 
-  async resetNewMatchCount(id: string, userId: string): Promise<boolean> {
+  async resetNewMatchCount(id: string, userId: Uuid): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.savedSearch.updateMany({
         where: { id, userId },
@@ -218,7 +218,11 @@ export class SavedSearchesRepository extends BaseRepository {
         });
 
         if (result.count > 0) {
-          claimed.push(candidate);
+          claimed.push({
+            ...candidate,
+            id: asUuid(candidate.id),
+            userId: asUuid(candidate.userId),
+          });
         }
       }
 
@@ -260,9 +264,9 @@ export class SavedSearchesRepository extends BaseRepository {
    * preserving the caller's order so the newest match still leads the email.
    */
   async filterUnseenPostingIds(
-    savedSearchId: string,
-    postingIds: string[],
-  ): Promise<string[]> {
+    savedSearchId: Uuid,
+    postingIds: Uuid[],
+  ): Promise<Uuid[]> {
     if (postingIds.length === 0) {
       return [];
     }
@@ -288,7 +292,7 @@ export class SavedSearchesRepository extends BaseRepository {
    * worth keeping for pruning.
    */
   async recordSeenPostings(
-    savedSearchId: string,
+    savedSearchId: Uuid,
     postingIds: string[],
   ): Promise<number> {
     if (postingIds.length === 0) {
@@ -298,7 +302,7 @@ export class SavedSearchesRepository extends BaseRepository {
     const result = await this.executeAsync(() =>
       this.prisma.savedSearchSeenPosting.createMany({
         data: postingIds.map((postingId) => ({
-          id: randomUUID(),
+          id: newUuid(),
           savedSearchId,
           postingId,
         })),
@@ -310,7 +314,7 @@ export class SavedSearchesRepository extends BaseRepository {
   }
 
   /** Drops the oldest seen rows once a search is over the retention cap. */
-  async pruneSeenPostings(savedSearchId: string, cap: number): Promise<number> {
+  async pruneSeenPostings(savedSearchId: Uuid, cap: number): Promise<number> {
     const total = await this.executeAsync(() =>
       this.prisma.savedSearchSeenPosting.count({ where: { savedSearchId } }),
     );

@@ -1,17 +1,18 @@
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export interface ComposePostingExpiryEmailInput {
-  postingId: string;
-  recipientId: string;
+  postingId: Uuid;
+  recipientId: Uuid;
   expiresAt: string;
 }
 
 export interface PostingExpiryEmailContent {
   to: string;
   firstName?: string;
-  postingId: string;
+  postingId: Uuid;
   postingName: string;
   expiresAt: string;
 }
@@ -91,7 +92,7 @@ export class PostingExpiryEmailComposer {
     return {
       to: recipient.email,
       ...(recipient.firstName ? { firstName: recipient.firstName } : {}),
-      postingId: posting.id,
+      postingId: asUuid(posting.id),
       postingName: posting.name,
       expiresAt: posting.expiresAt,
     };

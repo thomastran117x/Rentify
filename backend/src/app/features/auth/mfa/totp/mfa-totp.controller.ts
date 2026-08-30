@@ -12,6 +12,7 @@ import {
   disableRequestSchema,
 } from "./mfa-totp.model";
 import type { MfaTotpService } from "./mfa-totp.service";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export class MfaTotpController {
   private readonly logger: Logger;
@@ -121,7 +122,7 @@ export class MfaTotpController {
 
   private logMfaChangeEvent(
     request: Request,
-    userId: string,
+    userId: Uuid,
     sessionId: string | undefined,
     message: string,
   ): void {

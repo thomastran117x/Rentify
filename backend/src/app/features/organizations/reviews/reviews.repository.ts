@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -8,6 +7,7 @@ import type {
   SetOrganizationReviewResponsePersistence,
   UpsertOrganizationReviewPersistence,
 } from "@/features/organizations/reviews/reviews.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type OrganizationReviewPersistence = Prisma.OrganizationReviewGetPayload<{
   include: {
@@ -40,7 +40,7 @@ export class OrganizationReviewRepository extends BaseRepository {
     const row = await this.executeAsync(() =>
       this.prisma.organizationReview.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           organizationId: input.organizationId,
           reviewerId: input.reviewerId,
           rating: input.rating,
@@ -89,8 +89,8 @@ export class OrganizationReviewRepository extends BaseRepository {
   }
 
   async findOwnReview(
-    organizationId: string,
-    reviewerId: string,
+    organizationId: Uuid,
+    reviewerId: Uuid,
   ): Promise<OrganizationReviewRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationReview.findUnique({
@@ -108,8 +108,8 @@ export class OrganizationReviewRepository extends BaseRepository {
   }
 
   async findById(
-    organizationId: string,
-    reviewId: string,
+    organizationId: Uuid,
+    reviewId: Uuid,
   ): Promise<OrganizationReviewRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationReview.findFirst({
@@ -122,7 +122,7 @@ export class OrganizationReviewRepository extends BaseRepository {
   }
 
   async listByOrganization(
-    organizationId: string,
+    organizationId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListOrganizationReviewsResult> {
@@ -155,7 +155,7 @@ export class OrganizationReviewRepository extends BaseRepository {
     };
   }
 
-  async getSummary(organizationId: string): Promise<OrganizationReviewSummary> {
+  async getSummary(organizationId: Uuid): Promise<OrganizationReviewSummary> {
     const aggregate = await this.executeAsync(() =>
       this.prisma.organizationReview.aggregate({
         where: { organizationId },
@@ -168,8 +168,8 @@ export class OrganizationReviewRepository extends BaseRepository {
   }
 
   async setResponse(
-    organizationId: string,
-    reviewId: string,
+    organizationId: Uuid,
+    reviewId: Uuid,
     input: SetOrganizationReviewResponsePersistence,
   ): Promise<OrganizationReviewRecord> {
     const row = await this.executeAsync(() =>
@@ -187,7 +187,7 @@ export class OrganizationReviewRepository extends BaseRepository {
     return this.mapReview(row);
   }
 
-  async delete(organizationId: string, reviewId: string): Promise<void> {
+  async delete(organizationId: Uuid, reviewId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.organizationReview.delete({
         where: { id: reviewId, organizationId },
@@ -195,7 +195,7 @@ export class OrganizationReviewRepository extends BaseRepository {
     );
   }
 
-  async organizationExists(organizationId: string): Promise<boolean> {
+  async organizationExists(organizationId: Uuid): Promise<boolean> {
     const organization = await this.executeAsync(() =>
       this.prisma.organization.findUnique({
         where: { id: organizationId },
@@ -206,7 +206,7 @@ export class OrganizationReviewRepository extends BaseRepository {
     return Boolean(organization);
   }
 
-  async updateOrganizationRatingStats(organizationId: string): Promise<void> {
+  async updateOrganizationRatingStats(organizationId: Uuid): Promise<void> {
     await this.prisma.$executeRaw`
       UPDATE organizations
       SET
@@ -245,7 +245,7 @@ export class OrganizationReviewRepository extends BaseRepository {
             respondedAt: row.respondedAt.toISOString(),
             author: row.responseAuthor
               ? {
-                  id: row.responseAuthor.id,
+                  id: asUuid(row.responseAuthor.id),
                   username: row.responseAuthor.profile?.username ?? undefined,
                   avatarUrl: row.responseAuthor.profile?.avatarUrl ?? undefined,
                 }
@@ -254,9 +254,9 @@ export class OrganizationReviewRepository extends BaseRepository {
         : undefined;
 
     return {
-      id: row.id,
-      organizationId: row.organizationId,
-      reviewerId: row.reviewerId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
+      reviewerId: asUuid(row.reviewerId),
       rating: row.rating,
       title: row.title ?? undefined,
       comment: row.comment ?? undefined,

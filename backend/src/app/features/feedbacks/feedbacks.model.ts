@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const feedbackCategorySchema = z.enum([
   "bug_report",
@@ -38,7 +39,7 @@ export type CreateAppFeedbackRequestBody = z.infer<
 >;
 
 export interface CreateAppFeedbackInput {
-  userId?: string;
+  userId?: Uuid;
   name: string;
   email: string;
   category: FeedbackCategory;
@@ -46,8 +47,8 @@ export interface CreateAppFeedbackInput {
 }
 
 export interface AppFeedbackRecord {
-  id: string;
-  userId?: string;
+  id: Uuid;
+  userId?: Uuid;
   name: string;
   email: string;
   category: FeedbackCategory;
@@ -57,7 +58,7 @@ export interface AppFeedbackRecord {
 }
 
 export interface AppFeedbackSubmissionReceipt {
-  id: string;
+  id: Uuid;
   category: FeedbackCategory;
   createdAt: string;
 }

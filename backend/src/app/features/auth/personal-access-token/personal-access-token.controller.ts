@@ -1,7 +1,7 @@
 ﻿import type { Request, Response } from "express";
 import { created, ok } from "@/configuration/http/responses";
 import { requireSessionAuth } from "@/configuration/middlewares/jwt-middleware";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import { parseRequestBody } from "@/configuration/validation/request";
 import {
   createPersonalAccessTokenRequestSchema,
@@ -9,6 +9,7 @@ import {
   type CreatePersonalAccessTokenInput,
 } from "./personal-access-token.model";
 import { PersonalAccessTokenService } from "./personal-access-token.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class PersonalAccessTokenController {
   constructor(
@@ -38,8 +39,8 @@ export class PersonalAccessTokenController {
   revoke = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireSessionAuth(request);
     const result = await this.personalAccessTokenService.revoke({
-      userId: auth.sub,
-      tokenId: requireSafeRouteParam(request, "id"),
+      userId: asUuid(auth.sub),
+      tokenId: requireUuidRouteParam(request, "id"),
     });
     ok(response, result, {
       message: "Personal access token revoked successfully.",
@@ -47,7 +48,7 @@ export class PersonalAccessTokenController {
   };
 
   private toCreateInput(
-    userId: string,
+    userId: Uuid,
     input: CreatePersonalAccessTokenRequestBody,
   ): CreatePersonalAccessTokenInput {
     return {

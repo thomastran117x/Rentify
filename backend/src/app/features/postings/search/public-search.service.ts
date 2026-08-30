@@ -17,6 +17,7 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { SearchFallbackReason } from "@/features/search/search.model";
 import { recordSearchFallback } from "@/features/search/search.telemetry";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface SearchIdsResult {
   ids: string[];
@@ -813,13 +814,13 @@ export class PostingsPublicSearchService {
     }
 
     const postings: PublicPostingRecord[] = [];
-    const missingIds: string[] = [];
+    const missingIds: Uuid[] = [];
 
     for (const id of ids) {
       const posting = byId.get(id);
 
       if (!posting) {
-        missingIds.push(id);
+        missingIds.push(asUuid(id));
         continue;
       }
 

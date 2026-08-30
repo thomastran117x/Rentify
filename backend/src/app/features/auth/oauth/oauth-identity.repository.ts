@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -8,6 +7,7 @@ import {
 } from "@/features/auth/auth.model";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import ConflictError from "@/errors/http/conflict.error";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type OAuthIdentityPersistence = {
   id: string;
@@ -24,7 +24,7 @@ type OAuthIdentityPersistence = {
 
 export class OAuthIdentityRepository extends BaseRepository {
   async listOAuthIdentitiesByUserId(
-    userId: string,
+    userId: Uuid,
   ): Promise<OAuthIdentityRecord[]> {
     const identities = await this.executeAsync(() =>
       this.prisma.oAuthIdentity.findMany({
@@ -41,14 +41,14 @@ export class OAuthIdentityRepository extends BaseRepository {
   }
 
   async linkOAuthIdentity(
-    userId: string,
+    userId: Uuid,
     input: VerifiedOAuthProfile,
   ): Promise<OAuthIdentityRecord> {
     try {
       const identity = await this.executeAsync(() =>
         this.prisma.oAuthIdentity.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             userId,
             provider: input.provider,
             providerUserId: input.providerUserId,
@@ -75,7 +75,7 @@ export class OAuthIdentityRepository extends BaseRepository {
   }
 
   async unlinkOAuthIdentity(
-    userId: string,
+    userId: Uuid,
     provider: OAuthProvider,
   ): Promise<boolean> {
     const result = await this.executeAsync(() =>
@@ -94,8 +94,8 @@ export class OAuthIdentityRepository extends BaseRepository {
     identity: OAuthIdentityPersistence,
   ): OAuthIdentityRecord {
     return {
-      id: identity.id,
-      userId: identity.userId,
+      id: asUuid(identity.id),
+      userId: asUuid(identity.userId),
       provider: oauthProviderSchema.parse(identity.provider),
       providerUserId: identity.providerUserId,
       providerEmail: identity.providerEmail ?? undefined,

@@ -1,3 +1,5 @@
+import type { Uuid } from "@/configuration/validation/uuid";
+
 export type SearchIndexJobOperation = "upsert" | "delete" | "barrier";
 export type SearchFallbackReason =
   | "circuit-open"
@@ -11,13 +13,13 @@ export type SearchReindexStatus =
   | "failed";
 
 export interface SearchIndexJobPayload {
-  outboxId: string;
+  outboxId: Uuid;
   eventId: string;
   dedupeKey: string;
   operation: SearchIndexJobOperation;
   jobType: SearchIndexJobOperation;
-  postingId?: string;
-  reindexRunId?: string;
+  postingId?: Uuid;
+  reindexRunId?: Uuid;
   targetIndexScope: "live" | "reindex";
   targetIndexName?: string;
   occurredAt: string;
@@ -25,12 +27,12 @@ export interface SearchIndexJobPayload {
 }
 
 export interface SearchReindexRunRecord {
-  id: string;
+  id: Uuid;
   status: SearchReindexStatus;
   targetIndexName: string;
   retainedIndexName?: string;
   sourceSnapshotAt: string;
-  barrierOutboxId?: string;
+  barrierOutboxId?: Uuid;
   totalPostings: number;
   indexedPostings: number;
   failedPostings: number;

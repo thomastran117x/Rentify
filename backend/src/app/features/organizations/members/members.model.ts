@@ -6,6 +6,7 @@ import {
   type OrganizationRole,
   type OrganizationSummary,
 } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const setActiveOrganizationRequestSchema = z.object({
   organizationId: organizationResourceIdSchema,
@@ -25,8 +26,8 @@ export type UpdateOrganizationMemberRequestBody = z.infer<
 export type OrganizationScopedRole = OrganizationRole;
 
 export interface SetActiveOrganizationInput {
-  userId: string;
-  organizationId: string;
+  userId: Uuid;
+  organizationId: Uuid;
 }
 
 export interface SetActiveOrganizationResult {
@@ -34,14 +35,14 @@ export interface SetActiveOrganizationResult {
 }
 
 export interface UpdateOrganizationMemberInput {
-  organizationId: string;
-  actorUserId: string;
-  membershipId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  membershipId: Uuid;
   role: OrganizationRole;
 }
 
 export interface RemoveOrganizationMemberInput {
-  organizationId: string;
-  actorUserId: string;
-  membershipId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  membershipId: Uuid;
 }

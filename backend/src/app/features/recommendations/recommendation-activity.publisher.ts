@@ -16,6 +16,7 @@ import type {
 import type { RecommendationActivityQueueService } from "@/features/recommendations/recommendation-activity.queue.service";
 import type { RentingRecord } from "@/features/rentings/rentings.model";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import { type Uuid } from "@/configuration/validation/uuid";
 
 export class RecommendationActivityPublisher {
   private readonly logger: Logger;
@@ -34,7 +35,7 @@ export class RecommendationActivityPublisher {
     posting: PostingRecord | PublicPostingRecord;
     client: ClientRequestContext;
     requestId?: string;
-    actorUserId?: string;
+    actorUserId?: Uuid;
   }): Promise<void> {
     if (
       !isPostingPubliclyVisible(input.posting) ||
@@ -64,11 +65,11 @@ export class RecommendationActivityPublisher {
   }
 
   async publishSearchClick(input: {
-    postingId: string;
+    postingId: Uuid;
     client: ClientRequestContext;
     body: SearchClickActivityRequestBody;
     requestId?: string;
-    actorUserId?: string;
+    actorUserId?: Uuid;
   }): Promise<void> {
     if (input.client.device.type === "bot") {
       return;
@@ -169,7 +170,7 @@ export class RecommendationActivityPublisher {
       | "posting_archived";
     client: ClientRequestContext;
     requestId?: string;
-    actorUserId?: string;
+    actorUserId?: Uuid;
   }): Promise<void> {
     await this.publishBestEffort(input.eventType, {
       eventId: randomUUID(),
@@ -211,7 +212,7 @@ export class RecommendationActivityPublisher {
   }
 
   private async readPersonalizationEnabled(
-    userId?: string,
+    userId?: Uuid,
   ): Promise<boolean | null> {
     if (!userId) {
       return null;

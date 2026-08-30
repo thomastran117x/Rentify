@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   PersonalAccessTokenRecord,
   PersonalAccessTokenScope,
 } from "./personal-access-token.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type PersonalAccessTokenPersistence = {
   id: string;
@@ -28,7 +28,7 @@ type PersonalAccessTokenPersistence = {
 
 export class PersonalAccessTokenRepository extends BaseRepository {
   async create(input: {
-    userId: string;
+    userId: Uuid;
     name: string;
     publicId: string;
     tokenPrefix: string;
@@ -39,7 +39,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     const token = await this.executeAsync(() =>
       this.prisma.personalAccessToken.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           userId: input.userId,
           name: input.name,
           publicId: input.publicId,
@@ -63,7 +63,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     return this.mapToken(token);
   }
 
-  async listByUserId(userId: string): Promise<PersonalAccessTokenRecord[]> {
+  async listByUserId(userId: Uuid): Promise<PersonalAccessTokenRecord[]> {
     const tokens = await this.executeAsync(() =>
       this.prisma.personalAccessToken.findMany({
         where: {
@@ -89,7 +89,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
 
   async findByIdForUser(
     tokenId: string,
-    userId: string,
+    userId: Uuid,
   ): Promise<PersonalAccessTokenRecord | null> {
     const token = await this.executeAsync(() =>
       this.prisma.personalAccessToken.findFirst({
@@ -165,8 +165,8 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     token: PersonalAccessTokenPersistence,
   ): PersonalAccessTokenRecord {
     return {
-      id: token.id,
-      userId: token.userId,
+      id: asUuid(token.id),
+      userId: asUuid(token.userId),
       name: token.name,
       publicId: token.publicId,
       tokenPrefix: token.tokenPrefix,
@@ -178,7 +178,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
       createdAt: token.createdAt.toISOString(),
       updatedAt: token.updatedAt.toISOString(),
       user: {
-        id: token.user.id,
+        id: asUuid(token.user.id),
         email: token.user.email,
         role: token.user.role,
       },

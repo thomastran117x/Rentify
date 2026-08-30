@@ -1,6 +1,7 @@
 import ForbiddenError from "@/errors/http/forbidden.error";
 import type { BookingRequestRecord } from "@/features/bookings/bookings.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 /**
  * Which side of a booking request a user acts on.
@@ -45,7 +46,7 @@ export interface BookingParticipantAccessResult {
 export async function resolveBookingParticipantAccess(
   organizationAccessService: OrganizationAccessService,
   bookingRequest: Pick<BookingRequestRecord, "renterId" | "organizationId">,
-  userId: string,
+  userId: Uuid,
 ): Promise<BookingParticipantAccessResult> {
   if (bookingRequest.renterId === userId) {
     return { side: "renter", canManage: true };
@@ -66,7 +67,7 @@ export async function resolveBookingParticipantAccess(
 export async function resolveBookingParticipant(
   organizationAccessService: OrganizationAccessService,
   bookingRequest: Pick<BookingRequestRecord, "renterId" | "organizationId">,
-  userId: string,
+  userId: Uuid,
   access: BookingParticipantAccess,
 ): Promise<BookingParticipantSide> {
   const { side, canManage } = await resolveBookingParticipantAccess(

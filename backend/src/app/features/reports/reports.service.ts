@@ -18,6 +18,7 @@ import type { ReportsSearchIndexService } from "@/features/reports/search/index.
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const MAX_SEARCH_OUTBOX_ATTEMPTS = 5;
 
@@ -197,7 +198,7 @@ export class ReportsService {
     switch (input.subjectType) {
       case "posting": {
         const posting = await this.reportsRepository.findPostingSubject(
-          input.subjectId,
+          asUuid(input.subjectId),
         );
 
         if (!posting) {
@@ -206,7 +207,7 @@ export class ReportsService {
 
         const membership = await this.organizationAccessService.findMembership(
           input.reporterId,
-          posting.organizationId,
+          asUuid(posting.organizationId),
         );
 
         if (membership) {
@@ -217,11 +218,11 @@ export class ReportsService {
           subjectType: "posting",
           summaryText: `${posting.name} ${posting.status} ${posting.organization.name}`,
           posting: {
-            id: posting.id,
+            id: asUuid(posting.id),
             name: posting.name,
             status: posting.status,
             organization: {
-              id: posting.organization.id,
+              id: asUuid(posting.organization.id),
               name: posting.organization.name,
             },
           },
@@ -229,7 +230,7 @@ export class ReportsService {
       }
       case "posting_review": {
         const review = await this.reportsRepository.findPostingReviewSubject(
-          input.subjectId,
+          asUuid(input.subjectId),
         );
 
         if (!review) {
@@ -248,13 +249,13 @@ export class ReportsService {
           summaryText:
             `${review.posting.name} ${review.title ?? ""} ${commentExcerpt ?? ""} ${reviewer.username ?? reviewer.email}`.trim(),
           review: {
-            id: review.id,
+            id: asUuid(review.id),
             rating: review.rating,
             title: review.title ?? undefined,
             commentExcerpt,
             reviewer,
             posting: {
-              id: review.posting.id,
+              id: asUuid(review.posting.id),
               name: review.posting.name,
             },
           },
@@ -263,7 +264,7 @@ export class ReportsService {
       case "organization_blog_comment": {
         const comment =
           await this.reportsRepository.findOrganizationBlogCommentSubject(
-            input.subjectId,
+            asUuid(input.subjectId),
           );
 
         // A tombstone is treated as gone: the text a reporter objected to is
@@ -285,15 +286,15 @@ export class ReportsService {
           summaryText:
             `${comment.post.title} ${bodyExcerpt ?? ""} ${author.username ?? author.email}`.trim(),
           comment: {
-            id: comment.id,
+            id: asUuid(comment.id),
             bodyExcerpt,
             author,
             post: {
-              id: comment.post.id,
+              id: asUuid(comment.post.id),
               title: comment.post.title,
               slug: comment.post.slug,
               organization: {
-                id: comment.post.organization.id,
+                id: asUuid(comment.post.organization.id),
                 name: comment.post.organization.name,
               },
             },
@@ -302,7 +303,7 @@ export class ReportsService {
       }
       case "user": {
         const user = await this.reportsRepository.findUserSubject(
-          input.subjectId,
+          asUuid(input.subjectId),
         );
 
         if (!user) {
@@ -323,7 +324,7 @@ export class ReportsService {
     }
   }
 
-  private resolveAssigneeId(input: AssignContentReportInput): string | null {
+  private resolveAssigneeId(input: AssignContentReportInput): Uuid | null {
     if (input.assignedModeratorId === undefined) {
       return input.actorUserId;
     }
@@ -345,7 +346,7 @@ export class ReportsService {
   }
 
   private async assertAssignableModerator(
-    assigneeId: string | null,
+    assigneeId: Uuid | null,
   ): Promise<void> {
     if (!assigneeId) {
       return;
@@ -477,7 +478,7 @@ export class ReportsService {
     } | null;
   }): ContentReportUserSummary {
     return {
-      id: user.id,
+      id: asUuid(user.id),
       email: user.email,
       role: normalizeAppRole(user.role),
       username: user.username ?? user.profile?.username ?? undefined,

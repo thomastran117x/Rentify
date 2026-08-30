@@ -7,6 +7,7 @@ import {
   type PostingAttributeValue as VariantPostingAttributeValue,
   VEHICLE_POSTING_SUBTYPE_VALUES,
 } from "@/features/postings/postings.variants";
+import { uuidSchema, uuidSchemaWithMessage, type Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_POSTING_PHOTOS = 10;
 export const MAX_BATCH_IDS = 50;
@@ -213,12 +214,10 @@ export const vehiclePostingDetailsSchema = z
   .catchall(detailCatchallSchema)
   .superRefine(validateDetailKeys);
 
-export const postingResourceIdSchema = trimmedStringSchema
-  .max(64)
-  .regex(SAFE_RESOURCE_ID_PATTERN, {
-    message:
-      "Identifiers must contain only letters, numbers, underscores, and hyphens.",
-  });
+// Trimmed before the shape check because `z.guid()` does not trim.
+export const postingResourceIdSchema = trimmedStringSchema.pipe(
+  uuidSchemaWithMessage("Identifiers must be a valid identifier."),
+);
 
 export const searchAttributeFilterKeySchema = trimmedStringSchema
   .max(50)
@@ -458,7 +457,7 @@ export const publicSearchPostingsFilterShape = {
   // the version and variant bits, which rejects every deterministic seeded
   // id (`00000000-0000-0000-1040-000000000016` and friends) and made the
   // organization filter unusable against seeded data.
-  organizationId: z.guid().optional(),
+  organizationId: uuidSchema.optional(),
   family: postingFamilySchema.optional(),
   subtype: postingSubtypeSchema.optional(),
   tags: z.array(postingTagSchema).max(20).optional(),
@@ -624,7 +623,7 @@ export interface SearchAttributeFilterInput {
 }
 
 export interface PostingPhotoRecord {
-  id: string;
+  id: Uuid;
   blobUrl: string;
   blobName: string;
   thumbnailBlobUrl?: string;
@@ -635,13 +634,13 @@ export interface PostingPhotoRecord {
 }
 
 export interface PostingAvailabilityBlockRecord {
-  id: string;
+  id: Uuid;
   startAt: string;
   endAt: string;
   note?: string;
   source?: "owner" | "booking_hold" | "renting";
   bookingRequestHold?: {
-    id: string;
+    id: Uuid;
     status: string;
     holdExpiresAt?: string;
     convertedAt?: string;
@@ -676,8 +675,8 @@ export type AvailabilityCalendarResult = Record<
 
 /** Lightweight posting fields needed to compute an availability calendar. */
 export interface AvailabilityCalendarPostingFields {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   status: PostingStatus;
   archivedAt?: string;
   availabilityStatus: PostingAvailabilityStatus;
@@ -734,14 +733,14 @@ export interface PostingViewerReviewState {
 }
 
 export interface PublicPostingOrganizationSummary {
-  id: string;
+  id: Uuid;
   name: string;
   slug: string;
 }
 
 export interface PostingRecord {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   status: PostingStatus;
   variant: PostingVariant;
   name: string;
@@ -798,11 +797,11 @@ export interface ListOwnerPostingsResult {
 
 export interface BatchPostingsResult<TRecord> {
   postings: TRecord[];
-  missingIds: string[];
+  missingIds: Uuid[];
 }
 
 export interface SearchPostingsOrganizationMatch {
-  id: string;
+  id: Uuid;
   name: string;
   slug: string;
 }
@@ -811,7 +810,7 @@ export interface SearchPostingsOrganizationFilter {
   /** The raw `organization` name query, echoed back for the UI. */
   query?: string;
   /** The raw `organizationId`, echoed back for the UI. */
-  organizationId?: string;
+  organizationId?: Uuid;
   matches: SearchPostingsOrganizationMatch[];
   /** True when more organizations matched the name than the resolution cap. */
   truncated: boolean;
@@ -849,7 +848,6 @@ export interface PostingGeoInput {
 }
 
 export interface UpsertPostingInput {
-  organizationId: string;
   variant: PostingVariant;
   name: string;
   description: string;
@@ -870,20 +868,25 @@ export interface UpsertPostingInput {
   location: PostingLocationRecord;
 }
 
+/** UpsertPostingInput once the service has resolved the owning organization. */
+export interface UpsertPostingPersistenceInput extends UpsertPostingInput {
+  organizationId: Uuid;
+}
+
 /**
  * Minimal projection the expiry sweeps select. Deliberately not a full
  * PostingRecord: the sweeps read thousands of rows and only need enough to
  * identify the posting, address the audit entry and render the reminder.
  */
 export interface PostingExpiryCandidate {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   name: string;
   expiresAt: string;
 }
 
 export interface ListOwnerPostingsInput {
-  organizationId: string;
+  organizationId: Uuid;
   page: number;
   pageSize: number;
   status?: PostingStatus;
@@ -901,7 +904,7 @@ export interface OwnerPostingsStatusSummary {
 }
 
 export interface BatchOwnerPostingsInput {
-  organizationId: string;
+  organizationId: Uuid;
   ids: string[];
 }
 
@@ -911,7 +914,7 @@ export interface BatchPublicPostingsInput {
 
 export interface GetPostingInput {
   id: string;
-  viewerId?: string;
+  viewerId?: Uuid;
 }
 
 export interface SearchPostingsInput {
@@ -926,12 +929,12 @@ export interface SearchPostingsInput {
   /**
    * Exact organization id. Takes precedence over `organizationQuery`.
    */
-  organizationId?: string;
+  organizationId?: Uuid;
   /**
    * Resolved organization ids. Both Elasticsearch and the SQL fallback filter
    * on this same list, which is what keeps the two engines in parity.
    */
-  organizationIds?: string[];
+  organizationIds?: Uuid[];
   organizationFilter?: SearchPostingsOrganizationFilter;
   family?: PostingFamily;
   subtype?: PostingSubtype;
@@ -959,8 +962,8 @@ export interface SearchPostingsInput {
 }
 
 export interface PostingSearchDocument {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   organizationName?: string;
   status: PostingStatus;
   variant: PostingVariant;
@@ -1058,9 +1061,9 @@ export function toPublicPostingRecord(
 }
 
 export interface PostingSearchOutboxRecord {
-  id: string;
-  postingId?: string;
-  reindexRunId?: string;
+  id: Uuid;
+  postingId?: Uuid;
+  reindexRunId?: Uuid;
   operation: "upsert" | "delete" | "barrier";
   dedupeKey: string;
   targetIndexName?: string;

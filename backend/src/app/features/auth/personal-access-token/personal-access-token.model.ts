@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const UNSAFE_PAT_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
@@ -64,7 +65,7 @@ export type CreatePersonalAccessTokenRequestBody = z.infer<
 >;
 
 export interface CreatePersonalAccessTokenInput {
-  userId: string;
+  userId: Uuid;
   name: string;
   scopes: PersonalAccessTokenScope[];
   expiresAt?: string;
@@ -72,13 +73,13 @@ export interface CreatePersonalAccessTokenInput {
 }
 
 export interface RevokePersonalAccessTokenInput {
-  userId: string;
+  userId: Uuid;
   tokenId: string;
 }
 
 export interface PersonalAccessTokenRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   name: string;
   publicId: string;
   tokenPrefix: string;
@@ -90,14 +91,14 @@ export interface PersonalAccessTokenRecord {
   createdAt: string;
   updatedAt: string;
   user: {
-    id: string;
+    id: Uuid;
     email: string;
     role: string;
   };
 }
 
 export interface PersonalAccessTokenSummary {
-  id: string;
+  id: Uuid;
   name: string;
   tokenPrefix: string;
   scopes: PersonalAccessTokenScope[];

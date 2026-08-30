@@ -7,6 +7,7 @@ import type {
   CreateAuditLogInput,
   FeatureFlagRecord,
 } from "@/features/feature-flags/feature-flag.model";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 export class FeatureFlagRepository extends BaseRepository {
   async findByName(name: string): Promise<FeatureFlagRecord | null> {
@@ -84,8 +85,8 @@ export class FeatureFlagRepository extends BaseRepository {
       enabled: row.enabled,
       description: row.description,
       group: row.group,
-      createdByUserId: row.createdByUserId,
-      updatedByUserId: row.updatedByUserId,
+      createdByUserId: asOptionalUuid(row.createdByUserId) ?? null,
+      updatedByUserId: asOptionalUuid(row.updatedByUserId) ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

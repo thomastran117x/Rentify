@@ -13,6 +13,7 @@ import {
   updateOrganizationSlugRequestSchema,
 } from "@/features/organizations/profile/profile.model";
 import { OrganizationProfileService } from "@/features/organizations/profile/profile.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationProfileController {
   constructor(private readonly profileService: OrganizationProfileService) {}
@@ -50,7 +51,7 @@ export class OrganizationProfileController {
       createOrganizationRequestSchema,
     );
     const result = await this.profileService.createOrganization({
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
       ...body,
     });
     created(response, result, {
@@ -65,8 +66,8 @@ export class OrganizationProfileController {
       updateOrganizationRequestSchema,
     );
     const result = await this.profileService.update({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       ...body,
     });
     ok(response, result, {
@@ -91,8 +92,8 @@ export class OrganizationProfileController {
       updateOrganizationSlugRequestSchema,
     );
     const result = await this.profileService.changeSlug({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       slug: body.slug,
     });
     ok(response, result, {

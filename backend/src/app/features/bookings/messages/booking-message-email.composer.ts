@@ -4,11 +4,12 @@ import type { OrganizationAccessService } from "@/features/organizations/organiz
 import type { BookingMessageEmailContent } from "@/features/bookings/messages/booking-messages.model";
 import { MAX_BOOKING_MESSAGE_SNIPPET_LENGTH } from "@/features/bookings/messages/booking-messages.model";
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export interface ComposeBookingMessageEmailInput {
-  bookingRequestId: string;
-  recipientId: string;
-  messageId: string;
+  bookingRequestId: Uuid;
+  recipientId: Uuid;
+  messageId: Uuid;
 }
 
 /**
@@ -54,7 +55,11 @@ export class BookingMessageEmailComposer {
     try {
       await resolveBookingParticipantAccess(
         this.organizationAccessService,
-        message.bookingRequest,
+        {
+          ...message.bookingRequest,
+          organizationId: asUuid(message.bookingRequest.organizationId),
+          renterId: asUuid(message.bookingRequest.renterId),
+        },
         input.recipientId,
       );
     } catch {
@@ -75,7 +80,7 @@ export class BookingMessageEmailComposer {
       postingName: message.bookingRequest.posting.name,
       authorName: this.resolveAuthorName(message.author),
       snippet: this.buildSnippet(message.body),
-      bookingRequestId: message.bookingRequestId,
+      bookingRequestId: asUuid(message.bookingRequestId),
     };
   }
 

@@ -35,6 +35,7 @@ import {
   type CreateOrganizationAuditLogInput,
   type OrganizationAuditAction,
 } from "@/features/organizations/audit/audit.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const ORGANIZATION_BLOB_PREFIX = "organizations/";
 const MAX_SLUG_ATTEMPTS = 50;
@@ -231,7 +232,7 @@ export class OrganizationBlogService {
       try {
         this.blogCommentRealtimeGateway.publish({
           type: "comments.closed",
-          blogPostId: updated.id,
+          blogPostId: asUuid(updated.id),
           commentsEnabled: updated.commentsEnabled,
         });
       } catch (error) {
@@ -333,7 +334,7 @@ export class OrganizationBlogService {
   }
 
   private async resolveUniqueSlug(
-    organizationId: string,
+    organizationId: Uuid,
     source: string,
     excludeBlogPostId?: string,
   ): Promise<string> {
@@ -388,8 +389,8 @@ export class OrganizationBlogService {
   }
 
   private async requireBlogPost(
-    organizationId: string,
-    blogPostId: string,
+    organizationId: Uuid,
+    blogPostId: Uuid,
   ): Promise<OrganizationBlogPostRecord> {
     const post = await this.repository.findById(organizationId, blogPostId);
 
@@ -401,8 +402,8 @@ export class OrganizationBlogService {
   }
 
   private async resolveCanManage(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<boolean> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,
@@ -417,8 +418,8 @@ export class OrganizationBlogService {
   }
 
   private async requireManager(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<void> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,
@@ -437,7 +438,7 @@ export class OrganizationBlogService {
   }
 
   private assertBlogCoverImageInput(
-    actorUserId: string,
+    actorUserId: Uuid,
     coverImageUrl: string | null | undefined,
     coverImageBlobName: string | null | undefined,
   ): void {
@@ -492,7 +493,7 @@ export class OrganizationBlogService {
   }
 
   private async cleanupReplacedCoverImage(
-    actorUserId: string,
+    actorUserId: Uuid,
     before: OrganizationBlogPostRecord,
     after: OrganizationBlogPostRecord,
   ): Promise<void> {
@@ -510,7 +511,7 @@ export class OrganizationBlogService {
   }
 
   private async cleanupCoverImage(
-    actorUserId: string,
+    actorUserId: Uuid,
     blobName: string | null | undefined,
     blobUrl?: string,
   ): Promise<void> {

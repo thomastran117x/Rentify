@@ -11,6 +11,7 @@ import {
   type SavedPostingState,
   type UnavailableSavedPosting,
 } from "@/features/postings/saved/saved-postings.model";
+import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /**
  * The identifier set is read on essentially every authenticated marketplace
@@ -20,7 +21,7 @@ import {
  */
 const SAVED_POSTING_IDS_CACHE_TTL_SECONDS = 60;
 
-function savedPostingIdsCacheKey(userId: string): string {
+function savedPostingIdsCacheKey(userId: Uuid): string {
   return `postings:saved:ids:${userId}`;
 }
 
@@ -32,17 +33,17 @@ export class SavedPostingsService {
     private readonly cacheService: CacheService,
   ) {}
 
-  async save(postingId: string, userId: string): Promise<SavedPostingState> {
+  async save(postingId: Uuid, userId: Uuid): Promise<SavedPostingState> {
     await this.requirePubliclyVisiblePosting(postingId);
 
     const { createdAt } = await this.savedPostingsRepository.save(
-      userId,
-      postingId,
+      asUuid(userId),
+      asUuid(postingId),
     );
     await this.invalidateIdsCache(userId);
 
     return {
-      postingId,
+      postingId: asUuid(postingId),
       saved: true,
       savedAt: createdAt.toISOString(),
     };
@@ -53,19 +54,19 @@ export class SavedPostingsService {
    * posting can be paused or archived after it was saved, and the owner of the
    * bookmark must still be able to clear it from their list.
    */
-  async unsave(postingId: string, userId: string): Promise<SavedPostingState> {
+  async unsave(postingId: Uuid, userId: Uuid): Promise<SavedPostingState> {
     await this.savedPostingsRepository.unsave(userId, postingId);
     await this.invalidateIdsCache(userId);
 
     return {
-      postingId,
+      postingId: asUuid(postingId),
       saved: false,
       savedAt: null,
     };
   }
 
   async list(
-    userId: string,
+    userId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListSavedPostingsResult> {
@@ -113,7 +114,7 @@ export class SavedPostingsService {
    * keeping.
    */
   private async describeUnavailable(
-    postingIds: string[],
+    postingIds: Uuid[],
     savedAtByPostingId: Map<string, string>,
   ): Promise<UnavailableSavedPosting[]> {
     if (postingIds.length === 0) {
@@ -151,7 +152,7 @@ export class SavedPostingsService {
     });
   }
 
-  async listIds(userId: string): Promise<ListSavedPostingIdsResult> {
+  async listIds(userId: Uuid): Promise<ListSavedPostingIdsResult> {
     const cacheKey = savedPostingIdsCacheKey(userId);
     const cached = await this.readCachedIds(cacheKey);
 
@@ -204,7 +205,7 @@ export class SavedPostingsService {
     }
   }
 
-  private async invalidateIdsCache(userId: string): Promise<void> {
+  private async invalidateIdsCache(userId: Uuid): Promise<void> {
     try {
       await this.cacheService.delete(savedPostingIdsCacheKey(userId));
     } catch {
@@ -212,7 +213,7 @@ export class SavedPostingsService {
     }
   }
 
-  private async requirePubliclyVisiblePosting(postingId: string) {
+  private async requirePubliclyVisiblePosting(postingId: Uuid) {
     // The metadata lookup is a four-column select; `findById` would join
     // photos, availability blocks and the organization just to read a status.
     const metadata =

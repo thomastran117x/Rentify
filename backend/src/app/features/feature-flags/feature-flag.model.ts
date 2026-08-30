@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export type FeatureFlagSource = "db" | "env" | "default";
 
@@ -16,8 +17,8 @@ export interface FeatureFlagRecord {
   enabled: boolean;
   description: string | null;
   group: string | null;
-  createdByUserId: string | null;
-  updatedByUserId: string | null;
+  createdByUserId: Uuid | null;
+  updatedByUserId: Uuid | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,7 +32,7 @@ export interface CreateAuditLogInput {
   newDescription?: string | null;
   oldGroup?: string | null;
   newGroup?: string | null;
-  actorUserId?: string | null;
+  actorUserId?: Uuid | null;
 }
 
 export const featureFlagNameSchema = z
@@ -62,12 +63,12 @@ export interface SetFlagInput {
   enabled: boolean;
   description?: string | null;
   group?: string | null;
-  actorUserId?: string;
+  actorUserId?: Uuid;
 }
 
 export interface DeleteFlagInput {
   name: string;
-  actorUserId?: string;
+  actorUserId?: Uuid;
 }
 
 export interface DeleteFlagResult {

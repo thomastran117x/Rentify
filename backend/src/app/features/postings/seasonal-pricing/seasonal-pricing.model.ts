@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const upsertSeasonalPricingSchema = z
   .object({
@@ -21,8 +22,8 @@ export type UpsertSeasonalPricingBody = z.infer<
 >;
 
 export interface SeasonalPricingRecord {
-  id: string;
-  postingId: string;
+  id: Uuid;
+  postingId: Uuid;
   name: string;
   startDate: string;
   endDate: string;
@@ -32,7 +33,7 @@ export interface SeasonalPricingRecord {
 }
 
 export interface UpsertSeasonalPricingInput {
-  postingId: string;
+  postingId: Uuid;
   name: string;
   startDate: string;
   endDate: string;

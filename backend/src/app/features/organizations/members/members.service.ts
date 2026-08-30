@@ -25,6 +25,8 @@ import type {
   UpdateOrganizationMemberInput,
 } from "@/features/organizations/members/members.model";
 import type { OrganizationWorkspaceResult } from "@/features/organizations/profile/profile.model";
+import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationMembersService {
   constructor(
@@ -34,11 +36,11 @@ export class OrganizationMembersService {
     private readonly organizationAuditService: OrganizationAuditService,
   ) {}
 
-  async listMine(userId: string): Promise<OrganizationWorkspaceResult> {
+  async listMine(userId: Uuid): Promise<OrganizationWorkspaceResult> {
     const user = await requireExistingUser(this.usersRepository, userId);
     const memberships =
       await this.organizationsMembersRepository.listMembershipsByUserId(
-        user.id,
+        asUuid(user.id),
         user.preferredOrganizationId,
       );
 
@@ -165,8 +167,8 @@ export class OrganizationMembersService {
   }
 
   private async requireMember(
-    organizationId: string,
-    membershipId: string,
+    organizationId: Uuid,
+    membershipId: Uuid,
   ): Promise<OrganizationMemberRecord> {
     const member = await this.organizationsMembersRepository.findMemberById(
       organizationId,

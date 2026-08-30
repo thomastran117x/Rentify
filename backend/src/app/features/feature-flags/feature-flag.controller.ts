@@ -10,6 +10,7 @@ import {
   type ListFlagsFilter,
   setFlagBodySchema,
 } from "@/features/feature-flags/feature-flag.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class FeatureFlagController {
   constructor(private readonly featureFlagService: FeatureFlagService) {}
@@ -45,7 +46,7 @@ export class FeatureFlagController {
       enabled: body.enabled,
       description: body.description,
       group: body.group,
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
 
     ok(response, result);
@@ -58,7 +59,7 @@ export class FeatureFlagController {
     const name = requireSafeRouteParam(request, "name");
     const result = await this.featureFlagService.deleteFlag({
       name,
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
 
     ok(response, result);

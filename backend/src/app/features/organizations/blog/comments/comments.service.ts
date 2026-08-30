@@ -30,6 +30,7 @@ import {
   BLOG_COMMENT_EDIT_WINDOW_MS,
   BLOG_COMMENT_SOCKET_TICKET_TTL_SECONDS,
 } from "@/features/organizations/blog/comments/comments.model";
+import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /**
  * The realtime seam. Narrowed to what this service needs so it does not depend
@@ -39,7 +40,7 @@ import {
  */
 export interface OrganizationBlogCommentRealtimeGateway {
   publish(event: OrganizationBlogCommentStreamEvent): void;
-  countReaders(blogPostId: string): Promise<number>;
+  countReaders(blogPostId: Uuid): Promise<number>;
 }
 
 export class OrganizationBlogCommentsService {
@@ -69,7 +70,7 @@ export class OrganizationBlogCommentsService {
 
     const [page, canModerate] = await Promise.all([
       this.repository.listByPost({
-        blogPostId: post.id,
+        blogPostId: asUuid(post.id),
         page: input.page,
         pageSize: input.pageSize,
       }),
@@ -104,8 +105,8 @@ export class OrganizationBlogCommentsService {
     // between. Without it the API would accept a comment on a thread it had
     // already told everyone else was closed.
     const record = await this.repository.createIfCommentsOpen({
-      blogPostId: post.id,
-      organizationId: post.organizationId,
+      blogPostId: asUuid(post.id),
+      organizationId: asUuid(post.organizationId),
       authorUserId: input.actorUserId,
       body: input.body,
     });
@@ -116,7 +117,7 @@ export class OrganizationBlogCommentsService {
 
     await this.publishEvent({
       type: "comment.created",
-      blogPostId: post.id,
+      blogPostId: asUuid(post.id),
       comment: record,
     });
 
@@ -142,8 +143,8 @@ export class OrganizationBlogCommentsService {
     }
 
     const updated = await this.repository.updateBodyIfEligible({
-      commentId: existing.id,
-      blogPostId: post.id,
+      commentId: asUuid(existing.id),
+      blogPostId: asUuid(post.id),
       authorUserId: input.actorUserId,
       body: input.body,
       editedAt: new Date(),
@@ -157,7 +158,7 @@ export class OrganizationBlogCommentsService {
 
     await this.publishEvent({
       type: "comment.updated",
-      blogPostId: post.id,
+      blogPostId: asUuid(post.id),
       comment: updated,
     });
 
@@ -188,8 +189,8 @@ export class OrganizationBlogCommentsService {
     }
 
     const deleted = await this.repository.softDeleteIfEligible({
-      commentId: existing.id,
-      blogPostId: post.id,
+      commentId: asUuid(existing.id),
+      blogPostId: asUuid(post.id),
       deletedAt: new Date(),
       deletedByUserId: input.actorUserId,
       // An author removing their own comment is recorded as the author even
@@ -206,7 +207,7 @@ export class OrganizationBlogCommentsService {
 
     await this.publishEvent({
       type: "comment.deleted",
-      blogPostId: post.id,
+      blogPostId: asUuid(post.id),
       comment: deleted,
     });
 
@@ -217,7 +218,7 @@ export class OrganizationBlogCommentsService {
    * Broadcasts that a manager opened or closed comments on a post, so open
    * pages drop or restore their composer without a reload.
    */
-  publishCommentsToggled(blogPostId: string, commentsEnabled: boolean): void {
+  publishCommentsToggled(blogPostId: Uuid, commentsEnabled: boolean): void {
     void this.publishEvent({
       type: "comments.closed",
       blogPostId,
@@ -236,7 +237,7 @@ export class OrganizationBlogCommentsService {
    * throttled at all — the upgrade never reaches Express middleware.
    */
   async createSocketTicket(
-    organizationId: string,
+    organizationId: Uuid,
     slug: string,
     actor: { userId: string | null } & OrganizationBlogCommentSocketSession,
   ): Promise<OrganizationBlogCommentSocketTicket> {
@@ -247,9 +248,9 @@ export class OrganizationBlogCommentsService {
     const ticket = randomBytes(32).toString("base64url");
 
     const identity: OrganizationBlogCommentSocketIdentity = {
-      blogPostId: post.id,
-      organizationId: post.organizationId,
-      userId: actor.userId,
+      blogPostId: asUuid(post.id),
+      organizationId: asUuid(post.organizationId),
+      userId: asOptionalUuid(actor.userId) ?? null,
       // The session that minted the ticket rides along so a signed-in socket
       // can be re-checked against logout and token-version bumps later. An
       // anonymous socket has no session to outlive.
@@ -311,7 +312,7 @@ export class OrganizationBlogCommentsService {
    * capability travels separately from the permission to be here at all.
    */
   async authorizeStream(
-    blogPostId: string,
+    blogPostId: Uuid,
     userId: string | null,
   ): Promise<OrganizationBlogCommentStreamAuthorization> {
     const post = await this.repository.findPostForCommentsById(blogPostId);
@@ -326,8 +327,8 @@ export class OrganizationBlogCommentsService {
     );
 
     return {
-      blogPostId: post.id,
-      organizationId: post.organizationId,
+      blogPostId: asUuid(post.id),
+      organizationId: asUuid(post.organizationId),
       canWrite: Boolean(userId) && post.commentsEnabled,
       canModerate,
     };
@@ -356,7 +357,7 @@ export class OrganizationBlogCommentsService {
   }
 
   /** How many sockets are currently watching this post's comments. */
-  async countReaders(blogPostId: string): Promise<number> {
+  async countReaders(blogPostId: Uuid): Promise<number> {
     return this.realtimeGateway.countReaders(blogPostId);
   }
 
@@ -374,7 +375,7 @@ export class OrganizationBlogCommentsService {
    * unpublished post cannot be probed through its comments.
    */
   private async requirePublishedPost(
-    organizationId: string,
+    organizationId: Uuid,
     slug: string,
   ): Promise<OrganizationBlogCommentPostContext> {
     const post = await this.repository.findPostForComments(
@@ -396,8 +397,8 @@ export class OrganizationBlogCommentsService {
   }
 
   private async requireComment(
-    commentId: string,
-    blogPostId: string,
+    commentId: Uuid,
+    blogPostId: Uuid,
   ): Promise<OrganizationBlogCommentRecord> {
     const comment = await this.repository.findById(commentId);
 
@@ -420,14 +421,14 @@ export class OrganizationBlogCommentsService {
    */
   private async resolveCanModerate(
     userId: string | null,
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<boolean> {
     if (!userId) {
       return false;
     }
 
     const membership = await this.organizationAccessService.findMembership(
-      userId,
+      asUuid(userId),
       organizationId,
     );
 
@@ -457,7 +458,7 @@ export class OrganizationBlogCommentsService {
    * wrong in both directions: a shared NAT makes strangers share a bucket, and
    * a rotating address evades it entirely.
    */
-  private async assertAuthorCooldown(userId: string): Promise<void> {
+  private async assertAuthorCooldown(userId: Uuid): Promise<void> {
     const key = `blog-comments:rate:${userId}`;
 
     try {

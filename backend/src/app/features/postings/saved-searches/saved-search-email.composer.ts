@@ -10,18 +10,19 @@ import {
   type SavedSearchMatchPreview,
   type SavedSearchQueryParams,
 } from "@/features/postings/saved-searches/saved-searches.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export interface ComposeSavedSearchMatchesEmailInput {
-  savedSearchId: string;
-  recipientId: string;
-  postingIds: string[];
+  savedSearchId: Uuid;
+  recipientId: Uuid;
+  postingIds: Uuid[];
   occurredAt: string;
 }
 
 export interface SavedSearchMatchesEmailContent {
   to: string;
   firstName?: string;
-  savedSearchId: string;
+  savedSearchId: Uuid;
   savedSearchName: string;
   /** The filters, so the email can link straight back to the live results. */
   queryParams: SavedSearchQueryParams;
@@ -116,7 +117,7 @@ export class SavedSearchEmailComposer {
     return {
       to: recipient.email,
       ...(recipient.firstName ? { firstName: recipient.firstName } : {}),
-      savedSearchId: search.id,
+      savedSearchId: asUuid(search.id),
       savedSearchName: search.name,
       queryParams: parsedParams.data,
       matches: matches

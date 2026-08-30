@@ -20,9 +20,10 @@ import type {
 } from "@/features/payments/payments.model";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { createPaymentIdempotencyKey } from "@/features/payments/payments.utils";
+import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 function readEventPaymentDetails(payload: Record<string, unknown>): {
-  paymentId?: string;
+  paymentId?: Uuid;
   orderId?: string;
   refundId?: string;
   status?: string;
@@ -35,9 +36,10 @@ function readEventPaymentDetails(payload: Record<string, unknown>): {
     (entity?.refund as Record<string, unknown> | undefined) ?? entity;
 
   return {
-    paymentId:
+    paymentId: asOptionalUuid(
       (payment?.id as string | undefined) ??
-      ((payload.payment_id as string | undefined) || undefined),
+        ((payload.payment_id as string | undefined) || undefined),
+    ),
     orderId:
       (payment?.order_id as string | undefined) ??
       ((payload.order_id as string | undefined) || undefined),
@@ -128,15 +130,15 @@ export class PaymentsService {
   }
 
   async getPaymentById(
-    paymentId: string,
-    userId: string,
+    paymentId: Uuid,
+    userId: Uuid,
   ): Promise<PaymentRecord> {
     return this.requirePaymentAccess(paymentId, userId, "read");
   }
 
   async getPaymentByBookingRequest(
-    bookingRequestId: string,
-    userId: string,
+    bookingRequestId: Uuid,
+    userId: Uuid,
   ): Promise<PaymentRecord> {
     const payment =
       await this.paymentsRepository.findByBookingRequestId(bookingRequestId);
@@ -221,7 +223,7 @@ export class PaymentsService {
       eventType: verification.eventType,
       signatureValid: verification.isValid,
       payload: verification.payload,
-      paymentId: payment?.id,
+      paymentId: asOptionalUuid(payment?.id),
     });
 
     if (!verification.isValid) {
@@ -266,8 +268,8 @@ export class PaymentsService {
   }
 
   async reconcilePayment(
-    paymentId: string,
-    userId: string,
+    paymentId: Uuid,
+    userId: Uuid,
   ): Promise<PaymentRecord> {
     const payment = await this.requirePaymentAccess(
       paymentId,
@@ -324,7 +326,7 @@ export class PaymentsService {
     return payment;
   }
 
-  async repairPayment(paymentId: string): Promise<void> {
+  async repairPayment(paymentId: Uuid): Promise<void> {
     const payment = await this.paymentsRepository.findById(paymentId);
 
     if (!payment) {
@@ -429,7 +431,7 @@ export class PaymentsService {
     return payouts.length;
   }
 
-  private async enqueueSearchSync(postingId?: string): Promise<void> {
+  private async enqueueSearchSync(postingId?: Uuid): Promise<void> {
     if (!postingId) {
       return;
     }
@@ -456,8 +458,8 @@ export class PaymentsService {
   }
 
   private async requirePaymentAccess(
-    paymentId: string,
-    userId: string,
+    paymentId: Uuid,
+    userId: Uuid,
     access: "read" | "manage",
   ): Promise<PaymentRecord> {
     const payment = await this.paymentsRepository.findById(paymentId);
@@ -471,7 +473,7 @@ export class PaymentsService {
 
   private async requirePaymentRecordAccess(
     payment: PaymentRecord,
-    userId: string,
+    userId: Uuid,
     access: "read" | "manage",
   ): Promise<PaymentRecord> {
     if (payment.renterId === userId) {
@@ -496,7 +498,7 @@ export class PaymentsService {
 
   private async markCompletedPaymentStatus(
     status: ProviderPaymentStatus,
-    postingId?: string,
+    postingId?: Uuid,
   ): Promise<{
     payment: PaymentRecord | null;
     reconciliationRequired: boolean;

@@ -14,6 +14,7 @@ import {
   mfaVerificationScopeSchema,
 } from "./mfa-verification.model";
 import type { MfaVerificationService } from "./mfa-verification.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class MfaVerificationController {
   constructor(
@@ -25,7 +26,7 @@ export class MfaVerificationController {
     const scope = this.parseScopeQuery(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const result = await this.mfaVerificationService.getOptions({
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
       sessionId,
       scope,
     });
@@ -43,7 +44,7 @@ export class MfaVerificationController {
       mfaVerificationChallengeRequestSchema,
     );
     const result = await this.mfaVerificationService.issueChallenge({
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
       sessionId,
       scope: input.scope,
       factor: input.factor,
@@ -63,7 +64,7 @@ export class MfaVerificationController {
       mfaVerificationConfirmRequestSchema,
     );
     const result = await this.mfaVerificationService.confirmChallenge({
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
       sessionId,
       scope: input.scope,
       factor: input.factor,
@@ -81,7 +82,7 @@ export class MfaVerificationController {
     const scope = this.parseScopeQuery(request);
     const sessionId = this.requireSessionId(auth.sessionId);
     const result = await this.mfaVerificationService.previewCurrentEmailOtp({
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
       sessionId,
       scope,
     });

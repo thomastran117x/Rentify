@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const listProfilesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -54,8 +55,8 @@ export type UpdateProfileRequestBody = z.infer<
 >;
 
 export interface ProfileRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   email: string;
   firstName?: string;
   lastName?: string;
@@ -80,8 +81,8 @@ export interface ProfileRecord {
 }
 
 export interface PublicProfileRecord {
-  id: string;
-  userId: string;
+  id: Uuid;
+  userId: Uuid;
   email: string;
   firstName?: string;
   lastName?: string;
@@ -109,7 +110,7 @@ export interface ListProfilesResult {
 }
 
 export interface UpdateProfileInput {
-  userId: string;
+  userId: Uuid;
   username: string;
   phoneNumber?: string | null;
   isPrivate?: boolean;

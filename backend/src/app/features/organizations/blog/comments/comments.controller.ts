@@ -7,7 +7,10 @@ import {
   getOptionalJwtAuth,
   requireJwtAuth,
 } from "@/configuration/middlewares/jwt-middleware";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import {
+  requireSafeRouteParam,
+  requireUuidRouteParam,
+} from "@/configuration/validation/input-sanitization";
 import {
   RequestValidationError,
   parseRequestBody,
@@ -21,6 +24,7 @@ import {
   updateBlogCommentSchema,
 } from "@/features/organizations/blog/comments/comments.model";
 import type { OrganizationBlogCommentsService } from "@/features/organizations/blog/comments/comments.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class OrganizationBlogCommentsController {
   constructor(
@@ -35,7 +39,7 @@ export class OrganizationBlogCommentsController {
     const auth = await getOptionalJwtAuth(request);
     const query = this.parseListQuery(request);
     const result = await this.organizationBlogCommentsService.list({
-      organizationId: this.requireOrganizationId(request),
+      organizationId: asUuid(this.requireOrganizationId(request)),
       slug: this.requireSlug(request),
       actorUserId: auth?.sub ?? null,
       page: query.page,
@@ -51,9 +55,9 @@ export class OrganizationBlogCommentsController {
     const auth = await requireJwtAuth(request);
     const body = await parseRequestBody(request, createBlogCommentSchema);
     const result = await this.organizationBlogCommentsService.create({
-      organizationId: this.requireOrganizationId(request),
+      organizationId: asUuid(this.requireOrganizationId(request)),
       slug: this.requireSlug(request),
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
       body: body.body,
     });
 
@@ -66,10 +70,10 @@ export class OrganizationBlogCommentsController {
     const auth = await requireJwtAuth(request);
     const body = await parseRequestBody(request, updateBlogCommentSchema);
     const result = await this.organizationBlogCommentsService.update({
-      organizationId: this.requireOrganizationId(request),
+      organizationId: asUuid(this.requireOrganizationId(request)),
       slug: this.requireSlug(request),
-      commentId: this.requireCommentId(request),
-      actorUserId: auth.sub,
+      commentId: asUuid(this.requireCommentId(request)),
+      actorUserId: asUuid(auth.sub),
       body: body.body,
     });
 
@@ -79,10 +83,10 @@ export class OrganizationBlogCommentsController {
   remove = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireJwtAuth(request);
     const result = await this.organizationBlogCommentsService.softDelete({
-      organizationId: this.requireOrganizationId(request),
+      organizationId: asUuid(this.requireOrganizationId(request)),
       slug: this.requireSlug(request),
-      commentId: this.requireCommentId(request),
-      actorUserId: auth.sub,
+      commentId: asUuid(this.requireCommentId(request)),
+      actorUserId: asUuid(auth.sub),
     });
 
     ok(response, result, { message: "Comment removed successfully." });
@@ -143,16 +147,16 @@ export class OrganizationBlogCommentsController {
     );
   };
 
-  private requireOrganizationId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireOrganizationId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
   private requireSlug(request: Request): string {
     return requireSafeRouteParam(request, "slug");
   }
 
-  private requireCommentId(request: Request): string {
-    return requireSafeRouteParam(request, "commentId");
+  private requireCommentId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "commentId");
   }
 
   private parseListQuery(request: Request): ListBlogCommentsQuery {

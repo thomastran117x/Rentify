@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const removeKnownDeviceRequestSchema = z.object({
   deviceId: z.string().trim().min(1, "Device ID is required."),
@@ -10,7 +11,7 @@ export type RemoveKnownDeviceRequestBody = z.infer<
 >;
 
 export interface RemoveKnownDeviceInput {
-  userId: string;
+  userId: Uuid;
   deviceId: string;
 }
 
@@ -22,13 +23,13 @@ export interface DeviceVerifyResult {
     deviceId?: string;
   };
   auth: {
-    userId: string;
+    userId: Uuid;
     tokenDeviceId?: string;
   };
 }
 
 export interface KnownDeviceSummary {
-  id: string;
+  id: Uuid;
   current: boolean;
   deviceId: string;
   type: string;

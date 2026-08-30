@@ -2,6 +2,7 @@ import type { Channel, ConsumeMessage, ConfirmChannel } from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
 import type { RecommendationActivityEventPayload } from "@/features/recommendations/recommendation-activity.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 const recommendationQueueLogger = loggerFactory.forComponent(
@@ -56,7 +57,7 @@ export class RecommendationActivityQueueService {
   async publishDeadLetterPayload(
     payload: unknown,
     options?: {
-      messageId?: string;
+      messageId?: Uuid;
       reason?: string;
       error?: string;
       headers?: Record<string, unknown>;

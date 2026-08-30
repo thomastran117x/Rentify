@@ -22,6 +22,7 @@ import {
   bootstrapPollingWorker,
   startWorker,
 } from "@/workers/shared/worker-runtime";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 const workerName = "Postings analytics worker";
 const workerResources = [databaseWorkerResource];
@@ -56,7 +57,7 @@ export async function bootstrapPostingsAnalyticsWorker(): Promise<void> {
               eventDate: floorToUtcDay(occurredAt),
               eventHour: floorToUtcHour(occurredAt),
               viewerHash: readString(payload.viewerHash, "viewerHash"),
-              userId: readOptionalString(payload.userId),
+              userId: asOptionalUuid(readOptionalString(payload.userId)),
               ipAddressHash: readOptionalString(payload.ipAddressHash),
               userAgentHash: readOptionalString(payload.userAgentHash),
               deviceType: readString(payload.deviceType, "deviceType"),

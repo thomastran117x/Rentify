@@ -14,6 +14,8 @@ import {
   hashSavedSearchParams,
   savedSearchQueryParamsSchema,
 } from "@/features/postings/saved-searches/saved-searches.model";
+import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 function startOfDay(date: Date): Date {
   return new Date(
@@ -33,8 +35,8 @@ function startOfHour(date: Date): Date {
 }
 
 type Aggregate = {
-  postingId: string;
-  organizationId: string;
+  postingId: Uuid;
+  organizationId: Uuid;
   eventDate: Date;
   eventHour: Date;
   views: number;
@@ -339,7 +341,7 @@ export const activitySeedModule: SeedModule = {
 
       const dailyAggregate = dailyAggregateMap.get(dailyKey) ?? {
         postingId: viewEvent.postingId,
-        organizationId,
+        organizationId: asUuid(organizationId),
         eventDate,
         eventHour,
         views: 0,
@@ -391,7 +393,7 @@ export const activitySeedModule: SeedModule = {
         data: {
           id: createFixtureId(4040, hourlyIndex),
           postingId: aggregate.postingId,
-          organizationId: aggregate.organizationId,
+          organizationId: asUuid(aggregate.organizationId),
           bucketStart: aggregate.eventHour,
           searchImpressions: 0,
           searchClicks: 0,

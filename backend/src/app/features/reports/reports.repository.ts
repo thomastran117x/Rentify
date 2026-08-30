@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
@@ -18,6 +17,7 @@ import type {
   ReportStatus,
   ReportSubjectType,
 } from "@/features/reports/reports.model";
+import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type UserSummaryPersistence = {
   id: string;
@@ -127,7 +127,7 @@ type ReportSubjectBlogComment = {
 
 export class ReportsRepository extends BaseRepository {
   async findPostingSubject(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<ReportSubjectPosting | null> {
     return this.executeAsync(() =>
       this.prisma.posting.findUnique({
@@ -151,7 +151,7 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async findOrganizationBlogCommentSubject(
-    commentId: string,
+    commentId: Uuid,
   ): Promise<ReportSubjectBlogComment | null> {
     return this.executeAsync(() =>
       this.prisma.organizationBlogComment.findUnique({
@@ -195,7 +195,7 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async findPostingReviewSubject(
-    reviewId: string,
+    reviewId: Uuid,
   ): Promise<ReportSubjectReview | null> {
     return this.executeAsync(() =>
       this.prisma.postingReview.findUnique({
@@ -233,7 +233,7 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async findUserSubject(
-    userId: string,
+    userId: Uuid,
   ): Promise<UserSummaryPersistence | null> {
     return this.executeAsync(() =>
       this.prisma.user.findUnique({
@@ -263,7 +263,7 @@ export class ReportsRepository extends BaseRepository {
       this.prisma.$transaction(async (transaction) => {
         const created = await transaction.contentReport.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             reporterId: input.reporterId,
             subjectType: input.subjectType,
             subjectId: input.subjectId,
@@ -290,7 +290,7 @@ export class ReportsRepository extends BaseRepository {
 
         await transaction.contentReportEvent.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             reportId: created.id,
             actorUserId: input.reporterId,
             eventType: "created",
@@ -300,7 +300,7 @@ export class ReportsRepository extends BaseRepository {
 
         await transaction.contentReportSearchOutbox.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             reportId: created.id,
             operation: "upsert",
           },
@@ -374,7 +374,7 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async findUserSummaryById(
-    userId: string,
+    userId: Uuid,
   ): Promise<ContentReportUserSummary | null> {
     const user = await this.findUserSubject(userId);
     return user ? this.mapUserSummary(user) : null;
@@ -454,9 +454,9 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async updateAssignment(input: {
-    reportId: string;
-    actorUserId: string;
-    assignedModeratorId: string | null;
+    reportId: Uuid;
+    actorUserId: Uuid;
+    assignedModeratorId: Uuid | null;
   }): Promise<ContentReportRecord | null> {
     return this.executeAsync(async () => {
       try {
@@ -484,7 +484,7 @@ export class ReportsRepository extends BaseRepository {
 
           await transaction.contentReportEvent.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               reportId: report.id,
               actorUserId: input.actorUserId,
               eventType: "assigned",
@@ -497,7 +497,7 @@ export class ReportsRepository extends BaseRepository {
 
           await transaction.contentReportSearchOutbox.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               reportId: report.id,
               operation: "upsert",
             },
@@ -521,8 +521,8 @@ export class ReportsRepository extends BaseRepository {
   }
 
   async updateStatus(input: {
-    reportId: string;
-    actorUserId: string;
+    reportId: Uuid;
+    actorUserId: Uuid;
     status: ReportStatus;
     resolutionCode?: ReportResolutionCode;
     resolutionSummary?: string;
@@ -576,7 +576,7 @@ export class ReportsRepository extends BaseRepository {
 
           await transaction.contentReportEvent.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               reportId: report.id,
               actorUserId: input.actorUserId,
               eventType: input.note ? "note_added" : "status_changed",
@@ -594,7 +594,7 @@ export class ReportsRepository extends BaseRepository {
 
           await transaction.contentReportSearchOutbox.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               reportId: report.id,
               operation: "upsert",
             },
@@ -805,8 +805,8 @@ export class ReportsRepository extends BaseRepository {
 
   private mapReport(report: ReportPersistence): ContentReportRecord {
     return {
-      id: report.id,
-      reporterId: report.reporterId,
+      id: asUuid(report.id),
+      reporterId: asUuid(report.reporterId),
       subjectType: report.subjectType as ReportSubjectType,
       subjectId: report.subjectId,
       reasonCode: report.reasonCode,
@@ -838,11 +838,11 @@ export class ReportsRepository extends BaseRepository {
 
   private mapEvent(event: EventPersistence): ContentReportEventRecord {
     return {
-      id: event.id,
+      id: asUuid(event.id),
       eventType: event.eventType,
       fromStatus: event.fromStatus as ReportStatus | undefined,
       toStatus: event.toStatus as ReportStatus | undefined,
-      assignmentUserId: event.assignmentUserId ?? undefined,
+      assignmentUserId: asOptionalUuid(event.assignmentUserId),
       note: event.note ?? undefined,
       actor: this.mapUserSummary(event.actor),
       createdAt: event.createdAt.toISOString(),
@@ -853,7 +853,7 @@ export class ReportsRepository extends BaseRepository {
     user: UserSummaryPersistence,
   ): ContentReportUserSummary {
     return {
-      id: user.id,
+      id: asUuid(user.id),
       email: user.email,
       username: user.profile?.username ?? undefined,
       avatarUrl: user.profile?.avatarUrl ?? undefined,
@@ -865,7 +865,7 @@ export class ReportsRepository extends BaseRepository {
     report: ReportPersistence,
   ): ContentReportSearchDocument {
     return {
-      id: report.id,
+      id: asUuid(report.id),
       subjectType: report.subjectType as ReportSubjectType,
       subjectId: report.subjectId,
       reasonCode: report.reasonCode,
@@ -873,11 +873,11 @@ export class ReportsRepository extends BaseRepository {
       title: report.title,
       description: report.description,
       subjectSnapshotText: report.subjectSnapshotText,
-      reporterId: report.reporter.id,
+      reporterId: asUuid(report.reporter.id),
       reporterEmail: report.reporter.email,
       reporterUsername: report.reporter.profile?.username ?? undefined,
       reporterRole: normalizeAppRole(report.reporter.role),
-      assignedModeratorId: report.assignedModerator?.id ?? undefined,
+      assignedModeratorId: asOptionalUuid(report.assignedModerator?.id),
       assignedModeratorEmail: report.assignedModerator?.email ?? undefined,
       assignedModeratorUsername:
         report.assignedModerator?.profile?.username ?? undefined,
@@ -895,8 +895,8 @@ export class ReportsRepository extends BaseRepository {
     processingAt?: Date,
   ): ContentReportSearchOutboxRecord {
     return {
-      id: outbox.id,
-      reportId: outbox.reportId,
+      id: asUuid(outbox.id),
+      reportId: asUuid(outbox.reportId),
       operation: outbox.operation,
       attempts: outbox.attempts,
       availableAt: outbox.availableAt.toISOString(),

@@ -1,12 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   SeasonalPricingRecord,
   UpsertSeasonalPricingInput,
 } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class SeasonalPricingRepository extends BaseRepository {
-  async listByPosting(postingId: string): Promise<SeasonalPricingRecord[]> {
+  async listByPosting(postingId: Uuid): Promise<SeasonalPricingRecord[]> {
     const rows = await this.database.postingSeasonalPricing.findMany({
       where: { postingId },
       orderBy: { startDate: "asc" },
@@ -14,13 +14,13 @@ export class SeasonalPricingRepository extends BaseRepository {
     return rows.map(this.toRecord);
   }
 
-  async countByPosting(postingId: string): Promise<number> {
+  async countByPosting(postingId: Uuid): Promise<number> {
     return this.database.postingSeasonalPricing.count({ where: { postingId } });
   }
 
   async findById(
     id: string,
-    postingId: string,
+    postingId: Uuid,
   ): Promise<SeasonalPricingRecord | null> {
     const row = await this.database.postingSeasonalPricing.findFirst({
       where: { id, postingId },
@@ -33,8 +33,8 @@ export class SeasonalPricingRepository extends BaseRepository {
   ): Promise<SeasonalPricingRecord> {
     const row = await this.database.postingSeasonalPricing.create({
       data: {
-        id: randomUUID(),
-        postingId: input.postingId,
+        id: newUuid(),
+        postingId: asUuid(input.postingId),
         name: input.name,
         startDate: new Date(input.startDate),
         endDate: new Date(input.endDate),
@@ -46,7 +46,7 @@ export class SeasonalPricingRepository extends BaseRepository {
 
   async update(
     id: string,
-    postingId: string,
+    postingId: Uuid,
     input: Omit<UpsertSeasonalPricingInput, "postingId">,
   ): Promise<SeasonalPricingRecord | null> {
     const result = await this.database.postingSeasonalPricing.updateMany({
@@ -66,7 +66,7 @@ export class SeasonalPricingRepository extends BaseRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async delete(id: string, postingId: string): Promise<boolean> {
+  async delete(id: string, postingId: Uuid): Promise<boolean> {
     const result = await this.database.postingSeasonalPricing.deleteMany({
       where: { id, postingId },
     });
@@ -90,7 +90,7 @@ export class SeasonalPricingRepository extends BaseRepository {
       },
       create: {
         id: rule.id,
-        postingId: rule.postingId,
+        postingId: asUuid(rule.postingId),
         name: rule.name,
         startDate: new Date(rule.startDate),
         endDate: new Date(rule.endDate),
@@ -101,7 +101,7 @@ export class SeasonalPricingRepository extends BaseRepository {
     return this.toRecord(row);
   }
   async findOverlappingForBooking(
-    postingId: string,
+    postingId: Uuid,
     startAt: Date,
     endAt: Date,
   ): Promise<SeasonalPricingRecord[]> {
@@ -133,8 +133,8 @@ export class SeasonalPricingRepository extends BaseRepository {
     updatedAt: Date;
   }): SeasonalPricingRecord {
     return {
-      id: row.id,
-      postingId: row.postingId,
+      id: asUuid(row.id),
+      postingId: asUuid(row.postingId),
       name: row.name,
       startDate: row.startDate.toISOString().slice(0, 10),
       endDate: row.endDate.toISOString().slice(0, 10),

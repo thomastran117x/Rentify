@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 
+import { isUuid, type Uuid } from "@/configuration/validation/uuid";
+
 /**
  * Slug helpers shared by organizations and organization blog posts.
  *
@@ -13,9 +15,6 @@ export const ORGANIZATION_SLUG_MAX_LENGTH = 160;
 
 /** Lowercase alphanumeric groups joined by single hyphens. */
 export const ORGANIZATION_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Namespace used as the last-resort slug. Reserved so that no user-supplied
@@ -46,7 +45,7 @@ export const RESERVED_ORGANIZATION_SLUGS: ReadonlySet<string> = new Set([
 ]);
 
 export function looksLikeUuid(value: string): boolean {
-  return UUID_PATTERN.test(value);
+  return isUuid(value);
 }
 
 export function isReservedOrganizationSlug(value: string): boolean {
@@ -61,7 +60,7 @@ export function isReservedOrganizationSlug(value: string): boolean {
  * the organization id, so it is unique by construction and lives in a namespace
  * users cannot type.
  */
-export function reservedNamespaceSlug(organizationId: string): string {
+export function reservedNamespaceSlug(organizationId: Uuid): string {
   return `${RESERVED_SLUG_NAMESPACE_PREFIX}${organizationId.replace(/-/g, "").toLowerCase()}`;
 }
 

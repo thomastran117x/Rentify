@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -16,12 +15,13 @@ import type {
   BookingRequestsListResult,
   BookingRequestStatus,
   CreateBookingRequestPersistenceInput,
-  ListOwnedBookingRequestsInput,
-  ListOwnerBookingRequestsInput,
+  ListOwnedBookingRequestsPersistenceInput,
+  ListOwnerBookingRequestsPersistenceInput,
   ListRenterBookingRequestsInput,
-  OwnerBookingDashboardInput,
+  OwnerBookingDashboardPersistenceInput,
   RenterBookingDashboardInput,
 } from "@/features/bookings/bookings.model";
+import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
   include: {
@@ -58,7 +58,7 @@ export class BookingsRepository extends BaseRepository {
     const created = await this.executeAsync(() =>
       this.prisma.bookingRequest.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           postingId: input.postingId,
           renterId: input.renterId,
           organizationId: input.organizationId,
@@ -122,7 +122,7 @@ export class BookingsRepository extends BaseRepository {
 
         return transaction.bookingRequest.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             postingId: input.postingId,
             renterId: input.renterId,
             organizationId: input.organizationId,
@@ -193,8 +193,8 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async updatePending(
-    bookingRequestId: string,
-    renterId: string,
+    bookingRequestId: Uuid,
+    renterId: Uuid,
     input: {
       startAt: Date;
       endAt: Date;
@@ -336,7 +336,7 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async listByOwnerAndPosting(
-    input: ListOwnerBookingRequestsInput,
+    input: ListOwnerBookingRequestsPersistenceInput,
   ): Promise<BookingRequestsListResult> {
     const where: Prisma.BookingRequestWhereInput = {
       organizationId: input.organizationId,
@@ -381,7 +381,7 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async listByOwner(
-    input: ListOwnedBookingRequestsInput,
+    input: ListOwnedBookingRequestsPersistenceInput,
   ): Promise<BookingRequestsListResult> {
     const where: Prisma.BookingRequestWhereInput = {
       organizationId: input.organizationId,
@@ -460,7 +460,7 @@ export class BookingsRepository extends BaseRepository {
 
   async listDashboardByOwner(
     input: Pick<
-      OwnerBookingDashboardInput,
+      OwnerBookingDashboardPersistenceInput,
       "organizationId" | "status" | "postingId"
     >,
   ): Promise<BookingRequestRecord[]> {
@@ -497,7 +497,7 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async listDashboardPostingOptionsByOrganization(
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<BookingDashboardPostingOption[]> {
     const rows = await this.executeAsync(() =>
       this.prisma.bookingRequest.findMany({
@@ -521,7 +521,7 @@ export class BookingsRepository extends BaseRepository {
     for (const row of rows) {
       if (!options.has(row.postingId)) {
         options.set(row.postingId, {
-          id: row.postingId,
+          id: asUuid(row.postingId),
           name: row.posting.name,
         });
       }
@@ -568,9 +568,9 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async countActiveRequestsForRenterPosting(input: {
-    postingId: string;
-    renterId: string;
-    excludeBookingRequestId?: string;
+    postingId: Uuid;
+    renterId: Uuid;
+    excludeBookingRequestId?: Uuid;
   }): Promise<number> {
     return this.executeAsync(() =>
       this.prisma.bookingRequest.count({
@@ -594,8 +594,8 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async approve(
-    bookingRequestId: string,
-    organizationId: string,
+    bookingRequestId: Uuid,
+    organizationId: Uuid,
     note: string | null | undefined,
     holdExpiresAt: Date,
   ): Promise<BookingRequestRecord | null> {
@@ -733,8 +733,8 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async decline(
-    bookingRequestId: string,
-    organizationId: string,
+    bookingRequestId: Uuid,
+    organizationId: Uuid,
     note: string | null | undefined,
   ): Promise<BookingRequestRecord | null> {
     const declined = await this.executeAsync(async () =>
@@ -806,10 +806,10 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async cancel(input: {
-    bookingRequestId: string;
-    actorUserId: string;
+    bookingRequestId: Uuid;
+    actorUserId: Uuid;
     actor: BookingCancellationActor;
-    actorOrganizationId?: string;
+    actorOrganizationId?: Uuid;
     expectedStatus: BookingRequestStatus;
     reason?: string | null;
     cancellationPolicyCode: string;
@@ -959,19 +959,19 @@ export class BookingsRepository extends BaseRepository {
     );
 
     return rows.map((row) => ({
-      id: row.id,
-      postingId: row.postingId,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      postingId: asUuid(row.postingId),
+      organizationId: asUuid(row.organizationId),
       status: row.status as BookingRequestStatus,
-      holdBlockId: row.holdBlockId ?? undefined,
+      holdBlockId: asOptionalUuid(row.holdBlockId),
     }));
   }
 
   async hasBlockingAvailabilityOverlap(input: {
-    postingId: string;
+    postingId: Uuid;
     startAt: Date;
     endAt: Date;
-    excludeBookingRequestId?: string;
+    excludeBookingRequestId?: Uuid;
   }): Promise<boolean> {
     const block = await this.executeAsync(() =>
       this.prisma.postingAvailabilityBlock.findFirst({
@@ -1011,7 +1011,7 @@ export class BookingsRepository extends BaseRepository {
     return Boolean(block);
   }
 
-  async expire(bookingRequestId: string): Promise<boolean> {
+  async expire(bookingRequestId: Uuid): Promise<boolean> {
     return this.executeAsync(async () =>
       this.prisma.$transaction(async (transaction) => {
         const existing = await transaction.bookingRequest.findUnique({
@@ -1111,8 +1111,8 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async reserveForConversion(
-    bookingRequestId: string,
-    organizationId: string,
+    bookingRequestId: Uuid,
+    organizationId: Uuid,
     reservationExpiresAt: Date,
   ): Promise<{
     reservedAt: Date;
@@ -1157,8 +1157,8 @@ export class BookingsRepository extends BaseRepository {
   }
 
   async releaseConversionReservation(
-    bookingRequestId: string,
-    organizationId: string,
+    bookingRequestId: Uuid,
+    organizationId: Uuid,
     reservation: {
       reservedAt: Date;
       reservationExpiresAt: Date;
@@ -1184,10 +1184,10 @@ export class BookingsRepository extends BaseRepository {
     bookingRequest: BookingRequestPersistence,
   ): BookingRequestRecord {
     return {
-      id: bookingRequest.id,
-      postingId: bookingRequest.postingId,
-      renterId: bookingRequest.renterId,
-      organizationId: bookingRequest.organizationId,
+      id: asUuid(bookingRequest.id),
+      postingId: asUuid(bookingRequest.postingId),
+      renterId: asUuid(bookingRequest.renterId),
+      organizationId: asUuid(bookingRequest.organizationId),
       status: bookingRequest.status as BookingRequestStatus,
       startAt: bookingRequest.startAt.toISOString(),
       endAt: bookingRequest.endAt.toISOString(),
@@ -1206,7 +1206,7 @@ export class BookingsRepository extends BaseRepository {
       paymentRequiredAt: bookingRequest.paymentRequiredAt?.toISOString(),
       paymentFailedAt: bookingRequest.paymentFailedAt?.toISOString(),
       cancelledAt: bookingRequest.cancelledAt?.toISOString(),
-      cancelledByUserId: bookingRequest.cancelledByUserId ?? undefined,
+      cancelledByUserId: asOptionalUuid(bookingRequest.cancelledByUserId),
       cancellationActor: bookingRequest.cancellationActor ?? undefined,
       cancellationReason: bookingRequest.cancellationReason ?? undefined,
       cancellationPolicyCode:
@@ -1224,14 +1224,14 @@ export class BookingsRepository extends BaseRepository {
       conversionReservationExpiresAt:
         bookingRequest.conversionReservationExpiresAt?.toISOString(),
       holdExpiresAt: bookingRequest.holdExpiresAt.toISOString(),
-      holdBlockId: bookingRequest.holdBlockId ?? undefined,
+      holdBlockId: asOptionalUuid(bookingRequest.holdBlockId),
       paymentReconciliationRequired:
         bookingRequest.paymentReconciliationRequired,
-      rentingId: bookingRequest.renting?.id ?? undefined,
+      rentingId: asOptionalUuid(bookingRequest.renting?.id),
       createdAt: bookingRequest.createdAt.toISOString(),
       updatedAt: bookingRequest.updatedAt.toISOString(),
       posting: {
-        id: bookingRequest.posting.id,
+        id: asUuid(bookingRequest.posting.id),
         name: bookingRequest.posting.name,
         primaryPhotoUrl: bookingRequest.posting.photos[0]?.blobUrl,
         effectiveMaxBookingDurationDays:

@@ -3,6 +3,7 @@ import type { Channel, ConsumeMessage } from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
 import type { PostingThumbnailJobPayload } from "@/features/postings/thumbnail/thumbnail.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 const POSTING_THUMBNAIL_QUEUE_PREFIX = "postings.thumbnail";
@@ -19,7 +20,7 @@ export class PostingThumbnailQueueService {
   );
   private readonly deadLetterQueueName = `${POSTING_THUMBNAIL_QUEUE_PREFIX}.dead-letter`;
 
-  async enqueuePostingThumbnailJob(postingId: string): Promise<void> {
+  async enqueuePostingThumbnailJob(postingId: Uuid): Promise<void> {
     await this.publishWithRoutingKey("main", {
       jobId: randomUUID(),
       postingId,

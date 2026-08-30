@@ -59,6 +59,7 @@ import type { PaymentsRepository } from "@/features/payments/payments.repository
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingRecord } from "@/features/rentings/rentings.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
@@ -130,7 +131,7 @@ export class BookingsService {
         const bookingRequest =
           await this.bookingsRepository.createIfWithinActiveRequestLimit(
             {
-              postingId: lockedPosting.id,
+              postingId: asUuid(lockedPosting.id),
               renterId: input.renterId,
               organizationId: lockedPosting.organizationId,
               startAt: normalized.startAt,
@@ -149,7 +150,7 @@ export class BookingsService {
                 normalized.durationDays,
                 normalized.startAt,
                 await this.seasonalPricingRepository.findOverlappingForBooking(
-                  lockedPosting.id,
+                  asUuid(lockedPosting.id),
                   normalized.startAt,
                   normalized.endAt,
                 ),
@@ -170,7 +171,7 @@ export class BookingsService {
 
         if (lockedPosting.instantBooking) {
           const approved = await this.bookingsRepository.approve(
-            bookingRequest.id,
+            asUuid(bookingRequest.id),
             bookingRequest.organizationId,
             null,
             this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
@@ -219,7 +220,7 @@ export class BookingsService {
     const { posting, normalized } = validation;
     const seasonalRules = normalized
       ? await this.seasonalPricingRepository.findOverlappingForBooking(
-          posting.id,
+          asUuid(posting.id),
           normalized.startAt,
           normalized.endAt,
         )
@@ -234,7 +235,7 @@ export class BookingsService {
       : null;
 
     return {
-      postingId: posting.id,
+      postingId: asUuid(posting.id),
       bookable: validation.failureReasons.length === 0,
       durationDays: normalized?.durationDays ?? null,
       pricingCurrency: posting.pricing.currency,
@@ -461,7 +462,7 @@ export class BookingsService {
     };
   }
 
-  async getById(id: string, userId: string): Promise<BookingRequestRecord> {
+  async getById(id: string, userId: Uuid): Promise<BookingRequestRecord> {
     const bookingRequest = await this.bookingsRepository.findById(id);
 
     if (!bookingRequest) {
@@ -469,7 +470,7 @@ export class BookingsService {
     }
 
     const membership = await this.organizationAccessService.findMembership(
-      userId,
+      asUuid(userId),
       bookingRequest.organizationId,
     );
 
@@ -565,26 +566,26 @@ export class BookingsService {
         );
 
         await this.assertNoBlockingAvailabilityOverlap(
-          posting.id,
+          asUuid(posting.id),
           normalized.startAt,
           normalized.endAt,
           lockedBookingRequest.id,
         );
         await this.assertNoRentingOverlap(
-          posting.id,
+          asUuid(posting.id),
           normalized.startAt,
           normalized.endAt,
         );
 
         const updateSeasonalRules =
           await this.seasonalPricingRepository.findOverlappingForBooking(
-            posting.id,
+            asUuid(posting.id),
             normalized.startAt,
             normalized.endAt,
           );
 
         const nextBookingRequest = await this.bookingsRepository.updatePending(
-          lockedBookingRequest.id,
+          asUuid(lockedBookingRequest.id),
           input.renterId,
           {
             startAt: normalized.startAt,
@@ -627,14 +628,14 @@ export class BookingsService {
   }
 
   async getCancellationQuote(
-    bookingRequestId: string,
-    userId: string,
+    bookingRequestId: Uuid,
+    userId: Uuid,
   ): Promise<BookingCancellationQuoteResult> {
     const bookingRequest = await this.getById(bookingRequestId, userId);
     const assessment = await this.assessCancellation(bookingRequest, userId);
 
     return {
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       cancellable: assessment.failureReasons.length === 0,
       actor: assessment.actor,
       bookingStatus: bookingRequest.status,
@@ -697,7 +698,7 @@ export class BookingsService {
         }
 
         const nextBookingRequest = await this.bookingsRepository.cancel({
-          bookingRequestId: lockedBookingRequest.id,
+          bookingRequestId: asUuid(lockedBookingRequest.id),
           actorUserId: input.actorUserId,
           actor: assessment.actor,
           actorOrganizationId:
@@ -798,7 +799,7 @@ export class BookingsService {
         );
 
         const nextBookingRequest = await this.bookingsRepository.approve(
-          lockedBookingRequest.id,
+          asUuid(lockedBookingRequest.id),
           lockedBookingRequest.organizationId,
           input.note,
           this.addHours(new Date(), APPROVED_BOOKING_HOLD_HOURS),
@@ -853,7 +854,7 @@ export class BookingsService {
         this.assertCanDecide(lockedBookingRequest, "decline");
 
         const nextBookingRequest = await this.bookingsRepository.decline(
-          lockedBookingRequest.id,
+          asUuid(lockedBookingRequest.id),
           lockedBookingRequest.organizationId,
           input.note,
         );
@@ -926,7 +927,7 @@ export class BookingsService {
     return {
       id: bookingRequest.id,
       kind: "booking_request",
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
       organizationId: bookingRequest.organizationId,
@@ -1078,7 +1079,7 @@ export class BookingsService {
     return {
       id: renting.id,
       kind: "renting",
-      rentingId: renting.id,
+      rentingId: asUuid(renting.id),
       bookingRequestId: renting.bookingRequestId,
       postingId: renting.postingId,
       renterId: renting.renterId,
@@ -1212,7 +1213,7 @@ export class BookingsService {
     return {
       id: bookingRequest.id,
       kind: "booking_request",
-      bookingRequestId: bookingRequest.id,
+      bookingRequestId: asUuid(bookingRequest.id),
       postingId: bookingRequest.postingId,
       renterId: bookingRequest.renterId,
       organizationId: bookingRequest.organizationId,
@@ -1491,13 +1492,13 @@ export class BookingsService {
 
   private async refundCancelledPaidBooking(
     bookingRequest: BookingRequestRecord,
-    actorUserId: string,
+    actorUserId: Uuid,
     refundAmount: number,
     reason: string | null,
     currency: string,
   ): Promise<void> {
     const payment = await this.paymentsRepository.findByBookingRequestId(
-      bookingRequest.id,
+      asUuid(bookingRequest.id),
     );
 
     if (!payment) {
@@ -1510,7 +1511,7 @@ export class BookingsService {
       const idempotencyKey = `booking-cancel-${bookingRequest.id}`;
       const { refundId, providerPaymentId } =
         await this.paymentsRepository.createRefundRecord({
-          paymentId: payment.id,
+          paymentId: asUuid(payment.id),
           actorUserId,
           amount: refundAmount,
           reason,
@@ -1546,7 +1547,7 @@ export class BookingsService {
   }
 
   private async requirePostingEditableForRenter(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
@@ -1564,7 +1565,7 @@ export class BookingsService {
   }
 
   private async requirePostingActionableForOrganization(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
@@ -1584,7 +1585,7 @@ export class BookingsService {
     return posting;
   }
 
-  private async requirePosting(postingId: string): Promise<PostingRecord> {
+  private async requirePosting(postingId: Uuid): Promise<PostingRecord> {
     const posting = await this.postingsRepository.findById(postingId);
 
     if (!posting) {
@@ -1595,8 +1596,8 @@ export class BookingsService {
   }
 
   private async requireOrganizationBookingRequest(
-    bookingRequestId: string,
-    actorUserId: string,
+    bookingRequestId: Uuid,
+    actorUserId: Uuid,
     access: "read" | "manage",
   ): Promise<BookingRequestRecord> {
     const bookingRequest =
@@ -1624,7 +1625,7 @@ export class BookingsService {
 
   private async resolveCancellationActor(
     bookingRequest: BookingRequestRecord,
-    userId: string,
+    userId: Uuid,
   ): Promise<BookingCancellationActor> {
     return resolveBookingParticipant(
       this.organizationAccessService,
@@ -1653,7 +1654,7 @@ export class BookingsService {
 
   private async assessCancellation(
     bookingRequest: BookingRequestRecord,
-    userId: string,
+    userId: Uuid,
   ): Promise<BookingCancellationAssessment> {
     const actor = await this.resolveCancellationActor(bookingRequest, userId);
     const reasonRequired = actor === "owner";
@@ -1699,7 +1700,7 @@ export class BookingsService {
     }
 
     const payment = await this.paymentsRepository.findByBookingRequestId(
-      bookingRequest.id,
+      asUuid(bookingRequest.id),
     );
 
     if (!payment) {
@@ -2043,18 +2044,18 @@ export class BookingsService {
       const [rentingOverlap, availabilityOverlap, activeRequestCount] =
         await Promise.all([
           this.rentingsRepository.hasOverlap(
-            posting.id,
+            asUuid(posting.id),
             normalizedResult.normalized.startAt,
             normalizedResult.normalized.endAt,
           ),
           this.bookingsRepository.hasBlockingAvailabilityOverlap({
-            postingId: posting.id,
+            postingId: asUuid(posting.id),
             startAt: normalizedResult.normalized.startAt,
             endAt: normalizedResult.normalized.endAt,
             excludeBookingRequestId: undefined,
           }),
           this.bookingsRepository.countActiveRequestsForRenterPosting({
-            postingId: posting.id,
+            postingId: asUuid(posting.id),
             renterId: input.renterId,
             excludeBookingRequestId: undefined,
           }),
@@ -2207,10 +2208,10 @@ export class BookingsService {
   }
 
   private async assertNoBlockingAvailabilityOverlap(
-    postingId: string,
+    postingId: Uuid,
     startAt: Date,
     endAt: Date,
-    excludeBookingRequestId?: string,
+    excludeBookingRequestId?: Uuid,
   ): Promise<void> {
     const overlap =
       await this.bookingsRepository.hasBlockingAvailabilityOverlap({
@@ -2228,9 +2229,9 @@ export class BookingsService {
   }
 
   private async assertWithinPostingRequestCap(
-    postingId: string,
-    renterId: string,
-    excludeBookingRequestId?: string,
+    postingId: Uuid,
+    renterId: Uuid,
+    excludeBookingRequestId?: Uuid,
   ): Promise<void> {
     const activeRequestCount =
       await this.bookingsRepository.countActiveRequestsForRenterPosting({
@@ -2247,7 +2248,7 @@ export class BookingsService {
   }
 
   private async assertNoRentingOverlap(
-    postingId: string,
+    postingId: Uuid,
     startAt: Date,
     endAt: Date,
   ): Promise<void> {

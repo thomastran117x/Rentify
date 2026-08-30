@@ -1,6 +1,7 @@
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 /**
  * Loads the user behind an already-authenticated actor. The caller has a
@@ -9,7 +10,7 @@ import type { AuthUserRecord } from "@/features/auth/auth.model";
  */
 export async function requireExistingUser(
   authRepository: UsersRepository,
-  userId: string,
+  userId: Uuid,
 ): Promise<AuthUserRecord> {
   const user = await authRepository.findUserById(userId);
 

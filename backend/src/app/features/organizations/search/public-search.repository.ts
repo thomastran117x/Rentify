@@ -6,6 +6,7 @@ import type {
   PublicOrganizationProfileFields,
   PublicOrganizationSummary,
 } from "@/features/organizations/profile/profile.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 type PublicOrganizationRow = {
   id: string;
@@ -83,7 +84,7 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
     organization: PublicOrganizationRow,
   ): PublicOrganizationDetailResult["organization"] {
     return {
-      id: organization.id,
+      id: asUuid(organization.id),
       slug: organization.slug,
       name: organization.name,
       createdAt: new Date(organization.createdAt).toISOString(),

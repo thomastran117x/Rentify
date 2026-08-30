@@ -15,6 +15,7 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class PostingsReviewsService {
   constructor(
@@ -26,8 +27,8 @@ export class PostingsReviewsService {
   ) {}
 
   async create(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
     body: CreatePostingReviewRequestBody,
   ): Promise<PostingReviewRecord> {
     const posting = await this.requirePublishedPosting(postingId);
@@ -59,8 +60,8 @@ export class PostingsReviewsService {
   }
 
   async updateOwn(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
     body: CreatePostingReviewRequestBody,
   ): Promise<PostingReviewRecord> {
     const posting = await this.requirePublishedPosting(postingId);
@@ -88,7 +89,7 @@ export class PostingsReviewsService {
   }
 
   async list(
-    postingId: string,
+    postingId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListPostingReviewsResult> {
@@ -106,8 +107,8 @@ export class PostingsReviewsService {
    * open its form in edit mode regardless of review pagination.
    */
   async getOwn(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
   ): Promise<GetOwnPostingReviewResult> {
     const posting = await this.requirePublishedPosting(postingId);
 
@@ -123,7 +124,7 @@ export class PostingsReviewsService {
     };
   }
 
-  private async requirePublishedPosting(postingId: string) {
+  private async requirePublishedPosting(postingId: Uuid) {
     const posting = await this.postingsRepository.findById(postingId);
 
     if (!posting || !isPostingPubliclyVisible(posting)) {
@@ -134,8 +135,8 @@ export class PostingsReviewsService {
   }
 
   private async isOrganizationMember(
-    organizationId: string,
-    reviewerId: string,
+    organizationId: Uuid,
+    reviewerId: Uuid,
   ): Promise<boolean> {
     const membership = await this.organizationAccessService.findMembership(
       reviewerId,
@@ -146,19 +147,19 @@ export class PostingsReviewsService {
   }
 
   private async hasCompletedRenting(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
   ): Promise<boolean> {
     return this.rentingsRepository.hasEligibleReviewRenting({
       postingId,
-      renterId: reviewerId,
+      renterId: asUuid(reviewerId),
       now: new Date(),
     });
   }
 
   private async assertReviewerIsNotOrganizationMember(
-    organizationId: string,
-    reviewerId: string,
+    organizationId: Uuid,
+    reviewerId: Uuid,
   ): Promise<void> {
     if (await this.isOrganizationMember(organizationId, reviewerId)) {
       throw new ForbiddenError("You cannot review your own posting.");
@@ -166,8 +167,8 @@ export class PostingsReviewsService {
   }
 
   private async assertReviewerIsEligible(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
   ): Promise<void> {
     if (!(await this.hasCompletedRenting(postingId, reviewerId))) {
       throw new ForbiddenError(
@@ -177,8 +178,8 @@ export class PostingsReviewsService {
   }
 
   private toUpsertInput(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
     body: CreatePostingReviewRequestBody,
   ): UpsertPostingReviewInput {
     return {

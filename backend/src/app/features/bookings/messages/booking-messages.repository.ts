@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type { BookingParticipantSide } from "@/features/bookings/booking-participants";
@@ -6,6 +5,7 @@ import type {
   BookingMessageRecord,
   BookingMessagesPagination,
 } from "@/features/bookings/messages/booking-messages.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const AUTHOR_INCLUDE = {
   author: {
@@ -45,23 +45,23 @@ export type BookingMessageEmailContext = Prisma.BookingMessageGetPayload<{
 }>;
 
 export interface CreateBookingMessageInput {
-  bookingRequestId: string;
-  authorId: string;
+  bookingRequestId: Uuid;
+  authorId: Uuid;
   body: string;
   /** The booking's renter, used to derive `authorSide` on the returned record. */
-  renterId: string;
+  renterId: Uuid;
 }
 
 export interface ListBookingMessagesPersistenceInput {
-  bookingRequestId: string;
-  renterId: string;
+  bookingRequestId: Uuid;
+  renterId: Uuid;
   page: number;
   pageSize: number;
 }
 
 export interface BookingMessageSideScopeInput {
-  bookingRequestId: string;
-  renterId: string;
+  bookingRequestId: Uuid;
+  renterId: Uuid;
   side: BookingParticipantSide;
 }
 
@@ -77,7 +77,7 @@ export class BookingMessagesRepository extends BaseRepository {
     const created = await this.executeAsync(() =>
       this.prisma.bookingMessage.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           bookingRequestId: input.bookingRequestId,
           authorId: input.authorId,
           body: input.body,
@@ -156,12 +156,12 @@ export class BookingMessagesRepository extends BaseRepository {
    * still undelivered are touched, so the first ack wins and repeats are free.
    */
   async markDeliveredForSide(input: {
-    bookingRequestId: string;
-    renterId: string;
+    bookingRequestId: Uuid;
+    renterId: Uuid;
     side: BookingParticipantSide;
-    messageIds: string[];
+    messageIds: Uuid[];
     deliveredAt: Date;
-  }): Promise<string[]> {
+  }): Promise<Uuid[]> {
     if (input.messageIds.length === 0) {
       return [];
     }
@@ -191,13 +191,13 @@ export class BookingMessagesRepository extends BaseRepository {
         data: { deliveredAt: input.deliveredAt },
       });
 
-      return pending.map((row) => row.id);
+      return pending.map((row) => asUuid(row.id));
     });
   }
 
   async findById(
-    messageId: string,
-    renterId: string,
+    messageId: Uuid,
+    renterId: Uuid,
   ): Promise<BookingMessageRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.bookingMessage.findUnique({
@@ -216,8 +216,8 @@ export class BookingMessagesRepository extends BaseRepository {
    * report success.
    */
   private buildEligibleWhere(input: {
-    messageId: string;
-    authorId: string;
+    messageId: Uuid;
+    authorId: Uuid;
     notBefore: Date;
   }): Prisma.BookingMessageWhereInput {
     return {
@@ -229,12 +229,12 @@ export class BookingMessagesRepository extends BaseRepository {
   }
 
   async updateBodyIfEligible(input: {
-    messageId: string;
-    authorId: string;
+    messageId: Uuid;
+    authorId: Uuid;
     body: string;
     editedAt: Date;
     notBefore: Date;
-    renterId: string;
+    renterId: Uuid;
   }): Promise<BookingMessageRecord | null> {
     const result = await this.executeAsync(() =>
       this.prisma.bookingMessage.updateMany({
@@ -251,11 +251,11 @@ export class BookingMessagesRepository extends BaseRepository {
   }
 
   async softDeleteIfEligible(input: {
-    messageId: string;
-    authorId: string;
+    messageId: Uuid;
+    authorId: Uuid;
     deletedAt: Date;
     notBefore: Date;
-    renterId: string;
+    renterId: Uuid;
   }): Promise<BookingMessageRecord | null> {
     const result = await this.executeAsync(() =>
       this.prisma.bookingMessage.updateMany({
@@ -278,7 +278,7 @@ export class BookingMessagesRepository extends BaseRepository {
    * organization. One query so the list endpoint can tell each side who they
    * are talking to.
    */
-  async findThreadParties(bookingRequestId: string): Promise<{
+  async findThreadParties(bookingRequestId: Uuid): Promise<{
     organizationName: string;
     renterUsername: string;
   } | null> {
@@ -303,7 +303,7 @@ export class BookingMessagesRepository extends BaseRepository {
   }
 
   async findByIdWithContext(
-    messageId: string,
+    messageId: Uuid,
   ): Promise<BookingMessageEmailContext | null> {
     return this.executeAsync(() =>
       this.prisma.bookingMessage.findUnique({
@@ -352,12 +352,12 @@ export class BookingMessagesRepository extends BaseRepository {
 
   private mapMessage(
     row: BookingMessagePersistence,
-    renterId: string,
+    renterId: Uuid,
   ): BookingMessageRecord {
     return {
-      id: row.id,
-      bookingRequestId: row.bookingRequestId,
-      authorId: row.authorId,
+      id: asUuid(row.id),
+      bookingRequestId: asUuid(row.bookingRequestId),
+      authorId: asUuid(row.authorId),
       authorSide: row.authorId === renterId ? "renter" : "owner",
       authorUsername: row.author?.profile?.username ?? "Unknown",
       body: row.body,

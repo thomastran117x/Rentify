@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { uuidSchemaWithMessage, type Uuid } from "@/configuration/validation/uuid";
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
   ORGANIZATION_SLUG_MIN_LENGTH,
@@ -7,9 +8,6 @@ import {
   isReservedOrganizationSlug,
   looksLikeUuid,
 } from "@/features/organizations/organization-slug";
-
-const resourceIdPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const organizationRoleSchema = z.enum([
   "primary_manager",
@@ -28,10 +26,12 @@ export type OrganizationInviteStatus = z.infer<
   typeof organizationInviteStatusSchema
 >;
 
+// Trimmed before the shape check because `z.guid()` does not trim, and this
+// schema has always accepted padded input.
 export const organizationResourceIdSchema = z
   .string()
   .trim()
-  .regex(resourceIdPattern, "Invalid organization resource id.");
+  .pipe(uuidSchemaWithMessage("Invalid organization resource id."));
 export const organizationInviteTokenSchema = z.string().trim().min(1).max(200);
 
 // A slug in its canonical form. Deliberately performs no normalization so that
@@ -132,7 +132,7 @@ export const sharedOrganizationProfileShape = {
 } as const;
 
 export interface OrganizationSummary {
-  id: string;
+  id: Uuid;
   slug: string;
   name: string;
   role: OrganizationRole;
@@ -145,7 +145,7 @@ export interface OrganizationSummary {
  * detect that they were reached via a retired alias and redirect.
  */
 export interface ResolvedOrganizationReference {
-  organizationId: string;
+  organizationId: Uuid;
   canonicalSlug: string;
   name: string;
   matchedBy: "canonical-slug" | "alias";
@@ -220,14 +220,14 @@ export function pickOrganizationProfileInput(
 }
 
 export interface OrganizationMembershipSummary extends OrganizationSummary {
-  membershipId: string;
+  membershipId: Uuid;
   joinedAt: string;
   isActive: boolean;
 }
 
 export interface OrganizationMemberRecord {
-  membershipId: string;
-  userId: string;
+  membershipId: Uuid;
+  userId: Uuid;
   email: string;
   firstName?: string;
   lastName?: string;
@@ -238,13 +238,13 @@ export interface OrganizationMemberRecord {
 }
 
 export interface OrganizationInvitationActorSummary {
-  id: string;
+  id: Uuid;
   email: string;
   username: string;
 }
 
 export interface OrganizationInvitationRecord {
-  id: string;
+  id: Uuid;
   email: string;
   emailHint: string;
   role: OrganizationRole;
@@ -267,7 +267,7 @@ export type OrganizationSearchSource = "elasticsearch" | "database";
 // intentionally lean: display data (e.g. publishedPostingCount) is hydrated
 // from the database at read time so the index only carries what we search on.
 export interface OrganizationSearchDocument {
-  id: string;
+  id: Uuid;
   name: string;
   description: string | null;
   city: string | null;
@@ -279,9 +279,9 @@ export interface OrganizationSearchDocument {
 }
 
 export interface OrganizationSearchOutboxRecord {
-  id: string;
-  organizationId?: string;
-  reindexRunId?: string;
+  id: Uuid;
+  organizationId?: Uuid;
+  reindexRunId?: Uuid;
   operation: "upsert" | "delete" | "barrier";
   dedupeKey: string;
   targetIndexName?: string;

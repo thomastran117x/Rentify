@@ -5,6 +5,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -28,7 +29,7 @@ export class MfaTotpService {
   }
 
   async beginEnrollment(
-    userId: string,
+    userId: Uuid,
     accountName: string,
   ): Promise<{ secret: string; uri: string }> {
     const existing = await this.mfaTotpRepository.findByUserId(userId);
@@ -83,7 +84,7 @@ export class MfaTotpService {
     return { secret, uri };
   }
 
-  async confirmEnrollment(userId: string, code: string): Promise<void> {
+  async confirmEnrollment(userId: Uuid, code: string): Promise<void> {
     const record = await this.mfaTotpRepository.findByUserId(userId);
 
     if (!record || record.status !== "pending") {
@@ -111,7 +112,7 @@ export class MfaTotpService {
     );
   }
 
-  async verifyCode(userId: string, code: string): Promise<void> {
+  async verifyCode(userId: Uuid, code: string): Promise<void> {
     const record = await this.mfaTotpRepository.findByUserId(userId);
 
     if (!record || record.status !== "active") {
@@ -141,17 +142,17 @@ export class MfaTotpService {
     );
   }
 
-  async disable(userId: string): Promise<void> {
+  async disable(userId: Uuid): Promise<void> {
     await this.mfaTotpRepository.deleteByUserId(userId);
   }
 
   // Cancels an in-progress enrollment by deleting the pending record.
   // A no-op if there is no pending record — leaves an active record untouched.
-  async cancelEnrollment(userId: string): Promise<void> {
+  async cancelEnrollment(userId: Uuid): Promise<void> {
     await this.mfaTotpRepository.deleteByUserIdIfPending(userId);
   }
 
-  async isEnabled(userId: string): Promise<boolean> {
+  async isEnabled(userId: Uuid): Promise<boolean> {
     const record = await this.mfaTotpRepository.findByUserId(userId);
     return record?.status === "active";
   }

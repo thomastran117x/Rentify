@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const MFA_MANAGEMENT_SCOPE = "mfa-management" as const;
 export const MFA_DEVICE_LOGIN_SCOPE = "device-login" as const;
@@ -30,7 +31,7 @@ export type MfaVerificationChallengeFactor = z.infer<
 >;
 
 export interface MfaVerificationProofRecord {
-  userId: string;
+  userId: Uuid;
   sessionId: string;
   scope: MfaVerificationScope;
   factor: MfaVerificationChallengeFactor;

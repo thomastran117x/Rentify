@@ -12,6 +12,7 @@ import {
   resolveUsernameChangeEligibility,
   USERNAME_CHANGE_COOLDOWN_MS,
 } from "@/features/profile/username-change-policy";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type ProfilePersistence = {
   id: string;
@@ -132,7 +133,7 @@ export class ProfileRepository extends BaseRepository {
     };
   }
 
-  async findByUserId(userId: string): Promise<ProfileRecord | null> {
+  async findByUserId(userId: Uuid): Promise<ProfileRecord | null> {
     const profile = await this.executeAsync(() =>
       this.prisma.profile.findUnique({
         where: {
@@ -158,7 +159,7 @@ export class ProfileRepository extends BaseRepository {
   }
 
   async findRecommendationPersonalizationEnabledByUserId(
-    userId: string,
+    userId: Uuid,
   ): Promise<boolean | null> {
     const prismaProfile = this.prisma.profile as unknown as {
       findUnique: (args: unknown) => Promise<{
@@ -314,8 +315,8 @@ export class ProfileRepository extends BaseRepository {
     });
 
     return {
-      id: profile.id,
-      userId: profile.userId,
+      id: asUuid(profile.id),
+      userId: asUuid(profile.userId),
       email: profile.user.email,
       firstName: profile.user.firstName ?? undefined,
       lastName: profile.user.lastName ?? undefined,
@@ -341,8 +342,8 @@ export class ProfileRepository extends BaseRepository {
 
   private mapPublicProfile(profile: ProfilePersistence): PublicProfileRecord {
     return {
-      id: profile.id,
-      userId: profile.userId,
+      id: asUuid(profile.id),
+      userId: asUuid(profile.userId),
       email: profile.user.email,
       firstName: profile.user.firstName ?? undefined,
       lastName: profile.user.lastName ?? undefined,

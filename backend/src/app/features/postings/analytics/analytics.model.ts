@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_PAGE_SIZE } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const postingAnalyticsWindowSchema = z.enum(["7d", "30d", "all"]);
 export const postingAnalyticsGranularitySchema = z.enum(["hour", "day"]);
@@ -105,7 +106,7 @@ export interface OwnerPostingsAnalyticsSummary {
 }
 
 export interface PostingAnalyticsListItem {
-  postingId: string;
+  postingId: Uuid;
   name: string;
   status: string;
   primaryPhotoUrl?: string;
@@ -137,7 +138,7 @@ export interface PostingAnalyticsBucket {
 }
 
 export interface PostingAnalyticsDetail {
-  postingId: string;
+  postingId: Uuid;
   name: string;
   status: string;
   primaryPhotoUrl?: string;
@@ -151,15 +152,15 @@ export interface PostingAnalyticsDetail {
 }
 
 interface BasePostingAnalyticsEventInput {
-  postingId: string;
-  organizationId: string;
+  postingId: Uuid;
+  organizationId: Uuid;
   occurredAt: string;
 }
 
 export interface EnqueuePostingViewedEventInput
   extends BasePostingAnalyticsEventInput {
   viewerHash: string;
-  userId?: string;
+  userId?: Uuid;
   ipAddressHash?: string;
   userAgentHash?: string;
   deviceType: string;
@@ -281,9 +282,9 @@ export type PostingAnalyticsEventType =
   | "renting_confirmed";
 
 export interface PostingAnalyticsOutboxRecord {
-  id: string;
-  postingId: string;
-  organizationId: string;
+  id: Uuid;
+  postingId: Uuid;
+  organizationId: Uuid;
   eventType: PostingAnalyticsEventType;
   payload: Record<string, unknown>;
   attempts: number;
@@ -295,10 +296,16 @@ export interface PostingAnalyticsOutboxRecord {
   updatedAt: string;
 }
 
+// The owning organization is resolved from the actor's active membership in
+// PostingAnalyticsService, so callers neither know nor supply it.
 export interface PostingAnalyticsSummaryInput {
-  actorUserId: string;
-  organizationId: string;
+  actorUserId: Uuid;
   window: PostingAnalyticsWindow;
+}
+
+/** PostingAnalyticsSummaryInput once the service has resolved the owning organization. */
+export interface PostingAnalyticsSummaryPersistenceInput extends PostingAnalyticsSummaryInput {
+  organizationId: Uuid;
 }
 
 export interface ListPostingAnalyticsInput
@@ -307,8 +314,18 @@ export interface ListPostingAnalyticsInput
   pageSize: number;
 }
 
+/** ListPostingAnalyticsInput once the service has resolved the owning organization. */
+export interface ListPostingAnalyticsPersistenceInput extends ListPostingAnalyticsInput {
+  organizationId: Uuid;
+}
+
 export interface PostingAnalyticsDetailInput
   extends PostingAnalyticsSummaryInput {
-  postingId: string;
+  postingId: Uuid;
   granularity: PostingAnalyticsGranularity;
+}
+
+/** PostingAnalyticsDetailInput once the service has resolved the owning organization. */
+export interface PostingAnalyticsDetailPersistenceInput extends PostingAnalyticsDetailInput {
+  organizationId: Uuid;
 }

@@ -1,7 +1,9 @@
 import { BaseRepository } from "@/features/base/base.repository";
+import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export type MfaVerificationSecurityContext = {
-  id: string;
+  id: Uuid;
   email: string;
   firstName?: string;
   emailVerified: boolean;
@@ -16,7 +18,7 @@ export type MfaVerificationSecurityContext = {
 
 export class MfaVerificationRepository extends BaseRepository {
   async findMfaVerificationSecurityContextByUserId(
-    userId: string,
+    userId: Uuid,
   ): Promise<MfaVerificationSecurityContext | null> {
     const user = await this.executeAsync(() =>
       this.prisma.user.findUnique({
@@ -46,7 +48,7 @@ export class MfaVerificationRepository extends BaseRepository {
     }
 
     return {
-      id: user.id,
+      id: asUuid(user.id),
       email: user.email,
       firstName: user.firstName ?? undefined,
       emailVerified: user.emailVerified,

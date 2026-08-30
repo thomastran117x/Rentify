@@ -4,6 +4,7 @@ import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaVerificationScope } from "./mfa-verification.model";
 import type { MfaVerificationService } from "./mfa-verification.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export async function requireRecentMfaVerification(
   request: Request,
@@ -17,7 +18,7 @@ export async function requireRecentMfaVerification(
   }
 
   await mfaVerificationService.assertRecentVerification({
-    userId: auth.sub,
+    userId: asUuid(auth.sub),
     sessionId: auth.sessionId,
     scope,
     client: request.client,

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -14,6 +13,7 @@ import type {
   UpdateRentingInstructionsInput,
 } from "@/features/rentings/rentings.model";
 import type { PostingPricing } from "@/features/postings/postings.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type RentingPersistence = Prisma.RentingGetPayload<{
   include: {
@@ -32,8 +32,8 @@ type RentingPersistence = Prisma.RentingGetPayload<{
 
 export class RentingsRepository extends BaseRepository {
   async convertApprovedBookingRequest(
-    bookingRequestId: string,
-    organizationId: string,
+    bookingRequestId: Uuid,
+    organizationId: Uuid,
   ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
       try {
@@ -122,7 +122,7 @@ export class RentingsRepository extends BaseRepository {
 
           await transaction.postingAvailabilityBlock.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               postingId: bookingRequest.postingId,
               startAt: bookingRequest.startAt,
               endAt: bookingRequest.endAt,
@@ -133,7 +133,7 @@ export class RentingsRepository extends BaseRepository {
 
           const renting = await transaction.renting.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               postingId: bookingRequest.postingId,
               bookingRequestId: bookingRequest.id,
               renterId: bookingRequest.renterId,
@@ -194,7 +194,7 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async promoteReturnDueForRenting(
-    rentingId: string,
+    rentingId: Uuid,
     now: Date,
   ): Promise<void> {
     await this.executeAsync(() =>
@@ -214,7 +214,7 @@ export class RentingsRepository extends BaseRepository {
     );
   }
 
-  async promoteReturnDueForUser(userId: string, now: Date): Promise<void> {
+  async promoteReturnDueForUser(userId: Uuid, now: Date): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {
@@ -321,7 +321,7 @@ export class RentingsRepository extends BaseRepository {
     };
   }
 
-  async listByRenterForDashboard(renterId: string): Promise<RentingRecord[]> {
+  async listByRenterForDashboard(renterId: Uuid): Promise<RentingRecord[]> {
     const rentings = await this.executeAsync(() =>
       this.prisma.renting.findMany({
         where: {
@@ -416,7 +416,7 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async markCheckInReady(
-    rentingId: string,
+    rentingId: Uuid,
     now: Date,
   ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
@@ -481,7 +481,7 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async markCheckInComplete(
-    rentingId: string,
+    rentingId: Uuid,
     now: Date,
   ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
@@ -540,7 +540,7 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async markCompleted(
-    rentingId: string,
+    rentingId: Uuid,
     now: Date,
   ): Promise<RentingRecord | null> {
     return this.executeAsync(async () => {
@@ -638,7 +638,7 @@ export class RentingsRepository extends BaseRepository {
       const updated = await this.prisma.$transaction(async (transaction) => {
         await transaction.rentingDispute.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             rentingId: input.rentingId,
             openedByUserId: input.actorUserId,
             reason: input.reason,
@@ -675,7 +675,7 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async hasOverlap(
-    postingId: string,
+    postingId: Uuid,
     startAt: Date,
     endAt: Date,
     excludeRentingId?: string,
@@ -711,8 +711,8 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async hasEligibleReviewRenting(input: {
-    postingId: string;
-    renterId: string;
+    postingId: Uuid;
+    renterId: Uuid;
     now: Date;
   }): Promise<boolean> {
     const match = await this.executeAsync(() =>
@@ -736,8 +736,8 @@ export class RentingsRepository extends BaseRepository {
   }
 
   async hasEligibleReviewRentingForOrganization(input: {
-    organizationId: string;
-    renterId: string;
+    organizationId: Uuid;
+    renterId: Uuid;
     now: Date;
   }): Promise<boolean> {
     const match = await this.executeAsync(() =>
@@ -762,11 +762,11 @@ export class RentingsRepository extends BaseRepository {
 
   private mapRenting(renting: RentingPersistence): RentingRecord {
     return {
-      id: renting.id,
-      postingId: renting.postingId,
-      bookingRequestId: renting.bookingRequestId,
-      renterId: renting.renterId,
-      organizationId: renting.organizationId,
+      id: asUuid(renting.id),
+      postingId: asUuid(renting.postingId),
+      bookingRequestId: asUuid(renting.bookingRequestId),
+      renterId: asUuid(renting.renterId),
+      organizationId: asUuid(renting.organizationId),
       status: renting.status as RentingStatus,
       startAt: renting.startAt.toISOString(),
       endAt: renting.endAt.toISOString(),
@@ -788,7 +788,7 @@ export class RentingsRepository extends BaseRepository {
       createdAt: renting.createdAt.toISOString(),
       updatedAt: renting.updatedAt.toISOString(),
       posting: {
-        id: renting.posting.id,
+        id: asUuid(renting.posting.id),
         name: renting.posting.name,
         primaryPhotoUrl: renting.posting.photos[0]?.blobUrl,
       },
@@ -806,9 +806,9 @@ export class RentingsRepository extends BaseRepository {
     updatedAt: Date;
   }): RentingDisputeRecord {
     return {
-      id: dispute.id,
-      rentingId: dispute.rentingId,
-      openedByUserId: dispute.openedByUserId,
+      id: asUuid(dispute.id),
+      rentingId: asUuid(dispute.rentingId),
+      openedByUserId: asUuid(dispute.openedByUserId),
       reason: dispute.reason,
       details: dispute.details ?? undefined,
       createdAt: dispute.createdAt.toISOString(),

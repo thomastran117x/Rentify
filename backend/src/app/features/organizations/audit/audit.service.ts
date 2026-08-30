@@ -38,6 +38,7 @@ import {
   type RestoreOrganizationVersionInput,
   type RestoreOrganizationVersionResult,
 } from "@/features/organizations/audit/audit.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class OrganizationAuditService {
   private readonly logger = loggerFactory.forClass(
@@ -113,7 +114,7 @@ export class OrganizationAuditService {
   }
 
   async hasRestorableOrganizationLogoReference(input: {
-    organizationId: string;
+    organizationId: Uuid;
     blobName: string;
   }): Promise<boolean> {
     return this.repository.hasRestorableOrganizationLogoReference(input);
@@ -164,9 +165,9 @@ export class OrganizationAuditService {
         const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const restored =
           await this.organizationsMembersRepository.restoreMembership({
-            membershipId: String(snapshot.membershipId ?? auditLog.resourceId),
+            membershipId: asUuid(String(snapshot.membershipId ?? auditLog.resourceId)),
             organizationId: input.organizationId,
-            userId: String(snapshot.userId ?? ""),
+            userId: asUuid(String(snapshot.userId ?? "")),
             role: String(snapshot.role ?? "operator") as OrganizationRole,
           });
         afterSnapshot = restored;
@@ -264,7 +265,7 @@ export class OrganizationAuditService {
       beforeSnapshot: auditLog.afterSnapshot,
       afterSnapshot,
       restorable: false,
-      restoredFromAuditId: auditLog.id,
+      restoredFromAuditId: asUuid(auditLog.id),
     });
 
     if (
@@ -401,8 +402,8 @@ export class OrganizationAuditService {
   }
 
   private async requireManager(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<void> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,

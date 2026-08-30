@@ -8,6 +8,7 @@ import type {
   PostingFamily,
   PostingSubtype,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export type RecommendationReasonCode =
   | "matched_subtype"
@@ -24,7 +25,7 @@ export interface RecommendationAffinityScore {
 }
 
 export interface RecommendationCandidateRecord {
-  postingId: string;
+  postingId: Uuid;
   score: number;
   reasonCodes: RecommendationReasonCode[];
 }
@@ -37,9 +38,9 @@ export interface RecommendationSignalCounts {
 }
 
 export interface RecommendationRefreshJobRecord {
-  id: string;
+  id: Uuid;
   jobType: RecommendationRefreshJobType;
-  userId?: string;
+  userId?: Uuid;
   segmentType?: RecommendationPopularSegmentType;
   segmentValue?: string;
   attempts: number;
@@ -49,7 +50,7 @@ export interface RecommendationRefreshJobRecord {
 }
 
 export interface RecommendationActivityRow {
-  postingId: string;
+  postingId: Uuid;
   eventType: RecommendationActivityEventType;
   count: number;
   lastOccurredAt: string;
@@ -59,8 +60,8 @@ export interface RecommendationActivityRow {
 }
 
 export interface RecommendationPostingCandidate {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   family: PostingFamily;
   subtype: PostingSubtype;
   tags: string[];
@@ -69,7 +70,7 @@ export interface RecommendationPostingCandidate {
 }
 
 export interface UserRecommendationProfileRecord {
-  userId: string;
+  userId: Uuid;
   qualified: boolean;
   activityWindowStartAt: string;
   lastSignalAt?: string;
@@ -82,7 +83,7 @@ export interface UserRecommendationProfileRecord {
 }
 
 export interface UserRecommendationSnapshotRecord {
-  userId: string;
+  userId: Uuid;
   generatedAt: string;
   sourceLastSignalAt?: string;
   candidateCount: number;
