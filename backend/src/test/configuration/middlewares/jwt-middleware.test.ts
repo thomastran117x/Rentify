@@ -19,6 +19,9 @@ import {
   toTestContext,
   type TestContext,
 } from "../../support/mock-http";
+import { testUuid } from "../../support/uuid";
+
+const POSTING_ID = testUuid(2000, 123);
 
 class FakeTokenService {
   constructor(
@@ -569,7 +572,7 @@ describe("jwt middleware helpers", () => {
         client: ClientRequestContext,
         viewerId?: string,
       ) => {
-        expect(posting.id).toBe("posting-123");
+        expect(posting.id).toBe(POSTING_ID);
         expect(client.device.id).toBe("device-1");
         expect(viewerId).toBeUndefined();
       },
@@ -596,9 +599,9 @@ describe("jwt middleware helpers", () => {
       {} as any,
     );
     const context = createContext({
-      url: "https://example.test/postings/posting-123",
+      url: `https://example.test/postings/${POSTING_ID}`,
       params: {
-        id: "posting-123",
+        id: POSTING_ID,
       },
     });
 
@@ -610,7 +613,7 @@ describe("jwt middleware helpers", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      data: { id: "posting-123", organizationId: "org-1" },
+      data: { id: POSTING_ID, organizationId: "org-1" },
       error: null,
       message: "Request completed successfully.",
       meta: { requestId: "unknown" },

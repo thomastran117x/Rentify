@@ -23,6 +23,10 @@ import type {
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { testUuid } from "../../support/uuid";
+
+const PAYMENT_ONE_ID = testUuid(3000, 1);
+const PAYMENT_TWO_ID = testUuid(3000, 2);
 
 class FakeTokenService {
   constructor(
@@ -217,7 +221,7 @@ describe("authorization", () => {
     const ownerContext = createContext({
       authorization: "Bearer owner-token",
       params: {
-        id: "payment-1",
+        id: PAYMENT_ONE_ID,
       },
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
@@ -230,7 +234,7 @@ describe("authorization", () => {
     const adminContext = createContext({
       authorization: "Bearer admin-token",
       params: {
-        id: "payment-2",
+        id: PAYMENT_TWO_ID,
       },
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });
