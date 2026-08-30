@@ -7,7 +7,7 @@ import {
   postingPricingSchema,
   type PostingCancellationPolicy,
 } from "@/features/postings/postings.model";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { uuidSchema, type Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_BOOKING_NOTE_LENGTH = 1000;
 export const MAX_BOOKING_DECISION_NOTE_LENGTH = 1000;
@@ -191,7 +191,7 @@ export const ownerBookingDashboardQuerySchema = z.object({
   sort: bookingDashboardSortSchema.default("urgency"),
   status: bookingRequestStatusSchema.optional(),
   actionNeeded: ownerBookingDashboardActionNeededSchema.optional(),
-  postingId: z.string().trim().min(1).optional(),
+  postingId: z.string().trim().pipe(uuidSchema).optional(),
 });
 
 export type BookingRequestStatus = z.infer<typeof bookingRequestStatusSchema>;

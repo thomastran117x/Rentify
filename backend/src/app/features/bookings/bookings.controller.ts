@@ -416,7 +416,7 @@ export class BookingsController {
       sort: query.sort,
       status: query.status,
       actionNeeded: query.actionNeeded,
-      postingId: asOptionalUuid(query.postingId),
+      postingId: query.postingId,
     };
   }
 
