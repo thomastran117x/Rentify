@@ -2,6 +2,11 @@
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { createTestContext, invoke } from "../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+
+const PAYMENT_ID = testUuid(3000, 1);
+const USER_ID = testUuid(1000, 1);
+const BOOKING_ID = testUuid(1020, 1);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -11,7 +16,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -53,7 +58,7 @@ describe("PaymentsController", () => {
 
   it("creates booking payment sessions from auth, route params, and idempotency input", async () => {
     const createPaymentSession = jest.fn(async () => ({
-      id: "payment-1",
+      id: PAYMENT_ID,
       checkoutUrl: "https://payments.example.com/checkout",
     }));
     const controller = new PaymentsController({
@@ -64,7 +69,7 @@ describe("PaymentsController", () => {
       controller.createSessionForBooking,
       createContext({
         params: {
-          id: "booking-1",
+          id: BOOKING_ID,
         },
         body: {
           idempotencyKey: "booking-1-payment",
@@ -73,8 +78,8 @@ describe("PaymentsController", () => {
     );
 
     expect(createPaymentSession).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      renterId: "user-1",
+      bookingRequestId: BOOKING_ID,
+      renterId: USER_ID,
       idempotencyKey: "booking-1-payment",
     });
     expect(response.status).toBe(201);
@@ -100,8 +105,7 @@ describe("PaymentsController", () => {
     const response = await invoke(controller.listPayouts, createContext());
 
     expect(listPayouts).toHaveBeenCalledWith({
-      actorUserId: "user-1",
-      organizationId: "",
+      actorUserId: USER_ID,
       page: 2,
       pageSize: 5,
       status: "scheduled",
@@ -151,21 +155,21 @@ describe("PaymentsController", () => {
 
   it("maps retry, refund, get-by-id, and reconcile calls to the service layer", async () => {
     const service = {
-      getPaymentById: jest.fn(async () => ({ id: "payment-1" })),
+      getPaymentById: jest.fn(async () => ({ id: PAYMENT_ID })),
       retryPayment: jest.fn(async () => ({
-        id: "payment-1",
+        id: PAYMENT_ID,
         status: "processing",
       })),
       createRefund: jest.fn(async () => ({ id: "refund-1" })),
       reconcilePayment: jest.fn(async () => ({
-        id: "payment-1",
+        id: PAYMENT_ID,
         status: "succeeded",
       })),
     };
     const controller = new PaymentsController(service as any);
     const context = createContext({
       params: {
-        id: "payment-1",
+        id: PAYMENT_ID,
       },
       body: {
         idempotencyKey: "retry-1",
@@ -179,45 +183,45 @@ describe("PaymentsController", () => {
     await invoke(controller.createRefund, context);
     await invoke(controller.reconcile, context);
 
-    expect(service.getPaymentById).toHaveBeenCalledWith("payment-1", "user-1");
+    expect(service.getPaymentById).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
     expect(service.retryPayment).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      renterId: "user-1",
+      paymentId: PAYMENT_ID,
+      renterId: USER_ID,
       idempotencyKey: "retry-1",
     });
     expect(service.createRefund).toHaveBeenCalledWith({
-      paymentId: "payment-1",
-      actorUserId: "user-1",
+      paymentId: PAYMENT_ID,
+      actorUserId: USER_ID,
       amount: 25,
       reason: "guest_request",
       idempotencyKey: "retry-1",
     });
     expect(service.reconcilePayment).toHaveBeenCalledWith(
-      "payment-1",
-      "user-1",
+      PAYMENT_ID,
+      USER_ID,
     );
   });
 
   it("maps get-by-booking-request calls to the service layer", async () => {
     const service = {
-      getPaymentByBookingRequest: jest.fn(async () => ({ id: "payment-1" })),
+      getPaymentByBookingRequest: jest.fn(async () => ({ id: PAYMENT_ID })),
     };
     const controller = new PaymentsController(service as any);
     const context = createContext({
       params: {
-        id: "booking-1",
+        id: BOOKING_ID,
       },
     });
 
     const response = await invoke(controller.getByBookingRequest, context);
 
     expect(service.getPaymentByBookingRequest).toHaveBeenCalledWith(
-      "booking-1",
-      "user-1",
+      BOOKING_ID,
+      USER_ID,
     );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      data: { id: "payment-1" },
+      data: { id: PAYMENT_ID },
     });
   });
 

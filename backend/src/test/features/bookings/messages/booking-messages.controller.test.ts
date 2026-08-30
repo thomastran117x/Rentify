@@ -3,6 +3,11 @@ import type { JwtClaims } from "@/features/auth/token/token.service";
 import { BookingMessagesController } from "@/features/bookings/messages/booking-messages.controller";
 import type { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import type { TokenService } from "@/features/auth/token/token.service";
+import { testUuid } from "../../../support/uuid";
+
+const BOOKING_ID = testUuid(1020, 1);
+const USER_ID = testUuid(1000, 1);
+const MESSAGE_ID = testUuid(1030, 1);
 
 const mockRequireJwtAuth = jest.fn();
 const mockRequireSessionAuth = jest.fn();
@@ -14,7 +19,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -36,7 +41,7 @@ function createContext(options?: { body?: unknown; url?: string }) {
     method: "POST",
     url: options?.url ?? "/booking-requests/booking-1/messages",
     body: options?.body ?? {},
-    params: { id: "booking-1", messageId: "message-1" },
+    params: { id: BOOKING_ID, messageId: MESSAGE_ID },
     state: {
       requestId: "request-1",
       container: { resolve: () => ({ inspectRequest: () => [] }) },
@@ -46,7 +51,7 @@ function createContext(options?: { body?: unknown; url?: string }) {
 
 function createService(overrides: Record<string, unknown> = {}) {
   return {
-    send: jest.fn(async () => ({ id: "message-1" })),
+    send: jest.fn(async () => ({ id: MESSAGE_ID })),
     list: jest.fn(async () => ({
       messages: [],
       pagination: {
@@ -60,12 +65,12 @@ function createService(overrides: Record<string, unknown> = {}) {
       unreadCount: 0,
     })),
     markRead: jest.fn(async () => ({
-      bookingRequestId: "booking-1",
+      bookingRequestId: BOOKING_ID,
       markedCount: 2,
       readAt: "2026-08-10T12:00:00.000Z",
     })),
     authorizeStream: jest.fn(async () => ({
-      bookingRequestId: "booking-1",
+      bookingRequestId: BOOKING_ID,
       side: "renter" as const,
     })),
     createSocketTicket: jest.fn(async () => ({
@@ -123,8 +128,8 @@ describe("BookingMessagesController", () => {
 
       expect(response.status).toBe(201);
       expect(service.send).toHaveBeenCalledWith({
-        bookingRequestId: "booking-1",
-        authorId: "user-1",
+        bookingRequestId: BOOKING_ID,
+        authorId: USER_ID,
         body,
       });
 
@@ -132,7 +137,7 @@ describe("BookingMessagesController", () => {
       expect(payload).toMatchObject({
         success: true,
         message: "Message sent successfully.",
-        data: { id: "message-1" },
+        data: { id: MESSAGE_ID },
       });
     });
   });
@@ -149,8 +154,8 @@ describe("BookingMessagesController", () => {
 
       expect(response.status).toBe(200);
       expect(service.list).toHaveBeenCalledWith({
-        bookingRequestId: "booking-1",
-        actorUserId: "user-1",
+        bookingRequestId: BOOKING_ID,
+        actorUserId: USER_ID,
         page: 1,
         pageSize: 20,
       });
@@ -207,7 +212,7 @@ describe("BookingMessagesController", () => {
   describe("edit and remove", () => {
     it("edits a message through the service", async () => {
       const service = createService({
-        edit: jest.fn(async () => ({ id: "message-1", body: "Updated" })),
+        edit: jest.fn(async () => ({ id: MESSAGE_ID, body: "Updated" })),
       });
       const controller = new BookingMessagesController(
         service,
@@ -221,9 +226,9 @@ describe("BookingMessagesController", () => {
 
       expect(response.status).toBe(200);
       expect(service.edit).toHaveBeenCalledWith({
-        bookingRequestId: "booking-1",
-        messageId: "message-1",
-        actorUserId: "user-1",
+        bookingRequestId: BOOKING_ID,
+        messageId: MESSAGE_ID,
+        actorUserId: USER_ID,
         body: "Updated",
       });
     });
@@ -243,7 +248,7 @@ describe("BookingMessagesController", () => {
 
     it("deletes a message through the service", async () => {
       const service = createService({
-        remove: jest.fn(async () => ({ id: "message-1", deletedAt: "now" })),
+        remove: jest.fn(async () => ({ id: MESSAGE_ID, deletedAt: "now" })),
       });
       const controller = new BookingMessagesController(
         service,
@@ -254,9 +259,9 @@ describe("BookingMessagesController", () => {
 
       expect(response.status).toBe(200);
       expect(service.remove).toHaveBeenCalledWith({
-        bookingRequestId: "booking-1",
-        messageId: "message-1",
-        actorUserId: "user-1",
+        bookingRequestId: BOOKING_ID,
+        messageId: MESSAGE_ID,
+        actorUserId: USER_ID,
       });
     });
   });
@@ -276,8 +281,8 @@ describe("BookingMessagesController", () => {
       // The session travels with the ticket so the socket it opens can be
       // rechecked against a logout or a token-version bump later.
       expect(service.createSocketTicket).toHaveBeenCalledWith(
-        "booking-1",
-        "user-1",
+        BOOKING_ID,
+        USER_ID,
         { sessionId: null, tokenVersion: 0 },
       );
       // Delivered as a scoped HttpOnly cookie, never echoed in the body.
@@ -306,8 +311,8 @@ describe("BookingMessagesController", () => {
       await invoke(controller.socketTicket, createContext());
 
       expect(service.createSocketTicket).toHaveBeenCalledWith(
-        "booking-1",
-        "user-1",
+        BOOKING_ID,
+        USER_ID,
         { sessionId: "session-9", tokenVersion: 4 },
       );
     });
@@ -341,7 +346,7 @@ describe("BookingMessagesController", () => {
       const response = await invoke(controller.markRead, createContext());
       const payload = await response.json();
 
-      expect(service.markRead).toHaveBeenCalledWith("booking-1", "user-1");
+      expect(service.markRead).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
       expect(payload).toMatchObject({
         message: "Messages marked as read.",
         data: { markedCount: 2 },

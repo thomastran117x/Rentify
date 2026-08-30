@@ -530,7 +530,6 @@ describe("PostingsController", () => {
     expect(createDraft).toHaveBeenCalledWith(
       "owner-1",
       expect.objectContaining({
-        organizationId: "",
         availabilityBlocks: [
           {
             startAt: "2026-05-01T00:00:00.000Z",
@@ -1199,14 +1198,12 @@ describe("PostingsController", () => {
     expect(getOwnerSummary).toHaveBeenCalledWith("owner-1", "30d");
     expect(listOwnerPostingsAnalytics).toHaveBeenCalledWith({
       actorUserId: "owner-1",
-      organizationId: "",
       page: 3,
       pageSize: 7,
       window: "all",
     });
     expect(getPostingAnalyticsDetail).toHaveBeenCalledWith({
       actorUserId: "owner-1",
-      organizationId: "",
       postingId: "posting-1",
       window: "all",
       granularity: "hour",
