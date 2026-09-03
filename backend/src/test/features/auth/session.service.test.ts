@@ -6,6 +6,8 @@ import type {
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { testUuid } from "../../support/uuid";
+const DEVICE_1_ID = testUuid(9200, 895443);
+const AUTH_ID = testUuid(9000, 5915);
 
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
@@ -13,7 +15,7 @@ const USER_1_ID = testUuid(9000, 994257);
 function createClient(): ClientRequestContext {
   return {
     ip: "203.0.113.10",
-    device: { id: "device-1", type: "desktop", isMobile: false },
+    device: { id: DEVICE_1_ID, type: "desktop", isMobile: false },
   } as ClientRequestContext;
 }
 
@@ -53,7 +55,7 @@ function createAuthContext(
     auth: {
       authMethod: "jwt",
       sub: USER_1_ID,
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       sessionId: "session-1",
       iat: 1,
       exp: 999_999,
@@ -77,7 +79,7 @@ function createHarness() {
     ),
     verifyRefreshToken: jest.fn(async () => ({
       sub: USER_1_ID,
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       rememberMe: true,
       sessionId: "session-1",
     })),
@@ -87,12 +89,12 @@ function createHarness() {
   };
   const deviceService = {
     evaluateSuccessfulAuthentication: jest.fn(async () => ({
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       known: false,
       knownByIp: true,
     })),
     evaluateExistingSessionDevice: jest.fn(async () => ({
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       known: true,
       knownByIp: true,
     })),
@@ -118,12 +120,12 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
 
     await harness.service.authenticateVerifiedUser(user, {
       client: createClient(),
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
     });
 
     expect(
       harness.deviceService.evaluateSuccessfulAuthentication,
-    ).toHaveBeenCalledWith(user, expect.anything(), "device-1");
+    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID);
     expect(
       harness.deviceService.evaluateExistingSessionDevice,
     ).not.toHaveBeenCalled();
@@ -135,13 +137,13 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
     await expect(
       harness.service.authenticateVerifiedUser(createUser(), {
         client: createClient(),
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toMatchObject({
       accessToken: "access-token",
       refreshToken: "refresh-token",
       refreshTokenExpiresInSeconds: 2_592_000,
-      device: { deviceId: "device-1", known: false, knownByIp: true },
+      device: { deviceId: DEVICE_1_ID, known: false, knownByIp: true },
       user: { id: USER_1_ID, username: "test-user" },
     });
   });
@@ -151,7 +153,7 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
 
     const result = await harness.service.authenticateVerifiedUser(
       createUser(),
-      { client: createClient(), deviceId: "device-1", rememberMe: true },
+      { client: createClient(), deviceId: DEVICE_1_ID, rememberMe: true },
     );
 
     expect(
@@ -169,7 +171,7 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
 
     await harness.service.authenticateVerifiedUser(createUser(), {
       client: createClient(),
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
     });
 
     const accessTokenCalls = harness.tokenService.createAccessToken.mock
@@ -214,12 +216,12 @@ describe("AuthSessionService.reissueSessionForUser", () => {
     await harness.service.reissueSessionForUser(
       user,
       createClient(),
-      "device-1",
+      DEVICE_1_ID,
     );
 
     expect(
       harness.deviceService.evaluateExistingSessionDevice,
-    ).toHaveBeenCalledWith(user, expect.anything(), "device-1");
+    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID);
     expect(
       harness.deviceService.evaluateSuccessfulAuthentication,
     ).not.toHaveBeenCalled();
@@ -231,7 +233,7 @@ describe("AuthSessionService.reissueSessionForUser", () => {
     const result = await harness.service.reissueSessionForUser(
       createUser(),
       createClient(),
-      "device-1",
+      DEVICE_1_ID,
     );
 
     expect(
@@ -246,7 +248,7 @@ describe("AuthSessionService.reissueSessionForUser", () => {
     await harness.service.reissueSessionForUser(
       createUser({ tokenVersion: 9 }),
       createClient(),
-      "device-1",
+      DEVICE_1_ID,
     );
 
     expect(harness.tokenService.createAccessToken).toHaveBeenCalledWith(
@@ -273,7 +275,7 @@ describe("AuthSessionService.localVerify", () => {
             deviceId: "device-99",
             iat: 1,
             exp: 999_999,
-          } as AuthRequestContext["auth"],
+          } as AuthRequestContext[AUTH_ID],
         }),
       ),
     ).resolves.toMatchObject({
@@ -317,7 +319,7 @@ describe("AuthSessionService.refresh", () => {
     const harness = createHarness();
     harness.tokenService.verifyRefreshToken.mockResolvedValue({
       sub: USER_1_ID,
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       rememberMe: false,
       sessionId: undefined,
     } as never);
@@ -349,7 +351,7 @@ describe("AuthSessionService.refresh", () => {
     });
 
     expect(harness.tokenService.createAccessToken).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: "device-1" }),
+      expect.objectContaining({ deviceId: DEVICE_1_ID }),
     );
   });
 
@@ -378,7 +380,7 @@ describe("AuthSessionService.logout", () => {
       ),
     ).resolves.toMatchObject({
       loggedOut: true,
-      auth: { userId: USER_1_ID, deviceId: "device-1" },
+      auth: { userId: USER_1_ID, deviceId: DEVICE_1_ID },
     });
 
     expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
@@ -416,7 +418,7 @@ describe("AuthSessionService.logout", () => {
           scopes: ["auth:read"],
           personalAccessTokenId: "pat-1",
           personalAccessTokenName: "CI token",
-        } satisfies AuthRequestContext["auth"],
+        } satisfies AuthRequestContext[AUTH_ID],
       }),
     );
 

@@ -16,9 +16,9 @@ const MESSAGE_1_ID = testUuid(9000, 597033);
 const OPERATOR_1_ID = testUuid(9000, 402986);
 const OUTSIDER_1_ID = testUuid(9000, 796024);
 
-const RENTER_ID = "renter-1";
+const RENTER_ID = testUuid(9100, 235000);
 const ORG_ID = "org-1";
-const BOOKING_ID = "booking-1";
+const BOOKING_ID = testUuid(9100, 996753);
 const PRIMARY_MANAGER_ID = "manager-1";
 
 function createBookingRequest(overrides: Record<string, unknown> = {}) {

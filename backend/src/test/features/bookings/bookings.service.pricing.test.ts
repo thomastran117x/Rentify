@@ -16,6 +16,11 @@ import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pri
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
 import { testUuid } from "../../support/uuid";
 
+const BOOKING_1_ID = testUuid(9100, 1);
+const ORG_1_ID = testUuid(9100, 2);
+const POSTING_1_ID = testUuid(9100, 3);
+const RENTER_1_ID = testUuid(9100, 4);
+
 const R1_ID = testUuid(9000, 3583);
 const R2_ID = testUuid(9000, 3584);
 
@@ -23,8 +28,8 @@ function createPostingRecord(
   overrides: Partial<PostingRecord> = {},
 ): PostingRecord {
   return {
-    id: "posting-1",
-    organizationId: "org-1",
+    id: POSTING_1_ID,
+    organizationId: ORG_1_ID,
     status: "published",
     variant: { family: "place", subtype: "entire_place" },
     name: "City loft",
@@ -54,10 +59,10 @@ function createCreatedBooking(
   overrides: Partial<BookingRequestRecord> = {},
 ): BookingRequestRecord {
   return {
-    id: "booking-1",
-    postingId: "posting-1",
-    renterId: "renter-1",
-    organizationId: "org-1",
+    id: BOOKING_1_ID,
+    postingId: POSTING_1_ID,
+    renterId: RENTER_1_ID,
+    organizationId: ORG_1_ID,
     status: "pending",
     startAt: "2099-05-01T00:00:00.000Z",
     endAt: "2099-05-08T00:00:00.000Z",
@@ -74,7 +79,7 @@ function createCreatedBooking(
     createdAt: "2026-04-20T00:00:00.000Z",
     updatedAt: "2026-04-20T00:00:00.000Z",
     posting: {
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "City loft",
       effectiveMaxBookingDurationDays: 90,
     },
@@ -87,7 +92,7 @@ function buildSeasonalRule(
 ): SeasonalPricingRecord {
   return {
     id: "rule-1",
-    postingId: "posting-1",
+    postingId: POSTING_1_ID,
     name: "Peak",
     startDate: "2099-05-01",
     endDate: "2099-05-03",
@@ -175,7 +180,7 @@ function createService(options?: {
     // Return membership only for owner users so renters don't hit "own_posting" guard
     findMembership: jest.fn(async (userId: string) =>
       userId.startsWith("owner")
-        ? { organizationId: "org-1", userId, role: "primary_manager" }
+        ? { organizationId: ORG_1_ID, userId, role: "primary_manager" }
         : null,
     ),
     assertCanManage: jest.fn(() => undefined),
@@ -209,8 +214,8 @@ function createService(options?: {
 }
 
 const BASE_QUOTE_INPUT = {
-  postingId: "posting-1",
-  renterId: "renter-1",
+  postingId: POSTING_1_ID,
+  renterId: RENTER_1_ID,
   startAt: "2099-05-01T00:00:00.000Z",
   endAt: "2099-05-04T00:00:00.000Z",
   guestCount: 2,
@@ -534,8 +539,8 @@ describe("BookingsService — pricing and constraint enforcement", () => {
 
       await expect(
         service.create({
-          postingId: "posting-1",
-          renterId: "renter-1",
+          postingId: POSTING_1_ID,
+          renterId: RENTER_1_ID,
           startAt: utcMidnightOffsetBy(-2),
           endAt: utcMidnightOffsetBy(1),
           guestCount: 2,
@@ -711,8 +716,8 @@ describe("BookingsService — pricing and constraint enforcement", () => {
         {} as any,
         {
           findMembership: jest.fn(async () => ({
-            organizationId: "org-1",
-            userId: "renter-1",
+            organizationId: ORG_1_ID,
+            userId: RENTER_1_ID,
             role: "member",
           })),
         } as any,

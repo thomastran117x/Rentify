@@ -13,6 +13,19 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import { testUuid } from "../../support/uuid";
+const BOOKING_ACTIVE_ID = testUuid(9200, 483432);
+const BOOKING_FUTURE_ID = testUuid(9200, 266693);
+const BOOKING_PAST_ID = testUuid(9200, 747186);
+const BOOKING_RENTING_ACTIVE_ID = testUuid(9200, 512436);
+const BOOKING_RENTING_PAST_ID = testUuid(9200, 288327);
+const BOOKING_RENTING_UPCOMING_ID = testUuid(9200, 416636);
+const ORG_1_ID = testUuid(9200, 9234);
+const PAYMENT_1_ID = testUuid(9200, 132102);
+const REFUND_1_ID = testUuid(9200, 376102);
+const RENTING_ACTIVE_ID = testUuid(9200, 829415);
+const RENTING_FUTURE_ID = testUuid(9200, 612676);
+const RENTING_PAST_ID = testUuid(9200, 635165);
+const RENTING_UPCOMING_ID = testUuid(9200, 38640);
 
 const BOOKING_1_ID = testUuid(9000, 996753);
 const BOOKING_AWAITING_ID = testUuid(9000, 946068);
@@ -35,7 +48,7 @@ function createPostingRecord(overrides: Partial<PostingRecord> = {}): any {
   return {
     id: POSTING_1_ID,
     ownerId: OWNER_1_ID,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "published",
     variant: {
       family: "place",
@@ -81,7 +94,7 @@ function createBookingRequestRecord(
     postingId: POSTING_1_ID,
     renterId: RENTER_1_ID,
     ownerId: OWNER_1_ID,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "pending",
     startAt: "2099-05-01T00:00:00.000Z",
     endAt: "2099-05-04T00:00:00.000Z",
@@ -118,7 +131,7 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
     bookingRequestId: BOOKING_1_ID,
     renterId: RENTER_1_ID,
     ownerId: OWNER_1_ID,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "confirmed",
     startAt: "2099-05-01T00:00:00.000Z",
     endAt: "2099-05-04T00:00:00.000Z",
@@ -147,12 +160,12 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
 
 function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    id: "payment-1",
+    id: PAYMENT_1_ID,
     bookingRequestId: BOOKING_1_ID,
     postingId: POSTING_1_ID,
     renterId: RENTER_1_ID,
     ownerId: OWNER_1_ID,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     provider: "square",
     status: "succeeded",
     pricingCurrency: "CAD",
@@ -276,8 +289,8 @@ function createService(options?: {
       async () => options?.paymentRecord ?? createPaymentRecord(),
     ),
     createRefundRecord: jest.fn(async () => ({
-      refundId: "refund-1",
-      paymentId: "payment-1",
+      refundId: REFUND_1_ID,
+      paymentId: PAYMENT_1_ID,
       providerPaymentId: "square-pay-1",
       pricingCurrency: "CAD",
     })),
@@ -298,7 +311,7 @@ function createService(options?: {
   } as unknown as PaymentProviderAdapter;
   const organizationAccessService = {
     requireActiveMembership: jest.fn(async (userId: string) => ({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       userId,
       role: "primary_manager",
     })),
@@ -862,14 +875,14 @@ describe("BookingsService", () => {
 
     const result = await service.listOwned({
       actorUserId: OWNER_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
     });
 
     expect(bookingsRepository.listByOwner).toHaveBeenCalledWith({
       actorUserId: OWNER_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       status: undefined,
@@ -904,21 +917,21 @@ describe("BookingsService", () => {
       rentingId: RENTING_1_ID,
     });
     const futureRenting = createRentingRecord({
-      id: "renting-future",
-      bookingRequestId: "booking-future",
+      id: RENTING_FUTURE_ID,
+      bookingRequestId: BOOKING_FUTURE_ID,
       startAt: "2099-05-10T00:00:00.000Z",
       endAt: "2099-05-12T00:00:00.000Z",
     });
     const activeRenting = createRentingRecord({
-      id: "renting-active",
-      bookingRequestId: "booking-active",
+      id: RENTING_ACTIVE_ID,
+      bookingRequestId: BOOKING_ACTIVE_ID,
       status: "active",
       startAt: "2099-05-11T00:00:00.000Z",
       endAt: "2099-05-13T00:00:00.000Z",
     });
     const pastRenting = createRentingRecord({
-      id: "renting-past",
-      bookingRequestId: "booking-past",
+      id: RENTING_PAST_ID,
+      bookingRequestId: BOOKING_PAST_ID,
       status: "completed",
       completedAt: "2026-04-12T00:00:00.000Z",
       startAt: "2026-04-10T00:00:00.000Z",
@@ -1034,18 +1047,18 @@ describe("BookingsService", () => {
       holdExpiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     });
     const ownerUpcomingRenting = createRentingRecord({
-      id: "renting-upcoming",
-      bookingRequestId: "booking-renting-upcoming",
+      id: RENTING_UPCOMING_ID,
+      bookingRequestId: BOOKING_RENTING_UPCOMING_ID,
       status: "confirmed",
     });
     const ownerActiveRenting = createRentingRecord({
-      id: "renting-active",
-      bookingRequestId: "booking-renting-active",
+      id: RENTING_ACTIVE_ID,
+      bookingRequestId: BOOKING_RENTING_ACTIVE_ID,
       status: "active",
     });
     const ownerPastRenting = createRentingRecord({
-      id: "renting-past",
-      bookingRequestId: "booking-renting-past",
+      id: RENTING_PAST_ID,
+      bookingRequestId: BOOKING_RENTING_PAST_ID,
       status: "completed",
       completedAt: "2026-04-12T00:00:00.000Z",
       startAt: "2026-04-10T00:00:00.000Z",
@@ -1072,7 +1085,7 @@ describe("BookingsService", () => {
 
     const result = await service.dashboardOwned({
       actorUserId: OWNER_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 10,
       sort: "urgency",
@@ -1080,7 +1093,7 @@ describe("BookingsService", () => {
     });
 
     expect(bookingsRepository.listDashboardByOwner).toHaveBeenCalledWith({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       status: undefined,
       postingId: undefined,
     });
@@ -1202,7 +1215,7 @@ describe("BookingsService", () => {
 
     expect(paymentsRepository.createRefundRecord).toHaveBeenCalledWith(
       expect.objectContaining({
-        paymentId: "payment-1",
+        paymentId: PAYMENT_1_ID,
         actorUserId: OWNER_1_ID,
         amount: 330,
         reason: "Pipe burst in the unit.",

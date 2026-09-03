@@ -2,6 +2,11 @@ import ConflictError from "@/errors/http/conflict.error";
 import { SearchService } from "@/features/search/search.service";
 import { resetSearchTelemetry } from "@/features/search/search.telemetry";
 import { testUuid } from "../../support/uuid";
+const OUTBOX_9_ID = testUuid(9200, 747647);
+const POSTING_9_ID = testUuid(9200, 254280);
+const RUN_2_ID = testUuid(9200, 875932);
+const RUN_42_ID = testUuid(9200, 154463);
+const RUN_9_ID = testUuid(9200, 875939);
 const POSTING_1_ID = testUuid(9000, 254272);
 const POSTING_2_ID = testUuid(9000, 254273);
 const RUN_1_ID = testUuid(9000, 875931);
@@ -309,7 +314,7 @@ describe("SearchService", () => {
 
   it("returns reindex runs by id from the repository", async () => {
     const findSearchReindexRunById = jest.fn(async () => ({
-      id: "run-42",
+      id: RUN_42_ID,
       status: "completed" as const,
       targetIndexName: "postings_v42",
       sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -328,18 +333,18 @@ describe("SearchService", () => {
       {} as any,
     );
 
-    await expect(service.getReindexRun("run-42")).resolves.toMatchObject({
-      id: "run-42",
+    await expect(service.getReindexRun(RUN_42_ID)).resolves.toMatchObject({
+      id: RUN_42_ID,
       targetIndexName: "postings_v42",
     });
-    expect(findSearchReindexRunById).toHaveBeenCalledWith("run-42");
+    expect(findSearchReindexRunById).toHaveBeenCalledWith(RUN_42_ID);
   });
 
   it("reports queue inspection failures explicitly in status", async () => {
     const postingsRepository = {
       findActiveSearchReindexRun: jest.fn(async () => null),
       findLatestSearchReindexRun: jest.fn(async () => ({
-        id: "run-9",
+        id: RUN_9_ID,
         status: "failed" as const,
         targetIndexName: "postings_v9",
         sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -402,7 +407,7 @@ describe("SearchService", () => {
     });
     expect(status.queueCounts).toBeUndefined();
     expect(status.latestReindexRun).toMatchObject({
-      id: "run-9",
+      id: RUN_9_ID,
       status: "failed",
       lastError:
         "Search reindex barrier could not complete: broker publish retries exhausted.",
@@ -605,10 +610,10 @@ describe("SearchService", () => {
     const postingsRepository = {
       claimSearchOutboxBatch: jest.fn(async () => [
         {
-          id: "outbox-9",
-          postingId: "posting-9",
+          id: OUTBOX_9_ID,
+          postingId: POSTING_9_ID,
           operation: "delete",
-          dedupeKey: "outbox-9",
+          dedupeKey: OUTBOX_9_ID,
           attempts: 0,
           publishAttempts: 2,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -644,7 +649,7 @@ describe("SearchService", () => {
       "broker unavailable",
     );
     expect(markSearchOutboxDeadLettered).toHaveBeenCalledWith(
-      "outbox-9",
+      OUTBOX_9_ID,
       "broker unavailable",
     );
   });
@@ -1440,7 +1445,7 @@ describe("SearchService", () => {
     );
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
-        id: "run-2",
+        id: RUN_2_ID,
         status: "waiting_for_catchup",
         targetIndexName: "postings_v3",
         sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -1504,7 +1509,7 @@ describe("SearchService", () => {
       "postings_v3",
     );
     expect(markSearchReindexRunCompleted).toHaveBeenCalledWith(
-      "run-2",
+      RUN_2_ID,
       "postings_v_old",
     );
     expect(postingsSearchService.deleteConcreteIndex).toHaveBeenCalledWith(
@@ -1746,7 +1751,7 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:10:00.000Z",
         },
         {
-          id: "run-2",
+          id: RUN_2_ID,
           status: "completed" as const,
           targetIndexName: "postings_v3",
           retainedIndexName: "postings_v2",
@@ -1791,7 +1796,7 @@ describe("SearchService", () => {
       RUN_1_ID,
     );
     expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
-      "run-2",
+      RUN_2_ID,
     );
   });
 
@@ -1815,7 +1820,7 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:10:00.000Z",
         },
         {
-          id: "run-2",
+          id: RUN_2_ID,
           status: "completed" as const,
           targetIndexName: "postings_v3",
           retainedIndexName: "postings_v4",

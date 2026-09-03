@@ -17,7 +17,7 @@ import { testUuid } from "../../../../support/uuid";
 
 const BLOG_OTHER_ID = testUuid(9000, 805264);
 
-const POST_ID = "blog-1";
+const POST_ID = testUuid(9100, 853730);
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
 

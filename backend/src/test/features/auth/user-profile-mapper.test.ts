@@ -1,6 +1,7 @@
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { testUuid } from "../../support/uuid";
+const ORG_1_ID = testUuid(9200, 9234);
 const ORG_MISSING_ID = testUuid(9000, 286522);
 
 const ORG_2_ID = testUuid(9000, 9235);
@@ -39,7 +40,7 @@ function createUser(): AuthUserRecord {
 const memberships = [
   {
     membershipId: "membership-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     organizationName: "Northwind",
     role: "operator" as const,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -88,7 +89,7 @@ describe("toAuthUserProfile", () => {
         organizationMemberships: memberships,
       }),
     ).toMatchObject({
-      activeOrganization: { id: "org-1", name: "Northwind", role: "operator" },
+      activeOrganization: { id: ORG_1_ID, name: "Northwind", role: "operator" },
     });
   });
 

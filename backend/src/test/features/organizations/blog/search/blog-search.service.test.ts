@@ -1,12 +1,20 @@
 import { OrganizationBlogSearchService } from "@/features/organizations/blog/search/blog-search.service";
 import { ElasticsearchUnavailableError } from "@/configuration/resources/elasticsearch";
+import { testUuid } from "../../../../support/uuid";
+const NEWER_ID = testUuid(9200, 715573);
+const O1_ID = testUuid(9200, 3490);
+const O2_ID = testUuid(9200, 3491);
+const OLDER_ID = testUuid(9200, 829389);
+const OUTBOX_1_ID = testUuid(9200, 747639);
+const POST_1_ID = testUuid(9200, 570932);
+const REINDEX_1_ID = testUuid(9200, 674617);
 
 function createOutbox(overrides: Record<string, unknown> = {}) {
   return {
-    id: "outbox-1",
-    blogPostId: "post-1",
+    id: OUTBOX_1_ID,
+    blogPostId: POST_1_ID,
     operation: "upsert",
-    dedupeKey: "outbox-1",
+    dedupeKey: OUTBOX_1_ID,
     attempts: 0,
     publishAttempts: 0,
     availableAt: "2026-05-01T00:00:00.000Z",
@@ -33,7 +41,7 @@ function createDocument(id: string) {
 
 function createReindexRun(overrides: Record<string, unknown> = {}) {
   return {
-    id: "reindex-1",
+    id: REINDEX_1_ID,
     status: "pending",
     targetIndexName: "organization-blogs_v1",
     sourceSnapshotAt: "2026-05-01T00:00:00.000Z",
@@ -55,7 +63,7 @@ function createHarness(overrides?: {
     getSearchOutboxById: jest.fn(async () => createOutbox()),
     getSearchOutboxesByIds: jest.fn(async () => [createOutbox()]),
     hasNewerSearchOutboxJob: jest.fn(async () => false),
-    findByIdsForIndexing: jest.fn(async () => [createDocument("post-1")]),
+    findByIdsForIndexing: jest.fn(async () => [createDocument(POST_1_ID)]),
     markSearchOutboxIndexed: jest.fn(async () => undefined),
     markSearchOutboxesIndexed: jest.fn(async () => undefined),
     incrementSearchOutboxAttempt: jest.fn(async () => 1),
@@ -101,7 +109,7 @@ function createHarness(overrides?: {
     markSearchReindexRunCompleted: jest.fn(async () => createReindexRun()),
     markSearchReindexRunFailed: jest.fn(async () => createReindexRun()),
     listRecentForIndexReconciliation: jest.fn(async () => [
-      createDocument("post-1"),
+      createDocument(POST_1_ID),
     ]),
     ...overrides?.repository,
   };
@@ -162,12 +170,12 @@ function createHarness(overrides?: {
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
-    outboxId: "outbox-1",
-    eventId: "outbox-1",
-    dedupeKey: "outbox-1",
+    outboxId: OUTBOX_1_ID,
+    eventId: OUTBOX_1_ID,
+    dedupeKey: OUTBOX_1_ID,
     operation: "upsert" as const,
     jobType: "upsert" as const,
-    postingId: "post-1",
+    postingId: POST_1_ID,
     targetIndexScope: "live" as const,
     occurredAt: "2026-05-01T00:00:00.000Z",
     attempt: 0,
@@ -181,11 +189,11 @@ describe("OrganizationBlogSearchService", () => {
       const { service, repository, indexService } = createHarness();
       await service.processIndexJob(payload(), 5);
       expect(indexService.upsertDocument).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "post-1" }),
+        expect.objectContaining({ id: POST_1_ID }),
         undefined,
       );
       expect(repository.markSearchOutboxIndexed).toHaveBeenCalledWith(
-        "outbox-1",
+        OUTBOX_1_ID,
       );
     });
 
@@ -199,7 +207,7 @@ describe("OrganizationBlogSearchService", () => {
       });
       await service.processIndexJob(payload({ operation: "delete" }), 5);
       expect(indexService.deleteDocument).toHaveBeenCalledWith(
-        "post-1",
+        POST_1_ID,
         undefined,
       );
     });
@@ -223,7 +231,7 @@ describe("OrganizationBlogSearchService", () => {
       await service.processIndexJob(payload({ operation: "barrier" }), 5);
       expect(indexService.upsertDocument).not.toHaveBeenCalled();
       expect(repository.markSearchOutboxIndexed).toHaveBeenCalledWith(
-        "outbox-1",
+        OUTBOX_1_ID,
       );
     });
 
@@ -289,7 +297,7 @@ describe("OrganizationBlogSearchService", () => {
       await service.processIndexJobsBatch([payload()], 5);
       expect(indexService.bulkUpsertDocuments).not.toHaveBeenCalled();
       expect(repository.markSearchOutboxesIndexed).toHaveBeenCalledWith([
-        "outbox-1",
+        OUTBOX_1_ID,
       ]);
     });
 
@@ -334,7 +342,7 @@ describe("OrganizationBlogSearchService", () => {
         5,
       );
       expect(repository.markSearchOutboxesIndexed).toHaveBeenCalledWith([
-        "outbox-1",
+        OUTBOX_1_ID,
       ]);
     });
   });
@@ -350,9 +358,9 @@ describe("OrganizationBlogSearchService", () => {
       expect(processed).toBe(1);
       expect(queueService.publishIndexJob).toHaveBeenCalled();
       expect(repository.markSearchOutboxRelayed).toHaveBeenCalledWith(
-        "outbox-1",
+        OUTBOX_1_ID,
         [],
-        "outbox-1",
+        OUTBOX_1_ID,
       );
     });
 
@@ -364,7 +372,7 @@ describe("OrganizationBlogSearchService", () => {
       });
       await service.processOutboxRelayBatch(10, 5);
       expect(queueService.publishIndexJob).toHaveBeenCalledWith(
-        expect.objectContaining({ postingId: "post-1" }),
+        expect.objectContaining({ postingId: POST_1_ID }),
       );
     });
 
@@ -406,17 +414,17 @@ describe("OrganizationBlogSearchService", () => {
       const { service, queueService, repository } = createHarness({
         repository: {
           claimSearchOutboxBatch: jest.fn(async () => [
-            createOutbox({ id: "o1", createdAt: "2026-05-01T00:00:00.000Z" }),
-            createOutbox({ id: "o2", createdAt: "2026-05-01T00:00:05.000Z" }),
+            createOutbox({ id: O1_ID, createdAt: "2026-05-01T00:00:00.000Z" }),
+            createOutbox({ id: O2_ID, createdAt: "2026-05-01T00:00:05.000Z" }),
           ]),
         },
       });
       await service.processOutboxRelayBatch(10, 5);
       expect(queueService.publishIndexJob).toHaveBeenCalledTimes(1);
       expect(repository.markSearchOutboxRelayed).toHaveBeenCalledWith(
-        "o2",
-        ["o1"],
-        "o2",
+        O2_ID,
+        [O1_ID],
+        O2_ID,
       );
     });
 
@@ -427,11 +435,11 @@ describe("OrganizationBlogSearchService", () => {
         repository: {
           claimSearchOutboxBatch: jest.fn(async () => [
             createOutbox({
-              id: "newer",
+              id: NEWER_ID,
               createdAt: "2026-05-01T00:00:05.000Z",
             }),
             createOutbox({
-              id: "older",
+              id: OLDER_ID,
               createdAt: "2026-05-01T00:00:00.000Z",
             }),
           ]),
@@ -440,12 +448,12 @@ describe("OrganizationBlogSearchService", () => {
       await service.processOutboxRelayBatch(10, 5);
       expect(queueService.publishIndexJob).toHaveBeenCalledTimes(1);
       expect(queueService.publishIndexJob).toHaveBeenCalledWith(
-        expect.objectContaining({ outboxId: "newer" }),
+        expect.objectContaining({ outboxId: NEWER_ID }),
       );
       expect(repository.markSearchOutboxRelayed).toHaveBeenCalledWith(
-        "newer",
-        ["older"],
-        "newer",
+        NEWER_ID,
+        [OLDER_ID],
+        NEWER_ID,
       );
     });
 
@@ -534,7 +542,7 @@ describe("OrganizationBlogSearchService", () => {
           ),
           listForIndexingBatch: jest
             .fn()
-            .mockResolvedValueOnce([createDocument("post-1")])
+            .mockResolvedValueOnce([createDocument(POST_1_ID)])
             .mockResolvedValueOnce([]),
         },
       });
@@ -634,8 +642,8 @@ describe("OrganizationBlogSearchService", () => {
 
     it("looks up a reindex run by id", async () => {
       const { service } = createHarness();
-      const run = await service.getReindexRun("reindex-1");
-      expect(run?.id).toBe("reindex-1");
+      const run = await service.getReindexRun(REINDEX_1_ID);
+      expect(run?.id).toBe(REINDEX_1_ID);
     });
   });
 

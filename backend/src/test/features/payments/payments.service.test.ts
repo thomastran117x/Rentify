@@ -11,6 +11,17 @@ import type { PaymentProviderAdapter } from "@/features/payments/payment-provide
 import { PaymentsService } from "@/features/payments/payments.service";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { testUuid } from "../../support/uuid";
+const ATTEMPT_1_ID = testUuid(9200, 451335);
+const IGNORED_BY_SERVICE_ID = testUuid(9200, 16965);
+const ORG_1_ID = testUuid(9200, 9234);
+const OWNER_1_ID = testUuid(9200, 219201);
+const PAYMENT_2_ID = testUuid(9200, 132103);
+const PAYOUT_1_ID = testUuid(9200, 783166);
+const PAYOUT_2_ID = testUuid(9200, 783167);
+const POSTING_1_ID = testUuid(9200, 254272);
+const POSTING_2_ID = testUuid(9200, 254273);
+const REFUND_1_ID = testUuid(9200, 376102);
+const SQUARE_PAY_1_ID = testUuid(9200, 565949);
 const STRANGER_1_ID = testUuid(9000, 244047);
 
 const BOOKING_1_ID = testUuid(9000, 996753);
@@ -23,17 +34,17 @@ function createPaymentRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: PAYMENT_1_ID,
     bookingRequestId: BOOKING_1_ID,
-    postingId: "posting-1",
+    postingId: POSTING_1_ID,
     renterId: RENTER_1_ID,
-    ownerId: "owner-1",
-    organizationId: "org-1",
+    ownerId: OWNER_1_ID,
+    organizationId: ORG_1_ID,
     provider: "square" as const,
     status: "succeeded" as const,
     pricingCurrency: "CAD",
     rentalSubtotalAmount: 100,
     platformFeeAmount: 10,
     totalAmount: 110,
-    squarePaymentId: "square-pay-1",
+    squarePaymentId: SQUARE_PAY_1_ID,
     squareOrderId: "square-order-1",
     failedAt: "2026-04-20T00:10:00.000Z",
     createdAt: "2026-04-20T00:00:00.000Z",
@@ -64,7 +75,7 @@ function createService(overrides?: {
   const paymentsRepository = {
     createPaymentAttemptForBooking: jest.fn(async () => ({
       paymentId: PAYMENT_1_ID,
-      attemptId: "attempt-1",
+      attemptId: ATTEMPT_1_ID,
       amount: 110,
       currency: "CAD",
       payment: createPaymentRecord({
@@ -85,9 +96,9 @@ function createService(overrides?: {
     findById: jest.fn(async () => createPaymentRecord()),
     findBySquareReferences: jest.fn(async () => createPaymentRecord()),
     createRefundRecord: jest.fn(async () => ({
-      refundId: "refund-1",
+      refundId: REFUND_1_ID,
       paymentId: PAYMENT_1_ID,
-      providerPaymentId: "square-pay-1",
+      providerPaymentId: SQUARE_PAY_1_ID,
       pricingCurrency: "CAD",
     })),
     completeRefund: jest.fn(async () =>
@@ -131,7 +142,7 @@ function createService(overrides?: {
   const paymentProvider = {
     createPaymentSession: jest.fn(async () => ({
       providerRequestId: "provider-request-1",
-      providerPaymentId: "square-pay-1",
+      providerPaymentId: SQUARE_PAY_1_ID,
       providerOrderId: "square-order-1",
       checkoutUrl: "https://square.test/checkout",
       locationId: "location-1",
@@ -157,7 +168,7 @@ function createService(overrides?: {
         data: {
           object: {
             payment: {
-              id: "square-pay-1",
+              id: SQUARE_PAY_1_ID,
               order_id: "square-order-1",
               status: "COMPLETED",
             },
@@ -169,7 +180,7 @@ function createService(overrides?: {
       isValid: true,
     })),
     getPaymentStatus: jest.fn(async () => ({
-      providerPaymentId: "square-pay-1",
+      providerPaymentId: SQUARE_PAY_1_ID,
       providerOrderId: "square-order-1",
       status: "COMPLETED",
       raw: {},
@@ -205,13 +216,13 @@ function createService(overrides?: {
 
   const organizationAccessService = {
     requireActiveMembership: jest.fn(async () => ({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       userId: MANAGER_1_ID,
       role: "manager",
     })),
     requireMembership: jest.fn(async () => ({
-      organizationId: "org-1",
-      userId: "owner-1",
+      organizationId: ORG_1_ID,
+      userId: OWNER_1_ID,
       role: "manager",
     })),
     findMembership: jest.fn(async () => null),
@@ -245,14 +256,14 @@ describe("PaymentsService", () => {
       repository: {
         createPaymentAttemptForBooking: jest.fn(async () => ({
           paymentId: PAYMENT_1_ID,
-          attemptId: "attempt-1",
+          attemptId: ATTEMPT_1_ID,
           amount: 110,
           currency: "CAD",
           payment: createPaymentRecord({
             status: "processing",
             attempts: [
               {
-                id: "attempt-1",
+                id: ATTEMPT_1_ID,
                 providerRequestId: "provider-request-1",
               },
             ],
@@ -305,17 +316,17 @@ describe("PaymentsService", () => {
       paymentsRepository.attachPaymentSession as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       PAYMENT_1_ID,
-      "attempt-1",
+      ATTEMPT_1_ID,
       expect.objectContaining({
-        providerPaymentId: "square-pay-1",
+        providerPaymentId: SQUARE_PAY_1_ID,
       }),
     );
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(
       postingsRepository.enqueueSearchSync as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(result.status).toBe("processing");
   });
 
@@ -354,7 +365,7 @@ describe("PaymentsService", () => {
       paymentsRepository.recordAttemptFailure as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       PAYMENT_1_ID,
-      "attempt-1",
+      ATTEMPT_1_ID,
       expect.objectContaining({
         message: "provider unavailable",
       }),
@@ -362,8 +373,8 @@ describe("PaymentsService", () => {
     expect(
       analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
     ).toHaveBeenCalledWith({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-04-20T00:20:00.000Z",
     });
     expect(result.status).toBe("failed_retryable");
@@ -426,7 +437,7 @@ describe("PaymentsService", () => {
       paymentProvider.createRefund as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerPaymentId: "square-pay-1",
+        providerPaymentId: SQUARE_PAY_1_ID,
         amount: 42,
         currency: "CAD",
       }),
@@ -434,8 +445,8 @@ describe("PaymentsService", () => {
     expect(
       analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
     ).toHaveBeenCalledWith({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: expect.any(String),
       refundedAmount: 42,
     });
@@ -448,7 +459,7 @@ describe("PaymentsService", () => {
 
     await service.listPayouts({
       actorUserId: MANAGER_1_ID,
-      organizationId: "ignored-by-service",
+      organizationId: IGNORED_BY_SERVICE_ID,
       page: 2,
       pageSize: 5,
       status: "scheduled",
@@ -467,7 +478,7 @@ describe("PaymentsService", () => {
       paymentsRepository.listPayoutsForOrganization as unknown as jest.Mock,
     ).toHaveBeenCalledWith({
       actorUserId: MANAGER_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 2,
       pageSize: 5,
       status: "scheduled",
@@ -482,7 +493,7 @@ describe("PaymentsService", () => {
             data: {
               object: {
                 payment: {
-                  id: "square-pay-1",
+                  id: SQUARE_PAY_1_ID,
                   order_id: "square-order-1",
                   status: "COMPLETED",
                 },
@@ -534,7 +545,7 @@ describe("PaymentsService", () => {
             data: {
               object: {
                 payment: {
-                  id: "square-pay-1",
+                  id: SQUARE_PAY_1_ID,
                   order_id: "square-order-1",
                   status: "FAILED",
                 },
@@ -594,10 +605,10 @@ describe("PaymentsService", () => {
     ).rejects.toBeInstanceOf(ConflictError);
     expect(
       (cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0],
-    ).toBe("posting:posting-1:booking-window");
+    ).toBe(`posting:${POSTING_1_ID}:booking-window`);
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
   });
 
   it("throws when reconciliation cannot find the provider payment", async () => {
@@ -632,7 +643,7 @@ describe("PaymentsService", () => {
     ).toHaveBeenCalledWith("event-1");
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
   });
 
   it("replays retry candidates through provider session creation", async () => {
@@ -640,7 +651,7 @@ describe("PaymentsService", () => {
       repository: {
         listRetryCandidates: jest.fn(async () => [
           {
-            attemptId: "attempt-1",
+            attemptId: ATTEMPT_1_ID,
             paymentId: PAYMENT_1_ID,
             idempotencyKey: "idem-1",
             retryCount: 1,
@@ -663,9 +674,9 @@ describe("PaymentsService", () => {
       paymentsRepository.attachPaymentSession as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       PAYMENT_1_ID,
-      "attempt-1",
+      ATTEMPT_1_ID,
       expect.objectContaining({
-        providerPaymentId: "square-pay-1",
+        providerPaymentId: SQUARE_PAY_1_ID,
       }),
     );
   });
@@ -678,7 +689,7 @@ describe("PaymentsService", () => {
             paymentId: PAYMENT_1_ID,
           },
           {
-            paymentId: "payment-2",
+            paymentId: PAYMENT_2_ID,
           },
         ]),
         findById: jest
@@ -686,14 +697,14 @@ describe("PaymentsService", () => {
           .mockResolvedValueOnce(createPaymentRecord())
           .mockResolvedValueOnce(
             createPaymentRecord({
-              id: "payment-2",
-              postingId: "posting-2",
+              id: PAYMENT_2_ID,
+              postingId: POSTING_2_ID,
             }),
           ),
       },
       provider: {
         getPaymentStatus: jest.fn(async () => ({
-          providerPaymentId: "square-pay-1",
+          providerPaymentId: SQUARE_PAY_1_ID,
           providerOrderId: "square-order-1",
           status: "PENDING",
           raw: {},
@@ -714,10 +725,10 @@ describe("PaymentsService", () => {
       repository: {
         listDuePayouts: jest.fn(async () => [
           {
-            id: "payout-1",
+            id: PAYOUT_1_ID,
           },
           {
-            id: "payout-2",
+            id: PAYOUT_2_ID,
           },
         ]),
         markPayoutReleased: jest
@@ -735,7 +746,7 @@ describe("PaymentsService", () => {
     ).toHaveBeenCalledTimes(2);
     expect(
       paymentsRepository.markPayoutFailed as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("payout-2", "bank offline");
+    ).toHaveBeenCalledWith(PAYOUT_2_ID, "bank offline");
   });
 
   describe("getPaymentByBookingRequest", () => {
@@ -782,7 +793,7 @@ describe("PaymentsService", () => {
         organizationAccessService.requireMembership as unknown as jest.Mock,
       ).toHaveBeenCalledWith(
         MANAGER_1_ID,
-        "org-1",
+        ORG_1_ID,
         "You do not have access to this payment.",
       );
     });

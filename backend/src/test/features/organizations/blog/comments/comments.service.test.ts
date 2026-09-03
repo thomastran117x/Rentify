@@ -15,11 +15,11 @@ const RENTER_ONE_ID = testUuid(9000, 901918);
 const BLOG_OTHER_ID = testUuid(9000, 805264);
 const USER_9_ID = testUuid(9000, 994265);
 
-const ORG_ID = "org-1";
-const POST_ID = "blog-1";
+const ORG_ID = testUuid(9100, 9234);
+const POST_ID = testUuid(9100, 853730);
 const SLUG = "my-post";
-const AUTHOR_ID = "user-2";
-const MANAGER_ID = "manager-1";
+const AUTHOR_ID = testUuid(9100, 994258);
+const MANAGER_ID = testUuid(9100, 836503);
 
 function createComment(
   overrides: Partial<OrganizationBlogCommentRecord> = {},

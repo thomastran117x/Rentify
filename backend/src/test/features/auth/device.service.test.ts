@@ -4,6 +4,7 @@ import { DeviceService } from "@/features/auth/device/device.service";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { KnownDeviceRecord } from "@/features/auth/device/device.repository";
 import { testUuid } from "../../support/uuid";
+const DEVICE_1_ID = testUuid(9200, 895443);
 const KNOWN_DEVICE_1_ID = testUuid(9000, 135264);
 const KNOWN_DEVICE_2_ID = testUuid(9000, 135265);
 
@@ -48,7 +49,7 @@ function createClient(
   return {
     ip: "127.0.0.1",
     device: {
-      id: "device-1",
+      id: DEVICE_1_ID,
       type: "desktop",
       isMobile: false,
       userAgent: "test-agent",
@@ -64,7 +65,7 @@ function createKnownDevice(
   return {
     id: KNOWN_DEVICE_1_ID,
     userId: USER_1_ID,
-    deviceId: "device-1",
+    deviceId: DEVICE_1_ID,
     type: "desktop",
     platform: "macOS",
     userAgent: "test-agent",
@@ -226,17 +227,17 @@ describe("DeviceService", () => {
     const result = await service.evaluateSuccessfulAuthentication(
       createUser(),
       createClient(),
-      "device-1",
+      DEVICE_1_ID,
     );
 
     expect(result).toEqual({
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       known: true,
       knownByIp: true,
     });
     expect(deviceRepository.touchKnownDevice).toHaveBeenCalledWith(
       USER_1_ID,
-      "device-1",
+      DEVICE_1_ID,
       "127.0.0.1",
     );
     expect(deviceRepository.hasKnownIpAddress).not.toHaveBeenCalled();
@@ -306,11 +307,11 @@ describe("DeviceService", () => {
       createClient({
         ip: undefined,
       }),
-      "device-1",
+      DEVICE_1_ID,
     );
 
     expect(result).toEqual({
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
       known: false,
       knownByIp: false,
     });
@@ -473,11 +474,11 @@ describe("DeviceService", () => {
     });
 
     await expect(
-      service.removeKnownDevice(USER_1_ID, "device-1"),
+      service.removeKnownDevice(USER_1_ID, DEVICE_1_ID),
     ).resolves.toBeUndefined();
     expect(deviceRepository.removeKnownDevice).toHaveBeenCalledWith(
       USER_1_ID,
-      "device-1",
+      DEVICE_1_ID,
     );
   });
 });

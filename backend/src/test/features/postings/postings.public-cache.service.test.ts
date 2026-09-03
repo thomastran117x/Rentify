@@ -9,6 +9,8 @@ import type {
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import { testUuid } from "../../support/uuid";
+const OWNER_1_ID = testUuid(9200, 219201);
+const PHOTO_1_ID = testUuid(9200, 660923);
 
 const POSTING_1_ID = testUuid(9000, 254272);
 const POSTING_2_ID = testUuid(9000, 254273);
@@ -76,7 +78,7 @@ function createPublicPosting(
 ): PublicPostingRecord {
   return {
     id: POSTING_1_ID,
-    ownerId: "owner-1",
+    ownerId: OWNER_1_ID,
     status: "published",
     variant: {
       family: "place",
@@ -93,7 +95,7 @@ function createPublicPosting(
     pricingCurrency: "CAD",
     photos: [
       {
-        id: "photo-1",
+        id: PHOTO_1_ID,
         blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
         blobName: "postings/photo-1.jpg",
         position: 0,

@@ -34,6 +34,9 @@ import type { OrganizationAuditService } from "@/features/organizations/audit/au
 import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { testUuid } from "../../support/uuid";
+const CREATED_BLOCK_ID = testUuid(9200, 843316);
+const ORG_1_ID = testUuid(9200, 9234);
+const REVIEW_1_ID = testUuid(9200, 118005);
 const BLOCK_1_ID = testUuid(9000, 406415);
 const BOOKING_HOLD_1_ID = testUuid(9000, 727880);
 const OWNER_2_ID = testUuid(9000, 219202);
@@ -278,7 +281,7 @@ class FakePostingsRepository {
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     this.createOwnerAvailabilityBlockCalls += 1;
-    return buildAvailabilityBlockRecord("created-block", input);
+    return buildAvailabilityBlockRecord(CREATED_BLOCK_ID, input);
   }
 
   async updateOwnerAvailabilityBlock(
@@ -371,7 +374,7 @@ class FakeAuthRepository {
       [
         {
           membershipId: "membership-1",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "primary_manager" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -384,7 +387,7 @@ class FakeAuthRepository {
       [
         {
           membershipId: "membership-2",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "manager" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -397,7 +400,7 @@ class FakeAuthRepository {
       [
         {
           membershipId: "membership-3",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "operator" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -420,9 +423,9 @@ class FakeAuthRepository {
     ],
   ]);
   preferredOrganizationIdByUserId = new Map<string, string>([
-    [OWNER_1_ID, "org-1"],
-    [MANAGER_1_ID, "org-1"],
-    [OPERATOR_1_ID, "org-1"],
+    [OWNER_1_ID, ORG_1_ID],
+    [MANAGER_1_ID, ORG_1_ID],
+    [OPERATOR_1_ID, ORG_1_ID],
     [OWNER_2_ID, ORG_2_ID],
   ]);
 
@@ -569,7 +572,7 @@ function createServiceHarness(
 
 function createValidInput(): UpsertPostingInput {
   return {
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     variant: {
       family: "place",
       subtype: "entire_place",
@@ -750,9 +753,9 @@ describe("PostingsService", () => {
 
     const created = await service.createDraft(MANAGER_1_ID, input);
 
-    expect(created.organizationId).toBe("org-1");
+    expect(created.organizationId).toBe(ORG_1_ID);
     expect(repository.lastCreateInput).toMatchObject({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
     });
   });
 
@@ -778,7 +781,7 @@ describe("PostingsService", () => {
     });
 
     expect(repository.lastListInput).toEqual({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       status: "draft",
@@ -796,7 +799,7 @@ describe("PostingsService", () => {
     });
 
     expect(repository.lastListInput).toEqual({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       q: "studio",
@@ -809,7 +812,7 @@ describe("PostingsService", () => {
 
     const summary = await service.getOwnerStatusSummary(MANAGER_1_ID);
 
-    expect(repository.lastCountOrganizationId).toBe("org-1");
+    expect(repository.lastCountOrganizationId).toBe(ORG_1_ID);
     expect(summary).toEqual({
       total: 1,
       byStatus: { draft: 1, published: 0, paused: 0, archived: 0 },
@@ -991,7 +994,7 @@ describe("PostingsService", () => {
     expect(repository.findByIdCalls).toBe(1);
     expect(repository.createCalls).toBe(1);
     expect(repository.lastCreateInput).toMatchObject({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       variant: repository.posting.variant,
       name: repository.posting.name,
       description: repository.posting.description,
@@ -1225,7 +1228,7 @@ describe("PostingsService", () => {
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const postingsReviewsRepository = new FakePostingsReviewsRepository();
-    postingsReviewsRepository.ownReview = { id: "review-1" };
+    postingsReviewsRepository.ownReview = { id: REVIEW_1_ID };
     const rentingsRepository = new FakeRentingsRepository();
     rentingsRepository.eligibleReviewRenting = true;
     const service = createService(
@@ -1412,7 +1415,7 @@ describe("PostingsService", () => {
     const searchPublic = jest.fn(async () => createEmptySearchResponse());
     const findOrganizationNameMatches = jest.fn(async () => ({
       matches: [
-        { id: "org-1", name: "Maya Santos Organization", slug: "maya-santos" },
+        { id: ORG_1_ID, name: "Maya Santos Organization", slug: "maya-santos" },
         { id: ORG_2_ID, name: "Maya Santos Rentals", slug: "maya-santos-2" },
       ],
       truncated: true,
@@ -1438,7 +1441,7 @@ describe("PostingsService", () => {
     expect(findOrganizationNameMatches).toHaveBeenCalledWith("Maya Santos", 25);
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationIds: ["org-1", ORG_2_ID],
+        organizationIds: [ORG_1_ID, ORG_2_ID],
         organizationFilter: expect.objectContaining({
           query: "Maya Santos",
           truncated: true,
@@ -1731,7 +1734,7 @@ describe("PostingsService", () => {
     );
 
     expect(created).toMatchObject({
-      id: "created-block",
+      id: CREATED_BLOCK_ID,
       note: "maintenance",
     });
     expect(repository.createOwnerAvailabilityBlockCalls).toBe(1);
@@ -1929,7 +1932,7 @@ describe("PostingsService", () => {
     ]);
 
     expect(repository.batchFindByOwner).toHaveBeenCalledWith({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       ids: [POSTING_1_ID, "posting-3"],
     });
     expect(result.missingIds).toEqual(["posting-3"]);
@@ -1970,7 +1973,7 @@ describe("PostingsService", () => {
     authRepository.membershipsByUserId.set(MEMBERLESS_1_ID, []);
     authRepository.preferredOrganizationIdByUserId.set(
       MEMBERLESS_1_ID,
-      "org-1",
+      ORG_1_ID,
     );
 
     await expect(

@@ -5,6 +5,9 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { PostingsAnalyticsService } from "@/features/postings/analytics/analytics.service";
 import { testUuid } from "../../support/uuid";
+const DEVICE_1_ID = testUuid(9200, 895443);
+const ORG_1_ID = testUuid(9200, 9234);
+const ORG_2_ID = testUuid(9200, 9235);
 
 const OWNER_1_ID = testUuid(9000, 219201);
 const POSTING_1_ID = testUuid(9000, 254272);
@@ -17,7 +20,7 @@ function hashValue(value: string): string {
 function createPublicPosting(overrides: Record<string, unknown> = {}): any {
   return {
     id: POSTING_1_ID,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "published",
     archivedAt: undefined,
     ...overrides,
@@ -39,7 +42,7 @@ function createClient(
   return {
     ip: "203.0.113.10",
     device: {
-      id: "device-1",
+      id: DEVICE_1_ID,
       type: "desktop",
       isMobile: false,
       userAgent: "Mozilla/5.0",
@@ -54,13 +57,13 @@ describe("PostingsAnalyticsService", () => {
   function createOrganizationAccessService() {
     return {
       requireActiveMembership: jest.fn(async (userId: string) => ({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         userId,
         role: "primary_manager",
       })),
       requireMembership: jest.fn(
         async (userId: string, organizationId: string) => {
-          if (userId === OWNER_1_ID && organizationId === "org-1") {
+          if (userId === OWNER_1_ID && organizationId === ORG_1_ID) {
             return {
               organizationId,
               userId,
@@ -74,7 +77,7 @@ describe("PostingsAnalyticsService", () => {
         },
       ),
       findMembership: jest.fn(async (userId: string, organizationId: string) =>
-        userId === OWNER_1_ID && organizationId === "org-1"
+        userId === OWNER_1_ID && organizationId === ORG_1_ID
           ? {
               organizationId,
               userId,
@@ -111,10 +114,10 @@ describe("PostingsAnalyticsService", () => {
 
     expect(analyticsRepository.enqueuePostingViewedEvent).toHaveBeenCalledWith({
       postingId: POSTING_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T14:30:00.000Z",
       viewerHash: hashValue(
-        `posting:${POSTING_1_ID}|day:2026-05-20|ip:203.0.113.10|ua:Mozilla/5.0|device:device-1`,
+        `posting:${POSTING_1_ID}|day:2026-05-20|ip:203.0.113.10|ua:Mozilla/5.0|device:${DEVICE_1_ID}`,
       ),
       userId: undefined,
       ipAddressHash: hashValue("ip:203.0.113.10"),
@@ -188,7 +191,7 @@ describe("PostingsAnalyticsService", () => {
       analyticsRepository.enqueueSearchImpressionEvent,
     ).toHaveBeenNthCalledWith(1, {
       postingId: POSTING_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
   });
@@ -203,7 +206,7 @@ describe("PostingsAnalyticsService", () => {
         .mockResolvedValueOnce(createPublicPosting())
         .mockResolvedValueOnce({
           id: POSTING_2_ID,
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: "paused",
         }),
     };
@@ -224,7 +227,7 @@ describe("PostingsAnalyticsService", () => {
     );
     expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledWith({
       postingId: POSTING_1_ID,
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
   });
@@ -246,7 +249,7 @@ describe("PostingsAnalyticsService", () => {
     await expect(
       service.listOwnerPostingsAnalytics({
         actorUserId: OWNER_1_ID,
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         window: "7d",
         page: 1,
         pageSize: 20,
@@ -269,7 +272,7 @@ describe("PostingsAnalyticsService", () => {
         .mockResolvedValueOnce(createPublicPosting())
         .mockResolvedValueOnce({
           ...createPublicPosting(),
-          organizationId: "org-2",
+          organizationId: ORG_2_ID,
         })
         .mockResolvedValueOnce(createPublicPosting()),
     };
@@ -283,7 +286,7 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -293,7 +296,7 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -305,7 +308,7 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -315,7 +318,7 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         window: "30d",
         granularity: "hour",
       }),
