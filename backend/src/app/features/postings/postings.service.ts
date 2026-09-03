@@ -1394,7 +1394,9 @@ export class PostingsService {
     }
   }
 
-  private assertPublishableDraftShape(input: UpsertPostingPersistenceInput): void {
+  private assertPublishableDraftShape(
+    input: UpsertPostingPersistenceInput,
+  ): void {
     if (!input.name.trim()) {
       throw new BadRequestError("Posting name is required.");
     }

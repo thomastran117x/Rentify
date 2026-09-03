@@ -22,10 +22,7 @@ export class OrganizationLogoService {
     private readonly organizationAuditRepository: OrganizationAuditRepository,
   ) {}
 
-  assertLogoInput(
-    actorUserId: Uuid,
-    profile: OrganizationProfileInput,
-  ): void {
+  assertLogoInput(actorUserId: Uuid, profile: OrganizationProfileInput): void {
     const hasLogoUrl = profile.logoUrl !== undefined;
     const hasLogoBlobName = profile.logoBlobName !== undefined;
 

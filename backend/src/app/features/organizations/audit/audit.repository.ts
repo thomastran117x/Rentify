@@ -10,7 +10,12 @@ import {
   type OrganizationAuditRecord,
   type OrganizationAuditResourceType,
 } from "@/features/organizations/audit/audit.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type AuditLogPersistence = Prisma.OrganizationAuditLogGetPayload<{
   include: {

@@ -251,9 +251,6 @@ export function getExpandedPostingIndex(
   return getExpandedPostingStartIndex(ownerEmail) + offset;
 }
 
-export function getExpandedPostingId(
-  ownerEmail: string,
-  offset: number,
-): Uuid {
+export function getExpandedPostingId(ownerEmail: string, offset: number): Uuid {
   return createFixtureId(2000, getExpandedPostingIndex(ownerEmail, offset));
 }

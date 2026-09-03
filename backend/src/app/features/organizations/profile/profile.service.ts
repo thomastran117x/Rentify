@@ -70,9 +70,7 @@ export class OrganizationProfileService {
     });
   }
 
-  async getById(
-    organizationId: Uuid,
-  ): Promise<PublicOrganizationDetailResult> {
+  async getById(organizationId: Uuid): Promise<PublicOrganizationDetailResult> {
     const detail =
       await this.organizationsProfileRepository.findPublicOrganizationDetail(
         organizationId,

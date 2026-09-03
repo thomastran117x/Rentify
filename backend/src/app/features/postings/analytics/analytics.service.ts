@@ -18,7 +18,11 @@ import {
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export class PostingsAnalyticsService {
   constructor(
@@ -100,10 +104,7 @@ export class PostingsAnalyticsService {
     );
   }
 
-  async trackSearchClick(
-    postingId: Uuid,
-    viewerUserId?: Uuid,
-  ): Promise<void> {
+  async trackSearchClick(postingId: Uuid, viewerUserId?: Uuid): Promise<void> {
     const metadata =
       await this.postingsRepository.findPublicReadMetadataById(postingId);
 

@@ -94,8 +94,8 @@ describe("requireUuidRouteParam", () => {
   it("leaves requireSafeRouteParam accepting non-identifier values", () => {
     // Slugs, provider names and feature-flag names share this helper, so it
     // must not inherit the identifier rule.
-    expect(requireSafeRouteParam(createRequest({ slug: "harbor" }), "slug")).toBe(
-      "harbor",
-    );
+    expect(
+      requireSafeRouteParam(createRequest({ slug: "harbor" }), "slug"),
+    ).toBe("harbor");
   });
 });

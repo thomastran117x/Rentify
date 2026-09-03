@@ -7,7 +7,11 @@ import {
   type PostingAttributeValue as VariantPostingAttributeValue,
   VEHICLE_POSTING_SUBTYPE_VALUES,
 } from "@/features/postings/postings.variants";
-import { uuidSchema, uuidSchemaWithMessage, type Uuid } from "@/configuration/validation/uuid";
+import {
+  uuidSchema,
+  uuidSchemaWithMessage,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export const MAX_POSTING_PHOTOS = 10;
 export const MAX_BATCH_IDS = 50;

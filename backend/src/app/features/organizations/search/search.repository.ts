@@ -9,7 +9,12 @@ import type {
   SearchReindexRunRecord,
   SearchReindexStatus,
 } from "@/features/search/search.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type SearchReindexCatchUpState =
   | {

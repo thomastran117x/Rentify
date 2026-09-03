@@ -165,7 +165,9 @@ export class OrganizationAuditService {
         const snapshot = toAuditSnapshotRecord(auditLog.beforeSnapshot);
         const restored =
           await this.organizationsMembersRepository.restoreMembership({
-            membershipId: asUuid(String(snapshot.membershipId ?? auditLog.resourceId)),
+            membershipId: asUuid(
+              String(snapshot.membershipId ?? auditLog.resourceId),
+            ),
             organizationId: input.organizationId,
             userId: asUuid(String(snapshot.userId ?? "")),
             role: String(snapshot.role ?? "operator") as OrganizationRole,

@@ -17,7 +17,12 @@ import type {
   ReportStatus,
   ReportSubjectType,
 } from "@/features/reports/reports.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type UserSummaryPersistence = {
   id: string;
@@ -232,9 +237,7 @@ export class ReportsRepository extends BaseRepository {
     );
   }
 
-  async findUserSubject(
-    userId: Uuid,
-  ): Promise<UserSummaryPersistence | null> {
+  async findUserSubject(userId: Uuid): Promise<UserSummaryPersistence | null> {
     return this.executeAsync(() =>
       this.prisma.user.findUnique({
         where: {

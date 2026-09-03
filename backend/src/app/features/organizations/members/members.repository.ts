@@ -173,9 +173,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
     };
   }
 
-  async findPrimaryManagerUserId(
-    organizationId: Uuid,
-  ): Promise<string | null> {
+  async findPrimaryManagerUserId(organizationId: Uuid): Promise<string | null> {
     const membership = await this.executeAsync(() =>
       this.prisma.organizationMembership.findFirst({
         where: {

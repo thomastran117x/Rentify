@@ -21,7 +21,12 @@ import type {
   OwnerBookingDashboardPersistenceInput,
   RenterBookingDashboardInput,
 } from "@/features/bookings/bookings.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type BookingRequestPersistence = Prisma.BookingRequestGetPayload<{
   include: {

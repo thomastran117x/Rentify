@@ -121,7 +121,10 @@ export class RentingsService {
     userId: Uuid,
     role: AppRole = "user",
   ): Promise<RentingRecord> {
-    await this.rentingsRepository.promoteReturnDueForRenting(asUuid(id), new Date());
+    await this.rentingsRepository.promoteReturnDueForRenting(
+      asUuid(id),
+      new Date(),
+    );
     const renting = await this.rentingsRepository.findById(id);
 
     if (!renting) {

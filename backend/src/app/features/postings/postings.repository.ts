@@ -46,7 +46,12 @@ import type {
   SearchReindexStatus,
 } from "@/features/search/search.model";
 import { getPostingSearchableAttributeDefinitions } from "@/features/postings/postings.variants";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type SearchReindexCatchUpState =
   | {
@@ -1124,7 +1129,11 @@ export class PostingsRepository extends BaseRepository {
           },
         });
 
-        await this.enqueueOutbox(transaction, asUuid(block.postingId!), "upsert");
+        await this.enqueueOutbox(
+          transaction,
+          asUuid(block.postingId!),
+          "upsert",
+        );
         return row;
       });
 
@@ -2957,7 +2966,9 @@ export class PostingsRepository extends BaseRepository {
     });
   }
 
-  private toCreateData(input: UpsertPostingPersistenceInput): Prisma.PostingCreateInput {
+  private toCreateData(
+    input: UpsertPostingPersistenceInput,
+  ): Prisma.PostingCreateInput {
     return {
       id: newUuid(),
       organization: {

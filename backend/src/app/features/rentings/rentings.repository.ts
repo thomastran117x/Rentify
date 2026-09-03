@@ -193,10 +193,7 @@ export class RentingsRepository extends BaseRepository {
     });
   }
 
-  async promoteReturnDueForRenting(
-    rentingId: Uuid,
-    now: Date,
-  ): Promise<void> {
+  async promoteReturnDueForRenting(rentingId: Uuid, now: Date): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.renting.updateMany({
         where: {

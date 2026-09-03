@@ -6,7 +6,11 @@ import type {
   RecommendationPostingSummary,
   UpsertRecommendationRefreshJobInput,
 } from "@/features/recommendations/recommendation-activity.model";
-import { asOptionalUuid, asUuid, newUuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+} from "@/configuration/validation/uuid";
 
 const COALESCE_EVENT_TYPES = new Set<RecommendationActivityEventType>([
   "posting_view",
@@ -17,7 +21,9 @@ export class RecommendationActivityProcessor {
   constructor(private readonly repository: RecommendationActivityRepository) {}
 
   async process(payload: RecommendationActivityEventPayload): Promise<void> {
-    const posting = await this.repository.findPostingSummary(asUuid(payload.postingId));
+    const posting = await this.repository.findPostingSummary(
+      asUuid(payload.postingId),
+    );
 
     if (!posting) {
       throw new Error(

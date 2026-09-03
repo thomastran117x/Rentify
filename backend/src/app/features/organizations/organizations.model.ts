@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { uuidSchemaWithMessage, type Uuid } from "@/configuration/validation/uuid";
+import {
+  uuidSchemaWithMessage,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 import {
   ORGANIZATION_SLUG_MAX_LENGTH,
   ORGANIZATION_SLUG_MIN_LENGTH,

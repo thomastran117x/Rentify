@@ -14,7 +14,12 @@ import type {
   RecommendationPopularSegmentType,
   RecommendationRefreshJobType,
 } from "@/features/recommendations/recommendation-activity.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type RefreshJobDelegate = {
   create: (args: unknown) => Promise<unknown>;
@@ -638,8 +643,7 @@ export class RecommendationPrecomputeRepository extends BaseRepository {
     return {
       id: asUuid(String(job.id)),
       jobType: job.jobType as RecommendationRefreshJobType,
-      userId:
-        typeof job.userId === "string" ? asUuid(job.userId) : undefined,
+      userId: typeof job.userId === "string" ? asUuid(job.userId) : undefined,
       segmentType:
         typeof job.segmentType === "string"
           ? (job.segmentType as RecommendationPopularSegmentType)

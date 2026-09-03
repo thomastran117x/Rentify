@@ -30,7 +30,11 @@ import {
   BLOG_COMMENT_EDIT_WINDOW_MS,
   BLOG_COMMENT_SOCKET_TICKET_TTL_SECONDS,
 } from "@/features/organizations/blog/comments/comments.model";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 /**
  * The realtime seam. Narrowed to what this service needs so it does not depend

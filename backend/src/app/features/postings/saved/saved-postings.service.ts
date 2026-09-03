@@ -11,7 +11,11 @@ import {
   type SavedPostingState,
   type UnavailableSavedPosting,
 } from "@/features/postings/saved/saved-postings.model";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 /**
  * The identifier set is read on essentially every authenticated marketplace

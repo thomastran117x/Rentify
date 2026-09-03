@@ -18,7 +18,11 @@ import type { ReportsSearchIndexService } from "@/features/reports/search/index.
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 const MAX_SEARCH_OUTBOX_ATTEMPTS = 5;
 

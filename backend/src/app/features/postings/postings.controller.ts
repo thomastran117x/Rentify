@@ -84,7 +84,11 @@ import {
 } from "@/features/recommendations/recommendation-activity.model";
 import type { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export class PostingsController {
   private readonly logger: Logger;

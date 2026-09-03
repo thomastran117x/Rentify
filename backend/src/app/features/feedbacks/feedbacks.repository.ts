@@ -4,7 +4,11 @@ import type {
   AppFeedbackRecord,
   CreateAppFeedbackInput,
 } from "@/features/feedbacks/feedbacks.model";
-import { asOptionalUuid, asUuid, newUuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+} from "@/configuration/validation/uuid";
 
 export class FeedbacksRepository extends BaseRepository {
   async create(input: CreateAppFeedbackInput): Promise<AppFeedbackRecord> {

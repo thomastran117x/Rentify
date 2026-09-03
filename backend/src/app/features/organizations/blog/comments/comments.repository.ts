@@ -360,5 +360,4 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
       commentsEnabled: row.commentsEnabled,
     };
   }
-
 }

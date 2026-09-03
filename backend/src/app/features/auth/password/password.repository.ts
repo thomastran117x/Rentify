@@ -2,10 +2,7 @@ import { BaseRepository } from "@/features/base/base.repository";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 export class PasswordRepository extends BaseRepository {
-  async updatePasswordHash(
-    userId: Uuid,
-    passwordHash: string,
-  ): Promise<void> {
+  async updatePasswordHash(userId: Uuid, passwordHash: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({
         where: {

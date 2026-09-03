@@ -381,10 +381,7 @@ export class OrganizationInvitationsService {
     );
   }
 
-  private async requireInvitation(
-    organizationId: Uuid,
-    invitationId: Uuid,
-  ) {
+  private async requireInvitation(organizationId: Uuid, invitationId: Uuid) {
     const invitation =
       await this.organizationsInvitationsRepository.findInvitationById(
         organizationId,

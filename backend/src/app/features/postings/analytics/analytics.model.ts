@@ -304,7 +304,8 @@ export interface PostingAnalyticsSummaryInput {
 }
 
 /** PostingAnalyticsSummaryInput once the service has resolved the owning organization. */
-export interface PostingAnalyticsSummaryPersistenceInput extends PostingAnalyticsSummaryInput {
+export interface PostingAnalyticsSummaryPersistenceInput
+  extends PostingAnalyticsSummaryInput {
   organizationId: Uuid;
 }
 
@@ -315,7 +316,8 @@ export interface ListPostingAnalyticsInput
 }
 
 /** ListPostingAnalyticsInput once the service has resolved the owning organization. */
-export interface ListPostingAnalyticsPersistenceInput extends ListPostingAnalyticsInput {
+export interface ListPostingAnalyticsPersistenceInput
+  extends ListPostingAnalyticsInput {
   organizationId: Uuid;
 }
 
@@ -326,6 +328,7 @@ export interface PostingAnalyticsDetailInput
 }
 
 /** PostingAnalyticsDetailInput once the service has resolved the owning organization. */
-export interface PostingAnalyticsDetailPersistenceInput extends PostingAnalyticsDetailInput {
+export interface PostingAnalyticsDetailPersistenceInput
+  extends PostingAnalyticsDetailInput {
   organizationId: Uuid;
 }

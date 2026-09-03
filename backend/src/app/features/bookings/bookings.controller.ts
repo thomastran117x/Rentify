@@ -36,7 +36,11 @@ import {
 } from "@/features/bookings/bookings.model";
 import type { BookingsService } from "@/features/bookings/bookings.service";
 import type { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export class BookingsController {
   constructor(

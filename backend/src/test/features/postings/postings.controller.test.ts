@@ -1075,7 +1075,10 @@ describe("PostingsController", () => {
       POSTING_TWO_ID,
       POSTING_THREE_ID,
     ]);
-    expect(batchPublic).toHaveBeenCalledWith([POSTING_FOUR_ID, POSTING_FIVE_ID]);
+    expect(batchPublic).toHaveBeenCalledWith([
+      POSTING_FOUR_ID,
+      POSTING_FIVE_ID,
+    ]);
     expect(autocompletePublic).toHaveBeenCalledWith({
       query: "loft",
       family: "place",

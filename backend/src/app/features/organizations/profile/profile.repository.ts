@@ -758,7 +758,11 @@ export class OrganizationsProfileRepository extends BaseRepository {
         throw toOrganizationSlugTakenError(error, slug);
       }
 
-      await this.enqueueSearchOutbox(transaction, asUuid(organization.id), "upsert");
+      await this.enqueueSearchOutbox(
+        transaction,
+        asUuid(organization.id),
+        "upsert",
+      );
 
       const membership = await transaction.organizationMembership.create({
         data: {

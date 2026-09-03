@@ -196,10 +196,7 @@ describe("PaymentsController", () => {
       reason: "guest_request",
       idempotencyKey: "retry-1",
     });
-    expect(service.reconcilePayment).toHaveBeenCalledWith(
-      PAYMENT_ID,
-      USER_ID,
-    );
+    expect(service.reconcilePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
   });
 
   it("maps get-by-booking-request calls to the service layer", async () => {

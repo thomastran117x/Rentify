@@ -20,7 +20,11 @@ import type {
 } from "@/features/payments/payments.model";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { createPaymentIdempotencyKey } from "@/features/payments/payments.utils";
-import { asOptionalUuid, asUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 function readEventPaymentDetails(payload: Record<string, unknown>): {
   paymentId?: Uuid;
@@ -129,10 +133,7 @@ export class PaymentsService {
     });
   }
 
-  async getPaymentById(
-    paymentId: Uuid,
-    userId: Uuid,
-  ): Promise<PaymentRecord> {
+  async getPaymentById(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
     return this.requirePaymentAccess(paymentId, userId, "read");
   }
 

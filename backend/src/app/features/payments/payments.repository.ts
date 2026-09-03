@@ -29,7 +29,12 @@ import {
   calculatePlatformFeeAmount,
   createExponentialBackoffDate,
 } from "@/features/payments/payments.utils";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type PaymentPersistence = Prisma.PaymentGetPayload<{
   include: {

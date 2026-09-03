@@ -8,7 +8,12 @@ import type {
   OrganizationAnnouncementStatus,
   UpdateOrganizationAnnouncementPersistence,
 } from "@/features/organizations/announcements/announcements.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type AnnouncementPersistence = Prisma.OrganizationAnnouncementGetPayload<{
   include: {

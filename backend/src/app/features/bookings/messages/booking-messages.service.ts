@@ -542,10 +542,7 @@ export class BookingMessagesService {
     }
   }
 
-  private notifyCooldownKey(
-    bookingRequestId: Uuid,
-    recipientId: Uuid,
-  ): string {
+  private notifyCooldownKey(bookingRequestId: Uuid, recipientId: Uuid): string {
     return `booking-messages:notify:${bookingRequestId}:${recipientId}`;
   }
 }

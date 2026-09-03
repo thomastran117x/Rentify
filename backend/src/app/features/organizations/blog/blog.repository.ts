@@ -16,7 +16,12 @@ import type {
   SearchReindexRunRecord,
   SearchReindexStatus,
 } from "@/features/search/search.model";
-import { asOptionalUuid, asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type BlogPostPersistence = Prisma.OrganizationBlogPostGetPayload<{
   include: {
@@ -126,7 +131,11 @@ export class OrganizationBlogRepository extends BaseRepository {
           include: this.includeAuthor(),
         });
 
-        await this.enqueueSearchOutbox(transaction, asUuid(created.id), "upsert");
+        await this.enqueueSearchOutbox(
+          transaction,
+          asUuid(created.id),
+          "upsert",
+        );
 
         return created;
       }),
@@ -167,7 +176,11 @@ export class OrganizationBlogRepository extends BaseRepository {
           include: this.includeAuthor(),
         });
 
-        await this.enqueueSearchOutbox(transaction, asUuid(updated.id), "upsert");
+        await this.enqueueSearchOutbox(
+          transaction,
+          asUuid(updated.id),
+          "upsert",
+        );
 
         return updated;
       }),

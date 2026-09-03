@@ -437,9 +437,7 @@ export class BookingMessageSocketServer {
     // Socket payloads are untrusted, so the shape check doubles as the brand:
     // anything that is not an identifier is dropped rather than passed on.
     const messageIds = Array.isArray(payload)
-      ? payload.filter(
-          (id): id is Uuid => typeof id === "string" && isUuid(id),
-        )
+      ? payload.filter((id): id is Uuid => typeof id === "string" && isUuid(id))
       : [];
 
     if (messageIds.length === 0) {

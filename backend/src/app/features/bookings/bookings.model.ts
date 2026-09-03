@@ -540,7 +540,8 @@ export interface ListOwnedBookingRequestsInput {
 }
 
 /** ListOwnedBookingRequestsInput once the service has resolved the owning organization. */
-export interface ListOwnedBookingRequestsPersistenceInput extends ListOwnedBookingRequestsInput {
+export interface ListOwnedBookingRequestsPersistenceInput
+  extends ListOwnedBookingRequestsInput {
   organizationId: Uuid;
 }
 
@@ -553,7 +554,8 @@ export interface ListOwnerBookingRequestsInput {
 }
 
 /** ListOwnerBookingRequestsInput once the service has resolved the owning organization. */
-export interface ListOwnerBookingRequestsPersistenceInput extends ListOwnerBookingRequestsInput {
+export interface ListOwnerBookingRequestsPersistenceInput
+  extends ListOwnerBookingRequestsInput {
   organizationId: Uuid;
 }
 
