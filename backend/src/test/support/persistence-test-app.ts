@@ -52,6 +52,7 @@ import {
   RABBITMQ_TEST_VHOST_PREFIX,
   type LiveRabbitMqConfig,
 } from "./live-rabbitmq";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent_test";
 const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380/15";
@@ -158,7 +159,7 @@ export interface AuthenticatedRequestContext {
   accessToken: string;
   refreshToken: string;
   sessionId: string;
-  userId: string;
+  userId: Uuid;
   deviceId: string;
   email: string;
   role: string;
@@ -508,7 +509,7 @@ export async function createAuthenticatedRequestContext(input: {
   await tokenService.createSession(
     {
       sessionId,
-      userId: user.id,
+      userId: asUuid(user.id),
       deviceId,
       tokenVersion: user.tokenVersion,
     },
@@ -534,7 +535,7 @@ export async function createAuthenticatedRequestContext(input: {
     accessToken,
     refreshToken,
     sessionId,
-    userId: user.id,
+    userId: asUuid(user.id),
     deviceId,
     email: user.email,
     role: user.role,

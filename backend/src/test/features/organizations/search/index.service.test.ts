@@ -3,6 +3,7 @@ import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
 } from "@/configuration/resources/elasticsearch";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type RequestHandler = (
   path: string,
@@ -31,7 +32,7 @@ function createEsClient(options?: {
   return { client, requestJson };
 }
 
-function createDocument(id: string) {
+function createDocument(id: Uuid) {
   return {
     id,
     name: `Org ${id}`,
@@ -226,7 +227,7 @@ describe("OrganizationsSearchIndexService", () => {
     const { client, requestJson } = createEsClient({ handler });
     const service = new OrganizationsSearchIndexService(client as any);
 
-    await service.upsertDocument(createDocument("org-1"));
+    await service.upsertDocument(createDocument(asUuid("org-1")));
     await service.deleteDocument("org-1");
 
     const put = requestJson.mock.calls.find(
@@ -252,7 +253,7 @@ describe("OrganizationsSearchIndexService", () => {
     const service = new OrganizationsSearchIndexService(client as any);
 
     await service.bulkUpsertDocuments(
-      [createDocument("a"), createDocument("b")],
+      [createDocument(asUuid("a")), createDocument(asUuid("b"))],
       "postings-organizations_v1",
     );
     const bulkCall = requestJson.mock.calls.find(([path]) => path === "/_bulk");
@@ -269,7 +270,7 @@ describe("OrganizationsSearchIndexService", () => {
       createEsClient({ handler: failHandler }).client as any,
     );
     await expect(
-      failing.bulkUpsertDocuments([createDocument("a")], "idx"),
+      failing.bulkUpsertDocuments([createDocument(asUuid("a"))], "idx"),
     ).rejects.toBeInstanceOf(ElasticsearchRequestError);
   });
 

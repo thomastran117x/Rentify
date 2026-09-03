@@ -1,5 +1,6 @@
 import { RecommendationQueryService } from "@/features/recommendations/recommendation-query.service";
 import { testUuid } from "../../support/uuid";
+const PAT_1_ID = testUuid(9300, 1);
 const POSTING_1_ID = testUuid(9200, 254272);
 const USER_1_ID = testUuid(9200, 994257);
 
@@ -462,7 +463,7 @@ function createPatAuth() {
     authMethod: "pat" as const,
     sub: USER_1_ID,
     scopes: ["mcp:read"],
-    personalAccessTokenId: "pat-1",
+    personalAccessTokenId: PAT_1_ID,
     personalAccessTokenName: "test",
   };
 }

@@ -13,6 +13,7 @@ import {
   toRouteSafeSlug,
   withSuffix,
 } from "@/features/organizations/organization-slug";
+import { asUuid } from "../../support/uuid";
 
 const ORG_OPTIONS = {
   maxLength: ORGANIZATION_SLUG_MAX_LENGTH,
@@ -124,7 +125,7 @@ describe("isReservedOrganizationSlug", () => {
   it("reserves the generated id namespace so users cannot claim it", () => {
     expect(
       isReservedOrganizationSlug(
-        reservedNamespaceSlug("00000000-0000-0000-1040-000000000001"),
+        reservedNamespaceSlug(asUuid("00000000-0000-0000-1040-000000000001")),
       ),
     ).toBe(true);
   });
@@ -137,14 +138,15 @@ describe("isReservedOrganizationSlug", () => {
 
 describe("reservedNamespaceSlug", () => {
   it("derives a unique slug from the organization id", () => {
-    expect(reservedNamespaceSlug("00000000-0000-0000-1040-000000000005")).toBe(
-      "organization-id-00000000000000001040000000000005",
-    );
+    expect(
+      reservedNamespaceSlug(asUuid("00000000-0000-0000-1040-000000000005")),
+    ).toBe("organization-id-00000000000000001040000000000005");
   });
 
   it("stays within the slug length limit", () => {
     expect(
-      reservedNamespaceSlug("00000000-0000-0000-1040-000000000005").length,
+      reservedNamespaceSlug(asUuid("00000000-0000-0000-1040-000000000005"))
+        .length,
     ).toBeLessThanOrEqual(ORGANIZATION_SLUG_MAX_LENGTH);
   });
 });
@@ -265,7 +267,7 @@ describe("toRouteSafeSlug", () => {
 
   it("defuses the generated id namespace", () => {
     const slug = toRouteSafeSlug(
-      reservedNamespaceSlug("00000000-0000-0000-1040-000000000001"),
+      reservedNamespaceSlug(asUuid("00000000-0000-0000-1040-000000000001")),
     );
 
     expectRouteResolvable(slug);

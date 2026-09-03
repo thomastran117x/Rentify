@@ -459,7 +459,6 @@ describe("PaymentsService", () => {
 
     await service.listPayouts({
       actorUserId: MANAGER_1_ID,
-      organizationId: IGNORED_BY_SERVICE_ID,
       page: 2,
       pageSize: 5,
       status: "scheduled",

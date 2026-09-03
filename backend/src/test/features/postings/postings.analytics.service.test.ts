@@ -249,7 +249,6 @@ describe("PostingsAnalyticsService", () => {
     await expect(
       service.listOwnerPostingsAnalytics({
         actorUserId: OWNER_1_ID,
-        organizationId: ORG_1_ID,
         window: "7d",
         page: 1,
         pageSize: 20,
@@ -286,7 +285,6 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -296,7 +294,6 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -308,7 +305,6 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: ORG_1_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -318,7 +314,6 @@ describe("PostingsAnalyticsService", () => {
       service.getPostingAnalyticsDetail({
         postingId: POSTING_1_ID,
         actorUserId: OWNER_1_ID,
-        organizationId: ORG_1_ID,
         window: "30d",
         granularity: "hour",
       }),

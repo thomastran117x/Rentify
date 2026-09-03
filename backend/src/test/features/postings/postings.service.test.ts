@@ -18,6 +18,7 @@ import type {
   PostingRecord,
   PublicPostingRecord,
   UpsertPostingInput,
+  UpsertPostingPersistenceInput,
 } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -34,6 +35,9 @@ import type { OrganizationAuditService } from "@/features/organizations/audit/au
 import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { testUuid } from "../../support/uuid";
+import type { Uuid } from "@/configuration/validation/uuid";
+const OWNER_BLOCK_1_ID = testUuid(9000, 630648);
+const HOLD_1_ID = testUuid(9500, 900);
 const CREATED_BLOCK_ID = testUuid(9200, 843316);
 const ORG_1_ID = testUuid(9200, 9234);
 const REVIEW_1_ID = testUuid(9200, 118005);
@@ -55,7 +59,7 @@ const ORG_9_ID = testUuid(9000, 9242);
 
 class FakePostingsRepository {
   createCalls = 0;
-  lastCreateInput: UpsertPostingInput | null = null;
+  lastCreateInput: UpsertPostingPersistenceInput | null = null;
   lastListInput: {
     organizationId: string;
     page: number;
@@ -84,13 +88,16 @@ class FakePostingsRepository {
   blockLookup: PostingAvailabilityBlockRecord | null = this.ownerBlocks[0]!;
   deleteResult = true;
 
-  async create(input: UpsertPostingInput): Promise<PostingRecord> {
+  async create(input: UpsertPostingPersistenceInput): Promise<PostingRecord> {
     this.createCalls += 1;
     this.lastCreateInput = input;
     return buildPostingRecord(input);
   }
 
-  async update(id: string, input: UpsertPostingInput): Promise<PostingRecord> {
+  async update(
+    id: Uuid,
+    input: UpsertPostingPersistenceInput,
+  ): Promise<PostingRecord> {
     this.updateCalls += 1;
     return {
       ...buildPostingRecord(input),
@@ -98,7 +105,7 @@ class FakePostingsRepository {
     };
   }
 
-  async findById(id: string): Promise<PostingRecord> {
+  async findById(id: Uuid): Promise<PostingRecord> {
     this.findByIdCalls += 1;
 
     return {
@@ -107,7 +114,7 @@ class FakePostingsRepository {
     };
   }
 
-  async findPublicReadMetadataById(id: string): Promise<{
+  async findPublicReadMetadataById(id: Uuid): Promise<{
     id: string;
     organizationId: string;
     status: PostingRecord["status"];
@@ -131,7 +138,7 @@ class FakePostingsRepository {
     null;
 
   async findAvailabilityCalendarPosting(
-    id: string,
+    id: Uuid,
   ): Promise<AvailabilityCalendarPostingFields | null> {
     if (this.calendarPostingMissing) {
       return null;
@@ -184,7 +191,7 @@ class FakePostingsRepository {
     return this.calendarBookingRequests;
   }
 
-  async publish(id: string): Promise<PostingRecord> {
+  async publish(id: Uuid): Promise<PostingRecord> {
     this.publishCalls += 1;
     this.posting = {
       ...this.posting,
@@ -197,7 +204,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async pause(id: string): Promise<PostingRecord> {
+  async pause(id: Uuid): Promise<PostingRecord> {
     this.pauseCalls += 1;
     this.posting = {
       ...this.posting,
@@ -210,7 +217,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async unpause(id: string): Promise<PostingRecord> {
+  async unpause(id: Uuid): Promise<PostingRecord> {
     this.unpauseCalls += 1;
     this.posting = {
       ...this.posting,
@@ -222,7 +229,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async archive(id: string): Promise<PostingRecord> {
+  async archive(id: Uuid): Promise<PostingRecord> {
     this.archiveCalls += 1;
     this.posting = {
       ...this.posting,
@@ -264,7 +271,7 @@ class FakePostingsRepository {
 
   lastCountOrganizationId: string | null = null;
 
-  async countByOwnerStatus(organizationId: string) {
+  async countByOwnerStatus(organizationId: Uuid) {
     this.lastCountOrganizationId = organizationId;
     return {
       total: 1,
@@ -286,7 +293,7 @@ class FakePostingsRepository {
 
   async updateOwnerAvailabilityBlock(
     _postingId: string,
-    blockId: string,
+    blockId: Uuid,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     this.updateOwnerAvailabilityBlockCalls += 1;
@@ -342,8 +349,8 @@ class FakePostingsPublicCacheService {
   }
 
   async getPublicByIds(
-    ids: string[],
-  ): Promise<{ postings: PublicPostingRecord[]; missingIds: string[] }> {
+    ids: Uuid[],
+  ): Promise<{ postings: PublicPostingRecord[]; missingIds: Uuid[] }> {
     if (!this.posting) {
       return {
         postings: [],
@@ -351,7 +358,9 @@ class FakePostingsPublicCacheService {
       };
     }
 
-    const byId = new Map([[this.posting.id, this.posting]]);
+    const byId = new Map<Uuid, PublicPostingRecord>([
+      [this.posting.id, this.posting],
+    ]);
 
     return {
       postings: ids
@@ -361,7 +370,7 @@ class FakePostingsPublicCacheService {
     };
   }
 
-  async invalidatePublic(postingId: string): Promise<number> {
+  async invalidatePublic(postingId: Uuid): Promise<number> {
     this.invalidatedPostingIds.push(postingId);
     return this.invalidatedPostingIds.length;
   }
@@ -429,7 +438,7 @@ class FakeAuthRepository {
     [OWNER_2_ID, ORG_2_ID],
   ]);
 
-  async findUserById(userId: string) {
+  async findUserById(userId: Uuid) {
     const organizationMemberships = this.membershipsByUserId.get(userId) ?? [];
 
     if (
@@ -570,7 +579,7 @@ function createServiceHarness(
   };
 }
 
-function createValidInput(): UpsertPostingInput {
+function createValidInput(): UpsertPostingPersistenceInput {
   return {
     organizationId: ORG_1_ID,
     variant: {
@@ -622,7 +631,9 @@ function createValidInput(): UpsertPostingInput {
   };
 }
 
-function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
+function buildPostingRecord(
+  input: UpsertPostingPersistenceInput,
+): PostingRecord {
   return {
     id: POSTING_1_ID,
     organizationId: input.organizationId,
@@ -633,7 +644,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
     pricing: input.pricing,
     pricingCurrency: input.pricing.currency,
     photos: input.photos.map((photo, index) => ({
-      id: `photo-${index + 1}`,
+      id: testUuid(9400, index + 1),
       blobUrl: photo.blobUrl,
       blobName: photo.blobName,
       thumbnailBlobUrl: photo.thumbnailBlobUrl,
@@ -649,7 +660,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
     maxBookingDurationDays: input.maxBookingDurationDays ?? undefined,
     effectiveMaxBookingDurationDays: input.maxBookingDurationDays ?? 30,
     availabilityBlocks: input.availabilityBlocks.map((block, index) => ({
-      id: `block-${index + 1}`,
+      id: testUuid(9500, index + 1),
       startAt: block.startAt,
       endAt: block.endAt,
       note: block.note ?? undefined,
@@ -668,7 +679,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
 }
 
 function buildAvailabilityBlockRecord(
-  id: string,
+  id: Uuid,
   input: PostingAvailabilityBlockInput,
 ): PostingAvailabilityBlockRecord {
   return {
@@ -969,7 +980,7 @@ describe("PostingsService", () => {
           "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
       })),
       availabilityBlocks: [
-        buildAvailabilityBlockRecord("hold-1", {
+        buildAvailabilityBlockRecord(HOLD_1_ID, {
           startAt: "2026-06-10T00:00:00.000Z",
           endAt: "2026-06-12T00:00:00.000Z",
           note: "Temporary booking hold",
@@ -977,7 +988,7 @@ describe("PostingsService", () => {
       ],
     };
     repository.ownerBlocks = [
-      buildAvailabilityBlockRecord("owner-block-1", {
+      buildAvailabilityBlockRecord(OWNER_BLOCK_1_ID, {
         startAt: "2026-07-01T00:00:00.000Z",
         endAt: "2026-07-03T00:00:00.000Z",
         note: "Owner stay",
@@ -2299,7 +2310,7 @@ describe("PostingsService", () => {
       assertManagedBlob: (blobUrl: string, blobName: string) => void;
       assertCanPublish: (posting: PostingRecord) => void;
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
-      normalizeBatchIds: (ids: string[]) => string[];
+      normalizeBatchIds: (ids: Uuid[]) => string[];
     };
 
     expect(() => service.normalizePhotos([])).toThrow(
@@ -2473,9 +2484,8 @@ describe("PostingsService", () => {
     );
     expect(() =>
       service.normalizeBatchIds(
-        Array.from(
-          { length: MAX_BATCH_IDS + 1 },
-          (_, index) => `posting-${index}`,
+        Array.from({ length: MAX_BATCH_IDS + 1 }, (_, index) =>
+          testUuid(9700, index),
         ),
       ),
     ).toThrow("At most");

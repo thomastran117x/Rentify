@@ -1085,7 +1085,6 @@ describe("BookingsService", () => {
 
     const result = await service.dashboardOwned({
       actorUserId: OWNER_1_ID,
-      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 10,
       sort: "urgency",

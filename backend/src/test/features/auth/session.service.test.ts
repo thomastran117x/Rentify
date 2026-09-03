@@ -6,8 +6,8 @@ import type {
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { testUuid } from "../../support/uuid";
+const PAT_1_ID = testUuid(9300, 1);
 const DEVICE_1_ID = testUuid(9200, 895443);
-const AUTH_ID = testUuid(9000, 5915);
 
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
@@ -275,7 +275,7 @@ describe("AuthSessionService.localVerify", () => {
             deviceId: "device-99",
             iat: 1,
             exp: 999_999,
-          } as AuthRequestContext[AUTH_ID],
+          } as AuthRequestContext["auth"],
         }),
       ),
     ).resolves.toMatchObject({
@@ -416,9 +416,9 @@ describe("AuthSessionService.logout", () => {
           authMethod: "pat",
           sub: USER_1_ID,
           scopes: ["auth:read"],
-          personalAccessTokenId: "pat-1",
+          personalAccessTokenId: PAT_1_ID,
           personalAccessTokenName: "CI token",
-        } satisfies AuthRequestContext[AUTH_ID],
+        } satisfies AuthRequestContext["auth"],
       }),
     );
 

@@ -2,6 +2,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import { SearchService } from "@/features/search/search.service";
 import { resetSearchTelemetry } from "@/features/search/search.telemetry";
 import { testUuid } from "../../support/uuid";
+import type { Uuid } from "@/configuration/validation/uuid";
 const OUTBOX_9_ID = testUuid(9200, 747647);
 const POSTING_9_ID = testUuid(9200, 254280);
 const RUN_2_ID = testUuid(9200, 875932);
@@ -1339,7 +1340,7 @@ describe("SearchService", () => {
       getSearchOutboxesByIds: jest.fn(async () =>
         Array.from(outboxById.values()),
       ),
-      getSearchOutboxById: jest.fn(async (id: string) => outboxById.get(id)),
+      getSearchOutboxById: jest.fn(async (id: Uuid) => outboxById.get(id)),
       hasNewerSearchOutboxJob: jest.fn(async () => false),
       markSearchOutboxesIndexed: jest.fn(async () => undefined),
       markSearchOutboxIndexed: jest.fn(async () => undefined),

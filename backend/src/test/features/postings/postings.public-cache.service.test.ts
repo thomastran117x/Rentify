@@ -9,6 +9,8 @@ import type {
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import { testUuid } from "../../support/uuid";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+const POSTING_3_ID = testUuid(9700, 3);
 const OWNER_1_ID = testUuid(9200, 219201);
 const PHOTO_1_ID = testUuid(9200, 660923);
 
@@ -130,7 +132,7 @@ function createPublicPosting(
 
 function createBatchResult(
   postings: PublicPostingRecord[],
-  missingIds: string[] = [],
+  missingIds: Uuid[] = [],
 ): BatchPostingsResult<PublicPostingRecord> {
   return {
     postings,
@@ -175,7 +177,7 @@ function createService(options?: {
   const cacheService = new InMemoryCacheService();
   const batchFindPublic =
     options?.batchFindPublic ??
-    jest.fn(async ({ ids }: { ids: string[] }) =>
+    jest.fn(async ({ ids }: { ids: Uuid[] }) =>
       createBatchResult(ids.map((id) => createPublicPosting({ id }))),
     );
   const repository = {
@@ -344,7 +346,7 @@ describe("PostingsPublicCacheService", () => {
   it("returns null immediately for an empty postingId without calling the repository", async () => {
     const { batchFindPublic, service } = createService();
 
-    const result = await service.getPublicById("   ");
+    const result = await service.getPublicById(asUuid("   "));
 
     expect(result).toBeNull();
     expect(batchFindPublic).not.toHaveBeenCalled();
@@ -352,7 +354,7 @@ describe("PostingsPublicCacheService", () => {
 
   it("treats blank ids as missing in getPublicByIds batch results", async () => {
     const { service } = createService({
-      batchFindPublic: jest.fn(async ({ ids }: { ids: string[] }) =>
+      batchFindPublic: jest.fn(async ({ ids }: { ids: Uuid[] }) =>
         createBatchResult(ids.map((id) => createPublicPosting({ id }))),
       ),
     });
@@ -378,7 +380,7 @@ describe("PostingsPublicCacheService", () => {
       batchFindPublic: jest
         .fn()
         .mockResolvedValueOnce(createBatchResult([fetchedPosting]))
-        .mockResolvedValueOnce(createBatchResult([], ["posting-3"])),
+        .mockResolvedValueOnce(createBatchResult([], [POSTING_3_ID])),
     });
 
     await cacheService.setJson(

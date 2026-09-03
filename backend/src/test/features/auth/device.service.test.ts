@@ -4,6 +4,7 @@ import { DeviceService } from "@/features/auth/device/device.service";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { KnownDeviceRecord } from "@/features/auth/device/device.repository";
 import { testUuid } from "../../support/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 const DEVICE_1_ID = testUuid(9200, 895443);
 const KNOWN_DEVICE_1_ID = testUuid(9000, 135264);
 const KNOWN_DEVICE_2_ID = testUuid(9000, 135265);
@@ -129,7 +130,7 @@ function createService(overrides?: {
       overrides?.registerKnownDevice ??
         (async (input) =>
           createKnownDevice({
-            userId: input.userId,
+            userId: asUuid(input.userId),
             deviceId: input.deviceId,
             type: input.type,
             platform: input.platform,
